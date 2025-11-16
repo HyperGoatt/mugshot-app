@@ -59,7 +59,7 @@ struct LogVisitView: View {
     var body: some View {
         NavigationStack {
             mainContent
-                .background(Color.creamWhite)
+                .background(DS.Colors.screenBackground)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -70,10 +70,10 @@ struct LogVisitView: View {
                             // If we're in a sheet (from Saved/Map), dismiss it
                             dismiss()
                         }
-                        .foregroundColor(.espressoBrown)
+                        .foregroundColor(DS.Colors.textPrimary)
                     }
                 }
-                .toolbarBackground(Color.mugshotMint, for: .navigationBar)
+                .toolbarBackground(DS.Colors.appBarBackground, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .sheet(isPresented: $showCustomizeRatings) {
                     CustomizeRatingsView(
@@ -116,13 +116,13 @@ struct LogVisitView: View {
     private var mainContent: some View {
         ZStack {
             // Light background
-            Color.sandBeige.opacity(0.3)
+            DS.Colors.screenBackground
                 .ignoresSafeArea()
             
             ScrollViewReader { proxy in
                 ScrollView {
                     formContent
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                 }
                 .onChange(of: scrollToTop) { _, shouldScroll in
                     if shouldScroll {
@@ -141,15 +141,15 @@ struct LogVisitView: View {
             // Header section (inside scrollable content)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Log a Visit")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.screenTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Text("Share your sip and what made it special.")
-                    .font(.system(size: 16))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textSecondary)
             }
             .id("top")
-            .padding(.top, 16)
+            .padding(.top, DS.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
         
             // Cafe Location
@@ -210,10 +210,10 @@ struct LogVisitView: View {
             Button("Save Visit") {
                 saveVisit()
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(DSPrimaryButtonStyle())
             .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.top, DS.Spacing.sm)
+            .padding(.bottom, DS.Spacing.xxl)
         }
     }
     
@@ -343,8 +343,8 @@ struct CafeLocationSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Cafe Location")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
             if isSearchActive {
                 // Inline search mode
@@ -352,10 +352,10 @@ struct CafeLocationSection: View {
                     HStack(spacing: 12) {
                         HStack {
                             Image(systemName: "magnifyingglass")
-                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                .foregroundColor(DS.Colors.textSecondary)
                             
                             TextField("Search cafes...", text: $searchText)
-                                .foregroundColor(.espressoBrown)
+                                .foregroundColor(DS.Colors.textPrimary)
                                 .onChange(of: searchText) { oldValue, newValue in
                                     if !newValue.isEmpty {
                                         searchService.search(query: newValue, region: searchRegion)
@@ -370,16 +370,16 @@ struct CafeLocationSection: View {
                                     searchService.cancelSearch()
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.espressoBrown.opacity(0.4))
+                                        .foregroundColor(DS.Colors.iconSubtle)
                                 }
                             }
                         }
-                        .padding()
-                        .background(Color.creamWhite)
-                        .cornerRadius(DesignSystem.cornerRadius)
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackground)
+                        .cornerRadius(DS.Radius.md)
                         .overlay(
-                            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                .stroke(Color.sandBeige, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                         )
                         
                         Button("Cancel") {
@@ -387,7 +387,7 @@ struct CafeLocationSection: View {
                             searchService.cancelSearch()
                             isSearchActive = false
                         }
-                        .foregroundColor(.espressoBrown)
+                        .foregroundColor(DS.Colors.textPrimary)
                     }
                     
                     // Search results dropdown
@@ -411,45 +411,47 @@ struct CafeLocationSection: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Image(systemName: "location.fill")
-                                        .foregroundColor(.mugshotMint)
-                                        .font(.system(size: 14))
+                                            .foregroundColor(DS.Colors.primaryAccent)
+                                            .font(DS.Typography.caption1)
                                     Text(cafe.name)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.espressoBrown)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
                                 }
                                 
                                 if !cafe.address.isEmpty {
                                     Text(cafe.address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textSecondary)
                                 }
                             }
                         } else {
                             HStack {
                                 Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
+                                        .foregroundColor(DS.Colors.textSecondary)
                                 Text("Search for a Cafe…")
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
+                                        .foregroundColor(DS.Colors.textSecondary)
                             }
                         }
                         
                         Spacer()
                         
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.espressoBrown.opacity(0.4))
+                                .foregroundColor(DS.Colors.iconSubtle)
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackground)
+                        .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .cardStyle()
+        .modifier(DSBaseCard(background: DS.Colors.cardBackground) { EmptyView() }.modifierBody(for: {
+            EmptyView()
+        }))
     }
 }
 
@@ -567,8 +569,8 @@ struct DrinkTypeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Drink Type")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
             VStack(alignment: .leading, spacing: 0) {
                 // Main button
@@ -579,18 +581,18 @@ struct DrinkTypeSection: View {
                 }) {
                     HStack {
                         Text(showDropdown ? "Select drink type" : (drinkType == .other && !customDrinkType.isEmpty ? customDrinkType : (drinkType == .other && customDrinkType.isEmpty ? "Select drink type" : drinkType.rawValue)))
-                            .foregroundColor(showDropdown || (drinkType == .other && customDrinkType.isEmpty) ? .espressoBrown.opacity(0.6) : .espressoBrown)
+                            .foregroundColor(showDropdown || (drinkType == .other && customDrinkType.isEmpty) ? DS.Colors.textSecondary : DS.Colors.textPrimary)
                         Spacer()
                         Image(systemName: showDropdown ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.espressoBrown.opacity(0.4))
-                            .font(.system(size: 12))
+                            .foregroundColor(DS.Colors.iconSubtle)
+                            .font(DS.Typography.caption2)
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -610,37 +612,32 @@ struct DrinkTypeSection: View {
                             }) {
                                 HStack {
                                     Text(type.rawValue)
-                                        .foregroundColor(.espressoBrown)
+                                        .foregroundColor(DS.Colors.textPrimary)
                                     Spacer()
                                     if drinkType == type {
                                         Image(systemName: "checkmark")
-                                            .foregroundColor(.mugshotMint)
+                                            .foregroundColor(DS.Colors.primaryAccent)
                                     }
                                 }
-                                .padding()
+                                .padding(DS.Spacing.md)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(drinkType == type ? Color.mugshotMint.opacity(0.2) : Color.creamWhite)
+                                .background(drinkType == type ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackground)
                             }
                             .buttonStyle(.plain)
                             
                             if type != DrinkType.allCases.last {
                                 Divider()
-                                    .background(Color.sandBeige)
+                                    .background(DS.Colors.dividerSubtle)
                             }
                         }
                     }
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
-                    )
+                    .dsCardShadow()
                     .padding(.top, 4)
                 }
             }
@@ -648,20 +645,22 @@ struct DrinkTypeSection: View {
             // Custom drink type field (shown when "Other" is selected)
             if drinkType == .other {
                 TextField("What are you drinking?", text: $customDrinkType)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding()
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .tint(DS.Colors.primaryAccent)
+                    .accentColor(DS.Colors.primaryAccent)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
-                    .padding(.top, 8)
+                    .padding(.top, DS.Spacing.sm)
             }
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -675,8 +674,8 @@ struct PhotosSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Photos")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
             if photoImages.isEmpty {
                 Button(action: {
@@ -685,24 +684,24 @@ struct PhotosSection: View {
                     VStack(spacing: 8) {
                         Image(systemName: "camera")
                             .font(.system(size: 32))
-                            .foregroundColor(.espressoBrown.opacity(0.5))
+                            .foregroundColor(DS.Colors.iconSubtle)
                         
                         Text("Tap to add photos (\(photoImages.count)/10)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
                         
                         Text("Photos will be compressed automatically.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.espressoBrown.opacity(0.5))
+                            .font(DS.Typography.caption2)
+                            .foregroundColor(DS.Colors.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                     .background(Color.clear)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
                             .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                            .foregroundColor(.sandBeige)
+                            .foregroundColor(DS.Colors.borderSubtle)
                     )
                 }
                 .buttonStyle(.plain)
@@ -715,7 +714,7 @@ struct PhotosSection: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                                     .frame(width: 100, height: 100)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+                                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
                                 
                                 // Poster indicator
                                 if index == posterPhotoIndex {
@@ -723,8 +722,8 @@ struct PhotosSection: View {
                                         HStack {
                                             Spacer()
                                             Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.mugshotMint)
-                                                .background(Color.white)
+                                                .foregroundColor(DS.Colors.primaryAccent)
+                                                .background(DS.Colors.cardBackground)
                                                 .clipShape(Circle())
                                                 .padding(4)
                                         }
@@ -740,8 +739,8 @@ struct PhotosSection: View {
                                     }
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.red)
-                                        .background(Color.white)
+                                        .foregroundColor(DS.Colors.negativeChange)
+                                        .background(DS.Colors.cardBackground)
                                         .clipShape(Circle())
                                 }
                                 .offset(x: 4, y: -4)
@@ -760,12 +759,12 @@ struct PhotosSection: View {
                             Button(action: {
                                 showPhotoPicker = true
                             }) {
-                                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                    .fill(Color.sandBeige.opacity(0.3))
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .fill(DS.Colors.cardBackgroundAlt)
                                     .frame(width: 100, height: 100)
                                     .overlay(
                                         Image(systemName: "plus")
-                                            .foregroundColor(.espressoBrown.opacity(0.5))
+                                            .foregroundColor(DS.Colors.iconSubtle)
                                     )
                             }
                         }
@@ -773,7 +772,9 @@ struct PhotosSection: View {
                 }
             }
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -789,8 +790,8 @@ struct RatingsSection: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Ratings")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.sectionTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Spacer()
                 
@@ -799,11 +800,11 @@ struct RatingsSection: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "pencil")
-                            .font(.system(size: 12))
+                            .font(DS.Typography.caption2)
                         Text("Customize")
-                            .font(.system(size: 14))
+                            .font(DS.Typography.bodyText)
                     }
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(DS.Colors.primaryAccent)
                 }
             }
             
@@ -823,21 +824,17 @@ struct RatingsSection: View {
             
             HStack {
                 Text("Overall Score")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.sectionTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", overallScore))
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                }
+                DSScoreBadge(score: overallScore)
             }
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -851,13 +848,13 @@ struct RatingCategoryRow: View {
             HStack {
                 HStack(spacing: 4) {
                     Text(category.name)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.espressoBrown)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textPrimary)
                     
                     if weightMultiplier != 1.0 {
                         Text("(\(formatWeight(weightMultiplier)) importance)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.mugshotMint)
+                            .font(DS.Typography.caption2)
+                            .foregroundColor(DS.Colors.primaryAccent)
                     }
                 }
                 
@@ -872,7 +869,7 @@ struct RatingCategoryRow: View {
                         rating = rating == newRating ? 0.0 : newRating
                     }) {
                         Image(systemName: rating > Double(index) ? "star.fill" : "star")
-                            .foregroundColor(rating > Double(index) ? .mugshotMint : .espressoBrown.opacity(0.3))
+                            .foregroundColor(rating > Double(index) ? DS.Colors.primaryAccent : DS.Colors.textTertiary)
                             .font(.system(size: 20))
                     }
                 }
@@ -899,14 +896,14 @@ struct CaptionSection: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Caption")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.sectionTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Spacer()
                 
                 Text("\(caption.count)/200")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .font(DS.Typography.caption2)
+                    .foregroundColor(DS.Colors.textSecondary)
             }
             
             TextField("Share your thoughts or first impressions…", text: Binding(
@@ -918,18 +915,20 @@ struct CaptionSection: View {
                 }
             ), axis: .vertical)
                 .lineLimit(3...6)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
+                .foregroundColor(DS.Colors.textPrimary)
+                .tint(DS.Colors.primaryAccent)
+                .accentColor(DS.Colors.primaryAccent)
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.cardBackground)
+                .cornerRadius(DS.Radius.md)
                 .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                 )
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -941,23 +940,25 @@ struct NotesSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Notes (Optional)")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
             TextField("Anything extra you'd like to remember?", text: $notes, axis: .vertical)
                 .lineLimit(3...8)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
+                .foregroundColor(DS.Colors.textPrimary)
+                .tint(DS.Colors.primaryAccent)
+                .accentColor(DS.Colors.primaryAccent)
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.cardBackground)
+                .cornerRadius(DS.Radius.md)
                 .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                 )
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -969,10 +970,10 @@ struct VisibilitySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Visibility")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Spacing.lg) {
                 VisibilityButton(
                     title: "Private",
                     subtitle: "Only you",
@@ -1009,20 +1010,20 @@ struct VisibilityButton: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isSelected ? .espressoBrown : .espressoBrown.opacity(0.7))
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(isSelected ? DS.Colors.textPrimary : DS.Colors.textSecondary)
                 
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .font(DS.Typography.caption2)
+                    .foregroundColor(DS.Colors.textSecondary)
             }
             .frame(maxWidth: .infinity)
-            .padding()
-            .background(isSelected ? Color.mugshotMint.opacity(0.2) : Color.sandBeige.opacity(0.3))
-            .cornerRadius(DesignSystem.cornerRadius)
+            .padding(DS.Spacing.md)
+            .background(isSelected ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackgroundAlt)
+            .cornerRadius(DS.Radius.md)
             .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(isSelected ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
             )
         }
     }

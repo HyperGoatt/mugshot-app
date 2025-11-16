@@ -56,12 +56,13 @@ struct MainTabView: View {
                 .tag(4)
         }
         .environmentObject(tabCoordinator)
-        .accentColor(.mugshotMint)
+        .accentColor(DS.Colors.primaryAccent)
+        .background(DS.Colors.screenBackground)
         .onAppear {
             // Ensure tab bar has consistent appearance
             let appearance = UITabBarAppearance()
             appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor(Color.creamWhite)
+            appearance.backgroundColor = UIColor(DS.Colors.cardBackground)
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }

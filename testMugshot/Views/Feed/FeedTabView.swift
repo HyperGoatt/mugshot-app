@@ -16,12 +16,12 @@ struct PosterImageView: View {
             PhotoImageView(photoPath: posterPath)
         } else {
             // Fallback placeholder
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .fill(Color.sandBeige)
+            RoundedRectangle(cornerRadius: DS.Radius.card)
+                .fill(DS.Colors.cardBackgroundAlt)
                 .overlay(
                     Image(systemName: "photo")
                         .font(.system(size: 48))
-                        .foregroundColor(.espressoBrown.opacity(0.3))
+                        .foregroundColor(DS.Colors.iconSubtle)
                 )
         }
     }
@@ -38,77 +38,36 @@ struct FeedTabView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Custom header
-                VStack(alignment: .leading, spacing: 0) {
-                    // Top spacing from safe area
-                    Spacer()
-                        .frame(height: 16)
+                // Header
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    Text("Feed")
+                        .font(DS.Typography.screenTitle)
+                        .foregroundColor(DS.Colors.textPrimary)
+                    Text("Sips from the community")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
                     
-                    // Title and search icon row
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Feed")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            Text("Sips from the community")
-                                .font(.system(size: 15))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            // Search functionality - can be added later
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
-                                .foregroundColor(.espressoBrown)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    
-                    // Space between subtitle and toggle
-                    Spacer()
-                        .frame(height: 12)
-                    
-                    // Pill-style scope toggle container - centered
+                    // Scope toggle
                     HStack {
                         Spacer()
-                        HStack(spacing: 0) {
-                            ForEach(FeedScope.allCases, id: \.self) { scope in
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        selectedScope = scope
-                                    }
-                                }) {
-                                    Text(scope.displayName)
-                                        .font(.system(size: 14, weight: selectedScope == scope ? .semibold : .medium))
-                                        .foregroundColor(selectedScope == scope ? .espressoBrown : .espressoBrown.opacity(0.7))
-                                        .frame(width: 90)
-                                        .frame(height: 36)
-                                        .background(
-                                            selectedScope == scope 
-                                                ? Color.creamWhite 
-                                                : Color.clear
-                                        )
-                                        .cornerRadius(18)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(4)
-                        .background(Color.sandBeige.opacity(0.4))
-                        .cornerRadius(18)
+                        DSDesignSegmentedControl(
+                            options: FeedScope.allCases.map { $0.displayName },
+                            selectedIndex: Binding(
+                                get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
+                                set: { selectedScope = FeedScope.allCases[$0] }
+                            )
+                        )
                         Spacer()
                     }
-                    .padding(.bottom, 16)
+                    .padding(.top, DS.Spacing.md)
                 }
-                .background(Color.creamWhite)
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.vertical, DS.Spacing.md)
+                .background(DS.Colors.appBarBackground)
                 
                 // Feed cards
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: DS.Spacing.cardVerticalGap) {
                         ForEach(visits) { visit in
                             VisitCard(
                                 visit: visit,
@@ -127,13 +86,13 @@ struct FeedTabView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.top, DS.Spacing.md)
+                    .padding(.bottom, DS.Spacing.xxl)
                 }
-                .background(Color.sandBeige.opacity(0.3))
+                .background(DS.Colors.screenBackground)
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
         }
         .fullScreenCover(isPresented: $showVisitDetail) {
             if let visit = selectedVisit {
@@ -181,77 +140,65 @@ struct VisitCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        DSBaseCard {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Top author bar
             HStack(alignment: .top, spacing: 12) {
                 // Avatar - 32pt diameter
                 Circle()
-                    .fill(Color.mugshotMint)
+                    .fill(DS.Colors.primaryAccent)
                     .frame(width: 32, height: 32)
                     .overlay(
                         Text(user?.username.prefix(1).uppercased() ?? "U")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
+                            .font(DS.Typography.caption1)
+                            .foregroundColor(DS.Colors.textOnMint)
                     )
                 
                 // Name and date
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(user?.displayNameOrUsername ?? user?.username ?? "user")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.espressoBrown)
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textPrimary)
                         
                         if isCurrentUser {
                             Text("You")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(10)
+                                    .font(DS.Typography.metaLabel)
+                                    .foregroundColor(DS.Colors.textOnBlue)
+                                    .padding(.horizontal, DS.Spacing.sm)
+                                    .padding(.vertical, 2)
+                                    .background(DS.Colors.blueSoftFill)
+                                    .cornerRadius(DS.Radius.chip)
                         }
                     }
                     
                     Text(formatDate(visit.createdAt))
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
+                            .font(DS.Typography.caption1)
+                            .foregroundColor(DS.Colors.textSecondary)
                 }
                 
                 Spacer()
                 
                 // Rating badge
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.sandBeige.opacity(0.5))
-                .cornerRadius(12)
+                    DSScoreBadge(score: visit.overallScore)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
             
             // Main hero image - fixed 4:3 aspect ratio
             if !visit.photos.isEmpty {
                 PosterImageView(visit: visit)
                     .aspectRatio(4/3, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity)
                     .clipped()
-            } else {
+                        .cornerRadius(DS.Radius.card)
+                } else {
                 // Placeholder when no photo
                 Rectangle()
-                    .fill(Color.sandBeige)
+                        .fill(DS.Colors.cardBackgroundAlt)
                     .aspectRatio(4/3, contentMode: .fit)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.system(size: 48))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
+                                .foregroundColor(DS.Colors.iconSubtle)
                     )
             }
             
@@ -260,36 +207,33 @@ struct VisitCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.mugshotMint)
+                                .font(.system(size: 11))
+                                .foregroundColor(DS.Colors.primaryAccent)
                         Button(action: {
                             onCafeTap?()
                         }) {
                             Text(cafe?.name ?? "Unknown Café")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.espressoBrown)
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textPrimary)
                         }
                         .buttonStyle(.plain)
                     }
                     
                     Text(visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? ""))
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
                 
                 // Caption
                 if !visit.caption.isEmpty {
                     MentionText(text: visit.caption, mentions: visit.mentions)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown)
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textPrimary)
                         .lineLimit(2)
-                        .padding(.horizontal, 16)
                 }
                 
                 // Social row
-                HStack(spacing: 16) {
+                    HStack(spacing: DS.Spacing.lg) {
                     Button(action: {
                         if let userId = dataManager.appData.currentUser?.id {
                             dataManager.toggleVisitLike(visit.id, userId: userId)
@@ -297,38 +241,29 @@ struct VisitCard: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: isLiked ? "heart.fill" : "heart")
-                                .font(.system(size: 15))
-                                .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
+                                    .font(.system(size: 15))
+                                    .foregroundColor(isLiked ? DS.Colors.primaryAccent : DS.Colors.textSecondary)
                             Text("\(visit.likeCount)")
-                                .font(.system(size: 14))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textSecondary)
                         }
                     }
                     .buttonStyle(.plain)
                     
                     HStack(spacing: 4) {
                         Image(systemName: "bubble.right")
-                            .font(.system(size: 15))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                                .font(.system(size: 15))
+                                .foregroundColor(DS.Colors.textSecondary)
                         Text("\(visit.commentCount)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
                     }
                     
                     Spacer()
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+            }
             }
         }
-        .background(Color.creamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(
-            color: Color.black.opacity(0.05),
-            radius: 4,
-            x: 0,
-            y: 2
-        )
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -390,20 +325,20 @@ struct VisitDetailView: View {
                                     ForEach(orderedPhotos, id: \.self) { photoPath in
                                         PhotoImageView(photoPath: photoPath)
                                             .frame(width: 300, height: 300)
-                                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
+                                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card))
                                     }
                                 }
                                 .padding()
                             }
                         } else {
                             // Fallback placeholder when no photos
-                            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                .fill(Color.sandBeige)
+                            RoundedRectangle(cornerRadius: DS.Radius.card)
+                                .fill(DS.Colors.cardBackgroundAlt)
                                 .frame(height: 200)
                                 .overlay(
                                     Image(systemName: "photo")
                                         .font(.system(size: 48))
-                                        .foregroundColor(.espressoBrown.opacity(0.3))
+                                        .foregroundColor(DS.Colors.iconSubtle)
                                 )
                                 .padding(.horizontal)
                         }
@@ -412,33 +347,33 @@ struct VisitDetailView: View {
                             // Header: Cafe + Author
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(cafe?.name ?? "Unknown Café")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(.espressoBrown)
+                                    .font(DS.Typography.title1(.bold))
+                                    .foregroundColor(DS.Colors.textPrimary)
                                 
                                 if let address = cafe?.address, !address.isEmpty {
                                     Text(address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
+                                        .font(DS.Typography.bodyText)
+                                        .foregroundColor(DS.Colors.textSecondary)
                                 }
                                 
                                 HStack(spacing: 8) {
                                     Circle()
-                                        .fill(Color.mugshotMint)
+                                        .fill(DS.Colors.primaryAccent)
                                         .frame(width: 40, height: 40)
                                         .overlay(
                                             Text(user?.username.prefix(1).uppercased() ?? "U")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(.espressoBrown)
+                                                .font(DS.Typography.caption1)
+                                                .foregroundColor(DS.Colors.textOnMint)
                                         )
                                     
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("@\(user?.username ?? "user")")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
                                         
                                         Text(timeAgoString(from: visit.createdAt))
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.espressoBrown.opacity(0.6))
+                                            .font(DS.Typography.caption2)
+                                            .foregroundColor(DS.Colors.textSecondary)
                                     }
                                     
                                     Spacer()
@@ -451,91 +386,87 @@ struct VisitDetailView: View {
                             // Drink type
                             HStack {
                                 Text("Drink")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
+                                    .font(DS.Typography.sectionTitle)
+                                    .foregroundColor(DS.Colors.textPrimary)
                                 
                                 Spacer()
                                 
                                 Text(visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? ""))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textSecondary)
                             }
                             
                             // Overall score
                             HStack {
                                 Text("Overall Score")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
+                                    .font(DS.Typography.sectionTitle)
+                                    .foregroundColor(DS.Colors.textPrimary)
                                 
                                 Spacer()
                                 
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.mugshotMint)
-                                    Text(String(format: "%.1f", visit.overallScore))
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.espressoBrown)
-                                }
+                                DSScoreBadge(score: visit.overallScore)
                             }
                             
                             // Rating breakdown
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Rating Breakdown")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                ForEach(Array(visit.ratings.keys.sorted()), id: \.self) { category in
-                                    if let rating = visit.ratings[category] {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            HStack {
-                                                Text(category)
-                                                    .font(.system(size: 14))
-                                                    .foregroundColor(.espressoBrown)
-                                                Spacer()
-                                                Text(String(format: "%.1f", rating))
-                                                    .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundColor(.mugshotMint)
+                            DSBaseCard {
+                                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                                    Text("Rating Breakdown")
+                                        .font(DS.Typography.sectionTitle)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                    
+                                    ForEach(Array(visit.ratings.keys.sorted()), id: \.self) { category in
+                                        if let rating = visit.ratings[category] {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack {
+                                                    Text(category)
+                                                        .font(DS.Typography.bodyText)
+                                                        .foregroundColor(DS.Colors.textPrimary)
+                                                    Spacer()
+                                                    Text(String(format: "%.1f", rating))
+                                                        .font(DS.Typography.bodyText)
+                                                        .foregroundColor(DS.Colors.primaryAccent)
+                                                }
+                                                
+                                                ProgressView(value: rating, total: 5.0)
+                                                    .tint(DS.Colors.primaryAccent)
                                             }
-                                            
-                                            ProgressView(value: rating, total: 5.0)
-                                                .tint(.mugshotMint)
                                         }
                                     }
                                 }
                             }
-                            .padding()
-                            .background(Color.sandBeige.opacity(0.3))
-                            .cornerRadius(DesignSystem.cornerRadius)
                             
                             // Caption with mentions
                             if !visit.caption.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Caption")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown)
-                                    
-                                    MentionText(text: visit.caption, mentions: visit.mentions)
-                                        .font(.system(size: 14))
+                                DSBaseCard {
+                                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                        Text("Caption")
+                                            .font(DS.Typography.sectionTitle)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                        MentionText(text: visit.caption, mentions: visit.mentions)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                    }
                                 }
                             }
                             
                             // Notes (private)
                             if let notes = visit.notes, !notes.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Private Notes")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                    
-                                    Text(notes)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
+                                DSBaseCard {
+                                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                        Text("Private Notes")
+                                            .font(DS.Typography.sectionTitle)
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                        Text(notes)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                    }
                                 }
                             }
                             
                             Divider()
                             
                             // Social actions
-                            HStack(spacing: 32) {
+                            HStack(spacing: DS.Spacing.section) {
                                 Button(action: {
                                     if let userId = dataManager.appData.currentUser?.id {
                                         dataManager.toggleVisitLike(visit.id, userId: userId)
@@ -548,10 +479,10 @@ struct VisitDetailView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: isLiked ? "heart.fill" : "heart")
                                             .font(.system(size: 18))
-                                            .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
+                                            .foregroundColor(isLiked ? DS.Colors.primaryAccent : DS.Colors.textSecondary)
                                         Text("\(visit.likeCount)")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
                                     }
                                 }
                                 .buttonStyle(.plain)
@@ -559,28 +490,30 @@ struct VisitDetailView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "bubble.right")
                                         .font(.system(size: 18))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
+                                        .foregroundColor(DS.Colors.textSecondary)
                                     Text("\(visit.commentCount)")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown)
+                                        .font(DS.Typography.bodyText)
+                                        .foregroundColor(DS.Colors.textPrimary)
                                 }
                             }
                             .padding(.vertical, 8)
                             
                             // Comments section
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Comments")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                if comments.isEmpty {
-                                    Text("No comments yet")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.6))
-                                        .padding(.vertical, 8)
-                                } else {
-                                    ForEach(comments) { comment in
-                                        CommentRow(comment: comment, dataManager: dataManager)
+                            DSBaseCard {
+                                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                                    Text("Comments")
+                                        .font(DS.Typography.sectionTitle)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                    
+                                    if comments.isEmpty {
+                                        Text("No comments yet")
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                            .padding(.vertical, DS.Spacing.sm)
+                                    } else {
+                                        ForEach(comments) { comment in
+                                            CommentRow(comment: comment, dataManager: dataManager)
+                                        }
                                     }
                                 }
                             }
@@ -594,15 +527,15 @@ struct VisitDetailView: View {
                     Divider()
                     HStack(spacing: 12) {
                         TextField("Add a comment…", text: $commentText, axis: .vertical)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .tint(DS.Colors.primaryAccent)
+                            .accentColor(DS.Colors.primaryAccent)
                             .padding(8)
-                            .background(Color.inputBackground)
-                            .cornerRadius(DesignSystem.smallCornerRadius)
+                            .background(DS.Colors.cardBackground)
+                            .cornerRadius(DS.Radius.md)
                             .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                    .stroke(Color.inputBorder, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                             )
                             .focused($isCommentFocused)
                             .lineLimit(1...4)
@@ -611,16 +544,16 @@ struct VisitDetailView: View {
                             addComment()
                         }) {
                             Text("Send")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.mugshotMint)
+                                .font(DS.Typography.buttonLabel)
+                                .foregroundColor(DS.Colors.primaryAccent)
                         }
                         .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding()
-                    .background(Color.creamWhite)
+                    .background(DS.Colors.cardBackground)
                 }
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Visit Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -637,7 +570,7 @@ struct VisitDetailView: View {
                             } label: {
                                 Image(systemName: "ellipsis.circle")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
+                                    .foregroundColor(DS.Colors.textPrimary)
                             }
                         }
                     }
@@ -704,63 +637,69 @@ struct VisitDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         // Caption
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Caption")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            TextField("Caption", text: $editableVisit.caption, axis: .vertical)
-                                .lineLimit(3...6)
-                                .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
-                                .padding()
-                                .background(Color.inputBackground)
-                                .cornerRadius(DesignSystem.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                        .stroke(Color.inputBorder, lineWidth: 1)
-                                )
-                        }
+                            DSBaseCard {
+                                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                    Text("Caption")
+                                        .font(DS.Typography.sectionTitle)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                    TextField("Caption", text: $editableVisit.caption, axis: .vertical)
+                                        .lineLimit(3...6)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                        .tint(DS.Colors.primaryAccent)
+                                        .padding()
+                                        .background(DS.Colors.cardBackground)
+                                        .cornerRadius(DS.Radius.md)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                                        )
+                                }
+                            }
                         
                         // Notes
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Notes")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            TextField("Notes", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
-                                .lineLimit(3...8)
-                                .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
-                                .padding()
-                                .background(Color.inputBackground)
-                                .cornerRadius(DesignSystem.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                        .stroke(Color.inputBorder, lineWidth: 1)
-                                )
-                        }
+                            DSBaseCard {
+                                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                    Text("Notes")
+                                        .font(DS.Typography.sectionTitle)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                    TextField("Notes", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
+                                        .lineLimit(3...8)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                        .tint(DS.Colors.primaryAccent)
+                                        .padding()
+                                        .background(DS.Colors.cardBackground)
+                                        .cornerRadius(DS.Radius.md)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                                        )
+                                }
+                            }
                         
                         // Visibility
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Visibility")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            Picker("", selection: $editableVisit.visibility) {
-                                Text("Private").tag(VisitVisibility.private)
-                                Text("Friends").tag(VisitVisibility.friends)
-                                Text("Everyone").tag(VisitVisibility.everyone)
+                            DSBaseCard {
+                                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                    Text("Visibility")
+                                        .font(DS.Typography.sectionTitle)
+                                        .foregroundColor(DS.Colors.textPrimary)
+                                    Picker("", selection: $editableVisit.visibility) {
+                                        Text("Private").tag(VisitVisibility.private)
+                                        Text("Friends").tag(VisitVisibility.friends)
+                                        Text("Everyone").tag(VisitVisibility.everyone)
+                                    }
+                                    .pickerStyle(.segmented)
+                                }
                             }
-                            .pickerStyle(.segmented)
-                        }
                     }
                     .padding()
                 }
-                .background(Color.creamWhite)
+                    .background(DS.Colors.screenBackground)
                 .navigationTitle("Edit Visit")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("Cancel") { dismiss() }
-                            .foregroundColor(.espressoBrown)
+                            .foregroundColor(DS.Colors.textPrimary)
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
@@ -768,7 +707,7 @@ struct VisitDetailView: View {
                             onSave(editableVisit)
                             dismiss()
                         }
-                        .foregroundColor(.mugshotMint)
+                            .foregroundColor(DS.Colors.primaryAccent)
                     }
                 }
             }
@@ -806,34 +745,35 @@ struct CommentRow: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DS.Spacing.md) {
             Circle()
-                .fill(Color.mugshotMint)
+                .fill(DS.Colors.primaryAccent)
                 .frame(width: 40, height: 40)
                 .overlay(
                     Text(user?.username.prefix(1).uppercased() ?? "U")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
+                        .font(DS.Typography.caption1)
+                        .foregroundColor(DS.Colors.textOnMint)
                 )
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("@\(user?.username ?? "user")")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 MentionText(text: comment.text, mentions: comment.mentions)
-                    .font(.system(size: 14))
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Text(timeAgoString(from: comment.createdAt))
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .font(DS.Typography.caption2)
+                    .foregroundColor(DS.Colors.textSecondary)
             }
             
             Spacer()
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.smallCornerRadius)
+        .padding(DS.Spacing.cardPadding)
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.md)
     }
     
     private func timeAgoString(from date: Date) -> String {

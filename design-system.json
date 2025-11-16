@@ -1,0 +1,508 @@
+{
+    "meta": {
+      "name": "Mugshot Design System (Implementation Spec)",
+      "version": "1.0.0",
+      "description": "Implementation-focused design system and guidelines for Mugshot — a journaling social app to rate cafes and the drinks you order. Optimized so AI can extend Mugshot with new screens and components while preserving the existing mint, card-based, iOS-native aesthetic."
+    },
+    "principles": {
+      "visualStyle": [
+        "Soft, friendly, approachable: rounded cards, generous white space, and subtle elevation instead of harsh borders.",
+        "Calm, low-noise palette: most surfaces are white or very light gray with mint and blue accents used sparingly.",
+        "Content-first coffee journaling: photos, ratings, and visit logs are the hero; chrome stays quiet and supportive.",
+        "iOS-native feel: system typography, familiar navigation patterns, and spacing that matches iOS Human Interface Guidelines.",
+        "Consistent card grammar: nearly all content (logs, stats, lists, profiles) sits inside rounded cards or structured sections with clear titles."
+      ],
+      "interaction": [
+        "Primary actions use a full-width mint filled button with strong clarity and enough vertical padding.",
+        "State changes (selected, active, disabled) rely on color, subtle fills, and occasional elevation; avoid heavy borders.",
+        "Animations are gentle and purposeful (e.g., segmented control selection, button presses) — no playful bounces.",
+        "Tap targets must be comfortable: minimum 44x44 pt with sufficient spacing between interactive elements.",
+        "Scrolling is primarily vertical on most screens, with clear sections and consistent padding."
+      ],
+      "layout": [
+        "Single-column, vertical scroll: content is stacked in sections with section headers and cards.",
+        "Top header (app bar) defines the page identity; filters and controls live just below it.",
+        "Use system-aligned page padding so content never touches the screen edges.",
+        "Use grids for metrics when showing more than two stats to keep structure predictable."
+      ],
+      "dataVisualization": [
+        "Prefer simple stat tiles and badges over complex charts.",
+        "Use color sparingly to indicate positive or negative change; do not rely on color alone (include labels like '+12.5%').",
+        "Key metrics like average rating, total visits, and beverage mix should be immediately scannable: larger numbers, smaller supporting labels and subtitles."
+      ]
+    },
+    "foundations": {
+      "colors": {
+        "palette": {
+          "mintLight": "#D6F0D6",
+          "mintMain": "#B7E2B5",
+          "mintDark": "#8AC28E",
+          "mintSoftFill": "#ECF8EC",
+          "blueAccent": "#2563EB",
+          "blueSoftFill": "#E5F0FF",
+          "yellowAccent": "#FACC15",
+          "redAccent": "#EF4444",
+          "neutralBackground": "#F5F5F7",
+          "neutralCard": "#FFFFFF",
+          "neutralCardAlt": "#F9FAFB",
+          "neutralBorder": "#E5E7EB",
+          "neutralDivider": "#E5E7EB",
+          "textPrimary": "#111827",
+          "textSecondary": "#6B7280",
+          "textTertiary": "#9CA3AF",
+          "textOnMint": "#052E16",
+          "textOnBlue": "#0B1120",
+          "iconDefault": "#6B7280",
+          "iconSubtle": "#9CA3AF"
+        },
+        "roles": {
+          "appBarBackground": "mintLight",
+          "screenBackground": "neutralBackground",
+          "cardBackground": "neutralCard",
+          "cardBackgroundAlt": "neutralCardAlt",
+          "primaryAccent": "mintMain",
+          "primaryAccentHover": "mintDark",
+          "primaryAccentSoftFill": "mintSoftFill",
+          "secondaryAccent": "blueAccent",
+          "textPrimary": "textPrimary",
+          "textSecondary": "textSecondary",
+          "textTertiary": "textTertiary",
+          "dividerSubtle": "neutralDivider",
+          "borderSubtle": "neutralBorder",
+          "iconDefault": "iconDefault",
+          "iconSubtle": "iconSubtle",
+          "positiveChange": "mintMain",
+          "negativeChange": "redAccent",
+          "neutralChange": "yellowAccent"
+        },
+        "usageNotes": [
+          "Use mintMain as the primary accent for filled buttons and major positive highlights.",
+          "Use mintLight for page headers and soft top sections to create a branded band behind the title.",
+          "Use blueAccent for secondary emphasis such as score badges or non-primary CTAs.",
+          "Screen background must always use neutralBackground so that white cards are visually elevated.",
+          "Avoid pure black; all default text must use textPrimary, textSecondary, or textTertiary.",
+          "Dividers and borders should remain subtle and low-contrast using neutralDivider or neutralBorder."
+        ]
+      },
+      "typography": {
+        "fontFamilies": {
+          "primary": "System UI (SF Pro Text on iOS)"
+        },
+        "scale": {
+          "display": {
+            "fontSize": 34,
+            "lineHeight": 40,
+            "fontWeight": "bold"
+          },
+          "title1": {
+            "fontSize": 28,
+            "lineHeight": 34,
+            "fontWeight": "bold"
+          },
+          "title2": {
+            "fontSize": 22,
+            "lineHeight": 28,
+            "fontWeight": "semibold"
+          },
+          "headline": {
+            "fontSize": 17,
+            "lineHeight": 22,
+            "fontWeight": "semibold"
+          },
+          "body": {
+            "fontSize": 17,
+            "lineHeight": 22,
+            "fontWeight": "regular"
+          },
+          "callout": {
+            "fontSize": 16,
+            "lineHeight": 21,
+            "fontWeight": "regular"
+          },
+          "subheadline": {
+            "fontSize": 15,
+            "lineHeight": 20,
+            "fontWeight": "regular"
+          },
+          "caption1": {
+            "fontSize": 13,
+            "lineHeight": 18,
+            "fontWeight": "regular"
+          },
+          "caption2": {
+            "fontSize": 11,
+            "lineHeight": 14,
+            "fontWeight": "regular"
+          },
+          "statNumber": {
+            "fontSize": 24,
+            "lineHeight": 28,
+            "fontWeight": "semibold"
+          }
+        },
+        "roleMapping": {
+          "screenTitle": "title1",
+          "sectionTitle": "headline",
+          "cardTitle": "headline",
+          "cardSubtitle": "subheadline",
+          "bodyText": "body",
+          "metaLabel": "caption2",
+          "pillLabel": "caption1",
+          "buttonLabel": "headline",
+          "numericStat": "statNumber"
+        },
+        "usageNotes": [
+          "Use sentence case for almost all text (e.g., 'View full analytics', not 'VIEW FULL ANALYTICS').",
+          "Screen titles should be bold and left-aligned.",
+          "Use caption styles for small metadata labels and uppercased stat labels.",
+          "Use statNumber for key numeric metrics in tiles and summary stats."
+        ]
+      },
+      "spacing": {
+        "unit": 4,
+        "scale": {
+          "xs": 4,
+          "sm": 8,
+          "md": 12,
+          "lg": 16,
+          "xl": 20,
+          "xxl": 24,
+          "section": 32,
+          "pagePadding": 16,
+          "cardPadding": 16,
+          "cardPaddingDense": 12,
+          "cardVerticalGap": 12,
+          "sectionVerticalGap": 24,
+          "listItemGap": 10
+        },
+        "layoutPatterns": [
+          "Use 16pt pagePadding for horizontal padding on most screens.",
+          "SectionVerticalGap of 24pt is used between major sections (e.g., header, metrics, content list, platform breakdown).",
+          "Use cardPadding (16pt) for the internal padding of most cards.",
+          "Use smaller gaps (8–12pt) for spacing between inline elements inside a card."
+        ]
+      },
+      "cornerRadius": {
+        "tokens": {
+          "xs": 4,
+          "sm": 8,
+          "md": 12,
+          "lg": 16,
+          "xl": 20,
+          "xxl": 24,
+          "pill": 999
+        },
+        "usage": {
+          "cards": "xl",
+          "primaryButtons": "lg",
+          "chips": "pill",
+          "segmentedControlContainer": "pill",
+          "segmentedControlOption": "pill"
+        }
+      },
+      "shadow": {
+        "cardSoft": {
+          "blurRadius": 18,
+          "offsetY": 6,
+          "opacity": 0.08,
+          "color": "#000000"
+        },
+        "cardLifted": {
+          "blurRadius": 24,
+          "offsetY": 8,
+          "opacity": 0.12,
+          "color": "#000000"
+        },
+        "usageNotes": [
+          "Use cardSoft for primary elevated cards like the main content cards on the dashboard.",
+          "Use cardLifted sparingly for elements that need extra prominence (e.g., floating CTAs or elevated overlays).",
+          "Avoid using shadows on every element; cards should feel light, not heavy."
+        ]
+      }
+    },
+    "layout": {
+      "appBar": {
+        "backgroundColorToken": "appBarBackground",
+        "titleTypographyToken": "screenTitle",
+        "subtitleTypographyToken": "bodyText",
+        "titleColorToken": "textPrimary",
+        "subtitleColorToken": "textSecondary",
+        "paddingHorizontalToken": "pagePadding",
+        "paddingTopToken": "xxl",
+        "paddingBottomToken": "md",
+        "notes": "Mint header band with status bar, screen title, and subtitle (e.g., 'Saved', 'Feed', 'Log a Visit'). Content scrolls beneath or starts just below."
+      },
+      "dashboardPage": {
+        "backgroundColorToken": "screenBackground",
+        "scrollDirection": "vertical",
+        "sectionsOrder": [
+          "header",
+          "timeframeFilter",
+          "keyMetricsGrid",
+          "contentPerformanceSection",
+          "platformBreakdownSection",
+          "primaryCTA"
+        ],
+        "notes": "Generic pattern for Mugshot’s stat-heavy pages such as Coffee Journey and profile analytics: header, optional filters, stat tiles grid, list-style sections, and a primary CTA. All sections use consistent horizontal padding and sectionVerticalGap spacing."
+      },
+      "metricGrid": {
+        "columns": 2,
+        "horizontalSpacingToken": "cardVerticalGap",
+        "verticalSpacingToken": "cardVerticalGap",
+        "notes": "Stat tiles are rendered in a 2-column grid with equal-width cards and equal spacing."
+      }
+    },
+    "components": {
+      "button": {
+        "primary": {
+          "swiftType": "PrimaryButton",
+          "props": [
+            "title",
+            "action",
+            "isEnabled"
+          ],
+          "backgroundColorToken": "primaryAccent",
+          "disabledBackgroundColorToken": "primaryAccentSoftFill",
+          "foregroundColorToken": "textOnMint",
+          "cornerRadiusToken": "lg",
+          "horizontalPaddingToken": "lg",
+          "verticalPaddingToken": "md",
+          "labelTypographyToken": "buttonLabel",
+          "shadowToken": "cardSoft",
+          "layout": "fullWidth",
+          "notes": "Use for primary CTAs such as 'Sign In', 'Log a Visit', 'Save Visit', or 'View mutual cafe'. Buttons are typically full-width on mobile with 16pt side padding. When disabled, use primaryAccentSoftFill and keep the label readable."
+        }
+      },
+      "cards": {
+        "statTileCard": {
+          "swiftType": "StatTileCard",
+          "props": [
+            "label",
+            "value",
+            "subtitle?"
+          ],
+          "backgroundColorToken": "cardBackgroundAlt",
+          "cornerRadiusToken": "lg",
+          "paddingToken": "cardPadding",
+          "layout": "verticalStackCentered",
+          "elements": {
+            "label": {
+              "typographyToken": "metaLabel",
+              "colorToken": "textSecondary",
+              "textTransform": "uppercase"
+            },
+            "value": {
+              "typographyToken": "numericStat",
+              "colorToken": "textPrimary"
+            },
+            "subtitle": {
+              "typographyToken": "caption2",
+              "colorToken": "textTertiary"
+            }
+          },
+          "notes": "Used for top-level metrics like Total Visits, Cafes Visited, Avg Rating, and Favorite Drink on Coffee Journey and profile screens."
+        },
+        "baseCard": {
+          "swiftType": "BaseCard",
+          "backgroundColorToken": "cardBackground",
+          "cornerRadiusToken": "xl",
+          "paddingToken": "cardPadding",
+          "shadowToken": "cardSoft",
+          "layout": "flexible",
+          "notes": "Generic card container used across Mugshot for grouped content such as Content Performance-style lists, Platform Breakdown, Ratings sections, visibility choices, and coffee journey summaries."
+        }
+      },
+      "headers": {
+        "sectionHeader": {
+          "swiftType": "SectionHeader",
+          "props": [
+            "title",
+            "subtitle?"
+          ],
+          "layout": "verticalStackLeftAligned",
+          "elements": {
+            "title": {
+              "typographyToken": "sectionTitle",
+              "colorToken": "textPrimary"
+            },
+            "subtitle": {
+              "typographyToken": "cardSubtitle",
+              "colorToken": "textSecondary"
+            }
+          },
+          "notes": "Use at the top of each card or page section to label content (e.g., 'Coffee Journey', 'Saved', 'Ratings'), optionally with a short supporting subtitle."
+        }
+      },
+      "badges": {
+        "scoreBadge": {
+          "swiftType": "ScoreBadge",
+          "props": [
+            "score",
+            "icon"
+          ],
+          "layout": "horizontalChip",
+          "elements": {
+            "icon": {
+              "systemName": true,
+              "size": 12
+            },
+            "label": {
+              "typographyToken": "caption1",
+              "colorToken": "blueAccent"
+            }
+          },
+          "padding": {
+            "horizontalToken": "listItemGap",
+            "vertical": 6
+          },
+          "backgroundColorToken": "blueSoftFill",
+          "cornerRadiusToken": "pill",
+          "notes": "Use for small numeric scores (e.g., 4.2 average rating) or summary labels that need a compact, pill-like badge on cards and profile stats."
+        }
+      },
+      "segmentedControl": {
+        "designSegmentedControl": {
+          "swiftType": "DesignSegmentedControl",
+          "props": [
+            "options",
+            "selectedIndex (Binding<Int>)"
+          ],
+          "container": {
+            "backgroundColorToken": "neutralBackground",
+            "cornerRadiusToken": "pill",
+            "paddingHorizontal": 4,
+            "paddingVertical": 4
+          },
+          "segment": {
+            "cornerRadiusToken": "pill",
+            "selectedBackgroundColorToken": "cardBackground",
+            "selectedLabelColorToken": "textPrimary",
+            "unselectedBackgroundColorToken": "transparent",
+            "unselectedLabelColorToken": "textSecondary",
+            "labelTypographyToken": "callout",
+            "horizontalPaddingToken": "lg",
+            "verticalPaddingToken": "sm"
+          },
+          "interaction": {
+            "animation": "easeInOut(0.2s)",
+            "hitAreaMinSize": 44
+          },
+          "notes": "Used for timeframe selection on the dashboard (Today, Week, Month, Year) and should be reused for similar top-of-page filters."
+        }
+      },
+      "chips": {
+        "pillChip": {
+          "swiftType": "PillChip",
+          "props": [
+            "label",
+            "isSelected"
+          ],
+          "typographyToken": "pillLabel",
+          "cornerRadiusToken": "pill",
+          "padding": {
+            "horizontalToken": "listItemGap",
+            "vertical": 6
+          },
+          "backgroundColorTokens": {
+            "default": "neutralCard",
+            "selected": "primaryAccentSoftFill"
+          },
+          "border": {
+            "width": 1,
+            "colorToken": "borderSubtle"
+          },
+          "labelColors": {
+            "default": "textSecondary",
+            "selected": "textPrimary"
+          },
+          "notes": "Used for small categorical labels like platforms or filters inside rows and cards."
+        }
+      },
+      "rows": {
+        "contentPerformanceRow": {
+          "swiftType": "ContentPerformanceRow",
+          "props": [
+            "title",
+            "platform",
+            "views",
+            "engagement"
+          ],
+          "layout": "verticalStack",
+          "elements": {
+            "title": {
+              "typographyToken": "cardTitle",
+              "colorToken": "textPrimary",
+              "maxLines": 2
+            },
+            "platformChip": {
+              "component": "pillChip"
+            },
+            "metrics": {
+              "layout": "horizontalStack",
+              "spacingToken": "lg",
+              "views": {
+                "icon": "eye.fill",
+                "iconColorToken": "iconSubtle",
+                "labelTypographyToken": "caption2",
+                "labelColorToken": "textSecondary"
+              },
+              "engagement": {
+                "icon": "chart.line.uptrend.xyaxis",
+                "iconColorToken": "iconSubtle",
+                "labelTypographyToken": "caption2",
+                "labelColorToken": "textSecondary"
+              }
+            }
+          },
+          "notes": "Use for listing top-performing visits, cafes, or posts in Mugshot, ensuring clear readability of the title, platform/location, and engagement-style metrics."
+        },
+        "platformRow": {
+          "swiftType": "PlatformRow",
+          "props": [
+            "name",
+            "percentage",
+            "color"
+          ],
+          "layout": "horizontalStack",
+          "elements": {
+            "colorDot": {
+              "shape": "circle",
+              "size": 12
+            },
+            "label": {
+              "typographyToken": "bodyText",
+              "colorToken": "textPrimary"
+            },
+            "percentage": {
+              "typographyToken": "headline",
+              "colorToken": "textPrimary"
+            }
+          },
+          "notes": "Used in the Platform Breakdown card to show audience distribution by platform."
+        }
+      }
+    },
+    "guidelines": {
+      "creatingNewScreens": [
+        "Always start by defining the primary user goal of the screen, then place the most important metric or action near the top.",
+        "Use the existing appBar style for new top-level screens, with a clear title and short descriptive subtitle.",
+        "Stack content in vertical sections separated by SectionHeader and BaseCard components.",
+        "Reuse existing components (PrimaryButton, StatTileCard, DesignSegmentedControl, PillChip, BaseCard, SectionHeader) wherever possible before inventing new patterns.",
+        "When adding new metrics, use StatTileCard for simple numeric stats and BaseCard with rows for more detailed breakdowns."
+      ],
+      "componentExtension": [
+        "If a new button type is required, extend from the primary button spec by adjusting colors or borders, but keep padding, typography, and corner radius consistent.",
+        "New chips should match PillChip’s shape, typography, and border behavior; only adjust colors if representing a different semantic state.",
+        "Any new segmented controls should follow the DesignSegmentedControl container and segment specs to keep interactions consistent."
+      ],
+      "accessibility": [
+        "Maintain sufficient color contrast between text and backgrounds, especially for stat labels and subtitles.",
+        "Do not rely on color alone to convey meaning: pair color changes with text labels, icons, or +/- indicators.",
+        "Ensure tap targets meet at least 44x44 pt hit area, including segmented control options and chips.",
+        "Keep text scalable by relying on the defined typography tokens rather than fixed pixel-based sizes."
+      ]
+    }
+  }
+  
+  
+  

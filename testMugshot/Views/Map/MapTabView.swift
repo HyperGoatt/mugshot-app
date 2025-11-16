@@ -104,21 +104,21 @@ struct MapTabView: View {
                 // Location message banner
                 if showLocationMessage {
                     LocationBanner()
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.sm)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 // Inline search bar
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Spacing.lg) {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
+                            .foregroundColor(DS.Colors.textSecondary)
                         
                         TextField("Search cafes...", text: $searchText)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .tint(DS.Colors.primaryAccent)
+                            .accentColor(DS.Colors.primaryAccent)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     isSearchActive = true
@@ -139,19 +139,14 @@ struct MapTabView: View {
                                 isSearchActive = false
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.espressoBrown.opacity(0.4))
+                                    .foregroundColor(DS.Colors.iconSubtle)
                             }
                         }
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
-                    )
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.card)
+                    .dsCardShadow()
                     
                     if isSearchActive {
                         Button("Cancel") {
@@ -159,12 +154,12 @@ struct MapTabView: View {
                             searchService.cancelSearch()
                             isSearchActive = false
                         }
-                        .foregroundColor(.espressoBrown)
+                        .foregroundColor(DS.Colors.textPrimary)
                         .transition(.opacity)
                     }
                 }
-                .padding()
-                .background(Color.sandBeige.opacity(isSearchActive ? 0.95 : 0))
+                .padding(DS.Spacing.pagePadding)
+                .background(DS.Colors.screenBackground.opacity(isSearchActive ? 0.95 : 0))
                 .animation(.easeInOut(duration: 0.2), value: isSearchActive)
                 
                 // Search results list (inline below search bar)
@@ -209,8 +204,8 @@ struct MapTabView: View {
                 Spacer()
                 if !showCafeDetail {
                     RatingsLegend()
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.bottom, DS.Spacing.sm)
                         .transition(.opacity)
                 }
             }
@@ -512,33 +507,28 @@ class CafeAnnotation: NSObject, MKAnnotation {
 
 struct RatingsLegend: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DS.Spacing.sm) {
             Text("YOUR RATINGS")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+                .font(DS.Typography.metaLabel)
+                .foregroundColor(DS.Colors.textSecondary)
                 .tracking(0.5)
             
-            HStack(spacing: 16) {
-                LegendItem(color: .green, text: "≥ 4.0")
-                LegendItem(color: .yellow, text: "3.0–3.9")
-                LegendItem(color: .red, text: "< 3.0")
-                LegendItem(icon: "bookmark.fill", color: .blue, text: "Want to try")
+            HStack(spacing: DS.Spacing.section) {
+                LegendItem(color: DS.Colors.positiveChange, text: "≥ 4.0")
+                LegendItem(color: DS.Colors.neutralChange, text: "3.0–3.9")
+                LegendItem(color: DS.Colors.negativeChange, text: "< 3.0")
+                LegendItem(icon: "bookmark.fill", color: DS.Colors.secondaryAccent, text: "Want to try")
             }
             
             Text("Tap pins for details.")
-                .font(.system(size: 10))
-                .foregroundColor(.espressoBrown.opacity(0.6))
+                .font(DS.Typography.caption2)
+                .foregroundColor(DS.Colors.textSecondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.creamWhite.opacity(0.95))
-        .cornerRadius(DesignSystem.cornerRadius)
-        .shadow(
-            color: DesignSystem.cardShadow.color,
-            radius: DesignSystem.cardShadow.radius,
-            x: DesignSystem.cardShadow.x,
-            y: DesignSystem.cardShadow.y
-        )
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.vertical, DS.Spacing.md)
+        .background(DS.Colors.cardBackground.opacity(0.95))
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
@@ -551,7 +541,7 @@ struct LegendItem: View {
         HStack(spacing: 4) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 10))
+                    .font(DS.Typography.caption2)
                     .foregroundColor(color)
             } else {
                 Circle()
@@ -559,8 +549,8 @@ struct LegendItem: View {
                     .frame(width: 10, height: 10)
             }
             Text(text)
-                .font(.system(size: 11))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+                .font(DS.Typography.caption2)
+                .foregroundColor(DS.Colors.textSecondary)
         }
     }
 }
@@ -573,16 +563,16 @@ struct LocationBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "location.slash")
-                .foregroundColor(.espressoBrown.opacity(0.7))
+                .foregroundColor(DS.Colors.textSecondary)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("Location access is off")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Text("You can still use Mugshot, but the map won't follow you.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
+                    .font(DS.Typography.caption2)
+                    .foregroundColor(DS.Colors.textSecondary)
             }
             
             Spacer()
@@ -592,12 +582,12 @@ struct LocationBanner: View {
                     UIApplication.shared.open(url)
                 }
             }
-            .font(.system(size: 12, weight: .medium))
-            .foregroundColor(.mugshotMint)
+            .font(DS.Typography.caption1)
+            .foregroundColor(DS.Colors.primaryAccent)
         }
-        .padding()
-        .background(Color.sandBeige)
-        .cornerRadius(DesignSystem.cornerRadius)
+        .padding(DS.Spacing.md)
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.card)
     }
 }
 
@@ -612,18 +602,13 @@ struct MyLocationButton: View {
         VStack(spacing: 8) {
             if showMessage {
                 Text("We don't have your location yet")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.smallCornerRadius)
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
-                    )
+                    .font(DS.Typography.caption2)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
+                    .dsCardShadow()
             }
             
             Button(action: {
@@ -663,16 +648,11 @@ struct MyLocationButton: View {
             }) {
                 Image(systemName: "location.fill")
                     .font(.system(size: 18))
-                    .foregroundColor(.espressoBrown)
+                    .foregroundColor(DS.Colors.textPrimary)
                     .frame(width: 44, height: 44)
-                    .background(Color.creamWhite)
+                    .background(DS.Colors.cardBackground)
                     .clipShape(Circle())
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
-                    )
+                    .dsCardShadow()
             }
         }
     }
@@ -936,31 +916,31 @@ struct SearchResultsList: View {
     
     var body: some View {
         ZStack {
-            Color.creamWhite
+            DS.Colors.cardBackground
             
             if searchService.isSearching {
                 ProgressView()
-                    .padding()
+                    .padding(DS.Spacing.md)
             } else if let error = searchService.searchError {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 32))
-                        .foregroundColor(.espressoBrown.opacity(0.5))
+                        .foregroundColor(DS.Colors.iconSubtle)
                     
                     Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                 }
-                .padding()
+                .padding(DS.Spacing.md)
             } else if searchService.searchResults.isEmpty && !searchService.isSearching && !searchText.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Spacing.sm) {
                     Text("No results found")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
                 }
-                .padding()
+                .padding(DS.Spacing.md)
             } else if !searchText.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -972,6 +952,8 @@ struct SearchResultsList: View {
                                     handleSearchResult(mapItem)
                                 }
                             )
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.vertical, DS.Spacing.sm)
                         }
                     }
                 }
@@ -997,13 +979,15 @@ struct SearchResultsList: View {
                                     }
                                 }
                             )
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.vertical, DS.Spacing.sm)
                         }
                     }
                 }
             }
         }
         .frame(maxHeight: UIScreen.main.bounds.height * 0.6)
-        .cornerRadius(DesignSystem.cornerRadius, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(DS.Radius.card, corners: [.bottomLeft, .bottomRight])
     }
     
     private func handleSearchResult(_ mapItem: MKMapItem) {
@@ -1061,37 +1045,35 @@ struct SearchResultRow: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(mapItem.name ?? "Unknown")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.espressoBrown)
-                    
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+            DSBaseCard {
+                HStack(spacing: DS.Spacing.lg) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text(mapItem.name ?? "Unknown")
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textPrimary)
+                        
+                        if !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
+                        }
                     }
+                    
+                    Spacer()
+                    
+                    if !distance.isEmpty {
+                        Text(distance)
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                    
+                    Image(systemName: "chevron.right")
+                        .font(DS.Typography.caption2)
+                        .foregroundColor(DS.Colors.iconSubtle)
                 }
-                
-                Spacer()
-                
-                if !distance.isEmpty {
-                    Text(distance)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
-                }
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.4))
             }
-            .padding()
-            .background(Color.creamWhite)
         }
         .buttonStyle(.plain)
-        Divider()
-            .padding(.leading)
     }
 }
 
@@ -1103,42 +1085,33 @@ struct LocalCafeRow: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(cafe.name)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.espressoBrown)
+            DSBaseCard {
+                HStack(spacing: DS.Spacing.lg) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text(cafe.name)
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textPrimary)
+                        
+                        if !cafe.address.isEmpty {
+                            Text(cafe.address)
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
+                        }
+                    }
                     
-                    if !cafe.address.isEmpty {
-                        Text(cafe.address)
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                    Spacer()
+                    
+                    if cafe.averageRating > 0 {
+                        DSScoreBadge(score: cafe.averageRating)
                     }
+                    
+                    Image(systemName: "chevron.right")
+                        .font(DS.Typography.caption2)
+                        .foregroundColor(DS.Colors.iconSubtle)
                 }
-                
-                Spacer()
-                
-                if cafe.averageRating > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.mugshotMint)
-                            .font(.system(size: 12))
-                        Text(String(format: "%.1f", cafe.averageRating))
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                    }
-                }
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.4))
             }
-            .padding()
-            .background(Color.creamWhite)
         }
         .buttonStyle(.plain)
-        Divider()
-            .padding(.leading)
     }
 }
 

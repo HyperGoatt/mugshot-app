@@ -37,7 +37,7 @@ struct SavedTabView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding()
+                .padding(DS.Spacing.pagePadding)
                 
                 // Sort option (only for All Cafes)
                 if selectedTab == .allCafes {
@@ -47,12 +47,12 @@ struct SavedTabView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal)
+                    .padding(.horizontal, DS.Spacing.pagePadding)
                 }
                 
                 // Cafe list
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: DS.Spacing.cardVerticalGap) {
                         ForEach(filteredAndSortedCafes) { cafe in
                             CafeCard(
                                 cafe: cafe,
@@ -69,10 +69,10 @@ struct SavedTabView: View {
                             )
                         }
                     }
-                    .padding()
+                    .padding(DS.Spacing.pagePadding)
                 }
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Saved")
         }
         .sheet(isPresented: $showLogVisit) {
@@ -133,93 +133,84 @@ struct CafeCard: View {
     }
     
     var body: some View {
-        HStack(spacing: 16) {
-            // Cafe image - user photos > placeholder
-            if let imagePath = cafeImagePath {
-                PhotoThumbnailView(photoPath: imagePath, size: 80)
-            } else {
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .fill(Color.sandBeige)
-                    .frame(width: 80, height: 80)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.espressoBrown.opacity(0.3))
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(cafe.name)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    if showWantToTryTag {
-                        Text("Wish")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.mugshotMint)
-                            .cornerRadius(4)
-                    }
+        DSBaseCard {
+            HStack(spacing: DS.Spacing.lg) {
+                // Cafe image - user photos > placeholder
+                if let imagePath = cafeImagePath {
+                    PhotoThumbnailView(photoPath: imagePath, size: 80)
+                } else {
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .fill(DS.Colors.cardBackgroundAlt)
+                        .frame(width: 80, height: 80)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(DS.Colors.iconSubtle)
+                        )
                 }
                 
-                // Address or neighborhood
-                if !cafe.address.isEmpty {
-                    Text(cafe.address)
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
-                        .lineLimit(1)
-                }
-                
-                HStack(spacing: 8) {
-                    Label(String(format: "%.1f", cafe.averageRating), systemImage: "star.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                    
-                    Text("• \(cafe.visitCount) visits")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                
-                // Quick actions
-                HStack(spacing: 12) {
-                    Button("Log Visit") {
-                        onLogVisit()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.mugshotMint)
-                    
-                    Button("Map") {
-                        openInMaps()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-                    
-                    if cafe.websiteURL != nil {
-                        Button(action: {
-                            if let url = cafe.websiteURL {
-                                openWebsite(urlString: url)
-                            }
-                        }) {
-                            Image(systemName: "safari")
-                                .font(.system(size: 12))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    HStack {
+                        Text(cafe.name)
+                            .font(DS.Typography.cardTitle)
+                            .foregroundColor(DS.Colors.textPrimary)
+                        
+                        if showWantToTryTag {
+                            DSPillChip(label: "Wish", isSelected: true)
                         }
                     }
                     
-                    Button("Details") {
-                        onShowDetails()
+                    // Address or neighborhood
+                    if !cafe.address.isEmpty {
+                        Text(cafe.address)
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .lineLimit(1)
                     }
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
+                    
+                    HStack(spacing: DS.Spacing.md) {
+                        DSScoreBadge(score: cafe.averageRating)
+                        Text("• \(cafe.visitCount) visits")
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                    
+                    // Quick actions
+                    HStack(spacing: DS.Spacing.lg) {
+                        Button("Log Visit") {
+                            onLogVisit()
+                        }
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.primaryAccent)
+                        
+                        Button("Map") {
+                            openInMaps()
+                        }
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        
+                        if cafe.websiteURL != nil {
+                            Button(action: {
+                                if let url = cafe.websiteURL {
+                                    openWebsite(urlString: url)
+                                }
+                            }) {
+                                Image(systemName: "safari")
+                                    .font(DS.Typography.caption2)
+                                    .foregroundColor(DS.Colors.textSecondary)
+                            }
+                        }
+                        
+                        Button("Details") {
+                            onShowDetails()
+                        }
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                    }
                 }
+                
+                Spacer()
             }
-            
-            Spacer()
         }
-        .padding()
-        .cardStyle()
     }
     
     private func openInMaps() {
