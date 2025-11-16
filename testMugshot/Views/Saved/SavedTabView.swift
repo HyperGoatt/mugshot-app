@@ -39,6 +39,13 @@ struct SavedTabView: View {
                 .pickerStyle(.segmented)
                 .padding(DS.Spacing.pagePadding)
                 
+                // Header
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    DSSectionHeader("Your Cafés", subtitle: selectedTab.rawValue)
+                }
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.bottom, DS.Spacing.md)
+                
                 // Sort option (only for All Cafes)
                 if selectedTab == .allCafes {
                     Picker("Sort", selection: $sortOption) {
@@ -67,6 +74,15 @@ struct SavedTabView: View {
                                     showCafeDetail = true
                                 }
                             )
+                        }
+                        
+                        if filteredAndSortedCafes.isEmpty {
+                            DSBaseCard {
+                                Text("No cafés yet")
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
                         }
                     }
                     .padding(DS.Spacing.pagePadding)

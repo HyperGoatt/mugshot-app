@@ -194,16 +194,15 @@ struct LogVisitView: View {
             
             // Validation errors
             if !validationErrors.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(validationErrors, id: \.self) { error in
-                        Text("• \(error)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.red)
+                DSBaseCard {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        ForEach(validationErrors, id: \.self) { error in
+                            Text("• \(error)")
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.negativeChange)
+                        }
                     }
                 }
-                .padding()
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(DesignSystem.cornerRadius)
             }
             
             // Save button
@@ -469,30 +468,30 @@ struct CafeSearchResultsDropdown: View {
             if searchService.isSearching {
                 HStack {
                     ProgressView()
-                        .padding()
+                        .padding(DS.Spacing.md)
                     Spacer()
                 }
-                .background(Color.creamWhite)
+                .background(DS.Colors.cardBackground)
             } else if let error = searchService.searchError {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 24))
-                        .foregroundColor(.espressoBrown.opacity(0.5))
+                        .foregroundColor(DS.Colors.iconSubtle)
                     Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                 }
-                .padding()
-                .background(Color.creamWhite)
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.cardBackground)
             } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Spacing.sm) {
                     Text("No results found")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
                 }
-                .padding()
-                .background(Color.creamWhite)
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.cardBackground)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -504,47 +503,42 @@ struct CafeSearchResultsDropdown: View {
                                 searchService.cancelSearch()
                                 isSearchActive = false
                             }) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(mapItem.name ?? "Unknown")
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(.espressoBrown)
-                                        
-                                        if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
-                                            Text(address)
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                DSBaseCard {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                            Text(mapItem.name ?? "Unknown")
+                                                .font(DS.Typography.bodyText)
+                                                .foregroundColor(DS.Colors.textPrimary)
+                                            
+                                            if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
+                                                Text(address)
+                                                    .font(DS.Typography.bodyText)
+                                                    .foregroundColor(DS.Colors.textSecondary)
+                                            }
                                         }
+                                        Spacer()
                                     }
-                                    Spacer()
                                 }
-                                .padding()
-                                .background(Color.creamWhite)
                             }
                             .buttonStyle(.plain)
                             
                             if index < searchService.searchResults.count - 1 {
                                 Divider()
-                                    .background(Color.sandBeige)
+                                    .background(DS.Colors.dividerSubtle)
                             }
                         }
                     }
                 }
                 .frame(maxHeight: 200)
-                .background(Color.creamWhite)
+                .background(DS.Colors.cardBackground)
             }
         }
-        .cornerRadius(DesignSystem.cornerRadius)
+        .cornerRadius(DS.Radius.card)
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DS.Radius.card)
+                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
         )
-        .shadow(
-            color: DesignSystem.cardShadow.color,
-            radius: DesignSystem.cardShadow.radius,
-            x: DesignSystem.cardShadow.x,
-            y: DesignSystem.cardShadow.y
-        )
+        .dsCardShadow()
     }
     
     private func formatAddress(from placemark: MKPlacemark) -> String? {
@@ -1046,12 +1040,12 @@ struct CafeSearchSheet: View {
                 HStack {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
+                            .foregroundColor(DS.Colors.textSecondary)
                         
                         TextField("Search cafes...", text: $searchText)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .tint(DS.Colors.primaryAccent)
+                            .accentColor(DS.Colors.primaryAccent)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     searchService.search(query: newValue, region: region)
@@ -1066,32 +1060,32 @@ struct CafeSearchSheet: View {
                                 searchService.cancelSearch()
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.espressoBrown.opacity(0.4))
+                                    .foregroundColor(DS.Colors.iconSubtle)
                             }
                         }
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.card)
                 }
-                .padding()
+                .padding(DS.Spacing.pagePadding)
                 
                 // Results
                 if searchService.isSearching {
                     ProgressView()
-                        .padding()
+                        .padding(DS.Spacing.md)
                 } else if let error = searchService.searchError {
-                    VStack(spacing: 12) {
+                    VStack(spacing: DS.Spacing.sm) {
                         Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.espressoBrown.opacity(0.5))
+                            .foregroundColor(DS.Colors.iconSubtle)
                         Text(error)
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                            .foregroundColor(DS.Colors.textSecondary)
                     }
-                    .padding()
+                    .padding(DS.Spacing.md)
                 } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
                     Text("No results found")
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .padding()
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .padding(DS.Spacing.md)
                 } else {
                     List {
                         ForEach(searchService.searchResults, id: \.self) { mapItem in
@@ -1103,11 +1097,11 @@ struct CafeSearchSheet: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(mapItem.name ?? "Unknown")
-                                            .foregroundColor(.espressoBrown)
+                                            .foregroundColor(DS.Colors.textPrimary)
                                         if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
                                             Text(address)
                                                 .font(.caption)
-                                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                                .foregroundColor(DS.Colors.textSecondary)
                                         }
                                     }
                                     Spacer()
@@ -1117,7 +1111,7 @@ struct CafeSearchSheet: View {
                     }
                 }
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Search Cafes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1173,17 +1167,19 @@ struct CustomizeRatingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     Text("Define what matters most in your coffee journey and how much each criterion should count.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .padding(.top)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .padding(.top, DS.Spacing.md)
                     
                     ForEach(editingCategories.indices, id: \.self) { index in
-                        CustomizeRatingCategoryRow(
-                            category: $editingCategories[index],
-                            onDelete: {
-                                editingCategories.remove(at: index)
-                            }
-                        )
+                        DSBaseCard {
+                            CustomizeRatingCategoryRow(
+                                category: $editingCategories[index],
+                                onDelete: {
+                                    editingCategories.remove(at: index)
+                                }
+                            )
+                        }
                     }
                     
                     Button(action: {
@@ -1196,16 +1192,16 @@ struct CustomizeRatingsView: View {
                             Image(systemName: "plus.circle")
                             Text("Add New Category")
                         }
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(DS.Colors.primaryAccent)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.sandBeige.opacity(0.3))
-                        .cornerRadius(DesignSystem.cornerRadius)
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackgroundAlt)
+                        .cornerRadius(DS.Radius.card)
                     }
                 }
-                .padding()
+                .padding(DS.Spacing.pagePadding)
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Customize Ratings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1222,7 +1218,7 @@ struct CustomizeRatingsView: View {
                         dataManager.updateRatingTemplate(updatedTemplate)
                         isPresented = false
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(DSPrimaryButtonStyle())
                 }
             }
         }
@@ -1236,37 +1232,37 @@ struct CustomizeRatingCategoryRow: View {
     @State private var weightMultiplier: Double = 1.0
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack {
                 // Drag handle
                 Image(systemName: "line.3.horizontal")
-                    .foregroundColor(.espressoBrown.opacity(0.4))
+                    .foregroundColor(DS.Colors.iconSubtle)
                 
                 // Category name
                 TextField("Category name", text: $category.name)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding(8)
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.smallCornerRadius)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .tint(DS.Colors.primaryAccent)
+                    .accentColor(DS.Colors.primaryAccent)
+                    .padding(DS.Spacing.sm)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                            .stroke(Color.inputBorder, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
                 
                 // Delete button
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundColor(DS.Colors.negativeChange)
                 }
             }
             
             // Weight slider
             HStack {
                 Text("Weight")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Slider(value: $weightMultiplier, in: 0.5...3.0, step: 0.5)
                     .onChange(of: weightMultiplier) { oldValue, newValue in
@@ -1275,14 +1271,14 @@ struct CustomizeRatingCategoryRow: View {
                     }
                 
                 Text(formatWeight(weightMultiplier))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.primaryAccent)
                     .frame(width: 40)
             }
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .padding(DS.Spacing.md)
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.card)
         .onAppear {
             // Weights are stored as multipliers, so use directly
             weightMultiplier = category.weight > 0 ? category.weight : 1.0

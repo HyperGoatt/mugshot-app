@@ -32,104 +32,75 @@ struct ProfileTabView: View {
                 VStack(spacing: 0) {
                     // Banner
                     Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.mugshotMint, Color.sageGray],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(LinearGradient(colors: [DS.Colors.primaryAccent, DS.Colors.cardBackgroundAlt], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(height: 120)
                         .overlay(
                             VStack {
                                 Spacer()
-                                
                                 // Avatar
                                 Circle()
-                                    .fill(Color.creamWhite)
+                                    .fill(DS.Colors.cardBackground)
                                     .frame(width: 80, height: 80)
                                     .overlay(
                                         Text(user?.username.prefix(1).uppercased() ?? "U")
-                                            .font(.system(size: 32, weight: .bold))
-                                            .foregroundColor(.espressoBrown)
+                                            .font(DS.Typography.title2(.bold))
+                                            .foregroundColor(DS.Colors.textPrimary)
                                     )
                                     .overlay(
                                         Circle()
-                                            .stroke(Color.creamWhite, lineWidth: 4)
+                                            .stroke(DS.Colors.cardBackground, lineWidth: 4)
                                     )
                                     .offset(y: 40)
                             }
                         )
                     
-                    VStack(spacing: 20) {
+                    VStack(spacing: DS.Spacing.section) {
                         // User info
-                        VStack(spacing: 8) {
-                            Text("@\(user?.username ?? "user")")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            if let location = user?.location, !location.isEmpty {
-                                Text(location)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
-                            }
-                            
-                            if let bio = user?.bio, !bio.isEmpty {
-                                Text(bio)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
+                        DSBaseCard {
+                            VStack(spacing: DS.Spacing.sm) {
+                                Text("@\(user?.username ?? "user")")
+                                    .font(DS.Typography.title2(.semibold))
+                                    .foregroundColor(DS.Colors.textPrimary)
+                                
+                                if let location = user?.location, !location.isEmpty {
+                                    Text(location)
+                                        .font(DS.Typography.bodyText)
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                }
+                                
+                                if let bio = user?.bio, !bio.isEmpty {
+                                    Text(bio)
+                                        .font(DS.Typography.bodyText)
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
                         }
-                        .padding(.top, 50)
+                        .padding(.top, DS.Spacing.section)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                         
                         // Stats section
-                        VStack(spacing: 16) {
-                            Text("Stats")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            HStack(spacing: 20) {
-                                StatBox(
-                                    title: "Visits",
-                                    value: "\(stats.totalVisits)"
-                                )
-                                
-                                StatBox(
-                                    title: "Cafés",
-                                    value: "\(stats.totalCafes)"
-                                )
-                                
-                                StatBox(
-                                    title: "Avg Score",
-                                    value: String(format: "%.1f", stats.averageScore)
-                                )
-                                
-                                StatBox(
-                                    title: "Favorite",
-                                    value: stats.favoriteDrinkType?.rawValue ?? "-"
-                                )
+                        DSBaseCard {
+                            VStack(spacing: DS.Spacing.md) {
+                                DSSectionHeader("Stats")
+                                HStack(spacing: DS.Spacing.section) {
+                                    StatBox(title: "Visits", value: "\(stats.totalVisits)")
+                                    StatBox(title: "Cafés", value: "\(stats.totalCafes)")
+                                    StatBox(title: "Avg Score", value: String(format: "%.1f", stats.averageScore))
+                                    StatBox(title: "Favorite", value: stats.favoriteDrinkType?.rawValue ?? "-")
+                                }
                             }
-                            .padding(.horizontal)
                         }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                         
                         // Coffee Journey
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Coffee Journey")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            CoffeeJourneyView(stats: stats)
+                        DSBaseCard {
+                            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                                DSSectionHeader("Coffee Journey")
+                                CoffeeJourneyView(stats: stats)
+                            }
                         }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                         
                         // Content tabs
                         Picker("Content", selection: $selectedTab) {
@@ -138,15 +109,16 @@ struct ProfileTabView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
                         
                         // Content based on selected tab
                         contentView
-                            .padding()
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.bottom, DS.Spacing.xxl)
                     }
                 }
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Profile")
         }
     }
@@ -171,14 +143,14 @@ struct StatBox: View {
     let value: String
     
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: DS.Spacing.xs) {
             Text(value)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.numericStat)
+                .foregroundColor(DS.Colors.textPrimary)
             
             Text(title)
-                .font(.system(size: 12))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+                .font(DS.Typography.caption2)
+                .foregroundColor(DS.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -193,20 +165,20 @@ struct CoffeeJourneyView: View {
             HStack(spacing: 8) {
                 ForEach(0..<min(stats.totalCafes, 10), id: \.self) { _ in
                     Circle()
-                        .fill(Color.mugshotMint)
+                        .fill(DS.Colors.primaryAccent)
                         .frame(width: 12, height: 12)
                 }
                 
                 if stats.totalCafes > 10 {
                     Text("+\(stats.totalCafes - 10)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .font(DS.Typography.caption2)
+                        .foregroundColor(DS.Colors.textSecondary)
                 }
             }
             
             Text("\(stats.totalVisits) visits across \(stats.totalCafes) cafés")
-                .font(.system(size: 14))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+                .font(DS.Typography.bodyText)
+                .foregroundColor(DS.Colors.textSecondary)
         }
     }
 }
@@ -221,13 +193,14 @@ struct RecentVisitsView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             if visits.isEmpty {
-                Text("No visits yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                DSBaseCard {
+                    Text("No visits yet")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             } else {
                 ForEach(visits) { visit in
                     if dataManager.getCafe(id: visit.cafeId) != nil {
@@ -260,13 +233,14 @@ struct TopCafesView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             if topCafes.isEmpty {
-                Text("No cafés yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                DSBaseCard {
+                    Text("No cafés yet")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             } else {
                 ForEach(topCafes) { cafe in
                     CafeCard(
@@ -290,13 +264,14 @@ struct FavoritesView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             if favorites.isEmpty {
-                Text("No favorites yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                DSBaseCard {
+                    Text("No favorites yet")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             } else {
                 ForEach(favorites) { cafe in
                     CafeCard(
@@ -320,13 +295,14 @@ struct WishlistView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             if wishlist.isEmpty {
-                Text("No wishlist items yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                DSBaseCard {
+                    Text("No wishlist items yet")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             } else {
                 ForEach(wishlist) { cafe in
                     CafeCard(
