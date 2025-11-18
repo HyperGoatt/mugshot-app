@@ -21,7 +21,7 @@ struct DSScoreBadge: View {
                     .foregroundColor(DS.Colors.secondaryAccent)
             }
             Text(scoreText)
-                .font(DS.Typography.caption1)
+                .font(DS.Typography.caption1())
                 .foregroundColor(DS.Colors.secondaryAccent)
         }
         .padding(.horizontal, DS.Spacing.listItemGap)

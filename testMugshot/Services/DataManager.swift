@@ -32,6 +32,18 @@ class DataManager: ObservableObject {
     private func preloadVisitImages() {
         let allPhotoPaths = appData.visits.flatMap { $0.photos }
         PhotoCache.shared.preloadImages(for: allPhotoPaths)
+        
+        // Also preload profile and banner images
+        var profileImagePaths: [String] = []
+        if let profileId = appData.currentUserProfileImageId {
+            profileImagePaths.append(profileId)
+        }
+        if let bannerId = appData.currentUserBannerImageId {
+            profileImagePaths.append(bannerId)
+        }
+        if !profileImagePaths.isEmpty {
+            PhotoCache.shared.preloadImages(for: profileImagePaths)
+        }
     }
     
     func save() {
@@ -44,6 +56,19 @@ class DataManager: ObservableObject {
     func setCurrentUser(_ user: User) {
         appData.currentUser = user
         save()
+    }
+    
+    func updateCurrentUser(_ user: User) {
+        appData.currentUser = user
+        save()
+    }
+    
+    func logout() {
+        // Clear all data and reset to initial state
+        appData = AppData()
+        save()
+        // Clear photo cache
+        PhotoCache.shared.clear()
     }
     
     // MARK: - Cafe Operations
@@ -218,7 +243,7 @@ class DataManager: ObservableObject {
     // MARK: - Like Operations
     func toggleVisitLike(_ visitId: UUID, userId: UUID) {
         guard let index = appData.visits.firstIndex(where: { $0.id == visitId }),
-              let currentUserId = appData.currentUser?.id else {
+              appData.currentUser != nil else {
             return
         }
         
@@ -312,6 +337,45 @@ class DataManager: ObservableObject {
             averageScore: averageScore,
             favoriteDrinkType: favoriteDrinkType
         )
+    }
+    
+    // Get most visited café
+    func getMostVisitedCafe() -> (cafe: Cafe, visitCount: Int)? {
+        let visitsByCafe = Dictionary(grouping: appData.visits, by: { $0.cafeId })
+        guard let (cafeId, visits) = visitsByCafe.max(by: { $0.value.count < $1.value.count }),
+              let cafe = getCafe(id: cafeId) else {
+            return nil
+        }
+        return (cafe: cafe, visitCount: visits.count)
+    }
+    
+    // Get favorite café (highest average rating)
+    func getFavoriteCafe() -> (cafe: Cafe, avgScore: Double)? {
+        let visitsByCafe = Dictionary(grouping: appData.visits, by: { $0.cafeId })
+        var cafeScores: [(cafeId: UUID, avgScore: Double)] = []
+        
+        for (cafeId, visits) in visitsByCafe {
+            let avgScore = visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
+            cafeScores.append((cafeId: cafeId, avgScore: avgScore))
+        }
+        
+        guard let topCafe = cafeScores.max(by: { $0.avgScore < $1.avgScore }),
+              let cafe = getCafe(id: topCafe.cafeId) else {
+            return nil
+        }
+        return (cafe: cafe, avgScore: topCafe.avgScore)
+    }
+    
+    // Get beverage breakdown (percentage of each drink type)
+    func getBeverageBreakdown() -> [(drinkType: DrinkType, count: Int, fraction: Double)] {
+        let totalVisits = appData.visits.count
+        guard totalVisits > 0 else { return [] }
+        
+        let drinkTypeCounts = Dictionary(grouping: appData.visits, by: { $0.drinkType })
+            .mapValues { $0.count }
+        
+        return drinkTypeCounts.map { (drinkType: $0.key, count: $0.value, fraction: Double($0.value) / Double(totalVisits)) }
+            .sorted { $0.count > $1.count }
     }
 }
 

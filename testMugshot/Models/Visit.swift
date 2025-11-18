@@ -106,6 +106,16 @@ struct Visit: Identifiable {
     }
 }
 
+extension Visit: Hashable {
+    static func == (lhs: Visit, rhs: Visit) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
 // Make Visit Codable with custom implementation
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {

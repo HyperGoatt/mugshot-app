@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import UIKit
 
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
@@ -23,6 +24,13 @@ struct MapTabView: View {
     @State private var hasRequestedLocation = false
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
+    @State private var showNotifications = false
+    @State private var selectedVisit: Visit?
+    @State private var recenterOnUserRequest = false
+    
+    private var unreadNotificationCount: Int {
+        dataManager.appData.notifications.filter { !$0.isRead }.count
+    }
     
     // Default fallback region (SF) - only used if location unavailable
     private let defaultRegion = MKCoordinateRegion(
@@ -31,6 +39,7 @@ struct MapTabView: View {
     )
     
     var body: some View {
+        NavigationStack {
         ZStack {
             // Map with POIs hidden
             MapViewRepresentable(
@@ -57,21 +66,30 @@ struct MapTabView: View {
                 initializeLocationIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
-                // When we get a location update and we have permission, center the map
-                if let location = newLocation {
-                    let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
-                    
-                    if isAuthorized {
-                        // If we haven't initialized yet, or if this is a fresh location update
-                        if !hasInitializedLocation || (oldValue == nil) {
-                            hasInitializedLocation = true
-                            withAnimation {
-                                region = MKCoordinateRegion(
-                                    center: location.coordinate,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                                )
-                            }
-                        }
+                guard let location = newLocation else { return }
+                let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
+                guard isAuthorized else { return }
+                
+                // First time we get a good location, auto-center
+                if !hasInitializedLocation || oldValue == nil {
+                    hasInitializedLocation = true
+                    withAnimation {
+                        region = MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        )
+                    }
+                    return
+                }
+                
+                // If user tapped the My Location button, recenter on the next update
+                if recenterOnUserRequest {
+                    recenterOnUserRequest = false
+                    withAnimation {
+                        region = MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        )
                     }
                 }
             }
@@ -157,6 +175,28 @@ struct MapTabView: View {
                         .foregroundColor(DS.Colors.textPrimary)
                         .transition(.opacity)
                     }
+                    
+                    // Notifications bell icon
+                    Button(action: { showNotifications = true }) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 20))
+                                .foregroundColor(DS.Colors.iconDefault)
+                                .frame(width: 44, height: 44)
+                            
+                            if unreadNotificationCount > 0 {
+                                Text("\(unreadNotificationCount)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(DS.Colors.textOnMint)
+                                    .padding(4)
+                                    .background(
+                                        Circle()
+                                            .fill(DS.Colors.primaryAccent)
+                                    )
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
+                    }
                 }
                 .padding(DS.Spacing.pagePadding)
                 .background(DS.Colors.screenBackground.opacity(isSearchActive ? 0.95 : 0))
@@ -191,7 +231,8 @@ struct MapTabView: View {
                             region: Binding(
                                 get: { region ?? defaultRegion },
                                 set: { region = $0 }
-                            )
+                            ),
+                            recenterOnUserRequest: $recenterOnUserRequest
                         )
                         .padding(.trailing)
                         .padding(.bottom, 100)
@@ -218,11 +259,21 @@ struct MapTabView: View {
                         cafe: cafe,
                         dataManager: dataManager,
                         isPresented: $showCafeDetail,
-                        onLogVisitRequested: onLogVisitRequested // Pass the closure
+                        onLogVisitRequested: onLogVisitRequested,
+                        onVisitSelected: { visit in
+                            selectedVisit = visit
+                        }
                     )
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        .sheet(isPresented: $showNotifications) {
+            NotificationsCenterView(dataManager: dataManager)
+        }
+        .navigationDestination(item: $selectedVisit) { visit in
+            VisitDetailView(dataManager: dataManager, visit: visit)
+        }
         }
     }
     
@@ -261,9 +312,13 @@ struct MapTabView: View {
     }
     
     private var cafesWithLocations: [Cafe] {
-        // Only show cafes with at least one visit and a location
+        // Show cafes that have a map location and are either:
+        // - Logged at least once, or
+        // - Marked as favorite, or
+        // - Marked as "Want to Try"
         dataManager.appData.cafes.filter { cafe in
-            cafe.location != nil && cafe.visitCount > 0
+            guard cafe.location != nil else { return false }
+            return cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
         }
     }
 }
@@ -521,7 +576,7 @@ struct RatingsLegend: View {
             }
             
             Text("Tap pins for details.")
-                .font(DS.Typography.caption2)
+                .font(DS.Typography.caption2())
                 .foregroundColor(DS.Colors.textSecondary)
         }
         .padding(.horizontal, DS.Spacing.pagePadding)
@@ -541,7 +596,7 @@ struct LegendItem: View {
         HStack(spacing: 4) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(DS.Typography.caption2)
+                    .font(DS.Typography.caption2())
                     .foregroundColor(color)
             } else {
                 Circle()
@@ -549,7 +604,7 @@ struct LegendItem: View {
                     .frame(width: 10, height: 10)
             }
             Text(text)
-                .font(DS.Typography.caption2)
+                .font(DS.Typography.caption2())
                 .foregroundColor(DS.Colors.textSecondary)
         }
     }
@@ -571,7 +626,7 @@ struct LocationBanner: View {
                     .foregroundColor(DS.Colors.textPrimary)
                 
                 Text("You can still use Mugshot, but the map won't follow you.")
-                    .font(DS.Typography.caption2)
+                    .font(DS.Typography.caption2())
                     .foregroundColor(DS.Colors.textSecondary)
             }
             
@@ -582,7 +637,7 @@ struct LocationBanner: View {
                     UIApplication.shared.open(url)
                 }
             }
-            .font(DS.Typography.caption1)
+        .font(DS.Typography.caption1())
             .foregroundColor(DS.Colors.primaryAccent)
         }
         .padding(DS.Spacing.md)
@@ -596,13 +651,14 @@ struct LocationBanner: View {
 struct MyLocationButton: View {
     @ObservedObject var locationManager: LocationManager
     @Binding var region: MKCoordinateRegion
+    @Binding var recenterOnUserRequest: Bool
     @State private var showMessage = false
     
     var body: some View {
         VStack(spacing: 8) {
             if showMessage {
                 Text("We don't have your location yet")
-                    .font(DS.Typography.caption2)
+                    .font(DS.Typography.caption2())
                     .foregroundColor(DS.Colors.textPrimary)
                     .padding(.horizontal, DS.Spacing.md)
                     .padding(.vertical, DS.Spacing.sm)
@@ -615,10 +671,11 @@ struct MyLocationButton: View {
                 let status = locationManager.authorizationStatus
                 
                 if status == .authorizedWhenInUse || status == .authorizedAlways {
-                    // Request fresh location update
+                    // Request fresh location update and mark that we want to recenter
+                    recenterOnUserRequest = true
                     locationManager.requestCurrentLocation()
                     
-                    // Try to get current location
+                    // If we already have a recent location, recenter immediately
                     if let location = locationManager.getCurrentLocation() {
                         withAnimation {
                             region = MKCoordinateRegion(
@@ -626,15 +683,8 @@ struct MyLocationButton: View {
                                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                             )
                         }
+                        recenterOnUserRequest = false
                         showMessage = false
-                    } else {
-                        // Location not available yet, show message
-                        showMessage = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation {
-                                showMessage = false
-                            }
-                        }
                     }
                 } else {
                     // No permission - show message
@@ -665,9 +715,9 @@ struct CafeDetailSheet: View {
     @ObservedObject var dataManager: DataManager
     @Binding var isPresented: Bool
     var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
+    let onVisitSelected: (Visit) -> Void
     @State private var showLogVisit = false
     @State private var showFullDetails = false
-    @State private var selectedVisit: Visit?
     
     // Get current cafe state from dataManager to reflect real-time changes
     var currentCafe: Cafe? {
@@ -837,10 +887,9 @@ struct CafeDetailSheet: View {
                                 .foregroundColor(.espressoBrown)
                             
                             ForEach(visits.prefix(5)) { visit in
-                                VisitEntryRow(visit: visit)
-                                    .onTapGesture {
-                                        selectedVisit = visit
-                                    }
+                                VisitEntryRow(visit: visit) {
+                                    onVisitSelected(visit)
+                                }
                             }
                         }
                     }
@@ -849,16 +898,13 @@ struct CafeDetailSheet: View {
             }
         }
         .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.largeCornerRadius, corners: [.topLeft, .topRight])
+        .cornerRadius(DesignSystem.largeCornerRadius, corners: [.topLeft, .topRight] as UIRectCorner)
         .frame(maxHeight: UIScreen.main.bounds.height * 0.75)
         .sheet(isPresented: $showLogVisit) {
             LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
         }
         .sheet(isPresented: $showFullDetails) {
             CafeDetailView(cafe: cafe, dataManager: dataManager)
-        }
-        .fullScreenCover(item: $selectedVisit) { visit in
-            VisitDetailView(visit: visit, dataManager: dataManager)
         }
     }
 }
@@ -867,39 +913,43 @@ struct CafeDetailSheet: View {
 
 struct VisitEntryRow: View {
     let visit: Visit
+    let onTap: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Thumbnail
-            PhotoThumbnailView(photoPath: visit.posterImagePath, size: 50)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(visit.date, style: .date)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.espressoBrown)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Thumbnail
+                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 50)
                 
-                if !visit.caption.isEmpty {
-                    Text(visit.caption)
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(visit.date, style: .date)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.espressoBrown)
+                    
+                    if !visit.caption.isEmpty {
+                        Text(visit.caption)
+                            .font(.system(size: 12))
+                            .foregroundColor(.espressoBrown.opacity(0.7))
+                            .lineLimit(1)
+                    }
                 }
-            }
-            
-            Spacer()
-            
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.mugshotMint)
-                    .font(.system(size: 12))
-                Text(String(format: "%.1f", visit.overallScore))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.mugshotMint)
+                        .font(.system(size: 12))
+                    Text(String(format: "%.1f", visit.overallScore))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                }
             }
         }
         .padding()
         .background(Color.sandBeige.opacity(0.5))
         .cornerRadius(DesignSystem.smallCornerRadius)
+        .buttonStyle(.plain)
     }
 }
 
@@ -987,7 +1037,7 @@ struct SearchResultsList: View {
             }
         }
         .frame(maxHeight: UIScreen.main.bounds.height * 0.6)
-        .cornerRadius(DS.Radius.card, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(DS.Radius.card, corners: [.bottomLeft, .bottomRight] as UIRectCorner)
     }
     
     private func handleSearchResult(_ mapItem: MKMapItem) {
@@ -1068,7 +1118,7 @@ struct SearchResultRow: View {
                     }
                     
                     Image(systemName: "chevron.right")
-                        .font(DS.Typography.caption2)
+                        .font(DS.Typography.caption2())
                         .foregroundColor(DS.Colors.iconSubtle)
                 }
             }
@@ -1106,33 +1156,11 @@ struct LocalCafeRow: View {
                     }
                     
                     Image(systemName: "chevron.right")
-                        .font(DS.Typography.caption2)
+                        .font(DS.Typography.caption2())
                         .foregroundColor(DS.Colors.iconSubtle)
                 }
             }
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Extensions
-
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
-    }
-}
-
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-    
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
     }
 }

@@ -1,0 +1,313 @@
+{
+  "screen": {
+    "name": "Profile",
+    "backgroundColor": "#F5F5F7",
+    "navigation": {
+      "type": "tab",
+      "activeTab": "Profile",
+      "tabs": ["Map", "Feed", "Add", "Saved", "Profile"],
+      "tabBar": {
+        "height": 72,
+        "backgroundColor": "#FFFFFF",
+        "topBorderColor": "#E2E3E7",
+        "iconStyle": {
+          "tintInactive": "#B0B3BC",
+          "tintActive": "#59C280",
+          "labelFont": {
+            "size": 11,
+            "weight": "regular"
+          }
+        }
+      }
+    },
+    "sections": [
+      {
+        "id": "profileHeader",
+        "type": "headerCard",
+        "background": {
+          "type": "bannerImage",
+          "height": 184,
+          "cornerRadius": 0,
+          "imageScaling": "aspectFill"
+        },
+        "overlay": {
+          "gradient": {
+            "enabled": false
+          }
+        },
+        "content": {
+          "layout": "vertical",
+          "alignment": "leading",
+          "padding": {
+            "top": 96,
+            "leading": 24,
+            "trailing": 24,
+            "bottom": 24
+          },
+          "avatar": {
+            "position": "bottomLeftOverlap",
+            "size": 80,
+            "shape": "circle",
+            "borderWidth": 3,
+            "borderColor": "#FFFFFF",
+            "imageMode": "fill"
+          },
+          "primaryText": {
+            "textBinding": "user.displayName",
+            "font": {"size": 24, "weight": "bold"},
+            "color": "#111827"
+          },
+          "secondaryText": {
+            "textBinding": "@user.username",
+            "font": {"size": 16, "weight": "regular"},
+            "color": "#6B7280"
+          },
+          "metaRow": {
+            "items": [
+              {
+                "type": "textWithIcon",
+                "icon": "cup.and.saucer",
+                "textBinding": "user.favoriteDrink"
+              },
+              {
+                "type": "textWithIcon",
+                "icon": "mappin.and.ellipse",
+                "textBinding": "user.locationShort"
+              }
+            ],
+            "spacing": 12,
+            "font": {"size": 14, "weight": "regular"},
+            "color": "#6B7280"
+          },
+          "friendsCount": {
+            "label": "Friends",
+            "valueBinding": "user.friendsCount",
+            "fontValue": {"size": 14, "weight": "semibold"},
+            "fontLabel": {"size": 14, "weight": "regular"}
+          },
+          "headerActions": {
+            "alignment": "trailing",
+            "icons": [
+              {"id": "notifications", "symbol": "bell", "size": 20},
+              {"id": "shareProfile", "symbol": "square.and.arrow.up", "size": 20},
+              {"id": "settings", "symbol": "gearshape", "size": 20}
+            ],
+            "tintColor": "#111827",
+            "spacing": 24,
+            "topOffset": 24,
+            "trailingOffset": 24
+          },
+          "socialIcons": {
+            "alignment": "leading",
+            "icons": [
+              {"id": "instagram", "symbol": "camera", "size": 18},
+              {"id": "website", "symbol": "globe", "size": 18}
+            ],
+            "tintColor": "#111827",
+            "spacing": 16,
+            "bottomPadding": 16
+          }
+        }
+      },
+      {
+        "id": "coffeeJourneySection",
+        "type": "section",
+        "backgroundColor": "#F5F5F7",
+        "header": {
+          "title": "Coffee Journey",
+          "font": {"size": 20, "weight": "semibold"},
+          "color": "#111827",
+          "padding": {"top": 16, "leading": 16, "trailing": 16, "bottom": 12}
+        },
+        "content": {
+          "type": "statsGrid",
+          "layout": {
+            "columns": 2,
+            "rowSpacing": 16,
+            "columnSpacing": 16,
+            "padding": {"horizontal": 16, "bottom": 16}
+          },
+          "cards": [
+            {
+              "id": "totalVisits",
+              "title": "Total Visits",
+              "valueBinding": "stats.totalVisits",
+              "icon": null,
+              "accentColor": "#111827"
+            },
+            {
+              "id": "cafesVisited",
+              "title": "Cafes Visited",
+              "valueBinding": "stats.uniqueCafes",
+              "icon": null,
+              "accentColor": "#111827"
+            },
+            {
+              "id": "avgRating",
+              "title": "Avg Rating",
+              "valueBinding": "stats.averageScore",
+              "icon": "star.fill",
+              "accentColor": "#2563EB"
+            },
+            {
+              "id": "favoriteDrink",
+              "title": "Favorite Drink",
+              "valueBinding": "stats.favoriteDrink",
+              "icon": null,
+              "accentColor": "#22C55E"
+            }
+          ],
+          "cardStyle": {
+            "backgroundColor": "#FFFFFF",
+            "cornerRadius": 16,
+            "shadow": {
+              "color": "rgba(15, 23, 42, 0.08)",
+              "radius": 18,
+              "x": 0,
+              "y": 8
+            },
+            "padding": {"vertical": 16, "horizontal": 16},
+            "valueFont": {"size": 24, "weight": "semibold"},
+            "labelFont": {"size": 13, "weight": "regular"},
+            "labelColor": "#6B7280"
+          }
+        }
+      },
+      {
+        "id": "mostVisited",
+        "type": "infoCard",
+        "title": "Most Visited",
+        "titleFont": {"size": 14, "weight": "medium"},
+        "titleColor": "#6B7280",
+        "backgroundColor": "#FFFFFF",
+        "cornerRadius": 16,
+        "shadow": {
+          "color": "rgba(15, 23, 42, 0.07)",
+          "radius": 14,
+          "x": 0,
+          "y": 6
+        },
+        "padding": {"horizontal": 16, "vertical": 14},
+        "content": {
+          "layout": "horizontal",
+          "primaryText": {
+            "textBinding": "stats.mostVisitedCafeName",
+            "font": {"size": 16, "weight": "semibold"},
+            "color": "#111827"
+          },
+          "badge": {
+            "textBinding": "stats.mostVisitedCafeVisitCountLabel",
+            "backgroundColor": "#2563EB",
+            "textColor": "#FFFFFF",
+            "font": {"size": 12, "weight": "semibold"},
+            "cornerRadius": 12,
+            "horizontalPadding": 10,
+            "verticalPadding": 4
+          }
+        }
+      },
+      {
+        "id": "favoriteCafe",
+        "type": "infoCard",
+        "title": "Favorite Cafe",
+        "titleFont": {"size": 14, "weight": "medium"},
+        "titleColor": "#6B7280",
+        "backgroundColor": "#FFFFFF",
+        "cornerRadius": 16,
+        "shadow": {
+          "color": "rgba(15, 23, 42, 0.07)",
+          "radius": 14,
+          "x": 0,
+          "y": 6
+        },
+        "padding": {"horizontal": 16, "vertical": 14},
+        "content": {
+          "layout": "horizontal",
+          "primaryText": {
+            "textBinding": "stats.favoriteCafeName",
+            "font": {"size": 16, "weight": "semibold"},
+            "color": "#111827"
+          },
+          "badge": {
+            "icon": "star.fill",
+            "valueBinding": "stats.favoriteCafeScore",
+            "backgroundColor": "#2563EB",
+            "textColor": "#FFFFFF",
+            "font": {"size": 12, "weight": "semibold"},
+            "cornerRadius": 12,
+            "horizontalPadding": 10,
+            "verticalPadding": 4
+          }
+        }
+      },
+      {
+        "id": "beverageBreakdown",
+        "type": "progressCard",
+        "title": "Beverage Breakdown",
+        "backgroundColor": "#FFFFFF",
+        "cornerRadius": 16,
+        "shadow": {
+          "color": "rgba(15, 23, 42, 0.06)",
+          "radius": 14,
+          "x": 0,
+          "y": 6
+        },
+        "padding": {"horizontal": 16, "vertical": 14},
+        "content": {
+          "rows": [
+            {
+              "labelBinding": "stats.primaryBeverageLabel",
+              "valueBinding": "stats.primaryBeverageCount",
+              "progress": {
+                "fractionBinding": "stats.primaryBeverageFraction",
+                "trackColor": "#E5F5E9",
+                "fillColor": "#59C280",
+                "height": 6,
+                "cornerRadius": 3
+              },
+              "labelFont": {"size": 14, "weight": "regular"},
+              "valueFont": {"size": 14, "weight": "regular"},
+              "textColor": "#111827"
+            }
+          ]
+        }
+      },
+      {
+        "id": "segmentControl",
+        "type": "segmentedControl",
+        "style": "pill",
+        "items": [
+          {"id": "recent", "title": "Recent", "defaultSelected": true},
+          {"id": "topCafes", "title": "Top Cafes"},
+          {"id": "favorites", "title": "Favorites"},
+          {"id": "wantToTry", "title": "Want to Try"}
+        ],
+        "layout": {
+          "padding": {"horizontal": 16, "vertical": 16},
+          "backgroundColor": "#F3F4F6"
+        },
+        "selectedItemStyle": {
+          "backgroundColor": "#FFFFFF",
+          "textColor": "#111827",
+          "font": {"size": 15, "weight": "semibold"}
+        },
+        "unselectedItemStyle": {
+          "backgroundColor": "transparent",
+          "textColor": "#6B7280",
+          "font": {"size": 15, "weight": "regular"}
+        }
+      },
+      {
+        "id": "recentStrip",
+        "type": "horizontalMediaStrip",
+        "backgroundColor": "#FFFFFF",
+        "contentInset": {"horizontal": 16, "vertical": 12},
+        "itemSize": {"width": 120, "height": 120},
+        "itemCornerRadius": 16,
+        "itemSpacing": 16,
+        "imageMode": "aspectFill",
+        "dataBinding": "recentVisits.photos"
+      }
+    ]
+  }
+}

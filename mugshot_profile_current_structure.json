@@ -1,0 +1,222 @@
+{
+  "screen": {
+    "name": "ProfileTab",
+    "backgroundColor": "screenBackground",
+    "safeArea": {
+      "top": true,
+      "bottom": true
+    },
+    "scroll": true
+  },
+  "sections": [
+    {
+      "id": "hero",
+      "type": "bannerWithAvatar",
+      "frame": {
+        "height": "~220-260",
+        "width": "full"
+      },
+      "background": {
+        "type": "image",
+        "contentMode": "aspectFill",
+        "cornerRadius": "xlTopOnly",
+        "imageSource": "userBannerPhoto",
+        "fallbackColor": "mint/softGreen"
+      },
+      "overlay": {
+        "layout": "vertical",
+        "alignment": "center",
+        "padding": {
+          "top": 24,
+          "horizontal": 24,
+          "bottom": 56
+        },
+        "items": [
+          {
+            "type": "text",
+            "role": "displayName",
+            "value": "Creator",
+            "font": "screenTitle",
+            "color": "onBannerPrimary"
+          },
+          {
+            "type": "text",
+            "role": "username",
+            "value": "@mugshot",
+            "font": "bodySecondary",
+            "color": "onBannerSecondary"
+          },
+          {
+            "type": "text",
+            "role": "bio",
+            "value": "This is my test environment lets go!",
+            "font": "bodyText",
+            "color": "onBannerPrimary",
+            "maxLines": 2
+          }
+        ]
+      },
+      "topActions": {
+        "position": "topRight",
+        "layout": "horizontal",
+        "alignment": "center",
+        "padding": {
+          "top": 12,
+          "trailing": 16
+        },
+        "spacing": 16,
+        "items": [
+          {
+            "id": "notifications",
+            "icon": "bell.fill",
+            "action": "openNotifications",
+            "tintColor": "onBannerPrimary"
+          },
+          {
+            "id": "shareProfile",
+            "icon": "square.and.arrow.up",
+            "action": "shareProfile",
+            "tintColor": "onBannerPrimary"
+          }
+        ]
+      },
+      "avatar": {
+        "type": "circleAvatar",
+        "diameter": 120,
+        "position": {
+          "horizontal": "center",
+          "vertical": "overlapBottom"
+        },
+        "backgroundColor": "cardBackground",
+        "borderColor": "screenBackground",
+        "borderWidth": 4,
+        "shadow": "cardSoft",
+        "content": {
+          "type": "initialsOrImage",
+          "text": "M"
+        },
+        "footer": {
+          "type": "locationRow",
+          "icon": "location.fill",
+          "text": "Charleston",
+          "font": "caption1",
+          "color": "textSecondary",
+          "alignment": "center"
+        }
+      }
+    },
+    {
+      "id": "statsGrid",
+      "type": "cardGrid",
+      "background": "cardBackground",
+      "cornerRadius": "xl",
+      "shadow": "cardSoft",
+      "padding": 16,
+      "margin": {
+        "top": 72,
+        "horizontal": 16
+      },
+      "columns": 2,
+      "items": [
+        {
+          "label": "TOTAL VISITS",
+          "value": "10",
+          "subtitle": null
+        },
+        {
+          "label": "CAFÉS VISITED",
+          "value": "4",
+          "subtitle": null
+        },
+        {
+          "label": "AVG SCORE",
+          "value": "3.5",
+          "subtitle": null
+        },
+        {
+          "label": "FAVORITE DRINK",
+          "value": "Coffee",
+          "subtitle": null
+        }
+      ],
+      "typography": {
+        "label": "caption2Uppercase",
+        "value": "numericStatLarge"
+      }
+    },
+    {
+      "id": "coffeeJourney",
+      "type": "card",
+      "background": "cardBackground",
+      "cornerRadius": "xl",
+      "shadow": "cardSoft",
+      "padding": 16,
+      "margin": {
+        "top": 16,
+        "horizontal": 16
+      },
+      "content": {
+        "title": {
+          "text": "Coffee Journey",
+          "font": "sectionTitle"
+        },
+        "subtitle": {
+          "text": "10 visits across 4 cafés",
+          "font": "bodySecondary"
+        }
+      }
+    },
+    {
+      "id": "segmentControl",
+      "type": "DesignSegmentedControl",
+      "margin": {
+        "top": 16,
+        "horizontal": 16
+      },
+      "items": [
+        "Recent",
+        "Top Cafes",
+        "Favorites",
+        "Wishlist"
+      ],
+      "selectedIndex": 0
+    },
+    {
+      "id": "visitList",
+      "type": "list",
+      "margin": {
+        "top": 8,
+        "bottom": 16
+      },
+      "itemType": "visitCard",
+      "visitCard": {
+        "layout": "vertical",
+        "header": {
+          "avatar": {
+            "type": "circle",
+            "size": 40,
+            "initials": "M"
+          },
+          "title": "Creator",
+          "subtitle": "11/15/25",
+          "badge": {
+            "text": "You",
+            "style": "pill",
+            "backgroundColor": "badgeBackground",
+            "textColor": "badgeText"
+          },
+          "ratingChip": {
+            "type": "ScoreBadge",
+            "value": 2.9
+          }
+        },
+        "image": {
+          "aspectRatio": "16:9",
+          "cornerRadius": "xl",
+          "contentMode": "aspectFill",
+          "source": "visitHeroPhoto"
+        }
+      }
+    }
+  ]
+}

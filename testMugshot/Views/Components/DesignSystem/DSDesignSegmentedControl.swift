@@ -17,7 +17,7 @@ struct DSDesignSegmentedControl: View {
                     }
                 }) {
                     Text(options[index])
-                        .font(DS.Typography.callout)
+                        .font(DS.Typography.callout())
                         .foregroundColor(selectedIndex == index ? DS.Colors.textPrimary : DS.Colors.textSecondary)
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.sm)

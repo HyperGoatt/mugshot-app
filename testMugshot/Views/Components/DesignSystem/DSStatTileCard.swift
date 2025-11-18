@@ -20,7 +20,7 @@ struct DSStatTileCard: View {
                     .foregroundColor(DS.Colors.textPrimary)
                 if let subtitle = subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(DS.Typography.caption2)
+                        .font(DS.Typography.caption2())
                         .foregroundColor(DS.Colors.textTertiary)
                 }
             }

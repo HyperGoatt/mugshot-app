@@ -10,6 +10,43 @@ import PhotosUI
 import MapKit
 import CoreLocation
 
+// MARK: - LogVisitView Audit
+//
+// - Ratings UI:
+//   Defined once in `RatingsSection` / `RatingCategoryRow` at the bottom of this file.
+//   Logic is sound (per-category stars + overall score) but the view is tightly coupled
+//   to `LogVisitView` and not reusable elsewhere.
+//
+// - Spacing & padding:
+//   Root form uses a hard-coded `VStack(spacing: 24)` and mixes design-system spacing
+//   (`DS.Spacing.*`) with magic numbers (24, 40, 3...8 line limits, etc.).
+//   Section cards each manage their own padding and vertical spacing, leading to
+//   inconsistent gaps between sections.
+//
+// - Colors, fonts, corner radii:
+//   Most text and backgrounds correctly use `DS.Colors` and `DS.Typography`, but
+//   some elements (e.g. dashed photo placeholder, sliders, list rows) hard-code
+//   sizes and layout instead of leaning on shared card patterns.
+//   Multiple sections create their own card styling (`background + cornerRadius +
+//   dsCardShadow()`), which duplicates what `DSBaseCard` already provides.
+//
+// - Wiring / business logic:
+//   * Photo picking: `selectedPhotos` + `photoImages` are driven by `PhotosPicker`
+//     and `loadPhotos(from:)`, then converted into string paths and cached in
+//     `saveVisit()`. Poster photo index is tracked via `posterPhotoIndex`.
+//   * Ratings: `ratings: [String: Double]` is initialized from
+//     `dataManager.appData.ratingTemplate` and updated through `RatingCategoryRow`
+//     star taps; `overallScore` is computed via `ratingTemplate.calculateOverallScore`.
+//   * Visibility: `visibility: VisitVisibility` is bound to `VisibilitySection`,
+//     which toggles between `.private`, `.friends`, `.everyone`.
+//   * Caption/Notes: `caption` and `notes` bindings are wired into `CaptionSection`
+//     and `NotesSection`; caption is required, notes are optional. Caption already
+//     enforces a 200‑char limit but notes do not.
+//   * Save Visit: `saveVisit()` performs validation (cafe selection, drink type,
+//     caption present, user ID resolution), persists a `Visit` through
+//     `dataManager.addVisit`, then presents `VisitDetailView`. This logic should
+//     remain untouched during the UI refactor.
+
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
@@ -60,6 +97,13 @@ struct LogVisitView: View {
         NavigationStack {
             mainContent
                 .background(DS.Colors.screenBackground)
+                .safeAreaInset(edge: .bottom) {
+                    SaveVisitButton(
+                        isEnabled: canSave,
+                        isLoading: false,
+                        onTap: saveVisit
+                    )
+                }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -107,37 +151,34 @@ struct LogVisitView: View {
                     dismiss()
                 }) {
                     if let visit = savedVisit {
-                        VisitDetailView(visit: visit, dataManager: dataManager)
+                        NavigationStack {
+                            VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
+                        }
                     }
                 }
         }
     }
     
     private var mainContent: some View {
-        ZStack {
-            // Light background
-            DS.Colors.screenBackground
-                .ignoresSafeArea()
-            
-            ScrollViewReader { proxy in
-                ScrollView {
-                    formContent
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                }
-                .onChange(of: scrollToTop) { _, shouldScroll in
-                    if shouldScroll {
-                        withAnimation {
-                            proxy.scrollTo("top", anchor: .top)
-                        }
-                        scrollToTop = false
+        ScrollViewReader { proxy in
+            ScrollView {
+                formContent
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.bottom, DS.Spacing.xxl) // space above bottom button
+            }
+            .onChange(of: scrollToTop) { _, shouldScroll in
+                if shouldScroll {
+                    withAnimation {
+                        proxy.scrollTo("top", anchor: .top)
                     }
+                    scrollToTop = false
                 }
             }
         }
     }
     
     private var formContent: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.sectionVerticalGap) {
             // Header section (inside scrollable content)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Log a Visit")
@@ -153,44 +194,60 @@ struct LogVisitView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         
             // Cafe Location
-            CafeLocationSection(
-                selectedCafe: $selectedCafe,
-                searchText: $searchText,
-                isSearchActive: $isCafeSearchActive,
-                searchService: searchService,
-                dataManager: dataManager,
-                searchRegion: defaultSearchRegion
-            )
+            FormSectionCard(title: "Cafe Location") {
+                CafeLocationSection(
+                    selectedCafe: $selectedCafe,
+                    searchText: $searchText,
+                    isSearchActive: $isCafeSearchActive,
+                    searchService: searchService,
+                    dataManager: dataManager,
+                    searchRegion: defaultSearchRegion
+                )
+            }
             
             // Drink Type
-            DrinkTypeSection(
-                drinkType: $drinkType,
-                customDrinkType: $customDrinkType
-            )
+            FormSectionCard(title: "Drink Type") {
+                DrinkTypeSection(
+                    drinkType: $drinkType,
+                    customDrinkType: $customDrinkType
+                )
+            }
             
             // Photos
-            PhotosSection(
-                photoImages: $photoImages,
-                posterPhotoIndex: $posterPhotoIndex,
-                showPhotoPicker: $showPhotoPicker
+            PhotoUploaderCard(
+                images: photoImages,
+                posterIndex: posterPhotoIndex,
+                maxPhotos: 10,
+                onAddTapped: { showPhotoPicker = true },
+                onRemove: { index in
+                    photoImages.remove(at: index)
+                    if posterPhotoIndex >= photoImages.count {
+                        posterPhotoIndex = max(0, photoImages.count - 1)
+                    }
+                },
+                onSetPoster: { index in
+                    posterPhotoIndex = index
+                }
             )
             
             // Ratings
-            RatingsSection(
+            RatingsCard(
                 dataManager: dataManager,
                 ratings: $ratings,
                 overallScore: overallScore,
-                showCustomize: $showCustomizeRatings
+                onCustomizeTapped: { showCustomizeRatings = true }
             )
             
-            // Caption
-            CaptionSection(caption: $caption)
-            
-            // Notes
-            NotesSection(notes: $notes)
+            // Caption & Notes
+            CaptionNotesSection(
+                caption: $caption,
+                notes: $notes,
+                captionLimit: 200,
+                notesLimit: 200
+            )
             
             // Visibility
-            VisibilitySection(visibility: $visibility)
+            VisibilitySelector(visibility: $visibility)
             
             // Validation errors
             if !validationErrors.isEmpty {
@@ -205,15 +262,13 @@ struct LogVisitView: View {
                 }
             }
             
-            // Save button
-            Button("Save Visit") {
-                saveVisit()
-            }
-            .buttonStyle(DSPrimaryButtonStyle())
-            .frame(maxWidth: .infinity)
-            .padding(.top, DS.Spacing.sm)
-            .padding(.bottom, DS.Spacing.xxl)
         }
+    }
+    
+    private var canSave: Bool {
+        selectedCafe != nil &&
+        (drinkType != .other || !customDrinkType.isEmpty) &&
+        !caption.isEmpty
     }
     
     private func resetForm() {
@@ -289,7 +344,27 @@ struct LogVisitView: View {
             return
         }
         
-        guard let userId = dataManager.appData.currentUser?.id else {
+        // Ensure we have a user ID - create User if needed
+        let userId: UUID
+        if let existingUser = dataManager.appData.currentUser {
+            userId = existingUser.id
+        } else if let username = dataManager.appData.currentUserUsername {
+            // Create a User from AppData fields if it doesn't exist
+            let newUser = User(
+                username: username,
+                displayName: dataManager.appData.currentUserDisplayName,
+                location: dataManager.appData.currentUserLocation ?? "",
+                profileImageID: dataManager.appData.currentUserProfileImageId,
+                bannerImageID: dataManager.appData.currentUserBannerImageId,
+                bio: dataManager.appData.currentUserBio ?? "",
+                instagramURL: dataManager.appData.currentUserInstagramHandle,
+                websiteURL: dataManager.appData.currentUserWebsite,
+                favoriteDrink: dataManager.appData.currentUserFavoriteDrink
+            )
+            dataManager.setCurrentUser(newUser)
+            userId = newUser.id
+        } else {
+            validationErrors.append("Please complete your profile setup")
             return
         }
         
@@ -340,38 +415,103 @@ struct CafeLocationSection: View {
     let searchRegion: MKCoordinateRegion
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Cafe Location")
-                .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            if isSearchActive {
-                // Inline search mode
-                VStack(spacing: 8) {
-                    HStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(DS.Colors.textSecondary)
-                            
-                            TextField("Search cafes...", text: $searchText)
-                                .foregroundColor(DS.Colors.textPrimary)
-                                .onChange(of: searchText) { oldValue, newValue in
-                                    if !newValue.isEmpty {
-                                        searchService.search(query: newValue, region: searchRegion)
-                                    } else {
+        DSBaseCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Cafe Location")
+                    .font(DS.Typography.sectionTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
+                
+                if isSearchActive {
+                    // Inline search mode
+                    VStack(spacing: 8) {
+                        HStack(spacing: 12) {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(DS.Colors.textSecondary)
+                                
+                                TextField("Search cafes...", text: $searchText)
+                                    .foregroundColor(DS.Colors.textPrimary)
+                                    .onChange(of: searchText) { oldValue, newValue in
+                                        if !newValue.isEmpty {
+                                            searchService.search(query: newValue, region: searchRegion)
+                                        } else {
+                                            searchService.cancelSearch()
+                                        }
+                                    }
+                                
+                                if !searchText.isEmpty {
+                                    Button(action: {
+                                        searchText = ""
                                         searchService.cancelSearch()
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(DS.Colors.iconSubtle)
                                     }
                                 }
+                            }
+                            .padding(DS.Spacing.md)
+                            .background(DS.Colors.cardBackground)
+                            .cornerRadius(DS.Radius.md)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                            )
                             
-                            if !searchText.isEmpty {
-                                Button(action: {
-                                    searchText = ""
-                                    searchService.cancelSearch()
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(DS.Colors.iconSubtle)
+                            Button("Cancel") {
+                                searchText = ""
+                                searchService.cancelSearch()
+                                isSearchActive = false
+                            }
+                            .foregroundColor(DS.Colors.textPrimary)
+                        }
+                        
+                        // Search results dropdown
+                        if !searchText.isEmpty {
+                            CafeSearchResultsDropdown(
+                                searchService: searchService,
+                                dataManager: dataManager,
+                                searchText: $searchText,
+                                selectedCafe: $selectedCafe,
+                                isSearchActive: $isSearchActive
+                            )
+                        }
+                    }
+                } else {
+                    // Display selected cafe or search prompt
+                    Button(action: {
+                        isSearchActive = true
+                    }) {
+                        HStack {
+                            if let cafe = selectedCafe {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "location.fill")
+                                            .foregroundColor(DS.Colors.primaryAccent)
+                                            .font(DS.Typography.caption1())
+                                        Text(cafe.name)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                    }
+                                    
+                                    if !cafe.address.isEmpty {
+                                        Text(cafe.address)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                    }
+                                }
+                            } else {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                    Text("Search for a Cafe…")
+                                        .foregroundColor(DS.Colors.textSecondary)
                                 }
                             }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(DS.Colors.iconSubtle)
                         }
                         .padding(DS.Spacing.md)
                         .background(DS.Colors.cardBackground)
@@ -380,77 +520,11 @@ struct CafeLocationSection: View {
                             RoundedRectangle(cornerRadius: DS.Radius.md)
                                 .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                         )
-                        
-                        Button("Cancel") {
-                            searchText = ""
-                            searchService.cancelSearch()
-                            isSearchActive = false
-                        }
-                        .foregroundColor(DS.Colors.textPrimary)
                     }
-                    
-                    // Search results dropdown
-                    if !searchText.isEmpty {
-                        CafeSearchResultsDropdown(
-                            searchService: searchService,
-                            dataManager: dataManager,
-                            searchText: $searchText,
-                            selectedCafe: $selectedCafe,
-                            isSearchActive: $isSearchActive
-                        )
-                    }
+                    .buttonStyle(.plain)
                 }
-            } else {
-                // Display selected cafe or search prompt
-                Button(action: {
-                    isSearchActive = true
-                }) {
-                    HStack {
-                        if let cafe = selectedCafe {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Image(systemName: "location.fill")
-                                            .foregroundColor(DS.Colors.primaryAccent)
-                                            .font(DS.Typography.caption1)
-                                    Text(cafe.name)
-                                            .font(DS.Typography.bodyText)
-                                            .foregroundColor(DS.Colors.textPrimary)
-                                }
-                                
-                                if !cafe.address.isEmpty {
-                                    Text(cafe.address)
-                                            .font(DS.Typography.bodyText)
-                                            .foregroundColor(DS.Colors.textSecondary)
-                                }
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                Text("Search for a Cafe…")
-                                        .foregroundColor(DS.Colors.textSecondary)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                                .foregroundColor(DS.Colors.iconSubtle)
-                    }
-                        .padding(DS.Spacing.md)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.md)
-                    .overlay(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
-        .modifier(DSBaseCard(background: DS.Colors.cardBackground) { EmptyView() }.modifierBody(for: {
-            EmptyView()
-        }))
     }
 }
 
@@ -579,7 +653,7 @@ struct DrinkTypeSection: View {
                         Spacer()
                         Image(systemName: showDropdown ? "chevron.up" : "chevron.down")
                             .foregroundColor(DS.Colors.iconSubtle)
-                            .font(DS.Typography.caption2)
+                            .font(DS.Typography.caption2())
                     }
                     .padding(DS.Spacing.md)
                     .background(DS.Colors.cardBackground)
@@ -658,370 +732,6 @@ struct DrinkTypeSection: View {
     }
 }
 
-// MARK: - Photos Section
-
-struct PhotosSection: View {
-    @Binding var photoImages: [UIImage]
-    @Binding var posterPhotoIndex: Int
-    @Binding var showPhotoPicker: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Photos")
-                .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            if photoImages.isEmpty {
-                Button(action: {
-                    showPhotoPicker = true
-                }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 32))
-                            .foregroundColor(DS.Colors.iconSubtle)
-                        
-                        Text("Tap to add photos (\(photoImages.count)/10)")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                        
-                        Text("Photos will be compressed automatically.")
-                            .font(DS.Typography.caption2)
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
-                    .background(Color.clear)
-                    .cornerRadius(DS.Radius.md)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DS.Radius.md)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                            .foregroundColor(DS.Colors.borderSubtle)
-                    )
-                }
-                .buttonStyle(.plain)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(photoImages.indices, id: \.self) { index in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: photoImages[index])
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 100, height: 100)
-                                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
-                                
-                                // Poster indicator
-                                if index == posterPhotoIndex {
-                                    VStack {
-                                        HStack {
-                                            Spacer()
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(DS.Colors.primaryAccent)
-                                                .background(DS.Colors.cardBackground)
-                                                .clipShape(Circle())
-                                                .padding(4)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                                
-                                // Remove button
-                                Button(action: {
-                                    photoImages.remove(at: index)
-                                    if posterPhotoIndex >= photoImages.count - 1 {
-                                        posterPhotoIndex = max(0, photoImages.count - 2)
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(DS.Colors.negativeChange)
-                                        .background(DS.Colors.cardBackground)
-                                        .clipShape(Circle())
-                                }
-                                .offset(x: 4, y: -4)
-                                
-                                // Tap to set poster
-                                Button(action: {
-                                    posterPhotoIndex = index
-                                }) {
-                                    Color.clear
-                                        .frame(width: 100, height: 100)
-                                }
-                            }
-                        }
-                        
-                        if photoImages.count < 10 {
-                            Button(action: {
-                                showPhotoPicker = true
-                            }) {
-                                RoundedRectangle(cornerRadius: DS.Radius.md)
-                                    .fill(DS.Colors.cardBackgroundAlt)
-                                    .frame(width: 100, height: 100)
-                                    .overlay(
-                                        Image(systemName: "plus")
-                                            .foregroundColor(DS.Colors.iconSubtle)
-                                    )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .background(DS.Colors.cardBackground)
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
-    }
-}
-
-// MARK: - Ratings Section
-
-struct RatingsSection: View {
-    @ObservedObject var dataManager: DataManager
-    @Binding var ratings: [String: Double]
-    let overallScore: Double
-    @Binding var showCustomize: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Ratings")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Spacer()
-                
-                Button(action: {
-                    showCustomize = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil")
-                            .font(DS.Typography.caption2)
-                        Text("Customize")
-                            .font(DS.Typography.bodyText)
-                    }
-                    .foregroundColor(DS.Colors.primaryAccent)
-                }
-            }
-            
-            ForEach(dataManager.appData.ratingTemplate.categories) { category in
-                RatingCategoryRow(
-                    category: category,
-                    rating: Binding(
-                        get: { ratings[category.name] ?? 0.0 },
-                        set: { ratings[category.name] = $0 }
-                    ),
-                    weightMultiplier: dataManager.appData.ratingTemplate.getWeightMultiplier(for: category)
-                )
-            }
-            
-            Divider()
-                .padding(.vertical, 8)
-            
-            HStack {
-                Text("Overall Score")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Spacer()
-                
-                DSScoreBadge(score: overallScore)
-            }
-        }
-        .background(DS.Colors.cardBackground)
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
-    }
-}
-
-struct RatingCategoryRow: View {
-    let category: RatingCategory
-    @Binding var rating: Double
-    let weightMultiplier: Double
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                HStack(spacing: 4) {
-                    Text(category.name)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                    
-                    if weightMultiplier != 1.0 {
-                        Text("(\(formatWeight(weightMultiplier)) importance)")
-                            .font(DS.Typography.caption2)
-                            .foregroundColor(DS.Colors.primaryAccent)
-                    }
-                }
-                
-                Spacer()
-            }
-            
-            HStack(spacing: 4) {
-                ForEach(0..<5) { index in
-                    Button(action: {
-                        let newRating = Double(index + 1)
-                        // Tapping the same star again sets to 0
-                        rating = rating == newRating ? 0.0 : newRating
-                    }) {
-                        Image(systemName: rating > Double(index) ? "star.fill" : "star")
-                            .foregroundColor(rating > Double(index) ? DS.Colors.primaryAccent : DS.Colors.textTertiary)
-                            .font(.system(size: 20))
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 8)
-    }
-    
-    private func formatWeight(_ weight: Double) -> String {
-        if weight == floor(weight) {
-            return String(format: "%.0fx", weight)
-        } else {
-            return String(format: "%.1fx", weight)
-        }
-    }
-}
-
-// MARK: - Caption Section
-
-struct CaptionSection: View {
-    @Binding var caption: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Caption")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Spacer()
-                
-                Text("\(caption.count)/200")
-                    .font(DS.Typography.caption2)
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            
-            TextField("Share your thoughts or first impressions…", text: Binding(
-                get: { caption },
-                set: { newValue in
-                    if newValue.count <= 200 {
-                        caption = newValue
-                    }
-                }
-            ), axis: .vertical)
-                .lineLimit(3...6)
-                .foregroundColor(DS.Colors.textPrimary)
-                .tint(DS.Colors.primaryAccent)
-                .accentColor(DS.Colors.primaryAccent)
-                .padding(DS.Spacing.md)
-                .background(DS.Colors.cardBackground)
-                .cornerRadius(DS.Radius.md)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                )
-        }
-        .background(DS.Colors.cardBackground)
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
-    }
-}
-
-// MARK: - Notes Section
-
-struct NotesSection: View {
-    @Binding var notes: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Notes (Optional)")
-                .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            TextField("Anything extra you'd like to remember?", text: $notes, axis: .vertical)
-                .lineLimit(3...8)
-                .foregroundColor(DS.Colors.textPrimary)
-                .tint(DS.Colors.primaryAccent)
-                .accentColor(DS.Colors.primaryAccent)
-                .padding(DS.Spacing.md)
-                .background(DS.Colors.cardBackground)
-                .cornerRadius(DS.Radius.md)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                )
-        }
-        .background(DS.Colors.cardBackground)
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
-    }
-}
-
-// MARK: - Visibility Section
-
-struct VisibilitySection: View {
-    @Binding var visibility: VisitVisibility
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Visibility")
-                .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            HStack(spacing: DS.Spacing.lg) {
-                VisibilityButton(
-                    title: "Private",
-                    subtitle: "Only you",
-                    isSelected: visibility == .private,
-                    action: { visibility = .private }
-                )
-                
-                VisibilityButton(
-                    title: "Friends",
-                    subtitle: "Friends can see",
-                    isSelected: visibility == .friends,
-                    action: { visibility = .friends }
-                )
-                
-                VisibilityButton(
-                    title: "Everyone",
-                    subtitle: "Visible to all",
-                    isSelected: visibility == .everyone,
-                    action: { visibility = .everyone }
-                )
-            }
-        }
-        .cardStyle()
-    }
-}
-
-struct VisibilityButton: View {
-    let title: String
-    let subtitle: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title)
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(isSelected ? DS.Colors.textPrimary : DS.Colors.textSecondary)
-                
-                Text(subtitle)
-                    .font(DS.Typography.caption2)
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(DS.Spacing.md)
-            .background(isSelected ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackgroundAlt)
-            .cornerRadius(DS.Radius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isSelected ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
-            )
-        }
-    }
-}
 
 // MARK: - Cafe Search Sheet
 

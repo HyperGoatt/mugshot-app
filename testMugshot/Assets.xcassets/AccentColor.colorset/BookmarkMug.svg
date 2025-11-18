@@ -1,0 +1,57 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle (Mugshot mint, soft) -->
+  <circle cx="64" cy="64" r="56" fill="#E7F7EA"/>
+
+  <!-- Mug shadow -->
+  <ellipse cx="64" cy="88" rx="22" ry="6" fill="#000000" opacity="0.06"/>
+
+  <!-- Mug body -->
+  <rect x="40" y="52" width="32" height="26" rx="8" fill="#FFFFFF" stroke="#C9D4DD" stroke-width="2"/>
+
+  <!-- Mug base -->
+  <rect x="44" y="78" width="24" height="5" rx="2.5" fill="#FFFFFF" stroke="#C9D4DD" stroke-width="2"/>
+
+  <!-- Mug handle -->
+  <path d="M72 56C77 56 80.5 59.5 80.5 64C80.5 68.5 77 72 72 72" fill="none" stroke="#C9D4DD" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Coffee surface -->
+  <rect x="42" y="54" width="28" height="5" rx="2.5" fill="#E3D1B5"/>
+
+  <!-- Cute face: eyes -->
+  <circle cx="50" cy="64" r="2" fill="#24313F"/>
+  <circle cx="62" cy="64" r="2" fill="#24313F"/>
+
+  <!-- Cute face: soft smile -->
+  <path d="M52.5 69C54.2 70.8 58 71.2 59.5 69" stroke="#24313F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Blush -->
+  <circle cx="46.5" cy="66" r="2.2" fill="#F7D2D2" opacity="0.9"/>
+  <circle cx="65.5" cy="66" r="2.2" fill="#F7D2D2" opacity="0.9"/>
+
+  <!-- Thought bubble stem -->
+  <circle cx="80" cy="44" r="3" fill="#FFFFFF" stroke="#C9D4DD" stroke-width="1"/>
+  <circle cx="86" cy="36.5" r="3.8" fill="#FFFFFF" stroke="#C9D4DD" stroke-width="1"/>
+
+  <!-- Thought bubble main -->
+  <path d="M86 30C91.5 30 96 34.2 96 40C96 45.8 91.5 50 86 50C80.5 50 76 45.8 76 40C76 34.2 80.5 30 86 30Z" fill="#FFFFFF" stroke="#C9D4DD" stroke-width="1.2"/>
+
+  <!-- Map pin (blue, replacing red pin) -->
+  <path d="M86 33C82.7 33 80 35.7 80 39C80 41.2 81.2 43.4 82.7 45.1C83.8 46.3 85 47.2 86 48C87 47.2 88.2 46.3 89.3 45.1C90.8 43.4 92 41.2 92 39C92 35.7 89.3 33 86 33Z"
+        fill="#4A90E2" stroke="#2F6BB8" stroke-width="1"/>
+
+  <!-- Bookmark icon inside the pin (blue, replacing heart) -->
+  <path d="M86 35H83.5C82.9477 35 82.5 35.4477 82.5 36V42.5L84.75 41.2L87 42.5V36C87 35.4477 86.5523 35 86 35Z"
+        fill="#E6F0FF"/>
+  <path d="M83.5 36.6C83.5 36.3239 83.7239 36.1 84 36.1H86C86.2761 36.1 86.5 36.3239 86.5 36.6C86.5 36.8761 86.2761 37.1 86 37.1H84C83.7239 37.1 83.5 36.8761 83.5 36.6Z"
+        fill="#4A90E2" opacity="0.9"/>
+
+  <!-- Small sparkles around mug -->
+  <g fill="#C1DFC7">
+    <!-- Left sparkle -->
+    <path d="M32 60L33.3 62.5L36 63.7L33.3 64.9L32 67.5L30.7 64.9L28 63.7L30.7 62.5L32 60Z"/>
+    <!-- Right sparkle -->
+    <path d="M94 66L95.4 68.6L98 69.9L95.4 71.1L94 73.8L92.6 71.1L90 69.9L92.6 68.6L94 66Z"/>
+    <!-- Small top sparkle -->
+    <path d="M52 34L52.8 35.6L54.5 36.3L52.8 37.1L52 38.7L51.2 37.1L49.5 36.3L51.2 35.6L52 34Z"/>
+  </g>
+</svg>

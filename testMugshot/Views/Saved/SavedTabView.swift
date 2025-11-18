@@ -10,10 +10,15 @@ import SwiftUI
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
     @State private var selectedTab: SavedTab = .favorites
-    @State private var sortOption: SortOption = .score
+    @State private var sortOption: SortOption = .scoreBestToWorst
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
     @State private var showLogVisit = false
+    @State private var showNotifications = false
+    
+    private var unreadNotificationCount: Int {
+        dataManager.appData.notifications.filter { !$0.isRead }.count
+    }
     
     enum SavedTab: String, CaseIterable {
         case favorites = "Favorites"
@@ -22,74 +27,118 @@ struct SavedTabView: View {
     }
     
     enum SortOption: String, CaseIterable {
-        case score = "By Score"
-        case date = "By Date"
-        case name = "By Name"
+        case scoreBestToWorst = "Score: Best → Worst"
+        case scoreWorstToBest = "Score: Worst → Best"
+        case dateNewestToOldest = "Date: Newest → Oldest"
+        case dateOldestToNewest = "Date: Oldest → Newest"
+        case alphabetical = "Alphabetical (A→Z)"
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Segmented control
-                Picker("Tab", selection: $selectedTab) {
-                    ForEach(SavedTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(DS.Spacing.pagePadding)
-                
-                // Header
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    DSSectionHeader("Your Cafés", subtitle: selectedTab.rawValue)
+                // Mint header band
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    Text("Saved")
+                        .font(DS.Typography.screenTitle)
+                        .foregroundColor(DS.Colors.textPrimary)
+                    
+                    // Segmented control for Favorites / Want to Try / All Cafes
+                    DSDesignSegmentedControl(
+                        options: SavedTab.allCases.map { $0.rawValue },
+                        selectedIndex: Binding(
+                            get: { SavedTab.allCases.firstIndex(of: selectedTab) ?? 0 },
+                            set: { selectedTab = SavedTab.allCases[$0] }
+                        )
+                    )
+                    .padding(.top, DS.Spacing.md)
                 }
                 .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.top, DS.Spacing.xxl)
                 .padding(.bottom, DS.Spacing.md)
+                .background(DS.Colors.appBarBackground)
                 
-                // Sort option (only for All Cafes)
-                if selectedTab == .allCafes {
-                    Picker("Sort", selection: $sortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
+                // Cafe list + optional sort control
+                if filteredAndSortedCafes.isEmpty {
+                    switch selectedTab {
+                    case .favorites:
+                        EmptyStateView(
+                            iconName: "DreamingMug",
+                            title: "No favorite cafes… yet.",
+                            subtitle: "Go discover a new sip to save."
+                        )
+                    case .wantToTry:
+                        EmptyStateView(
+                            iconName: "BookmarkMug",
+                            title: "Your wishlist is empty.",
+                            subtitle: "Find a cafe to bookmark!"
+                        )
+                    case .allCafes:
+                        VStack {
+                            Spacer()
+                            Text("No cafes available.")
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, DS.Spacing.pagePadding * 2)
+                            Spacer()
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DS.Colors.screenBackground)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-                }
-                
-                // Cafe list
-                ScrollView {
-                    LazyVStack(spacing: DS.Spacing.cardVerticalGap) {
-                        ForEach(filteredAndSortedCafes) { cafe in
-                            CafeCard(
-                                cafe: cafe,
-                                dataManager: dataManager,
-                                showWantToTryTag: selectedTab == .wantToTry,
-                                onLogVisit: {
-                                    selectedCafe = cafe
-                                    showLogVisit = true
-                                },
-                                onShowDetails: {
-                                    selectedCafe = cafe
-                                    showCafeDetail = true
+                } else {
+                    ScrollView {
+                        VStack(spacing: DS.Spacing.sectionVerticalGap) {
+                            if selectedTab == .allCafes {
+                                HStack {
+                                    Spacer()
+                                    Menu {
+                                        ForEach(SortOption.allCases, id: \.self) { option in
+                                            Button {
+                                                sortOption = option
+                                            } label: {
+                                                Label(option.rawValue, systemImage: sortOption == option ? "checkmark" : "")
+                                            }
+                                        }
+                                    } label: {
+                                        Label(sortOption.rawValue, systemImage: "arrow.up.arrow.down")
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                            .padding(.horizontal, DS.Spacing.md)
+                                            .padding(.vertical, DS.Spacing.sm)
+                                            .background(DS.Colors.cardBackground)
+                                            .cornerRadius(DS.Radius.md)
+                                            .dsCardShadow()
+                                    }
                                 }
-                            )
-                        }
-                        
-                        if filteredAndSortedCafes.isEmpty {
-                            DSBaseCard {
-                                Text("No cafés yet")
-                                    .font(DS.Typography.bodyText)
-                                    .foregroundColor(DS.Colors.textSecondary)
-                                    .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.horizontal, DS.Spacing.pagePadding)
                             }
+                            
+                            LazyVStack(spacing: DS.Spacing.cardVerticalGap) {
+                                ForEach(filteredAndSortedCafes) { cafe in
+                                    CafeCard(
+                                        cafe: cafe,
+                                        dataManager: dataManager,
+                                        mode: selectedTab,
+                                        onLogVisit: {
+                                            selectedCafe = cafe
+                                            showLogVisit = true
+                                        },
+                                        onShowDetails: {
+                                            selectedCafe = cafe
+                                            showCafeDetail = true
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.bottom, DS.Spacing.xxl)
                         }
                     }
-                    .padding(DS.Spacing.pagePadding)
+                    .background(DS.Colors.screenBackground)
                 }
             }
             .background(DS.Colors.screenBackground)
-            .navigationTitle("Saved")
         }
         .sheet(isPresented: $showLogVisit) {
             if let cafe = selectedCafe {
@@ -100,6 +149,32 @@ struct SavedTabView: View {
             if let cafe = selectedCafe {
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showNotifications = true }) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 20))
+                            .foregroundColor(DS.Colors.iconDefault)
+                        
+                        if unreadNotificationCount > 0 {
+                            Text("\(unreadNotificationCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(DS.Colors.textOnMint)
+                                .padding(4)
+                                .background(
+                                    Circle()
+                                        .fill(DS.Colors.primaryAccent)
+                                )
+                                .offset(x: 8, y: -8)
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showNotifications) {
+            NotificationsCenterView(dataManager: dataManager)
         }
     }
     
@@ -117,10 +192,11 @@ struct SavedTabView: View {
         
         // Sort
         switch sortOption {
-        case .score:
+        case .scoreBestToWorst:
             return cafes.sorted { $0.averageRating > $1.averageRating }
-        case .date:
-            // Sort by most recent visit
+        case .scoreWorstToBest:
+            return cafes.sorted { $0.averageRating < $1.averageRating }
+        case .dateNewestToOldest:
             return cafes.sorted { cafe1, cafe2 in
                 let visits1 = dataManager.getVisitsForCafe(cafe1.id)
                 let visits2 = dataManager.getVisitsForCafe(cafe2.id)
@@ -128,8 +204,16 @@ struct SavedTabView: View {
                 let date2 = visits2.first?.date ?? Date.distantPast
                 return date1 > date2
             }
-        case .name:
-            return cafes.sorted { $0.name < $1.name }
+        case .dateOldestToNewest:
+            return cafes.sorted { cafe1, cafe2 in
+                let visits1 = dataManager.getVisitsForCafe(cafe1.id)
+                let visits2 = dataManager.getVisitsForCafe(cafe2.id)
+                let date1 = visits1.first?.date ?? Date.distantPast
+                let date2 = visits2.first?.date ?? Date.distantPast
+                return date1 < date2
+            }
+        case .alphabetical:
+            return cafes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
     }
 }
@@ -137,7 +221,7 @@ struct SavedTabView: View {
 struct CafeCard: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
-    let showWantToTryTag: Bool
+    let mode: SavedTabView.SavedTab
     let onLogVisit: () -> Void
     let onShowDetails: () -> Void
     
@@ -150,81 +234,74 @@ struct CafeCard: View {
     
     var body: some View {
         DSBaseCard {
-            HStack(spacing: DS.Spacing.lg) {
-                // Cafe image - user photos > placeholder
-                if let imagePath = cafeImagePath {
-                    PhotoThumbnailView(photoPath: imagePath, size: 80)
-                } else {
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .fill(DS.Colors.cardBackgroundAlt)
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(DS.Colors.iconSubtle)
-                        )
-                }
-                
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    HStack {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                HStack(alignment: .top, spacing: DS.Spacing.lg) {
+                    // Thumbnail
+                    if let imagePath = cafeImagePath {
+                        PhotoThumbnailView(photoPath: imagePath, size: 72)
+                    } else {
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .fill(DS.Colors.cardBackgroundAlt)
+                            .frame(width: 72, height: 72)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(DS.Colors.iconSubtle)
+                            )
+                    }
+                    
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         Text(cafe.name)
                             .font(DS.Typography.cardTitle)
                             .foregroundColor(DS.Colors.textPrimary)
+                            .lineLimit(2)
                         
-                        if showWantToTryTag {
-                            DSPillChip(label: "Wish", isSelected: true)
+                        if !cafe.address.isEmpty {
+                            Text(cafe.address)
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
+                                .lineLimit(1)
+                        }
+                        
+                        HStack(spacing: DS.Spacing.md) {
+                            DSScoreBadge(score: cafe.averageRating)
+                            Text("\(cafe.visitCount) log\(cafe.visitCount == 1 ? "" : "s")")
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.textSecondary)
                         }
                     }
                     
-                    // Address or neighborhood
-                    if !cafe.address.isEmpty {
-                        Text(cafe.address)
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .lineLimit(1)
-                    }
+                    Spacer()
                     
-                    HStack(spacing: DS.Spacing.md) {
-                        DSScoreBadge(score: cafe.averageRating)
-                        Text("• \(cafe.visitCount) visits")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    // Quick actions
-                    HStack(spacing: DS.Spacing.lg) {
-                        Button("Log Visit") {
-                            onLogVisit()
-                        }
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.primaryAccent)
-                        
-                        Button("Map") {
-                            openInMaps()
-                        }
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                        
-                        if cafe.websiteURL != nil {
-                            Button(action: {
-                                if let url = cafe.websiteURL {
-                                    openWebsite(urlString: url)
-                                }
-                            }) {
-                                Image(systemName: "safari")
-                                    .font(DS.Typography.caption2)
-                                    .foregroundColor(DS.Colors.textSecondary)
-                            }
+                    // Inline favorite / want-to-try toggles
+                    VStack(spacing: DS.Spacing.sm) {
+                        Button(action: {
+                            dataManager.toggleCafeFavorite(cafe.id)
+                        }) {
+                            Image(systemName: cafe.isFavorite ? "heart.fill" : "heart")
+                                .font(.system(size: 18))
+                                .foregroundColor(cafe.isFavorite ? DS.Colors.secondaryAccent : DS.Colors.iconDefault)
                         }
                         
-                        Button("Details") {
-                            onShowDetails()
+                        Button(action: {
+                            dataManager.toggleCafeWantToTry(cafe.id)
+                        }) {
+                            Image(systemName: cafe.wantToTry ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 18))
+                                .foregroundColor(cafe.wantToTry ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
                         }
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
                     }
                 }
                 
-                Spacer()
+                // Full-width Log a Visit button for Favorites / Want to Try
+                if mode == .favorites || mode == .wantToTry {
+                    Button(action: onLogVisit) {
+                        HStack(spacing: DS.Spacing.sm) {
+                            Image(systemName: "cup.and.saucer")
+                            Text("Log a Visit")
+                        }
+                    }
+                    .buttonStyle(DSPrimaryButtonStyle())
+                }
             }
         }
     }
@@ -253,6 +330,7 @@ struct CafeDetailView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) var dismiss
     @State private var showLogVisit = false
+    @State private var selectedVisit: Visit?
     
     var visits: [Visit] {
         dataManager.getVisitsForCafe(cafe.id)
@@ -265,7 +343,7 @@ struct CafeDetailView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Hero image - user photos > placeholder
@@ -402,8 +480,10 @@ struct CafeDetailView: View {
                                     .padding(.top, 8)
                                 
                                 ForEach(visits.prefix(5)) { visit in
-                                    VisitRow(visit: visit, dataManager: dataManager)
-                                        .padding(.horizontal)
+                                    VisitRow(visit: visit, dataManager: dataManager) {
+                                        selectedVisit = visit
+                                    }
+                                    .padding(.horizontal)
                                 }
                             }
                             .padding(.top, 8)
@@ -424,6 +504,9 @@ struct CafeDetailView: View {
             }
             .sheet(isPresented: $showLogVisit) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
+            }
+            .navigationDestination(item: $selectedVisit) { visit in
+                VisitDetailView(dataManager: dataManager, visit: visit)
             }
         }
     }
@@ -452,12 +535,10 @@ struct CafeDetailView: View {
 struct VisitRow: View {
     let visit: Visit
     @ObservedObject var dataManager: DataManager
-    @State private var showVisitDetail = false
+    let onTap: () -> Void
     
     var body: some View {
-        Button(action: {
-            showVisitDetail = true
-        }) {
+        Button(action: onTap) {
             HStack(spacing: 12) {
                 // Thumbnail
                 PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
@@ -488,9 +569,6 @@ struct VisitRow: View {
             .cornerRadius(DesignSystem.smallCornerRadius)
         }
         .buttonStyle(.plain)
-        .fullScreenCover(isPresented: $showVisitDetail) {
-            VisitDetailView(visit: visit, dataManager: dataManager)
-        }
     }
 }
 
