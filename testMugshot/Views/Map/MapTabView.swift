@@ -919,7 +919,11 @@ struct VisitEntryRow: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 // Thumbnail
-                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 50)
+                PhotoThumbnailView(
+                    photoPath: visit.posterImagePath,
+                    remoteURL: visit.posterImagePath.flatMap { visit.remoteURL(for: $0) },
+                    size: 50
+                )
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(visit.date, style: .date)

@@ -8,14 +8,18 @@
 import SwiftUI
 
 struct SignUpView: View {
-    let onAuthSuccess: (AuthUserSummary) -> Void
+    let onSignUpSuccess: (String) -> Void
     let onBack: () -> Void
+    
+    @EnvironmentObject var dataManager: DataManager
     
     @State private var displayName: String = ""
     @State private var username: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var validationErrors: [String] = []
+    @State private var authError: String?
+    @State private var isSubmitting = false
     
     var body: some View {
         ZStack {
@@ -160,10 +164,16 @@ struct SignUpView: View {
                         .padding(.top, DS.Spacing.lg)
                         
                         // Validation errors
-                        if !validationErrors.isEmpty {
+                        if !validationErrors.isEmpty || authError != nil {
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 ForEach(validationErrors, id: \.self) { error in
                                     Text(error)
+                                        .font(DS.Typography.caption1())
+                                        .foregroundStyle(DS.Colors.negativeChange)
+                                }
+                                
+                                if let authError = authError {
+                                    Text(authError)
                                         .font(DS.Typography.caption1())
                                         .foregroundStyle(DS.Colors.negativeChange)
                                 }
@@ -173,16 +183,17 @@ struct SignUpView: View {
                         
                         // Create account button
                         Button(action: handleSignUp) {
-                            Text("Create account")
+                            Text(isSubmitting ? "Creating..." : "Create account")
                                 .font(DS.Typography.buttonLabel)
                                 .foregroundStyle(DS.Colors.textOnMint)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DS.Spacing.md)
                                 .background(
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                        .fill(DS.Colors.primaryAccent)
+                                        .fill(isSubmitting ? DS.Colors.primaryAccent.opacity(0.5) : DS.Colors.primaryAccent)
                                 )
                         }
+                        .disabled(isSubmitting)
                         .padding(.horizontal, DS.Spacing.pagePadding)
                         .padding(.top, DS.Spacing.lg)
                         
@@ -195,6 +206,7 @@ struct SignUpView: View {
     
     private func handleSignUp() {
         validationErrors = []
+        authError = nil
         
         // Validate fields
         if displayName.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -228,15 +240,54 @@ struct SignUpView: View {
             return
         }
         
-        // TODO: Replace with Supabase sign-up call
-        // For now, create user locally
-        let user = AuthUserSummary(
-            displayName: displayName.trimmingCharacters(in: .whitespaces),
-            username: username.lowercased().trimmingCharacters(in: .whitespaces),
-            email: email.trimmingCharacters(in: .whitespaces)
-        )
+        isSubmitting = true
+        let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespaces)
+        let trimmedUsername = username.lowercased().trimmingCharacters(in: .whitespaces)
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        let trimmedPassword = password
         
-        onAuthSuccess(user)
+        Task { @MainActor in
+            do {
+                try await dataManager.signUp(
+                    displayName: trimmedDisplayName,
+                    username: trimmedUsername,
+                    email: trimmedEmail,
+                    password: trimmedPassword
+                )
+                isSubmitting = false
+                onSignUpSuccess(trimmedEmail)
+            } catch {
+                isSubmitting = false
+                authError = formatAuthError(error)
+            }
+        }
+    }
+    
+    private func formatAuthError(_ error: Error) -> String {
+        // Check for user-friendly MugshotError first
+        if let mugshotError = error as? MugshotError {
+            return mugshotError.localizedDescription
+        }
+        
+        if let supabaseError = error as? SupabaseError {
+            switch supabaseError {
+            case .server(let status, let message):
+                if status == 429 {
+                    // Email send rate limit - user-friendly message
+                    return "Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!"
+                }
+                if let message = message,
+                   message.contains("over_email_send_rate_limit") || message.contains("429") {
+                    return "Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!"
+                }
+                return supabaseError.localizedDescription
+            default:
+                return supabaseError.localizedDescription
+            }
+        }
+        
+        // Generic fallback
+        return "Something went wrong — please try again."
     }
 }
 

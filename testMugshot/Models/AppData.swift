@@ -10,6 +10,7 @@ import Foundation
 // Container for all app data
 struct AppData: Codable {
     var currentUser: User?
+    var supabaseUserId: String?
     var cafes: [Cafe]
     var visits: [Visit]
     var ratingTemplate: RatingTemplate
@@ -19,6 +20,7 @@ struct AppData: Codable {
     var onboardingSeen: Bool = false
     var hasSeenMarketingOnboarding: Bool = false
     var isUserAuthenticated: Bool = false
+    var hasEmailVerified: Bool = false
     var hasCompletedProfileSetup: Bool = false
     
     // User profile fields
@@ -32,12 +34,16 @@ struct AppData: Codable {
     var currentUserWebsite: String?
     var currentUserProfileImageId: String?
     var currentUserBannerImageId: String?
+    var currentUserAvatarURL: String?
+    var currentUserBannerURL: String?
     
     // Notifications
     var notifications: [MugshotNotification] = []
+    var followingSupabaseUserIds: Set<String> = []
     
     init(
         currentUser: User? = nil,
+        supabaseUserId: String? = nil,
         cafes: [Cafe] = [],
         visits: [Visit] = [],
         ratingTemplate: RatingTemplate = RatingTemplate(),
@@ -45,6 +51,7 @@ struct AppData: Codable {
         onboardingSeen: Bool = false,
         hasSeenMarketingOnboarding: Bool = false,
         isUserAuthenticated: Bool = false,
+        hasEmailVerified: Bool = false,
         hasCompletedProfileSetup: Bool = false,
         currentUserDisplayName: String? = nil,
         currentUserUsername: String? = nil,
@@ -56,9 +63,13 @@ struct AppData: Codable {
         currentUserWebsite: String? = nil,
         currentUserProfileImageId: String? = nil,
         currentUserBannerImageId: String? = nil,
-        notifications: [MugshotNotification] = []
+        currentUserAvatarURL: String? = nil,
+        currentUserBannerURL: String? = nil,
+        notifications: [MugshotNotification] = [],
+        followingSupabaseUserIds: Set<String> = []
     ) {
         self.currentUser = currentUser
+        self.supabaseUserId = supabaseUserId
         self.cafes = cafes
         self.visits = visits
         self.ratingTemplate = ratingTemplate
@@ -66,6 +77,7 @@ struct AppData: Codable {
         self.onboardingSeen = onboardingSeen
         self.hasSeenMarketingOnboarding = hasSeenMarketingOnboarding
         self.isUserAuthenticated = isUserAuthenticated
+        self.hasEmailVerified = hasEmailVerified
         self.hasCompletedProfileSetup = hasCompletedProfileSetup
         self.currentUserDisplayName = currentUserDisplayName
         self.currentUserUsername = currentUserUsername
@@ -77,7 +89,10 @@ struct AppData: Codable {
         self.currentUserWebsite = currentUserWebsite
         self.currentUserProfileImageId = currentUserProfileImageId
         self.currentUserBannerImageId = currentUserBannerImageId
+        self.currentUserAvatarURL = currentUserAvatarURL
+        self.currentUserBannerURL = currentUserBannerURL
         self.notifications = notifications
+        self.followingSupabaseUserIds = followingSupabaseUserIds
     }
 }
 

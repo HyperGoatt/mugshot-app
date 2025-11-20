@@ -44,21 +44,28 @@ struct VisitDetailView: View {
         if let user = dataManager.appData.currentUser, user.id == visit.userId {
             return user.displayNameOrUsername
         }
-        return dataManager.appData.currentUserDisplayName ?? "Mugshot Member"
+        return visit.authorDisplayNameOrUsername
     }
     
     private var authorUsername: String {
         if let user = dataManager.appData.currentUser, user.id == visit.userId {
             return "@\(user.username)"
         }
-        if let username = dataManager.appData.currentUserUsername {
-            return "@\(username)"
-        }
-        return "@you"
+        return visit.authorUsernameHandle
     }
     
     private var authorInitials: String {
-        String(authorDisplayName.prefix(1)).uppercased()
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return String(user.displayNameOrUsername.prefix(1)).uppercased()
+        }
+        return visit.authorInitials
+    }
+    
+    private var authorRemoteAvatarURL: String? {
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return dataManager.appData.currentUserAvatarURL
+        }
+        return visit.authorAvatarURL
     }
     
     private var drinkDescription: String {
@@ -77,6 +84,8 @@ struct VisitDetailView: View {
                     cafeName: cafe?.name,
                     timeAgo: timeAgoString(from: visit.createdAt),
                     avatarImage: authorProfileImage,
+                    remoteAvatarURL: authorRemoteAvatarURL,
+                    initials: authorInitials,
                     score: visit.overallScore,
                     onCafeTap: {
                         if let cafe = cafe {
@@ -88,6 +97,7 @@ struct VisitDetailView: View {
                 
                 MugshotImageCarousel(
                     photoPaths: visit.photos,
+                    remotePhotoURLs: visit.remotePhotoURLByKey,
                     height: 320,
                     cornerRadius: DS.Radius.card
                 )
@@ -293,17 +303,20 @@ struct VisitDetailView: View {
     }
     
     private func toggleLike() {
-        guard let userId = dataManager.appData.currentUser?.id else { return }
-        dataManager.toggleVisitLike(visit.id, userId: userId)
-        refreshVisit()
+        Task {
+            await dataManager.toggleVisitLike(visit.id)
+            refreshVisit()
+        }
     }
     
     private func addComment() {
         let trimmed = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let userId = dataManager.appData.currentUser?.id else { return }
-        dataManager.addComment(to: visit.id, userId: userId, text: trimmed)
+        guard !trimmed.isEmpty else { return }
         commentText = ""
-        refreshVisit()
+        Task {
+            await dataManager.addComment(to: visit.id, text: trimmed)
+            refreshVisit()
+        }
     }
     
     private func refreshVisit() {
@@ -336,12 +349,14 @@ private struct VisitHeaderView: View {
     let cafeName: String?
     let timeAgo: String
     let avatarImage: UIImage?
+    let remoteAvatarURL: String?
+    let initials: String
     let score: Double
     var onCafeTap: (() -> Void)?
     
     var body: some View {
         HStack(alignment: .top, spacing: DS.Spacing.md) {
-            VisitAuthorAvatar(image: avatarImage, initials: String(displayName.prefix(1)), size: 56)
+            VisitAuthorAvatar(image: avatarImage, remoteURL: remoteAvatarURL, initials: initials, size: 56)
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text(displayName)
@@ -456,6 +471,7 @@ struct CommentRow: View {
 
 private struct VisitAuthorAvatar: View {
     let image: UIImage?
+    let remoteURL: String?
     let initials: String
     let size: CGFloat
     
@@ -465,14 +481,24 @@ private struct VisitAuthorAvatar: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+            } else if let remoteURL,
+                      let url = URL(string: remoteURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let asyncImage):
+                        asyncImage
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .empty:
+                        placeholder
+                    case .failure:
+                        placeholder
+                    @unknown default:
+                        placeholder
+                    }
+                }
             } else {
-                Circle()
-                    .fill(DS.Colors.primaryAccent)
-                    .overlay(
-                        Text(initials)
-                            .font(DS.Typography.title2(.bold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                    )
+                placeholder
             }
         }
         .frame(width: size, height: size)
@@ -485,6 +511,16 @@ private struct VisitAuthorAvatar: View {
                 radius: DS.Shadow.cardSoft.radius / 2,
                 x: DS.Shadow.cardSoft.x,
                 y: DS.Shadow.cardSoft.y / 2)
+    }
+    
+    private var placeholder: some View {
+        Circle()
+            .fill(DS.Colors.primaryAccent)
+            .overlay(
+                Text(initials)
+                    .font(DS.Typography.title2(.bold))
+                    .foregroundColor(DS.Colors.textOnMint)
+            )
     }
 }
 

@@ -76,7 +76,8 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
     
     public var body: some View {
         mainContent
-            .edgesIgnoringSafeArea(.vertical)
+            .ignoresSafeArea()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: currentIndex) {
                 currentPageChanged()
             }

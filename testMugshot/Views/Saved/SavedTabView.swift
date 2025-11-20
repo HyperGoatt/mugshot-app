@@ -232,13 +232,22 @@ struct CafeCard: View {
         return sortedVisits.first?.posterImagePath
     }
     
+    var cafeImageRemoteURL: String? {
+        let visits = dataManager.getVisitsForCafe(cafe.id)
+        guard let visit = visits.sorted(by: { $0.createdAt > $1.createdAt }).first,
+              let key = visit.posterImagePath else {
+            return nil
+        }
+        return visit.remoteURL(for: key)
+    }
+    
     var body: some View {
         DSBaseCard {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 HStack(alignment: .top, spacing: DS.Spacing.lg) {
                     // Thumbnail
                     if let imagePath = cafeImagePath {
-                        PhotoThumbnailView(photoPath: imagePath, size: 72)
+                        PhotoThumbnailView(photoPath: imagePath, remoteURL: cafeImageRemoteURL, size: 72)
                     } else {
                         RoundedRectangle(cornerRadius: DS.Radius.md)
                             .fill(DS.Colors.cardBackgroundAlt)
@@ -342,13 +351,21 @@ struct CafeDetailView: View {
         return sortedVisits.first?.posterImagePath
     }
     
+    var heroImageRemoteURL: String? {
+        guard let visit = visits.sorted(by: { $0.createdAt > $1.createdAt }).first,
+              let key = visit.posterImagePath else {
+            return nil
+        }
+        return visit.remoteURL(for: key)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Hero image - user photos > placeholder
                     if let imagePath = heroImagePath {
-                        PhotoImageView(photoPath: imagePath)
+                        PhotoImageView(photoPath: imagePath, remoteURL: heroImageRemoteURL)
                             .aspectRatio(16/9, contentMode: .fill)
                             .frame(maxWidth: .infinity)
                             .frame(height: 250)
@@ -541,7 +558,11 @@ struct VisitRow: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 // Thumbnail
-                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
+                PhotoThumbnailView(
+                    photoPath: visit.posterImagePath,
+                    remoteURL: visit.posterImagePath.flatMap { visit.remoteURL(for: $0) },
+                    size: 60
+                )
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(visit.date, style: .date)

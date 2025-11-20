@@ -12,11 +12,13 @@ struct AuthFlowRootView: View {
     @EnvironmentObject var hapticsManager: HapticsManager
     
     @State private var mode: AuthMode = .landing
+    @State private var pendingEmail: String?
     
-    enum AuthMode {
+    enum AuthMode: Equatable {
         case landing
         case signUp
         case signIn
+        case verifyEmail(email: String)
     }
     
     var body: some View {
@@ -29,7 +31,10 @@ struct AuthFlowRootView: View {
                 )
             case .signUp:
                 SignUpView(
-                    onAuthSuccess: handleAuthSuccess,
+                    onSignUpSuccess: { email in
+                        pendingEmail = email
+                        mode = .verifyEmail(email: email)
+                    },
                     onBack: { mode = .landing }
                 )
             case .signIn:
@@ -37,19 +42,35 @@ struct AuthFlowRootView: View {
                     onAuthSuccess: handleAuthSuccess,
                     onBack: { mode = .landing }
                 )
+            case .verifyEmail(let email):
+                VerifyEmailView(
+                    email: email,
+                    onEmailVerified: handleEmailVerified,
+                    onResendEmail: { pendingEmail = email },
+                    onBack: {
+                        mode = .signUp
+                        pendingEmail = nil
+                    }
+                )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.4, dampingFraction: 0.9), value: mode)
+        .onChange(of: dataManager.appData.hasEmailVerified) { _, verified in
+            if verified, case .verifyEmail = mode {
+                handleEmailVerified()
+            }
+        }
     }
     
-    private func handleAuthSuccess(user: AuthUserSummary) {
+    private func handleAuthSuccess() {
         hapticsManager.playSuccess()
-        dataManager.appData.isUserAuthenticated = true
-        dataManager.appData.currentUserDisplayName = user.displayName
-        dataManager.appData.currentUserUsername = user.username
-        dataManager.appData.currentUserEmail = user.email
-        // Do NOT set hasCompletedProfileSetup here - user will go through profile setup next
-        dataManager.save()
+    }
+    
+    private func handleEmailVerified() {
+        hapticsManager.playSuccess()
+        // Email is verified, proceed to profile setup
+        // The app will check hasEmailVerified and show ProfileSetupOnboardingView
     }
 }
 

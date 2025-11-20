@@ -9,6 +9,7 @@ import Foundation
 import CoreLocation
 
 class SampleDataSeeder {
+    @MainActor
     static func seedSampleData(dataManager: DataManager) {
         // Only seed if there's no existing data
         guard dataManager.appData.cafes.isEmpty && dataManager.appData.visits.isEmpty else {

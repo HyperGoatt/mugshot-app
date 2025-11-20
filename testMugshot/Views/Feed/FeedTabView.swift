@@ -155,6 +155,14 @@ struct FeedTabView: View {
                 NotificationsCenterView(dataManager: dataManager)
             }
         }
+        .task {
+            await dataManager.refreshFeed(scope: selectedScope)
+        }
+        .onChange(of: selectedScope) { _, newScope in
+            Task {
+                await dataManager.refreshFeed(scope: newScope)
+            }
+        }
     }
     
     private var visits: [Visit] {
@@ -189,6 +197,28 @@ struct VisitCard: View {
         return PhotoCache.shared.retrieve(forKey: imageId)
     }
     
+    private var authorRemoteAvatarURL: String? {
+        if let currentUser = dataManager.appData.currentUser,
+           currentUser.id == visit.userId {
+            return dataManager.appData.currentUserAvatarURL
+        }
+        return visit.authorAvatarURL
+    }
+    
+    private var authorName: String {
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return user.displayNameOrUsername
+        }
+        return visit.authorDisplayNameOrUsername
+    }
+    
+    private var authorInitials: String {
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return String(user.displayNameOrUsername.prefix(1)).uppercased()
+        }
+        return visit.authorInitials
+    }
+    
     var body: some View {
         DSBaseCard {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -196,11 +226,12 @@ struct VisitCard: View {
                     HStack(alignment: .center, spacing: DS.Spacing.sm) {
                         FeedAvatarView(
                             image: authorProfileImage,
-                            initials: getUserInitials(),
+                            remoteURL: authorRemoteAvatarURL,
+                            initials: authorInitials,
                             size: 44
                         )
                         
-                        Text(getUserName())
+                        Text(authorName)
                             .font(DS.Typography.headline())
                                 .foregroundColor(DS.Colors.textPrimary)
                             .lineLimit(1)
@@ -235,6 +266,7 @@ struct VisitCard: View {
                 if !visit.photos.isEmpty {
                     MugshotImageCarousel(
                         photoPaths: visit.photos,
+                        remotePhotoURLs: visit.remotePhotoURLByKey,
                         height: 280,
                         cornerRadius: DS.Radius.lg
                     )
@@ -255,8 +287,8 @@ struct VisitCard: View {
                         isLiked: isLikedByCurrentUser,
                         likeCount: visit.likeCount,
                         onToggle: {
-                        if let userId = dataManager.appData.currentUser?.id {
-                            dataManager.toggleVisitLike(visit.id, userId: userId)
+                        Task {
+                            await dataManager.toggleVisitLike(visit.id)
                         }
                         }
                     )
@@ -285,18 +317,6 @@ struct VisitCard: View {
         }
     }
     
-    private func getUserName() -> String {
-        if let user = dataManager.appData.currentUser, user.id == visit.userId {
-            return user.displayNameOrUsername
-        }
-        // For now, return a placeholder - in a real app, you'd fetch the user
-        return "User"
-    }
-    
-    private func getUserInitials() -> String {
-        getUserName().prefix(1).uppercased()
-    }
-    
     private func timeAgoString(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
@@ -306,6 +326,7 @@ struct VisitCard: View {
 
 private struct FeedAvatarView: View {
     let image: UIImage?
+    let remoteURL: String?
     let initials: String
     let size: CGFloat
     
@@ -315,14 +336,24 @@ private struct FeedAvatarView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+            } else if let remoteURL,
+                      let url = URL(string: remoteURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let asyncImage):
+                        asyncImage
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .empty:
+                        placeholder
+                    case .failure:
+                        placeholder
+                    @unknown default:
+                        placeholder
+                    }
+                }
             } else {
-                Circle()
-                    .fill(DS.Colors.primaryAccent)
-                    .overlay(
-                        Text(initials.prefix(2))
-                            .font(DS.Typography.buttonLabel)
-                            .foregroundColor(DS.Colors.textOnMint)
-                    )
+                placeholder
             }
         }
         .frame(width: size, height: size)
@@ -335,6 +366,16 @@ private struct FeedAvatarView: View {
                 radius: DS.Shadow.cardSoft.radius / 2,
                 x: DS.Shadow.cardSoft.x,
                 y: DS.Shadow.cardSoft.y / 2)
+    }
+    
+    private var placeholder: some View {
+        Circle()
+            .fill(DS.Colors.primaryAccent)
+            .overlay(
+                Text(initials.prefix(2))
+                    .font(DS.Typography.buttonLabel)
+                    .foregroundColor(DS.Colors.textOnMint)
+            )
     }
 }
 

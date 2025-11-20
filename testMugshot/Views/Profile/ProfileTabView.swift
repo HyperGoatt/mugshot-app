@@ -65,6 +65,14 @@ struct ProfileTabView: View {
         dataManager.appData.currentUserBannerImageId
     }
     
+    private var avatarURL: String? {
+        dataManager.appData.currentUserAvatarURL
+    }
+    
+    private var bannerURL: String? {
+        dataManager.appData.currentUserBannerURL
+    }
+    
     var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?) {
         dataManager.getUserStats()
     }
@@ -83,6 +91,8 @@ struct ProfileTabView: View {
                         website: website,
                         profileImageId: profileImageId,
                         bannerImageId: bannerImageId,
+                        profileImageURL: avatarURL,
+                        bannerImageURL: bannerURL,
                         onNotifications: { showNotifications = true },
                         onShare: { showShareSheet = true },
                         onSettings: { showEditProfile = true }
@@ -180,6 +190,13 @@ struct ProfileTabView: View {
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
         }
+        .task {
+            do {
+                try await dataManager.refreshProfileVisits()
+            } catch {
+                print("[ProfileTabView] Error refreshing profile visits: \(error.localizedDescription)")
+            }
+        }
         }
     }
     
@@ -214,6 +231,8 @@ struct ProfileHeaderBannerView: View {
     let website: String?
     let profileImageId: String?
     let bannerImageId: String?
+    let profileImageURL: String?
+    let bannerImageURL: String?
     let onNotifications: () -> Void
     let onShare: () -> Void
     let onSettings: () -> Void
@@ -238,14 +257,42 @@ struct ProfileHeaderBannerView: View {
             // Banner strip at the top
             ZStack(alignment: .topTrailing) {
                 Group {
-                    if let bannerID = bannerImageId {
+                    if let bannerURL = bannerImageURL,
+                       let url = URL(string: bannerURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            case .failure:
+                                LinearGradient(
+                                    colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            case .empty:
+                                LinearGradient(
+                                    colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            @unknown default:
+                                LinearGradient(
+                                    colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            }
+                        }
+                    } else if let bannerID = bannerImageId {
                         BannerImageView(imageID: bannerID)
                     } else {
-            LinearGradient(
-                colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+                        LinearGradient(
+                            colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     }
                 }
                 .frame(height: 150)
@@ -364,7 +411,12 @@ struct ProfileHeaderBannerView: View {
                 }
                 
                             // Centered avatar overlapping banner and card
-                            ProfileAvatarView(profileImageId: profileImageId, username: usernameText, size: avatarSize)
+                            ProfileAvatarView(
+                                profileImageId: profileImageId,
+                                profileImageURL: profileImageURL,
+                                username: usernameText,
+                                size: avatarSize
+                            )
                                 .frame(width: avatarSize, height: avatarSize)
                                 .offset(y: -avatarSize / 2)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -411,6 +463,7 @@ struct BannerImageView: View {
 
 struct ProfileAvatarView: View {
     let profileImageId: String?
+    let profileImageURL: String?
     let username: String
     var size: CGFloat = 80
     @State private var image: UIImage?
@@ -421,16 +474,26 @@ struct ProfileAvatarView: View {
             .frame(width: size, height: size)
             .overlay(
                 Group {
-                    if let image = image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: size, height: size)
-                            .clipShape(Circle())
+                    if let profileImageURL,
+                       let url = URL(string: profileImageURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: size, height: size)
+                                    .clipShape(Circle())
+                            case .failure:
+                                localImageContent()
+                            case .empty:
+                                localImageContent()
+                            @unknown default:
+                                localImageContent()
+                            }
+                        }
                     } else {
-                        Text(username.prefix(1).uppercased())
-                            .font(DS.Typography.title2(.bold))
-                .foregroundColor(DS.Colors.textPrimary)
+                        localImageContent()
                     }
                 }
             )
@@ -439,23 +502,35 @@ struct ProfileAvatarView: View {
                     .stroke(DS.Colors.cardBackground, lineWidth: 3)
             )
             .shadow(color: DS.Shadow.cardSoft.color, radius: DS.Shadow.cardSoft.radius, x: DS.Shadow.cardSoft.x, y: DS.Shadow.cardSoft.y)
-        .onAppear {
-            if let imageID = profileImageId {
-                if let cachedImage = PhotoCache.shared.retrieve(forKey: imageID) {
-                    image = cachedImage
-                }
+            .onAppear {
+                loadLocalImage()
             }
+            .onChange(of: profileImageId) { _, _ in
+                loadLocalImage()
+            }
+    }
+    
+    @ViewBuilder
+    private func localImageContent() -> some View {
+        if let image = image {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            Text(username.prefix(1).uppercased())
+                .font(DS.Typography.title2(.bold))
+                .foregroundColor(DS.Colors.textPrimary)
         }
-        .onChange(of: profileImageId) { _, _ in
-            if let imageID = profileImageId {
-                if let cachedImage = PhotoCache.shared.retrieve(forKey: imageID) {
-                    image = cachedImage
-                } else {
-                    image = nil
-                }
-            } else {
-                image = nil
-            }
+    }
+    
+    private func loadLocalImage() {
+        if let imageID = profileImageId,
+           let cachedImage = PhotoCache.shared.retrieve(forKey: imageID) {
+            image = cachedImage
+        } else {
+            image = nil
         }
     }
 }
@@ -698,7 +773,10 @@ struct RecentVisitsView: View {
                                 Button(action: {
                                     onSelectVisit(visit)
                                 }) {
-                                    PhotoImageView(photoPath: posterPath)
+                                    PhotoImageView(
+                                        photoPath: posterPath,
+                                        remoteURL: visit.remoteURL(for: posterPath)
+                                    )
                                         .frame(width: 120, height: 120)
                                         .cornerRadius(DS.Radius.lg)
                                         .clipped()
@@ -790,10 +868,19 @@ struct TopCafeCard: View {
     @ObservedObject var dataManager: DataManager
     let onTap: () -> Void
     
-    var cafeImagePath: String? {
+    private var featuredVisit: Visit? {
         let visits = dataManager.getVisitsForCafe(cafe.id)
-        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
-        return sortedVisits.first?.posterImagePath
+        return visits.sorted { $0.createdAt > $1.createdAt }.first
+    }
+    
+    var cafeImagePath: String? {
+        featuredVisit?.posterImagePath
+    }
+    
+    var cafeImageRemoteURL: String? {
+        guard let visit = featuredVisit,
+              let key = visit.posterImagePath else { return nil }
+        return visit.remoteURL(for: key)
     }
     
     var body: some View {
@@ -801,7 +888,11 @@ struct TopCafeCard: View {
             DSBaseCard {
                 HStack(spacing: DS.Spacing.lg) {
                     if let imagePath = cafeImagePath {
-                        PhotoThumbnailView(photoPath: imagePath, size: 80)
+                        PhotoThumbnailView(
+                            photoPath: imagePath,
+                            remoteURL: cafeImageRemoteURL,
+                            size: 80
+                        )
                     } else {
                         RoundedRectangle(cornerRadius: DS.Radius.md)
                             .fill(DS.Colors.cardBackgroundAlt)
@@ -945,6 +1036,14 @@ struct EditProfileView: View {
     @State private var selectedBannerImage: PhotosPickerItem?
     @State private var showLogoutAlert = false
     
+    private var remoteAvatarURL: String? {
+        dataManager.appData.currentUserAvatarURL
+    }
+    
+    private var remoteBannerURL: String? {
+        dataManager.appData.currentUserBannerURL
+    }
+    
     init(user: User, dataManager: DataManager) {
         self._editableUser = State(initialValue: user)
         self.dataManager = dataManager
@@ -964,6 +1063,32 @@ struct EditProfileView: View {
                                     BannerImageView(imageID: bannerID)
                                         .frame(height: 150)
                                         .cornerRadius(DS.Radius.lg)
+                                } else if let remoteURL = remoteBannerURL,
+                                          let url = URL(string: remoteURL) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(height: 150)
+                                                .cornerRadius(DS.Radius.lg)
+                                        default:
+                                            RoundedRectangle(cornerRadius: DS.Radius.lg)
+                                                .fill(DS.Colors.cardBackgroundAlt)
+                                                .frame(height: 150)
+                                                .overlay(
+                                                    VStack(spacing: 8) {
+                                                        Image(systemName: "photo.badge.plus")
+                                                            .font(.system(size: 32))
+                                                            .foregroundColor(DS.Colors.iconDefault)
+                                                        Text("Add Banner")
+                                                            .font(DS.Typography.bodyText)
+                                                            .foregroundColor(DS.Colors.textSecondary)
+                                                    }
+                                                )
+                                        }
+                                    }
                                 } else {
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
                                         .fill(DS.Colors.cardBackgroundAlt)
@@ -998,6 +1123,27 @@ struct EditProfileView: View {
                                                 .aspectRatio(contentMode: .fill)
                                                 .frame(width: 80, height: 80)
                                                 .clipShape(Circle())
+                                        }
+                                    } else if let remoteURL = remoteAvatarURL,
+                                              let url = URL(string: remoteURL) {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: 80, height: 80)
+                                                    .clipShape(Circle())
+                                            default:
+                                                Circle()
+                                                    .fill(DS.Colors.cardBackgroundAlt)
+                                                    .frame(width: 80, height: 80)
+                                                    .overlay(
+                                                        Image(systemName: "person.crop.circle.badge.plus")
+                                                            .font(.system(size: 32))
+                                                            .foregroundColor(DS.Colors.iconDefault)
+                                                    )
+                                            }
                                         }
                                     } else {
                                         Circle()
@@ -1180,22 +1326,39 @@ struct EditProfileView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
-                        // Update User model for backward compatibility
-                        dataManager.updateCurrentUser(editableUser)
-                        
-                        // Also update AppData fields to keep them in sync
-                        dataManager.appData.currentUserDisplayName = editableUser.displayName
-                        dataManager.appData.currentUserUsername = editableUser.username
-                        dataManager.appData.currentUserBio = editableUser.bio.isEmpty ? nil : editableUser.bio
-                        dataManager.appData.currentUserLocation = editableUser.location.isEmpty ? nil : editableUser.location
-                        dataManager.appData.currentUserFavoriteDrink = editableUser.favoriteDrink
-                        dataManager.appData.currentUserInstagramHandle = editableUser.instagramURL
-                        dataManager.appData.currentUserWebsite = editableUser.websiteURL
-                        dataManager.appData.currentUserProfileImageId = editableUser.profileImageID
-                        dataManager.appData.currentUserBannerImageId = editableUser.bannerImageID
-                        dataManager.save()
-                        
-                        dismiss()
+                        Task {
+                            do {
+                                // Get images if changed
+                                var avatarImage: UIImage? = nil
+                                var bannerImage: UIImage? = nil
+                                if let profileId = editableUser.profileImageID {
+                                    avatarImage = PhotoCache.shared.retrieve(forKey: profileId)
+                                }
+                                if let bannerId = editableUser.bannerImageID {
+                                    bannerImage = PhotoCache.shared.retrieve(forKey: bannerId)
+                                }
+                                
+                                // Update profile in Supabase by userId (identity-safe)
+                                try await dataManager.updateCurrentUserProfile(
+                                    displayName: editableUser.displayName,
+                                    username: editableUser.username,
+                                    bio: editableUser.bio.isEmpty ? nil : editableUser.bio,
+                                    location: editableUser.location.isEmpty ? nil : editableUser.location,
+                                    favoriteDrink: editableUser.favoriteDrink,
+                                    instagramHandle: editableUser.instagramURL,
+                                    websiteURL: editableUser.websiteURL,
+                                    avatarImage: avatarImage,
+                                    bannerImage: bannerImage
+                                )
+                                
+                                await MainActor.run {
+                                    dismiss()
+                                }
+                            } catch {
+                                print("[ProfileTabView] Error updating profile: \(error.localizedDescription)")
+                                // TODO: Show error alert to user
+                            }
+                        }
                     }
                     .foregroundColor(DS.Colors.primaryAccent)
                 }

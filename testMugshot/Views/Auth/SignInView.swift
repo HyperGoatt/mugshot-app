@@ -8,12 +8,16 @@
 import SwiftUI
 
 struct SignInView: View {
-    let onAuthSuccess: (AuthUserSummary) -> Void
+    let onAuthSuccess: () -> Void
     let onBack: () -> Void
+    
+    @EnvironmentObject var dataManager: DataManager
     
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var validationErrors: [String] = []
+    @State private var authError: String?
+    @State private var isSubmitting = false
     
     var body: some View {
         ZStack {
@@ -107,10 +111,16 @@ struct SignInView: View {
                         .padding(.top, DS.Spacing.lg)
                         
                         // Validation errors
-                        if !validationErrors.isEmpty {
+                        if !validationErrors.isEmpty || authError != nil {
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 ForEach(validationErrors, id: \.self) { error in
                                     Text(error)
+                                        .font(DS.Typography.caption1())
+                                        .foregroundStyle(DS.Colors.negativeChange)
+                                }
+                                
+                                if let authError = authError {
+                                    Text(authError)
                                         .font(DS.Typography.caption1())
                                         .foregroundStyle(DS.Colors.negativeChange)
                                 }
@@ -120,16 +130,17 @@ struct SignInView: View {
                         
                         // Sign in button
                         Button(action: handleSignIn) {
-                            Text("Sign in")
+                            Text(isSubmitting ? "Signing in..." : "Sign in")
                                 .font(DS.Typography.buttonLabel)
                                 .foregroundStyle(DS.Colors.textOnMint)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DS.Spacing.md)
                                 .background(
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                        .fill(DS.Colors.primaryAccent)
+                                        .fill(isSubmitting ? DS.Colors.primaryAccent.opacity(0.5) : DS.Colors.primaryAccent)
                                 )
                         }
+                        .disabled(isSubmitting)
                         .padding(.horizontal, DS.Spacing.pagePadding)
                         .padding(.top, DS.Spacing.lg)
                         
@@ -141,7 +152,9 @@ struct SignInView: View {
     }
     
     private func handleSignIn() {
+        print("[SignInView] Starting sign in")
         validationErrors = []
+        authError = nil
         
         // Validate fields
         if email.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -156,17 +169,49 @@ struct SignInView: View {
             return
         }
         
-        // TODO: Replace with Supabase sign-in call
-        // For now, simulate success with placeholder user data
-        // Extract username from email local part
-        let emailLocalPart = email.components(separatedBy: "@").first ?? "user"
-        let user = AuthUserSummary(
-            displayName: emailLocalPart.capitalized,
-            username: emailLocalPart.lowercased(),
-            email: email.trimmingCharacters(in: .whitespaces)
-        )
+        isSubmitting = true
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        let trimmedPassword = password
         
-        onAuthSuccess(user)
+        Task { @MainActor in
+            do {
+                print("[SignInView] Calling dataManager.signIn...")
+                try await dataManager.signIn(email: trimmedEmail, password: trimmedPassword)
+                print("[SignInView] Sign in finished successfully")
+                isSubmitting = false
+                onAuthSuccess()
+            } catch {
+                print("[SignInView] Sign in finished with error: \(error.localizedDescription)")
+                isSubmitting = false
+                authError = formatSignInError(error)
+            }
+        }
+    }
+    
+    private func formatSignInError(_ error: Error) -> String {
+        // Check for user-friendly MugshotError first
+        if let mugshotError = error as? MugshotError {
+            return mugshotError.localizedDescription
+        }
+        
+        if let supabaseError = error as? SupabaseError {
+            switch supabaseError {
+            case .server(let status, let message):
+                if status == 401 {
+                    return "We couldn't sign you in. Please check your email and password and try again."
+                }
+                return message ?? "We couldn't sign you in. Please try again."
+            case .network(_):
+                return "Network error. Please check your connection and try again."
+            case .decoding(_):
+                return "We couldn't sign you in. Please try again."
+            case .invalidSession:
+                return "We couldn't sign you in. Please try again."
+            }
+        }
+        
+        // Generic fallback - user-friendly message
+        return "We couldn't sign you in. Please check your email and password and try again."
     }
 }
 
