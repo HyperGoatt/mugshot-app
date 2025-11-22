@@ -76,11 +76,18 @@ struct ProfileSetupSummaryPage: View {
                         )
                     
                     VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text(user.currentUserDisplayName ?? "Your Name")
+                        // Use display name from onboarding, fallback to username, never email
+                        let displayName = user.currentUserDisplayName?.isEmpty == false 
+                            ? user.currentUserDisplayName! 
+                            : (user.currentUserUsername?.isEmpty == false 
+                                ? user.currentUserUsername!.capitalized 
+                                : "Your Name")
+                        Text(displayName)
                             .font(DS.Typography.sectionTitle)
                             .foregroundStyle(DS.Colors.textPrimary)
                         
-                        if let username = user.currentUserUsername {
+                        // Use username from onboarding, never email
+                        if let username = user.currentUserUsername, !username.isEmpty {
                             Text("@\(username)")
                                 .font(DS.Typography.bodyText)
                                 .foregroundStyle(DS.Colors.textSecondary)

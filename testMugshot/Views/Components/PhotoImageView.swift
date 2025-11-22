@@ -10,7 +10,15 @@ import SwiftUI
 // Reusable view for displaying photos from Visit photo paths
 struct PhotoImageView: View {
     let photoPath: String
+    let remoteURL: String?
+    
     @State private var image: UIImage?
+    @State private var isFetchingRemote = false
+    
+    init(photoPath: String, remoteURL: String? = nil) {
+        self.photoPath = photoPath
+        self.remoteURL = remoteURL
+    }
     
     var body: some View {
         Group {
@@ -37,6 +45,26 @@ struct PhotoImageView: View {
     private func loadImage() {
         if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
             image = cachedImage
+            return
+        }
+        
+        guard !isFetchingRemote,
+              let remoteURL,
+              let url = URL(string: remoteURL) else {
+            return
+        }
+        
+        isFetchingRemote = true
+        Task {
+            defer { isFetchingRemote = false }
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let downloaded = UIImage(data: data) else {
+                return
+            }
+            PhotoCache.shared.store(downloaded, forKey: photoPath)
+            await MainActor.run {
+                image = downloaded
+            }
         }
     }
 }
@@ -44,12 +72,15 @@ struct PhotoImageView: View {
 // Thumbnail version for small previews
 struct PhotoThumbnailView: View {
     let photoPath: String?
+    let remoteURL: String?
     let size: CGFloat
     
     @State private var image: UIImage?
+    @State private var isFetchingRemote = false
     
-    init(photoPath: String?, size: CGFloat = 60) {
+    init(photoPath: String?, remoteURL: String? = nil, size: CGFloat = 60) {
         self.photoPath = photoPath
+        self.remoteURL = remoteURL
         self.size = size
     }
     
@@ -80,6 +111,26 @@ struct PhotoThumbnailView: View {
         guard let photoPath = photoPath else { return }
         if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
             image = cachedImage
+            return
+        }
+        
+        guard !isFetchingRemote,
+              let remoteURL = remoteURL,
+              let url = URL(string: remoteURL) else {
+            return
+        }
+        
+        isFetchingRemote = true
+        Task {
+            defer { isFetchingRemote = false }
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let downloaded = UIImage(data: data) else {
+                return
+            }
+            PhotoCache.shared.store(downloaded, forKey: photoPath)
+            await MainActor.run {
+                image = downloaded
+            }
         }
     }
 }

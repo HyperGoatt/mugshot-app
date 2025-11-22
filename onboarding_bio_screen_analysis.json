@@ -1,0 +1,39 @@
+{ "screenName": "Onboarding - Bio and Location", "issueAnalysis": { "headerPosition": { "observed": "The header text 'Tell us about yourself' is positioned too high and is partially cut off by the device's dynamic island / status bar area.", "rootCause": "Likely missing SafeArea padding or incorrect VStack alignment. Possibly using .ignoresSafeArea() or negative spacers.", "expectedFix": "Apply .padding(.top, safeAreaInsets.top + X) OR wrap the entire scroll content in a VStack aligned below the safe area. Remove any .offset that pushes content upward." },
+
+"bioFieldSize": {
+  "observed": "The multiline text editor for the Bio field is extremely tall, taking up ~70% of the screen height.",
+  "impact": "Feels unbalanced, dominates layout, causes next button to float in awkward center position.",
+  "rootCause": "Fixed-height or flexible Frame(maxHeight: .infinity) applied. Possibly using geometry reader or unconstrained VStack.",
+  "expectedFix": "Set a controlled height, e.g. 120–160px max. Include character limit (e.g. 200–250 chars). Add placeholder styling."
+},
+
+
+"nextButton": {
+  "observed": "The circular next-button is centered vertically inside the oversized Bio field rather than below the field.",
+  "rootCause": "Button likely placed inside same container as the TextEditor, possibly using ZStack overlay incorrectly.",
+  "expectedFix": "Move button OUTSIDE the bio field container. Place below with proper spacing from design system tokens."
+},
+
+
+"cityField": {
+  "observed": "City/Location field is too close to the bottom black home indicator. Not enough bottom padding.",
+  "expectedFix": "Add bottom padding equal to safeAreaInsets.bottom + designSystem.spacing.large."
+},
+
+
+"colorsAndDesignTokens": {
+  "observed": "Background uses a blue tint (likely fallback) instead of Mugshot's true onboarding background token.",
+  "expectedFix": "Replace raw Color with design-system color: onboardingBackground or surfaceSecondary."
+},
+
+
+"typography": {
+  "observed": "Title uses full-size H1 near the device top, causing cutoff and imbalance.",
+  "expectedFix": "Use a consistent onboarding title style (e.g. screenTitle / headlineBold). Add predictable spacing: 24–32pts below header before subtitle."
+}
+
+},
+
+"layoutStructure": { "expected": [ "Safe-area respecting container", "ScrollView if content exceeds height", "Top section: Title + Subtitle aligned with proper padding", "Bio label + Bio text editor (controlled height ~120–160px)", "Next button placed BELOW the bio field, not overlaid", "City/Location field with proper spacing below bio section", "Bottom padding respecting home indicator" ] },
+
+"recommendedDesignRules": { "bioMaxCharacters": 250, "bioHeight": 140, "topPadding": "safeArea.top + 16", "spacingBetweenSections": 20, "backgroundColorToken": "onboardingBackground", "titleStyle": "onboardingTitle", "subtitleStyle": "onboardingSubtitle" } }

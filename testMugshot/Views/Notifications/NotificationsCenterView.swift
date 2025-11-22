@@ -50,6 +50,9 @@ struct NotificationsCenterView: View {
             }
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.large)
+            .task {
+                await dataManager.refreshNotifications()
+            }
         }
         .sheet(item: $selectedNotification) { notification in
             if let visitId = notification.targetVisitId,
@@ -90,17 +93,17 @@ struct NotificationsCenterView: View {
     }
     
     private func markAsRead(_ notification: MugshotNotification) {
-        if let index = dataManager.appData.notifications.firstIndex(where: { $0.id == notification.id }) {
-            dataManager.appData.notifications[index].isRead = true
-            dataManager.save()
+        Task {
+            await dataManager.markNotificationRead(notification)
         }
     }
     
     private func markAllAsRead() {
-        for index in dataManager.appData.notifications.indices {
-            dataManager.appData.notifications[index].isRead = true
+        Task {
+            for notification in dataManager.appData.notifications where !notification.isRead {
+                await dataManager.markNotificationRead(notification)
+            }
         }
-        dataManager.save()
     }
 }
 

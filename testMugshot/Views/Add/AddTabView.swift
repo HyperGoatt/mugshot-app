@@ -76,6 +76,7 @@ struct LogVisitView: View {
     @State private var showCustomizeRatings = false
     @State private var showPhotoPicker = false
     @State private var validationErrors: [String] = []
+    @State private var isSaving = false
     @State private var savedVisit: Visit?
     @State private var showVisitDetail = false
     
@@ -100,7 +101,7 @@ struct LogVisitView: View {
                 .safeAreaInset(edge: .bottom) {
                     SaveVisitButton(
                         isEnabled: canSave,
-                        isLoading: false,
+                        isLoading: isSaving,
                         onTap: saveVisit
                     )
                 }
@@ -326,6 +327,13 @@ struct LogVisitView: View {
     }
     
     private func saveVisit() {
+        Task {
+            await saveVisitAsync()
+        }
+    }
+    
+    @MainActor
+    private func saveVisitAsync() async {
         validationErrors = []
         
         // Validate
@@ -344,63 +352,83 @@ struct LogVisitView: View {
             return
         }
         
-        // Ensure we have a user ID - create User if needed
-        let userId: UUID
-        if let existingUser = dataManager.appData.currentUser {
-            userId = existingUser.id
-        } else if let username = dataManager.appData.currentUserUsername {
-            // Create a User from AppData fields if it doesn't exist
-            let newUser = User(
-                username: username,
-                displayName: dataManager.appData.currentUserDisplayName,
-                location: dataManager.appData.currentUserLocation ?? "",
-                profileImageID: dataManager.appData.currentUserProfileImageId,
-                bannerImageID: dataManager.appData.currentUserBannerImageId,
-                bio: dataManager.appData.currentUserBio ?? "",
-                instagramURL: dataManager.appData.currentUserInstagramHandle,
-                websiteURL: dataManager.appData.currentUserWebsite,
-                favoriteDrink: dataManager.appData.currentUserFavoriteDrink
-            )
-            dataManager.setCurrentUser(newUser)
-            userId = newUser.id
-        } else {
-            validationErrors.append("Please complete your profile setup")
-            return
-        }
-        
-        // Convert photos to strings and cache the images
-        let photoPaths = photoImages.enumerated().map { index, image in
-            let path = "photo_\(UUID().uuidString)_\(index)"
-            // Cache the image for later retrieval
-            PhotoCache.shared.store(image, forKey: path)
-            return path
+        if dataManager.appData.currentUser == nil {
+            if let username = dataManager.appData.currentUserUsername {
+                let newUser = User(
+                    username: username,
+                    displayName: dataManager.appData.currentUserDisplayName,
+                    location: dataManager.appData.currentUserLocation ?? "",
+                    profileImageID: dataManager.appData.currentUserProfileImageId,
+                    bannerImageID: dataManager.appData.currentUserBannerImageId,
+                    bio: dataManager.appData.currentUserBio ?? "",
+                    instagramURL: dataManager.appData.currentUserInstagramHandle,
+                    websiteURL: dataManager.appData.currentUserWebsite,
+                    favoriteDrink: dataManager.appData.currentUserFavoriteDrink
+                )
+                dataManager.setCurrentUser(newUser)
+            } else {
+                validationErrors.append("Please complete your profile setup")
+                return
+            }
         }
         
         // Parse mentions from caption
         let mentions = MentionParser.parseMentions(from: caption)
         
-        let visit = Visit(
-            cafeId: cafe.id,
-            userId: userId,
-            createdAt: Date(),
-            drinkType: drinkType,
-            customDrinkType: drinkType == .other ? customDrinkType : nil,
-            caption: caption,
-            notes: notes.isEmpty ? nil : notes,
-            photos: photoPaths,
-            posterPhotoIndex: posterPhotoIndex,
-            ratings: ratings,
-            overallScore: overallScore,
-            visibility: visibility,
-            likeCount: 0,
-            likedByUserIds: [],
-            comments: [],
-            mentions: mentions
-        )
+        isSaving = true
+        defer { isSaving = false }
         
-        dataManager.addVisit(visit)
-        savedVisit = visit
-        showVisitDetail = true
+        do {
+            let visit = try await dataManager.createVisit(
+                cafe: cafe,
+                drinkType: drinkType,
+                customDrinkType: drinkType == .other ? customDrinkType : nil,
+                caption: caption,
+                notes: notes.isEmpty ? nil : notes,
+                photoImages: photoImages,
+                posterPhotoIndex: posterPhotoIndex,
+                ratings: ratings,
+                overallScore: overallScore,
+                visibility: visibility,
+                mentions: mentions
+            )
+            savedVisit = visit
+            showVisitDetail = true
+        } catch {
+            // Debug logging for visit save errors
+            print("❌ [AddTabView] Save visit error: \(error)")
+            print("❌ [AddTabView] Error type: \(type(of: error))")
+            
+            // Check for specific error types to provide better user feedback
+            if let supabaseError = error as? SupabaseError {
+                print("❌ [AddTabView] SupabaseError: \(supabaseError)")
+                let friendlyMessage = supabaseError.userFriendlyDescription
+                print("❌ [AddTabView] User-friendly message: \(friendlyMessage)")
+                validationErrors.append(friendlyMessage)
+            } else if let decodingError = error as? DecodingError {
+                print("❌ [AddTabView] DecodingError details:")
+                switch decodingError {
+                case .typeMismatch(let type, let context):
+                    print("  Type mismatch: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                    print("  Context: \(context.debugDescription)")
+                case .valueNotFound(let type, let context):
+                    print("  Value not found: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .keyNotFound(let key, let context):
+                    print("  Key not found: \(key.stringValue), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .dataCorrupted(let context):
+                    print("  Data corrupted: \(context.debugDescription)")
+                    if let underlyingError = context.underlyingError {
+                        print("  Underlying error: \(underlyingError)")
+                    }
+                @unknown default:
+                    print("  Unknown decoding error")
+                }
+                validationErrors.append("We received an unexpected response. Please try again.")
+            } else {
+                print("❌ [AddTabView] Unexpected error type: \(type(of: error))")
+                validationErrors.append("Something went wrong saving your visit. Please try again.")
+            }
+        }
     }
 }
 

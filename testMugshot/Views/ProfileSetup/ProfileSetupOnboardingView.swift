@@ -55,10 +55,27 @@ struct ProfileSetupOnboardingView: View {
         ]
     }
     
+    // Completes profile setup and marks onboarding as finished
+    // This transitions the user to the main app (Map tab)
     private func completeProfileSetup() {
-        hapticsManager.playSuccess()
-        dataManager.appData.hasCompletedProfileSetup = true
-        dataManager.save()
+        Task {
+            do {
+                try await dataManager.completeProfileSetupWithSupabase()
+                await MainActor.run {
+                    hapticsManager.playSuccess()
+                    // Profile setup completion will trigger the root view to show MainTabView
+                    // via hasCompletedProfileSetup flag in AppData
+                }
+            } catch {
+                print("Failed to complete Supabase profile setup: \(error.localizedDescription)")
+                // Even if Supabase fails, we should still mark profile setup as complete
+                // so the user can use the app (they can retry profile sync later)
+                await MainActor.run {
+                    dataManager.appData.hasCompletedProfileSetup = true
+                    dataManager.save()
+                }
+            }
+        }
     }
     
     private func saveBioAndLocation(bio: String, location: String) {

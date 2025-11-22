@@ -9,6 +9,7 @@ import Foundation
 
 struct User: Identifiable, Codable {
     let id: UUID
+    var supabaseUserId: String?
     var username: String
     var displayName: String? // Optional display name
     var location: String
@@ -22,6 +23,7 @@ struct User: Identifiable, Codable {
     
     init(
         id: UUID = UUID(),
+        supabaseUserId: String? = nil,
         username: String,
         displayName: String? = nil,
         location: String,
@@ -34,6 +36,7 @@ struct User: Identifiable, Codable {
         favoriteDrink: String? = nil
     ) {
         self.id = id
+        self.supabaseUserId = supabaseUserId
         self.username = username
         self.displayName = displayName
         self.location = location

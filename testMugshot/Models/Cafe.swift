@@ -10,9 +10,12 @@ import CoreLocation
 
 struct Cafe: Identifiable, Codable {
     let id: UUID
+    var supabaseId: UUID?
     var name: String
     var location: CLLocationCoordinate2D?
     var address: String
+    var city: String?
+    var country: String?
     var isFavorite: Bool
     var wantToTry: Bool
     var averageRating: Double
@@ -20,31 +23,40 @@ struct Cafe: Identifiable, Codable {
     // Apple Maps place reference
     var mapItemURL: String? // URL to open this place in Maps app
     var websiteURL: String? // Website URL if available from Apple Maps
+    var applePlaceId: String?
     var placeCategory: String? // Category like "Coffee Shop" from Apple Maps
     
     init(
         id: UUID = UUID(),
+        supabaseId: UUID? = nil,
         name: String,
         location: CLLocationCoordinate2D? = nil,
         address: String = "",
+        city: String? = nil,
+        country: String? = nil,
         isFavorite: Bool = false,
         wantToTry: Bool = false,
         averageRating: Double = 0.0,
         visitCount: Int = 0,
         mapItemURL: String? = nil,
         websiteURL: String? = nil,
+        applePlaceId: String? = nil,
         placeCategory: String? = nil
     ) {
         self.id = id
+        self.supabaseId = supabaseId
         self.name = name
         self.location = location
         self.address = address
+        self.city = city
+        self.country = country
         self.isFavorite = isFavorite
         self.wantToTry = wantToTry
         self.averageRating = averageRating
         self.visitCount = visitCount
         self.mapItemURL = mapItemURL
         self.websiteURL = websiteURL
+        self.applePlaceId = applePlaceId
         self.placeCategory = placeCategory
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MugshotImageCarousel: View {
     private let photoPaths: [String]
+    private let remotePhotoURLs: [String: String]
     private let height: CGFloat
     private let cornerRadius: CGFloat
     private let showIndicators: Bool
@@ -17,12 +18,21 @@ struct MugshotImageCarousel: View {
     
     init(
         photoPaths: [String],
+        remotePhotoURLs: [String: String] = [:],
         height: CGFloat = 280,
         cornerRadius: CGFloat = DS.Radius.card,
         showIndicators: Bool = true
     ) {
         // Limit to 10 images for performance + UX
-        self.photoPaths = Array(photoPaths.prefix(10))
+        let trimmed = Array(photoPaths.prefix(10))
+        self.photoPaths = trimmed
+        var filteredRemote: [String: String] = [:]
+        for key in trimmed {
+            if let value = remotePhotoURLs[key] {
+                filteredRemote[key] = value
+            }
+        }
+        self.remotePhotoURLs = filteredRemote
         self.height = height
         self.cornerRadius = cornerRadius
         self.showIndicators = showIndicators
@@ -45,7 +55,7 @@ struct MugshotImageCarousel: View {
     private var carousel: some View {
         TabView(selection: $currentIndex) {
             ForEach(Array(photoPaths.enumerated()), id: \.offset) { index, path in
-                PhotoImageView(photoPath: path)
+                PhotoImageView(photoPath: path, remoteURL: remotePhotoURLs[path])
                     .frame(maxWidth: .infinity)
                     .frame(height: height)
                     .background(DS.Colors.cardBackgroundAlt)
