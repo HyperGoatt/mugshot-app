@@ -313,13 +313,32 @@ struct MapTabView: View {
     
     private var cafesWithLocations: [Cafe] {
         // Show cafes that have a map location and are either:
-        // - Logged at least once, or
+        // - Logged at least once (visitCount > 0), or
         // - Marked as favorite, or
         // - Marked as "Want to Try"
-        dataManager.appData.cafes.filter { cafe in
-            guard cafe.location != nil else { return false }
+        let filtered = dataManager.appData.cafes.filter { cafe in
+            guard let location = cafe.location else {
+                // Log cafes without location for debugging
+                #if DEBUG
+                if cafe.visitCount > 0 {
+                    print("⚠️ [Map] Cafe '\(cafe.name)' has visitCount=\(cafe.visitCount) but no location")
+                }
+                #endif
+                return false
+            }
+            // Ensure coordinates are valid
+            guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else {
+                #if DEBUG
+                print("⚠️ [Map] Cafe '\(cafe.name)' has invalid coordinates: (\(location.latitude), \(location.longitude))")
+                #endif
+                return false
+            }
             return cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
         }
+        #if DEBUG
+        print("🗺️ [Map] Showing \(filtered.count) cafes with locations (total cafes: \(dataManager.appData.cafes.count))")
+        #endif
+        return filtered
     }
 }
 

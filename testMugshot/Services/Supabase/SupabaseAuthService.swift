@@ -19,7 +19,7 @@ private struct SupabaseAuthResponse: Codable {
         let email: String?
     }
 
-    let accessToken: String
+    let accessToken: String?
     let refreshToken: String?
     let user: User
 
@@ -39,16 +39,30 @@ final class SupabaseAuthService {
     private init(client: SupabaseClient) {
         self.client = client
         if let session = loadSession() {
+            print("[SupabaseAuthService] Init: Loaded existing session for userId: \(session.userId)")
             client.accessToken = session.accessToken
+        } else {
+            print("[SupabaseAuthService] Init: No existing session found")
         }
     }
 
     func restoreSession() -> SupabaseSession? {
-        loadSession()
+        guard let session = loadSession() else { return nil }
+        
+        // Basic validation - ensure token is not empty
+        guard !session.accessToken.isEmpty else {
+            print("[SupabaseAuthService] restoreSession: Found session with empty token - clearing")
+            clearSession()
+            return nil
+        }
+        
+        return session
     }
 
     @discardableResult
-    func signUp(email: String, password: String, displayName: String, username: String) async throws -> SupabaseSession {
+    func signUp(email: String, password: String, displayName: String, username: String) async throws -> (session: SupabaseSession?, userId: String) {
+        print("[SupabaseAuthService] signUp: Starting for email=\(email)")
+        
         let payload: [String: Any] = [
             "email": email,
             "password": password,
@@ -69,37 +83,38 @@ final class SupabaseAuthService {
             body: body
         )
 
-        guard (200..<300).contains(response.statusCode) else {
-            let errorMessage = String(data: data, encoding: .utf8)
-            // Parse error response for better error messages
-            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMsg = errorData["error_description"] as? String ?? errorData["msg"] as? String {
-                // Check for rate limit errors and convert to user-friendly error
-                if response.statusCode == 429 || errorMsg.contains("over_email_send_rate_limit") {
-                    throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-                }
-                throw SupabaseError.server(status: response.statusCode, message: errorMsg)
-            }
-            // Check for rate limit by status code
-            if response.statusCode == 429 {
-                throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-            }
-            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        print("[SupabaseAuthService] signUp: Response status=\(response.statusCode)")
+        
+        if let responseString = String(data: data, encoding: .utf8) {
+             // Log truncated body to avoid leaking sensitive info if any, 
+             // though signup response usually just has user/metadata
+             print("[SupabaseAuthService] signUp: Response body prefix: \(responseString.prefix(500))")
         }
 
-        return try handleAuthResponse(data: data)
+        guard (200..<300).contains(response.statusCode) else {
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Unknown error") // Fallback
+        }
+
+        let result = try parseAuthResponse(data: data)
+        if result.session != nil {
+            print("[SupabaseAuthService] signUp: Success - Session created for userId=\(result.userId)")
+        } else {
+            print("[SupabaseAuthService] signUp: Success - User created (userId=\(result.userId)), awaiting verification (no session)")
+        }
+        
+        return result
     }
 
     @discardableResult
     func signIn(email: String, password: String) async throws -> SupabaseSession {
-        print("[SupabaseAuthService] signIn called for email: \(email)")
+        print("[SupabaseAuthService] signIn: Starting for email=\(email)")
         let payload: [String: Any] = [
             "email": email,
             "password": password
         ]
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-        print("[SupabaseAuthService] Sending sign-in request to auth/v1/token")
         let (data, response) = try await client.request(
             path: "auth/v1/token",
             method: "POST",
@@ -108,20 +123,20 @@ final class SupabaseAuthService {
             body: body
         )
 
-        print("[SupabaseAuthService] Sign-in response status: \(response.statusCode)")
+        print("[SupabaseAuthService] signIn: Response status=\(response.statusCode)")
+
         guard (200..<300).contains(response.statusCode) else {
-            let errorMessage = String(data: data, encoding: .utf8)
-            print("[SupabaseAuthService] Sign-in failed - status: \(response.statusCode), message: \(errorMessage ?? "unknown")")
-            // Parse error response for better error messages
-            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMsg = errorData["error_description"] as? String ?? errorData["msg"] as? String {
-                throw SupabaseError.server(status: response.statusCode, message: errorMsg)
-            }
-            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Unknown error")
         }
 
-        let session = try handleAuthResponse(data: data)
-        print("[SupabaseAuthService] Sign-in successful - userId: \(session.userId)")
+        let result = try parseAuthResponse(data: data)
+        guard let session = result.session else {
+            print("[SupabaseAuthService] signIn: Error - Successful response but no access token found")
+            throw SupabaseError.server(status: 200, message: "No access token returned")
+        }
+        
+        print("[SupabaseAuthService] signIn: Success - userId: \(session.userId)")
         return session
     }
 
@@ -151,25 +166,36 @@ final class SupabaseAuthService {
         )
 
         guard (200..<300).contains(response.statusCode) else {
-            let errorMessage = String(data: data, encoding: .utf8)
-            print("[SupabaseAuthService] refreshSession: Failed - status: \(response.statusCode), message: \(errorMessage ?? "unknown")")
+            print("[SupabaseAuthService] refreshSession: Failed - status: \(response.statusCode)")
+            // If refresh fails (e.g. token expired/revoked), clear the session
             clearSession()
-            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Refresh failed")
         }
 
-        let newSession = try handleAuthResponse(data: data)
+        let result = try parseAuthResponse(data: data)
+        guard let newSession = result.session else {
+             throw SupabaseError.server(status: 200, message: "No access token returned from refresh")
+        }
+        
         print("[SupabaseAuthService] refreshSession: Success - new access token stored")
         return newSession
     }
 
     func signOut() async {
-        _ = try? await client.request(path: "auth/v1/logout", method: "POST")
+        print("[SupabaseAuthService] signOut: Clearing session")
+        // Try to call logout endpoint, but don't fail if it errors
+        if let session = restoreSession() {
+            client.accessToken = session.accessToken
+             _ = try? await client.request(path: "auth/v1/logout", method: "POST")
+        }
+        
         clearSession()
         client.accessToken = nil
     }
     
     func resendVerificationEmail(email: String) async throws {
-        print("[Auth] resendVerificationEmail: Starting for email: \(email)")
+        print("[SupabaseAuthService] resendVerificationEmail: Starting for email: \(email)")
         
         let payload: [String: Any] = [
             "email": email,
@@ -185,14 +211,13 @@ final class SupabaseAuthService {
         if let session = restoreSession() {
             client.accessToken = session.accessToken
             useAuth = true
-            print("[Auth] resendVerificationEmail: Using authenticated request - userId=\(session.userId)")
+            print("[SupabaseAuthService] resendVerificationEmail: Using authenticated request - userId=\(session.userId)")
         } else {
             // Clear access token to use unauthenticated request
             client.accessToken = nil
-            print("[Auth] resendVerificationEmail: Using unauthenticated request")
+            print("[SupabaseAuthService] resendVerificationEmail: Using unauthenticated request")
         }
         
-        print("[Auth] resendVerificationEmail: Sending request to auth/v1/resend")
         let (data, response) = try await client.request(
             path: "auth/v1/resend",
             method: "POST",
@@ -200,19 +225,16 @@ final class SupabaseAuthService {
             body: body
         )
         
-        print("[Auth] resendVerificationEmail: Response status: \(response.statusCode)")
+        print("[SupabaseAuthService] resendVerificationEmail: Response status: \(response.statusCode)")
         
         guard (200..<300).contains(response.statusCode) else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("[Auth] resendVerificationEmail: Failed - status: \(response.statusCode), message: \(errorMessage)")
-
             // If we got 401 with auth, try to refresh and retry, then fall back to unauthenticated
             if response.statusCode == 401 && useAuth {
-                print("[Auth] resendVerificationEmail: Got 401 with auth, attempting token refresh")
+                print("[SupabaseAuthService] resendVerificationEmail: Got 401 with auth, attempting token refresh")
                 do {
                     let refreshedSession = try await refreshSession()
                     client.accessToken = refreshedSession.accessToken
-                    let (refreshData, refreshResponse) = try await client.request(
+                    let (_, refreshResponse) = try await client.request(
                         path: "auth/v1/resend",
                         method: "POST",
                         headers: [:],
@@ -220,17 +242,14 @@ final class SupabaseAuthService {
                     )
 
                     if (200..<300).contains(refreshResponse.statusCode) {
-                        print("[Auth] resendVerificationEmail: Success after refresh - verification email sent")
+                        print("[SupabaseAuthService] resendVerificationEmail: Success after refresh")
                         return
                     }
-
-                    let refreshError = String(data: refreshData, encoding: .utf8) ?? "Unknown error"
-                    print("[Auth] resendVerificationEmail: Refresh retry failed - status: \(refreshResponse.statusCode), message: \(refreshError)")
                 } catch {
-                    print("[Auth] resendVerificationEmail: Refresh failed, will retry unauthenticated")
+                    print("[SupabaseAuthService] resendVerificationEmail: Refresh failed, will retry unauthenticated")
                 }
 
-                print("[Auth] resendVerificationEmail: Retrying without auth")
+                print("[SupabaseAuthService] resendVerificationEmail: Retrying without auth")
                 client.accessToken = nil
                 let (retryData, retryResponse) = try await client.request(
                     path: "auth/v1/resend",
@@ -240,49 +259,35 @@ final class SupabaseAuthService {
                 )
 
                 guard (200..<300).contains(retryResponse.statusCode) else {
-                    let retryErrorMessage = String(data: retryData, encoding: .utf8) ?? "Unknown error"
-                    print("[Auth] resendVerificationEmail: Retry also failed - status: \(retryResponse.statusCode), message: \(retryErrorMessage)")
-
-                    // Parse error response for better error messages
-                    if let errorData = try? JSONSerialization.jsonObject(with: retryData) as? [String: Any],
-                       let errorMsg = errorData["error_description"] as? String ?? errorData["msg"] as? String {
-                        if retryResponse.statusCode == 429 || errorMsg.contains("over_email_send_rate_limit") {
-                            throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-                        }
-                        throw SupabaseError.server(status: retryResponse.statusCode, message: errorMsg)
-                    }
-                    if retryResponse.statusCode == 429 {
-                        throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-                    }
-                    throw SupabaseError.server(status: retryResponse.statusCode, message: retryErrorMessage)
+                    handleErrorResponse(data: retryData, response: retryResponse)
+                    throw SupabaseError.server(status: retryResponse.statusCode, message: "Retry failed")
                 }
-
-                print("[Auth] resendVerificationEmail: Success on retry (unauthenticated) - verification email sent")
+                
+                print("[SupabaseAuthService] resendVerificationEmail: Success on retry (unauthenticated)")
                 return
             }
 
-            // Parse error response for better error messages
-            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMsg = errorData["error_description"] as? String ?? errorData["msg"] as? String {
-                // Check for rate limit errors and convert to user-friendly error
-                if response.statusCode == 429 || errorMsg.contains("over_email_send_rate_limit") {
-                    throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-                }
-                throw SupabaseError.server(status: response.statusCode, message: errorMsg)
-            }
-            // Check for rate limit by status code
-            if response.statusCode == 429 {
-                throw MugshotError.userFriendly("Whoa there ☕️\nWe just sent you an email.\nTry again in a few seconds!")
-            }
-            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Failed")
         }
         
-        print("[Auth] resendVerificationEmail: Success - verification email sent")
+        print("[SupabaseAuthService] resendVerificationEmail: Success")
     }
     
     func checkEmailVerificationStatus(userId: String) async throws -> Bool {
-        // Fetch user info to check if email is confirmed
-        print("[Auth] checkEmailVerificationStatus: Fetching user info for userId: \(userId)")
+        print("[SupabaseAuthService] checkEmailVerificationStatus: Fetching user info for userId: \(userId)")
+        
+        // IMPORTANT: This often requires a valid session/token if RLS is strict,
+        // OR it relies on the user already being logged in. 
+        // If we don't have a session, we can't easily check auth.users unless we have a specialized endpoint 
+        // or we try to refresh.
+        
+        // If we have a session, ensure client uses it
+        if let session = restoreSession() {
+            client.accessToken = session.accessToken
+        }
+        
+        // Using auth/v1/user endpoint (requires valid access token)
         let (data, response) = try await client.request(
             path: "auth/v1/user",
             method: "GET",
@@ -292,7 +297,7 @@ final class SupabaseAuthService {
         
         guard (200..<300).contains(response.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("[Auth] checkEmailVerificationStatus: Failed - status \(response.statusCode), message: \(errorMsg)")
+            print("[SupabaseAuthService] checkEmailVerificationStatus: Failed - status \(response.statusCode), message: \(errorMsg)")
             throw SupabaseError.server(status: response.statusCode, message: errorMsg)
         }
         
@@ -300,16 +305,14 @@ final class SupabaseAuthService {
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let emailConfirmedAt = json["email_confirmed_at"] {
                 if let confirmedAtString = emailConfirmedAt as? String, !confirmedAtString.isEmpty {
-                    print("[Auth] checkEmailVerificationStatus: Email is confirmed (email_confirmed_at=\(confirmedAtString))")
+                    print("[SupabaseAuthService] checkEmailVerificationStatus: Email is confirmed (email_confirmed_at=\(confirmedAtString))")
                     return true
-                } else if emailConfirmedAt is NSNull {
-                    print("[Auth] checkEmailVerificationStatus: Email not confirmed (email_confirmed_at is null)")
+                } else {
+                    print("[SupabaseAuthService] checkEmailVerificationStatus: Email not confirmed (email_confirmed_at is null/empty)")
                 }
             } else {
-                print("[Auth] checkEmailVerificationStatus: email_confirmed_at key not found")
+                print("[SupabaseAuthService] checkEmailVerificationStatus: email_confirmed_at key not found")
             }
-        } else {
-            print("[Auth] checkEmailVerificationStatus: Failed to parse JSON response")
         }
         
         return false
@@ -317,17 +320,14 @@ final class SupabaseAuthService {
     
     /// Fetches the current authenticated user from Supabase Auth
     func fetchCurrentUser() async throws -> [String: Any] {
-        print("[Auth] fetchCurrentUser: Fetching current user from Supabase")
+        print("[SupabaseAuthService] fetchCurrentUser: Fetching from Supabase")
         
-        // Ensure we have a valid session with access token
         guard var session = restoreSession() else {
-            print("[Auth] fetchCurrentUser: No session found")
+            print("[SupabaseAuthService] fetchCurrentUser: No session found")
             throw SupabaseError.invalidSession
         }
         
-        // Ensure client has the access token set
         client.accessToken = session.accessToken
-        print("[Auth] fetchCurrentUser: Using session - userId=\(session.userId)")
         
         let (data, response) = try await client.request(
             path: "auth/v1/user",
@@ -338,14 +338,19 @@ final class SupabaseAuthService {
         
         guard (200..<300).contains(response.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("[Auth] fetchCurrentUser: Failed - status \(response.statusCode), message: \(errorMsg)")
+            print("[SupabaseAuthService] fetchCurrentUser: Failed - status \(response.statusCode)")
             
-            // If we get 401, the session might be expired
-            if response.statusCode == 401 {
-                print("[Auth] fetchCurrentUser: Session expired (401) - attempting refresh")
+            // Check if error indicates expired token (401 or 403 with "expired" in message)
+            let isExpiredToken = response.statusCode == 401 || 
+                                (response.statusCode == 403 && errorMsg.localizedCaseInsensitiveContains("expired"))
+            
+            if isExpiredToken {
+                print("[SupabaseAuthService] fetchCurrentUser: Token expired (\(response.statusCode)) - attempting refresh")
                 do {
                     session = try await refreshSession()
                     client.accessToken = session.accessToken
+                    print("[SupabaseAuthService] fetchCurrentUser: Session refreshed, retrying request")
+                    
                     let (retryData, retryResponse) = try await client.request(
                         path: "auth/v1/user",
                         method: "GET",
@@ -354,16 +359,17 @@ final class SupabaseAuthService {
                     )
 
                     guard (200..<300).contains(retryResponse.statusCode) else {
-                        let retryMsg = String(data: retryData, encoding: .utf8) ?? "Unknown error"
-                        print("[Auth] fetchCurrentUser: Refresh retry failed - status \(retryResponse.statusCode), message: \(retryMsg)")
+                        let retryErrorMsg = String(data: retryData, encoding: .utf8) ?? "Unknown error"
+                        print("[SupabaseAuthService] fetchCurrentUser: Refresh retry failed - status \(retryResponse.statusCode), message: \(retryErrorMsg)")
                         clearSession()
                         client.accessToken = nil
                         throw SupabaseError.invalidSession
                     }
 
+                    print("[SupabaseAuthService] fetchCurrentUser: Refresh retry succeeded")
                     return try parseUserResponse(retryData)
                 } catch {
-                    print("[Auth] fetchCurrentUser: Refresh failed - clearing session")
+                    print("[SupabaseAuthService] fetchCurrentUser: Refresh failed - \(error.localizedDescription). Clearing session.")
                     clearSession()
                     client.accessToken = nil
                     throw SupabaseError.invalidSession
@@ -378,29 +384,55 @@ final class SupabaseAuthService {
 
     // MARK: - Private helpers
 
-    private func handleAuthResponse(data: Data) throws -> SupabaseSession {
+    private func handleErrorResponse(data: Data, response: HTTPURLResponse) {
+        // Helper to parse and print error
+        let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+        
+        // Parse error response for better debugging
+        if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let errorMsg = errorData["error_description"] as? String ?? errorData["msg"] as? String ?? errorMessage
+            print("[SupabaseAuthService] Error: \(errorMsg) (Status: \(response.statusCode))")
+        } else {
+            print("[SupabaseAuthService] Error: \(errorMessage) (Status: \(response.statusCode))")
+        }
+    }
+
+    private func parseAuthResponse(data: Data) throws -> (session: SupabaseSession?, userId: String) {
         let decoder = JSONDecoder()
         let response = try decoder.decode(SupabaseAuthResponse.self, from: data)
-        let session = SupabaseSession(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            userId: response.user.id
-        )
-        store(session: session)
-        client.accessToken = session.accessToken
-        return session
+        
+        if let accessToken = response.accessToken, !accessToken.isEmpty {
+            let session = SupabaseSession(
+                accessToken: accessToken,
+                refreshToken: response.refreshToken,
+                userId: response.user.id
+            )
+            store(session: session)
+            client.accessToken = session.accessToken
+            return (session, response.user.id)
+        } else {
+            // User created but no session (likely needs email verification)
+            return (nil, response.user.id)
+        }
     }
 
     private func parseUserResponse(_ data: Data) throws -> [String: Any] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("[Auth] fetchCurrentUser: Failed to parse JSON response")
+            print("[SupabaseAuthService] parseUserResponse: Failed to parse JSON")
             throw SupabaseError.decoding("Invalid user response format")
         }
 
         let userId = json["id"] as? String ?? "nil"
         let email = json["email"] as? String ?? "nil"
         let emailConfirmedAt = json["email_confirmed_at"]
-        print("[Auth] fetchCurrentUser: Success - userId=\(userId), email=\(email), email_confirmed_at=\(String(describing: emailConfirmedAt))")
+        
+        // Log available keys to help debug
+        print("[SupabaseAuthService] parseUserResponse: Keys found: \(json.keys.joined(separator: ", "))")
+        if let metadata = json["user_metadata"] as? [String: Any] {
+            print("[SupabaseAuthService] parseUserResponse: user_metadata found: \(metadata)")
+        }
+        
+        print("[SupabaseAuthService] parseUserResponse: Success - userId=\(userId), email=\(email), confirmed=\(String(describing: emailConfirmedAt))")
         return json
     }
 
@@ -419,5 +451,3 @@ final class SupabaseAuthService {
         UserDefaults.standard.removeObject(forKey: sessionKey)
     }
 }
-
-

@@ -14,8 +14,8 @@ final class SupabaseVisitService {
     
     init(client: SupabaseClient) {
         self.client = client
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        // Use shared decoder that handles Postgres timestamps and ISO8601 variants
+        self.decoder = SupabaseDateDecoder.shared
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
     }
@@ -53,11 +53,28 @@ final class SupabaseVisitService {
     
     // MARK: - Mutations
     
+    /// Creates a visit in Supabase
+    /// Inserts into public.visits table, then inserts photos into public.visit_photos
+    /// RLS policy requires: auth.uid() = user_id (enforced by Supabase)
     func createVisit(
         payload: VisitInsertPayload,
         photos: [VisitPhotoUpload]
     ) async throws -> RemoteVisit {
+        print("[VisitService] ===== Creating Visit in Supabase =====")
+        print("[VisitService] userId = \(payload.userId)")
+        print("[VisitService] cafeId = \(payload.cafeId)")
+        print("[VisitService] visibility = \(payload.visibility)")
+        print("[VisitService] overallScore = \(payload.overallScore)")
+        print("[VisitService] photoCount = \(photos.count)")
+        
         let body = try encoder.encode([payload])
+        
+        // Log the request body (excluding binary data)
+        if let bodyString = String(data: body, encoding: .utf8) {
+            print("[VisitService] Request body: \(bodyString)")
+        }
+        
+        print("[VisitService] Sending POST to rest/v1/visits")
         let (data, response) = try await client.request(
             path: "rest/v1/visits",
             method: "POST",
@@ -65,22 +82,46 @@ final class SupabaseVisitService {
             body: body
         )
         
+        print("[VisitService] Response status: \(response.statusCode)")
+        
         guard (200..<300).contains(response.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("❌ Supabase visit insert failed: status \(response.statusCode), message: \(errorMessage)")
+            print("❌ [VisitService] Supabase visit insert failed:")
+            print("❌ [VisitService] Status: \(response.statusCode)")
+            print("❌ [VisitService] Error message: \(errorMessage)")
+            
+            // Try to parse error details if available
+            if let errorJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("❌ [VisitService] Error JSON: \(errorJSON)")
+                if let message = errorJSON["message"] as? String {
+                    print("❌ [VisitService] Parsed message: \(message)")
+                }
+                if let hint = errorJSON["hint"] as? String {
+                    print("❌ [VisitService] Hint: \(hint)")
+                }
+                if let details = errorJSON["details"] as? String {
+                    print("❌ [VisitService] Details: \(details)")
+                }
+            }
+            
             throw SupabaseError.server(status: response.statusCode, message: errorMessage)
         }
         
-        // Debug: Log raw JSON response
+        // Debug: Log raw JSON response before decoding (for debugging date format issues)
+        #if DEBUG
         if let jsonString = String(data: data, encoding: .utf8) {
-            print("✅ Visit insert response JSON: \(jsonString)")
+            print("✅ [VisitService] Visit insert response JSON (raw): \(jsonString)")
         }
+        #endif
         
         do {
             let visits = try decoder.decode([RemoteVisit].self, from: data)
             guard let savedVisit = visits.first else {
+                print("❌ [VisitService] Visit insert returned empty response array")
                 throw SupabaseError.decoding("Visit insert returned empty response.")
             }
+            
+            print("✅ [VisitService] Visit created successfully - id: \(savedVisit.id)")
         
             // Insert photos if any
             if !photos.isEmpty {
@@ -111,10 +152,38 @@ final class SupabaseVisitService {
                 print("⚠️ Using savedVisit from insert response instead")
                 return savedVisit
             }
-        } catch {
-            print("❌ Failed to decode visit insert response: \(error)")
+        } catch let decodingError as DecodingError {
+            print("❌ [VisitService] Failed to decode visit insert response: \(decodingError)")
+            
+            // Log detailed decoding error information
+            switch decodingError {
+            case .typeMismatch(let type, let context):
+                print("❌ [VisitService] Type mismatch: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                print("❌ [VisitService] Context: \(context.debugDescription)")
+            case .valueNotFound(let type, let context):
+                print("❌ [VisitService] Value not found: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                print("❌ [VisitService] Context: \(context.debugDescription)")
+            case .keyNotFound(let key, let context):
+                print("❌ [VisitService] Key not found: \(key.stringValue), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                print("❌ [VisitService] Context: \(context.debugDescription)")
+            case .dataCorrupted(let context):
+                print("❌ [VisitService] Data corrupted: \(context.debugDescription)")
+                print("❌ [VisitService] Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                if let underlyingError = context.underlyingError {
+                    print("❌ [VisitService] Underlying error: \(underlyingError)")
+                }
+            @unknown default:
+                print("❌ [VisitService] Unknown decoding error")
+            }
+            
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("❌ Raw JSON that failed to decode: \(jsonString)")
+                print("❌ [VisitService] Raw JSON that failed to decode: \(jsonString)")
+            }
+            throw SupabaseError.decoding("Failed to decode visit response: \(decodingError.localizedDescription)")
+        } catch {
+            print("❌ [VisitService] Unexpected error decoding visit: \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("❌ [VisitService] Raw JSON: \(jsonString)")
             }
             throw error
         }

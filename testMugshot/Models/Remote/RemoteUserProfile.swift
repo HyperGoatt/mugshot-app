@@ -15,6 +15,7 @@ struct RemoteUserProfile: Codable {
     var location: String?
     var favoriteDrink: String?
     var instagramHandle: String?
+    var websiteURL: String?
     var avatarURL: String?
     var bannerURL: String?
     var createdAt: Date?
@@ -28,6 +29,7 @@ struct RemoteUserProfile: Codable {
         case location
         case favoriteDrink = "favorite_drink"
         case instagramHandle = "instagram_handle"
+        case websiteURL = "website_url"
         case avatarURL = "avatar_url"
         case bannerURL = "banner_url"
         case createdAt = "created_at"
@@ -63,7 +65,7 @@ extension RemoteUserProfile {
             bannerImageID: existing?.bannerImageID,
             bio: bio ?? "",
             instagramURL: instagramHandle,
-            websiteURL: existing?.websiteURL,
+            websiteURL: websiteURL ?? existing?.websiteURL,
             favoriteDrink: favoriteDrink
         )
     }

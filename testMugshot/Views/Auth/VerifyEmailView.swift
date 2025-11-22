@@ -17,6 +17,7 @@ struct VerifyEmailView: View {
     @State private var resendError: String?
     @State private var isResending = false
     @State private var resendSuccess = false
+    @State private var isPollingVerification = false
     
     var body: some View {
         ZStack {
@@ -168,8 +169,10 @@ struct VerifyEmailView: View {
             }
         }
         .task {
-            // Check verification status periodically
+            guard !isPollingVerification, !dataManager.appData.hasEmailVerified else { return }
+            isPollingVerification = true
             await checkVerificationPeriodically()
+            isPollingVerification = false
         }
         .onChange(of: dataManager.appData.hasEmailVerified) { _, verified in
             // When email is verified, call the callback to trigger navigation
@@ -228,7 +231,7 @@ struct VerifyEmailView: View {
         var checkCount = 0
         let maxChecks = 150 // Stop after 5 minutes (150 * 2 seconds)
         
-        while !dataManager.appData.hasEmailVerified && checkCount < maxChecks {
+        while !dataManager.appData.hasEmailVerified && checkCount < maxChecks && !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             checkCount += 1
             print("[VerifyEmail] checkVerificationPeriodically: Check #\(checkCount)")

@@ -17,6 +17,10 @@ class DataManager: ObservableObject {
     @Published var appData: AppData
     @Published var isCheckingEmailVerification = false
     @Published var authErrorMessage: String?
+    @Published var isBootstrapping = true // Track initial load
+    
+    /// Prevent overlapping refresh operations from cancelling each other.
+    private var isRefreshingAuthStatus = false
     
     private let dataKey = "MugshotAppData"
     
@@ -92,25 +96,36 @@ class DataManager: ObservableObject {
         password: String
     ) async throws {
         print("[Auth] signUp: Starting signup for email: \(email)")
-        let session = try await authService.signUp(
+        
+        // Tuple return type change
+        let (session, userId) = try await authService.signUp(
             email: email,
             password: password,
             displayName: displayName,
             username: username
         )
 
-        print("[Auth] signUp: Signup successful - userId: \(session.userId)")
-        appData.supabaseUserId = session.userId
-        // User has a session but email is not verified yet
-        appData.isUserAuthenticated = true
-        appData.hasEmailVerified = false
+        print("[Auth] signUp: Signup successful - userId: \(userId)")
+        appData.supabaseUserId = userId
         appData.currentUserEmail = email
         appData.currentUserDisplayName = displayName
         appData.currentUserUsername = username
+        appData.hasEmailVerified = false
+
+        if let _ = session {
+             print("[Auth] signUp: Session obtained immediately")
+             // If we get a session, we are authenticated, but we still assume unverified
+             // until proven otherwise (unless Supabase config allows unverified sessions)
+             appData.isUserAuthenticated = true
+        } else {
+             print("[Auth] signUp: No session (awaiting verification)")
+             // No token = not authenticated
+             appData.isUserAuthenticated = false
+        }
 
         let localUser = User(
-            id: UUID(uuidString: session.userId) ?? UUID(),
-            supabaseUserId: session.userId,
+            id: UUID(uuidString: userId) ?? UUID(),
+            supabaseUserId: userId,
             username: username,
             displayName: displayName,
             location: appData.currentUserLocation ?? "",
@@ -118,7 +133,7 @@ class DataManager: ObservableObject {
         )
         appData.currentUser = localUser
         save()
-        print("[Auth] signUp: Auth state set - isUserAuthenticated=true, hasEmailVerified=false")
+        print("[Auth] signUp: Auth state set - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=false")
     }
     
     func resendVerificationEmail() async throws {
@@ -155,6 +170,13 @@ class DataManager: ObservableObject {
     /// - Profile existence in public.users
     @MainActor
     func refreshAuthStatusFromSupabase() async {
+        if isRefreshingAuthStatus {
+            print("[Auth] refreshAuthStatusFromSupabase: Already refreshing, skipping")
+            return
+        }
+        isRefreshingAuthStatus = true
+        defer { isRefreshingAuthStatus = false }
+        
         print("[Auth] refreshAuthStatusFromSupabase: Starting")
         
         // Step 1: Check if we have a session
@@ -179,23 +201,32 @@ class DataManager: ObservableObject {
             let emailConfirmedAt = userDict["email_confirmed_at"]
             
             // Determine if email is verified - handle all possible cases
-            let isVerified: Bool
+            var isVerified = false
+            
+            // Check 1: Standard email_confirmed_at field
             if let confirmedAtString = emailConfirmedAt as? String, !confirmedAtString.isEmpty {
                 isVerified = true
                 print("[Auth] refreshAuthStatusFromSupabase: Email is verified (confirmed_at=\(confirmedAtString))")
-            } else if emailConfirmedAt is NSNull {
-                isVerified = false
-                print("[Auth] refreshAuthStatusFromSupabase: Email not verified (email_confirmed_at is NSNull)")
-            } else if emailConfirmedAt == nil {
-                isVerified = false
-                print("[Auth] refreshAuthStatusFromSupabase: Email not verified (email_confirmed_at is nil)")
-            } else {
-                // Handle any other type (shouldn't happen, but be safe)
-                isVerified = false
-                print("[Auth] refreshAuthStatusFromSupabase: Email not verified (email_confirmed_at is unexpected type)")
             }
             
-            print("[Auth] refreshAuthStatusFromSupabase: email_confirmed_at=\(String(describing: emailConfirmedAt)), isVerified=\(isVerified)")
+            // Check 2: Fallback to user_metadata.email_verified if standard check fails
+            if !isVerified {
+                if let metadata = userDict["user_metadata"] as? [String: Any],
+                   let metaVerified = metadata["email_verified"] as? Bool,
+                   metaVerified == true {
+                    isVerified = true
+                    print("[Auth] refreshAuthStatusFromSupabase: Email verified via user_metadata.email_verified")
+                }
+            }
+            
+            if !isVerified {
+                 // Check 3: Log failure reason
+                 if emailConfirmedAt == nil || emailConfirmedAt is NSNull {
+                     print("[Auth] refreshAuthStatusFromSupabase: Email not verified (email_confirmed_at is null/empty and metadata check failed)")
+                 } else {
+                     print("[Auth] refreshAuthStatusFromSupabase: Email not verified (email_confirmed_at present but check failed: \(String(describing: emailConfirmedAt)))")
+                 }
+            }
             
             if let email = email {
                 appData.currentUserEmail = email
@@ -211,21 +242,60 @@ class DataManager: ObservableObject {
                     print("[Auth] refreshAuthStatusFromSupabase: Profile found - mapping to local user")
                     mapRemoteUserProfile(profile)
                 } else {
-                    print("[Auth] refreshAuthStatusFromSupabase: No profile found - will be created during profile setup")
-                    // Profile doesn't exist yet - user needs to complete profile setup
-                    // But we still have the signup data in appData, so we can create a basic user
-                    if appData.currentUser == nil {
-                        let userUUID = UUID(uuidString: userId) ?? UUID()
-                        let username = appData.currentUserUsername ?? email?.components(separatedBy: "@").first ?? "user"
-                        let displayName = appData.currentUserDisplayName ?? username.capitalized
-                        appData.currentUser = User(
-                            id: userUUID,
-                            supabaseUserId: userId,
-                            username: username,
-                            displayName: displayName,
-                            location: appData.currentUserLocation ?? "",
-                            bio: appData.currentUserBio ?? ""
-                        )
+                    print("[Auth] refreshAuthStatusFromSupabase: No profile found - attempting to create from signup data")
+                    // Profile doesn't exist - try to create it from signup data if we have it
+                    // Use the signup values from appData (set during signUp), never derive from email
+                    let userUUID = UUID(uuidString: userId) ?? UUID()
+                    // Prefer signup values, only use minimal fallbacks if truly missing
+                    let username = appData.currentUserUsername ?? "user"
+                    let displayName = appData.currentUserDisplayName ?? username.capitalized
+                    
+                    // Try to create the profile automatically if we have the required data
+                    if !username.isEmpty && username != "user" {
+                        do {
+                            let remoteProfile = RemoteUserProfile(
+                                id: userId,
+                                displayName: displayName,
+                                username: username.lowercased(),
+                                bio: appData.currentUserBio,
+                                location: appData.currentUserLocation,
+                                favoriteDrink: appData.currentUserFavoriteDrink,
+                                instagramHandle: appData.currentUserInstagramHandle,
+                                avatarURL: appData.currentUserAvatarURL,
+                                bannerURL: appData.currentUserBannerURL,
+                                createdAt: nil,
+                                updatedAt: nil
+                            )
+                            let savedProfile = try await profileService.upsertUserProfile(remoteProfile)
+                            print("[Auth] refreshAuthStatusFromSupabase: Profile created successfully - id=\(savedProfile.id)")
+                            mapRemoteUserProfile(savedProfile)
+                        } catch {
+                            print("[Auth] refreshAuthStatusFromSupabase: Failed to auto-create profile: \(error.localizedDescription). User will need to complete profile setup.")
+                            // Fall back to creating local user only
+                            if appData.currentUser == nil {
+                                appData.currentUser = User(
+                                    id: userUUID,
+                                    supabaseUserId: userId,
+                                    username: username,
+                                    displayName: displayName,
+                                    location: appData.currentUserLocation ?? "",
+                                    bio: appData.currentUserBio ?? ""
+                                )
+                            }
+                        }
+                    } else {
+                        print("[Auth] refreshAuthStatusFromSupabase: No profile found and insufficient signup data - will be created during profile setup")
+                        // Profile doesn't exist yet - user needs to complete profile setup
+                        if appData.currentUser == nil {
+                            appData.currentUser = User(
+                                id: userUUID,
+                                supabaseUserId: userId,
+                                username: username,
+                                displayName: displayName,
+                                location: appData.currentUserLocation ?? "",
+                                bio: appData.currentUserBio ?? ""
+                            )
+                        }
                     }
                 }
                 
@@ -246,22 +316,163 @@ class DataManager: ObservableObject {
             print("[Auth] refreshAuthStatusFromSupabase: Complete - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=\(appData.hasEmailVerified)")
         } catch let error as SupabaseError {
             print("[Auth] refreshAuthStatusFromSupabase: SupabaseError - \(error.localizedDescription)")
+            
+            // Check if this is an expired token error that we should try to refresh
+            var isExpiredTokenError = false
+            if case .server(let status, let message) = error {
+                let messageLower = message?.lowercased() ?? ""
+                isExpiredTokenError = (status == 401 || status == 403) && 
+                                     (messageLower.contains("expired") || 
+                                      messageLower.contains("bad_jwt"))
+            }
+            
+            // If we have an expired token error and a session, try to refresh it
+            if isExpiredTokenError, let session = authService.restoreSession(), session.refreshToken != nil {
+                print("[Auth] refreshAuthStatusFromSupabase: Detected expired token, attempting session refresh")
+                do {
+                    let refreshedSession = try await authService.refreshSession()
+                    print("[Auth] refreshAuthStatusFromSupabase: Session refreshed successfully, retrying fetchCurrentUser")
+                    
+                    // Retry fetching user with refreshed session
+                    let userDict = try await authService.fetchCurrentUser()
+                    let userId = userDict["id"] as? String ?? refreshedSession.userId
+                    let email = userDict["email"] as? String
+                    let emailConfirmedAt = userDict["email_confirmed_at"]
+                    
+                    // Determine if email is verified
+                    var isVerified = false
+                    if let confirmedAtString = emailConfirmedAt as? String, !confirmedAtString.isEmpty {
+                        isVerified = true
+                        print("[Auth] refreshAuthStatusFromSupabase: Email is verified (confirmed_at=\(confirmedAtString))")
+                    } else if let metadata = userDict["user_metadata"] as? [String: Any],
+                              let metaVerified = metadata["email_verified"] as? Bool,
+                              metaVerified == true {
+                        isVerified = true
+                        print("[Auth] refreshAuthStatusFromSupabase: Email verified via user_metadata.email_verified")
+                    }
+                    
+                    if let email = email {
+                        appData.currentUserEmail = email
+                    }
+                    
+                    // Update auth state
+                    appData.supabaseUserId = userId
+                    appData.isUserAuthenticated = true
+                    appData.hasEmailVerified = isVerified
+                    
+                    // If email is verified, ensure profile exists and load it
+                    if isVerified {
+                        print("[Auth] refreshAuthStatusFromSupabase: Email verified - checking profile")
+                        
+                        if let profile = try await profileService.fetchUserProfile(userId: userId) {
+                            print("[Auth] refreshAuthStatusFromSupabase: Profile found - mapping to local user")
+                            mapRemoteUserProfile(profile)
+                        } else {
+                            print("[Auth] refreshAuthStatusFromSupabase: No profile found - attempting to create from signup data")
+                            // Try to auto-create profile (same logic as above)
+                            let userUUID = UUID(uuidString: userId) ?? UUID()
+                            let username = appData.currentUserUsername ?? "user"
+                            let displayName = appData.currentUserDisplayName ?? username.capitalized
+                            
+                            if !username.isEmpty && username != "user" {
+                                do {
+                                    let remoteProfile = RemoteUserProfile(
+                                        id: userId,
+                                        displayName: displayName,
+                                        username: username.lowercased(),
+                                        bio: appData.currentUserBio,
+                                        location: appData.currentUserLocation,
+                                        favoriteDrink: appData.currentUserFavoriteDrink,
+                                        instagramHandle: appData.currentUserInstagramHandle,
+                                        avatarURL: appData.currentUserAvatarURL,
+                                        bannerURL: appData.currentUserBannerURL,
+                                        createdAt: nil,
+                                        updatedAt: nil
+                                    )
+                                    let savedProfile = try await profileService.upsertUserProfile(remoteProfile)
+                                    print("[Auth] refreshAuthStatusFromSupabase: Profile created successfully")
+                                    mapRemoteUserProfile(savedProfile)
+                                } catch {
+                                    print("[Auth] refreshAuthStatusFromSupabase: Failed to auto-create profile: \(error.localizedDescription)")
+                                    if appData.currentUser == nil {
+                                        appData.currentUser = User(
+                                            id: userUUID,
+                                            supabaseUserId: userId,
+                                            username: username,
+                                            displayName: displayName,
+                                            location: appData.currentUserLocation ?? "",
+                                            bio: appData.currentUserBio ?? ""
+                                        )
+                                    }
+                                }
+                            } else {
+                                if appData.currentUser == nil {
+                                    appData.currentUser = User(
+                                        id: userUUID,
+                                        supabaseUserId: userId,
+                                        username: username,
+                                        displayName: displayName,
+                                        location: appData.currentUserLocation ?? "",
+                                        bio: appData.currentUserBio ?? ""
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Load rating template if it exists
+                        if let template = try? await profileService.fetchRatingTemplate(userId: userId) {
+                            appData.ratingTemplate = template.toLocalRatingTemplate()
+                        }
+                        
+                        // Refresh visits
+                        try? await refreshProfileVisits()
+                    }
+                    
+                    save()
+                    print("[Auth] refreshAuthStatusFromSupabase: Complete after refresh - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=\(appData.hasEmailVerified)")
+                    return
+                } catch {
+                    print("[Auth] refreshAuthStatusFromSupabase: Session refresh failed - \(error.localizedDescription). Clearing session.")
+                    // Refresh failed - clear the session
+                    await authService.signOut()
+                    appData.isUserAuthenticated = false
+                    appData.hasEmailVerified = false
+                    appData.supabaseUserId = nil
+                    save()
+                    return
+                }
+            }
+            
+            // Do not automatically log out on server errors, only on invalid session
             if case .invalidSession = error {
                 // Session expired - clear auth state
-                print("[Auth] refreshAuthStatusFromSupabase: Session expired - clearing auth state")
+                print("[Auth] refreshAuthStatusFromSupabase: Invalid session - clearing auth state")
                 appData.isUserAuthenticated = false
                 appData.hasEmailVerified = false
                 appData.supabaseUserId = nil
             } else {
-                // On other errors, assume email is not verified to be safe
-                appData.hasEmailVerified = false
+                // Special-case cancelled requests (typically -999)
+                if case .network(let message) = error,
+                   message.localizedCaseInsensitiveContains("cancelled") ||
+                   message.localizedCaseInsensitiveContains("canceled") ||
+                   message.contains("-999") {
+                    print("[Auth] refreshAuthStatusFromSupabase: Request was cancelled, leaving auth state unchanged")
+                } else {
+                    print("[Auth] refreshAuthStatusFromSupabase: Non-session error, defaulting to unverified")
+                    appData.hasEmailVerified = false
+                }
             }
             save()
         } catch {
-            print("[Auth] refreshAuthStatusFromSupabase: Error - \(error.localizedDescription)")
-            // On error, assume email is not verified to be safe
-            appData.hasEmailVerified = false
-            save()
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("[Auth] refreshAuthStatusFromSupabase: URLSession cancelled, leaving auth state unchanged")
+            } else {
+                print("[Auth] refreshAuthStatusFromSupabase: Error - \(error.localizedDescription)")
+                // On error, assume email is not verified to be safe
+                appData.hasEmailVerified = false
+                save()
+            }
         }
     }
     
@@ -273,80 +484,38 @@ class DataManager: ObservableObject {
         isCheckingEmailVerification = true
         authErrorMessage = nil
         
-        guard let session = authService.restoreSession() else {
-            print("[Auth] confirmEmailAndAdvanceFlow: No session found")
-            authErrorMessage = "No active session. Please sign in again."
-            isCheckingEmailVerification = false
-            return
+        // We might not have a session if we came from fresh launch
+        // Try to restore session first
+        if authService.restoreSession() == nil {
+             print("[Auth] confirmEmailAndAdvanceFlow: No local session found. User needs to sign in or we need to rely on checkEmailVerificationStatus (if possible without session)")
+             // NOTE: We can't easily check verification without a session using standard endpoints usually.
+             // But if the user JUST signed up, they might not have a session token yet if one wasn't returned.
+             // In that case, they might need to "Sign In" to prove they are verified.
+             
+             // However, Supabase usually allows sign-in ONLY if verified.
+             // So if we try to sign in and it works -> verified.
+             
+             if let email = appData.currentUserEmail, !email.isEmpty {
+                  // We can't auto-sign-in without password.
+                  // If no session, we direct user to sign in?
+                  authErrorMessage = "Please sign in to continue."
+                  isCheckingEmailVerification = false
+                  // We could potentially reset `isUserAuthenticated` to false to trigger sign in screen,
+                  // but we are in `VerifyEmailView`.
+                  return
+             }
         }
         
-        do {
-            // Fetch current user to check verification status
-            let userDict = try await authService.fetchCurrentUser()
-            let userId = userDict["id"] as? String ?? session.userId
-            let email = userDict["email"] as? String
-            let emailConfirmedAt = userDict["email_confirmed_at"]
-            
-            print("[Auth] confirmEmailAndAdvanceFlow: userId=\(userId), email=\(email ?? "nil"), email_confirmed_at=\(String(describing: emailConfirmedAt))")
-            
-            // Check if email is verified - handle all possible cases
-            let isVerified: Bool
-            if let confirmedAtString = emailConfirmedAt as? String, !confirmedAtString.isEmpty {
-                isVerified = true
-                print("[Auth] confirmEmailAndAdvanceFlow: Email is verified (confirmed_at=\(confirmedAtString))")
-            } else if emailConfirmedAt is NSNull {
-                isVerified = false
-                print("[Auth] confirmEmailAndAdvanceFlow: Email not verified (email_confirmed_at is NSNull)")
-            } else if emailConfirmedAt == nil {
-                isVerified = false
-                print("[Auth] confirmEmailAndAdvanceFlow: Email not verified (email_confirmed_at is nil)")
-            } else {
-                // Handle any other type (shouldn't happen, but be safe)
-                isVerified = false
-                print("[Auth] confirmEmailAndAdvanceFlow: Email not verified (email_confirmed_at is unexpected type)")
-            }
-            
-            if !isVerified {
-                print("[Auth] confirmEmailAndAdvanceFlow: Email not verified yet")
-                authErrorMessage = "Looks like your email isn't verified yet. Tap the link in your inbox, then try again."
-                isCheckingEmailVerification = false
-                return
-            }
-            
-            // Email is verified - update state immediately
-            print("[Auth] confirmEmailAndAdvanceFlow: Email verified - updating state")
-            appData.hasEmailVerified = true
-            if let email = email {
-                appData.currentUserEmail = email
-            }
-            save()
-            
-            // Refresh auth status (this will load profile, etc.)
-            print("[Auth] confirmEmailAndAdvanceFlow: Refreshing auth status")
-            await refreshAuthStatusFromSupabase()
-            
-            // Ensure state is saved after refresh
-            save()
-            
-            isCheckingEmailVerification = false
-            print("[Auth] confirmEmailAndAdvanceFlow: Complete - hasEmailVerified=\(appData.hasEmailVerified), user can proceed")
-        } catch let error as SupabaseError {
-            print("[Auth] confirmEmailAndAdvanceFlow: SupabaseError - \(error.localizedDescription)")
-            if case .invalidSession = error {
-                authErrorMessage = "Your session expired. Please sign in again."
-                // Clear auth state
-                appData.isUserAuthenticated = false
-                appData.hasEmailVerified = false
-                save()
-            } else {
-                authErrorMessage = "Failed to verify email. Please try again."
-            }
-            isCheckingEmailVerification = false
-        } catch {
-            print("[Auth] confirmEmailAndAdvanceFlow: Error - \(error.localizedDescription)")
-            authErrorMessage = "Failed to verify email. Please try again."
-            isCheckingEmailVerification = false
+        await refreshAuthStatusFromSupabase()
+        
+        if appData.hasEmailVerified {
+             print("[Auth] confirmEmailAndAdvanceFlow: Verified!")
+        } else {
+             print("[Auth] confirmEmailAndAdvanceFlow: Not verified yet")
+             authErrorMessage = "Looks like your email isn't verified yet. Tap the link in your inbox, then try again."
         }
+        
+        isCheckingEmailVerification = false
     }
 
     // MARK: - Sign In Flow
@@ -364,26 +533,19 @@ class DataManager: ObservableObject {
         // Step 2: Update auth state
         appData.supabaseUserId = session.userId
         appData.isUserAuthenticated = true
-        // If sign-in succeeds, email must be verified
-        appData.hasEmailVerified = true
         appData.currentUserEmail = email
-        print("[Identity] Sign in authenticated - userId=\(session.userId), email=\(email)")
-        print("[DataManager] Auth state updated")
+        // Don't set verified yet - verify it first
+        appData.hasEmailVerified = false
+        save()
 
-        // Step 3: Fetch user profile from public.users by Supabase user ID
-        print("[DataManager] Fetching profile for user id: \(session.userId)")
-        do {
-            if let profile = try await profileService.fetchUserProfile(userId: session.userId) {
-                print("[DataManager] Profile found - displayName: \(profile.displayName), username: \(profile.username)")
-                mapRemoteUserProfile(profile)
-            } else {
-                print("[DataManager] No profile found in public.users - using email fallback identity")
-                applyEmailFallbackIdentity(email: email)
-            }
-        } catch {
-            print("[DataManager] Error fetching profile: \(error.localizedDescription) - using email fallback identity")
-            // Don't fail sign-in if profile fetch fails - use fallback identity
-            applyEmailFallbackIdentity(email: email)
+        // Step 3: Verify email status and fetch profile
+        print("[DataManager] Verifying email status and fetching profile...")
+        await refreshAuthStatusFromSupabase()
+        
+        if !appData.hasEmailVerified {
+             print("[DataManager] Sign in successful but email not verified")
+             // User remains on verify screen
+             return
         }
 
         // Step 4: Fetch rating template (optional, don't fail sign-in if this fails)
@@ -409,6 +571,7 @@ class DataManager: ObservableObject {
         let userUUID = UUID(uuidString: session.userId) ?? UUID()
         if appData.currentUser == nil {
             print("[Identity] Creating currentUser from profile data - id=\(userUUID.uuidString), username=\(appData.currentUserUsername ?? "nil")")
+            // Prefer existing values from appData (from profile or previous session), only use email as last resort
             let username = appData.currentUserUsername ?? email.components(separatedBy: "@").first ?? "user"
             appData.currentUser = User(
                 id: userUUID,
@@ -451,8 +614,10 @@ class DataManager: ObservableObject {
 
     func bootstrapAuthStateOnLaunch() async {
         print("[Auth] bootstrapAuthStateOnLaunch: Starting")
+        isBootstrapping = true
         // Use the single source of truth method to refresh auth status
         await refreshAuthStatusFromSupabase()
+        isBootstrapping = false
         print("[Auth] bootstrapAuthStateOnLaunch: Complete")
     }
 
@@ -464,15 +629,27 @@ class DataManager: ObservableObject {
         var avatarURL = appData.currentUserAvatarURL
         if let profileId = appData.currentUserProfileImageId,
            let image = PhotoCache.shared.retrieve(forKey: profileId) {
-            let path = "\(supabaseUserId)/avatar-\(profileId).jpg"
-            avatarURL = try await storageService.uploadImage(image, path: path)
+            do {
+                let path = "\(supabaseUserId)/avatar-\(profileId).jpg"
+                avatarURL = try await storageService.uploadImage(image, path: path)
+                print("[ProfileSetup] Avatar image uploaded successfully: \(avatarURL ?? "nil")")
+            } catch {
+                print("[ProfileSetup] Failed to upload avatar image: \(error.localizedDescription). Continuing without avatar.")
+                // Continue without avatar - profile creation should still succeed
+            }
         }
 
         var bannerURL = appData.currentUserBannerURL
         if let bannerId = appData.currentUserBannerImageId,
            let image = PhotoCache.shared.retrieve(forKey: bannerId) {
-            let path = "\(supabaseUserId)/banner-\(bannerId).jpg"
-            bannerURL = try await storageService.uploadImage(image, path: path)
+            do {
+                let path = "\(supabaseUserId)/banner-\(bannerId).jpg"
+                bannerURL = try await storageService.uploadImage(image, path: path)
+                print("[ProfileSetup] Banner image uploaded successfully: \(bannerURL ?? "nil")")
+            } catch {
+                print("[ProfileSetup] Failed to upload banner image: \(error.localizedDescription). Continuing without banner.")
+                // Continue without banner - profile creation should still succeed
+            }
         }
 
         // Use onboarding values for display name and username, never fall back to email
@@ -533,6 +710,7 @@ class DataManager: ObservableObject {
         appData.currentUserLocation = profile.location
         appData.currentUserFavoriteDrink = profile.favoriteDrink
         appData.currentUserInstagramHandle = profile.instagramHandle
+        appData.currentUserWebsite = profile.websiteURL
         appData.currentUserAvatarURL = profile.avatarURL
         appData.currentUserBannerURL = profile.bannerURL
 
@@ -575,14 +753,26 @@ class DataManager: ObservableObject {
         // Upload images if provided
         var avatarURL = appData.currentUserAvatarURL
         if let avatarImage = avatarImage {
-            let path = "\(supabaseUserId)/avatar-\(UUID().uuidString).jpg"
-            avatarURL = try await storageService.uploadImage(avatarImage, path: path)
+            do {
+                let path = "\(supabaseUserId)/avatar-\(UUID().uuidString).jpg"
+                avatarURL = try await storageService.uploadImage(avatarImage, path: path)
+                print("[Identity] Avatar image uploaded successfully: \(avatarURL ?? "nil")")
+            } catch {
+                print("[Identity] Failed to upload avatar image: \(error.localizedDescription). Continuing without avatar update.")
+                // Continue without updating avatar URL - user can retry later
+            }
         }
         
         var bannerURL = appData.currentUserBannerURL
         if let bannerImage = bannerImage {
-            let path = "\(supabaseUserId)/banner-\(UUID().uuidString).jpg"
-            bannerURL = try await storageService.uploadImage(bannerImage, path: path)
+            do {
+                let path = "\(supabaseUserId)/banner-\(UUID().uuidString).jpg"
+                bannerURL = try await storageService.uploadImage(bannerImage, path: path)
+                print("[Identity] Banner image uploaded successfully: \(bannerURL ?? "nil")")
+            } catch {
+                print("[Identity] Failed to upload banner image: \(error.localizedDescription). Continuing without banner update.")
+                // Continue without updating banner URL - user can retry later
+            }
         }
         
         // Build update payload (all fields are included - Supabase will only update provided ones)
@@ -766,6 +956,13 @@ class DataManager: ObservableObject {
     }
     
     // MARK: - Visit Operations
+    
+    /// Creates a visit in Supabase
+    /// Flow: LogVisitView → DataManager.createVisit(...) → SupabaseVisitService.createVisit(...) → Supabase /rest/v1/visits
+    /// Requirements:
+    /// - User must be authenticated (valid session with access token)
+    /// - User must exist in public.users (foreign key constraint)
+    /// - RLS policy requires auth.uid() = user_id
     func createVisit(
         cafe: Cafe,
         drinkType: DrinkType,
@@ -780,11 +977,44 @@ class DataManager: ObservableObject {
         mentions: [Mention]
     ) async throws -> Visit {
         guard let supabaseUserId = appData.supabaseUserId else {
+            print("❌ [Visit] ERROR: Missing supabaseUserId in appData")
             throw SupabaseError.invalidSession
         }
         
+        // Ensure we have a valid session with access token
+        guard let session = authService.restoreSession() else {
+            print("❌ [Visit] ERROR: No Supabase session found")
+            throw SupabaseError.invalidSession
+        }
+        
+        // Ensure the shared client has the access token set (all services use the same client)
+        let sharedClient = SupabaseClientProvider.shared
+        sharedClient.accessToken = session.accessToken
+        print("[Visit] Session restored - userId=\(session.userId), accessToken present=\(!session.accessToken.isEmpty)")
+        
+        // Verify the session userId matches the appData userId
+        guard session.userId == supabaseUserId else {
+            print("❌ [Visit] ERROR: Session userId (\(session.userId)) does not match appData userId (\(supabaseUserId))")
+            throw SupabaseError.invalidSession
+        }
+        
+        // Verify user exists in public.users (required for foreign key constraint)
+        // This should already be true if user completed profile setup, but let's log it
+        print("[Visit] Verifying user exists in public.users...")
+        
+        // Find or create cafe in Supabase, preserving location from local cafe
         let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
-        _ = upsertCafe(from: remoteCafe)
+        // Upsert the cafe, ensuring location is preserved if remote doesn't have it
+        let upsertedCafe = upsertCafe(from: remoteCafe)
+        
+        // If the remote cafe doesn't have a location but our local cafe does, preserve it
+        if upsertedCafe.location == nil && cafe.location != nil {
+            if let cafeIndex = appData.cafes.firstIndex(where: { ($0.supabaseId ?? $0.id) == upsertedCafe.id }) {
+                appData.cafes[cafeIndex].location = cafe.location
+                print("[Visit] Preserved cafe location from local cafe: \(cafe.location!)")
+                save()
+            }
+        }
         
         let uploads = try await uploadVisitImages(photoImages, supabaseUserId: supabaseUserId)
         let posterURL: String?
@@ -792,6 +1022,12 @@ class DataManager: ObservableObject {
             posterURL = uploads[posterPhotoIndex].photoURL
         } else {
             posterURL = uploads.first?.photoURL
+        }
+        
+        // Validate userId is a valid UUID
+        guard UUID(uuidString: supabaseUserId) != nil else {
+            print("❌ [Visit] ERROR: Invalid userId format - not a valid UUID: \(supabaseUserId)")
+            throw SupabaseError.invalidSession
         }
         
         let payload = VisitInsertPayload(
@@ -808,8 +1044,25 @@ class DataManager: ObservableObject {
         )
         
         do {
-            print("[Visit] Creating visit for userId=\(supabaseUserId), cafeId=\(remoteCafe.id)")
-            print("[Visit] Payload: drinkType=\(payload.drinkType ?? "nil"), caption=\(payload.caption.prefix(50))..., photos=\(uploads.count)")
+            print("[Visit] ===== Creating Visit =====")
+            print("[Visit] userId = \(supabaseUserId)")
+            print("[Visit] cafeId = \(remoteCafe.id)")
+            print("[Visit] cafeName = \(remoteCafe.name)")
+            print("[Visit] drinkType = \(payload.drinkType ?? "nil")")
+            print("[Visit] drinkTypeCustom = \(payload.drinkTypeCustom ?? "nil")")
+            print("[Visit] caption = \(payload.caption.prefix(100))...")
+            print("[Visit] notes = \(payload.notes ?? "nil")")
+            print("[Visit] visibility = \(payload.visibility)")
+            print("[Visit] ratings = \(payload.ratings)")
+            print("[Visit] overallScore = \(payload.overallScore)")
+            print("[Visit] posterPhotoURL = \(payload.posterPhotoURL ?? "nil")")
+            print("[Visit] photoCount = \(uploads.count)")
+            
+            // Log the encoded payload (excluding binary data)
+            if let payloadJSON = try? JSONEncoder().encode(payload),
+               let payloadString = String(data: payloadJSON, encoding: .utf8) {
+                print("[Visit] Payload JSON: \(payloadString)")
+            }
             
             let remoteVisit = try await visitService.createVisit(
                 payload: payload,
@@ -823,6 +1076,10 @@ class DataManager: ObservableObject {
             var visit = mapRemoteVisit(remoteVisit)
             visit.mentions = mentions
             mergeVisits([visit])
+            
+            // Update cafe's visitCount and stats immediately so map shows the pin
+            updateCafeStatsForVisit(visit)
+            
             print("[Visit] Visit created successfully - visitId=\(visit.id), userId=\(visit.userId), supabaseUserId=\(visit.supabaseUserId ?? "nil")")
             return visit
         } catch let error as SupabaseError {
@@ -1187,12 +1444,32 @@ class DataManager: ObservableObject {
     
     private func uploadVisitImages(_ images: [UIImage], supabaseUserId: String) async throws -> [UploadedVisitPhoto] {
         guard !images.isEmpty else { return [] }
+        
+        // Limit number of photos to prevent payload size issues
+        let maxPhotos = 10
+        let imagesToUpload = Array(images.prefix(maxPhotos))
+        if images.count > maxPhotos {
+            print("⚠️ [Visit] Limiting photos to \(maxPhotos) (selected \(images.count))")
+        }
+        
         var uploads: [UploadedVisitPhoto] = []
-        for (index, image) in images.enumerated() {
-            let fileName = "\(UUID().uuidString).jpg"
-            let path = "\(supabaseUserId)/visits/\(fileName)"
-            let url = try await storageService.uploadImage(image, path: path)
-            uploads.append(UploadedVisitPhoto(photoURL: url, sortOrder: index, image: image))
+        for (index, image) in imagesToUpload.enumerated() {
+            do {
+                let fileName = "\(UUID().uuidString).jpg"
+                let path = "\(supabaseUserId)/visits/\(fileName)"
+                print("[Visit] Uploading photo \(index + 1)/\(imagesToUpload.count)")
+                let url = try await storageService.uploadImage(image, path: path)
+                uploads.append(UploadedVisitPhoto(photoURL: url, sortOrder: index, image: image))
+            } catch let error as SupabaseError {
+                // If upload fails due to size, provide helpful error
+                if case .server(let status, _) = error, status == 413 {
+                    throw SupabaseError.server(
+                        status: status,
+                        message: "Photo \(index + 1) is too large. Please try a smaller image."
+                    )
+                }
+                throw error
+            }
         }
         return uploads
     }
@@ -1209,12 +1486,34 @@ class DataManager: ObservableObject {
     
     private func upsertCafe(from remote: RemoteCafe) -> Cafe {
         if let index = appData.cafes.firstIndex(where: { ($0.supabaseId ?? $0.id) == remote.id }) {
-            let merged = remote.toLocalCafe(existing: appData.cafes[index])
-            appData.cafes[index] = merged
-            return merged
+            let existing = appData.cafes[index]
+            // Preserve local state (favorites, wantToTry) and visitCount when merging
+            let merged = remote.toLocalCafe(existing: existing)
+            // Ensure location is set - prefer remote if available, otherwise keep existing
+            let finalCafe = Cafe(
+                id: merged.id,
+                supabaseId: merged.supabaseId,
+                name: merged.name,
+                location: merged.location ?? existing.location, // Preserve location if remote doesn't have it
+                address: merged.address,
+                city: merged.city,
+                country: merged.country,
+                isFavorite: existing.isFavorite, // Preserve local state
+                wantToTry: existing.wantToTry, // Preserve local state
+                averageRating: merged.averageRating,
+                visitCount: existing.visitCount, // Preserve visitCount (will be updated separately)
+                mapItemURL: merged.mapItemURL ?? existing.mapItemURL,
+                websiteURL: merged.websiteURL ?? existing.websiteURL,
+                applePlaceId: merged.applePlaceId ?? existing.applePlaceId,
+                placeCategory: merged.placeCategory ?? existing.placeCategory
+            )
+            appData.cafes[index] = finalCafe
+            print("[Visit] Upserted cafe - name: \(finalCafe.name), hasLocation: \(finalCafe.location != nil), visitCount: \(finalCafe.visitCount)")
+            return finalCafe
         } else {
             let cafe = remote.toLocalCafe()
             appData.cafes.append(cafe)
+            print("[Visit] Added new cafe - name: \(cafe.name), hasLocation: \(cafe.location != nil), visitCount: \(cafe.visitCount)")
             return cafe
         }
     }
@@ -1231,6 +1530,32 @@ class DataManager: ObservableObject {
         }
         appData.visits.sort { $0.createdAt > $1.createdAt }
         save()
+    }
+    
+    /// Updates cafe statistics (visitCount, averageRating) for a given visit
+    /// This ensures the map shows pins immediately after visit creation
+    private func updateCafeStatsForVisit(_ visit: Visit) {
+        // Find the cafe by cafeId (try both supabaseId and regular id)
+        if let cafeIndex = appData.cafes.firstIndex(where: { 
+            ($0.supabaseId ?? $0.id) == visit.cafeId || $0.id == visit.cafeId 
+        }) {
+            // Count all visits for this cafe (for the current user)
+            let cafeVisits = visits(for: visit.userId).filter { 
+                ($0.supabaseCafeId ?? $0.cafeId) == visit.cafeId || $0.cafeId == visit.cafeId
+            }
+            appData.cafes[cafeIndex].visitCount = cafeVisits.count
+            
+            // Recalculate average rating for the cafe
+            if !cafeVisits.isEmpty {
+                let totalRating = cafeVisits.reduce(0.0) { $0 + $1.overallScore }
+                appData.cafes[cafeIndex].averageRating = totalRating / Double(cafeVisits.count)
+            }
+            
+            print("[Visit] Updated cafe stats - name: \(appData.cafes[cafeIndex].name), visitCount: \(appData.cafes[cafeIndex].visitCount), hasLocation: \(appData.cafes[cafeIndex].location != nil)")
+            save()
+        } else {
+            print("⚠️ [Visit] Could not find cafe with id \(visit.cafeId) to update stats")
+        }
     }
     
     private func mapRemoteVisit(_ remote: RemoteVisit) -> Visit {
@@ -1365,4 +1690,3 @@ extension DataManager {
         appData.visits.filter { $0.userId == userId }
     }
 }
-

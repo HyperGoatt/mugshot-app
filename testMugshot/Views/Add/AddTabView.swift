@@ -397,29 +397,14 @@ struct LogVisitView: View {
         } catch {
             // Debug logging for visit save errors
             print("❌ [AddTabView] Save visit error: \(error)")
+            print("❌ [AddTabView] Error type: \(type(of: error))")
             
             // Check for specific error types to provide better user feedback
             if let supabaseError = error as? SupabaseError {
-                switch supabaseError {
-                case .invalidSession:
-                    print("❌ [AddTabView] Invalid session - user may need to sign in again")
-                    validationErrors.append("Your session has expired. Please sign in again.")
-                case .server(let status, let message):
-                    print("❌ [AddTabView] Server error - status: \(status), message: \(message ?? "nil")")
-                    if status == 401 || status == 403 {
-                        validationErrors.append("You don't have permission to create visits. Please sign in again.")
-                    } else if status == 400 {
-                        validationErrors.append("Invalid visit data. Please check your inputs and try again.")
-                    } else {
-                        validationErrors.append("Something went wrong saving your visit. Please try again.")
-                    }
-                case .network(let message):
-                    print("❌ [AddTabView] Network error: \(message)")
-                    validationErrors.append("Network error. Please check your connection and try again.")
-                case .decoding(let message):
-                    print("❌ [AddTabView] Decoding error: \(message)")
-                    validationErrors.append("Something went wrong saving your visit. Please try again.")
-                }
+                print("❌ [AddTabView] SupabaseError: \(supabaseError)")
+                let friendlyMessage = supabaseError.userFriendlyDescription
+                print("❌ [AddTabView] User-friendly message: \(friendlyMessage)")
+                validationErrors.append(friendlyMessage)
             } else if let decodingError = error as? DecodingError {
                 print("❌ [AddTabView] DecodingError details:")
                 switch decodingError {
@@ -438,7 +423,7 @@ struct LogVisitView: View {
                 @unknown default:
                     print("  Unknown decoding error")
                 }
-                validationErrors.append("Something went wrong saving your visit. Please try again.")
+                validationErrors.append("We received an unexpected response. Please try again.")
             } else {
                 print("❌ [AddTabView] Unexpected error type: \(type(of: error))")
                 validationErrors.append("Something went wrong saving your visit. Please try again.")

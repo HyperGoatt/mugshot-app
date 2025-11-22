@@ -6,5 +6,24 @@
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1c2thbW5md2dsY3RxZXd3ZmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzI5NDcsImV4cCI6MjA3OTAwODk0N30.7aBSTJJGzzZb1RKfRDQ3F0iAnJJDMsKff-ieshCFGks</string>
 	<key>SUPABASE_URL</key>
 	<string>https://quskamnfwglctqewwfln.supabase.co</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>quskamnfwglctqewwfln.supabase.co</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

@@ -15,6 +15,7 @@ struct AuthFlowRootView: View {
     @State private var pendingEmail: String?
     
     enum AuthMode: Equatable {
+        case loading
         case landing
         case signUp
         case signIn
@@ -24,6 +25,14 @@ struct AuthFlowRootView: View {
     var body: some View {
         Group {
             switch mode {
+            case .loading:
+                ZStack {
+                    Color(DS.Colors.screenBackground)
+                        .ignoresSafeArea()
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(DS.Colors.primaryAccent)
+                }
             case .landing:
                 AuthLandingView(
                     onCreateAccount: { mode = .signUp },
@@ -56,9 +65,39 @@ struct AuthFlowRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.4, dampingFraction: 0.9), value: mode)
-        .onChange(of: dataManager.appData.hasEmailVerified) { _, verified in
-            if verified, case .verifyEmail = mode {
-                handleEmailVerified()
+        .onChange(of: dataManager.isBootstrapping) { _, isBootstrapping in
+            updateAuthMode()
+        }
+        .onChange(of: dataManager.appData.isUserAuthenticated) { _, _ in
+            updateAuthMode()
+        }
+        .onChange(of: dataManager.appData.hasEmailVerified) { _, _ in
+            updateAuthMode()
+        }
+        .onAppear {
+            updateAuthMode()
+        }
+    }
+    
+    private func updateAuthMode() {
+        if dataManager.isBootstrapping {
+            mode = .loading
+            return
+        }
+        
+        if dataManager.appData.isUserAuthenticated {
+            if !dataManager.appData.hasEmailVerified {
+                let email = dataManager.appData.currentUserEmail ?? ""
+                mode = .verifyEmail(email: email)
+            } else {
+                // Main app handles the "authenticated + verified" state by switching root view
+                // But if we are here, we might be transitioning.
+                // Usually AuthFlowRootView is only shown if !authenticated || !verified || !profileSetup
+            }
+        } else {
+            // Not authenticated -> Landing (unless user manually navigated to sign in/up, but we reset to landing on launch)
+            if mode == .loading {
+                mode = .landing
             }
         }
     }

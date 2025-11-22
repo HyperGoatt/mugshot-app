@@ -14,8 +14,8 @@ final class SupabaseSocialGraphService {
     
     init(client: SupabaseClient) {
         self.client = client
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        // Use shared decoder that handles Postgres timestamps and ISO8601 variants
+        self.decoder = SupabaseDateDecoder.shared
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
     }
