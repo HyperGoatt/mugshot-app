@@ -9,6 +9,7 @@ import SwiftUI
 
 struct VisibilitySelector: View {
     @Binding var visibility: VisitVisibility
+    @StateObject private var hapticsManager = HapticsManager.shared
     
     var body: some View {
         FormSectionCard(title: "Visibility") {
@@ -17,19 +18,37 @@ struct VisibilitySelector: View {
                     title: "Private",
                     subtitle: "Only you",
                     isSelected: visibility == .private
-                ) { visibility = .private }
+                ) {
+                    if visibility != .private {
+                        // Haptic: confirm visibility change
+                        hapticsManager.selectionChanged()
+                    }
+                    visibility = .private
+                }
                 
                 VisibilityPill(
                     title: "Friends",
                     subtitle: "Friends can see",
                     isSelected: visibility == .friends
-                ) { visibility = .friends }
+                ) {
+                    if visibility != .friends {
+                        // Haptic: confirm visibility change
+                        hapticsManager.selectionChanged()
+                    }
+                    visibility = .friends
+                }
                 
                 VisibilityPill(
                     title: "Everyone",
                     subtitle: "Visible to all",
                     isSelected: visibility == .everyone
-                ) { visibility = .everyone }
+                ) {
+                    if visibility != .everyone {
+                        // Haptic: confirm visibility change
+                        hapticsManager.selectionChanged()
+                    }
+                    visibility = .everyone
+                }
             }
         }
     }

@@ -39,7 +39,10 @@ struct AppData: Codable {
     
     // Notifications
     var notifications: [MugshotNotification] = []
-    var followingSupabaseUserIds: Set<String> = []
+    var friendsSupabaseUserIds: Set<String> = []
+    
+    // Feature flags
+    var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
     
     init(
         currentUser: User? = nil,
@@ -66,7 +69,8 @@ struct AppData: Codable {
         currentUserAvatarURL: String? = nil,
         currentUserBannerURL: String? = nil,
         notifications: [MugshotNotification] = [],
-        followingSupabaseUserIds: Set<String> = []
+        friendsSupabaseUserIds: Set<String> = [],
+        useOnboardingStylePostFlow: Bool = false
     ) {
         self.currentUser = currentUser
         self.supabaseUserId = supabaseUserId
@@ -92,7 +96,8 @@ struct AppData: Codable {
         self.currentUserAvatarURL = currentUserAvatarURL
         self.currentUserBannerURL = currentUserBannerURL
         self.notifications = notifications
-        self.followingSupabaseUserIds = followingSupabaseUserIds
+        self.friendsSupabaseUserIds = friendsSupabaseUserIds
+        self.useOnboardingStylePostFlow = useOnboardingStylePostFlow
     }
 }
 

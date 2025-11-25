@@ -11,10 +11,12 @@ import UIKit
 
 struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedTab: ProfileContentTab = .recent
     @State private var showEditProfile = false
     @State private var showShareSheet = false
     @State private var showNotifications = false
+    @State private var showFriendRequests = false
     @State private var selectedVisit: Visit?
     
     private var unreadNotificationCount: Int {
@@ -120,18 +122,64 @@ struct ProfileTabView: View {
                         
                         BeverageBreakdownCard(beverageData: dataManager.getBeverageBreakdown())
                     .padding(.horizontal, DS.Spacing.pagePadding)
+                        
+                        // MARK: - DEV: Post Flow Toggle (Remove in production)
+                        #if DEBUG
+                        DSBaseCard {
+                            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                Text("🛠 Developer Tools")
+                                    .font(DS.Typography.caption1())
+                                    .foregroundColor(DS.Colors.textSecondary)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Post Flow Style")
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                        Text(dataManager.appData.useOnboardingStylePostFlow ? "Onboarding-style (new)" : "Classic (current)")
+                                            .font(DS.Typography.caption1())
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: {
+                                        dataManager.togglePostFlowStyle()
+                                    }) {
+                                        Text("Toggle")
+                                            .font(DS.Typography.buttonLabel)
+                                            .foregroundColor(DS.Colors.textOnMint)
+                                            .padding(.horizontal, DS.Spacing.md)
+                                            .padding(.vertical, DS.Spacing.sm)
+                                            .background(DS.Colors.primaryAccent)
+                                            .cornerRadius(DS.Radius.lg)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        #endif
                     
                         DSDesignSegmentedControl(
                             options: ProfileContentTab.allCases.map { $0.rawValue },
                             selectedIndex: Binding(
                                 get: { ProfileContentTab.allCases.firstIndex(of: selectedTab) ?? 0 },
-                                set: { selectedTab = ProfileContentTab.allCases[$0] }
+                                set: { newIndex in
+                                    let newTab = ProfileContentTab.allCases[newIndex]
+                                    if newTab != selectedTab {
+                                        // Haptic: confirm profile tab switch
+                                        hapticsManager.selectionChanged()
+                                    }
+                                    selectedTab = newTab
+                                }
                             )
                         )
                         .padding(.horizontal, DS.Spacing.pagePadding)
                         .padding(.top, DS.Spacing.md)
                         
                         contentView { visit in
+                            // Haptic: confirm visit tap from profile
+                            hapticsManager.lightTap()
                             selectedVisit = visit
                         }
                             .padding(.horizontal, DS.Spacing.pagePadding)
@@ -165,7 +213,13 @@ struct ProfileTabView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button(action: { showFriendRequests = true }) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(DS.Colors.iconDefault)
+                }
+                
                 Button(action: { showNotifications = true }) {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")
@@ -189,6 +243,9 @@ struct ProfileTabView: View {
         }
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
+        }
+        .sheet(isPresented: $showFriendRequests) {
+            FriendRequestsView(dataManager: dataManager)
         }
         .task {
             do {
@@ -1029,6 +1086,7 @@ struct WantToTryView: View {
 struct EditProfileView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var dataManager: DataManager
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var editableUser: User
     @State private var showingProfileImagePicker = false
     @State private var showingBannerImagePicker = false
@@ -1326,6 +1384,8 @@ struct EditProfileView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        // Haptic: confirm save button tap
+                        hapticsManager.mediumTap()
                         Task {
                             do {
                                 // Get images if changed
@@ -1352,10 +1412,14 @@ struct EditProfileView: View {
                                 )
                                 
                                 await MainActor.run {
+                                    // Haptic: profile save success
+                                    hapticsManager.playSuccess()
                                     dismiss()
                                 }
                             } catch {
                                 print("[ProfileTabView] Error updating profile: \(error.localizedDescription)")
+                                // Haptic: profile save error
+                                hapticsManager.playError()
                                 // TODO: Show error alert to user
                             }
                         }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedTab: SavedTab = .favorites
     @State private var sortOption: SortOption = .scoreBestToWorst
     @State private var selectedCafe: Cafe?
@@ -48,7 +49,14 @@ struct SavedTabView: View {
                         options: SavedTab.allCases.map { $0.rawValue },
                         selectedIndex: Binding(
                             get: { SavedTab.allCases.firstIndex(of: selectedTab) ?? 0 },
-                            set: { selectedTab = SavedTab.allCases[$0] }
+                            set: { newIndex in
+                                let newTab = SavedTab.allCases[newIndex]
+                                if newTab != selectedTab {
+                                    // Haptic: confirm saved tab switch
+                                    hapticsManager.selectionChanged()
+                                }
+                                selectedTab = newTab
+                            }
                         )
                     )
                     .padding(.top, DS.Spacing.md)
@@ -284,6 +292,8 @@ struct CafeCard: View {
                     // Inline favorite / want-to-try toggles
                     VStack(spacing: DS.Spacing.sm) {
                         Button(action: {
+                            // Haptic: confirm favorite toggle
+                            HapticsManager.shared.lightTap()
                             dataManager.toggleCafeFavorite(cafe.id)
                         }) {
                             Image(systemName: cafe.isFavorite ? "heart.fill" : "heart")
@@ -292,6 +302,8 @@ struct CafeCard: View {
                         }
                         
                         Button(action: {
+                            // Haptic: confirm want-to-try toggle
+                            HapticsManager.shared.lightTap()
                             dataManager.toggleCafeWantToTry(cafe.id)
                         }) {
                             Image(systemName: cafe.wantToTry ? "bookmark.fill" : "bookmark")
@@ -303,7 +315,11 @@ struct CafeCard: View {
                 
                 // Full-width Log a Visit button for Favorites / Want to Try
                 if mode == .favorites || mode == .wantToTry {
-                    Button(action: onLogVisit) {
+                    Button(action: {
+                        // Haptic: confirm log visit button tap
+                        HapticsManager.shared.lightTap()
+                        onLogVisit()
+                    }) {
                         HStack(spacing: DS.Spacing.sm) {
                             Image(systemName: "cup.and.saucer")
                             Text("Log a Visit")

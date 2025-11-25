@@ -9,9 +9,12 @@ import SwiftUI
 
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var tabCoordinator: TabCoordinator
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedScope: FeedScope = .friends
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
+    @State private var selectedUserId: String?
     @State private var showCafeDetail = false
     @State private var showNotifications = false
     @State private var scrollOffset: CGFloat = 0
@@ -44,7 +47,14 @@ struct FeedTabView: View {
                                     options: FeedScope.allCases.map { $0.displayName },
                                     selectedIndex: Binding(
                                         get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
-                                        set: { selectedScope = FeedScope.allCases[$0] }
+                                        set: { newIndex in
+                                            let newScope = FeedScope.allCases[newIndex]
+                                            if newScope != selectedScope {
+                                                // Haptic: confirm feed scope switch
+                                                hapticsManager.selectionChanged()
+                                            }
+                                            selectedScope = newScope
+                                        }
                                     )
                                 )
                                 Spacer()
@@ -75,9 +85,17 @@ struct FeedTabView: View {
                                             selectedCafe = cafe
                                             showCafeDetail = true
                                         }
+                                    },
+                                    onAuthorTap: {
+                                        if let supabaseUserId = visit.supabaseUserId,
+                                           supabaseUserId != dataManager.appData.supabaseUserId {
+                                            selectedUserId = supabaseUserId
+                                        }
                                     }
                                 )
                                 .onTapGesture {
+                                    // Haptic: confirm post tap to open detail
+                                    hapticsManager.lightTap()
                                     selectedVisit = visit
                                 }
                             }
@@ -123,6 +141,14 @@ struct FeedTabView: View {
             .navigationDestination(item: $selectedVisit) { visit in
                 VisitDetailView(dataManager: dataManager, visit: visit)
             }
+            .sheet(isPresented: Binding(
+                get: { selectedUserId != nil },
+                set: { if !$0 { selectedUserId = nil } }
+            )) {
+                if let userId = selectedUserId {
+                    OtherUserProfileView(dataManager: dataManager, userId: userId)
+                }
+            }
             .sheet(isPresented: $showCafeDetail) {
                 if let cafe = selectedCafe {
                     CafeDetailView(cafe: cafe, dataManager: dataManager)
@@ -163,6 +189,57 @@ struct FeedTabView: View {
                 await dataManager.refreshFeed(scope: newScope)
             }
         }
+        .onChange(of: tabCoordinator.navigationTarget) { _, target in
+            handleNavigationTarget(target)
+        }
+        .onAppear {
+            // Handle any pending navigation target when view appears
+            if let target = tabCoordinator.navigationTarget {
+                handleNavigationTarget(target)
+            }
+        }
+    }
+    
+    private func handleNavigationTarget(_ target: TabCoordinator.NavigationTarget?) {
+        guard let target = target else { return }
+        
+        switch target {
+        case .visitDetail(let visitId):
+            // Find the visit in the current feed
+            if let visit = visits.first(where: { $0.id == visitId || $0.supabaseId == visitId }) {
+                selectedVisit = visit
+            } else {
+                // Visit not in current feed, try to fetch it
+                Task {
+                    // Refresh feed to ensure we have the visit
+                    await dataManager.refreshFeed(scope: selectedScope)
+                    // Try again after refresh
+                    if let visit = dataManager.getVisit(id: visitId) {
+                        await MainActor.run {
+                            selectedVisit = visit
+                        }
+                    } else {
+                        print("⚠️ [Push] Could not find visit with id: \(visitId)")
+                    }
+                }
+            }
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendProfile(let userId):
+            selectedUserId = userId
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendsFeed:
+            selectedScope = .friends
+            Task {
+                await dataManager.refreshFeed(scope: .friends)
+            }
+            tabCoordinator.clearNavigationTarget()
+            
+        case .notifications:
+            showNotifications = true
+            tabCoordinator.clearNavigationTarget()
+        }
     }
     
     private var visits: [Visit] {
@@ -180,12 +257,22 @@ struct VisitCard: View {
     @ObservedObject var dataManager: DataManager
     let selectedScope: FeedScope
     var onCafeTap: (() -> Void)? = nil
+    var onAuthorTap: (() -> Void)? = nil
     
     private var isLikedByCurrentUser: Bool {
         if let userId = dataManager.appData.currentUser?.id {
             return visit.isLikedBy(userId: userId)
         }
         return false
+    }
+    
+    private var canViewAuthorProfile: Bool {
+        // Can view profile if it's not the current user
+        guard let currentUserId = dataManager.appData.supabaseUserId,
+              let visitUserId = visit.supabaseUserId else {
+            return false
+        }
+        return visitUserId != currentUserId
     }
     
     private var authorProfileImage: UIImage? {
@@ -224,18 +311,26 @@ struct VisitCard: View {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     HStack(alignment: .center, spacing: DS.Spacing.sm) {
-                        FeedAvatarView(
-                            image: authorProfileImage,
-                            remoteURL: authorRemoteAvatarURL,
-                            initials: authorInitials,
-                            size: 44
-                        )
-                        
-                        Text(authorName)
-                            .font(DS.Typography.headline())
-                                .foregroundColor(DS.Colors.textPrimary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        Button(action: {
+                            onAuthorTap?()
+                        }) {
+                            HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                                FeedAvatarView(
+                                    image: authorProfileImage,
+                                    remoteURL: authorRemoteAvatarURL,
+                                    initials: authorInitials,
+                                    size: 44
+                                )
+                                
+                                Text(authorName)
+                                    .font(DS.Typography.headline())
+                                    .foregroundColor(DS.Colors.textPrimary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canViewAuthorProfile)
                         
                         Spacer()
                         

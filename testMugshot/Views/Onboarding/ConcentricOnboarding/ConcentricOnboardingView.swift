@@ -51,6 +51,9 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
     /// replaces default button action with user's custom closure
     private var didChangeCurrentPage: ((Int) -> Void)?
     
+    /// validation callback - if returns false, navigation is prevented
+    private var shouldAllowNavigation: (() -> Bool)?
+    
     /// animation's settings
     private let radius: Double = 30
     private let limit: Double = 15
@@ -172,6 +175,11 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
     // MARK: -
     
     private func tapAction() {
+        // Check validation if provided
+        if let validation = shouldAllowNavigation, !validation() {
+            return
+        }
+        
         if let block = didPressNextButton {
             block()
         } else {
@@ -313,6 +321,12 @@ extension ConcentricOnboardingView {
     public func didChangeCurrentPage(perform: @escaping (Int) -> Void) -> ConcentricOnboardingView {
         var concentricOnboardingView = self
         concentricOnboardingView.didChangeCurrentPage = perform
+        return concentricOnboardingView
+    }
+    
+    public func shouldAllowNavigation(perform: @escaping () -> Bool) -> ConcentricOnboardingView {
+        var concentricOnboardingView = self
+        concentricOnboardingView.shouldAllowNavigation = perform
         return concentricOnboardingView
     }
 }

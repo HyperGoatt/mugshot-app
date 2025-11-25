@@ -7,11 +7,13 @@
 
 import SwiftUI
 import UIKit
+import UserNotifications
 
 @main
 struct testMugshotApp: App {
     @StateObject private var dataManager = DataManager.shared
     @StateObject private var supabaseEnvironment = SupabaseEnvironment()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     init() {
         // Configure UITextField and UITextView to use light mode colors
@@ -45,7 +47,19 @@ struct testMugshotApp: App {
                             .padding(.bottom, 50)
                 }
             }
-        } else if !dataManager.appData.hasSeenMarketingOnboarding {
+        } else {
+            rootContentView
+                .onAppear {
+                    // Log routing decision after bootstrap completes
+                    let routingDecision = determineRoutingDecision()
+                    logRoutingDecision(routingDecision)
+                }
+        }
+    }
+    
+    @ViewBuilder
+    private var rootContentView: some View {
+        if !dataManager.appData.hasSeenMarketingOnboarding {
             MugshotOnboardingView(dataManager: dataManager)
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -105,6 +119,52 @@ struct testMugshotApp: App {
         }
     }
     
+    private struct RoutingDecision {
+        let hasSeenMarketingOnboarding: Bool
+        let isUserAuthenticated: Bool
+        let hasEmailVerified: Bool
+        let hasCompletedProfileSetup: Bool
+        let destination: String
+    }
+    
+    private func determineRoutingDecision() -> RoutingDecision {
+        let appData = dataManager.appData
+        let hasSeenMarketing = appData.hasSeenMarketingOnboarding
+        let isAuthenticated = appData.isUserAuthenticated
+        let emailVerified = appData.hasEmailVerified
+        let profileSetup = appData.hasCompletedProfileSetup
+        
+        let destination: String
+        if !hasSeenMarketing {
+            destination = "MarketingOnboarding"
+        } else if !isAuthenticated {
+            destination = "AuthFlow"
+        } else if !emailVerified {
+            destination = "VerifyEmail"
+        } else if !profileSetup {
+            destination = "ProfileSetup"
+        } else {
+            destination = "MainTabs"
+        }
+        
+        return RoutingDecision(
+            hasSeenMarketingOnboarding: hasSeenMarketing,
+            isUserAuthenticated: isAuthenticated,
+            hasEmailVerified: emailVerified,
+            hasCompletedProfileSetup: profileSetup,
+            destination: destination
+        )
+    }
+    
+    private func logRoutingDecision(_ decision: RoutingDecision) {
+        print("[RootRouter] Launch state:")
+        print("  - hasSeenMarketingOnboarding: \(decision.hasSeenMarketingOnboarding)")
+        print("  - isUserAuthenticated: \(decision.isUserAuthenticated)")
+        print("  - hasEmailVerified: \(decision.hasEmailVerified)")
+        print("  - hasCompletedProfileSetup: \(decision.hasCompletedProfileSetup)")
+        print("[RootRouter] Showing: \(decision.destination)")
+    }
+    
     private func configureTextInputAppearance() {
         // Configure UITextField appearance for light mode
         let textFieldAppearance = UITextField.appearance()
@@ -115,5 +175,62 @@ struct testMugshotApp: App {
         let textViewAppearance = UITextView.appearance()
         textViewAppearance.textColor = UIColor(Color.espressoBrown)
         textViewAppearance.backgroundColor = UIColor(Color.creamWhite)
+    }
+}
+
+// MARK: - AppDelegate for Push Notifications
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        print("[AppDelegate] Application did finish launching")
+        
+        // Handle notification that launched the app
+        if let notification = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
+            print("[AppDelegate] App launched from notification")
+            // Delay handling slightly to ensure app is fully initialized
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                Task { @MainActor in
+                    PushNotificationManager.shared.handleNotificationFromUserInfo(notification)
+                }
+            }
+        }
+        
+        return true
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        print("[AppDelegate] Registered for remote notifications")
+        Task { @MainActor in
+            PushNotificationManager.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+        }
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+        Task { @MainActor in
+            PushNotificationManager.shared.didFailToRegisterForRemoteNotifications(error: error)
+        }
+    }
+    
+    // Handle notification received while app is in background
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        print("[AppDelegate] Received remote notification in background")
+        Task { @MainActor in
+            PushNotificationManager.shared.handleNotificationFromUserInfo(userInfo)
+        }
+        completionHandler(.newData)
     }
 }

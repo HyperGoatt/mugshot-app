@@ -10,6 +10,7 @@ import SwiftUI
 struct NotificationsCenterView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedNotification: MugshotNotification?
     
     private var unreadCount: Int {
@@ -83,6 +84,9 @@ struct NotificationsCenterView: View {
     }
     
     private func handleNotificationTap(_ notification: MugshotNotification) {
+        // Haptic: confirm notification tap
+        hapticsManager.lightTap()
+        
         // Mark as read
         markAsRead(notification)
         

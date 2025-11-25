@@ -69,6 +69,7 @@ struct RatingCategoryRow: View {
     @Binding var rating: Double
     let weightMultiplier: Double
     
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var triggerID: Int = 0
     
     var body: some View {
@@ -96,6 +97,9 @@ struct RatingCategoryRow: View {
                             let newRating = Double(index + 1)
                             let oldRating = rating
                             rating = rating == newRating ? 0.0 : newRating
+                            
+                            // Haptic: confirm star rating tap
+                            hapticsManager.lightTap()
                             
                             if rating != oldRating && rating > 0 {
                                 triggerID &+= 1

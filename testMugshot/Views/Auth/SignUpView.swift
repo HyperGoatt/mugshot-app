@@ -12,6 +12,7 @@ struct SignUpView: View {
     let onBack: () -> Void
     
     @EnvironmentObject var dataManager: DataManager
+    @EnvironmentObject var hapticsManager: HapticsManager
     
     @State private var displayName: String = ""
     @State private var username: String = ""
@@ -208,6 +209,9 @@ struct SignUpView: View {
         validationErrors = []
         authError = nil
         
+        // Haptic: confirm create account button tap
+        hapticsManager.mediumTap()
+        
         // Validate fields
         if displayName.trimmingCharacters(in: .whitespaces).isEmpty {
             validationErrors.append("Display name is required")
@@ -237,6 +241,8 @@ struct SignUpView: View {
         }
         
         if !validationErrors.isEmpty {
+            // Haptic: validation error
+            hapticsManager.playError()
             return
         }
         
@@ -255,9 +261,13 @@ struct SignUpView: View {
                     password: trimmedPassword
                 )
                 isSubmitting = false
+                // Haptic: sign up success (AuthFlowRootView will also call success, but this is fine)
+                hapticsManager.playSuccess()
                 onSignUpSuccess(trimmedEmail)
             } catch {
                 isSubmitting = false
+                // Haptic: sign up error
+                hapticsManager.playError()
                 authError = formatAuthError(error)
             }
         }

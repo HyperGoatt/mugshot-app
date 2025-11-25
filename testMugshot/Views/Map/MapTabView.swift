@@ -15,6 +15,7 @@ struct MapTabView: View {
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
+    @StateObject private var hapticsManager = HapticsManager.shared
     
     @State private var region: MKCoordinateRegion?
     @State private var selectedCafe: Cafe?
@@ -49,6 +50,8 @@ struct MapTabView: View {
                 ),
                 cafes: cafesWithLocations,
                 onCafeTap: { cafe in
+                    // Haptic: confirm map pin tap
+                    hapticsManager.lightTap()
                     selectedCafe = cafe
                     showCafeDetail = true
                     isSearchActive = false
@@ -220,10 +223,14 @@ struct MapTabView: View {
                 }
                 
                 Spacer()
+            }
+            
+            // Bottom UI elements: Location button and Ratings Legend
+            VStack(spacing: DS.Spacing.sm) {
+                Spacer()
                 
-                // My Location button
-                VStack {
-                    Spacer()
+                if !showCafeDetail {
+                    // Stack location button just above the legend, both sitting above the custom tab bar
                     HStack {
                         Spacer()
                         MyLocationButton(
@@ -234,22 +241,17 @@ struct MapTabView: View {
                             ),
                             recenterOnUserRequest: $recenterOnUserRequest
                         )
-                        .padding(.trailing)
-                        .padding(.bottom, 100)
+                        .padding(.trailing, DS.Spacing.pagePadding)
                     }
-                }
-            }
-            
-            // Ratings Legend - sticky at bottom above tab bar
-            VStack {
-                Spacer()
-                if !showCafeDetail {
+                    
                     RatingsLegend()
                         .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.bottom, DS.Spacing.sm)
                         .transition(.opacity)
                 }
             }
+            // Keep these elements pinned visually even when the keyboard appears
+            .padding(.bottom, 80) // Reserve space for custom tab bar (≈70pt) + a bit of breathing room
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             
             // Bottom sheet for cafe details
             if showCafeDetail, let cafe = selectedCafe {
@@ -316,27 +318,45 @@ struct MapTabView: View {
         // - Logged at least once (visitCount > 0), or
         // - Marked as favorite, or
         // - Marked as "Want to Try"
+        let totalCafes = dataManager.appData.cafes.count
+        #if DEBUG
+        print("🗺️ [Map] Filtering cafes - total: \(totalCafes)")
+        #endif
+        
         let filtered = dataManager.appData.cafes.filter { cafe in
+            // Check location first
             guard let location = cafe.location else {
-                // Log cafes without location for debugging
                 #if DEBUG
-                if cafe.visitCount > 0 {
-                    print("⚠️ [Map] Cafe '\(cafe.name)' has visitCount=\(cafe.visitCount) but no location")
-                }
+                print("  ❌ '\(cafe.name)' - NO LOCATION (visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry))")
                 #endif
                 return false
             }
+            
             // Ensure coordinates are valid
             guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else {
                 #if DEBUG
-                print("⚠️ [Map] Cafe '\(cafe.name)' has invalid coordinates: (\(location.latitude), \(location.longitude))")
+                print("  ❌ '\(cafe.name)' - INVALID COORDS: (\(location.latitude), \(location.longitude))")
                 #endif
                 return false
             }
-            return cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
+            
+            // Check if cafe qualifies (has visits, favorite, or wantToTry)
+            let qualifies = cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
+            #if DEBUG
+            if qualifies {
+                print("  ✅ '\(cafe.name)' - HAS LOCATION at (\(location.latitude), \(location.longitude)), visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry)")
+            } else {
+                print("  ⚠️ '\(cafe.name)' - HAS LOCATION but doesn't qualify (visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry))")
+            }
+            #endif
+            return qualifies
         }
+        
         #if DEBUG
-        print("🗺️ [Map] Showing \(filtered.count) cafes with locations (total cafes: \(dataManager.appData.cafes.count))")
+        print("🗺️ [Map] Filtered result: \(filtered.count) cafes will show pins (from \(totalCafes) total)")
+        if filtered.isEmpty && totalCafes > 0 {
+            print("⚠️ [Map] WARNING: No cafes passed filter! Check locations and visitCount/favorite/wantToTry flags")
+        }
         #endif
         return filtered
     }
@@ -365,6 +385,19 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.showsBuildings = false
         mapView.showsTraffic = false
         
+        #if DEBUG
+        print("🗺️ [MapView] makeUIView called - initial cafes count: \(cafes.count)")
+        #endif
+        
+        // Add initial annotations
+        let initialAnnotations = cafes.map { CafeAnnotation(cafe: $0) }
+        if !initialAnnotations.isEmpty {
+            #if DEBUG
+            print("🗺️ [MapView] Adding \(initialAnnotations.count) initial annotations")
+            #endif
+            mapView.addAnnotations(initialAnnotations)
+        }
+        
         return mapView
     }
     
@@ -375,14 +408,30 @@ struct MapViewRepresentable: UIViewRepresentable {
             mapView.setRegion(region, animated: true)
         }
         
+        #if DEBUG
+        print("🗺️ [MapView] updateUIView called with \(cafes.count) cafes")
+        for (index, cafe) in cafes.enumerated() {
+            print("  [\(index)] \(cafe.name) - location: \(cafe.location != nil ? "✅" : "❌"), visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry)")
+        }
+        #endif
+        
         // Update annotations - refresh all to handle Favorite/Want to Try state changes
         let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
         let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
         let currentCafeIds = Set(cafes.map { $0.id })
         
+        #if DEBUG
+        print("🗺️ [MapView] Existing annotations: \(existingAnnotations.count), Current cafes: \(cafes.count)")
+        #endif
+        
         // Remove annotations for cafes that no longer exist
         let toRemove = existingAnnotations.filter { !currentCafeIds.contains($0.cafe.id) }
-        mapView.removeAnnotations(toRemove)
+        if !toRemove.isEmpty {
+            #if DEBUG
+            print("🗺️ [MapView] Removing \(toRemove.count) annotations")
+            #endif
+            mapView.removeAnnotations(toRemove)
+        }
         
         // Update existing annotations if cafe state changed (Favorite/Want to Try)
         for existingAnnotation in existingAnnotations {
@@ -402,7 +451,15 @@ struct MapViewRepresentable: UIViewRepresentable {
         // Add new annotations
         let toAdd = cafes.filter { !existingCafeIds.contains($0.id) }
         let newAnnotations = toAdd.map { CafeAnnotation(cafe: $0) }
-        mapView.addAnnotations(newAnnotations)
+        if !newAnnotations.isEmpty {
+            #if DEBUG
+            print("🗺️ [MapView] Adding \(newAnnotations.count) new annotations")
+            for annotation in newAnnotations {
+                print("  ➕ Adding pin for: \(annotation.cafe.name) at (\(annotation.coordinate.latitude), \(annotation.coordinate.longitude))")
+            }
+            #endif
+            mapView.addAnnotations(newAnnotations)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -417,7 +474,21 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
+            // Skip user location annotation
+            if annotation is MKUserLocation {
+                return nil
+            }
+            
+            guard let cafeAnnotation = annotation as? CafeAnnotation else {
+                #if DEBUG
+                print("⚠️ [MapView] viewFor annotation: Not a CafeAnnotation, type: \(type(of: annotation))")
+                #endif
+                return nil
+            }
+            
+            #if DEBUG
+            print("🗺️ [MapView] Creating view for annotation: \(cafeAnnotation.cafe.name) at (\(cafeAnnotation.coordinate.latitude), \(cafeAnnotation.coordinate.longitude))")
+            #endif
             
             let cafe = cafeAnnotation.cafe
             let identifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
@@ -567,12 +638,25 @@ struct MapViewRepresentable: UIViewRepresentable {
 class CafeAnnotation: NSObject, MKAnnotation {
     let cafe: Cafe
     var coordinate: CLLocationCoordinate2D {
-        cafe.location ?? CLLocationCoordinate2D()
+        guard let location = cafe.location else {
+            #if DEBUG
+            print("⚠️ [CafeAnnotation] Cafe '\(cafe.name)' has nil location, returning (0,0)")
+            #endif
+            return CLLocationCoordinate2D()
+        }
+        return location
     }
     
     init(cafe: Cafe) {
         self.cafe = cafe
         super.init()
+        #if DEBUG
+        if cafe.location == nil {
+            print("⚠️ [CafeAnnotation] Created annotation for '\(cafe.name)' but location is nil!")
+        } else {
+            print("✅ [CafeAnnotation] Created annotation for '\(cafe.name)' at (\(cafe.location!.latitude), \(cafe.location!.longitude))")
+        }
+        #endif
     }
 }
 
@@ -687,14 +771,13 @@ struct MyLocationButton: View {
             }
             
             Button(action: {
+                // Haptic: confirm recenter button tap
+                HapticsManager.shared.lightTap()
+                
                 let status = locationManager.authorizationStatus
                 
                 if status == .authorizedWhenInUse || status == .authorizedAlways {
-                    // Request fresh location update and mark that we want to recenter
-                    recenterOnUserRequest = true
-                    locationManager.requestCurrentLocation()
-                    
-                    // If we already have a recent location, recenter immediately
+                    // Try to recenter immediately using the last known location, if available
                     if let location = locationManager.getCurrentLocation() {
                         withAnimation {
                             region = MKCoordinateRegion(
@@ -702,11 +785,18 @@ struct MyLocationButton: View {
                                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                             )
                         }
+                        // We already recentred, no need to wait for the next update
                         recenterOnUserRequest = false
+                        showMessage = false
+                    } else {
+                        // No current location yet – ask for one and let the onChange handler recenter
+                        recenterOnUserRequest = true
+                        locationManager.requestCurrentLocation()
                         showMessage = false
                     }
                 } else {
                     // No permission - show message
+                    recenterOnUserRequest = false
                     showMessage = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
@@ -837,6 +927,8 @@ struct CafeDetailSheet: View {
                     // Secondary actions
                     HStack(spacing: 12) {
                         Button(action: {
+                            // Haptic: confirm favorite toggle
+                            HapticsManager.shared.lightTap()
                             dataManager.toggleCafeFavorite(cafe.id)
                         }) {
                             HStack {
@@ -857,6 +949,8 @@ struct CafeDetailSheet: View {
                         }
                         
                         Button(action: {
+                            // Haptic: confirm want-to-try toggle
+                            HapticsManager.shared.lightTap()
                             dataManager.toggleCafeWantToTry(cafe.id)
                         }) {
                             HStack {
@@ -1038,6 +1132,8 @@ struct SearchResultsList: View {
                             LocalCafeRow(
                                 cafe: cafe,
                                 onTap: {
+                                    // Haptic: confirm local cafe tap
+                                    HapticsManager.shared.lightTap()
                                     selectedCafe = cafe
                                     showCafeDetail = true
                                     isSearchActive = false
@@ -1065,6 +1161,9 @@ struct SearchResultsList: View {
     
     private func handleSearchResult(_ mapItem: MKMapItem) {
         guard let location = mapItem.placemark.location?.coordinate else { return }
+        
+        // Haptic: confirm search result tap
+        HapticsManager.shared.lightTap()
         
         // Center map on result
         withAnimation {

@@ -237,10 +237,16 @@ class DataManager: ObservableObject {
                 print("[Auth] refreshAuthStatusFromSupabase: Email verified - checking profile")
                 appData.hasEmailVerified = true
                 
+                // Request push notification permissions if we just verified email
+                await registerPushNotificationsIfNeeded()
+                
                 // Fetch or create profile in public.users
                 if let profile = try await profileService.fetchUserProfile(userId: userId) {
                     print("[Auth] refreshAuthStatusFromSupabase: Profile found - mapping to local user")
                     mapRemoteUserProfile(profile)
+                    // If profile exists in Supabase, profile setup is complete
+                    appData.hasCompletedProfileSetup = true
+                    print("[Auth] refreshAuthStatusFromSupabase: Profile exists - setting hasCompletedProfileSetup=true")
                 } else {
                     print("[Auth] refreshAuthStatusFromSupabase: No profile found - attempting to create from signup data")
                     // Profile doesn't exist - try to create it from signup data if we have it
@@ -269,6 +275,9 @@ class DataManager: ObservableObject {
                             let savedProfile = try await profileService.upsertUserProfile(remoteProfile)
                             print("[Auth] refreshAuthStatusFromSupabase: Profile created successfully - id=\(savedProfile.id)")
                             mapRemoteUserProfile(savedProfile)
+                            // Profile was successfully created/upserted, so setup is complete
+                            appData.hasCompletedProfileSetup = true
+                            print("[Auth] refreshAuthStatusFromSupabase: Profile auto-created - setting hasCompletedProfileSetup=true")
                         } catch {
                             print("[Auth] refreshAuthStatusFromSupabase: Failed to auto-create profile: \(error.localizedDescription). User will need to complete profile setup.")
                             // Fall back to creating local user only
@@ -610,6 +619,9 @@ class DataManager: ObservableObject {
         save()
         print("[Identity] Sign in completed - userId=\(session.userId), username=\(appData.currentUser?.username ?? "nil"), displayName=\(appData.currentUser?.displayName ?? "nil")")
         print("[DataManager] signIn completed OK - user is signed in and ready")
+        
+        // Step 7: Request push notification permissions and register token
+        await registerPushNotificationsIfNeeded()
     }
 
     func bootstrapAuthStateOnLaunch() async {
@@ -700,6 +712,9 @@ class DataManager: ObservableObject {
         appData.hasCompletedProfileSetup = true
         try await refreshProfileVisits()
         save()
+        
+        // Request push notification permissions after profile setup
+        await registerPushNotificationsIfNeeded()
     }
     
     private func mapRemoteUserProfile(_ profile: RemoteUserProfile) {
@@ -842,6 +857,8 @@ class DataManager: ObservableObject {
         save()
         // Clear photo cache
         PhotoCache.shared.clear()
+        // Note: We don't delete the device token on logout - it will be cleaned up
+        // when the user logs in again or if they uninstall the app
     }
     
     // MARK: - Cafe Operations
@@ -876,17 +893,24 @@ class DataManager: ObservableObject {
     }
     
     // Find existing Cafe by location (within ~50 meters) or create new one
+    // IMPORTANT: This does NOT automatically add the cafe to AppData.cafes
+    // Cafes are only added when:
+    // 1. A visit is posted (via upsertCafe in createVisit)
+    // 2. User marks as favorite/wantToTry
+    // 3. Visits are fetched from Supabase (via upsertCafe in mapRemoteVisit)
     func findOrCreateCafe(from mapItem: MKMapItem) -> Cafe {
+        print("🔍 [FindCafe] Searching for cafe: '\(mapItem.name ?? "Unknown")'")
+        
         guard let location = mapItem.placemark.location?.coordinate else {
-            // If no location, just create a new cafe
+            // If no location, create a transient cafe (NOT added to AppData)
+            print("🔍 [FindCafe] No location - creating transient cafe")
             let cafe = Cafe(
                 name: mapItem.name ?? "Unknown Cafe",
                 address: formatAddress(from: mapItem.placemark),
                 mapItemURL: mapItem.url?.absoluteString,
-                websiteURL: mapItem.url?.absoluteString, // For now, use mapItem URL as fallback
+                websiteURL: mapItem.url?.absoluteString,
                 placeCategory: mapItem.pointOfInterestCategory?.rawValue
             )
-            addCafe(cafe)
             return cafe
         }
         
@@ -899,6 +923,7 @@ class DataManager: ObservableObject {
             let lonDiff = abs(cafeLocation.longitude - location.longitude)
             return latDiff < threshold && lonDiff < threshold
         }) {
+            print("🔍 [FindCafe] ✅ Found existing cafe: '\(existingCafe.name)'")
             // Update existing cafe with mapItem data if missing
             if let index = appData.cafes.firstIndex(where: { $0.id == existingCafe.id }) {
                 var updatedCafe = appData.cafes[index]
@@ -923,7 +948,9 @@ class DataManager: ObservableObject {
             websiteURL = url.absoluteString
         }
         
-        // Create new cafe with Apple Maps data
+        // Create new transient cafe (NOT added to AppData yet)
+        // Will be added to AppData only when visit is posted or user favorites it
+        print("🔍 [FindCafe] ⚠️ Creating NEW transient cafe (not added to AppData)")
         let cafe = Cafe(
             name: mapItem.name ?? "Unknown Cafe",
             location: location,
@@ -932,7 +959,6 @@ class DataManager: ObservableObject {
             websiteURL: websiteURL,
             placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )
-        addCafe(cafe)
         return cafe
     }
     
@@ -998,9 +1024,14 @@ class DataManager: ObservableObject {
             throw SupabaseError.invalidSession
         }
         
+        // Log cafe details at start of visit creation
+        print("📝 [CreateVisit] ===== STARTING VISIT CREATION =====")
+        print("📝 [CreateVisit] Cafe: '\(cafe.name)' (id: \(cafe.id), supabaseId: \(cafe.supabaseId?.uuidString ?? "nil"))")
+        print("📝 [CreateVisit] Cafe has location: \(cafe.location != nil ? "✅ (\(cafe.location!.latitude), \(cafe.location!.longitude))" : "❌ nil")")
+        
         // Verify user exists in public.users (required for foreign key constraint)
         // This should already be true if user completed profile setup, but let's log it
-        print("[Visit] Verifying user exists in public.users...")
+        print("📝 [CreateVisit] Verifying user exists in public.users...")
         
         // Find or create cafe in Supabase, preserving location from local cafe
         let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
@@ -1075,10 +1106,16 @@ class DataManager: ObservableObject {
             
             var visit = mapRemoteVisit(remoteVisit)
             visit.mentions = mentions
-            mergeVisits([visit])
             
-            // Update cafe's visitCount and stats immediately so map shows the pin
+            print("[Visit] ===== UPDATING CAFE STATS AFTER VISIT CREATION =====")
+            print("[Visit] Visit cafeId=\(visit.cafeId), supabaseCafeId=\(visit.supabaseCafeId?.uuidString ?? "nil")")
+            
+            // CRITICAL: Update cafe's visitCount BEFORE merging visits
+            // This ensures the map shows the pin immediately
             updateCafeStatsForVisit(visit)
+            
+            // Now merge the visit into AppData
+            mergeVisits([visit])
             
             print("[Visit] Visit created successfully - visitId=\(visit.id), userId=\(visit.userId), supabaseUserId=\(visit.supabaseUserId ?? "nil")")
             return visit
@@ -1230,6 +1267,224 @@ class DataManager: ObservableObject {
         }
     }
     
+    // MARK: - Friend Operations
+    
+    func sendFriendRequest(to targetUserId: String) async throws {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        // Prevent self-friending
+        guard supabaseUserId != targetUserId else {
+            throw SupabaseError.server(status: 400, message: "Cannot send friend request to yourself")
+        }
+        
+        do {
+            let request = try await socialGraphService.sendFriendRequest(from: supabaseUserId, to: targetUserId)
+            print("[Friends] Friend request sent - id: \(request.id), from: \(supabaseUserId), to: \(targetUserId)")
+            
+            // Create a notification for the recipient
+            let payload = NotificationInsertPayload(
+                userId: targetUserId,
+                actorUserId: supabaseUserId,
+                type: "friend_request",
+                visitId: nil,
+                commentId: nil
+            )
+            try? await notificationService.createNotification(payload)
+        } catch {
+            print("❌ [Friends] Failed to send friend request: \(error.localizedDescription)")
+            // Convert technical errors to user-friendly messages
+            if let supabaseError = error as? SupabaseError {
+                switch supabaseError {
+                case .server(let status, let message):
+                    if status == 409 || (message?.lowercased().contains("duplicate") ?? false) {
+                        throw SupabaseError.server(status: status, message: "Friend request already exists")
+                    }
+                default:
+                    break
+                }
+            }
+            throw error
+        }
+    }
+    
+    func acceptFriendRequest(requestId: UUID) async throws {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        do {
+            // First, fetch the request to get fromUserId and toUserId
+            let incomingRequests = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+            guard let request = incomingRequests.first(where: { $0.id == requestId }) else {
+                throw SupabaseError.decoding("Friend request not found")
+            }
+            
+            try await socialGraphService.acceptFriendRequest(
+                requestId: requestId,
+                fromUserId: request.fromUserId,
+                toUserId: request.toUserId
+            )
+            
+            // Refresh friends list
+            let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            appData.friendsSupabaseUserIds = Set(friends)
+            
+            // Create notification for the requester that their request was accepted
+            let payload = NotificationInsertPayload(
+                userId: request.fromUserId,
+                actorUserId: supabaseUserId,
+                type: "friend_accept",
+                visitId: nil,
+                commentId: nil
+            )
+            try? await notificationService.createNotification(payload)
+            
+            print("[Friends] Friend request accepted - id: \(requestId)")
+            save()
+        } catch {
+            print("❌ [Friends] Failed to accept friend request: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func rejectFriendRequest(requestId: UUID) async throws {
+        do {
+            try await socialGraphService.rejectFriendRequest(requestId: requestId)
+            print("[Friends] Friend request rejected - id: \(requestId)")
+        } catch {
+            print("❌ [Friends] Failed to reject friend request: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func removeFriend(userId: String) async throws {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        do {
+            try await socialGraphService.removeFriend(userId: supabaseUserId, friendUserId: userId)
+            
+            // Update local friends list
+            appData.friendsSupabaseUserIds.remove(userId)
+            
+            print("[Friends] Friend removed - userId: \(userId)")
+            save()
+        } catch {
+            print("❌ [Friends] Failed to remove friend: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func fetchFriends(for userId: String) async throws -> [User] {
+        let friendIds = try await socialGraphService.fetchFriends(for: userId)
+        var friends: [User] = []
+        
+        // Fetch user profiles for each friend
+        for friendId in friendIds {
+            if let profile = try? await profileService.fetchUserProfile(userId: friendId) {
+                let userUUID = UUID(uuidString: friendId) ?? UUID()
+                let friend = profile.toLocalUser(existing: nil, overridingId: userUUID)
+                friends.append(friend)
+            }
+        }
+        
+        return friends
+    }
+    
+    func fetchFriendRequests() async throws -> (incoming: [FriendRequest], outgoing: [FriendRequest]) {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        let incoming = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+        let outgoing = try await socialGraphService.fetchOutgoingFriendRequests(for: supabaseUserId)
+        
+        return (
+            incoming: incoming.map { FriendRequest(from: $0) },
+            outgoing: outgoing.map { FriendRequest(from: $0) }
+        )
+    }
+    
+    func checkFriendshipStatus(for userId: String) async throws -> FriendshipStatus {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        return try await socialGraphService.checkFriendshipStatus(
+            currentUserId: supabaseUserId,
+            otherUserId: userId
+        )
+    }
+    
+    func fetchMutualFriends(userId: String) async throws -> [User] {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        // Fetch friends for both users
+        let currentUserFriends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+        let otherUserFriends = try await socialGraphService.fetchFriends(for: userId)
+        
+        // Compute intersection
+        let currentFriendsSet = Set(currentUserFriends)
+        let mutualIds = otherUserFriends.filter { currentFriendsSet.contains($0) }
+        
+        // Fetch user profiles for mutual friends
+        var mutualFriends: [User] = []
+        for friendId in mutualIds {
+            if let profile = try? await profileService.fetchUserProfile(userId: friendId) {
+                let userUUID = UUID(uuidString: friendId) ?? UUID()
+                let friend = profile.toLocalUser(existing: nil, overridingId: userUUID)
+                mutualFriends.append(friend)
+            }
+        }
+        
+        return mutualFriends
+    }
+    
+    func fetchOtherUserProfile(userId: String) async throws -> RemoteUserProfile? {
+        return try await profileService.fetchUserProfile(userId: userId)
+    }
+    
+    func fetchOtherUserVisits(userId: String) async throws {
+        let remoteVisits = try await visitService.fetchVisitsForUserProfile(userId: userId)
+        let mapped = remoteVisits.map { mapRemoteVisit($0) }
+        mergeVisits(mapped)
+        
+        // Update cafe stats
+        let uniqueCafeIds = Set(mapped.map { $0.cafeId })
+        for cafeId in uniqueCafeIds {
+            if let sampleVisit = mapped.first(where: { $0.cafeId == cafeId }) {
+                updateCafeStatsForVisit(sampleVisit)
+            }
+        }
+    }
+    
+    func refreshFriendsList() async {
+        guard let supabaseUserId = appData.supabaseUserId else { return }
+        do {
+            let friendIds = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            appData.friendsSupabaseUserIds = Set(friendIds)
+            save()
+        } catch {
+            print("[DataManager] Error refreshing friends list: \(error.localizedDescription)")
+        }
+    }
+    
+    func getIncomingFriendRequestCount() async -> Int {
+        guard let supabaseUserId = appData.supabaseUserId else { return 0 }
+        do {
+            let requests = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+            return requests.count
+        } catch {
+            print("[DataManager] Error fetching friend request count: \(error.localizedDescription)")
+            return 0
+        }
+    }
+    
     // MARK: - Feed Operations
     func getFeedVisits(scope: FeedScope, currentUserId: UUID) -> [Visit] {
         let allVisits = appData.visits.sorted { $0.createdAt > $1.createdAt }
@@ -1252,41 +1507,66 @@ class DataManager: ObservableObject {
                     return false
                 }
                 
-                return appData.followingSupabaseUserIds.contains(authorSupabaseId)
+                return appData.friendsSupabaseUserIds.contains(authorSupabaseId)
             }
         }
     }
     
     func refreshFeed(scope: FeedScope) async {
         guard let supabaseUserId = appData.supabaseUserId else { return }
+        print("🔄 [RefreshFeed] Starting feed refresh - scope: \(scope)")
         do {
             let remoteVisits: [RemoteVisit]
             switch scope {
             case .everyone:
                 remoteVisits = try await visitService.fetchEveryoneFeed()
             case .friends:
-                let following = try await socialGraphService.fetchFollowingIds(for: supabaseUserId)
-                appData.followingSupabaseUserIds = Set(following)
-                remoteVisits = try await visitService.fetchFriendsFeed(currentUserId: supabaseUserId, followingIds: following)
+                let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+                appData.friendsSupabaseUserIds = Set(friends)
+                remoteVisits = try await visitService.fetchFriendsFeed(currentUserId: supabaseUserId, followingIds: friends)
             }
+            print("🔄 [RefreshFeed] Fetched \(remoteVisits.count) remote visits")
+            
             let mapped = remoteVisits.map { mapRemoteVisit($0) }
             mergeVisits(mapped)
+            print("🔄 [RefreshFeed] Visits merged into appData")
+            
+            // CRITICAL: Recalculate visitCount for all cafes after fetching feed
+            print("🔄 [RefreshFeed] Recalculating cafe stats for all feed visits...")
+            let uniqueCafeIds = Set(mapped.map { $0.cafeId })
+            for cafeId in uniqueCafeIds {
+                if let sampleVisit = mapped.first(where: { $0.cafeId == cafeId }) {
+                    updateCafeStatsForVisit(sampleVisit)
+                }
+            }
+            print("🔄 [RefreshFeed] Cafe stats recalculation complete")
         } catch {
-            print("Failed to refresh feed: \(error.localizedDescription)")
+            print("❌ [RefreshFeed] Failed to refresh feed: \(error.localizedDescription)")
         }
     }
     
     func refreshProfileVisits() async throws {
         guard let supabaseUserId = appData.supabaseUserId else {
-            print("[DataManager] refreshProfileVisits: No supabaseUserId, skipping")
+            print("🔄 [RefreshVisits] No supabaseUserId, skipping")
             return
         }
-        print("[DataManager] refreshProfileVisits: Fetching visits for userId: \(supabaseUserId)")
+        print("🔄 [RefreshVisits] Fetching profile visits for userId: \(supabaseUserId)")
         let remoteVisits = try await visitService.fetchVisitsForUserProfile(userId: supabaseUserId)
-        print("[DataManager] refreshProfileVisits: Fetched \(remoteVisits.count) visits")
+        print("🔄 [RefreshVisits] Fetched \(remoteVisits.count) remote visits")
+        
         let mapped = remoteVisits.map { mapRemoteVisit($0) }
         mergeVisits(mapped)
-        print("[DataManager] refreshProfileVisits: Visits merged into appData")
+        print("🔄 [RefreshVisits] Visits merged into appData")
+        
+        // CRITICAL: Recalculate visitCount for all cafes after fetching visits
+        print("🔄 [RefreshVisits] Recalculating cafe stats for all visits...")
+        let uniqueCafeIds = Set(mapped.map { $0.cafeId })
+        for cafeId in uniqueCafeIds {
+            if let sampleVisit = mapped.first(where: { $0.cafeId == cafeId }) {
+                updateCafeStatsForVisit(sampleVisit)
+            }
+        }
+        print("🔄 [RefreshVisits] Cafe stats recalculation complete")
     }
     
     // MARK: - Comment Operations
@@ -1353,6 +1633,43 @@ class DataManager: ObservableObject {
             save()
         } catch {
             print("Failed to refresh notifications: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Push Notifications
+    /// Register for push notifications if user is authenticated and hasn't registered yet
+    /// Should be called after sign-in or profile setup completion
+    func registerPushNotificationsIfNeeded() async {
+        guard appData.isUserAuthenticated,
+              appData.hasEmailVerified else {
+            print("[Push] User not authenticated or email not verified, skipping push registration")
+            return
+        }
+        
+        print("[Push] Requesting push notification authorization...")
+        await PushNotificationManager.shared.requestAuthorizationAndRegister()
+        
+        // Re-register token if we have one stored but user wasn't authenticated when it was received
+        await PushNotificationManager.shared.reRegisterTokenIfNeeded()
+    }
+    
+    /// Register a push token with Supabase (called by PushNotificationManager)
+    func registerPushToken(token: String, platform: String = "ios") async {
+        guard let userId = appData.supabaseUserId else {
+            print("⚠️ [Push] No userId available, cannot register token")
+            return
+        }
+        
+        print("[Push] Registering device token for userId=\(userId.prefix(8))...")
+        do {
+            try await SupabaseUserDeviceService.shared.upsertDeviceToken(
+                userId: userId,
+                token: token,
+                platform: platform
+            )
+            print("✅ [Push] Device token registered successfully")
+        } catch {
+            print("❌ [Push] Error registering device token: \(error.localizedDescription)")
         }
     }
     
@@ -1485,35 +1802,50 @@ class DataManager: ObservableObject {
     }
     
     private func upsertCafe(from remote: RemoteCafe) -> Cafe {
+        print("🏪 [CafeUpsert] Upserting cafe from Supabase - id: \(remote.id), name: '\(remote.name)'")
+        print("🏪 [CafeUpsert] Remote has location: lat=\(remote.latitude ?? 0), lon=\(remote.longitude ?? 0)")
+        
+        // Find existing cafe by Supabase ID
         if let index = appData.cafes.firstIndex(where: { ($0.supabaseId ?? $0.id) == remote.id }) {
             let existing = appData.cafes[index]
-            // Preserve local state (favorites, wantToTry) and visitCount when merging
-            let merged = remote.toLocalCafe(existing: existing)
-            // Ensure location is set - prefer remote if available, otherwise keep existing
+            print("🏪 [CafeUpsert] Found existing cafe at index \(index): '\(existing.name)'")
+            print("🏪 [CafeUpsert] Existing - visitCount: \(existing.visitCount), hasLocation: \(existing.location != nil), favorite: \(existing.isFavorite)")
+            
+            // Merge remote data with existing, but PRESERVE critical local state
             let finalCafe = Cafe(
-                id: merged.id,
-                supabaseId: merged.supabaseId,
-                name: merged.name,
-                location: merged.location ?? existing.location, // Preserve location if remote doesn't have it
-                address: merged.address,
-                city: merged.city,
-                country: merged.country,
-                isFavorite: existing.isFavorite, // Preserve local state
-                wantToTry: existing.wantToTry, // Preserve local state
-                averageRating: merged.averageRating,
-                visitCount: existing.visitCount, // Preserve visitCount (will be updated separately)
-                mapItemURL: merged.mapItemURL ?? existing.mapItemURL,
-                websiteURL: merged.websiteURL ?? existing.websiteURL,
-                applePlaceId: merged.applePlaceId ?? existing.applePlaceId,
-                placeCategory: merged.placeCategory ?? existing.placeCategory
+                id: existing.id, // Keep local ID
+                supabaseId: remote.id, // Ensure Supabase ID is set
+                name: remote.name, // Update name from remote
+                location: remote.toLocalCafe().location ?? existing.location, // Prefer remote location, fallback to existing
+                address: remote.address ?? existing.address ?? "",
+                city: remote.city ?? existing.city,
+                country: remote.country ?? existing.country,
+                isFavorite: existing.isFavorite, // PRESERVE local state
+                wantToTry: existing.wantToTry, // PRESERVE local state
+                averageRating: existing.averageRating, // PRESERVE (calculated locally)
+                visitCount: existing.visitCount, // PRESERVE (calculated locally, updated separately)
+                mapItemURL: existing.mapItemURL,
+                websiteURL: remote.websiteURL ?? existing.websiteURL,
+                applePlaceId: remote.applePlaceId ?? existing.applePlaceId,
+                placeCategory: existing.placeCategory
             )
+            
             appData.cafes[index] = finalCafe
-            print("[Visit] Upserted cafe - name: \(finalCafe.name), hasLocation: \(finalCafe.location != nil), visitCount: \(finalCafe.visitCount)")
+            print("🏪 [CafeUpsert] ✅ Updated existing cafe:")
+            print("   - name: '\(finalCafe.name)'")
+            print("   - location: \(finalCafe.location != nil ? "✅ (\(finalCafe.location!.latitude), \(finalCafe.location!.longitude))" : "❌ nil")")
+            print("   - visitCount: \(finalCafe.visitCount) (preserved)")
+            print("   - supabaseId: \(finalCafe.supabaseId?.uuidString ?? "nil")")
             return finalCafe
         } else {
+            // New cafe from Supabase
             let cafe = remote.toLocalCafe()
             appData.cafes.append(cafe)
-            print("[Visit] Added new cafe - name: \(cafe.name), hasLocation: \(cafe.location != nil), visitCount: \(cafe.visitCount)")
+            print("🏪 [CafeUpsert] ✅ Added NEW cafe:")
+            print("   - name: '\(cafe.name)'")
+            print("   - location: \(cafe.location != nil ? "✅ (\(cafe.location!.latitude), \(cafe.location!.longitude))" : "❌ nil")")
+            print("   - visitCount: \(cafe.visitCount) (initial)")
+            print("   - supabaseId: \(cafe.supabaseId?.uuidString ?? "nil")")
             return cafe
         }
     }
@@ -1535,14 +1867,39 @@ class DataManager: ObservableObject {
     /// Updates cafe statistics (visitCount, averageRating) for a given visit
     /// This ensures the map shows pins immediately after visit creation
     private func updateCafeStatsForVisit(_ visit: Visit) {
-        // Find the cafe by cafeId (try both supabaseId and regular id)
-        if let cafeIndex = appData.cafes.firstIndex(where: { 
-            ($0.supabaseId ?? $0.id) == visit.cafeId || $0.id == visit.cafeId 
-        }) {
-            // Count all visits for this cafe (for the current user)
-            let cafeVisits = visits(for: visit.userId).filter { 
-                ($0.supabaseCafeId ?? $0.cafeId) == visit.cafeId || $0.cafeId == visit.cafeId
+        print("📊 [CafeStats] Updating stats for visit - cafeId: \(visit.cafeId), supabaseCafeId: \(visit.supabaseCafeId?.uuidString ?? "nil")")
+        print("📊 [CafeStats] Total cafes in AppData: \(appData.cafes.count)")
+        
+        // Find the cafe - match by supabaseCafeId first (most reliable), then by cafeId
+        let targetCafeId = visit.supabaseCafeId ?? visit.cafeId
+        
+        if let cafeIndex = appData.cafes.firstIndex(where: { cafe in
+            // Match by Supabase ID first (most reliable)
+            if let supabaseId = cafe.supabaseId, supabaseId == targetCafeId {
+                return true
             }
+            // Fall back to local ID match
+            if cafe.id == targetCafeId || cafe.id == visit.cafeId {
+                return true
+            }
+            return false
+        }) {
+            let cafe = appData.cafes[cafeIndex]
+            print("📊 [CafeStats] Found cafe at index \(cafeIndex): '\(cafe.name)' (id: \(cafe.id), supabaseId: \(cafe.supabaseId?.uuidString ?? "nil"))")
+            
+            // Count ALL visits for this cafe across all users (to match Supabase reality)
+            // Match visits by supabaseCafeId first, then cafeId
+            let cafeVisits = appData.visits.filter { v in
+                if let supabaseCafeId = v.supabaseCafeId, supabaseCafeId == targetCafeId {
+                    return true
+                }
+                if v.cafeId == targetCafeId || v.cafeId == cafe.id {
+                    return true
+                }
+                return false
+            }
+            
+            let oldVisitCount = appData.cafes[cafeIndex].visitCount
             appData.cafes[cafeIndex].visitCount = cafeVisits.count
             
             // Recalculate average rating for the cafe
@@ -1551,24 +1908,42 @@ class DataManager: ObservableObject {
                 appData.cafes[cafeIndex].averageRating = totalRating / Double(cafeVisits.count)
             }
             
-            print("[Visit] Updated cafe stats - name: \(appData.cafes[cafeIndex].name), visitCount: \(appData.cafes[cafeIndex].visitCount), hasLocation: \(appData.cafes[cafeIndex].location != nil)")
+            print("📊 [CafeStats] ✅ Updated '\(appData.cafes[cafeIndex].name)':")
+            print("   - visitCount: \(oldVisitCount) → \(appData.cafes[cafeIndex].visitCount)")
+            print("   - averageRating: \(appData.cafes[cafeIndex].averageRating)")
+            print("   - hasLocation: \(appData.cafes[cafeIndex].location != nil)")
+            print("   - location: \(appData.cafes[cafeIndex].location?.latitude ?? 0), \(appData.cafes[cafeIndex].location?.longitude ?? 0)")
+            print("   - isFavorite: \(appData.cafes[cafeIndex].isFavorite)")
+            print("   - wantToTry: \(appData.cafes[cafeIndex].wantToTry)")
             save()
         } else {
-            print("⚠️ [Visit] Could not find cafe with id \(visit.cafeId) to update stats")
+            print("❌ [CafeStats] Could not find cafe with targetCafeId: \(targetCafeId)")
+            print("❌ [CafeStats] Available cafe IDs:")
+            for (index, cafe) in appData.cafes.enumerated() {
+                print("   [\(index)] '\(cafe.name)' - id: \(cafe.id), supabaseId: \(cafe.supabaseId?.uuidString ?? "nil")")
+            }
         }
     }
     
     private func mapRemoteVisit(_ remote: RemoteVisit) -> Visit {
+        print("🗺️ [MapVisit] Mapping RemoteVisit - id: \(remote.id), cafeId: \(remote.cafeId)")
+        
         let cafe: Cafe
         if let embeddedCafe = remote.cafe {
+            // Visit includes cafe data - upsert it
+            print("🗺️ [MapVisit] Visit has embedded cafe: '\(embeddedCafe.name)' (id: \(embeddedCafe.id))")
             cafe = upsertCafe(from: embeddedCafe)
         } else if let existing = appData.cafes.first(where: { ($0.supabaseId ?? $0.id) == remote.cafeId }) {
+            // Cafe already exists locally
+            print("🗺️ [MapVisit] Found existing cafe: '\(existing.name)'")
             cafe = existing
         } else {
+            // Shouldn't happen in production, but create placeholder
+            print("⚠️ [MapVisit] WARNING: No cafe data for visit - creating placeholder")
             let placeholder = Cafe(
                 id: remote.cafeId,
                 supabaseId: remote.cafeId,
-                name: "Cafe",
+                name: "Unknown Cafe",
                 address: "",
                 city: nil,
                 country: nil
@@ -1643,6 +2018,8 @@ class DataManager: ObservableObject {
         let actorLabel = remote.actorUserId.prefix(6)
         let message: String
         switch type {
+        case .newVisitFromFriend:
+            message = "\(actorLabel) posted a new visit"
         case .like:
             message = "\(actorLabel) liked your visit"
         case .comment:
@@ -1651,6 +2028,12 @@ class DataManager: ObservableObject {
             message = "\(actorLabel) mentioned you"
         case .follow:
             message = "\(actorLabel) followed you"
+        case .friendRequest:
+            message = "\(actorLabel) sent you a friend request"
+        case .friendAccept:
+            message = "\(actorLabel) accepted your friend request"
+        case .friendJoin:
+            message = "\(actorLabel) joined Mugshot"
         default:
             message = "You have a new notification"
         }
@@ -1688,5 +2071,23 @@ extension DataManager {
     
     private func visits(for userId: UUID) -> [Visit] {
         appData.visits.filter { $0.userId == userId }
+    }
+}
+
+// MARK: - Feature Flags
+
+extension DataManager {
+    /// Toggles between classic single-page post flow and new onboarding-style multi-step flow
+    func togglePostFlowStyle() {
+        appData.useOnboardingStylePostFlow.toggle()
+        save()
+        print("[FeatureFlag] Post flow style: \(appData.useOnboardingStylePostFlow ? "Onboarding-style" : "Classic")")
+    }
+    
+    /// Sets the post flow style directly
+    func setPostFlowStyle(useOnboardingStyle: Bool) {
+        appData.useOnboardingStylePostFlow = useOnboardingStyle
+        save()
+        print("[FeatureFlag] Post flow style set to: \(useOnboardingStyle ? "Onboarding-style" : "Classic")")
     }
 }

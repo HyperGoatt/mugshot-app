@@ -50,9 +50,26 @@ import CoreLocation
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
+    @State private var showOnboardingFlow = false
     
     var body: some View {
-        LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
+        // Use feature flag to switch between classic and onboarding-style post flow
+        if dataManager.appData.useOnboardingStylePostFlow {
+            // Show placeholder that triggers full screen flow
+            Color.clear
+                .onAppear {
+                    showOnboardingFlow = true
+                }
+                .fullScreenCover(isPresented: $showOnboardingFlow) {
+                    OnboardingStylePostFlowView(
+                        dataManager: dataManager,
+                        preselectedCafe: preselectedCafe
+                    )
+                    .environmentObject(HapticsManager.shared)
+                }
+        } else {
+            LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
+        }
     }
 }
 
@@ -61,6 +78,7 @@ struct LogVisitView: View {
     var preselectedCafe: Cafe? = nil
     @EnvironmentObject var tabCoordinator: TabCoordinator
     @Environment(\.dismiss) var dismiss
+    @StateObject private var hapticsManager = HapticsManager.shared
     
     @State private var selectedCafe: Cafe?
     @State private var isCafeSearchActive = false
@@ -209,7 +227,16 @@ struct LogVisitView: View {
             // Drink Type
             FormSectionCard(title: "Drink Type") {
                 DrinkTypeSection(
-                    drinkType: $drinkType,
+                    drinkType: Binding(
+                        get: { drinkType },
+                        set: { newValue in
+                            if newValue != drinkType {
+                                // Haptic: confirm drink type change
+                                hapticsManager.selectionChanged()
+                            }
+                            drinkType = newValue
+                        }
+                    ),
                     customDrinkType: $customDrinkType
                 )
             }
@@ -219,14 +246,22 @@ struct LogVisitView: View {
                 images: photoImages,
                 posterIndex: posterPhotoIndex,
                 maxPhotos: 10,
-                onAddTapped: { showPhotoPicker = true },
+                onAddTapped: {
+                    // Haptic: confirm photo add button tap
+                    hapticsManager.lightTap()
+                    showPhotoPicker = true
+                },
                 onRemove: { index in
+                    // Haptic: confirm photo remove
+                    hapticsManager.lightTap()
                     photoImages.remove(at: index)
                     if posterPhotoIndex >= photoImages.count {
                         posterPhotoIndex = max(0, photoImages.count - 1)
                     }
                 },
                 onSetPoster: { index in
+                    // Haptic: confirm poster photo selection
+                    hapticsManager.lightTap()
                     posterPhotoIndex = index
                 }
             )
@@ -248,7 +283,16 @@ struct LogVisitView: View {
             )
             
             // Visibility
-            VisibilitySelector(visibility: $visibility)
+            VisibilitySelector(visibility: Binding(
+                get: { visibility },
+                set: { newValue in
+                    if newValue != visibility {
+                        // Haptic: confirm visibility change
+                        hapticsManager.selectionChanged()
+                    }
+                    visibility = newValue
+                }
+            ))
             
             // Validation errors
             if !validationErrors.isEmpty {
@@ -327,6 +371,8 @@ struct LogVisitView: View {
     }
     
     private func saveVisit() {
+        // Haptic: confirm save button tap
+        hapticsManager.mediumTap()
         Task {
             await saveVisitAsync()
         }
@@ -339,16 +385,19 @@ struct LogVisitView: View {
         // Validate
         guard let cafe = selectedCafe else {
             validationErrors.append("Please select a Cafe location")
+            hapticsManager.playError()
             return
         }
         
         guard drinkType != .other || !customDrinkType.isEmpty else {
             validationErrors.append("Please specify a custom drink type")
+            hapticsManager.playError()
             return
         }
         
         guard !caption.isEmpty else {
             validationErrors.append("Please write a caption")
+            hapticsManager.playError()
             return
         }
         
@@ -368,6 +417,7 @@ struct LogVisitView: View {
                 dataManager.setCurrentUser(newUser)
             } else {
                 validationErrors.append("Please complete your profile setup")
+                hapticsManager.playError()
                 return
             }
         }
@@ -393,6 +443,8 @@ struct LogVisitView: View {
                 mentions: mentions
             )
             savedVisit = visit
+            // Haptic: visit save success
+            hapticsManager.playSuccess()
             showVisitDetail = true
         } catch {
             // Debug logging for visit save errors
@@ -428,6 +480,8 @@ struct LogVisitView: View {
                 print("❌ [AddTabView] Unexpected error type: \(type(of: error))")
                 validationErrors.append("Something went wrong saving your visit. Please try again.")
             }
+            // Haptic: visit save error
+            hapticsManager.playError()
         }
     }
 }
@@ -698,6 +752,8 @@ struct DrinkTypeSection: View {
                     VStack(spacing: 0) {
                         ForEach(DrinkType.allCases, id: \.self) { type in
                             Button(action: {
+                                // Haptic: confirm drink type selection
+                                HapticsManager.shared.selectionChanged()
                                 drinkType = type
                                 if type != .other {
                                     customDrinkType = ""

@@ -16,8 +16,8 @@ struct ProfileSetupOnboardingView: View {
             .duration(0.8)
             .nextIcon("arrow.right")
             .didChangeCurrentPage { index in
-                // Subtle haptic feedback on page change
-                hapticsManager.playImpact(style: .light)
+                // Haptic: confirm page change in onboarding
+                hapticsManager.lightTap()
             }
             .insteadOfCyclingToFirstPage {
                 completeProfileSetup()

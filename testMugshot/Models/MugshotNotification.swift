@@ -14,6 +14,9 @@ enum NotificationType: String, Codable {
     case reply = "reply"
     case mention = "mention"
     case follow = "follow"
+    case friendRequest = "friend_request"
+    case friendAccept = "friend_accept"
+    case friendJoin = "friend_join"
     case system = "system"
     
     var displayIcon: String {
@@ -29,6 +32,12 @@ enum NotificationType: String, Codable {
         case .mention:
             return "at"
         case .follow:
+            return "person.crop.circle.badge.plus"
+        case .friendRequest:
+            return "person.crop.circle.badge.plus"
+        case .friendAccept:
+            return "person.crop.circle.badge.checkmark"
+        case .friendJoin:
             return "person.crop.circle.badge.plus"
         case .system:
             return "bell.fill"

@@ -12,6 +12,7 @@ struct SignInView: View {
     let onBack: () -> Void
     
     @EnvironmentObject var dataManager: DataManager
+    @EnvironmentObject var hapticsManager: HapticsManager
     
     @State private var email: String = ""
     @State private var password: String = ""
@@ -156,6 +157,9 @@ struct SignInView: View {
         validationErrors = []
         authError = nil
         
+        // Haptic: confirm sign in button tap
+        hapticsManager.mediumTap()
+        
         // Validate fields
         if email.trimmingCharacters(in: .whitespaces).isEmpty {
             validationErrors.append("Email is required")
@@ -166,6 +170,8 @@ struct SignInView: View {
         }
         
         if !validationErrors.isEmpty {
+            // Haptic: validation error
+            hapticsManager.playError()
             return
         }
         
@@ -179,10 +185,14 @@ struct SignInView: View {
                 try await dataManager.signIn(email: trimmedEmail, password: trimmedPassword)
                 print("[SignInView] Sign in finished successfully")
                 isSubmitting = false
+                // Haptic: sign in success (AuthFlowRootView will also call success, but this is fine)
+                hapticsManager.playSuccess()
                 onAuthSuccess()
             } catch {
                 print("[SignInView] Sign in finished with error: \(error.localizedDescription)")
                 isSubmitting = false
+                // Haptic: sign in error
+                hapticsManager.playError()
                 authError = formatSignInError(error)
             }
         }
