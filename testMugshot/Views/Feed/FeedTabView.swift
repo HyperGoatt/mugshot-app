@@ -2,7 +2,7 @@
 //  FeedTabView.swift
 //  testMugshot
 //
-//  Created by Joseph Rosso on 11/14/25.
+//  Redesigned feed with coffee-first information hierarchy
 //
 
 import SwiftUI
@@ -25,56 +25,29 @@ struct FeedTabView: View {
     }
     
     private var showStickyHeader: Bool {
-        scrollOffset > headerHeight - 20 // Show sticky header when scrolled past header
+        scrollOffset < -headerHeight + 20
     }
     
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
+                // Main scrollable content
                 ScrollView {
                     VStack(spacing: 0) {
-                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                            Text("Feed")
-                                .font(DS.Typography.screenTitle)
-                                .foregroundColor(DS.Colors.textPrimary)
-                            Text("Sips from the community")
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.textSecondary)
-                            
-                            HStack {
-                                Spacer()
-                                DSDesignSegmentedControl(
-                                    options: FeedScope.allCases.map { $0.displayName },
-                                    selectedIndex: Binding(
-                                        get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
-                                        set: { newIndex in
-                                            let newScope = FeedScope.allCases[newIndex]
-                                            if newScope != selectedScope {
-                                                // Haptic: confirm feed scope switch
-                                                hapticsManager.selectionChanged()
-                                            }
-                                            selectedScope = newScope
+                        // Header section
+                        feedHeader
+                            .background(
+                                GeometryReader { geometry in
+                                    Color.clear
+                                        .preference(key: ScrollOffsetPreferenceKey.self, value: geometry.frame(in: .named("scroll")).minY)
+                                        .onAppear {
+                                            headerHeight = geometry.size.height
                                         }
-                                    )
-                                )
-                                Spacer()
-                            }
-                            .padding(.top, DS.Spacing.md)
-                        }
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.vertical, DS.Spacing.md)
-                        .background(DS.Colors.appBarBackground)
-                        .background(
-                            GeometryReader { geometry in
-                                Color.clear
-                                    .preference(key: ScrollOffsetPreferenceKey.self, value: geometry.frame(in: .named("scroll")).minY)
-                                    .onAppear {
-                                        headerHeight = geometry.size.height
-                                    }
-                            }
-                        )
+                                }
+                            )
                         
-                        LazyVStack(spacing: DS.Spacing.cardVerticalGap) {
+                        // Feed content
+                        LazyVStack(spacing: DS.Spacing.lg) {
                             ForEach(visits) { visit in
                                 VisitCard(
                                     visit: visit,
@@ -94,15 +67,14 @@ struct FeedTabView: View {
                                     }
                                 )
                                 .onTapGesture {
-                                    // Haptic: confirm post tap to open detail
                                     hapticsManager.lightTap()
                                     selectedVisit = visit
                                 }
                             }
                         }
                         .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.top, DS.Spacing.md)
-                        .padding(.bottom, DS.Spacing.xxl)
+                        .padding(.top, DS.Spacing.lg)
+                        .padding(.bottom, DS.Spacing.xxl * 2)
                         .background(DS.Colors.screenBackground)
                     }
                     .background(DS.Colors.screenBackground)
@@ -112,30 +84,11 @@ struct FeedTabView: View {
                     scrollOffset = value
                 }
                 
+                // Sticky header with blur
                 if showStickyHeader {
-                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        HStack {
-                            Text("Feed")
-                                .font(DS.Typography.screenTitle)
-                                .foregroundColor(DS.Colors.textPrimary)
-                            
-                            Spacer()
-                            
-                            DSDesignSegmentedControl(
-                                options: FeedScope.allCases.map { $0.displayName },
-                                selectedIndex: Binding(
-                                    get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
-                                    set: { selectedScope = FeedScope.allCases[$0] }
-                                )
-                            )
-                        }
-                    }
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-                    .padding(.vertical, DS.Spacing.sm)
-                    .background(DS.Colors.appBarBackground)
-                    .shadow(color: DS.Shadow.cardSoft.color.opacity(0.1), radius: 4, x: 0, y: 2)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.easeInOut(duration: 0.2), value: showStickyHeader)
+                    stickyHeader
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.2), value: showStickyHeader)
                 }
             }
             .navigationDestination(item: $selectedVisit) { visit in
@@ -156,25 +109,7 @@ struct FeedTabView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showNotifications = true }) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell")
-                                .font(.system(size: 20))
-                                .foregroundColor(DS.Colors.iconDefault)
-                            
-                            if unreadNotificationCount > 0 {
-                                Text("\(unreadNotificationCount)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(DS.Colors.textOnMint)
-                                    .padding(4)
-                                    .background(
-                                        Circle()
-                                            .fill(DS.Colors.primaryAccent)
-                                    )
-                                    .offset(x: 8, y: -8)
-                            }
-                        }
-                    }
+                    notificationButton
                 }
             }
             .sheet(isPresented: $showNotifications) {
@@ -193,27 +128,116 @@ struct FeedTabView: View {
             handleNavigationTarget(target)
         }
         .onAppear {
-            // Handle any pending navigation target when view appears
             if let target = tabCoordinator.navigationTarget {
                 handleNavigationTarget(target)
             }
         }
     }
     
+    // MARK: - Header Components
+    
+    private var feedHeader: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("Feed")
+                .font(DS.Typography.screenTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            Text("Sips from the community")
+                .font(DS.Typography.bodyText)
+                .foregroundColor(DS.Colors.textSecondary)
+            
+            HStack {
+                Spacer()
+                DSDesignSegmentedControl(
+                    options: FeedScope.allCases.map { $0.displayName },
+                    selectedIndex: Binding(
+                        get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
+                        set: { newIndex in
+                            let newScope = FeedScope.allCases[newIndex]
+                            if newScope != selectedScope {
+                                hapticsManager.selectionChanged()
+                            }
+                            selectedScope = newScope
+                        }
+                    )
+                )
+                Spacer()
+            }
+            .padding(.top, DS.Spacing.sm)
+        }
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.vertical, DS.Spacing.md)
+        .background(DS.Colors.appBarBackground)
+    }
+    
+    private var stickyHeader: some View {
+        HStack {
+            Text("Feed")
+                .font(DS.Typography.headline(.bold))
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            Spacer()
+            
+            DSDesignSegmentedControl(
+                options: FeedScope.allCases.map { $0.displayName },
+                selectedIndex: Binding(
+                    get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
+                    set: { newIndex in
+                        let newScope = FeedScope.allCases[newIndex]
+                        if newScope != selectedScope {
+                            hapticsManager.selectionChanged()
+                        }
+                        selectedScope = newScope
+                    }
+                )
+            )
+        }
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(.ultraThinMaterial)
+        .background(DS.Colors.appBarBackground.opacity(0.85))
+        .overlay(
+            Rectangle()
+                .fill(DS.Colors.dividerSubtle)
+                .frame(height: 0.5)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+        )
+    }
+    
+    private var notificationButton: some View {
+        Button(action: { showNotifications = true }) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell")
+                    .font(.system(size: 20))
+                    .foregroundColor(DS.Colors.iconDefault)
+                
+                if unreadNotificationCount > 0 {
+                    Text("\(unreadNotificationCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(DS.Colors.textOnMint)
+                        .padding(4)
+                        .background(
+                            Circle()
+                                .fill(DS.Colors.primaryAccent)
+                        )
+                        .offset(x: 8, y: -8)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Navigation
+    
     private func handleNavigationTarget(_ target: TabCoordinator.NavigationTarget?) {
         guard let target = target else { return }
         
         switch target {
         case .visitDetail(let visitId):
-            // Find the visit in the current feed
             if let visit = visits.first(where: { $0.id == visitId || $0.supabaseId == visitId }) {
                 selectedVisit = visit
             } else {
-                // Visit not in current feed, try to fetch it
                 Task {
-                    // Refresh feed to ensure we have the visit
                     await dataManager.refreshFeed(scope: selectedScope)
-                    // Try again after refresh
                     if let visit = dataManager.getVisit(id: visitId) {
                         await MainActor.run {
                             selectedVisit = visit
@@ -250,7 +274,7 @@ struct FeedTabView: View {
     }
 }
 
-// MARK: - Visit Card
+// MARK: - Redesigned Visit Card
 
 struct VisitCard: View {
     let visit: Visit
@@ -259,6 +283,8 @@ struct VisitCard: View {
     var onCafeTap: (() -> Void)? = nil
     var onAuthorTap: (() -> Void)? = nil
     
+    @StateObject private var hapticsManager = HapticsManager.shared
+    
     private var isLikedByCurrentUser: Bool {
         if let userId = dataManager.appData.currentUser?.id {
             return visit.isLikedBy(userId: userId)
@@ -266,8 +292,16 @@ struct VisitCard: View {
         return false
     }
     
+    private var cafe: Cafe? {
+        dataManager.getCafe(id: visit.cafeId)
+    }
+    
+    private var isBookmarked: Bool {
+        guard let cafe = cafe else { return false }
+        return cafe.wantToTry
+    }
+    
     private var canViewAuthorProfile: Bool {
-        // Can view profile if it's not the current user
         guard let currentUserId = dataManager.appData.supabaseUserId,
               let visitUserId = visit.supabaseUserId else {
             return false
@@ -306,109 +340,159 @@ struct VisitCard: View {
         return visit.authorInitials
     }
     
+    private var cafeName: String? {
+        dataManager.getCafe(id: visit.cafeId)?.name
+    }
+    
     var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    HStack(alignment: .center, spacing: DS.Spacing.sm) {
-                        Button(action: {
-                            onAuthorTap?()
-                        }) {
-                            HStack(alignment: .center, spacing: DS.Spacing.sm) {
-                                FeedAvatarView(
-                                    image: authorProfileImage,
-                                    remoteURL: authorRemoteAvatarURL,
-                                    initials: authorInitials,
-                                    size: 44
-                                )
-                                
-                                Text(authorName)
-                                    .font(DS.Typography.headline())
-                                    .foregroundColor(DS.Colors.textPrimary)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!canViewAuthorProfile)
-                        
-                        Spacer()
-                        
-                        DSScoreBadge(score: visit.overallScore)
-                    }
-                    
-                    if let cafeName = dataManager.getCafe(id: visit.cafeId)?.name, !cafeName.isEmpty {
-                        Button(action: {
-                            onCafeTap?()
-                        }) {
-                            Text(cafeName)
-                                    .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.primaryAccent)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    Text(timeAgoString(from: visit.createdAt))
-                        .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                }
-                .padding(.horizontal, DS.Spacing.pagePadding)
-                .padding(.top, DS.Spacing.md)
+        DSBaseCard(padding: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header: Avatar, Name, Time, Score
+                headerSection
                 
-                // Media carousel
+                // Cafe attribution pill
+                if let name = cafeName, !name.isEmpty {
+                    DSCafeAttributionPill(cafeName: name) {
+                        onCafeTap?()
+                    }
+                    .padding(.horizontal, DS.Spacing.cardPadding)
+                    .padding(.top, DS.Spacing.xs)
+                }
+                
+                // Caption (above image for context)
+                if !visit.caption.isEmpty {
+                    MentionText(text: visit.caption, mentions: visit.mentions)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .lineLimit(3)
+                        .padding(.horizontal, DS.Spacing.cardPadding)
+                        .padding(.top, DS.Spacing.md)
+                }
+                
+                // Photo carousel
                 if !visit.photos.isEmpty {
                     MugshotImageCarousel(
                         photoPaths: visit.photos,
                         remotePhotoURLs: visit.remotePhotoURLByKey,
-                        height: 280,
-                        cornerRadius: DS.Radius.lg
+                        height: 320,
+                        cornerRadius: 0,
+                        showIndicators: true
                     )
-                    .padding(.top, DS.Spacing.sm)
+                    .padding(.top, DS.Spacing.md)
                 }
                 
-                // Caption with mentions
-                if !visit.caption.isEmpty {
-                    MentionText(text: visit.caption, mentions: visit.mentions)
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        .padding(.top, DS.Spacing.sm)
-                }
-                
-                // Social row: likes, comments, share
-                    HStack(spacing: DS.Spacing.lg) {
-                    LikeButton(
-                        isLiked: isLikedByCurrentUser,
-                        likeCount: visit.likeCount,
-                        onToggle: {
-                        Task {
-                            await dataManager.toggleVisitLike(visit.id)
-                        }
-                        }
-                    )
-                    
-                    Button(action: {}) {
-                        HStack(spacing: DS.Spacing.xs) {
-                            Image(systemName: "bubble.left")
-                                .font(.system(size: 16))
-                                .foregroundColor(DS.Colors.iconDefault)
-                            Text("\(visit.comments.count)")
-                                .font(DS.Typography.caption1())
-                                .foregroundColor(DS.Colors.textSecondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {}) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16))
-                            .foregroundColor(DS.Colors.iconDefault)
-                    }
-                }
-                .padding(.top, DS.Spacing.md)
+                // Social actions bar
+                socialActionsBar
+                    .padding(.horizontal, DS.Spacing.cardPadding)
+                    .padding(.vertical, DS.Spacing.md)
             }
+        }
+    }
+    
+    // MARK: - Header Section
+    
+    private var headerSection: some View {
+        HStack(alignment: .center, spacing: DS.Spacing.sm) {
+            // Tappable author avatar + name + time
+            Button(action: { onAuthorTap?() }) {
+                HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                    // Avatar (48pt for better presence)
+                    FeedAvatarView(
+                        image: authorProfileImage,
+                        remoteURL: authorRemoteAvatarURL,
+                        initials: authorInitials,
+                        size: 48
+                    )
+                    
+                    // Name and timestamp on same row
+                    HStack(spacing: 0) {
+                        Text(authorName)
+                            .font(DS.Typography.headline())
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .lineLimit(1)
+                        
+                        Text(" · ")
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textTertiary)
+                        
+                        Text(timeAgoString(from: visit.createdAt))
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!canViewAuthorProfile)
+            
+            Spacer()
+            
+            // Score badge (slightly larger)
+            DSScoreBadge(score: visit.overallScore)
+        }
+        .padding(.horizontal, DS.Spacing.cardPadding)
+        .padding(.top, DS.Spacing.cardPadding)
+    }
+    
+    // MARK: - Social Actions Bar
+    
+    private var socialActionsBar: some View {
+        HStack(spacing: 0) {
+            // Like button
+            LikeButton(
+                isLiked: isLikedByCurrentUser,
+                likeCount: visit.likeCount,
+                onToggle: {
+                    Task {
+                        await dataManager.toggleVisitLike(visit.id)
+                    }
+                }
+            )
+            
+            // Comment button
+            Button(action: {}) {
+                HStack(spacing: 5) {
+                    Image(systemName: "bubble.left.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(DS.Colors.iconDefault)
+                    Text("\(visit.comments.count)")
+                        .font(DS.Typography.subheadline(.medium))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, DS.Spacing.md)
+            
+            Spacer()
+            
+            // Bookmark button
+            Button(action: {
+                hapticsManager.lightTap()
+                if let cafe = cafe {
+                    dataManager.toggleCafeWantToTry(cafe: cafe)
+                } else {
+                    // If cafe doesn't exist in local list, we need to get it from the visit
+                    // This shouldn't happen normally, but handle gracefully
+                    print("⚠️ [VisitCard] Cannot bookmark: cafe not found in local list")
+                }
+            }) {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 18))
+                    .foregroundColor(isBookmarked ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
+                    .scaleEffect(isBookmarked ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isBookmarked)
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, DS.Spacing.lg)
+            
+            // Share button
+            Button(action: {
+                hapticsManager.lightTap()
+            }) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18))
+                    .foregroundColor(DS.Colors.iconDefault)
+            }
+            .buttonStyle(.plain)
         }
     }
     
@@ -418,6 +502,8 @@ struct VisitCard: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
+
+// MARK: - Feed Avatar View
 
 private struct FeedAvatarView: View {
     let image: UIImage?
@@ -457,10 +543,10 @@ private struct FeedAvatarView: View {
             Circle()
                 .stroke(DS.Colors.cardBackground, lineWidth: 2)
         )
-        .shadow(color: DS.Shadow.cardSoft.color.opacity(0.5),
-                radius: DS.Shadow.cardSoft.radius / 2,
-                x: DS.Shadow.cardSoft.x,
-                y: DS.Shadow.cardSoft.y / 2)
+        .shadow(color: DS.Shadow.cardSoft.color.opacity(0.4),
+                radius: 4,
+                x: 0,
+                y: 2)
     }
     
     private var placeholder: some View {
@@ -468,7 +554,7 @@ private struct FeedAvatarView: View {
             .fill(DS.Colors.primaryAccent)
             .overlay(
                 Text(initials.prefix(2))
-                    .font(DS.Typography.buttonLabel)
+                    .font(.system(size: size * 0.4, weight: .semibold))
                     .foregroundColor(DS.Colors.textOnMint)
             )
     }

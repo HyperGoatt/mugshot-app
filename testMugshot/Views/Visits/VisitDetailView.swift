@@ -2,7 +2,8 @@
 //  VisitDetailView.swift
 //  testMugshot
 //
-//  Canonical single-source-of-truth screen for viewing a visit/post in detail.
+//  Modern, Instagram-inspired Visit detail view with content-first hierarchy.
+//  Redesigned with streamlined UX patterns and reduced visual fragmentation.
 //
 
 import SwiftUI
@@ -20,12 +21,15 @@ struct VisitDetailView: View {
     let showsDismissButton: Bool
     
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var hapticsManager = HapticsManager.shared
     
     init(dataManager: DataManager, visit: Visit, showsDismissButton: Bool = false) {
         self.dataManager = dataManager
         _visit = State(initialValue: visit)
         self.showsDismissButton = showsDismissButton
     }
+    
+    // MARK: - Computed Properties
     
     private var cafe: Cafe? {
         dataManager.getCafe(id: visit.cafeId)
@@ -68,63 +72,112 @@ struct VisitDetailView: View {
         return visit.authorAvatarURL
     }
     
-    private var drinkDescription: String {
-        if let custom = visit.customDrinkType, !custom.isEmpty {
-            return "\(visit.drinkType.rawValue) • \(custom)"
-        }
-        return visit.drinkType.rawValue
+    private var isCurrentUserAuthor: Bool {
+        dataManager.appData.currentUser?.id == visit.userId
     }
+    
+    private var isLikedByCurrentUser: Bool {
+        guard let userId = dataManager.appData.currentUser?.id else { return false }
+        return visit.isLikedBy(userId: userId)
+    }
+    
+    private var isBookmarked: Bool {
+        guard let cafe = cafe else { return false }
+        return cafe.wantToTry
+    }
+    
+    // MARK: - Body
     
     var body: some View {
         ScrollView {
-            VStack(spacing: DS.Spacing.sectionVerticalGap) {
-                VisitHeaderView(
+            VStack(alignment: .leading, spacing: 0) {
+                // 1. Streamlined Header
+                VisitDetailHeader(
                     displayName: authorDisplayName,
                     username: authorUsername,
-                    cafeName: cafe?.name,
                     timeAgo: timeAgoString(from: visit.createdAt),
                     avatarImage: authorProfileImage,
                     remoteAvatarURL: authorRemoteAvatarURL,
                     initials: authorInitials,
-                    score: visit.overallScore,
-                    onCafeTap: {
+                    isCurrentUserAuthor: isCurrentUserAuthor,
+                    onMenuTap: { showOwnerOptions = true }
+                )
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.top, DS.Spacing.md)
+                
+                // 2. Cafe Attribution Pill
+                if let cafeName = cafe?.name, !cafeName.isEmpty {
+                    DSCafeAttributionPill(cafeName: cafeName) {
                         if let cafe = cafe {
                             selectedCafe = cafe
                             showCafeDetail = true
                         }
                     }
-                )
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.top, DS.Spacing.md)
+                }
                 
-                MugshotImageCarousel(
+                // 3. Caption (no label, flows naturally)
+                if !visit.caption.isEmpty {
+                    MentionText(text: visit.caption, mentions: visit.mentions)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.md)
+                }
+                
+                // 4. Photo Carousel with Score Overlay
+                PhotoCarouselWithScore(
                     photoPaths: visit.photos,
                     remotePhotoURLs: visit.remotePhotoURLByKey,
-                    height: 320,
-                    cornerRadius: DS.Radius.card
+                    score: visit.overallScore,
+                    height: 360
                 )
-                .shadow(color: DS.Shadow.cardSoft.color.opacity(0.35),
-                        radius: DS.Shadow.cardSoft.radius,
-                        x: DS.Shadow.cardSoft.x,
-                        y: DS.Shadow.cardSoft.y)
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.top, DS.Spacing.lg)
                 
-                if !visit.caption.isEmpty {
-                    captionCard
+                // 5. Inline Social Actions (directly below image)
+                InlineSocialActions(
+                    isLiked: isLikedByCurrentUser,
+                    likeCount: visit.likeCount,
+                    commentCount: visit.comments.count,
+                    isBookmarked: isBookmarked,
+                    onLikeTap: toggleLike,
+                    onCommentTap: { /* Scroll to comments */ },
+                    onBookmarkTap: toggleBookmark,
+                    onShareTap: { /* Share action */ }
+                )
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                
+                // 6. Review Summary (Drink + Ratings)
+                if !visit.ratings.isEmpty || visit.drinkType != .other {
+                    ReviewSummaryCard(
+                        drinkType: visit.drinkType,
+                        customDrinkType: visit.customDrinkType,
+                        ratings: visit.ratings
+                    )
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.top, DS.Spacing.lg)
                 }
                 
-                visitInfoCard
-                
-                if !visit.ratings.isEmpty {
-                    ratingBreakdownCard
+                // 7. Private Notes (collapsible, only for author)
+                if isCurrentUserAuthor, let notes = visit.notes, !notes.isEmpty {
+                    CollapsiblePrivateNotes(notes: notes)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.md)
                 }
                 
-                if let notes = visit.notes, !notes.isEmpty {
-                    notesCard(notes)
-                }
-                
-                socialActionsCard
-                commentsSection
+                // 8. Comments Section
+                InlineCommentsSection(
+                    comments: visit.comments,
+                    commentText: $commentText,
+                    dataManager: dataManager,
+                    onPostComment: addComment
+                )
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                .padding(.top, DS.Spacing.lg)
+                .padding(.bottom, DS.Spacing.xxl * 2)
             }
-            .padding(.horizontal, DS.Spacing.pagePadding)
-            .padding(.vertical, DS.Spacing.sectionVerticalGap)
         }
         .background(DS.Colors.screenBackground.ignoresSafeArea())
         .navigationTitle("Visit")
@@ -136,18 +189,6 @@ struct VisitDetailView: View {
                         dismiss()
                     }
                     .foregroundColor(DS.Colors.primaryAccent)
-                }
-            }
-            
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if isCurrentUserAuthor {
-                    Button {
-                        showOwnerOptions = true
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
-                            .foregroundColor(DS.Colors.textPrimary)
-                    }
                 }
             }
         }
@@ -185,127 +226,18 @@ struct VisitDetailView: View {
         }
     }
     
-    private var captionCard: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                Text("Caption")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                MentionText(text: visit.caption, mentions: visit.mentions)
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textPrimary)
-            }
-        }
-    }
-    
-    private var visitInfoCard: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                VisitMetaRow(label: "Drink", value: drinkDescription)
-                VisitMetaRow(label: "Visibility", value: visit.visibility.rawValue)
-                VisitMetaRow(label: "Logged", value: visit.createdAt.formatted(date: .abbreviated, time: .shortened))
-            }
-        }
-    }
-    
-    private var ratingBreakdownCard: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Rating Breakdown")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                ForEach(visit.ratings.keys.sorted(), id: \.self) { key in
-                    RatingRow(title: key, value: visit.ratings[key] ?? 0)
-                }
-            }
-        }
-    }
-    
-    private func notesCard(_ notes: String) -> some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                Text("Private Notes")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textSecondary)
-                Text(notes)
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-        }
-    }
-    
-    private var socialActionsCard: some View {
-        DSBaseCard {
-            HStack(spacing: DS.Spacing.lg) {
-                LikeButton(
-                    isLiked: isLikedByCurrentUser,
-                    likeCount: visit.likeCount,
-                    onToggle: toggleLike
-                )
-                
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 16))
-                        .foregroundColor(DS.Colors.iconDefault)
-                    Text("\(visit.comments.count)")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                
-                Spacer()
-                
-                Button(action: {}) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16))
-                        .foregroundColor(DS.Colors.iconDefault)
-                }
-            }
-        }
-    }
-    
-    private var commentsSection: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Comments")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                if visit.comments.isEmpty {
-                    Text("No comments yet")
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                } else {
-                    VStack(spacing: DS.Spacing.sm) {
-                        ForEach(visit.comments) { comment in
-                            CommentRow(comment: comment, dataManager: dataManager)
-                        }
-                    }
-                }
-                
-                HStack(spacing: DS.Spacing.sm) {
-                    TextField("Add a comment…", text: $commentText)
-                        .textFieldStyle(.roundedBorder)
-                    
-                    Button("Post") {
-                        addComment()
-                    }
-                    .buttonStyle(DSPrimaryButtonStyle())
-                    .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-    }
-    
-    private var isLikedByCurrentUser: Bool {
-        guard let userId = dataManager.appData.currentUser?.id else { return false }
-        return visit.isLikedBy(userId: userId)
-    }
+    // MARK: - Actions
     
     private func toggleLike() {
         Task {
             await dataManager.toggleVisitLike(visit.id)
             refreshVisit()
+        }
+    }
+    
+    private func toggleBookmark() {
+        if let cafe = cafe {
+            dataManager.toggleCafeWantToTry(cafe: cafe)
         }
     }
     
@@ -327,12 +259,8 @@ struct VisitDetailView: View {
     
     private func timeAgoString(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
+        formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
-    }
-    
-    private var isCurrentUserAuthor: Bool {
-        dataManager.appData.currentUser?.id == visit.userId
     }
     
     private func deleteVisit() {
@@ -341,223 +269,28 @@ struct VisitDetailView: View {
     }
 }
 
-// MARK: - Shared Components
+// MARK: - Preview
 
-private struct VisitHeaderView: View {
-    let displayName: String
-    let username: String
-    let cafeName: String?
-    let timeAgo: String
-    let avatarImage: UIImage?
-    let remoteAvatarURL: String?
-    let initials: String
-    let score: Double
-    var onCafeTap: (() -> Void)?
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: DS.Spacing.md) {
-            VisitAuthorAvatar(image: avatarImage, remoteURL: remoteAvatarURL, initials: initials, size: 56)
-            
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text(displayName)
-                    .font(DS.Typography.headline())
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                HStack(spacing: DS.Spacing.xs) {
-                    if let cafeName = cafeName {
-                        Button(action: { onCafeTap?() }) {
-                            Text(cafeName)
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.primaryAccent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    if cafeName != nil {
-                        Text("•")
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    Text(timeAgo)
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                
-                Text(username)
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            
-            Spacer()
-            
-            DSScoreBadge(score: score)
-        }
-    }
-}
-
-private struct VisitMetaRow: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textSecondary)
-            Spacer()
-            Text(value)
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textPrimary)
-        }
-    }
-}
-
-struct CommentRow: View {
-    let comment: Comment
-    @ObservedObject var dataManager: DataManager
-    
-    private var commenterInitials: String {
-        if let user = dataManager.appData.currentUser, user.id == comment.userId {
-            return String(user.displayNameOrUsername.prefix(1)).uppercased()
-        }
-        return "U"
-    }
-    
-    private var commenterUsername: String {
-        if let user = dataManager.appData.currentUser, user.id == comment.userId {
-            return "@\(user.username)"
-        }
-        return "@friend"
-    }
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: DS.Spacing.md) {
-            Circle()
-                .fill(DS.Colors.primaryAccent)
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Text(commenterInitials)
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textOnMint)
-                )
-            
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                HStack {
-                    Text(commenterUsername)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                    Text(timeAgoString(from: comment.createdAt))
-                        .font(DS.Typography.caption2())
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                
-                MentionText(text: comment.text, mentions: comment.mentions)
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textPrimary)
-            }
-            Spacer()
-        }
-        .padding(DS.Spacing.cardPadding)
-        .background(DS.Colors.cardBackgroundAlt)
-        .cornerRadius(DS.Radius.md)
-    }
-    
-    private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-}
-
-private struct VisitAuthorAvatar: View {
-    let image: UIImage?
-    let remoteURL: String?
-    let initials: String
-    let size: CGFloat
-    
-    var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if let remoteURL,
-                      let url = URL(string: remoteURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let asyncImage):
-                        asyncImage
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .empty:
-                        placeholder
-                    case .failure:
-                        placeholder
-                    @unknown default:
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(
-            Circle()
-                .stroke(DS.Colors.cardBackground, lineWidth: 3)
-        )
-        .shadow(color: DS.Shadow.cardSoft.color.opacity(0.5),
-                radius: DS.Shadow.cardSoft.radius / 2,
-                x: DS.Shadow.cardSoft.x,
-                y: DS.Shadow.cardSoft.y / 2)
-    }
-    
-    private var placeholder: some View {
-        Circle()
-            .fill(DS.Colors.primaryAccent)
-            .overlay(
-                Text(initials)
-                    .font(DS.Typography.title2(.bold))
-                    .foregroundColor(DS.Colors.textOnMint)
+#Preview {
+    NavigationStack {
+        VisitDetailView(
+            dataManager: DataManager.shared,
+            visit: Visit(
+                cafeId: UUID(),
+                userId: UUID(),
+                drinkType: .coffee,
+                caption: "Coffee and records! Heck yeah 🎵",
+                photos: [],
+                ratings: [
+                    "Ambiance": 3.0,
+                    "Presentation": 4.0,
+                    "Taste": 3.5,
+                    "Value": 4.0
+                ],
+                overallScore: 3.5,
+                likeCount: 12,
+                comments: []
             )
+        )
     }
 }
-
-private struct RatingRow: View {
-    let title: String
-    let value: Double
-    
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textPrimary)
-            Spacer()
-            HStack(spacing: 2) {
-                ForEach(1...5, id: \.self) { star in
-                    Image(systemName: starIcon(for: star))
-                        .font(.system(size: 14))
-                        .foregroundColor(starColor(for: star))
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: value)
-    }
-    
-    private func starIcon(for index: Int) -> String {
-        if Double(index) <= floor(value) {
-            return "star.fill"
-        } else if Double(index) - value <= 0.5 && Double(index) - value > 0 {
-            return "star.leadinghalf.filled"
-        } else {
-            return "star"
-        }
-    }
-    
-    private func starColor(for index: Int) -> Color {
-        Double(index) <= value ? DS.Colors.primaryAccent : DS.Colors.iconSubtle
-    }
-}
-

@@ -86,7 +86,7 @@ final class SupabaseVisitService {
         
         guard (200..<300).contains(response.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("❌ [VisitService] Supabase visit insert failed:")
+            print("❌ [VisitService] ===== VISIT INSERT FAILED =====")
             print("❌ [VisitService] Status: \(response.statusCode)")
             print("❌ [VisitService] Error message: \(errorMessage)")
             
@@ -102,6 +102,14 @@ final class SupabaseVisitService {
                 if let details = errorJSON["details"] as? String {
                     print("❌ [VisitService] Details: \(details)")
                 }
+                if let code = errorJSON["code"] as? String {
+                    print("❌ [VisitService] Error code: \(code)")
+                }
+            }
+            
+            // Log the request payload for debugging
+            if let bodyString = String(data: body, encoding: .utf8) {
+                print("❌ [VisitService] Request payload that failed: \(bodyString)")
             }
             
             throw SupabaseError.server(status: response.statusCode, message: errorMessage)

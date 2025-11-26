@@ -887,8 +887,32 @@ class DataManager: ObservableObject {
     
     func toggleCafeWantToTry(_ cafeId: UUID) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
+            // Cafe exists, just toggle
             appData.cafes[index].wantToTry.toggle()
             save()
+        } else {
+            // Cafe doesn't exist in user's list yet - need to get it from visit or create it
+            // This can happen when user bookmarks a cafe from a feed post
+            // For now, we'll need the cafe object to add it
+            print("⚠️ [DataManager] toggleCafeWantToTry: Cafe \(cafeId) not found in user's cafe list")
+        }
+    }
+    
+    /// Toggle wantToTry for a cafe, adding it to the list if it doesn't exist
+    func toggleCafeWantToTry(cafe: Cafe) {
+        if let index = appData.cafes.firstIndex(where: { $0.id == cafe.id }) {
+            // Cafe exists, just toggle
+            let wasWantToTry = appData.cafes[index].wantToTry
+            appData.cafes[index].wantToTry.toggle()
+            save()
+            print("✅ [DataManager] toggleCafeWantToTry: Cafe '\(cafe.name)' wantToTry changed from \(wasWantToTry) to \(appData.cafes[index].wantToTry)")
+        } else {
+            // Cafe doesn't exist, add it with wantToTry = true (user is bookmarking it)
+            var newCafe = cafe
+            newCafe.wantToTry = true
+            appData.cafes.append(newCafe)
+            save()
+            print("✅ [DataManager] toggleCafeWantToTry: Added new cafe '\(cafe.name)' to wantToTry list")
         }
     }
     
@@ -1061,16 +1085,60 @@ class DataManager: ObservableObject {
             throw SupabaseError.invalidSession
         }
         
+        // Validate overallScore is not NaN or infinite
+        let validOverallScore: Double
+        if overallScore.isNaN || overallScore.isInfinite {
+            print("⚠️ [CreateVisit] overallScore is invalid (\(overallScore)), defaulting to 0.0")
+            validOverallScore = 0.0
+        } else {
+            validOverallScore = overallScore
+        }
+        
+        // Validate and clean ratings - remove any NaN or infinite values
+        var validRatings: [String: Double] = [:]
+        for (key, value) in ratings {
+            if !value.isNaN && !value.isInfinite && value >= 0 && value <= 5 {
+                validRatings[key] = value
+            } else {
+                print("⚠️ [CreateVisit] Invalid rating for '\(key)': \(value), skipping")
+            }
+        }
+        
+        // Ensure caption is not empty (should already be validated, but double-check)
+        let trimmedCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCaption.isEmpty else {
+            print("❌ [CreateVisit] Caption is empty after trimming")
+            throw SupabaseError.server(status: 400, message: "Caption cannot be empty")
+        }
+        
+        // Validate drinkType - if other, customDrinkType must be provided
+        let finalDrinkType: String?
+        let finalDrinkTypeCustom: String?
+        if drinkType == .other {
+            if let custom = customDrinkType?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+                finalDrinkType = nil
+                finalDrinkTypeCustom = custom
+            } else {
+                print("❌ [CreateVisit] Drink type is 'other' but customDrinkType is empty")
+                throw SupabaseError.server(status: 400, message: "Custom drink type is required when 'Other' is selected")
+            }
+        } else {
+            finalDrinkType = drinkType.rawValue
+            finalDrinkTypeCustom = nil
+        }
+        
+        print("📝 [CreateVisit] Final drinkType: \(finalDrinkType ?? "nil"), custom: \(finalDrinkTypeCustom ?? "nil")")
+        
         let payload = VisitInsertPayload(
             userId: supabaseUserId,
             cafeId: remoteCafe.id,
-            drinkType: drinkType.rawValue,
-            drinkTypeCustom: customDrinkType,
-            caption: caption,
-            notes: notes,
+            drinkType: finalDrinkType,
+            drinkTypeCustom: finalDrinkTypeCustom,
+            caption: trimmedCaption,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),
             visibility: visibility.supabaseValue,
-            ratings: ratings,
-            overallScore: overallScore,
+            ratings: validRatings,
+            overallScore: validOverallScore,
             posterPhotoURL: posterURL
         )
         
@@ -1085,7 +1153,7 @@ class DataManager: ObservableObject {
             print("[Visit] notes = \(payload.notes ?? "nil")")
             print("[Visit] visibility = \(payload.visibility)")
             print("[Visit] ratings = \(payload.ratings)")
-            print("[Visit] overallScore = \(payload.overallScore)")
+            print("[Visit] overallScore = \(payload.overallScore) (valid: \(!payload.overallScore.isNaN && !payload.overallScore.isInfinite))")
             print("[Visit] posterPhotoURL = \(payload.posterPhotoURL ?? "nil")")
             print("[Visit] photoCount = \(uploads.count)")
             
