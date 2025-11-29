@@ -17,6 +17,8 @@ struct FeedTabView: View {
     @State private var selectedUserId: String?
     @State private var showCafeDetail = false
     @State private var showNotifications = false
+    @State private var isRefreshing = false
+    @State private var refreshRotation: Double = 0
     @State private var scrollOffset: CGFloat = 0
     @State private var headerHeight: CGFloat = 0
     
@@ -25,16 +27,20 @@ struct FeedTabView: View {
     }
     
     private var showStickyHeader: Bool {
-        scrollOffset < -headerHeight + 20
+        scrollOffset < -50 // Show sticky header when scrolled down
     }
     
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                // Main scrollable content
+                // Mint background extends to top of screen
+                DS.Colors.appBarBackground
+                    .ignoresSafeArea()
+                
+                // Main scrollable content with pull-to-refresh
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Header section
+                        // Header section (scrolls with content)
                         feedHeader
                             .background(
                                 GeometryReader { geometry in
@@ -46,7 +52,22 @@ struct FeedTabView: View {
                                 }
                             )
                         
-                        // Feed content
+                        // Refresh indicator
+                        if isRefreshing {
+                            HStack(spacing: DS.Spacing.sm) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(DS.Colors.primaryAccent)
+                                    .rotationEffect(.degrees(refreshRotation))
+                                Text("Refreshing...")
+                                    .font(DS.Typography.caption1())
+                                    .foregroundColor(DS.Colors.textSecondary)
+                            }
+                            .padding(.vertical, DS.Spacing.sm)
+                            .transition(.opacity.combined(with: .scale))
+                        }
+                        
+                        // Feed content with white background
                         LazyVStack(spacing: DS.Spacing.lg) {
                             ForEach(visits) { visit in
                                 VisitCard(
@@ -64,6 +85,11 @@ struct FeedTabView: View {
                                            supabaseUserId != dataManager.appData.supabaseUserId {
                                             selectedUserId = supabaseUserId
                                         }
+                                    },
+                                    onCommentTap: {
+                                        // Open the visit detail view and let the user comment there
+                                        hapticsManager.lightTap()
+                                        selectedVisit = visit
                                     }
                                 )
                                 .onTapGesture {
@@ -77,20 +103,22 @@ struct FeedTabView: View {
                         .padding(.bottom, DS.Spacing.xxl * 2)
                         .background(DS.Colors.screenBackground)
                     }
-                    .background(DS.Colors.screenBackground)
                 }
                 .coordinateSpace(name: "scroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                     scrollOffset = value
                 }
+                .refreshable {
+                    await performRefresh()
+                }
                 
-                // Sticky header with blur
+                // Sticky header (appears when scrolled down)
                 if showStickyHeader {
                     stickyHeader
                         .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.easeInOut(duration: 0.2), value: showStickyHeader)
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: showStickyHeader)
             .navigationDestination(item: $selectedVisit) { visit in
                 VisitDetailView(dataManager: dataManager, visit: visit)
             }
@@ -134,10 +162,35 @@ struct FeedTabView: View {
         }
     }
     
+    // MARK: - Refresh
+    
+    private func performRefresh() async {
+        print("[Feed] Refresh triggered via pull-to-refresh")
+        
+        // Start animation
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isRefreshing = true
+        }
+        
+        // Animate the refresh icon rotation
+        withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+            refreshRotation = 360
+        }
+        
+        // Perform the actual refresh
+        await dataManager.refreshFeed(scope: selectedScope)
+        
+        // Stop animation
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isRefreshing = false
+            refreshRotation = 0
+        }
+    }
+    
     // MARK: - Header Components
     
     private var feedHeader: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text("Feed")
                 .font(DS.Typography.screenTitle)
                 .foregroundColor(DS.Colors.textPrimary)
@@ -165,33 +218,23 @@ struct FeedTabView: View {
             }
             .padding(.top, DS.Spacing.sm)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.vertical, DS.Spacing.md)
-        .background(DS.Colors.appBarBackground)
+        .padding(.top, DS.Spacing.md)
+        .padding(.bottom, DS.Spacing.sm)
     }
     
     private var stickyHeader: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 2) {
             Text("Feed")
                 .font(DS.Typography.headline(.bold))
                 .foregroundColor(DS.Colors.textPrimary)
             
-            Spacer()
-            
-            DSDesignSegmentedControl(
-                options: FeedScope.allCases.map { $0.displayName },
-                selectedIndex: Binding(
-                    get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
-                    set: { newIndex in
-                        let newScope = FeedScope.allCases[newIndex]
-                        if newScope != selectedScope {
-                            hapticsManager.selectionChanged()
-                        }
-                        selectedScope = newScope
-                    }
-                )
-            )
+            Text("Sips from the community")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DS.Spacing.pagePadding)
         .padding(.vertical, DS.Spacing.sm)
         .background(.ultraThinMaterial)
@@ -263,6 +306,11 @@ struct FeedTabView: View {
         case .notifications:
             showNotifications = true
             tabCoordinator.clearNavigationTarget()
+            
+        case .friendRequests:
+            // Friend requests are handled by ProfileTabView, not FeedTabView
+            // Just clear the target to avoid infinite loops
+            tabCoordinator.clearNavigationTarget()
         }
     }
     
@@ -282,6 +330,7 @@ struct VisitCard: View {
     let selectedScope: FeedScope
     var onCafeTap: (() -> Void)? = nil
     var onAuthorTap: (() -> Void)? = nil
+    var onCommentTap: (() -> Void)? = nil
     
     @StateObject private var hapticsManager = HapticsManager.shared
     
@@ -449,7 +498,10 @@ struct VisitCard: View {
             )
             
             // Comment button
-            Button(action: {}) {
+            Button(action: {
+                hapticsManager.lightTap()
+                onCommentTap?()
+            }) {
                 HStack(spacing: 5) {
                     Image(systemName: "bubble.left.fill")
                         .font(.system(size: 18))
@@ -500,6 +552,15 @@ struct VisitCard: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Scroll Offset Preference Key
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -560,11 +621,3 @@ private struct FeedAvatarView: View {
     }
 }
 
-// MARK: - Scroll Offset Preference Key
-
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}

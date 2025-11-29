@@ -14,20 +14,22 @@ struct DSScoreBadge: View {
     }
     
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             if let systemIcon = systemIcon {
                 Image(systemName: systemIcon)
                     .font(.system(size: 12))
                     .foregroundColor(DS.Colors.secondaryAccent)
             }
             Text(scoreText)
-                .font(DS.Typography.caption1())
+                .font(DS.Typography.caption1(.medium))
                 .foregroundColor(DS.Colors.secondaryAccent)
+                .lineLimit(1)
         }
-        .padding(.horizontal, DS.Spacing.listItemGap)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, 4)
         .background(DS.Colors.blueSoftFill)
         .cornerRadius(DS.Radius.chip)
+        .fixedSize()
     }
 }
 

@@ -2,7 +2,7 @@
 //  SignUpView.swift
 //  testMugshot
 //
-//  Sign up form view
+//  Sign up form view with hero section and value proposition
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 struct SignUpView: View {
     let onSignUpSuccess: (String) -> Void
     let onBack: () -> Void
+    let onSignIn: () -> Void
     
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var hapticsManager: HapticsManager
@@ -28,40 +29,52 @@ struct SignUpView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Navigation bar
+                // Navigation bar - back chevron only
                 HStack {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(DS.Colors.textPrimary)
+                            .frame(width: 44, height: 44)
                     }
-                    .padding(.leading, DS.Spacing.pagePadding)
+                    .padding(.leading, DS.Spacing.sm)
                     
                     Spacer()
-                    
-                    Text("Create account")
-                        .font(DS.Typography.sectionTitle)
-                        .foregroundStyle(DS.Colors.textPrimary)
-                    
-                    Spacer()
-                    
-                    // Balance for centering
-                    Color.clear
-                        .frame(width: 44)
-                        .padding(.trailing, DS.Spacing.pagePadding)
                 }
-                .padding(.vertical, DS.Spacing.md)
+                .padding(.top, 36)
+                .padding(.bottom, DS.Spacing.xs)
                 .background(DS.Colors.mintSoftFill)
                 
                 ScrollView {
                     VStack(spacing: DS.Spacing.lg) {
-                        // Title
-                        Text("Create your account")
-                            .font(DS.Typography.screenTitle)
-                            .foregroundStyle(DS.Colors.textPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.top, DS.Spacing.xl)
+                        // Hero Section
+                        VStack(spacing: DS.Spacing.md) {
+                            // Small app icon
+                            ZStack {
+                                Circle()
+                                    .fill(DS.Colors.primaryAccent)
+                                    .frame(width: 80, height: 80)
+                                
+                                Image(systemName: "cup.and.saucer.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(DS.Colors.textOnMint)
+                            }
+                            .padding(.top, DS.Spacing.lg)
+                            
+                            // Title - now contextually correct
+                            Text("Set up your\nMugshot account")
+                                .font(DS.Typography.title2())
+                                .foregroundStyle(DS.Colors.textPrimary)
+                                .multilineTextAlignment(.center)
+                            
+                            // Value proposition
+                            Text("Create an account to save visits, sync your profile, and keep your coffee journey in one place.")
+                                .font(DS.Typography.subheadline())
+                                .foregroundStyle(DS.Colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, DS.Spacing.lg)
+                        }
+                        .padding(.bottom, DS.Spacing.md)
                         
                         // Form fields
                         VStack(spacing: DS.Spacing.md) {
@@ -162,7 +175,6 @@ struct SignUpView: View {
                             }
                         }
                         .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.top, DS.Spacing.lg)
                         
                         // Validation errors
                         if !validationErrors.isEmpty || authError != nil {
@@ -179,6 +191,7 @@ struct SignUpView: View {
                                         .foregroundStyle(DS.Colors.negativeChange)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, DS.Spacing.pagePadding)
                         }
                         
@@ -188,7 +201,7 @@ struct SignUpView: View {
                                 .font(DS.Typography.buttonLabel)
                                 .foregroundStyle(DS.Colors.textOnMint)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, DS.Spacing.md)
+                                .padding(.vertical, DS.Spacing.md + 2)
                                 .background(
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
                                         .fill(isSubmitting ? DS.Colors.primaryAccent.opacity(0.5) : DS.Colors.primaryAccent)
@@ -196,9 +209,22 @@ struct SignUpView: View {
                         }
                         .disabled(isSubmitting)
                         .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.top, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.sm)
                         
-                        Spacer(minLength: DS.Spacing.xxl)
+                        // Cross-navigation footer
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("Already have an account?")
+                                .font(DS.Typography.subheadline())
+                                .foregroundStyle(DS.Colors.textSecondary)
+                            
+                            Button(action: onSignIn) {
+                                Text("Sign in")
+                                    .font(DS.Typography.subheadline(.semibold))
+                                    .foregroundStyle(DS.Colors.primaryAccentHover)
+                            }
+                        }
+                        .padding(.top, DS.Spacing.md)
+                        .padding(.bottom, DS.Spacing.xxl)
                     }
                 }
             }
@@ -300,4 +326,3 @@ struct SignUpView: View {
         return "Something went wrong — please try again."
     }
 }
-

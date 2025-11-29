@@ -17,7 +17,13 @@ struct VisitDetailView: View {
     @State private var selectedCafe: Cafe?
     @State private var showOwnerOptions = false
     @State private var showDeleteConfirmation = false
-    @State private var showEditPlaceholder = false
+    @State private var showEditVisit = false
+    @State private var editingComment: Comment?
+    @State private var editedCommentText: String = ""
+    @State private var newlyAddedCommentIds: Set<UUID> = []
+    @State private var lastOptimisticCommentTime: Date?
+    @State private var showPostcardPreview = false
+    @FocusState private var isCommentFieldFocused: Bool
     let showsDismissButton: Bool
     
     @Environment(\.dismiss) private var dismiss
@@ -143,9 +149,17 @@ struct VisitDetailView: View {
                     commentCount: visit.comments.count,
                     isBookmarked: isBookmarked,
                     onLikeTap: toggleLike,
-                    onCommentTap: { /* Scroll to comments */ },
+                    onCommentTap: {
+                        isCommentFieldFocused = true
+                    },
                     onBookmarkTap: toggleBookmark,
-                    onShareTap: { /* Share action */ }
+                    onShareTap: {
+                        // Only allow postcard generation for own visits
+                        if isCurrentUserAuthor {
+                            hapticsManager.lightTap()
+                            showPostcardPreview = true
+                        }
+                    }
                 )
                 .padding(.horizontal, DS.Spacing.pagePadding)
                 
@@ -172,7 +186,19 @@ struct VisitDetailView: View {
                     comments: visit.comments,
                     commentText: $commentText,
                     dataManager: dataManager,
-                    onPostComment: addComment
+                    newlyAddedCommentIds: newlyAddedCommentIds,
+                    onPostComment: addComment,
+                    onEditComment: { comment in
+                        editingComment = comment
+                        editedCommentText = comment.text
+                    },
+                    onDeleteComment: { comment in
+                        Task {
+                            await dataManager.deleteComment(comment, from: visit.id)
+                            refreshVisit()
+                        }
+                    },
+                    isCommentFieldFocused: $isCommentFieldFocused
                 )
                 .padding(.horizontal, DS.Spacing.pagePadding)
                 .padding(.top, DS.Spacing.lg)
@@ -194,7 +220,8 @@ struct VisitDetailView: View {
         }
         .confirmationDialog("Manage Post", isPresented: $showOwnerOptions, titleVisibility: .visible) {
             Button("Edit Post") {
-                showEditPlaceholder = true
+                print("[VisitEdit] Starting edit for visit id=\(visit.id)")
+                showEditVisit = true
             }
             Button("Delete Post", role: .destructive) {
                 showDeleteConfirmation = true
@@ -209,10 +236,8 @@ struct VisitDetailView: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        .alert("Edit coming soon", isPresented: $showEditPlaceholder) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Editing posts will be available in a future update.")
+        .sheet(isPresented: $showEditVisit) {
+            EditVisitView(dataManager: dataManager, visit: $visit)
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
@@ -221,8 +246,64 @@ struct VisitDetailView: View {
                 }
             }
         }
+        // Postcard preview sheet
+        .sheet(isPresented: $showPostcardPreview) {
+            PostcardPreviewSheet(
+                visit: visit,
+                cafe: cafe,
+                authorImage: authorProfileImage,
+                authorAvatarURL: authorRemoteAvatarURL
+            )
+        }
+        // Edit comment sheet
+        .sheet(item: $editingComment) { comment in
+            NavigationStack {
+                VStack(spacing: DS.Spacing.lg) {
+                    Text("Edit Comment")
+                        .font(DS.Typography.sectionTitle)
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    TextEditor(text: $editedCommentText)
+                        .font(DS.Typography.bodyText)
+                        .padding(DS.Spacing.sm)
+                        .background(DS.Colors.cardBackgroundAlt)
+                        .cornerRadius(DS.Radius.md)
+                        .frame(minHeight: 120)
+                    
+                    Spacer()
+                    
+                    Button("Save") {
+                        let trimmed = editedCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        Task {
+                            await dataManager.editComment(comment, in: visit.id, newText: trimmed)
+                            refreshVisit()
+                        }
+                        editingComment = nil
+                    }
+                    .buttonStyle(DSPrimaryButtonStyle())
+                    
+                    Button("Cancel") {
+                        editingComment = nil
+                    }
+                    .foregroundColor(DS.Colors.textSecondary)
+                }
+                .padding(DS.Spacing.pagePadding)
+                .background(DS.Colors.screenBackground.ignoresSafeArea())
+            }
+        }
         .onAppear {
             refreshVisit()
+        }
+        .onChange(of: dataManager.appData.visits) { _, newVisits in
+            // Simple reactive sync – always refresh from canonical DataManager copy
+            if let updated = newVisits.first(where: { $0.id == visit.id }) {
+                #if DEBUG
+                print("📝 [Comment] onChange: syncing visit from DataManager – comments: \(updated.comments.count)")
+                #endif
+                visit = updated
+            }
         }
     }
     
@@ -243,11 +324,83 @@ struct VisitDetailView: View {
     
     private func addComment() {
         let trimmed = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        
+        #if DEBUG
+        print("📝 [Comment] addComment called - text: '\(trimmed)'")
+        print("📝 [Comment] currentUser: \(dataManager.appData.currentUser != nil ? "✅" : "❌")")
+        print("📝 [Comment] supabaseUserId: \(dataManager.appData.supabaseUserId != nil ? "✅" : "❌")")
+        #endif
+        
+        guard !trimmed.isEmpty else {
+            #if DEBUG
+            print("📝 [Comment] ❌ Empty text, returning")
+            #endif
+            return
+        }
+        
+        guard let currentUser = dataManager.appData.currentUser else {
+            #if DEBUG
+            print("📝 [Comment] ❌ currentUser is nil, returning")
+            #endif
+            // TODO: Show user-friendly error alert
+            return
+        }
+        
+        guard let supabaseUserId = dataManager.appData.supabaseUserId else {
+            #if DEBUG
+            print("📝 [Comment] ❌ supabaseUserId is nil, returning")
+            #endif
+            // TODO: Show user-friendly error alert
+            return
+        }
+        
+        #if DEBUG
+        print("📝 [Comment] ✅ Creating optimistic comment")
+        #endif
+        
+        // Create optimistic comment immediately
+        let optimisticComment = Comment(
+            id: UUID(), // Temporary ID
+            visitId: visit.id,
+            userId: currentUser.id,
+            supabaseUserId: supabaseUserId,
+            text: trimmed,
+            createdAt: Date(),
+            mentions: MentionParser.parseMentions(from: trimmed)
+        )
+        
+        // Clear text field immediately for better UX
         commentText = ""
+        
+        // Add to local state with animation - use full reassignment to trigger re-render
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            var updatedComments = visit.comments
+            updatedComments.append(optimisticComment)
+            visit.comments = updatedComments  // Full reassignment ensures SwiftUI detects change
+            newlyAddedCommentIds.insert(optimisticComment.id)
+            lastOptimisticCommentTime = Date()  // Track when we added optimistic comment
+        }
+        
+        #if DEBUG
+        print("📝 [Comment] ✅ Optimistic comment added - total comments: \(visit.comments.count)")
+        #endif
+        
+        // Update server in background, then refresh from canonical DataManager source
         Task {
             await dataManager.addComment(to: visit.id, text: trimmed)
-            refreshVisit()
+            
+            #if DEBUG
+            print("📝 [Comment] Server response received – refreshing visit from DataManager")
+            #endif
+            
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    refreshVisit()
+                    // Clear optimistic tracking once we've synced with server
+                    newlyAddedCommentIds.remove(optimisticComment.id)
+                    lastOptimisticCommentTime = nil
+                }
+            }
         }
     }
     

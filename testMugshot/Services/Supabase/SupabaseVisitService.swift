@@ -258,6 +258,110 @@ final class SupabaseVisitService {
         )
     }
     
+    /// Update the notes field of a visit. Used when the author edits their notes in the Journal.
+    func updateVisitNotes(visitId: UUID, notes: String?) async throws {
+        let payload: [String: Any?] = ["notes": notes]
+        let body = try JSONSerialization.data(withJSONObject: payload.compactMapValues { $0 }, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/visits",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(visitId.uuidString)")
+            ],
+            headers: ["Prefer": "return=minimal"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [VisitService] Failed to update visit notes: \(errorMessage)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        }
+        
+        print("✅ [VisitService] Visit notes updated successfully for visitId: \(visitId)")
+    }
+    
+    /// Update multiple fields of a visit. Used when the author edits their visit.
+    func updateVisit(
+        visitId: UUID,
+        drinkType: String,
+        customDrinkType: String?,
+        caption: String,
+        notes: String?,
+        visibility: String,
+        ratings: [String: Double],
+        overallScore: Double
+    ) async throws {
+        var payload: [String: Any] = [
+            "drink_type": drinkType,
+            "caption": caption,
+            "visibility": visibility,
+            "ratings": ratings,
+            "overall_score": overallScore
+        ]
+        
+        // Add optional fields
+        if let customDrinkType = customDrinkType {
+            payload["custom_drink_type"] = customDrinkType
+        } else {
+            payload["custom_drink_type"] = NSNull()
+        }
+        
+        if let notes = notes {
+            payload["notes"] = notes
+        } else {
+            payload["notes"] = NSNull()
+        }
+        
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/visits",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(visitId.uuidString)")
+            ],
+            headers: ["Prefer": "return=minimal"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [VisitService] Failed to update visit: \(errorMessage)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        }
+        
+        print("✅ [VisitService] Visit updated successfully for visitId: \(visitId)")
+    }
+    
+    /// Update the text of a comment. Used when the author edits their own comment.
+    func updateComment(commentId: UUID, newText: String) async throws -> RemoteComment {
+        let payload = ["text": newText]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/comments",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(commentId.uuidString)"),
+                URLQueryItem(name: "select", value: "*")
+            ],
+            headers: ["Prefer": "return=representation"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        
+        let comments = try decoder.decode([RemoteComment].self, from: data)
+        guard let updated = comments.first else {
+            throw SupabaseError.decoding("Comment update returned empty response.")
+        }
+        return updated
+    }
+    
     func fetchComments(visitId: UUID) async throws -> [RemoteComment] {
         let queryItems = [
             URLQueryItem(name: "visit_id", value: "eq.\(visitId.uuidString)"),

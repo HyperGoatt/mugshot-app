@@ -393,6 +393,9 @@ struct RemoteNotification: Codable {
     let commentId: UUID?
     let createdAt: Date?
     let readAt: Date?
+    let actorUsername: String?
+    let actorDisplayName: String?
+    let actorAvatarURL: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -403,6 +406,9 @@ struct RemoteNotification: Codable {
         case commentId = "comment_id"
         case createdAt = "created_at"
         case readAt = "read_at"
+        case actorUsername = "actor_username"
+        case actorDisplayName = "actor_display_name"
+        case actorAvatarURL = "actor_avatar_url"
     }
 }
 

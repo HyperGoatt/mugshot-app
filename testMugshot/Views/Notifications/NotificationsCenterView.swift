@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NotificationsCenterView: View {
     @ObservedObject var dataManager: DataManager
@@ -51,6 +52,31 @@ struct NotificationsCenterView: View {
             }
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    if !sortedNotifications.isEmpty {
+                        // Mark all as read
+                        Button {
+                            markAllAsRead()
+                        } label: {
+                            Image(systemName: "envelope.open")
+                                .foregroundColor(DS.Colors.iconDefault)
+                        }
+                        .accessibilityLabel("Mark all as read")
+                        
+                        // Clear all notifications
+                        Button {
+                            Task {
+                                await dataManager.clearAllNotifications()
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundColor(DS.Colors.iconDefault)
+                        }
+                        .accessibilityLabel("Clear all notifications")
+                    }
+                }
+            }
             .task {
                 await dataManager.refreshNotifications()
             }
@@ -206,8 +232,30 @@ struct NotificationRowView: View {
     
     private func loadActorImage() {
         guard let avatarKey = notification.actorAvatarKey else { return }
+        
+        // 1) Try local cache (memory/disk) first
         if let cachedImage = PhotoCache.shared.retrieve(forKey: avatarKey) {
             actorImage = cachedImage
+            return
+        }
+        
+        // 2) If the key looks like a URL, fetch and cache the avatar
+        guard let url = URL(string: avatarKey) else { return }
+        
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let image = UIImage(data: data) else { return }
+                
+                // Store in shared cache for future notifications from this actor
+                PhotoCache.shared.store(image, forKey: avatarKey)
+                
+                await MainActor.run {
+                    actorImage = image
+                }
+            } catch {
+                print("⚠️ [Notifications] Failed to load actor avatar: \(error.localizedDescription)")
+            }
         }
     }
 }

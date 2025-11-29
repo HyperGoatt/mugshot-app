@@ -2,7 +2,7 @@
 //  SignInView.swift
 //  testMugshot
 //
-//  Sign in form view
+//  Sign in form view - minimal, fast entry for returning users
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 struct SignInView: View {
     let onAuthSuccess: () -> Void
     let onBack: () -> Void
+    let onCreateAccount: () -> Void
     
     @EnvironmentObject var dataManager: DataManager
     @EnvironmentObject var hapticsManager: HapticsManager
@@ -26,40 +27,38 @@ struct SignInView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Navigation bar
+                // Navigation bar - back chevron only
                 HStack {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(DS.Colors.textPrimary)
+                            .frame(width: 44, height: 44)
                     }
-                    .padding(.leading, DS.Spacing.pagePadding)
+                    .padding(.leading, DS.Spacing.sm)
                     
                     Spacer()
-                    
-                    Text("Sign in")
-                        .font(DS.Typography.sectionTitle)
-                        .foregroundStyle(DS.Colors.textPrimary)
-                    
-                    Spacer()
-                    
-                    // Balance for centering
-                    Color.clear
-                        .frame(width: 44)
-                        .padding(.trailing, DS.Spacing.pagePadding)
                 }
-                .padding(.vertical, DS.Spacing.md)
+                .padding(.top, 36)
+                .padding(.bottom, DS.Spacing.xs)
                 .background(DS.Colors.mintSoftFill)
                 
                 ScrollView {
                     VStack(spacing: DS.Spacing.lg) {
-                        // Title
-                        Text("Welcome back")
-                            .font(DS.Typography.screenTitle)
-                            .foregroundStyle(DS.Colors.textPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.top, DS.Spacing.xl)
+                        // Title Section - no icon, clean and fast
+                        VStack(spacing: DS.Spacing.sm) {
+                            Text("Welcome back")
+                                .font(DS.Typography.screenTitle)
+                                .foregroundStyle(DS.Colors.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Text("Sign in to continue your coffee journey")
+                                .font(DS.Typography.subheadline())
+                                .foregroundStyle(DS.Colors.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.xxl)
                         
                         // Form fields
                         VStack(spacing: DS.Spacing.md) {
@@ -126,6 +125,7 @@ struct SignInView: View {
                                         .foregroundStyle(DS.Colors.negativeChange)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, DS.Spacing.pagePadding)
                         }
                         
@@ -135,7 +135,7 @@ struct SignInView: View {
                                 .font(DS.Typography.buttonLabel)
                                 .foregroundStyle(DS.Colors.textOnMint)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, DS.Spacing.md)
+                                .padding(.vertical, DS.Spacing.md + 2)
                                 .background(
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
                                         .fill(isSubmitting ? DS.Colors.primaryAccent.opacity(0.5) : DS.Colors.primaryAccent)
@@ -145,7 +145,31 @@ struct SignInView: View {
                         .padding(.horizontal, DS.Spacing.pagePadding)
                         .padding(.top, DS.Spacing.lg)
                         
-                        Spacer(minLength: DS.Spacing.xxl)
+                        // Forgot password link
+                        Button(action: {
+                            // TODO: Implement forgot password flow
+                        }) {
+                            Text("Forgot password?")
+                                .font(DS.Typography.subheadline())
+                                .foregroundStyle(DS.Colors.textSecondary)
+                        }
+                        .padding(.top, DS.Spacing.sm)
+                        
+                        Spacer(minLength: DS.Spacing.section)
+                        
+                        // Cross-navigation footer
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("Don't have an account?")
+                                .font(DS.Typography.subheadline())
+                                .foregroundStyle(DS.Colors.textSecondary)
+                            
+                            Button(action: onCreateAccount) {
+                                Text("Create one")
+                                    .font(DS.Typography.subheadline(.semibold))
+                                    .foregroundStyle(DS.Colors.primaryAccentHover)
+                            }
+                        }
+                        .padding(.bottom, DS.Spacing.xxl)
                     }
                 }
             }
@@ -224,4 +248,3 @@ struct SignInView: View {
         return "We couldn't sign you in. Please check your email and password and try again."
     }
 }
-

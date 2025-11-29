@@ -269,11 +269,16 @@ struct InlineSocialActions: View {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
                         .font(.system(size: 22, weight: .medium))
                         .foregroundColor(isLiked ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
+                        .contentTransition(.symbolEffect(.replace))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLiked)
                     
                     if likeCount > 0 {
                         Text("\(likeCount)")
                             .font(DS.Typography.subheadline(.medium))
                             .foregroundColor(DS.Colors.textSecondary)
+                            // Animate count change
+                            .contentTransition(.numericText(value: Double(likeCount)))
+                            .animation(.snappy, value: likeCount)
                     }
                 }
                 .frame(minWidth: 44, minHeight: 44)
@@ -508,8 +513,11 @@ struct InlineCommentsSection: View {
     let comments: [Comment]
     @Binding var commentText: String
     let dataManager: DataManager
+    let newlyAddedCommentIds: Set<UUID>
     var onPostComment: (() -> Void)? = nil
-    @FocusState private var isCommentFieldFocused: Bool
+    var onEditComment: ((Comment) -> Void)? = nil
+    var onDeleteComment: ((Comment) -> Void)? = nil
+    var isCommentFieldFocused: FocusState<Bool>.Binding
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -537,9 +545,28 @@ struct InlineCommentsSection: View {
             } else {
                 VStack(spacing: DS.Spacing.sm) {
                     ForEach(comments) { comment in
-                        InlineCommentRow(comment: comment, dataManager: dataManager)
+                        InlineCommentRow(
+                            comment: comment,
+                            dataManager: dataManager,
+                            isNewlyAdded: newlyAddedCommentIds.contains(comment.id),
+                            onEdit: onEditComment,
+                            onDelete: onDeleteComment
+                        )
+                        .id(comment.id)
+                        // Swipe actions only for comments authored by the current user
+                        .modifier(CommentSwipeActionsModifier(
+                            comment: comment,
+                            dataManager: dataManager,
+                            onEdit: onEditComment,
+                            onDelete: onDeleteComment
+                        ))
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                 }
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: comments.count)
             }
             
             // Comment input
@@ -554,11 +581,11 @@ struct InlineCommentsSection: View {
                         RoundedRectangle(cornerRadius: DS.Radius.pill)
                             .stroke(DS.Colors.borderSubtle.opacity(0.5), lineWidth: 1)
                     )
-                    .focused($isCommentFieldFocused)
+                    .focused(isCommentFieldFocused)
                 
                 Button(action: {
                     onPostComment?()
-                    isCommentFieldFocused = false
+                    isCommentFieldFocused.wrappedValue = false
                 }) {
                     Text("Post")
                         .font(DS.Typography.subheadline(.semibold))
@@ -589,6 +616,27 @@ struct InlineCommentsSection: View {
 struct InlineCommentRow: View {
     let comment: Comment
     @ObservedObject var dataManager: DataManager
+    let isNewlyAdded: Bool
+    var onEdit: ((Comment) -> Void)?
+    var onDelete: ((Comment) -> Void)?
+    
+    private var isCurrentUserComment: Bool {
+        guard let currentUser = dataManager.appData.currentUser else { return false }
+        return currentUser.id == comment.userId
+    }
+    
+    private var commenterProfileImage: UIImage? {
+        guard isCurrentUserComment,
+              let imageId = dataManager.appData.currentUserProfileImageId else {
+            return nil
+        }
+        return PhotoCache.shared.retrieve(forKey: imageId)
+    }
+    
+    private var commenterRemoteAvatarURL: String? {
+        guard isCurrentUserComment else { return nil }
+        return dataManager.appData.currentUserAvatarURL
+    }
     
     private var commenterInitials: String {
         if let user = dataManager.appData.currentUser, user.id == comment.userId {
@@ -606,15 +654,13 @@ struct InlineCommentRow: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: DS.Spacing.sm) {
-            // Avatar
-            Circle()
-                .fill(DS.Colors.primaryAccent)
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Text(commenterInitials)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textOnMint)
-                )
+            // Avatar - use VisitAvatarView for consistency and proper image loading
+            VisitAvatarView(
+                image: commenterProfileImage,
+                remoteURL: commenterRemoteAvatarURL,
+                initials: commenterInitials,
+                size: 28
+            )
             
             VStack(alignment: .leading, spacing: 2) {
                 // Username and time
@@ -634,7 +680,34 @@ struct InlineCommentRow: View {
                     .foregroundColor(DS.Colors.textPrimary)
             }
             
-            Spacer()
+            Spacer(minLength: DS.Spacing.sm)
+            
+            if isCurrentUserComment, onEdit != nil || onDelete != nil {
+                Menu {
+                    if let onEdit {
+                        Button {
+                            onEdit(comment)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                    }
+                    
+                    if let onDelete {
+                        Button(role: .destructive) {
+                            onDelete(comment)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(DS.Colors.iconSubtle)
+                        .padding(.horizontal, DS.Spacing.xs)
+                }
+                .contentShape(Rectangle())
+            }
         }
         .padding(DS.Spacing.sm)
         .background(DS.Colors.cardBackgroundAlt)
@@ -645,6 +718,46 @@ struct InlineCommentRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Swipe Actions Modifier
+
+/// Adds swipe actions for editing and deleting comments authored by the current user.
+private struct CommentSwipeActionsModifier: ViewModifier {
+    let comment: Comment
+    @ObservedObject var dataManager: DataManager
+    var onEdit: ((Comment) -> Void)?
+    var onDelete: ((Comment) -> Void)?
+    
+    private var isCurrentUserComment: Bool {
+        guard let currentUser = dataManager.appData.currentUser else { return false }
+        return currentUser.id == comment.userId
+    }
+    
+    func body(content: Content) -> some View {
+        if isCurrentUserComment {
+            content
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if let onEdit = onEdit {
+                        Button {
+                            onEdit(comment)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                    }
+                    
+                    if let onDelete = onDelete {
+                        Button(role: .destructive) {
+                            onDelete(comment)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+        } else {
+            content
+        }
     }
 }
 

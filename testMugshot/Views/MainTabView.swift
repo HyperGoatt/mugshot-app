@@ -38,7 +38,7 @@ struct MainTabView: View {
                 case 3:
                     SavedTabView(dataManager: dataManager)
                 case 4:
-                    ProfileTabView(dataManager: dataManager)
+                    ProfileTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
                 default:
                     MapTabView(dataManager: dataManager, onLogVisitRequested: { cafe in
                         preselectedCafeForLogVisit = cafe
@@ -114,6 +114,14 @@ struct MainTabView: View {
             queue: .main
         ) { _ in
             tabCoordinator.navigateToNotifications()
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: .pushNotificationNavigateToFriendRequests,
+            object: nil,
+            queue: .main
+        ) { _ in
+            tabCoordinator.navigateToFriendRequests()
         }
     }
 }

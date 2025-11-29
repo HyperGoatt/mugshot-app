@@ -44,12 +44,14 @@ struct AuthFlowRootView: View {
                         pendingEmail = email
                         mode = .verifyEmail(email: email)
                     },
-                    onBack: { mode = .landing }
+                    onBack: { mode = .landing },
+                    onSignIn: { mode = .signIn }
                 )
             case .signIn:
                 SignInView(
                     onAuthSuccess: handleAuthSuccess,
-                    onBack: { mode = .landing }
+                    onBack: { mode = .landing },
+                    onCreateAccount: { mode = .signUp }
                 )
             case .verifyEmail(let email):
                 VerifyEmailView(
@@ -112,4 +114,3 @@ struct AuthFlowRootView: View {
         // The app will check hasEmailVerified and show ProfileSetupOnboardingView
     }
 }
-

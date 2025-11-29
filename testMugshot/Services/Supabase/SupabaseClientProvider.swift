@@ -32,6 +32,15 @@ enum SupabaseError: Error, LocalizedError {
         case .invalidSession:
             return "Your session has expired. Please sign in again."
         case .server(let status, let message):
+            // Handle 413 Payload Too Large (can come as 413 or wrapped in 400)
+            if status == 413 {
+                return "Your photos are too large. Please try with fewer or smaller images."
+            }
+            // Check if 400 error contains a wrapped 413 payload error
+            if status == 400, let msg = message,
+               (msg.contains("413") || msg.contains("Payload too large") || msg.contains("maximum allowed size")) {
+                return "Your photos are too large. Please try with fewer or smaller images."
+            }
             if status == 401 {
                 return "You're not signed in. Please sign in and try again."
             } else if status == 403 {

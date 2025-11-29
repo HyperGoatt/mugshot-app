@@ -11,16 +11,17 @@ import UIKit
 
 struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var tabCoordinator: TabCoordinator
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedTab: ProfileContentTab = .posts
     @State private var showEditProfile = false
     @State private var showShareSheet = false
     @State private var showNotifications = false
-    @State private var showFriendRequests = false
-    @State private var showFriendsList = false
+    @State private var showFriendsHub = false
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
+    @State private var pendingFriendRequestCount: Int = 0
     
     private var unreadNotificationCount: Int {
         dataManager.appData.notifications.filter { !$0.isRead }.count
@@ -29,7 +30,7 @@ struct ProfileTabView: View {
     enum ProfileContentTab: String, CaseIterable {
         case posts = "Posts"
         case cafes = "Cafés"
-        case saved = "Saved"
+        case journal = "Journal"
     }
     
     // MARK: - User Data Properties
@@ -94,7 +95,7 @@ struct ProfileTabView: View {
                         mutualFriendsCount: nil,
                         instagramHandle: instagramHandle,
                         websiteURL: website,
-                        onFriendsTap: { showFriendsList = true }
+                        onFriendsTap: { showFriendsHub = true }
                     )
                     .padding(.top, DS.Spacing.md)
                     
@@ -152,15 +153,26 @@ struct ProfileTabView: View {
                     CafeDetailView(cafe: cafe, dataManager: dataManager)
                 }
             }
-            .sheet(isPresented: $showFriendsList) {
-                FriendRequestsView(dataManager: dataManager)
+            .sheet(isPresented: $showFriendsHub) {
+                FriendsHubView(dataManager: dataManager)
             }
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button(action: { showFriendRequests = true }) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(DS.Colors.iconDefault)
+                Button(action: { showFriendsHub = true }) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(DS.Colors.iconDefault)
+                        
+                        if pendingFriendRequestCount > 0 {
+                            Text("\(pendingFriendRequestCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(4)
+                                .background(Circle().fill(DS.Colors.redAccent))
+                                .offset(x: 8, y: -8)
+                        }
+                    }
                 }
                 
                 Button(action: { showNotifications = true }) {
@@ -190,17 +202,44 @@ struct ProfileTabView: View {
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
         }
-        .sheet(isPresented: $showFriendRequests) {
-            FriendRequestsView(dataManager: dataManager)
-        }
         .task {
             do {
                 try await dataManager.refreshProfileVisits()
             } catch {
                 print("[ProfileTabView] Error refreshing profile visits: \(error.localizedDescription)")
             }
+            // Refresh friends list to get accurate count
+            await dataManager.refreshFriendsList()
+            // Fetch pending friend request count
+            await refreshPendingFriendRequestCount()
+        }
+        .onChange(of: showFriendsHub) { _, isShowing in
+            // Refresh badge when returning from Friends hub
+            if !isShowing {
+                Task {
+                    await refreshPendingFriendRequestCount()
+                }
+            }
+        }
+        .onChange(of: tabCoordinator.navigationTarget) { _, newTarget in
+            // Handle deep link navigation to friend requests
+            if newTarget == .friendRequests {
+                print("[ProfileTabView] Deep link navigation to Friend Requests")
+                showFriendsHub = true
+                tabCoordinator.clearNavigationTarget()
+            }
         }
         }
+    }
+    
+    // MARK: - Friend Request Badge
+    
+    private func refreshPendingFriendRequestCount() async {
+        let count = await dataManager.getIncomingFriendRequestCount()
+        await MainActor.run {
+            pendingFriendRequestCount = count
+        }
+        print("[ProfileTabView] Pending friend request count: \(count)")
     }
     
     // MARK: - Profile Header Section
@@ -263,8 +302,8 @@ struct ProfileTabView: View {
             ProfileCafesView(dataManager: dataManager)
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
-        case .saved:
-            ProfileSavedView(dataManager: dataManager)
+        case .journal:
+            ProfileJournalView(dataManager: dataManager)
                 .padding(.horizontal, DS.Spacing.pagePadding)
         }
     }

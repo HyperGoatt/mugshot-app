@@ -2,7 +2,8 @@
 //  OtherUserProfileView.swift
 //  testMugshot
 //
-//  Created as part of Friends system implementation.
+//  Public profile view for viewing other users (not the logged-in user).
+//  Similar structure to ProfileTabView but without self-only elements like Share/Edit.
 //
 
 import SwiftUI
@@ -14,12 +15,24 @@ struct OtherUserProfileView: View {
     @State private var userProfile: RemoteUserProfile?
     @State private var friendshipStatus: FriendshipStatus = .none
     @State private var mutualFriends: [User] = []
+    @State private var friendsCount: Int = 0
     @State private var isLoading = true
     @State private var isLoadingFriendship = false
     @State private var showRemoveFriendAlert = false
     @State private var selectedVisit: Visit?
+    @State private var selectedCafe: Cafe?
+    @State private var showCafeDetail = false
+    @State private var selectedTab: ProfileContentTab = .posts
+    @StateObject private var hapticsManager = HapticsManager.shared
     
     @Environment(\.dismiss) var dismiss
+    
+    enum ProfileContentTab: String, CaseIterable {
+        case posts = "Posts"
+        case cafes = "Cafés"
+    }
+    
+    // MARK: - Computed Properties
     
     private var localUser: User? {
         guard let profile = userProfile else { return nil }
@@ -27,60 +40,128 @@ struct OtherUserProfileView: View {
         return profile.toLocalUser(existing: nil, overridingId: userUUID)
     }
     
+    private var userVisits: [Visit] {
+        dataManager.appData.visits
+            .filter { $0.supabaseUserId == userId }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+    
+    private var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double) {
+        let visits = userVisits
+        let uniqueCafes = Set(visits.map { $0.cafeId })
+        let avgScore = visits.isEmpty ? 0.0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
+        return (visits.count, uniqueCafes.count, avgScore)
+    }
+    
+    private var topCafes: [(cafe: Cafe, visitCount: Int, avgScore: Double)] {
+        let visits = userVisits
+        let visitsByCafe = Dictionary(grouping: visits, by: { $0.cafeId })
+        
+        var cafeStats: [(cafe: Cafe, visitCount: Int, avgScore: Double)] = []
+        for (cafeId, cafeVisits) in visitsByCafe {
+            guard let cafe = dataManager.getCafe(id: cafeId) else { continue }
+            let avgScore = cafeVisits.reduce(0.0) { $0 + $1.overallScore } / Double(cafeVisits.count)
+            cafeStats.append((cafe: cafe, visitCount: cafeVisits.count, avgScore: avgScore))
+        }
+        
+        return cafeStats.sorted {
+            if $0.avgScore == $1.avgScore {
+                return $0.visitCount > $1.visitCount
+            }
+            return $0.avgScore > $1.avgScore
+        }
+    }
+    
+    // MARK: - Body
+    
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
                     if isLoading {
                         ProgressView()
-                            .padding()
+                            .padding(.vertical, DS.Spacing.xxl)
                     } else if let profile = userProfile {
-                        OtherUserProfileHeaderView(
-                            displayName: profile.displayName,
-                            username: profile.username,
+                        // Profile Header (banner + avatar + name)
+                        profileHeaderSection(profile: profile)
+                        
+                        // Bio Section
+                        ProfileBioSection(
                             bio: profile.bio,
                             location: profile.location,
-                            favoriteDrink: profile.favoriteDrink,
-                            instagramHandle: profile.instagramHandle,
-                            website: profile.websiteURL,
-                            profileImageURL: profile.avatarURL,
-                            bannerImageURL: profile.bannerURL,
-                            friendButton: friendActionButton
+                            favoriteDrink: profile.favoriteDrink
                         )
+                        .padding(.top, DS.Spacing.sm)
                         
-                        VStack(alignment: .leading, spacing: DS.Spacing.sectionVerticalGap) {
-                            // Mutual Friends Section
-                            if !mutualFriends.isEmpty {
-                                MutualFriendsSection(mutualFriends: mutualFriends, dataManager: dataManager)
-                                    .padding(.horizontal, DS.Spacing.pagePadding)
+                        // Friend Action Button (instead of Edit/Share for self-profile)
+                        friendActionButtonSection
+                            .padding(.top, DS.Spacing.md)
+                        
+                        // Social Row (friends count + social links)
+                        ProfileSocialRow(
+                            friendsCount: friendsCount,
+                            mutualFriendsCount: mutualFriends.count,
+                            instagramHandle: profile.instagramHandle,
+                            websiteURL: profile.websiteURL,
+                            onFriendsTap: {
+                                // Could navigate to friend list in future
                             }
-                            
-                            // User's Visits
-                            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                                DSSectionHeader("Recent Visits")
-                                    .padding(.horizontal, DS.Spacing.pagePadding)
-                                
-                                userVisitsView
-                                    .padding(.horizontal, DS.Spacing.pagePadding)
+                        )
+                        .padding(.top, DS.Spacing.md)
+                        
+                        // Stats Ribbon
+                        CoffeeStatsRibbon(
+                            totalVisits: stats.totalVisits,
+                            totalCafes: stats.totalCafes,
+                            averageRating: stats.averageScore,
+                            favoriteDrinkType: nil,
+                            topCafe: topCafes.first.map { ($0.cafe.name, $0.avgScore) },
+                            onTopCafeTap: {
+                                if let topCafe = topCafes.first {
+                                    selectedCafe = topCafe.cafe
+                                    showCafeDetail = true
+                                }
                             }
+                        )
+                        .padding(.top, DS.Spacing.lg)
+                        
+                        // Content Tabs (Posts / Cafés)
+                        contentTabsSection
+                        
+                        // Mutual Friends Section
+                        if !mutualFriends.isEmpty {
+                            MutualFriendsSection(mutualFriends: mutualFriends, dataManager: dataManager)
+                                .padding(.horizontal, DS.Spacing.pagePadding)
+                                .padding(.top, DS.Spacing.lg)
                         }
-                        .padding(.top, DS.Spacing.sectionVerticalGap)
-                        .padding(.bottom, DS.Spacing.xxl)
                     } else {
+                        // User not found state
                         DSBaseCard {
-                            Text("User not found")
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding()
+                            VStack(spacing: DS.Spacing.md) {
+                                Image(systemName: "person.slash")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(DS.Colors.iconSubtle)
+                                Text("User not found")
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DS.Spacing.xxl)
                         }
                         .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.xxl)
                     }
                 }
+                .padding(.bottom, DS.Spacing.xxl * 2)
             }
             .background(DS.Colors.screenBackground)
             .navigationDestination(item: $selectedVisit) { visit in
                 VisitDetailView(dataManager: dataManager, visit: visit)
+            }
+            .sheet(isPresented: $showCafeDetail) {
+                if let cafe = selectedCafe {
+                    CafeDetailView(cafe: cafe, dataManager: dataManager)
+                }
             }
             .task {
                 await loadProfile()
@@ -109,27 +190,48 @@ struct OtherUserProfileView: View {
         }
     }
     
-    private var friendActionButton: AnyView {
-        if isLoadingFriendship {
-            return AnyView(
+    // MARK: - Profile Header
+    
+    private func profileHeaderSection(profile: RemoteUserProfile) -> some View {
+        ProfileCompactHeader(
+            displayName: profile.displayName,
+            username: profile.username,
+            bio: profile.bio,
+            location: profile.location,
+            favoriteDrink: profile.favoriteDrink,
+            profileImageURL: profile.avatarURL,
+            bannerImageURL: profile.bannerURL,
+            profileImageId: nil,
+            bannerImageId: nil
+        )
+    }
+    
+    // MARK: - Friend Action Button
+    
+    private var friendActionButtonSection: some View {
+        HStack {
+            if isLoadingFriendship {
                 ProgressView()
-                    .frame(width: 120, height: 44)
-            )
-        } else {
-            return AnyView(
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+            } else {
                 Button(action: handleFriendAction) {
-                    Text(friendButtonText)
-                        .font(DS.Typography.buttonLabel)
-                        .foregroundColor(friendButtonTextColor)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(friendButtonBackground)
-                        .cornerRadius(DS.Radius.primaryButton)
+                    HStack(spacing: DS.Spacing.sm) {
+                        Image(systemName: friendButtonIcon)
+                            .font(.system(size: 14, weight: .medium))
+                        Text(friendButtonText)
+                            .font(DS.Typography.buttonLabel)
+                    }
+                    .foregroundColor(friendButtonTextColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DS.Spacing.md)
+                    .background(friendButtonBackground)
+                    .cornerRadius(DS.Radius.lg)
                 }
-                .frame(width: 120)
                 .disabled(isLoadingFriendship)
-            )
+            }
         }
+        .padding(.horizontal, DS.Spacing.pagePadding)
     }
     
     private var friendButtonText: String {
@@ -141,7 +243,20 @@ struct OtherUserProfileView: View {
         case .incomingRequest:
             return "Accept Request"
         case .friends:
-            return "Friends ✓"
+            return "Friends"
+        }
+    }
+    
+    private var friendButtonIcon: String {
+        switch friendshipStatus {
+        case .none:
+            return "person.badge.plus"
+        case .outgoingRequest:
+            return "clock"
+        case .incomingRequest:
+            return "person.badge.plus"
+        case .friends:
+            return "checkmark"
         }
     }
     
@@ -149,9 +264,7 @@ struct OtherUserProfileView: View {
         switch friendshipStatus {
         case .none, .incomingRequest:
             return DS.Colors.textOnMint
-        case .outgoingRequest:
-            return DS.Colors.textPrimary
-        case .friends:
+        case .outgoingRequest, .friends:
             return DS.Colors.textPrimary
         }
     }
@@ -160,40 +273,91 @@ struct OtherUserProfileView: View {
         switch friendshipStatus {
         case .none, .incomingRequest:
             return DS.Colors.primaryAccent
-        case .outgoingRequest:
-            return DS.Colors.cardBackgroundAlt
-        case .friends:
+        case .outgoingRequest, .friends:
             return DS.Colors.cardBackgroundAlt
         }
     }
     
-    @ViewBuilder
-    private var userVisitsView: some View {
-        let visits = dataManager.appData.visits
-            .filter { $0.supabaseUserId == userId }
-            .sorted { $0.createdAt > $1.createdAt }
-            .prefix(20)
-            .map { $0 }
-        
-        if visits.isEmpty {
-            DSBaseCard {
-                Text("No visits yet")
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            }
-        } else {
-            ForEach(visits) { visit in
-                if dataManager.getCafe(id: visit.cafeId) != nil {
-                    VisitCard(visit: visit, dataManager: dataManager, selectedScope: .everyone)
-                        .onTapGesture {
-                            selectedVisit = visit
+    // MARK: - Content Tabs
+    
+    private var contentTabsSection: some View {
+        VStack(spacing: 0) {
+            // Tab selector
+            DSDesignSegmentedControl(
+                options: ProfileContentTab.allCases.map { $0.rawValue },
+                selectedIndex: Binding(
+                    get: { ProfileContentTab.allCases.firstIndex(of: selectedTab) ?? 0 },
+                    set: { newIndex in
+                        let newTab = ProfileContentTab.allCases[newIndex]
+                        if newTab != selectedTab {
+                            hapticsManager.selectionChanged()
                         }
+                        selectedTab = newTab
+                    }
+                )
+            )
+            .padding(.horizontal, DS.Spacing.pagePadding)
+            .padding(.top, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.md)
+            
+            // Tab content
+            contentView
+        }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        switch selectedTab {
+        case .posts:
+            ProfilePostsGrid(
+                visits: Array(userVisits.prefix(50)),
+                onSelectVisit: { visit in
+                    hapticsManager.lightTap()
+                    selectedVisit = visit
+                }
+            )
+            .padding(.horizontal, 1)
+            
+        case .cafes:
+            otherUserCafesView
+                .padding(.horizontal, DS.Spacing.pagePadding)
+        }
+    }
+    
+    @ViewBuilder
+    private var otherUserCafesView: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            if topCafes.isEmpty {
+                // Empty state
+                VStack(spacing: DS.Spacing.md) {
+                    Image(systemName: "cup.and.saucer")
+                        .font(.system(size: 40))
+                        .foregroundColor(DS.Colors.iconSubtle)
+                    
+                    Text("No cafés yet")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DS.Spacing.xxl * 2)
+            } else {
+                ForEach(topCafes, id: \.cafe.id) { item in
+                    CafeListItem(
+                        cafe: item.cafe,
+                        visitCount: item.visitCount,
+                        avgScore: item.avgScore,
+                        dataManager: dataManager,
+                        onTap: {
+                            selectedCafe = item.cafe
+                            showCafeDetail = true
+                        }
+                    )
                 }
             }
         }
     }
+    
+    // MARK: - Data Loading
     
     private func loadProfile() async {
         isLoading = true
@@ -211,6 +375,9 @@ struct OtherUserProfileView: View {
                 
                 // Load mutual friends
                 await loadMutualFriends()
+                
+                // Load friends count for this user
+                await loadFriendsCount()
                 
                 // Load user's visits
                 try? await dataManager.fetchOtherUserVisits(userId: userId)
@@ -242,7 +409,20 @@ struct OtherUserProfileView: View {
         }
     }
     
+    private func loadFriendsCount() async {
+        do {
+            let friends = try await dataManager.fetchFriends(for: userId)
+            await MainActor.run {
+                friendsCount = friends.count
+            }
+        } catch {
+            print("[OtherUserProfileView] Error loading friends count: \(error.localizedDescription)")
+        }
+    }
+    
     private func handleFriendAction() {
+        hapticsManager.mediumTap()
+        
         Task {
             isLoadingFriendship = true
             defer { isLoadingFriendship = false }
@@ -251,171 +431,29 @@ struct OtherUserProfileView: View {
                 switch friendshipStatus {
                 case .none:
                     try await dataManager.sendFriendRequest(to: userId)
-                    // Reload status to get the actual request ID
                     await loadFriendshipStatus()
+                    hapticsManager.playSuccess()
+                    
                 case .incomingRequest(let requestId):
                     try await dataManager.acceptFriendRequest(requestId: requestId)
                     await MainActor.run {
                         friendshipStatus = .friends
+                        friendsCount += 1
                     }
-                    // Refresh friends list
                     await dataManager.refreshFriendsList()
-                case .outgoingRequest(_):
-                    // Do nothing - request already sent (button should be disabled)
+                    hapticsManager.playSuccess()
+                    
+                case .outgoingRequest:
+                    // Do nothing - request already sent
                     break
+                    
                 case .friends:
-                    // Show confirmation alert for removing friend
                     showRemoveFriendAlert = true
                 }
             } catch {
                 print("[OtherUserProfileView] Error handling friend action: \(error.localizedDescription)")
+                hapticsManager.playError()
             }
         }
     }
 }
-
-// MARK: - Other User Profile Header
-
-struct OtherUserProfileHeaderView: View {
-    let displayName: String?
-    let username: String?
-    let bio: String?
-    let location: String?
-    let favoriteDrink: String?
-    let instagramHandle: String?
-    let website: String?
-    let profileImageURL: String?
-    let bannerImageURL: String?
-    let friendButton: AnyView
-    
-    private let avatarSize: CGFloat = 180
-    
-    private var displayNameOrUsername: String {
-        displayName ?? username ?? "User"
-    }
-    
-    private var usernameText: String {
-        username ?? "user"
-    }
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Banner strip at the top
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    if let bannerURL = bannerImageURL,
-                       let url = URL(string: bannerURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            case .failure, .empty:
-                                LinearGradient(
-                                    colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            @unknown default:
-                                LinearGradient(
-                                    colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            }
-                        }
-                    } else {
-                        LinearGradient(
-                            colors: [DS.Colors.mintLight, DS.Colors.mintSoftFill],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    }
-                }
-                .frame(height: 150)
-                .cornerRadius(DS.Radius.card, corners: [.topLeft, .topRight])
-                .clipped()
-            }
-            
-            // Profile card that sits below the banner
-            ZStack(alignment: .top) {
-                DSBaseCard {
-                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        // Space for overlapping avatar
-                        Spacer()
-                            .frame(height: avatarSize / 2 + DS.Spacing.sm)
-                        
-                        // Friend button
-                        HStack {
-                            Spacer()
-                            AnyView(friendButton)
-                        }
-                        .padding(.bottom, DS.Spacing.sm)
-                        
-                        // Display name
-                        Text(displayNameOrUsername)
-                            .font(DS.Typography.screenTitle)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        
-                        // Username
-                        Text("@\(usernameText)")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                        
-                        // Bio
-                        if let bio = bio, !bio.isEmpty {
-                            Text(bio)
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.textPrimary)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, DS.Spacing.xs)
-                        }
-                        
-                        // Meta row (favorite drink + location)
-                        HStack(spacing: DS.Spacing.md) {
-                            if let favoriteDrink = favoriteDrink, !favoriteDrink.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "cup.and.saucer")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                    Text(favoriteDrink)
-                                        .font(DS.Typography.caption1())
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                }
-                            }
-                            
-                            if let location = location, !location.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "mappin.and.ellipse")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                    Text(location)
-                                        .font(DS.Typography.caption1())
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                }
-                            }
-                        }
-                        .padding(.top, DS.Spacing.sm)
-                    }
-                }
-                
-                // Centered avatar overlapping banner and card
-                ProfileAvatarView(
-                    profileImageId: nil,
-                    profileImageURL: profileImageURL,
-                    username: usernameText,
-                    size: avatarSize
-                )
-                .frame(width: avatarSize, height: avatarSize)
-                .offset(y: -avatarSize / 2)
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .padding(.horizontal, DS.Spacing.pagePadding)
-            .offset(y: -avatarSize / 2)
-            .padding(.bottom, DS.Spacing.sectionVerticalGap)
-        }
-    }
-}
-

@@ -2,7 +2,7 @@
 //  AuthLandingView.swift
 //  testMugshot
 //
-//  Landing screen for authentication flow
+//  Landing screen for authentication flow - Brand-first design
 //
 
 import SwiftUI
@@ -11,75 +11,85 @@ struct AuthLandingView: View {
     let onCreateAccount: () -> Void
     let onSignIn: () -> Void
     
+    @State private var showContent = false
+    
     var body: some View {
         ZStack {
             DS.Colors.mintSoftFill
                 .ignoresSafeArea()
             
-            VStack(spacing: DS.Spacing.xl) {
+            VStack(spacing: 0) {
                 Spacer()
                 
-                // Mugshot icon
-                ZStack {
-                    Circle()
-                        .fill(DS.Colors.primaryAccent)
-                        .frame(width: 120, height: 120)
+                // Hero Section - Brand Identity
+                VStack(spacing: DS.Spacing.lg) {
+                    // Large app icon with soft shadow
+                    ZStack {
+                        Circle()
+                            .fill(DS.Colors.primaryAccent)
+                            .frame(width: 140, height: 140)
+                            .shadow(color: DS.Colors.mintDark.opacity(0.3), radius: 20, x: 0, y: 10)
+                        
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 70))
+                            .foregroundStyle(DS.Colors.textOnMint)
+                    }
+                    .scaleEffect(showContent ? 1 : 0.8)
+                    .opacity(showContent ? 1 : 0)
                     
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(DS.Colors.textOnMint)
+                    // App wordmark
+                    Text("Mugshot")
+                        .font(DS.Typography.display())
+                        .foregroundStyle(DS.Colors.textPrimary)
+                        .opacity(showContent ? 1 : 0)
+                        .offset(y: showContent ? 0 : 10)
+                    
+                    // Tagline
+                    Text("Your coffee journey starts here")
+                        .font(DS.Typography.bodyText)
+                        .foregroundStyle(DS.Colors.textSecondary)
+                        .opacity(showContent ? 1 : 0)
+                        .offset(y: showContent ? 0 : 10)
                 }
-                .padding(.bottom, DS.Spacing.lg)
-                
-                // Title
-                Text("Set up your Mugshot account")
-                    .font(DS.Typography.screenTitle)
-                    .foregroundStyle(DS.Colors.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-                
-                // Subtitle
-                Text("Create an account to save visits, sync your profile, and keep your coffee journey in one place.")
-                    .font(DS.Typography.bodyText)
-                    .foregroundStyle(DS.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DS.Spacing.pagePadding * 2)
-                    .padding(.top, DS.Spacing.sm)
+                .padding(.bottom, DS.Spacing.xxl)
                 
                 Spacer()
                 
-                // Primary button
-                Button(action: onCreateAccount) {
-                    Text("Create an account")
-                        .font(DS.Typography.buttonLabel)
-                        .foregroundStyle(DS.Colors.textOnMint)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.md)
-                        .background(
-                            RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                .fill(DS.Colors.primaryAccent)
-                        )
+                // Action Section
+                VStack(spacing: DS.Spacing.lg) {
+                    // Primary CTA - Get Started
+                    Button(action: onCreateAccount) {
+                        Text("Get Started")
+                            .font(DS.Typography.buttonLabel)
+                            .foregroundStyle(DS.Colors.textOnMint)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DS.Spacing.md + 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: DS.Radius.lg)
+                                    .fill(DS.Colors.primaryAccent)
+                            )
+                            .shadow(color: DS.Colors.mintDark.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
+                    
+                    // Secondary - Text link style
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text("Already have an account?")
+                            .font(DS.Typography.subheadline())
+                            .foregroundStyle(DS.Colors.textSecondary)
+                        
+                        Button(action: onSignIn) {
+                            Text("Sign in")
+                                .font(DS.Typography.subheadline(.semibold))
+                                .foregroundStyle(DS.Colors.primaryAccentHover)
+                        }
+                    }
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
                 }
-                .padding(.horizontal, DS.Spacing.pagePadding)
-                
-                // Secondary button
-                Button(action: onSignIn) {
-                    Text("Sign in")
-                        .font(DS.Typography.buttonLabel)
-                        .foregroundStyle(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.md)
-                        .background(
-                            RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                                .background(
-                                    RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                        .fill(DS.Colors.cardBackground)
-                                )
-                        )
-                }
-                .padding(.horizontal, DS.Spacing.pagePadding)
-                .padding(.top, DS.Spacing.sm)
+                .padding(.bottom, DS.Spacing.xl)
                 
                 // Legal text
                 Text("By continuing, you agree to our Terms of Service and Privacy Policy")
@@ -87,10 +97,14 @@ struct AuthLandingView: View {
                     .foregroundStyle(DS.Colors.textTertiary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, DS.Spacing.pagePadding * 2)
-                    .padding(.top, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.xl)
+                    .opacity(showContent ? 1 : 0)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+                showContent = true
             }
         }
     }
 }
-

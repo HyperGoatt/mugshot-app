@@ -208,6 +208,9 @@ class PushNotificationManager: NSObject, ObservableObject {
             
         case .notifications:
             routeToNotifications()
+            
+        case .friendRequests:
+            routeToFriendRequests()
         }
     }
     
@@ -246,6 +249,15 @@ class PushNotificationManager: NSObject, ObservableObject {
         
         NotificationCenter.default.post(
             name: .pushNotificationNavigateToNotifications,
+            object: nil
+        )
+    }
+    
+    private func routeToFriendRequests() {
+        print("[Push] Routing to friend requests")
+        
+        NotificationCenter.default.post(
+            name: .pushNotificationNavigateToFriendRequests,
             object: nil
         )
     }
@@ -295,5 +307,6 @@ extension Notification.Name {
     static let pushNotificationNavigateToProfile = Notification.Name("pushNotificationNavigateToProfile")
     static let pushNotificationNavigateToFeed = Notification.Name("pushNotificationNavigateToFeed")
     static let pushNotificationNavigateToNotifications = Notification.Name("pushNotificationNavigateToNotifications")
+    static let pushNotificationNavigateToFriendRequests = Notification.Name("pushNotificationNavigateToFriendRequests")
 }
 

@@ -16,6 +16,7 @@ class TabCoordinator: ObservableObject {
         case friendProfile(String)
         case friendsFeed
         case notifications
+        case friendRequests
     }
     
     /// Switches to a tab with optional haptic feedback
@@ -29,6 +30,16 @@ class TabCoordinator: ObservableObject {
     
     func switchToFeed() {
         switchTab(to: 1)
+    }
+    
+    func switchToMap() {
+        print("[Saved] CTA tapped → Explore the map (navigating to Map)")
+        switchTab(to: 0)
+    }
+    
+    func switchToProfile() {
+        print("[Saved] CTA tapped → View your visits (navigating to Profile)")
+        switchTab(to: 4)
     }
     
     func navigateToVisitDetail(visitId: UUID) {
@@ -49,6 +60,12 @@ class TabCoordinator: ObservableObject {
     func navigateToNotifications() {
         switchTab(to: 1) // Switch to Feed tab (notifications are shown there)
         navigationTarget = .notifications
+    }
+    
+    func navigateToFriendRequests() {
+        print("[TabCoordinator] Navigating to Friend Requests")
+        switchTab(to: 4) // Switch to Profile tab
+        navigationTarget = .friendRequests
     }
     
     func clearNavigationTarget() {

@@ -309,6 +309,71 @@ final class SupabaseUserProfileService {
         }
         return saved
     }
+    
+    // MARK: - User Search
+    
+    /// Search for users by username or display name using case-insensitive partial matching
+    func searchUsers(query: String, excludingUserId: String, limit: Int = 20) async throws -> [RemoteUserProfile] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            print("[FriendsSearch] Empty query, returning empty results")
+            return []
+        }
+        
+        print("[FriendsSearch] search triggered with query='\(trimmedQuery)'")
+        print("[FriendsSearch] Searching users, excluding userId=\(excludingUserId)")
+        
+        // PostgREST ilike filter: search username OR display_name
+        // Format: or=(username.ilike.*query*,display_name.ilike.*query*)
+        // The * in PostgREST represents % in SQL ILIKE
+        let orFilter = "username.ilike.*\(trimmedQuery)*,display_name.ilike.*\(trimmedQuery)*"
+        
+        let queryItems = [
+            URLQueryItem(name: "or", value: "(\(orFilter))"),
+            URLQueryItem(name: "id", value: "neq.\(excludingUserId)"),
+            URLQueryItem(name: "select", value: "id,username,display_name,avatar_url,bio,location,favorite_drink,instagram_handle,website_url,banner_url,created_at,updated_at"),
+            URLQueryItem(name: "order", value: "username.asc"),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        
+        // Log the constructed query
+        let queryString = queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
+        print("[FriendsSearch] Request query: /rest/v1/users?\(queryString)")
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/users",
+            method: "GET",
+            queryItems: queryItems,
+            headers: ["Prefer": "return=representation"],
+            body: nil
+        )
+        
+        print("[FriendsSearch] Response status: \(response.statusCode)")
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[FriendsSearch] Search failed - status: \(response.statusCode), message: \(errorMsg)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMsg)
+        }
+        
+        // Log raw response for debugging
+        if let rawBody = String(data: data, encoding: .utf8) {
+            print("[FriendsSearch] Raw response body: \(rawBody)")
+        }
+        
+        do {
+            let profiles = try jsonDecoder.decode([RemoteUserProfile].self, from: data)
+            print("[FriendsSearch] Raw Supabase users count: \(profiles.count)")
+            for profile in profiles {
+                print("[FriendsSearch] Remote user: id=\(profile.id), username=\(profile.username), displayName=\(profile.displayName)")
+            }
+            print("[FriendsSearch] Query='\(trimmedQuery)', results=\(profiles.count)")
+            return profiles
+        } catch {
+            print("[FriendsSearch] Decoding error: \(error)")
+            throw SupabaseError.decoding("Failed to decode user profiles: \(error.localizedDescription)")
+        }
+    }
 }
 
 

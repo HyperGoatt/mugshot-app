@@ -24,6 +24,7 @@ struct PushNotificationPayload {
         case friendProfile = "friend_profile"
         case friendsFeed = "friends_feed"
         case notifications = "notifications"
+        case friendRequests = "friend_requests"
     }
     
     /// Parse from UNNotificationRequest (APNs payload)
@@ -65,7 +66,10 @@ struct PushNotificationPayload {
             switch notificationType {
             case .like, .comment, .newVisitFromFriend:
                 self.tapAction = visitId != nil ? .visitDetail : .friendsFeed
-            case .friendRequest, .friendAccept, .friendJoin:
+            case .friendRequest:
+                // Friend requests should go directly to the friend requests list
+                self.tapAction = .friendRequests
+            case .friendAccept, .friendJoin:
                 self.tapAction = friendUserId != nil ? .friendProfile : .notifications
             default:
                 self.tapAction = .friendsFeed
@@ -113,7 +117,10 @@ struct PushNotificationPayload {
             switch notificationType {
             case .like, .comment, .newVisitFromFriend:
                 self.tapAction = visitId != nil ? .visitDetail : .friendsFeed
-            case .friendRequest, .friendAccept, .friendJoin:
+            case .friendRequest:
+                // Friend requests should go directly to the friend requests list
+                self.tapAction = .friendRequests
+            case .friendAccept, .friendJoin:
                 self.tapAction = friendUserId != nil ? .friendProfile : .notifications
             default:
                 self.tapAction = .friendsFeed

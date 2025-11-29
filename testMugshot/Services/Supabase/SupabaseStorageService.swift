@@ -16,12 +16,15 @@ final class SupabaseStorageService {
         self.client = client
     }
 
+    // Maximum file size for uploads (2MB to stay well under Supabase limits)
+    private let maxFileSizeBytes = 2 * 1024 * 1024
+    
     /// Resizes an image to a maximum dimension while maintaining aspect ratio.
     /// - Parameters:
     ///   - image: The image to resize
-    ///   - maxDimension: Maximum width or height (default: 2048px)
+    ///   - maxDimension: Maximum width or height (default: 1200px for optimal mobile viewing)
     /// - Returns: Resized image
-    private func resizeImage(_ image: UIImage, maxDimension: CGFloat = 2048) -> UIImage {
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat = 1200) -> UIImage {
         let size = image.size
         let maxSize = max(size.width, size.height)
         
@@ -35,8 +38,8 @@ final class SupabaseStorageService {
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
         
         // Create graphics context and draw resized image
-        // Use scale 0.0 to use device's native scale for better quality
-        UIGraphicsBeginImageContextWithOptions(newSize, false, 0.0)
+        // Use scale 1.0 to avoid retina doubling which increases file size
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
         defer { UIGraphicsEndImageContext() }
         
         image.draw(in: CGRect(origin: .zero, size: newSize))
@@ -46,16 +49,41 @@ final class SupabaseStorageService {
         return resizedImage
     }
     
-    /// Uploads an image to Supabase Storage and returns the public URL path.
-    /// Images are automatically resized to a maximum of 2048px on the longest side and compressed.
-    func uploadImage(_ image: UIImage, path: String, bucket: String? = nil) async throws -> String {
-        // Resize image to prevent payload size issues
-        let resizedImage = resizeImage(image, maxDimension: 2048)
+    /// Compresses image data to be under the max file size limit
+    private func compressToMaxSize(_ image: UIImage, initialQuality: CGFloat = 0.7) -> Data? {
+        var quality = initialQuality
+        var data = image.jpegData(compressionQuality: quality)
         
-        // Compress with quality that balances file size and image quality
-        // Using 0.75 instead of 0.85 to reduce file size further
-        guard let data = resizedImage.jpegData(compressionQuality: 0.75) else {
+        // Progressively reduce quality until under limit (min quality 0.3)
+        while let currentData = data, currentData.count > maxFileSizeBytes && quality > 0.3 {
+            quality -= 0.1
+            data = image.jpegData(compressionQuality: quality)
+            #if DEBUG
+            print("📸 [StorageService] Recompressing at quality \(String(format: "%.1f", quality)) - size: \(currentData.count / 1024)KB")
+            #endif
+        }
+        
+        return data
+    }
+    
+    /// Uploads an image to Supabase Storage and returns the public URL path.
+    /// Images are automatically resized to 1200px max and compressed to under 2MB.
+    func uploadImage(_ image: UIImage, path: String, bucket: String? = nil) async throws -> String {
+        // Resize image to prevent payload size issues (1200px is good for mobile)
+        let resizedImage = resizeImage(image, maxDimension: 1200)
+        
+        // Compress with progressive quality reduction to stay under size limit
+        guard let data = compressToMaxSize(resizedImage, initialQuality: 0.7) else {
             throw SupabaseError.network("Could not encode JPEG data")
+        }
+        
+        // Final size check
+        if data.count > maxFileSizeBytes {
+            print("❌ [StorageService] Image still too large after max compression: \(data.count / 1024)KB")
+            throw SupabaseError.server(
+                status: 413,
+                message: "Image is too large even after compression. Please try a smaller image."
+            )
         }
         
         #if DEBUG

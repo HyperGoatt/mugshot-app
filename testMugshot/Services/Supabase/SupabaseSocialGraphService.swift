@@ -118,11 +118,37 @@ final class SupabaseSocialGraphService {
     }
     
     func acceptFriendRequest(requestId: UUID, fromUserId: String, toUserId: String) async throws {
-        // Step 1: Update friend request status to accepted
+        // Step 1: Mark any previous "accepted" requests between these users as "rejected"
+        // RLS policies allow the recipient (to_user_id) to update the row but not delete it.
+        // Updating them to "rejected" avoids violating the UNIQUE (from_user_id, to_user_id, status) constraint.
+        let cleanupPayload = FriendRequestUpdatePayload(status: .rejected)
+        let cleanupBody = try encoder.encode(cleanupPayload)
+        let cleanupQueryItems = [
+            URLQueryItem(name: "from_user_id", value: "eq.\(fromUserId)"),
+            URLQueryItem(name: "to_user_id", value: "eq.\(toUserId)"),
+            URLQueryItem(name: "status", value: "eq.accepted")
+        ]
+        let (cleanupData, cleanupResponse) = try await client.request(
+            path: "rest/v1/friend_requests",
+            method: "PATCH",
+            queryItems: cleanupQueryItems,
+            body: cleanupBody
+        )
+        
+        if (200..<300).contains(cleanupResponse.statusCode) {
+            print("[SupabaseSocialGraphService] acceptFriendRequest: Cleared previous accepted requests (status -> rejected)")
+        } else {
+            let errorMessage = String(data: cleanupData, encoding: .utf8) ?? ""
+            print("[SupabaseSocialGraphService] acceptFriendRequest: Warning - failed to clean previous accepted requests: \(errorMessage)")
+            // Continue anyway; worst case we'll hit the constraint and surface the real error.
+        }
+        
+        // Step 2: Update the pending request to accepted
         let updatePayload = FriendRequestUpdatePayload(status: .accepted)
         let updateBody = try encoder.encode(updatePayload)
         let updateQueryItems = [
-            URLQueryItem(name: "id", value: "eq.\(requestId.uuidString)")
+            URLQueryItem(name: "id", value: "eq.\(requestId.uuidString)"),
+            URLQueryItem(name: "status", value: "eq.pending") // Only update if status is pending
         ]
         let (updateData, updateResponse) = try await client.request(
             path: "rest/v1/friend_requests",
@@ -130,11 +156,41 @@ final class SupabaseSocialGraphService {
             queryItems: updateQueryItems,
             body: updateBody
         )
-        guard (200..<300).contains(updateResponse.statusCode) else {
-            throw SupabaseError.server(status: updateResponse.statusCode, message: String(data: updateData, encoding: .utf8))
+        
+        if !(200..<300).contains(updateResponse.statusCode) {
+            let errorMessage = String(data: updateData, encoding: .utf8) ?? ""
+            
+            // If update fails with constraint violation, check if request was already accepted
+            if errorMessage.contains("23505") || errorMessage.contains("duplicate key") {
+                print("[SupabaseSocialGraphService] acceptFriendRequest: Constraint violation - checking if request was already accepted")
+                
+                // Fetch the request to check its current status
+                let fetchQueryItems = [
+                    URLQueryItem(name: "id", value: "eq.\(requestId.uuidString)")
+                ]
+                let (fetchData, fetchResponse) = try await client.request(
+                    path: "rest/v1/friend_requests",
+                    method: "GET",
+                    queryItems: fetchQueryItems
+                )
+                
+                if (200..<300).contains(fetchResponse.statusCode),
+                   let requests = try? decoder.decode([RemoteFriendRequest].self, from: fetchData),
+                   let request = requests.first,
+                   request.status == .accepted {
+                    // Request is already accepted, proceed to ensure friends exist
+                    print("[SupabaseSocialGraphService] acceptFriendRequest: Request already accepted, proceeding to ensure friends exist")
+                    // Continue to Step 3 (create friends)
+                } else {
+                    // Constraint violation but request isn't accepted - this shouldn't happen after cleanup
+                    throw SupabaseError.server(status: updateResponse.statusCode, message: "Failed to accept friend request: \(errorMessage)")
+                }
+            } else {
+                throw SupabaseError.server(status: updateResponse.statusCode, message: errorMessage)
+            }
         }
         
-        // Step 2: Create bidirectional friend relationships
+        // Step 3: Create bidirectional friend relationships (idempotent - will fail gracefully if already exist)
         let friendPayloads = [
             FriendInsertPayload(userId: fromUserId, friendUserId: toUserId),
             FriendInsertPayload(userId: toUserId, friendUserId: fromUserId)
@@ -146,8 +202,16 @@ final class SupabaseSocialGraphService {
             headers: ["Prefer": "return=minimal"],
             body: friendBody
         )
-        guard (200..<300).contains(friendResponse.statusCode) else {
-            throw SupabaseError.server(status: friendResponse.statusCode, message: String(data: friendData, encoding: .utf8))
+        
+        // If friends already exist, that's okay - we just need them to exist
+        if !(200..<300).contains(friendResponse.statusCode) {
+            let errorMessage = String(data: friendData, encoding: .utf8) ?? ""
+            // Check if it's a duplicate key error (23505) - if so, friends already exist, which is fine
+            if errorMessage.contains("23505") || errorMessage.contains("duplicate key") || errorMessage.contains("already exists") {
+                print("[SupabaseSocialGraphService] acceptFriendRequest: Friends already exist, continuing")
+            } else {
+                throw SupabaseError.server(status: friendResponse.statusCode, message: errorMessage)
+            }
         }
     }
     
@@ -168,12 +232,26 @@ final class SupabaseSocialGraphService {
         }
     }
     
+    func cancelFriendRequest(requestId: UUID) async throws {
+        let queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(requestId.uuidString)")
+        ]
+        let (data, response) = try await client.request(
+            path: "rest/v1/friend_requests",
+            method: "DELETE",
+            queryItems: queryItems
+        )
+        guard (200..<300).contains(response.statusCode) else {
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+    }
+    
     // MARK: - Friends
     
     func fetchFriends(for userId: String) async throws -> [String] {
         let queryItems = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
-            URLQueryItem(name: "select", value: "friend_user_id")
+            URLQueryItem(name: "select", value: "user_id,friend_user_id")
         ]
         let (data, response) = try await client.request(
             path: "rest/v1/friends",

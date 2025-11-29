@@ -13,6 +13,7 @@ struct AppData: Codable {
     var supabaseUserId: String?
     var cafes: [Cafe]
     var visits: [Visit]
+    var recentSearches: [RecentSearchEntry] = []
     var ratingTemplate: RatingTemplate
     var hasCompletedOnboarding: Bool
     
@@ -22,6 +23,10 @@ struct AppData: Codable {
     var isUserAuthenticated: Bool = false
     var hasEmailVerified: Bool = false
     var hasCompletedProfileSetup: Bool = false
+    
+    /// Tracks if this is a brand new account that just signed up (vs returning user who logged in)
+    /// Only new signups should see the onboarding flow
+    var isNewAccountSignup: Bool = false
     
     // User profile fields
     var currentUserDisplayName: String?
@@ -40,6 +45,9 @@ struct AppData: Codable {
     // Notifications
     var notifications: [MugshotNotification] = []
     var friendsSupabaseUserIds: Set<String> = []
+    /// Timestamp of the last time the user cleared all notifications.
+    /// Used to hide older notifications after a \"Clear all\" action, even if they still exist server-side.
+    var notificationsClearedAt: Date? = nil
     
     // Feature flags
     var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
@@ -49,6 +57,7 @@ struct AppData: Codable {
         supabaseUserId: String? = nil,
         cafes: [Cafe] = [],
         visits: [Visit] = [],
+        recentSearches: [RecentSearchEntry] = [],
         ratingTemplate: RatingTemplate = RatingTemplate(),
         hasCompletedOnboarding: Bool = false,
         onboardingSeen: Bool = false,
@@ -56,6 +65,7 @@ struct AppData: Codable {
         isUserAuthenticated: Bool = false,
         hasEmailVerified: Bool = false,
         hasCompletedProfileSetup: Bool = false,
+        isNewAccountSignup: Bool = false,
         currentUserDisplayName: String? = nil,
         currentUserUsername: String? = nil,
         currentUserEmail: String? = nil,
@@ -76,6 +86,7 @@ struct AppData: Codable {
         self.supabaseUserId = supabaseUserId
         self.cafes = cafes
         self.visits = visits
+        self.recentSearches = recentSearches
         self.ratingTemplate = ratingTemplate
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.onboardingSeen = onboardingSeen
@@ -83,6 +94,7 @@ struct AppData: Codable {
         self.isUserAuthenticated = isUserAuthenticated
         self.hasEmailVerified = hasEmailVerified
         self.hasCompletedProfileSetup = hasCompletedProfileSetup
+        self.isNewAccountSignup = isNewAccountSignup
         self.currentUserDisplayName = currentUserDisplayName
         self.currentUserUsername = currentUserUsername
         self.currentUserEmail = currentUserEmail
@@ -98,6 +110,7 @@ struct AppData: Codable {
         self.notifications = notifications
         self.friendsSupabaseUserIds = friendsSupabaseUserIds
         self.useOnboardingStylePostFlow = useOnboardingStylePostFlow
+        self.notificationsClearedAt = nil
     }
 }
 

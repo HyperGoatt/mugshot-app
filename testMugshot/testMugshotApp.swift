@@ -59,37 +59,39 @@ struct testMugshotApp: App {
     
     @ViewBuilder
     private var rootContentView: some View {
-        if !dataManager.appData.hasSeenMarketingOnboarding {
-            MugshotOnboardingView(dataManager: dataManager)
-                .ignoresSafeArea()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .preferredColorScheme(.light) // Lock to light mode
-        } else if !dataManager.appData.isAuthenticated {
+        // FLOW LOGIC:
+        // 1. If not authenticated -> show Auth (Login/Sign Up)
+        // 2. If authenticated but email not verified -> show Verify Email
+        // 3. If new signup AND hasn't seen marketing onboarding -> show Marketing Onboarding
+        // 4. If hasn't completed profile setup -> show Profile Setup
+        // 5. Otherwise -> show Main App
+        //
+        // Key distinction: Only NEW SIGNUPS see marketing onboarding, NOT returning logins
+        
+        if !dataManager.appData.isAuthenticated {
+            // Step 1: Not authenticated - show Login/Sign Up screen
             AuthFlowRootView()
                 .environmentObject(dataManager)
                 .environmentObject(HapticsManager.shared)
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .preferredColorScheme(.light) // Lock to light mode
+                .preferredColorScheme(.light)
         } else if !dataManager.appData.hasEmailVerified {
-            // Show verify email screen if authenticated but email not verified
+            // Step 2: Authenticated but email not verified
             if let email = dataManager.appData.currentUserEmail {
                 VerifyEmailView(
                     email: email,
                     onEmailVerified: {
-                        // When verified, the root view will automatically transition
-                        // since hasEmailVerified becomes true and triggers a re-render
-                        print("✅ Email verified - proceeding to profile setup")
+                        print("✅ Email verified - proceeding to next step")
                     },
                     onResendEmail: {
-                        // Resend is handled internally by VerifyEmailView
                         print("📧 Resend email requested")
                     },
                     onBack: {
-                        // If user goes back, reset auth state to return to sign-in
                         print("⬅️ Back button tapped - returning to auth flow")
                         dataManager.appData.isUserAuthenticated = false
                         dataManager.appData.hasEmailVerified = false
+                        dataManager.appData.isNewAccountSignup = false
                         dataManager.save()
                     }
                 )
@@ -105,42 +107,59 @@ struct testMugshotApp: App {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .preferredColorScheme(.light)
             }
+        } else if dataManager.appData.isNewAccountSignup && !dataManager.appData.hasSeenMarketingOnboarding {
+            // Step 3: NEW signups only - show marketing onboarding
+            // Returning users who login skip this entirely
+            MugshotOnboardingView(dataManager: dataManager)
+                .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .preferredColorScheme(.light)
         } else if !dataManager.appData.hasCompletedProfileSetup {
+            // Step 4: Profile setup needed (only for new signups - returning users have profiles)
             ProfileSetupOnboardingView()
                 .environmentObject(dataManager)
                 .environmentObject(HapticsManager.shared)
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .preferredColorScheme(.light) // Lock to light mode
+                .preferredColorScheme(.light)
         } else {
+            // Step 5: Fully authenticated and setup - show main app
             MainTabView(dataManager: dataManager)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .preferredColorScheme(.light) // Lock to light mode
+                .preferredColorScheme(.light)
         }
     }
     
     private struct RoutingDecision {
-        let hasSeenMarketingOnboarding: Bool
         let isUserAuthenticated: Bool
         let hasEmailVerified: Bool
+        let isNewAccountSignup: Bool
+        let hasSeenMarketingOnboarding: Bool
         let hasCompletedProfileSetup: Bool
         let destination: String
     }
     
     private func determineRoutingDecision() -> RoutingDecision {
         let appData = dataManager.appData
-        let hasSeenMarketing = appData.hasSeenMarketingOnboarding
         let isAuthenticated = appData.isUserAuthenticated
         let emailVerified = appData.hasEmailVerified
+        let isNewSignup = appData.isNewAccountSignup
+        let hasSeenMarketing = appData.hasSeenMarketingOnboarding
         let profileSetup = appData.hasCompletedProfileSetup
         
+        // New routing order:
+        // 1. Not authenticated -> AuthFlow
+        // 2. Not email verified -> VerifyEmail
+        // 3. New signup AND hasn't seen marketing -> MarketingOnboarding
+        // 4. Not profile setup -> ProfileSetup
+        // 5. Otherwise -> MainTabs
         let destination: String
-        if !hasSeenMarketing {
-            destination = "MarketingOnboarding"
-        } else if !isAuthenticated {
+        if !isAuthenticated {
             destination = "AuthFlow"
         } else if !emailVerified {
             destination = "VerifyEmail"
+        } else if isNewSignup && !hasSeenMarketing {
+            destination = "MarketingOnboarding"
         } else if !profileSetup {
             destination = "ProfileSetup"
         } else {
@@ -148,9 +167,10 @@ struct testMugshotApp: App {
         }
         
         return RoutingDecision(
-            hasSeenMarketingOnboarding: hasSeenMarketing,
             isUserAuthenticated: isAuthenticated,
             hasEmailVerified: emailVerified,
+            isNewAccountSignup: isNewSignup,
+            hasSeenMarketingOnboarding: hasSeenMarketing,
             hasCompletedProfileSetup: profileSetup,
             destination: destination
         )
@@ -158,9 +178,10 @@ struct testMugshotApp: App {
     
     private func logRoutingDecision(_ decision: RoutingDecision) {
         print("[RootRouter] Launch state:")
-        print("  - hasSeenMarketingOnboarding: \(decision.hasSeenMarketingOnboarding)")
         print("  - isUserAuthenticated: \(decision.isUserAuthenticated)")
         print("  - hasEmailVerified: \(decision.hasEmailVerified)")
+        print("  - isNewAccountSignup: \(decision.isNewAccountSignup)")
+        print("  - hasSeenMarketingOnboarding: \(decision.hasSeenMarketingOnboarding)")
         print("  - hasCompletedProfileSetup: \(decision.hasCompletedProfileSetup)")
         print("[RootRouter] Showing: \(decision.destination)")
     }

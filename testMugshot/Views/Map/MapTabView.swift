@@ -22,12 +22,18 @@ struct MapTabView: View {
     @State private var showCafeDetail = false
     @State private var isSearchActive = false
     @State private var searchText = ""
+    @FocusState private var isSearchFieldFocused: Bool
     @State private var hasRequestedLocation = false
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
     @State private var showNotifications = false
     @State private var selectedVisit: Visit?
     @State private var recenterOnUserRequest = false
+    
+    private var referenceLocation: CLLocation {
+        let activeRegion = region ?? defaultRegion
+        return CLLocation(latitude: activeRegion.center.latitude, longitude: activeRegion.center.longitude)
+    }
     
     private var unreadNotificationCount: Int {
         dataManager.appData.notifications.filter { !$0.isRead }.count
@@ -38,6 +44,17 @@ struct MapTabView: View {
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
+    
+    private var searchFieldFocusBinding: Binding<Bool> {
+        Binding(
+            get: { isSearchFieldFocused },
+            set: { isSearchFieldFocused = $0 }
+        )
+    }
+    
+    private var shouldShowRecentSearches: Bool {
+        isSearchFieldFocused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     
     var body: some View {
         NavigationStack {
@@ -140,17 +157,35 @@ struct MapTabView: View {
                             .foregroundColor(DS.Colors.textPrimary)
                             .tint(DS.Colors.primaryAccent)
                             .accentColor(DS.Colors.primaryAccent)
-                            .onChange(of: searchText) { oldValue, newValue in
-                                if !newValue.isEmpty {
-                                    isSearchActive = true
-                                    searchService.search(query: newValue, region: region ?? defaultRegion)
+                            .focused($isSearchFieldFocused)
+                            .onChange(of: searchText) { _, newValue in
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
+                                    if !isSearchActive {
+                                        withAnimation {
+                                            isSearchActive = true
+                                        }
+                                    }
+                                    searchService.search(query: trimmed, region: region ?? defaultRegion)
                                 } else {
                                     searchService.cancelSearch()
-                                    isSearchActive = false
+                                    if !isSearchFieldFocused {
+                                        withAnimation {
+                                            isSearchActive = false
+                                        }
+                                    }
                                 }
                             }
-                            .onTapGesture {
-                                isSearchActive = true
+                            .onChange(of: isSearchFieldFocused) { _, isFocused in
+                                if isFocused {
+                                    withAnimation {
+                                        isSearchActive = true
+                                    }
+                                } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    withAnimation {
+                                        isSearchActive = false
+                                    }
+                                }
                             }
                         
                         if !searchText.isEmpty {
@@ -174,6 +209,7 @@ struct MapTabView: View {
                             searchText = ""
                             searchService.cancelSearch()
                             isSearchActive = false
+                            isSearchFieldFocused = false
                         }
                         .foregroundColor(DS.Colors.textPrimary)
                         .transition(.opacity)
@@ -207,17 +243,18 @@ struct MapTabView: View {
                 
                 // Search results list (inline below search bar)
                 if isSearchActive {
-                    SearchResultsList(
+                    CafeSearchResultsPanel(
                         searchText: $searchText,
                         searchService: searchService,
-                        dataManager: dataManager,
-                        region: Binding(
-                            get: { region ?? defaultRegion },
-                            set: { region = $0 }
-                        ),
-                        selectedCafe: $selectedCafe,
-                        showCafeDetail: $showCafeDetail,
-                        isSearchActive: $isSearchActive
+                        recentSearches: dataManager.appData.recentSearches,
+                        showRecentSearches: shouldShowRecentSearches,
+                        referenceLocation: referenceLocation,
+                        onMapItemSelected: { mapItem in
+                            handleSearchResult(mapItem)
+                        },
+                        onRecentSelected: { entry in
+                            handleRecentSearch(entry)
+                        }
                     )
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -310,6 +347,44 @@ struct MapTabView: View {
             break
         @unknown default:
             break
+        }
+    }
+    
+    private func handleSearchResult(_ mapItem: MKMapItem, recordRecent: Bool = true) {
+        guard let location = mapItem.placemark.location?.coordinate else { return }
+        
+        HapticsManager.shared.lightTap()
+        
+        withAnimation {
+            region = MKCoordinateRegion(
+                center: location,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+            isSearchActive = false
+        }
+        
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        selectedCafe = cafe
+        showCafeDetail = true
+        isSearchFieldFocused = false
+        
+        let queryText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchText = ""
+        searchService.cancelSearch()
+        
+        if recordRecent {
+            dataManager.addRecentSearch(from: mapItem, query: queryText.isEmpty ? (mapItem.name ?? "") : queryText)
+        }
+    }
+    
+    private func handleRecentSearch(_ entry: RecentSearchEntry) {
+        dataManager.promoteRecentSearch(entry)
+        if let mapItem = entry.asMapItem() {
+            handleSearchResult(mapItem, recordRecent: false)
+        } else {
+            searchText = entry.query
+            searchService.search(query: entry.query, region: region ?? defaultRegion)
+            isSearchFieldFocused = true
         }
     }
     
@@ -1070,219 +1145,3 @@ struct VisitEntryRow: View {
     }
 }
 
-// MARK: - Search Results List
-
-struct SearchResultsList: View {
-    @Binding var searchText: String
-    @ObservedObject var searchService: MapSearchService
-    @ObservedObject var dataManager: DataManager
-    @Binding var region: MKCoordinateRegion
-    @Binding var selectedCafe: Cafe?
-    @Binding var showCafeDetail: Bool
-    @Binding var isSearchActive: Bool
-    
-    var body: some View {
-        ZStack {
-            DS.Colors.cardBackground
-            
-            if searchService.isSearching {
-                ProgressView()
-                    .padding(DS.Spacing.md)
-            } else if let error = searchService.searchError {
-                VStack(spacing: DS.Spacing.sm) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
-                        .foregroundColor(DS.Colors.iconSubtle)
-                    
-                    Text(error)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                }
-                .padding(DS.Spacing.md)
-            } else if searchService.searchResults.isEmpty && !searchService.isSearching && !searchText.isEmpty {
-                VStack(spacing: DS.Spacing.sm) {
-                    Text("No results found")
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                .padding(DS.Spacing.md)
-            } else if !searchText.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(searchService.searchResults, id: \.self) { mapItem in
-                            SearchResultRow(
-                                mapItem: mapItem,
-                                region: region,
-                                onTap: {
-                                    handleSearchResult(mapItem)
-                                }
-                            )
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.vertical, DS.Spacing.sm)
-                        }
-                    }
-                }
-            } else {
-                // Show local cafes when search is empty
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(dataManager.appData.cafes) { cafe in
-                            LocalCafeRow(
-                                cafe: cafe,
-                                onTap: {
-                                    // Haptic: confirm local cafe tap
-                                    HapticsManager.shared.lightTap()
-                                    selectedCafe = cafe
-                                    showCafeDetail = true
-                                    isSearchActive = false
-                                    
-                                    if let location = cafe.location {
-                                        withAnimation {
-                                            region = MKCoordinateRegion(
-                                                center: location,
-                                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                            )
-                                        }
-                                    }
-                                }
-                            )
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.vertical, DS.Spacing.sm)
-                        }
-                    }
-                }
-            }
-        }
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.6)
-        .cornerRadius(DS.Radius.card, corners: [.bottomLeft, .bottomRight] as UIRectCorner)
-    }
-    
-    private func handleSearchResult(_ mapItem: MKMapItem) {
-        guard let location = mapItem.placemark.location?.coordinate else { return }
-        
-        // Haptic: confirm search result tap
-        HapticsManager.shared.lightTap()
-        
-        // Center map on result
-        withAnimation {
-            region = MKCoordinateRegion(
-                center: location,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-        }
-        
-        // Find or create cafe
-        let cafe = dataManager.findOrCreateCafe(from: mapItem)
-        
-        // Show pin card
-        selectedCafe = cafe
-        showCafeDetail = true
-        isSearchActive = false
-        searchText = ""
-        searchService.cancelSearch()
-    }
-}
-
-// MARK: - Search Result Row
-
-struct SearchResultRow: View {
-    let mapItem: MKMapItem
-    let region: MKCoordinateRegion
-    let onTap: () -> Void
-    
-    var distance: String {
-        guard let itemLocation = mapItem.placemark.location else { return "" }
-        let regionCenter = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-        let distanceInMeters = itemLocation.distance(from: regionCenter)
-        
-        if distanceInMeters < 1000 {
-            return String(format: "%.0f m", distanceInMeters)
-        } else {
-            return String(format: "%.1f km", distanceInMeters / 1000)
-        }
-    }
-    
-    var subtitle: String {
-        var components: [String] = []
-        if let thoroughfare = mapItem.placemark.thoroughfare {
-            components.append(thoroughfare)
-        }
-        if let locality = mapItem.placemark.locality {
-            components.append(locality)
-        }
-        return components.joined(separator: ", ")
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            DSBaseCard {
-                HStack(spacing: DS.Spacing.lg) {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text(mapItem.name ?? "Unknown")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        
-                        if !subtitle.isEmpty {
-                            Text(subtitle)
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.textSecondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    if !distance.isEmpty {
-                        Text(distance)
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    Image(systemName: "chevron.right")
-                        .font(DS.Typography.caption2())
-                        .foregroundColor(DS.Colors.iconSubtle)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Local Cafe Row
-
-struct LocalCafeRow: View {
-    let cafe: Cafe
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            DSBaseCard {
-                HStack(spacing: DS.Spacing.lg) {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text(cafe.name)
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        
-                        if !cafe.address.isEmpty {
-                            Text(cafe.address)
-                                .font(DS.Typography.bodyText)
-                                .foregroundColor(DS.Colors.textSecondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    if cafe.averageRating > 0 {
-                        DSScoreBadge(score: cafe.averageRating)
-                    }
-                    
-                    Image(systemName: "chevron.right")
-                        .font(DS.Typography.caption2())
-                        .foregroundColor(DS.Colors.iconSubtle)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}

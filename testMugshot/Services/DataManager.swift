@@ -31,6 +31,7 @@ class DataManager: ObservableObject {
     private let visitService: SupabaseVisitService
     private let socialGraphService: SupabaseSocialGraphService
     private let notificationService: SupabaseNotificationService
+    private let maxRecentSearches = 10
     
     private init(
         authService: SupabaseAuthService = .shared,
@@ -111,6 +112,9 @@ class DataManager: ObservableObject {
         appData.currentUserDisplayName = displayName
         appData.currentUserUsername = username
         appData.hasEmailVerified = false
+        
+        // Mark this as a NEW account signup - user should see onboarding flow
+        appData.isNewAccountSignup = true
 
         if let _ = session {
              print("[Auth] signUp: Session obtained immediately")
@@ -133,7 +137,7 @@ class DataManager: ObservableObject {
         )
         appData.currentUser = localUser
         save()
-        print("[Auth] signUp: Auth state set - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=false")
+        print("[Auth] signUp: Auth state set - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=false, isNewAccountSignup=true")
     }
     
     func resendVerificationEmail() async throws {
@@ -545,6 +549,11 @@ class DataManager: ObservableObject {
         appData.currentUserEmail = email
         // Don't set verified yet - verify it first
         appData.hasEmailVerified = false
+        
+        // IMPORTANT: This is a returning user login, NOT a new signup
+        // They should skip the marketing onboarding flow entirely
+        appData.isNewAccountSignup = false
+        
         save()
 
         // Step 3: Verify email status and fetch profile
@@ -622,13 +631,25 @@ class DataManager: ObservableObject {
         
         // Step 7: Request push notification permissions and register token
         await registerPushNotificationsIfNeeded()
+        
+        // Step 8: Refresh friends list to get accurate count
+        print("[DataManager] Refreshing friends list...")
+        await refreshFriendsList()
     }
 
     func bootstrapAuthStateOnLaunch() async {
         print("[Auth] bootstrapAuthStateOnLaunch: Starting")
         isBootstrapping = true
+        
         // Use the single source of truth method to refresh auth status
         await refreshAuthStatusFromSupabase()
+        
+        // Refresh friends list if authenticated to get accurate count
+        if appData.isUserAuthenticated && appData.hasEmailVerified {
+            print("[Auth] bootstrapAuthStateOnLaunch: Refreshing friends list")
+            await refreshFriendsList()
+        }
+        
         isBootstrapping = false
         print("[Auth] bootstrapAuthStateOnLaunch: Complete")
     }
@@ -710,24 +731,54 @@ class DataManager: ObservableObject {
         appData.currentUserAvatarURL = avatarURL
         appData.currentUserBannerURL = bannerURL
         appData.hasCompletedProfileSetup = true
+        
+        // Clear the new account signup flag - onboarding is complete
+        appData.isNewAccountSignup = false
+        
         try await refreshProfileVisits()
         save()
         
         // Request push notification permissions after profile setup
         await registerPushNotificationsIfNeeded()
+        
+        // Refresh friends list (should be empty for new users, but ensures accurate state)
+        await refreshFriendsList()
     }
     
     private func mapRemoteUserProfile(_ profile: RemoteUserProfile) {
         appData.supabaseUserId = profile.id
-        appData.currentUserDisplayName = profile.displayName
-        appData.currentUserUsername = profile.username
-        appData.currentUserBio = profile.bio
-        appData.currentUserLocation = profile.location
-        appData.currentUserFavoriteDrink = profile.favoriteDrink
-        appData.currentUserInstagramHandle = profile.instagramHandle
-        appData.currentUserWebsite = profile.websiteURL
-        appData.currentUserAvatarURL = profile.avatarURL
-        appData.currentUserBannerURL = profile.bannerURL
+        
+        // Only update local values if remote values are non-empty
+        // This preserves local signup data if remote profile is incomplete
+        if !profile.displayName.isEmpty {
+            appData.currentUserDisplayName = profile.displayName
+        }
+        if !profile.username.isEmpty {
+            appData.currentUserUsername = profile.username
+        }
+        // For optional fields, only update if remote has a value
+        if let bio = profile.bio, !bio.isEmpty {
+            appData.currentUserBio = bio
+        }
+        if let location = profile.location, !location.isEmpty {
+            appData.currentUserLocation = location
+        }
+        if let favoriteDrink = profile.favoriteDrink, !favoriteDrink.isEmpty {
+            appData.currentUserFavoriteDrink = favoriteDrink
+        }
+        if let instagram = profile.instagramHandle, !instagram.isEmpty {
+            appData.currentUserInstagramHandle = instagram
+        }
+        if let website = profile.websiteURL, !website.isEmpty {
+            appData.currentUserWebsite = website
+        }
+        // URLs should always be updated from remote (authoritative source)
+        if let avatarURL = profile.avatarURL {
+            appData.currentUserAvatarURL = avatarURL
+        }
+        if let bannerURL = profile.bannerURL {
+            appData.currentUserBannerURL = bannerURL
+        }
 
         let remoteUUID = UUID(uuidString: profile.id) ?? appData.currentUser?.id ?? UUID()
         var localUser = profile.toLocalUser(existing: appData.currentUser, overridingId: remoteUUID)
@@ -849,11 +900,21 @@ class DataManager: ObservableObject {
     }
     
     func logout() {
+        // Preserve certain device-specific settings that shouldn't reset on logout
+        let preserveMarketingOnboarding = appData.hasSeenMarketingOnboarding
+        
         Task {
             await authService.signOut()
         }
+        
         // Clear all data and reset to initial state
         appData = AppData()
+        
+        // Restore device-specific settings
+        // hasSeenMarketingOnboarding is device-specific (user has seen the intro)
+        // but isNewAccountSignup is NOT restored (that's account-specific)
+        appData.hasSeenMarketingOnboarding = preserveMarketingOnboarding
+        
         save()
         // Clear photo cache
         PhotoCache.shared.clear()
@@ -880,8 +941,30 @@ class DataManager: ObservableObject {
     
     func toggleCafeFavorite(_ cafeId: UUID) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
+            let wasFavorite = appData.cafes[index].isFavorite
             appData.cafes[index].isFavorite.toggle()
             save()
+            print("[Cafe] Toggled favorite for \(appData.cafes[index].name) → \(!wasFavorite)")
+        } else {
+            print("⚠️ [DataManager] toggleCafeFavorite: Cafe \(cafeId) not found in user's cafe list")
+        }
+    }
+    
+    /// Toggle favorite for a cafe, adding it to the list if it doesn't exist
+    func toggleCafeFavorite(cafe: Cafe) {
+        if let index = appData.cafes.firstIndex(where: { $0.id == cafe.id }) {
+            // Cafe exists, just toggle
+            let wasFavorite = appData.cafes[index].isFavorite
+            appData.cafes[index].isFavorite.toggle()
+            save()
+            print("[Cafe] Toggled favorite for \(cafe.name) → \(!wasFavorite)")
+        } else {
+            // Cafe doesn't exist, add it with isFavorite = true (user is favoriting it)
+            var newCafe = cafe
+            newCafe.isFavorite = true
+            appData.cafes.append(newCafe)
+            save()
+            print("[Cafe] Toggled favorite for \(cafe.name) → true (added new cafe)")
         }
     }
     
@@ -905,14 +988,14 @@ class DataManager: ObservableObject {
             let wasWantToTry = appData.cafes[index].wantToTry
             appData.cafes[index].wantToTry.toggle()
             save()
-            print("✅ [DataManager] toggleCafeWantToTry: Cafe '\(cafe.name)' wantToTry changed from \(wasWantToTry) to \(appData.cafes[index].wantToTry)")
+            print("[Cafe] Toggled wantToTry for \(cafe.name) → \(!wasWantToTry)")
         } else {
             // Cafe doesn't exist, add it with wantToTry = true (user is bookmarking it)
             var newCafe = cafe
             newCafe.wantToTry = true
             appData.cafes.append(newCafe)
             save()
-            print("✅ [DataManager] toggleCafeWantToTry: Added new cafe '\(cafe.name)' to wantToTry list")
+            print("[Cafe] Toggled wantToTry for \(cafe.name) → true (added new cafe)")
         }
     }
     
@@ -984,6 +1067,59 @@ class DataManager: ObservableObject {
             placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )
         return cafe
+    }
+    
+    // MARK: - Recent Searches
+    
+    func addRecentSearch(from mapItem: MKMapItem, query: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recordedQuery = trimmedQuery.isEmpty ? (mapItem.name ?? "Search") : trimmedQuery
+        let subtitle = MapSearchClassifier.subtitle(from: mapItem.placemark)
+        let streetComponents = [
+            mapItem.placemark.subThoroughfare,
+            mapItem.placemark.thoroughfare
+        ].compactMap { $0 }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let entry = RecentSearchEntry(
+            query: recordedQuery,
+            name: mapItem.name ?? recordedQuery,
+            subtitle: subtitle,
+            street: streetComponents.isEmpty ? nil : streetComponents,
+            city: mapItem.placemark.locality ?? mapItem.placemark.subLocality,
+            administrativeArea: mapItem.placemark.administrativeArea,
+            country: mapItem.placemark.country,
+            postalCode: mapItem.placemark.postalCode,
+            latitude: mapItem.placemark.location?.coordinate.latitude,
+            longitude: mapItem.placemark.location?.coordinate.longitude,
+            placeCategory: mapItem.pointOfInterestCategory?.rawValue,
+            isCoffeeDestination: MapSearchClassifier.isCoffeeDestination(mapItem: mapItem),
+            urlString: mapItem.url?.absoluteString
+        )
+        upsertRecentSearch(entry)
+    }
+    
+    func promoteRecentSearch(_ entry: RecentSearchEntry) {
+        upsertRecentSearch(entry.updatingTimestamp())
+    }
+    
+    private func upsertRecentSearch(_ entry: RecentSearchEntry) {
+        appData.recentSearches.removeAll { existing in
+            if let entryCoordinate = entry.coordinate, let existingCoordinate = existing.coordinate {
+                let latDiff = abs(entryCoordinate.latitude - existingCoordinate.latitude)
+                let lonDiff = abs(entryCoordinate.longitude - existingCoordinate.longitude)
+                if latDiff < 0.00025 && lonDiff < 0.00025 {
+                    return true
+                }
+            }
+            return existing.name.lowercased() == entry.name.lowercased() &&
+            existing.query.lowercased() == entry.query.lowercased()
+        }
+        
+        appData.recentSearches.insert(entry, at: 0)
+        if appData.recentSearches.count > maxRecentSearches {
+            appData.recentSearches = Array(appData.recentSearches.prefix(maxRecentSearches))
+        }
+        save()
     }
     
     private func formatAddress(from placemark: MKPlacemark) -> String {
@@ -1271,6 +1407,54 @@ class DataManager: ObservableObject {
             }
             save()
         }
+    
+    /// Update visit notes and sync to Supabase
+    /// - Parameters:
+    ///   - visitId: The local visit ID
+    ///   - notes: The new notes text (can be nil or empty to clear notes)
+    /// - Throws: SupabaseError if the remote update fails
+    func updateVisitNotes(visitId: UUID, notes: String?) async throws {
+        guard let index = appData.visits.firstIndex(where: { $0.id == visitId }) else {
+            print("[DataManager] updateVisitNotes: Visit not found for id \(visitId)")
+            return
+        }
+        
+        let visit = appData.visits[index]
+        
+        // Update remote if we have a Supabase ID
+        if let supabaseId = visit.supabaseId {
+            try await visitService.updateVisitNotes(visitId: supabaseId, notes: notes)
+        }
+        
+        // Update local state
+        appData.visits[index].notes = notes
+        save()
+        
+        print("[DataManager] Visit notes updated successfully for visit \(visitId)")
+    }
+    
+    /// Update visit details and sync to Supabase
+    /// - Parameter visit: The updated visit with new values
+    /// - Throws: SupabaseError if the remote update fails
+    func updateVisitRemote(_ visit: Visit) async throws {
+        guard let supabaseId = visit.supabaseId else {
+            print("[DataManager] updateVisitRemote: No Supabase ID for visit \(visit.id)")
+            return
+        }
+        
+        try await visitService.updateVisit(
+            visitId: supabaseId,
+            drinkType: visit.drinkType.rawValue,
+            customDrinkType: visit.customDrinkType,
+            caption: visit.caption,
+            notes: visit.notes,
+            visibility: visit.visibility.supabaseValue,
+            ratings: visit.ratings,
+            overallScore: visit.overallScore
+        )
+        
+        print("[DataManager] Visit updated successfully in Supabase for visit \(visit.id)")
+    }
         
         // Delete a visit and update cafe stats accordingly
         func deleteVisit(id: UUID) {
@@ -1294,6 +1478,55 @@ class DataManager: ObservableObject {
             .sorted { $0.createdAt > $1.createdAt }
     }
     
+    // MARK: - Saved Tab Helpers
+    
+    /// Get the most recent visit date for a cafe
+    func lastVisitDate(for cafeId: UUID) -> Date? {
+        getVisitsForCafe(cafeId).first?.createdAt
+    }
+    
+    /// Get the date when cafe was added to wishlist (approximated by first visit or favorite date)
+    /// For now, uses the cafe's first visit date or current date if no visits
+    func dateAddedToWishlist(for cafeId: UUID) -> Date {
+        // In a full implementation, you'd track this separately
+        // For now, use the earliest visit date or current date
+        getVisitsForCafe(cafeId).last?.createdAt ?? Date()
+    }
+    
+    /// Get the most frequently ordered drink type at a cafe
+    func favoriteDrink(for cafeId: UUID) -> String? {
+        let visits = getVisitsForCafe(cafeId)
+        guard !visits.isEmpty else { return nil }
+        
+        let drinkCounts = Dictionary(grouping: visits) { $0.drinkType }
+            .mapValues { $0.count }
+        
+        guard let (topDrink, count) = drinkCounts.max(by: { $0.value < $1.value }),
+              count >= 2 else { return nil } // Only show if ordered 2+ times
+        
+        return topDrink.rawValue
+    }
+    
+    /// Get cafe distance from user location (for sorting)
+    func distance(to cafe: Cafe, from location: CLLocation?) -> Double? {
+        guard let userLocation = location,
+              let cafeLocation = cafe.location else { return nil }
+        
+        let cafeCLLocation = CLLocation(latitude: cafeLocation.latitude,
+                                         longitude: cafeLocation.longitude)
+        return userLocation.distance(from: cafeCLLocation)
+    }
+    
+    /// Get the image path for a cafe from its most recent visit
+    func cafeImageInfo(for cafeId: UUID) -> (path: String?, remoteURL: String?) {
+        let visits = getVisitsForCafe(cafeId)
+        guard let visit = visits.first,
+              let path = visit.posterImagePath else {
+            return (nil, nil)
+        }
+        return (path, visit.remoteURL(for: path))
+    }
+    
     // MARK: - Like Operations
     func toggleVisitLike(_ visitId: UUID) async {
         guard
@@ -1305,19 +1538,31 @@ class DataManager: ObservableObject {
             return
         }
         
-        var visit = appData.visits[index]
+        // Capture initial state for potential rollback
+        let originalVisit = appData.visits[index]
+        let wasLiked = originalVisit.isLikedBy(userId: currentUser.id)
+        
+        // OPTIMISTIC UPDATE: Update UI immediately on MainActor
+        await MainActor.run {
+            var optimisticVisit = originalVisit
+            if wasLiked {
+                optimisticVisit.likedByUserIds.removeAll { $0 == currentUser.id }
+                optimisticVisit.likeCount = max(0, optimisticVisit.likeCount - 1)
+            } else {
+                optimisticVisit.likedByUserIds.append(currentUser.id)
+                optimisticVisit.likeCount += 1
+            }
+            appData.visits[index] = optimisticVisit // Trigger UI update
+            save()
+        }
         
         do {
-            if visit.isLikedBy(userId: currentUser.id) {
+            if wasLiked {
                 try await visitService.removeLike(visitId: remoteVisitId, userId: supabaseUserId)
-                visit.likedByUserIds.removeAll { $0 == currentUser.id }
-                visit.likeCount = max(0, visit.likeCount - 1)
             } else {
                 _ = try await visitService.addLike(visitId: remoteVisitId, userId: supabaseUserId)
-                visit.likedByUserIds.append(currentUser.id)
-                visit.likeCount += 1
                 
-                 if let ownerId = visit.supabaseUserId, ownerId != supabaseUserId {
+                 if let ownerId = originalVisit.supabaseUserId, ownerId != supabaseUserId {
                      let payload = NotificationInsertPayload(
                          userId: ownerId,
                          actorUserId: supabaseUserId,
@@ -1328,10 +1573,16 @@ class DataManager: ObservableObject {
                      try? await notificationService.createNotification(payload)
                  }
             }
-            appData.visits[index] = visit
-            save()
         } catch {
             print("Supabase like toggle failed: \(error.localizedDescription)")
+            
+            // ROLLBACK: Revert to original state on failure
+            await MainActor.run {
+                if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }) {
+                    appData.visits[safeIndex] = originalVisit
+                    save()
+                }
+            }
         }
     }
     
@@ -1379,15 +1630,23 @@ class DataManager: ObservableObject {
     
     func acceptFriendRequest(requestId: UUID) async throws {
         guard let supabaseUserId = appData.supabaseUserId else {
+            print("❌ [Friends] Cannot accept request - no supabaseUserId")
             throw SupabaseError.invalidSession
         }
+        
+        print("[Friends] Accepting friend request id=\(requestId) for user=\(supabaseUserId)")
         
         do {
             // First, fetch the request to get fromUserId and toUserId
             let incomingRequests = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+            print("[Friends] Found \(incomingRequests.count) incoming requests")
+            
             guard let request = incomingRequests.first(where: { $0.id == requestId }) else {
+                print("❌ [Friends] Friend request \(requestId) not found in incoming requests")
                 throw SupabaseError.decoding("Friend request not found")
             }
+            
+            print("[Friends] Accepting request from=\(request.fromUserId) to=\(request.toUserId)")
             
             try await socialGraphService.acceptFriendRequest(
                 requestId: requestId,
@@ -1395,9 +1654,14 @@ class DataManager: ObservableObject {
                 toUserId: request.toUserId
             )
             
+            print("[Friends] Backend accept successful, refreshing friends list...")
+            
             // Refresh friends list
             let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            let previousCount = appData.friendsSupabaseUserIds.count
             appData.friendsSupabaseUserIds = Set(friends)
+            print("[Friends] Friends list updated: \(previousCount) -> \(appData.friendsSupabaseUserIds.count) friends")
+            print("[Friends] Current friends: \(appData.friendsSupabaseUserIds)")
             
             // Create notification for the requester that their request was accepted
             let payload = NotificationInsertPayload(
@@ -1409,7 +1673,7 @@ class DataManager: ObservableObject {
             )
             try? await notificationService.createNotification(payload)
             
-            print("[Friends] Friend request accepted - id: \(requestId)")
+            print("[Friends] Friend request accepted successfully - id: \(requestId)")
             save()
         } catch {
             print("❌ [Friends] Failed to accept friend request: \(error.localizedDescription)")
@@ -1423,6 +1687,16 @@ class DataManager: ObservableObject {
             print("[Friends] Friend request rejected - id: \(requestId)")
         } catch {
             print("❌ [Friends] Failed to reject friend request: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func cancelFriendRequest(requestId: UUID) async throws {
+        do {
+            try await socialGraphService.cancelFriendRequest(requestId: requestId)
+            print("[FriendsRequests] Canceled outgoing request id=\(requestId)")
+        } catch {
+            print("❌ [Friends] Failed to cancel friend request: \(error.localizedDescription)")
             throw error
         }
     }
@@ -1553,6 +1827,18 @@ class DataManager: ObservableObject {
         }
     }
     
+    /// Search for users by username or display name
+    func searchUsers(query: String) async throws -> [RemoteUserProfile] {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        return try await profileService.searchUsers(
+            query: query,
+            excludingUserId: supabaseUserId
+        )
+    }
+    
     // MARK: - Feed Operations
     func getFeedVisits(scope: FeedScope, currentUserId: UUID) -> [Visit] {
         let allVisits = appData.visits.sorted { $0.createdAt > $1.createdAt }
@@ -1637,6 +1923,57 @@ class DataManager: ObservableObject {
         print("🔄 [RefreshVisits] Cafe stats recalculation complete")
     }
     
+    /// Delete a comment authored by the current user.
+    /// Removes the comment locally and from Supabase.
+    func deleteComment(_ comment: Comment, from visitId: UUID) async {
+        guard
+            let index = appData.visits.firstIndex(where: { $0.id == visitId }),
+            let remoteCommentId = comment.supabaseId ?? comment.id as UUID?
+        else {
+            print("[Comments] Delete failed - visit or comment not found")
+            return
+        }
+        
+        do {
+            try await visitService.deleteComment(commentId: remoteCommentId)
+            appData.visits[index].comments.removeAll { $0.id == comment.id }
+            save()
+            print("[Comments] Deleted comment id=\(comment.id) by currentUser")
+        } catch {
+            print("[Comments] Failed to delete comment: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Edit a comment authored by the current user.
+    /// Updates the comment text in Supabase and local state.
+    func editComment(_ comment: Comment, in visitId: UUID, newText: String) async {
+        guard
+            let index = appData.visits.firstIndex(where: { $0.id == visitId }),
+            let remoteCommentId = comment.supabaseId ?? comment.id as UUID?
+        else {
+            print("[Comments] Edit failed - visit or comment not found")
+            return
+        }
+        
+        do {
+            let remote = try await visitService.updateComment(commentId: remoteCommentId, newText: newText)
+            
+            // Build updated local comment
+            var updated = comment
+            updated.text = newText
+            updated.createdAt = remote.createdAt ?? comment.createdAt
+            updated.mentions = MentionParser.parseMentions(from: newText)
+            
+            if let localIndex = appData.visits[index].comments.firstIndex(where: { $0.id == comment.id }) {
+                appData.visits[index].comments[localIndex] = updated
+            }
+            save()
+            print("[Comments] Edited comment id=\(comment.id) by currentUser")
+        } catch {
+            print("[Comments] Failed to edit comment: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Comment Operations
     func addComment(to visitId: UUID, text: String) async {
         guard
@@ -1665,17 +2002,27 @@ class DataManager: ObservableObject {
                 createdAt: remoteComment.createdAt ?? Date(),
                 mentions: MentionParser.parseMentions(from: text)
             )
+
+            // Update state on MainActor to ensure UI sees the change immediately
+            await MainActor.run {
+                // Safety: Re-lookup index in case visits array changed during network call
+                if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }) {
+                    var updatedVisit = appData.visits[safeIndex]
+                    updatedVisit.comments.append(comment)
+                    appData.visits[safeIndex] = updatedVisit // Triggers @Published
+                    save()
+                }
+            }
             
-            appData.visits[index].comments.append(comment)
-            save()
-            
-            if let ownerId = appData.visits[index].supabaseUserId,
+            // Re-fetch index for notification logic
+            if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }),
+               let ownerId = appData.visits[safeIndex].supabaseUserId,
                ownerId != supabaseUserId {
                 let payload = NotificationInsertPayload(
                     userId: ownerId,
                     actorUserId: supabaseUserId,
                     type: "comment",
-                    visitId: appData.visits[index].supabaseId,
+                    visitId: remoteVisitId,
                     commentId: remoteComment.id
                 )
                 try? await notificationService.createNotification(payload)
@@ -1697,10 +2044,30 @@ class DataManager: ObservableObject {
         guard let supabaseUserId = appData.supabaseUserId else { return }
         do {
             let remote = try await notificationService.fetchNotifications(for: supabaseUserId)
-            appData.notifications = remote.map { mapRemoteNotification($0) }
+            var mapped = remote.map { mapRemoteNotification($0) }
+            
+            // If the user has cleared notifications before, hide anything created at or before that point
+            if let cutoff = appData.notificationsClearedAt {
+                mapped = mapped.filter { $0.createdAt > cutoff }
+            }
+            
+            appData.notifications = mapped
             save()
         } catch {
             print("Failed to refresh notifications: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Clear all notifications for the current user, both locally and in Supabase.
+    func clearAllNotifications() async {
+        guard let supabaseUserId = appData.supabaseUserId else { return }
+        do {
+            try await notificationService.clearAllNotifications(for: supabaseUserId)
+            appData.notificationsClearedAt = Date()
+            appData.notifications.removeAll()
+            save()
+        } catch {
+            print("Failed to clear notifications: \(error.localizedDescription)")
         }
     }
     
@@ -1885,7 +2252,7 @@ class DataManager: ObservableObject {
                 supabaseId: remote.id, // Ensure Supabase ID is set
                 name: remote.name, // Update name from remote
                 location: remote.toLocalCafe().location ?? existing.location, // Prefer remote location, fallback to existing
-                address: remote.address ?? existing.address ?? "",
+                address: remote.address ?? existing.address,
                 city: remote.city ?? existing.city,
                 country: remote.country ?? existing.country,
                 isFavorite: existing.isFavorite, // PRESERVE local state
@@ -2083,7 +2450,18 @@ class DataManager: ObservableObject {
     
     private func mapRemoteNotification(_ remote: RemoteNotification) -> MugshotNotification {
         let type = NotificationType(rawValue: remote.type) ?? .system
-        let actorLabel = remote.actorUserId.prefix(6)
+        
+        // Prefer rich actor profile data when available
+        let actorLabel: String
+        if let displayName = remote.actorDisplayName, !displayName.isEmpty {
+            actorLabel = displayName
+        } else if let username = remote.actorUsername, !username.isEmpty {
+            actorLabel = username
+        } else {
+            // Fallback to a short id prefix if we truly have no profile info
+            actorLabel = String(remote.actorUserId.prefix(6))
+        }
+        
         let message: String
         switch type {
         case .newVisitFromFriend:
@@ -2112,6 +2490,10 @@ class DataManager: ObservableObject {
             type: type,
             supabaseUserId: remote.userId,
             actorSupabaseUserId: remote.actorUserId,
+            actorUsername: remote.actorUsername,
+            actorDisplayName: remote.actorDisplayName,
+            // Use the remote avatar URL as the cache key; PhotoCache will use this to store/load the image
+            actorAvatarKey: remote.actorAvatarURL,
             targetVisitId: remote.visitId,
             visitSupabaseId: remote.visitId,
             targetCafeName: nil,
