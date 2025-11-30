@@ -32,7 +32,7 @@ struct PostcardData {
         avatarURL: String?
     ) -> PostcardData {
         PostcardData(
-            cafeName: cafe?.name ?? "Unknown Café",
+            cafeName: cafe?.name ?? "Unknown Cafe",
             cafeCity: cafe?.city,
             visitDate: visit.createdAt,
             drinkType: visit.drinkType,
@@ -374,22 +374,62 @@ struct MugshotPostcardView: View {
     
     private var brandingSection: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            // Mugshot wordmark - prevent wrapping
+            // App icon + Mugshot wordmark
             HStack(spacing: 12) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 36, weight: .semibold)) // Scored up
+                // App icon from bundle
+                AppIconView(size: 48)
+                
                 Text("Mugshot")
-                    .font(.system(size: 42, weight: .bold)) // Scored up
+                    .font(.system(size: 42, weight: .bold))
             }
             .foregroundColor(.white)
             .fixedSize(horizontal: true, vertical: false)
             
             // CTA
             Text("Download Now")
-                .font(.system(size: 28, weight: .semibold)) // Scored up
+                .font(.system(size: 28, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))
                 .fixedSize(horizontal: true, vertical: false)
         }
+    }
+}
+
+// MARK: - App Icon Helper
+
+/// Loads and displays the app icon from the bundle
+struct AppIconView: View {
+    let size: CGFloat
+    
+    var body: some View {
+        Group {
+            if let icon = Self.loadAppIcon() {
+                Image(uiImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                // Fallback: recreate the icon design
+                RoundedRectangle(cornerRadius: size * 0.22)
+                    .fill(DS.Colors.primaryAccent)
+                    .overlay(
+                        Image(systemName: "mug.fill")
+                            .font(.system(size: size * 0.5, weight: .medium))
+                            .foregroundColor(.white)
+                    )
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+    }
+    
+    /// Load app icon from bundle
+    static func loadAppIcon() -> UIImage? {
+        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+           let lastIcon = iconFiles.last {
+            return UIImage(named: lastIcon)
+        }
+        return UIImage(named: "AppIcon")
     }
 }
 

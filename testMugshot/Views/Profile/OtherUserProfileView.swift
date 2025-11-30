@@ -29,7 +29,7 @@ struct OtherUserProfileView: View {
     
     enum ProfileContentTab: String, CaseIterable {
         case posts = "Posts"
-        case cafes = "Cafés"
+        case cafes = "Cafes"
     }
     
     // MARK: - Computed Properties
@@ -125,7 +125,7 @@ struct OtherUserProfileView: View {
                         )
                         .padding(.top, DS.Spacing.lg)
                         
-                        // Content Tabs (Posts / Cafés)
+                        // Content Tabs (Posts / Cafes)
                         contentTabsSection
                         
                         // Mutual Friends Section
@@ -334,7 +334,7 @@ struct OtherUserProfileView: View {
                         .font(.system(size: 40))
                         .foregroundColor(DS.Colors.iconSubtle)
                     
-                    Text("No cafés yet")
+                    Text("No cafes yet")
                         .font(DS.Typography.bodyText)
                         .foregroundColor(DS.Colors.textSecondary)
                 }

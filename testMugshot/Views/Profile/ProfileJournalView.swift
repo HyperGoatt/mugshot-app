@@ -63,7 +63,7 @@ struct ProfileJournalView: View {
                 visitsLast30Days: JournalStatsHelper.visitsInLast30Days(visits: userVisits)
             )
             
-            // Top Cafés
+            // Top Cafes
             TopCafesCard(
                 topCafes: JournalStatsHelper.topCafes(
                     from: userVisits,
@@ -292,7 +292,7 @@ private struct CoffeeStatsCard: View {
                 // Main stats grid
                 HStack(spacing: DS.Spacing.lg) {
                     StatItem(value: "\(stats.totalVisits)", label: "Total visits")
-                    StatItem(value: "\(stats.totalCafes)", label: "Cafés")
+                    StatItem(value: "\(stats.totalCafes)", label: "Cafes")
                     StatItem(
                         value: stats.averageScore > 0 ? String(format: "%.1f", stats.averageScore) : "-",
                         label: "Avg rating"
@@ -355,7 +355,7 @@ private struct RecentActivityStat: View {
     }
 }
 
-// MARK: - Top Cafés Card
+// MARK: - Top Cafes Card
 
 private struct TopCafesCard: View {
     let topCafes: [(cafe: Cafe, visitCount: Int, avgRating: Double)]
@@ -367,7 +367,7 @@ private struct TopCafesCard: View {
         if !topCafes.isEmpty {
             DSBaseCard {
                 VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    DSSectionHeader("Top Cafés")
+                    DSSectionHeader("Top Cafes")
                     
                     ForEach(Array(topCafes.enumerated()), id: \.element.cafe.id) { index, item in
                         if index > 0 {
@@ -757,7 +757,7 @@ private struct NotesCard: View {
     
     enum NotesFilterMode: String, CaseIterable {
         case all = "All notes"
-        case byCafe = "By café"
+        case byCafe = "By cafe"
     }
     
     private var allNotesVisits: [Visit] {
@@ -803,7 +803,7 @@ private struct NotesCard: View {
             if let visit = selectedVisitForEdit {
                 NoteDetailEditView(
                     visit: visit,
-                    cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Café",
+                    cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Cafe",
                     dataManager: dataManager,
                     onDismiss: { showEditSheet = false }
                 )
@@ -906,7 +906,7 @@ private struct NotesCard: View {
             .background(DS.Colors.cardBackgroundAlt)
             .cornerRadius(DS.Radius.lg)
             
-            // Café picker when "By café" is selected
+            // Cafe picker when "By cafe" is selected
             if filterMode == .byCafe && !cafesWithNotes.isEmpty {
                 Menu {
                     ForEach(cafesWithNotes) { cafe in
@@ -947,7 +947,7 @@ private struct NotesCard: View {
            let cafe = dataManager.getCafe(id: cafeId) {
             return cafe.name
         }
-        return "Select a café"
+        return "Select a cafe"
     }
     
     // MARK: - Notes List Content

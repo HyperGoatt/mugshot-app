@@ -109,8 +109,8 @@ struct ProfileSocialStats: View {
             // Visits
             statItem(count: visitsCount, label: "Visits")
             
-            // Cafés
-            statItem(count: cafesCount, label: "Cafés")
+            // Cafes
+            statItem(count: cafesCount, label: "Cafes")
             
             // Friends (tappable)
             Button(action: onFriendsTap) {

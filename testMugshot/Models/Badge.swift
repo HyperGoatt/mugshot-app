@@ -45,19 +45,19 @@ struct BadgeDefinition {
     var unlockHint: String {
         switch id {
         case "first_pour":
-            return "Log your first visit to any café."
+            return "Log your first visit to any cafe."
         case "steady_sipper":
-            return "Log 10 visits to cafés."
+            return "Log 10 visits to cafes."
         case "regular":
-            return "Log 25 visits to cafés."
+            return "Log 25 visits to cafes."
         case "weekend_warrior":
             return "Log visits on 2 consecutive weekends."
         case "daily_drip_7":
             return "Maintain a 7-day visit streak."
         case "neighborhood_sipper":
-            return "Visit 3 different cafés."
+            return "Visit 3 different cafes."
         case "cafe_explorer":
-            return "Visit 10 different cafés."
+            return "Visit 10 different cafes."
         case "thoughtful_sipper":
             return "Add notes to 3 of your visits."
         case "coffee_chronicler":
@@ -152,11 +152,11 @@ extension BadgeDefinition {
             targetValue: 7
         ),
         
-        // Exploration / cafés
+        // Exploration / cafes
         BadgeDefinition(
             id: "neighborhood_sipper",
             name: "Neighborhood Sipper",
-            description: "Visited 3 unique cafés.",
+            description: "Visited 3 unique cafes.",
             category: .exploration,
             iconName: "map.fill",
             targetValue: 3
@@ -164,7 +164,7 @@ extension BadgeDefinition {
         BadgeDefinition(
             id: "cafe_explorer",
             name: "Cafe Explorer",
-            description: "Visited 10 unique cafés.",
+            description: "Visited 10 unique cafes.",
             category: .exploration,
             iconName: "globe.americas.fill",
             targetValue: 10

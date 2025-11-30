@@ -27,13 +27,13 @@ import UIKit
 //
 // MEDIUM-CONFIRMATION INTERACTIONS
 // - Tapping "Save Visit" button
-// - Tapping "Log this café" button
+// - Tapping "Log this cafe" button
 // - Confirming logout or destructive action (delete post, remove friend)
 // → Use: mediumTap() on tap, then success()/error() based on result
 //
 // LIGHT, FREQUENT INTERACTIONS
 // - Toggling like heart on a post
-// - Toggling favorite / want-to-try on a café
+// - Toggling favorite / want-to-try on a cafe
 // - Changing rating sliders / tapping stars
 // - Adding/removing photos
 // → Use: lightTap()
@@ -46,7 +46,7 @@ import UIKit
 //
 // NAVIGATION TRANSITIONS
 // - Tapping a post from feed → open PostPreview
-// - Tapping a map pin → open visit detail or café bottom sheet
+// - Tapping a map pin → open visit detail or cafe bottom sheet
 // - Tapping a notification to drill in
 // → Use: lightTap() on the initial tap (not on every view appear)
 //

@@ -148,17 +148,15 @@ struct VisitDetailView: View {
                     likeCount: visit.likeCount,
                     commentCount: visit.comments.count,
                     isBookmarked: isBookmarked,
+                    showShareButton: isCurrentUserAuthor, // Only show share on own posts
                     onLikeTap: toggleLike,
                     onCommentTap: {
                         isCommentFieldFocused = true
                     },
                     onBookmarkTap: toggleBookmark,
                     onShareTap: {
-                        // Only allow postcard generation for own visits
-                        if isCurrentUserAuthor {
-                            hapticsManager.lightTap()
-                            showPostcardPreview = true
-                        }
+                        hapticsManager.lightTap()
+                        showPostcardPreview = true
                     }
                 )
                 .padding(.horizontal, DS.Spacing.pagePadding)

@@ -35,7 +35,7 @@ enum MapSearchClassifier {
     private static let coffeeKeywords: [String] = [
         "coffee",
         "cafe",
-        "café",
+        "cafe",
         "espresso",
         "latte",
         "americano",

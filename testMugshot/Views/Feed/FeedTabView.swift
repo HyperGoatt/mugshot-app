@@ -15,7 +15,6 @@ struct FeedTabView: View {
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
     @State private var selectedUserId: String?
-    @State private var showCafeDetail = false
     @State private var showNotifications = false
     @State private var isRefreshing = false
     @State private var refreshRotation: Double = 0
@@ -68,40 +67,58 @@ struct FeedTabView: View {
                         }
                         
                         // Feed content with white background
-                        LazyVStack(spacing: DS.Spacing.lg) {
-                            ForEach(visits) { visit in
-                                VisitCard(
-                                    visit: visit,
-                                    dataManager: dataManager,
-                                    selectedScope: selectedScope,
-                                    onCafeTap: {
-                                        if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                                            selectedCafe = cafe
-                                            showCafeDetail = true
+                        if selectedScope == .discover {
+                            // Discover content (Social Radar + Guides + Spin)
+                            DiscoverContentView(
+                                dataManager: dataManager,
+                                onCafeTap: { cafe in
+                                    selectedCafe = cafe
+                                }
+                            )
+                            .padding(.bottom, DS.Spacing.xxl * 2)
+                            .background(DS.Colors.screenBackground)
+                        } else {
+                            // Standard feed (Friends / Everyone)
+                            LazyVStack(spacing: DS.Spacing.lg) {
+                                ForEach(visits) { visit in
+                                    VisitCard(
+                                        visit: visit,
+                                        dataManager: dataManager,
+                                        selectedScope: selectedScope,
+                                        onCafeTap: {
+                                            print("🔵 [FeedTabView] Cafe pill tapped for visit: \(visit.id)")
+                                            print("🔵 [FeedTabView] visit.cafeId: \(visit.cafeId)")
+                                            if let cafe = dataManager.getCafe(id: visit.cafeId) {
+                                                print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
+                                                selectedCafe = cafe
+                                                print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
+                                            } else {
+                                                print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(visit.cafeId)")
+                                            }
+                                        },
+                                        onAuthorTap: {
+                                            if let supabaseUserId = visit.supabaseUserId,
+                                               supabaseUserId != dataManager.appData.supabaseUserId {
+                                                selectedUserId = supabaseUserId
+                                            }
+                                        },
+                                        onCommentTap: {
+                                            // Open the visit detail view and let the user comment there
+                                            hapticsManager.lightTap()
+                                            selectedVisit = visit
                                         }
-                                    },
-                                    onAuthorTap: {
-                                        if let supabaseUserId = visit.supabaseUserId,
-                                           supabaseUserId != dataManager.appData.supabaseUserId {
-                                            selectedUserId = supabaseUserId
-                                        }
-                                    },
-                                    onCommentTap: {
-                                        // Open the visit detail view and let the user comment there
+                                    )
+                                    .onTapGesture {
                                         hapticsManager.lightTap()
                                         selectedVisit = visit
                                     }
-                                )
-                                .onTapGesture {
-                                    hapticsManager.lightTap()
-                                    selectedVisit = visit
                                 }
                             }
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.top, DS.Spacing.lg)
+                            .padding(.bottom, DS.Spacing.xxl * 2)
+                            .background(DS.Colors.screenBackground)
                         }
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.top, DS.Spacing.lg)
-                        .padding(.bottom, DS.Spacing.xxl * 2)
-                        .background(DS.Colors.screenBackground)
                     }
                 }
                 .coordinateSpace(name: "scroll")
@@ -130,10 +147,8 @@ struct FeedTabView: View {
                     OtherUserProfileView(dataManager: dataManager, userId: userId)
                 }
             }
-            .sheet(isPresented: $showCafeDetail) {
-                if let cafe = selectedCafe {
-                    CafeDetailView(cafe: cafe, dataManager: dataManager)
-                }
+            .sheet(item: $selectedCafe) { cafe in
+                CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -145,11 +160,17 @@ struct FeedTabView: View {
             }
         }
         .task {
-            await dataManager.refreshFeed(scope: selectedScope)
+            // Don't refresh feed for discover scope (it uses local data)
+            if selectedScope != .discover {
+                await dataManager.refreshFeed(scope: selectedScope)
+            }
         }
         .onChange(of: selectedScope) { _, newScope in
-            Task {
-                await dataManager.refreshFeed(scope: newScope)
+            // Don't refresh feed for discover scope (it uses local data)
+            if newScope != .discover {
+                Task {
+                    await dataManager.refreshFeed(scope: newScope)
+                }
             }
         }
         .onChange(of: tabCoordinator.navigationTarget) { _, target in
@@ -309,6 +330,11 @@ struct FeedTabView: View {
             
         case .friendRequests:
             // Friend requests are handled by ProfileTabView, not FeedTabView
+            // Just clear the target to avoid infinite loops
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendsHub:
+            // Friends hub is handled by ProfileTabView, not FeedTabView
             // Just clear the target to avoid infinite loops
             tabCoordinator.clearNavigationTarget()
         }
@@ -532,17 +558,6 @@ struct VisitCard: View {
                     .foregroundColor(isBookmarked ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
                     .scaleEffect(isBookmarked ? 1.1 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isBookmarked)
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, DS.Spacing.lg)
-            
-            // Share button
-            Button(action: {
-                hapticsManager.lightTap()
-            }) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 18))
-                    .foregroundColor(DS.Colors.iconDefault)
             }
             .buttonStyle(.plain)
         }

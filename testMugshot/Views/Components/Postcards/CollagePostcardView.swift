@@ -302,15 +302,18 @@ struct CollagePostcardView: View {
     
     private var brandingSection: some View {
         VStack(alignment: .trailing, spacing: 10) {
+            // App icon + Mugshot wordmark
             HStack(spacing: 12) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 36, weight: .semibold))
+                // App icon from bundle (uses AppIconView from MugshotPostcardView)
+                AppIconView(size: 48)
+                
                 Text("Mugshot")
                     .font(.system(size: 42, weight: .bold))
             }
             .foregroundColor(.white)
             .fixedSize(horizontal: true, vertical: false)
             
+            // CTA
             Text("Download Now")
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))

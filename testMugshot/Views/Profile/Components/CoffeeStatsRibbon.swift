@@ -25,10 +25,10 @@ struct CoffeeStatsRibbon: View {
                     icon: nil
                 )
                 
-                // Total Cafés
+                // Total Cafes
                 StatPill(
                     value: "\(totalCafes)",
-                    label: "Cafés",
+                    label: "Cafes",
                     icon: nil
                 )
                 
@@ -51,7 +51,7 @@ struct CoffeeStatsRibbon: View {
                     )
                 }
                 
-                // Top Café (if exists)
+                // Top Cafe (if exists)
                 if let cafe = topCafe {
                     Button(action: { onTopCafeTap?() }) {
                         TopCafeStatPill(
@@ -106,7 +106,7 @@ struct StatPill: View {
     }
 }
 
-// MARK: - Top Café Stat Pill
+// MARK: - Top Cafe Stat Pill
 
 struct TopCafeStatPill: View {
     let cafeName: String
@@ -118,7 +118,7 @@ struct TopCafeStatPill: View {
                 Image(systemName: "trophy.fill")
                     .font(.system(size: 10))
                     .foregroundColor(DS.Colors.primaryAccent)
-                Text("Top Café")
+                Text("Top Cafe")
                     .font(DS.Typography.caption2())
                     .foregroundColor(DS.Colors.textSecondary)
                     .textCase(.uppercase)

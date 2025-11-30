@@ -29,6 +29,7 @@ struct MapTabView: View {
     @State private var showNotifications = false
     @State private var selectedVisit: Visit?
     @State private var recenterOnUserRequest = false
+    @State private var showFriendsHub = false
     
     private var referenceLocation: CLLocation {
         let activeRegion = region ?? defaultRegion
@@ -37,6 +38,24 @@ struct MapTabView: View {
     
     private var unreadNotificationCount: Int {
         dataManager.appData.notifications.filter { !$0.isRead }.count
+    }
+    
+    // Sip Squad mode state (bound to persisted AppData)
+    private var isSipSquadMode: Bool {
+        dataManager.appData.isSipSquadModeEnabled
+    }
+    
+    private var hasFriends: Bool {
+        !dataManager.appData.friendsSupabaseUserIds.isEmpty
+    }
+    
+    private var friendVisitedCafeCount: Int {
+        dataManager.getFriendVisitedCafeCount()
+    }
+    
+    // Feature flag for simplified Sip Squad style (mint pins, no legend)
+    private var useSipSquadSimplifiedStyle: Bool {
+        isSipSquadMode && dataManager.appData.useSipSquadSimplifiedStyle
     }
     
     // Default fallback region (SF) - only used if location unavailable
@@ -66,6 +85,7 @@ struct MapTabView: View {
                     set: { region = $0 }
                 ),
                 cafes: cafesWithLocations,
+                useSipSquadSimplifiedStyle: useSipSquadSimplifiedStyle,
                 onCafeTap: { cafe in
                     // Haptic: confirm map pin tap
                     hapticsManager.lightTap()
@@ -145,6 +165,25 @@ struct MapTabView: View {
                         .padding(.horizontal, DS.Spacing.pagePadding)
                         .padding(.top, DS.Spacing.sm)
                         .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                
+                // Sip Squad banner
+                if isSipSquadMode {
+                    SipSquadBanner(
+                        hasFriends: hasFriends,
+                        friendCafeCount: friendVisitedCafeCount,
+                        onDismiss: {
+                            hapticsManager.lightTap()
+                            dataManager.toggleSipSquadMode()
+                        },
+                        onFindFriends: {
+                            hapticsManager.lightTap()
+                            showFriendsHub = true
+                        }
+                    )
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.top, DS.Spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 // Inline search bar
@@ -262,14 +301,31 @@ struct MapTabView: View {
                 Spacer()
             }
             
-            // Bottom UI elements: Location button and Ratings Legend
+            // Bottom UI elements: Location button, Sip Squad toggle, and Ratings Legend
             VStack(spacing: DS.Spacing.sm) {
                 Spacer()
                 
                 if !showCafeDetail {
-                    // Stack location button just above the legend, both sitting above the custom tab bar
+                    // Stack buttons just above the legend, both sitting above the custom tab bar
                     HStack {
                         Spacer()
+                        
+                        // Sip Squad toggle button
+                        SipSquadToggleButton(
+                            isActive: isSipSquadMode,
+                            onTap: {
+                                hapticsManager.lightTap()
+                                
+                                // If turning on but no friends, show the friends hub instead
+                                if !isSipSquadMode && !hasFriends {
+                                    showFriendsHub = true
+                                } else {
+                                    // toggleSipSquadMode() handles fetch internally when enabling
+                                    dataManager.toggleSipSquadMode()
+                                }
+                            }
+                        )
+                        
                         MyLocationButton(
                             locationManager: locationManager,
                             region: Binding(
@@ -281,9 +337,12 @@ struct MapTabView: View {
                         .padding(.trailing, DS.Spacing.pagePadding)
                     }
                     
-                    RatingsLegend()
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                        .transition(.opacity)
+                    // Only show legend if not using simplified Sip Squad style
+                    if !useSipSquadSimplifiedStyle {
+                        RatingsLegend(isSipSquadMode: isSipSquadMode)
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .transition(.opacity)
+                    }
                 }
             }
             // Keep these elements pinned visually even when the keyboard appears
@@ -309,6 +368,9 @@ struct MapTabView: View {
         }
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
+        }
+        .sheet(isPresented: $showFriendsHub) {
+            FriendsHubView(dataManager: dataManager)
         }
         .navigationDestination(item: $selectedVisit) { visit in
             VisitDetailView(dataManager: dataManager, visit: visit)
@@ -389,7 +451,46 @@ struct MapTabView: View {
     }
     
     private var cafesWithLocations: [Cafe] {
-        // Show cafes that have a map location and are either:
+        // In Sip Squad mode, show aggregated cafes from user + friends (or just user if no friends)
+        if isSipSquadMode {
+            let sipSquadCafes = dataManager.getSipSquadCafes()
+            
+            #if DEBUG
+            print("🗺️ [Map] Sip Squad Mode - filtering \(sipSquadCafes.count) aggregated cafes")
+            #endif
+            
+            let filtered = sipSquadCafes.filter { cafe in
+                guard let location = cafe.location else {
+                    #if DEBUG
+                    print("  ❌ '\(cafe.name)' - NO LOCATION in Sip Squad mode")
+                    #endif
+                    return false
+                }
+                guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else {
+                    #if DEBUG
+                    print("  ❌ '\(cafe.name)' - INVALID COORDS in Sip Squad mode: (\(location.latitude), \(location.longitude))")
+                    #endif
+                    return false
+                }
+                let qualifies = cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
+                #if DEBUG
+                if qualifies {
+                    print("  ✅ '\(cafe.name)' - HAS LOCATION in Sip Squad mode at (\(location.latitude), \(location.longitude)), visitCount: \(cafe.visitCount)")
+                } else {
+                    print("  ⚠️ '\(cafe.name)' - HAS LOCATION but doesn't qualify in Sip Squad mode (visitCount: \(cafe.visitCount))")
+                }
+                #endif
+                return qualifies
+            }
+            
+            #if DEBUG
+            print("🗺️ [Map] Sip Squad Mode - \(filtered.count) cafes with valid locations (from \(sipSquadCafes.count) total)")
+            #endif
+            
+            return filtered
+        }
+        
+        // Normal mode: Show cafes that have a map location and are either:
         // - Logged at least once (visitCount > 0), or
         // - Marked as favorite, or
         // - Marked as "Want to Try"
@@ -442,6 +543,7 @@ struct MapTabView: View {
 struct MapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let cafes: [Cafe]
+    let useSipSquadSimplifiedStyle: Bool
     let onCafeTap: (Cafe) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -476,7 +578,14 @@ struct MapViewRepresentable: UIViewRepresentable {
         return mapView
     }
     
+    func makeCoordinator() -> Coordinator {
+        Coordinator(useSipSquadSimplifiedStyle: useSipSquadSimplifiedStyle, onCafeTap: onCafeTap)
+    }
+    
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        // Update the coordinator's style flag
+        context.coordinator.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
+        
         // Update region if needed
         if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
            abs(mapView.region.center.longitude - region.center.longitude) > 0.001 {
@@ -537,14 +646,12 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
     }
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onCafeTap: onCafeTap)
-    }
-    
     class Coordinator: NSObject, MKMapViewDelegate {
+        var useSipSquadSimplifiedStyle: Bool
         let onCafeTap: (Cafe) -> Void
         
-        init(onCafeTap: @escaping (Cafe) -> Void) {
+        init(useSipSquadSimplifiedStyle: Bool, onCafeTap: @escaping (Cafe) -> Void) {
+            self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
             self.onCafeTap = onCafeTap
         }
         
@@ -578,24 +685,31 @@ struct MapViewRepresentable: UIViewRepresentable {
                 annotationView?.annotation = annotation
             }
             
-            // Determine pin style based on Favorite/Want to Try
+            // Determine pin style based on mode and Favorite/Want to Try
             let pinSize: CGFloat = 36
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: pinSize, height: pinSize))
             containerView.backgroundColor = .clear
             
-            // Priority: Want to Try > Favorite > Default
-            if cafe.wantToTry {
-                // Want to Try: Blue bookmark icon
-                let bookmarkView = createBookmarkPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(bookmarkView)
-            } else if cafe.isFavorite {
-                // Favorite: Heart icon with rating color
-                let heartView = createHeartPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(heartView)
+            // Use simplified mint style if flag is enabled
+            if useSipSquadSimplifiedStyle {
+                // Sip Squad simplified: All pins are Mugshot Mint with rating
+                let mintPin = createMintPin(size: pinSize, rating: cafe.averageRating)
+                containerView.addSubview(mintPin)
             } else {
-                // Default: Rating-colored circle
-                let circleView = createDefaultPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(circleView)
+                // Standard mode: Priority: Want to Try > Favorite > Default
+                if cafe.wantToTry {
+                    // Want to Try: Blue bookmark icon
+                    let bookmarkView = createBookmarkPin(size: pinSize, rating: cafe.averageRating)
+                    containerView.addSubview(bookmarkView)
+                } else if cafe.isFavorite {
+                    // Favorite: Heart icon with rating color
+                    let heartView = createHeartPin(size: pinSize, rating: cafe.averageRating)
+                    containerView.addSubview(heartView)
+                } else {
+                    // Default: Rating-colored circle
+                    let circleView = createDefaultPin(size: pinSize, rating: cafe.averageRating)
+                    containerView.addSubview(circleView)
+                }
             }
             
             // Clear existing subviews
@@ -628,6 +742,35 @@ struct MapViewRepresentable: UIViewRepresentable {
             scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
             scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
             scoreLabel.textColor = .white
+            scoreLabel.textAlignment = .center
+            scoreLabel.frame = pinView.bounds
+            
+            pinView.addSubview(scoreLabel)
+            return pinView
+        }
+        
+        /// Simplified Sip Squad pin style: Mugshot Mint color with rating displayed
+        private func createMintPin(size: CGFloat, rating: Double) -> UIView {
+            // Mugshot Mint color (from DS.Colors.primaryAccent)
+            let mintColor = UIColor(red: 183/255, green: 226/255, blue: 181/255, alpha: 1.0) // #B7E2B5
+            let textColor = UIColor(red: 5/255, green: 46/255, blue: 22/255, alpha: 1.0) // #052E16 (textOnMint)
+            
+            let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
+            pinView.backgroundColor = mintColor
+            pinView.layer.cornerRadius = size / 2
+            pinView.layer.borderWidth = 2
+            pinView.layer.borderColor = UIColor.white.cgColor
+            
+            // Add subtle shadow for depth
+            pinView.layer.shadowColor = UIColor.black.cgColor
+            pinView.layer.shadowOffset = CGSize(width: 0, height: 2)
+            pinView.layer.shadowOpacity = 0.15
+            pinView.layer.shadowRadius = 4
+            
+            let scoreLabel = UILabel()
+            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
+            scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
+            scoreLabel.textColor = textColor
             scoreLabel.textAlignment = .center
             scoreLabel.frame = pinView.bounds
             
@@ -739,9 +882,11 @@ class CafeAnnotation: NSObject, MKAnnotation {
 // MARK: - Ratings Legend
 
 struct RatingsLegend: View {
+    var isSipSquadMode: Bool = false
+    
     var body: some View {
         VStack(spacing: DS.Spacing.sm) {
-            Text("YOUR RATINGS")
+            Text(isSipSquadMode ? "SIP SQUAD RATINGS" : "YOUR RATINGS")
                 .font(DS.Typography.metaLabel)
                 .foregroundColor(DS.Colors.textSecondary)
                 .tracking(0.5)
@@ -824,6 +969,106 @@ struct LocationBanner: View {
     }
 }
 
+// MARK: - Sip Squad Banner
+
+struct SipSquadBanner: View {
+    let hasFriends: Bool
+    let friendCafeCount: Int
+    let onDismiss: () -> Void
+    let onFindFriends: () -> Void
+    
+    var body: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            if !hasFriends {
+                // No friends - show CTA to add friends
+                HStack(spacing: DS.Spacing.md) {
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 20))
+                        .foregroundColor(DS.Colors.textOnMint)
+                    
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text("Add friends to unlock Sip Squad Mode!")
+                            .font(DS.Typography.caption1(.semibold))
+                            .foregroundColor(DS.Colors.textOnMint)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: onFindFriends) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("Find Friends")
+                                .font(DS.Typography.caption1(.semibold))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(DS.Colors.primaryAccent)
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
+                        .background(DS.Colors.cardBackground)
+                        .cornerRadius(DS.Radius.lg)
+                    }
+                }
+            } else if friendCafeCount == 0 {
+                // Has friends but no friend visits
+                HStack(spacing: DS.Spacing.md) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(DS.Colors.textOnMint)
+                    
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text("Sip Squad Mode")
+                            .font(DS.Typography.caption1(.semibold))
+                            .foregroundColor(DS.Colors.textOnMint)
+                        
+                        Text("Your Sip Squad hasn't logged any cafés yet.")
+                            .font(DS.Typography.caption2())
+                            .foregroundColor(DS.Colors.textOnMint.opacity(0.8))
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(DS.Colors.textOnMint)
+                            .frame(width: 28, height: 28)
+                    }
+                }
+            } else {
+                // Active Sip Squad mode with data
+                HStack(spacing: DS.Spacing.md) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(DS.Colors.textOnMint)
+                    
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text("Sip Squad Mode")
+                            .font(DS.Typography.caption1(.semibold))
+                            .foregroundColor(DS.Colors.textOnMint)
+                        
+                        Text("Showing cafés visited by you and your friends.")
+                            .font(DS.Typography.caption2())
+                            .foregroundColor(DS.Colors.textOnMint.opacity(0.8))
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(DS.Colors.textOnMint)
+                            .frame(width: 28, height: 28)
+                    }
+                }
+            }
+        }
+        .padding(DS.Spacing.md)
+        .background(DS.Colors.primaryAccent)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
+    }
+}
+
 // MARK: - My Location Button
 
 struct MyLocationButton: View {
@@ -892,6 +1137,29 @@ struct MyLocationButton: View {
     }
 }
 
+// MARK: - Sip Squad Toggle Button
+
+struct SipSquadToggleButton: View {
+    let isActive: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            Image(systemName: isActive ? "person.2.fill" : "person.2")
+                .font(.system(size: 18))
+                .foregroundColor(isActive ? DS.Colors.primaryAccent : DS.Colors.textPrimary)
+                .frame(width: 44, height: 44)
+                .background(isActive ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackground)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(isActive ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
+                )
+                .dsCardShadow()
+        }
+    }
+}
+
 // MARK: - Cafe Detail Sheet
 
 struct CafeDetailSheet: View {
@@ -914,6 +1182,37 @@ struct CafeDetailSheet: View {
     
     var visits: [Visit] {
         dataManager.getVisitsForCafe(cafe.id)
+    }
+    
+    /// Get friends who have visited this cafe with their ratings
+    private func getFriendVisitors() -> [WhosBeenIndicator.FriendVisitor] {
+        let friendIds = dataManager.appData.friendsSupabaseUserIds
+        guard !friendIds.isEmpty else { return [] }
+        
+        // Get all visits to this cafe
+        let cafeVisits = dataManager.appData.visits.filter { $0.cafeId == cafe.id }
+        
+        // Filter to visits by friends and build visitor list
+        var seenIds = Set<String>()
+        var visitors: [WhosBeenIndicator.FriendVisitor] = []
+        
+        for visit in cafeVisits {
+            guard let visitorId = visit.supabaseUserId,
+                  friendIds.contains(visitorId),
+                  !seenIds.contains(visitorId) else { continue }
+            
+            seenIds.insert(visitorId)
+            
+            visitors.append(WhosBeenIndicator.FriendVisitor(
+                id: visitorId,
+                displayName: visit.authorDisplayNameOrUsername,
+                avatarURL: visit.authorAvatarURL,
+                rating: visit.overallScore
+            ))
+        }
+        
+        // Sort by rating (highest first)
+        return visitors.sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
     }
     
     var body: some View {
@@ -1056,6 +1355,9 @@ struct CafeDetailSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
+                    
+                    // "Who's Been?" Indicator - shows friends who visited this cafe
+                    WhosBeenIndicator(friendVisitors: getFriendVisitors())
                     
                     Divider()
                         .padding(.vertical, 8)

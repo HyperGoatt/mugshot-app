@@ -17,6 +17,7 @@ class TabCoordinator: ObservableObject {
         case friendsFeed
         case notifications
         case friendRequests
+        case friendsHub
     }
     
     /// Switches to a tab with optional haptic feedback
@@ -66,6 +67,12 @@ class TabCoordinator: ObservableObject {
         print("[TabCoordinator] Navigating to Friend Requests")
         switchTab(to: 4) // Switch to Profile tab
         navigationTarget = .friendRequests
+    }
+    
+    func navigateToFriendsHub() {
+        print("[TabCoordinator] Navigating to Friends Hub")
+        switchTab(to: 4) // Switch to Profile tab
+        navigationTarget = .friendsHub
     }
     
     func clearNavigationTarget() {

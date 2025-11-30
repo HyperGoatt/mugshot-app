@@ -29,7 +29,7 @@ struct ProfileTabView: View {
     
     enum ProfileContentTab: String, CaseIterable {
         case posts = "Posts"
-        case cafes = "Cafés"
+        case cafes = "Cafes"
         case journal = "Journal"
     }
     
@@ -222,9 +222,9 @@ struct ProfileTabView: View {
             }
         }
         .onChange(of: tabCoordinator.navigationTarget) { _, newTarget in
-            // Handle deep link navigation to friend requests
-            if newTarget == .friendRequests {
-                print("[ProfileTabView] Deep link navigation to Friend Requests")
+            // Handle deep link navigation to friend requests or friends hub
+            if newTarget == .friendRequests || newTarget == .friendsHub {
+                print("[ProfileTabView] Deep link navigation to Friends Hub")
                 showFriendsHub = true
                 tabCoordinator.clearNavigationTarget()
             }
@@ -313,11 +313,12 @@ struct ProfileTabView: View {
     #if DEBUG
     private var developerToolsSection: some View {
         DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 Text("🛠 Developer Tools")
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textSecondary)
                 
+                // Post Flow Style Toggle
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Post Flow Style")
@@ -342,6 +343,66 @@ struct ProfileTabView: View {
                                         .cornerRadius(DS.Radius.lg)
                     }
                 }
+                
+                Divider()
+                    .background(DS.Colors.dividerSubtle)
+                
+                // Sip Squad Simplified Style Toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sip Squad Style")
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textPrimary)
+                        Text(dataManager.appData.useSipSquadSimplifiedStyle ? "Simplified (mint pins, no legend)" : "Standard (color-coded, with legend)")
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        hapticsManager.lightTap()
+                        dataManager.toggleSipSquadSimplifiedStyle()
+                    }) {
+                        Text("Toggle")
+                            .font(DS.Typography.buttonLabel)
+                            .foregroundColor(DS.Colors.textOnMint)
+                            .padding(.horizontal, DS.Spacing.md)
+                            .padding(.vertical, DS.Spacing.sm)
+                            .background(DS.Colors.primaryAccent)
+                            .cornerRadius(DS.Radius.lg)
+                    }
+                }
+                
+                Divider()
+                    .background(DS.Colors.dividerSubtle)
+                
+                // Force Onboarding Button
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Force Onboarding")
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textPrimary)
+                        Text("Reset onboarding state to trigger full flow")
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        hapticsManager.mediumTap()
+                        dataManager.resetOnboardingState()
+                    }) {
+                        Text("Reset")
+                            .font(DS.Typography.buttonLabel)
+                            .foregroundColor(DS.Colors.textOnMint)
+                            .padding(.horizontal, DS.Spacing.md)
+                            .padding(.vertical, DS.Spacing.sm)
+                            .background(DS.Colors.primaryAccent)
+                            .cornerRadius(DS.Radius.lg)
+                    }
+                }
             }
         }
         .padding(.horizontal, DS.Spacing.pagePadding)
@@ -354,7 +415,7 @@ struct ProfileTabView: View {
     }
 }
 
-// MARK: - Profile Cafés View
+// MARK: - Profile Cafes View
 
 struct ProfileCafesView: View {
     @ObservedObject var dataManager: DataManager
@@ -414,11 +475,11 @@ struct ProfileCafesView: View {
                 .font(.system(size: 40))
                 .foregroundColor(DS.Colors.iconSubtle)
             
-            Text("No cafés yet")
+            Text("No cafes yet")
                 .font(DS.Typography.bodyText)
                 .foregroundColor(DS.Colors.textSecondary)
             
-            Text("Visit your first café to start tracking")
+            Text("Visit your first cafe to start tracking")
                 .font(DS.Typography.caption1())
                 .foregroundColor(DS.Colors.textTertiary)
                 .multilineTextAlignment(.center)
@@ -428,7 +489,7 @@ struct ProfileCafesView: View {
     }
 }
 
-// MARK: - Café List Item
+// MARK: - Cafe List Item
 
 struct CafeListItem: View {
     let cafe: Cafe
@@ -455,7 +516,7 @@ struct CafeListItem: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: DS.Spacing.md) {
-                // Café image
+                // Cafe image
                     if let imagePath = cafeImagePath {
                         PhotoThumbnailView(
                             photoPath: imagePath,
@@ -472,7 +533,7 @@ struct CafeListItem: View {
                             )
                     }
                     
-                // Café info
+                // Cafe info
                 VStack(alignment: .leading, spacing: 4) {
                         Text(cafe.name)
                         .font(DS.Typography.headline())
@@ -575,9 +636,9 @@ struct ProfileSavedView: View {
             
             // Content
             if selectedSegment == .favorites {
-                savedCafesList(cafes: favorites, emptyMessage: "No favorite cafés yet", emptyIcon: "heart")
+                savedCafesList(cafes: favorites, emptyMessage: "No favorite cafes yet", emptyIcon: "heart")
             } else {
-                savedCafesList(cafes: wishlist, emptyMessage: "No cafés on your wishlist", emptyIcon: "bookmark")
+                savedCafesList(cafes: wishlist, emptyMessage: "No cafes on your wishlist", emptyIcon: "bookmark")
             }
         }
         .sheet(isPresented: $showCafeDetail) {
@@ -616,7 +677,7 @@ struct ProfileSavedView: View {
     }
 }
 
-// MARK: - Saved Café List Item
+// MARK: - Saved Cafe List Item
 
 struct SavedCafeListItem: View {
     let cafe: Cafe
@@ -644,7 +705,7 @@ struct SavedCafeListItem: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: DS.Spacing.md) {
-                // Café image
+                // Cafe image
                 if let imagePath = cafeImagePath {
                     PhotoThumbnailView(
                         photoPath: imagePath,
@@ -661,7 +722,7 @@ struct SavedCafeListItem: View {
                         )
                 }
                 
-                // Café info
+                // Cafe info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(cafe.name)
                         .font(DS.Typography.headline())

@@ -74,7 +74,7 @@ struct BadgeEngine {
     ) -> Aggregates {
         let totalVisits = visits.count
         
-        // Unique cafés
+        // Unique cafes
         let uniqueCafeIds = Set(visits.map { $0.cafeId })
         let uniqueCafeCount = uniqueCafeIds.count
         

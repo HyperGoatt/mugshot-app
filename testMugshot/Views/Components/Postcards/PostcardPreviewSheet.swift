@@ -43,6 +43,9 @@ struct PostcardPreviewSheet: View {
     @State private var loadedPhotos: [UIImage] = []
     @State private var isLoadingPhotos = true
     
+    // Pre-loaded avatar for rendering (AsyncImage doesn't work with ImageRenderer)
+    @State private var loadedAvatarImage: UIImage?
+    
     // Postcard items (singles + optional collage)
     @State private var postcardItems: [PostcardItem] = []
     
@@ -67,7 +70,7 @@ struct PostcardPreviewSheet: View {
     
     private var postcardData: PostcardData {
         PostcardData(
-            cafeName: cafe?.name ?? "Unknown Café",
+            cafeName: cafe?.name ?? "Unknown Cafe",
             cafeCity: cafe?.city,
             visitDate: visit.createdAt,
             drinkType: visit.drinkType,
@@ -77,7 +80,8 @@ struct PostcardPreviewSheet: View {
             photoImage: nil,
             authorDisplayName: visit.authorDisplayNameOrUsername,
             authorUsername: visit.authorUsernameHandle,
-            authorAvatarImage: authorImage,
+            // Use pre-loaded avatar for rendering (AsyncImage doesn't work with ImageRenderer)
+            authorAvatarImage: loadedAvatarImage ?? authorImage,
             authorAvatarURL: authorAvatarURL
         )
     }
@@ -139,6 +143,8 @@ struct PostcardPreviewSheet: View {
             }
         }
         .task {
+            // Load avatar first (needed for ImageRenderer which can't use AsyncImage)
+            await loadAvatarImage()
             await loadAllPhotos()
             buildPostcardItems()
         }
@@ -393,6 +399,33 @@ struct PostcardPreviewSheet: View {
                 RoundedRectangle(cornerRadius: DS.Radius.lg)
                     .fill(.ultraThinMaterial)
             )
+        }
+    }
+    
+    // MARK: - Avatar Loading
+    
+    @MainActor
+    private func loadAvatarImage() async {
+        // If we already have a UIImage passed in, use it
+        if let existingImage = authorImage {
+            loadedAvatarImage = existingImage
+            print("📸 [PostcardCarousel] Using passed-in avatar image")
+            return
+        }
+        
+        // Otherwise, try to download from URL
+        guard let urlString = authorAvatarURL,
+              let url = URL(string: urlString) else {
+            print("📸 [PostcardCarousel] No avatar URL to load")
+            return
+        }
+        
+        print("📸 [PostcardCarousel] Loading avatar from: \(urlString)")
+        if let image = await downloadImage(from: url) {
+            loadedAvatarImage = image
+            print("📸 [PostcardCarousel] ✅ Avatar loaded successfully")
+        } else {
+            print("📸 [PostcardCarousel] ⚠️ Could not load avatar")
         }
     }
     

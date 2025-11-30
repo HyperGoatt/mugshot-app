@@ -1863,6 +1863,10 @@ class DataManager: ObservableObject {
                 
                 return appData.friendsSupabaseUserIds.contains(authorSupabaseId)
             }
+        case .discover:
+            // Discover scope doesn't show a traditional feed - returns empty
+            // The DiscoverContentView handles its own data fetching
+            return []
         }
     }
     
@@ -1878,6 +1882,12 @@ class DataManager: ObservableObject {
                 let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
                 appData.friendsSupabaseUserIds = Set(friends)
                 remoteVisits = try await visitService.fetchFriendsFeed(currentUserId: supabaseUserId, followingIds: friends)
+            case .discover:
+                // Discover scope uses local data; just refresh friends list for Social Radar
+                let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+                appData.friendsSupabaseUserIds = Set(friends)
+                print("🔄 [RefreshFeed] Discover scope - refreshed friends list only")
+                return
             }
             print("🔄 [RefreshFeed] Fetched \(remoteVisits.count) remote visits")
             
@@ -2152,7 +2162,7 @@ class DataManager: ObservableObject {
         )
     }
     
-    // Get most visited café
+    // Get most visited cafe
     func getMostVisitedCafe() -> (cafe: Cafe, visitCount: Int)? {
         let visitsByCafe = Dictionary(grouping: visitsForCurrentUser(), by: { $0.cafeId })
         guard let (cafeId, visits) = visitsByCafe.max(by: { $0.value.count < $1.value.count }),
@@ -2162,7 +2172,7 @@ class DataManager: ObservableObject {
         return (cafe: cafe, visitCount: visits.count)
     }
     
-    // Get favorite café (highest average rating)
+    // Get favorite cafe (highest average rating)
     func getFavoriteCafe() -> (cafe: Cafe, avgScore: Double)? {
         let visitsByCafe = Dictionary(grouping: visitsForCurrentUser(), by: { $0.cafeId })
         var cafeScores: [(cafeId: UUID, avgScore: Double)] = []
@@ -2539,5 +2549,349 @@ extension DataManager {
         appData.useOnboardingStylePostFlow = useOnboardingStyle
         save()
         print("[FeatureFlag] Post flow style set to: \(useOnboardingStyle ? "Onboarding-style" : "Classic")")
+    }
+    
+    /// Resets onboarding state to force the full onboarding flow to start
+    /// This does NOT affect authentication status or Supabase session
+    /// Use this for testing onboarding scenarios without logging out
+    func resetOnboardingState() {
+        print("[DeveloperTool] Resetting onboarding state - forcing onboarding flow")
+        appData.hasSeenMarketingOnboarding = false
+        appData.hasCompletedProfileSetup = false
+        appData.isNewAccountSignup = true
+        save()
+        print("[DeveloperTool] Onboarding state reset complete:")
+        print("  - hasSeenMarketingOnboarding: \(appData.hasSeenMarketingOnboarding)")
+        print("  - hasCompletedProfileSetup: \(appData.hasCompletedProfileSetup)")
+        print("  - isNewAccountSignup: \(appData.isNewAccountSignup)")
+        print("  - isUserAuthenticated: \(appData.isUserAuthenticated) (preserved)")
+        print("  - hasEmailVerified: \(appData.hasEmailVerified) (preserved)")
+    }
+    
+    /// Toggles Sip Squad simplified style (mint pins with rating, no legend)
+    /// OFF (default): Standard color-coded pins (green/yellow/red) with legend
+    /// ON: Mugshot Mint colored pins with rating displayed, no legend
+    func toggleSipSquadSimplifiedStyle() {
+        appData.useSipSquadSimplifiedStyle.toggle()
+        save()
+        print("[FeatureFlag] Sip Squad style: \(appData.useSipSquadSimplifiedStyle ? "Simplified (mint)" : "Standard (color-coded)")")
+    }
+    
+    /// Sets Sip Squad simplified style directly
+    func setSipSquadSimplifiedStyle(enabled: Bool) {
+        appData.useSipSquadSimplifiedStyle = enabled
+        save()
+        print("[FeatureFlag] Sip Squad style set to: \(enabled ? "Simplified (mint)" : "Standard (color-coded)")")
+    }
+}
+
+// MARK: - Sip Squad Map Mode
+
+extension DataManager {
+    /// Toggles Sip Squad mode on/off and persists the state
+    func toggleSipSquadMode() {
+        appData.isSipSquadModeEnabled.toggle()
+        save()
+        print("[SipSquad] Mode toggled: \(appData.isSipSquadModeEnabled ? "ON" : "OFF")")
+        
+        // If enabling, fetch friend visits
+        if appData.isSipSquadModeEnabled {
+            Task {
+                await fetchSipSquadVisitsIfNeeded()
+            }
+        }
+    }
+    
+    /// Sets Sip Squad mode directly
+    func setSipSquadMode(enabled: Bool) {
+        guard appData.isSipSquadModeEnabled != enabled else { return }
+        appData.isSipSquadModeEnabled = enabled
+        save()
+        print("[SipSquad] Mode set: \(enabled ? "ON" : "OFF")")
+        
+        if enabled {
+            Task {
+                await fetchSipSquadVisitsIfNeeded()
+            }
+        }
+    }
+    
+    /// Fetches friend visits for Sip Squad mode if not already loaded
+    func fetchSipSquadVisitsIfNeeded() async {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            print("[SipSquad] No authenticated user, skipping fetch")
+            return
+        }
+        
+        guard !appData.friendsSupabaseUserIds.isEmpty else {
+            print("[SipSquad] No friends, skipping fetch")
+            return
+        }
+        
+        print("[SipSquad] Fetching friend visits for Sip Squad mode...")
+        
+        do {
+            // Refresh friends list first
+            let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            appData.friendsSupabaseUserIds = Set(friends)
+            
+            // Fetch friends feed to get their visits
+            let remoteVisits = try await visitService.fetchFriendsFeed(
+                currentUserId: supabaseUserId,
+                followingIds: friends
+            )
+            
+            print("[SipSquad] Fetched \(remoteVisits.count) visits from friends feed")
+            
+            // Map and merge visits (this also upserts cafes via mapRemoteVisit)
+            let mapped = remoteVisits.map { mapRemoteVisit($0) }
+            mergeVisits(mapped)
+            
+            // Ensure cafes are saved after upserting (mergeVisits saves visits, but cafes might need explicit save)
+            save()
+            
+            // Update cafe stats for all fetched visits
+            let uniqueCafeIds = Set(mapped.map { $0.cafeId })
+            for cafeId in uniqueCafeIds {
+                if let sampleVisit = mapped.first(where: { $0.cafeId == cafeId }) {
+                    updateCafeStatsForVisit(sampleVisit)
+                }
+            }
+            
+            print("[SipSquad] Visits merged and cafe stats updated - total cafes in appData: \(appData.cafes.count)")
+        } catch {
+            print("[SipSquad] Error fetching friend visits: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Returns cafes for Sip Squad mode with aggregated ratings from user + friends
+    /// Each returned cafe has its averageRating set to the Sip Squad average
+    /// Includes cafes visited by the user OR any of their friends
+    func getSipSquadCafes() -> [Cafe] {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            print("[SipSquad] No supabaseUserId, cannot get Sip Squad cafes")
+            return []
+        }
+        
+        let friendIds = appData.friendsSupabaseUserIds
+        let currentUserId = appData.currentUser?.id
+        
+        print("[SipSquad] Starting getSipSquadCafes()")
+        print("[SipSquad] Current user supabaseUserId: \(supabaseUserId)")
+        print("[SipSquad] Current user userId: \(currentUserId?.uuidString ?? "nil")")
+        print("[SipSquad] Friend count: \(friendIds.count)")
+        print("[SipSquad] Total visits in appData: \(appData.visits.count)")
+        
+        // Get all visits from user + friends
+        // Match by supabaseUserId (String) OR userId (UUID) to handle all cases
+        var sipSquadVisits = appData.visits.filter { visit in
+            // Check if this is the current user's visit (by supabaseUserId or userId)
+            let isCurrentUser = (visit.supabaseUserId == supabaseUserId) || 
+                                (currentUserId != nil && visit.userId == currentUserId)
+            
+            // Check if this is a friend's visit (by supabaseUserId)
+            let isFriend = visit.supabaseUserId != nil && friendIds.contains(visit.supabaseUserId!)
+            
+            return isCurrentUser || isFriend
+        }
+        
+        // FALLBACK: If no visits found and we have a current user, try matching by userId only
+        // This handles cases where visits might not have supabaseUserId set
+        if sipSquadVisits.isEmpty, let userId = currentUserId {
+            print("[SipSquad] No visits matched by supabaseUserId, trying fallback match by userId")
+            sipSquadVisits = appData.visits.filter { visit in
+                // Match user's visits by userId
+                let isCurrentUser = visit.userId == userId
+                
+                // Match friend visits - try to match via userId if we can map friend supabaseUserIds to UUIDs
+                // For now, rely on supabaseUserId for friends since we don't have a direct mapping
+                let isFriend = visit.supabaseUserId != nil && friendIds.contains(visit.supabaseUserId!)
+                
+                return isCurrentUser || isFriend
+            }
+            print("[SipSquad] Fallback match found \(sipSquadVisits.count) visits")
+        }
+        
+        print("[SipSquad] Found \(sipSquadVisits.count) total visits (user + friends)")
+        
+        // Count user vs friend visits for debugging
+        let userVisitsCount = sipSquadVisits.filter { visit in
+            (visit.supabaseUserId == supabaseUserId) || 
+            (currentUserId != nil && visit.userId == currentUserId)
+        }.count
+        
+        let friendVisitsCount = sipSquadVisits.filter { visit in
+            guard let id = visit.supabaseUserId else { return false }
+            return friendIds.contains(id) && id != supabaseUserId
+        }.count
+        
+        print("[SipSquad] User visits: \(userVisitsCount)")
+        print("[SipSquad] Friend visits: \(friendVisitsCount)")
+        
+        guard !sipSquadVisits.isEmpty else {
+            print("[SipSquad] ERROR: No visits found for Sip Squad mode!")
+            print("[SipSquad] Total visits in appData: \(appData.visits.count)")
+            print("[SipSquad] Current user ID: \(currentUserId?.uuidString ?? "nil")")
+            print("[SipSquad] Supabase user ID: \(supabaseUserId)")
+            if !appData.visits.isEmpty {
+                print("[SipSquad] Sample visit: userId=\(appData.visits.first!.userId), supabaseUserId=\(appData.visits.first!.supabaseUserId ?? "nil")")
+            }
+            return []
+        }
+        
+        // Group visits by cafe - use a normalized cafe key for matching
+        var visitsByCafeKey: [String: [Visit]] = [:]
+        
+        for visit in sipSquadVisits {
+            // Use supabaseCafeId as primary key if available, otherwise fall back to cafeId
+            // This ensures we group visits correctly even if cafes have different local IDs
+            let cafeKey: UUID
+            if let supabaseCafeId = visit.supabaseCafeId {
+                cafeKey = supabaseCafeId
+            } else {
+                cafeKey = visit.cafeId
+            }
+            
+            let keyString = cafeKey.uuidString
+            if visitsByCafeKey[keyString] == nil {
+                visitsByCafeKey[keyString] = []
+            }
+            visitsByCafeKey[keyString]?.append(visit)
+        }
+        
+        print("[SipSquad] Grouped into \(visitsByCafeKey.count) unique cafes")
+        
+        // Build list of cafes with aggregated ratings
+        var sipSquadCafes: [Cafe] = []
+        
+        for (cafeKeyString, visits) in visitsByCafeKey {
+            guard let cafeKeyUUID = UUID(uuidString: cafeKeyString) else {
+                print("[SipSquad] WARNING: Invalid cafe key UUID: \(cafeKeyString)")
+                continue
+            }
+            
+            let firstVisit = visits.first!
+            
+            // Try multiple strategies to find the cafe
+            var cafe: Cafe? = nil
+            
+            // Strategy 1: Match by supabaseId (most reliable)
+            cafe = appData.cafes.first(where: { cafe in
+                if let supabaseId = cafe.supabaseId, supabaseId == cafeKeyUUID {
+                    return true
+                }
+                // Also check if visit has supabaseCafeId that matches
+                if let visitSupabaseCafeId = firstVisit.supabaseCafeId,
+                   visitSupabaseCafeId == cafeKeyUUID {
+                    return true
+                }
+                return false
+            })
+            
+            // Strategy 2: Match by local id if Strategy 1 didn't work
+            if cafe == nil {
+                cafe = appData.cafes.first(where: { $0.id == cafeKeyUUID || $0.id == firstVisit.cafeId })
+            }
+            
+            // Strategy 3: Match by visit's supabaseCafeId against cafe's supabaseId
+            if cafe == nil, let visitSupabaseCafeId = firstVisit.supabaseCafeId {
+                cafe = appData.cafes.first(where: { 
+                    ($0.supabaseId ?? $0.id) == visitSupabaseCafeId 
+                })
+            }
+            
+            // Strategy 4: Match by visit's cafeId against cafe's id or supabaseId
+            if cafe == nil {
+                cafe = appData.cafes.first(where: { 
+                    $0.id == firstVisit.cafeId || 
+                    ($0.supabaseId != nil && $0.supabaseId == firstVisit.cafeId)
+                })
+            }
+            
+            guard var foundCafe = cafe else {
+                print("[SipSquad] WARNING: Could not find cafe for key \(cafeKeyString) in \(appData.cafes.count) cafes")
+                print("[SipSquad] Visit cafeId: \(firstVisit.cafeId), supabaseCafeId: \(firstVisit.supabaseCafeId?.uuidString ?? "nil")")
+                // Log all cafe IDs for debugging
+                #if DEBUG
+                for (idx, existingCafe) in appData.cafes.enumerated() {
+                    print("[SipSquad] Cafe[\(idx)]: id=\(existingCafe.id), supabaseId=\(existingCafe.supabaseId?.uuidString ?? "nil"), name=\(existingCafe.name)")
+                }
+                #endif
+                continue
+            }
+            
+            // Calculate aggregated average rating
+            let avgRating = computeSipSquadAverageRating(from: visits)
+            
+            // Create a copy with the aggregated rating
+            foundCafe = Cafe(
+                id: foundCafe.id,
+                supabaseId: foundCafe.supabaseId,
+                name: foundCafe.name,
+                location: foundCafe.location,
+                address: foundCafe.address,
+                city: foundCafe.city,
+                country: foundCafe.country,
+                isFavorite: foundCafe.isFavorite,
+                wantToTry: foundCafe.wantToTry,
+                averageRating: avgRating,
+                visitCount: visits.count, // Total Sip Squad visit count (user + friends)
+                mapItemURL: foundCafe.mapItemURL,
+                websiteURL: foundCafe.websiteURL,
+                applePlaceId: foundCafe.applePlaceId,
+                placeCategory: foundCafe.placeCategory
+            )
+            
+            sipSquadCafes.append(foundCafe)
+        }
+        
+        print("[SipSquad] Returning \(sipSquadCafes.count) cafes with aggregated ratings (from \(sipSquadVisits.count) total visits)")
+        return sipSquadCafes
+    }
+    
+    /// Computes the Sip Squad average rating from a list of visits
+    /// Simple arithmetic mean, rounded to 1 decimal place
+    func computeSipSquadAverageRating(from visits: [Visit]) -> Double {
+        guard !visits.isEmpty else { return 0.0 }
+        let sum = visits.reduce(0.0) { $0 + $1.overallScore }
+        let avg = sum / Double(visits.count)
+        // Round to 1 decimal place
+        return (avg * 10).rounded() / 10
+    }
+    
+    /// Computes the Sip Squad average rating for a specific cafe
+    func computeSipSquadAverageRating(for cafeId: UUID) -> Double {
+        guard let supabaseUserId = appData.supabaseUserId else { return 0.0 }
+        let friendIds = appData.friendsSupabaseUserIds
+        
+        // Get all visits for this cafe from user + friends
+        let cafeVisits = appData.visits.filter { visit in
+            guard visit.cafeId == cafeId || visit.supabaseCafeId == cafeId else { return false }
+            guard let authorId = visit.supabaseUserId else { return false }
+            return authorId == supabaseUserId || friendIds.contains(authorId)
+        }
+        
+        return computeSipSquadAverageRating(from: cafeVisits)
+    }
+    
+    /// Returns whether the user has friends for Sip Squad mode
+    var hasFriendsForSipSquad: Bool {
+        !appData.friendsSupabaseUserIds.isEmpty
+    }
+    
+    /// Returns the number of cafes visited by friends (excluding user's own visits)
+    func getFriendVisitedCafeCount() -> Int {
+        guard let supabaseUserId = appData.supabaseUserId else { return 0 }
+        let friendIds = appData.friendsSupabaseUserIds
+        
+        // Get visits from friends only (not the current user)
+        let friendVisits = appData.visits.filter { visit in
+            guard let authorId = visit.supabaseUserId else { return false }
+            return friendIds.contains(authorId) && authorId != supabaseUserId
+        }
+        
+        // Count unique cafes
+        let uniqueCafeIds = Set(friendVisits.map { $0.cafeId })
+        return uniqueCafeIds.count
     }
 }

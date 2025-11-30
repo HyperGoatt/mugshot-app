@@ -124,7 +124,7 @@
           "subtitle": null
         },
         {
-          "label": "CAFÉS VISITED",
+          "label": "CAFES VISITED",
           "value": "4",
           "subtitle": null
         },
@@ -161,7 +161,7 @@
           "font": "sectionTitle"
         },
         "subtitle": {
-          "text": "10 visits across 4 cafés",
+          "text": "10 visits across 4 cafes",
           "font": "bodySecondary"
         }
       }

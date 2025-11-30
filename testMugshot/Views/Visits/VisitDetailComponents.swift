@@ -251,6 +251,7 @@ struct InlineSocialActions: View {
     let likeCount: Int
     let commentCount: Int
     let isBookmarked: Bool
+    var showShareButton: Bool = false // Only show share button for own posts
     var onLikeTap: (() -> Void)? = nil
     var onCommentTap: (() -> Void)? = nil
     var onBookmarkTap: (() -> Void)? = nil
@@ -317,14 +318,16 @@ struct InlineSocialActions: View {
             }
             .buttonStyle(.plain)
             
-            // Share button
-            Button(action: { onShareTap?() }) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(DS.Colors.iconDefault)
-                    .frame(width: 44, height: 44)
+            // Share button - only visible for own posts
+            if showShareButton {
+                Button(action: { onShareTap?() }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(DS.Colors.iconDefault)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, DS.Spacing.xs)
     }

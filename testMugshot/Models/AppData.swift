@@ -52,6 +52,13 @@ struct AppData: Codable {
     // Feature flags
     var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
     
+    // Map mode
+    /// When true, the Map tab shows the combined coffee footprint of user + friends (Sip Squad Mode)
+    var isSipSquadModeEnabled: Bool = false
+    /// When true, Sip Squad mode uses simplified styling (mint pins with rating, no color legend)
+    /// When false, uses standard color-coded pins with legend
+    var useSipSquadSimplifiedStyle: Bool = false
+    
     init(
         currentUser: User? = nil,
         supabaseUserId: String? = nil,
@@ -80,7 +87,9 @@ struct AppData: Codable {
         currentUserBannerURL: String? = nil,
         notifications: [MugshotNotification] = [],
         friendsSupabaseUserIds: Set<String> = [],
-        useOnboardingStylePostFlow: Bool = false
+        useOnboardingStylePostFlow: Bool = false,
+        isSipSquadModeEnabled: Bool = false,
+        useSipSquadSimplifiedStyle: Bool = false
     ) {
         self.currentUser = currentUser
         self.supabaseUserId = supabaseUserId
@@ -110,6 +119,8 @@ struct AppData: Codable {
         self.notifications = notifications
         self.friendsSupabaseUserIds = friendsSupabaseUserIds
         self.useOnboardingStylePostFlow = useOnboardingStylePostFlow
+        self.isSipSquadModeEnabled = isSipSquadModeEnabled
+        self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
         self.notificationsClearedAt = nil
     }
 }
