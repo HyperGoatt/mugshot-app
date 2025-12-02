@@ -1,0 +1,562 @@
+{
+  "meta": {
+    "screenName": "Log a Visit (Aurora Glassmorphism Edition)",
+    "screenType": "Full-screen Modal with Dark Aurora Background",
+    "version": "2.0 (Aurora Redesign)",
+    "description": "A premium, ultra-modern redesign of the Log a Visit screen using aurora gradients, translucent glass surfaces, soft glows, and layered depth to create an immersive coffee journaling experience.",
+    "designPhilosophy": "Transform the flat, light interface into a dark, atmospheric space where glass cards float above aurora gradients. Every interaction should feel smooth, premium, and visually rewarding."
+  },
+  "userFlow": {
+    "entryPoints": [
+      "Central '+' button in bottom navigation (with glowPrimary on tap)",
+      "'Log a Visit' button from glass cafe detail cards",
+      "'Log a Visit' button from map pins with subtle scale animation"
+    ],
+    "exitPoints": [
+      "'Cancel' button (top-left) \u2014 gentle fade dismiss with blur transition",
+      "'Save Visit' button (bottom) \u2014 success animation with mint glow pulse, then returns to Feed"
+    ],
+    "progressionPattern": "Single vertical scroll through floating glass cards. Each section feels like a discrete layer floating above the aurora background. Progressive disclosure with smooth transitions."
+  },
+  "layout": {
+    "presentationStyle": "Full-screen modal with dark aurora gradient background",
+    "scrollDirection": "vertical",
+    "backgroundColor": {
+      "base": "neutralBackground (#050712)",
+      "auroraGradients": [
+        {
+          "color": "auroraMint (#7CF2C8)",
+          "position": "top-left",
+          "opacity": 0.15,
+          "blur": 120
+        },
+        {
+          "color": "auroraBlue (#60A5FA)",
+          "position": "center-right",
+          "opacity": 0.12,
+          "blur": 140
+        },
+        {
+          "color": "auroraPink (#F472B6)",
+          "position": "bottom-center",
+          "opacity": 0.08,
+          "blur": 100
+        }
+      ],
+      "notes": "Multiple overlapping radial gradients create a soft, atmospheric glow that subtly shifts as user scrolls."
+    },
+    "topBar": {
+      "backgroundColorToken": "glassSurfaceStrong",
+      "blurToken": "glassMedium",
+      "height": "~88pt (status bar + cancel button area)",
+      "borderBottom": {
+        "width": 1,
+        "colorToken": "glassStroke"
+      },
+      "shadowToken": "cardSoft",
+      "leftButton": {
+        "label": "Cancel",
+        "typographyToken": "body",
+        "colorToken": "textPrimary",
+        "action": "dismissModal with fade + blur transition",
+        "interactionEffect": "Subtle scale 0.96 on press"
+      },
+      "rightButton": null,
+      "notes": "Translucent glass bar that blurs the aurora background behind it, creating immediate depth."
+    },
+    "header": {
+      "title": "Log a Visit",
+      "subtitle": "Share your sip and what made it special.",
+      "titleTypographyToken": "title1",
+      "subtitleTypographyToken": "body",
+      "titleColorToken": "textPrimary",
+      "subtitleColorToken": "textSecondary",
+      "backgroundColorToken": "transparent",
+      "paddingHorizontalToken": "pagePadding",
+      "paddingTopToken": "xl",
+      "paddingBottomToken": "lg",
+      "titleGradient": {
+        "enabled": true,
+        "colors": [
+          "textPrimary",
+          "auroraMint"
+        ],
+        "direction": "horizontal",
+        "opacity": 0.9,
+        "notes": "Subtle gradient on title to tie into aurora theme"
+      },
+      "notes": "Header sits directly on the aurora background with no card container, allowing gradients to show through."
+    },
+    "sectionsOrder": [
+      "cafeLocation",
+      "drinkType",
+      "photos",
+      "ratings",
+      "overallScore",
+      "caption",
+      "notes",
+      "visibility",
+      "primaryCTA"
+    ],
+    "sectionSpacing": "20pt vertical gap between major glass card sections"
+  },
+  "sections": {
+    "cafeLocation": {
+      "label": "Cafe Location",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "component": "glassSearchField",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "placeholder": "Search for a Cafe...",
+      "placeholderColorToken": "textTertiary",
+      "icon": {
+        "name": "magnifyingglass",
+        "position": "leading",
+        "colorToken": "iconDefault",
+        "size": 18
+      },
+      "chevron": {
+        "name": "chevron.right",
+        "position": "trailing",
+        "colorToken": "iconSubtle",
+        "size": 14
+      },
+      "interaction": {
+        "tapAction": "Opens searchable cafe list modal with glass card results",
+        "focusEffect": "Soft glowSecondary around border (30pt blur, 0.5 opacity)",
+        "animation": "Scale 0.98 on press, return to 1.0 with spring"
+      },
+      "notes": "Floating glass card with subtle inner glow on focus. Search icon and chevron use light colors to stand out against dark glass."
+    },
+    "drinkType": {
+      "label": "Drink Type",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "component": "glassDropdown",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "selectedValue": "Coffee",
+      "selectedValueColorToken": "textPrimary",
+      "chevron": {
+        "name": "chevron.down",
+        "position": "trailing",
+        "colorToken": "iconSubtle",
+        "size": 14
+      },
+      "interaction": {
+        "tapAction": "Opens glass menu picker with drink options",
+        "focusEffect": "Soft glowSecondary around border",
+        "animation": "Chevron rotates 180\u00b0 when menu opens"
+      },
+      "notes": "Glass card dropdown with smooth rotation animation on chevron."
+    },
+    "photos": {
+      "label": "Photos",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "component": "glassPhotoUploadCard",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "elements": {
+        "uploadArea": {
+          "backgroundColorToken": "glassSurfaceLight",
+          "borderStyle": "dashed",
+          "borderWidth": 2,
+          "borderColorToken": "glassStroke",
+          "cornerRadiusToken": "lg",
+          "minHeight": 200,
+          "blurToken": "glassSoft",
+          "icon": {
+            "name": "camera.fill",
+            "size": 48,
+            "colorToken": "auroraMint",
+            "glowEffect": {
+              "blurRadius": 20,
+              "opacity": 0.4,
+              "colorToken": "focusGlowMint"
+            }
+          },
+          "label": "Tap to add photos (0/10)",
+          "labelTypographyToken": "subheadline",
+          "labelColorToken": "textSecondary",
+          "sublabel": "Photos will be compressed automatically.",
+          "sublabelTypographyToken": "caption2",
+          "sublabelColorToken": "textTertiary"
+        },
+        "thumbnailContainer": {
+          "layout": "horizontalScroll",
+          "thumbnailSize": 80,
+          "thumbnailCornerRadius": "md",
+          "thumbnailBorderColorToken": "glassStroke",
+          "thumbnailBorderWidth": 1,
+          "thumbnailSpacing": 8,
+          "notes": "Selected photos appear as rounded glass thumbnails with subtle borders, arranged in a horizontal scroll."
+        }
+      },
+      "interaction": {
+        "tapAction": "Opens photo picker with fade-in transition",
+        "focusEffect": "Camera icon pulses with mint glow",
+        "uploadAnimation": "Thumbnail fades in with scale 0.8\u21921.0 spring animation"
+      },
+      "notes": "Large glass card with glowing camera icon. Dashed border uses glassStroke for subtle definition."
+    },
+    "ratings": {
+      "label": "Ratings",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "customizeButton": {
+        "label": "Customize",
+        "typographyToken": "subheadline",
+        "colorToken": "primaryAccent",
+        "icon": "slider.horizontal.3",
+        "iconSize": 14,
+        "action": "Opens weight adjustment modal",
+        "interactionEffect": "Mint glow on hover/press"
+      },
+      "component": "glassRatingCard",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "categories": [
+        {
+          "name": "Presentation",
+          "starCount": 5,
+          "selectedStars": 0,
+          "unfilledStarColorToken": "iconSubtle",
+          "filledStarColorToken": "auroraMint",
+          "starSize": 28,
+          "glowEffect": {
+            "enabled": true,
+            "blurRadius": 20,
+            "opacity": 0.6,
+            "colorToken": "focusGlowMint"
+          }
+        },
+        {
+          "name": "Value",
+          "starCount": 5,
+          "selectedStars": 0,
+          "unfilledStarColorToken": "iconSubtle",
+          "filledStarColorToken": "auroraMint",
+          "starSize": 28,
+          "glowEffect": {
+            "enabled": true,
+            "blurRadius": 20,
+            "opacity": 0.6,
+            "colorToken": "focusGlowMint"
+          }
+        },
+        {
+          "name": "Taste",
+          "starCount": 5,
+          "selectedStars": 0,
+          "unfilledStarColorToken": "iconSubtle",
+          "filledStarColorToken": "auroraMint",
+          "starSize": 28,
+          "glowEffect": {
+            "enabled": true,
+            "blurRadius": 20,
+            "opacity": 0.6,
+            "colorToken": "focusGlowMint"
+          }
+        },
+        {
+          "name": "Ambiance",
+          "starCount": 5,
+          "selectedStars": 0,
+          "unfilledStarColorToken": "iconSubtle",
+          "filledStarColorToken": "auroraMint",
+          "starSize": 28,
+          "glowEffect": {
+            "enabled": true,
+            "blurRadius": 20,
+            "opacity": 0.6,
+            "colorToken": "focusGlowMint"
+          }
+        }
+      ],
+      "categorySpacing": 16,
+      "categoryDivider": {
+        "enabled": true,
+        "colorToken": "neutralDivider",
+        "opacity": 0.3
+      },
+      "interaction": {
+        "tapStarAction": "Star fills with auroraMint color and emits a soft glow pulse (scale 1.0\u21921.15\u21921.0 over 0.3s)",
+        "tapCustomizeAction": "Opens weight modal with glass card interface",
+        "feedbackHaptic": "Light impact on each star tap"
+      },
+      "notes": "Each filled star glows with soft mint aurora effect. Categories are separated by subtle dividers for better readability."
+    },
+    "overallScore": {
+      "label": "Overall Score",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "component": "glassComputedScoreBadge",
+      "backgroundColorToken": "transparent",
+      "padding": 12,
+      "scoreBadge": {
+        "component": "scoreBadge",
+        "score": "0.0",
+        "icon": "star.fill",
+        "iconColorToken": "auroraBlue",
+        "iconSize": 16,
+        "backgroundColorToken": "secondaryAccentSoftFill",
+        "labelTypographyToken": "headline",
+        "labelColorToken": "textPrimary",
+        "paddingHorizontal": 16,
+        "paddingVertical": 10,
+        "cornerRadiusToken": "pill",
+        "borderColorToken": "glassStroke",
+        "borderWidth": 1,
+        "blurToken": "glassSoft",
+        "shadowToken": "glowSecondary",
+        "animation": {
+          "trigger": "scoreUpdate",
+          "effect": "Scale 1.0\u21921.1\u21921.0 with glow pulse over 0.5s"
+        }
+      },
+      "notes": "Floating pill badge with blue glow. Updates dynamically with smooth animation as user rates categories."
+    },
+    "caption": {
+      "label": "Caption",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "characterLimit": 200,
+      "characterCountDisplay": "0/200",
+      "characterCountTypographyToken": "caption2",
+      "characterCountColorToken": "textTertiary",
+      "component": "glassTextArea",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "placeholder": "Share your thoughts or first impressions...",
+      "placeholderColorToken": "textTertiary",
+      "textColorToken": "textPrimary",
+      "minHeight": 100,
+      "interaction": {
+        "focusEffect": "Soft glowPrimary around border (30pt blur, 0.5 opacity)",
+        "cursorColorToken": "auroraMint",
+        "selectionColorToken": "primaryAccentSoftFill"
+      },
+      "notes": "Glass text area with mint glow on focus. Character count appears in top-right corner inside the card."
+    },
+    "notes": {
+      "label": "Notes (Optional)",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textSecondary",
+      "component": "glassTextArea",
+      "backgroundColorToken": "cardBackground",
+      "blurToken": "glassSoft",
+      "borderColorToken": "glassStroke",
+      "borderWidth": 1,
+      "cornerRadiusToken": "xxl",
+      "paddingToken": "cardPadding",
+      "shadowToken": "cardSoft",
+      "placeholder": "Anything extra you'd like to remember?",
+      "placeholderColorToken": "textTertiary",
+      "textColorToken": "textPrimary",
+      "minHeight": 100,
+      "interaction": {
+        "focusEffect": "Soft glowPrimary around border",
+        "cursorColorToken": "auroraMint",
+        "selectionColorToken": "primaryAccentSoftFill"
+      },
+      "notes": "Identical glass styling to Caption. Label uses textSecondary to indicate optional status."
+    },
+    "visibility": {
+      "label": "Visibility",
+      "labelTypographyToken": "headline",
+      "labelColorToken": "textPrimary",
+      "component": "glassSegmentedControl",
+      "containerBackgroundColorToken": "glassSurfaceStrong",
+      "containerBlurToken": "glassSoft",
+      "containerBorderColorToken": "glassStroke",
+      "containerBorderWidth": 1,
+      "containerCornerRadiusToken": "pill",
+      "containerPaddingHorizontal": 4,
+      "containerPaddingVertical": 4,
+      "shadowToken": "cardSoft",
+      "options": [
+        {
+          "label": "Private",
+          "sublabel": "Only you",
+          "value": "private",
+          "selected": false
+        },
+        {
+          "label": "Friends",
+          "sublabel": "Friends can see",
+          "value": "friends",
+          "selected": false
+        },
+        {
+          "label": "Everyone",
+          "sublabel": "Visible to all",
+          "value": "everyone",
+          "selected": true
+        }
+      ],
+      "segmentSelected": {
+        "backgroundColorToken": "cardBackground",
+        "borderColorToken": "glassStroke",
+        "borderWidth": 1,
+        "blurToken": "glassSoft",
+        "labelColorToken": "textPrimary",
+        "sublabelColorToken": "textSecondary",
+        "shadowToken": "cardSoft"
+      },
+      "segmentUnselected": {
+        "backgroundColorToken": "transparent",
+        "labelColorToken": "textTertiary",
+        "sublabelColorToken": "textTertiary"
+      },
+      "cornerRadiusToken": "pill",
+      "sublabelTypographyToken": "caption2",
+      "interaction": {
+        "tapAction": "Selected segment slides with easeInOut 0.2s spring animation",
+        "feedbackHaptic": "Selection haptic on tap"
+      },
+      "notes": "Glass segmented control with floating selected pill. Unselected options are transparent to show aurora gradient behind."
+    },
+    "primaryCTA": {
+      "component": "primaryButton",
+      "label": "Save Visit",
+      "backgroundColorToken": "primaryAccent",
+      "foregroundColorToken": "textOnMint",
+      "cornerRadiusToken": "pill",
+      "horizontalPaddingToken": "lg",
+      "verticalPaddingToken": "md",
+      "labelTypographyToken": "buttonLabel",
+      "shadowToken": "glowPrimary",
+      "layout": "fullWidth",
+      "interaction": {
+        "tapAction": "Validates form, shows success animation (mint glow pulse), saves to DB, dismisses modal",
+        "pressEffect": "Scale 0.96 with increased glow intensity",
+        "successAnimation": "Glow pulses 3 times (0.5s each) before dismiss",
+        "feedbackHaptic": "Medium impact on tap, success notification haptic on save"
+      },
+      "notes": "Full-width pill button with strong mint glow (glowPrimary). Always visible at bottom with safe area padding. Button feels premium and rewarding to tap."
+    }
+  },
+  "designSystem": {
+    "colorPalette": {
+      "neutralBackground": "#050712",
+      "neutralBackgroundAlt": "#0B1020",
+      "cardBackground": "rgba(15, 23, 42, 0.40)",
+      "glassSurfaceLight": "rgba(15, 23, 42, 0.40)",
+      "glassSurfaceStrong": "rgba(15, 23, 42, 0.70)",
+      "glassStroke": "rgba(148, 163, 184, 0.55)",
+      "textPrimary": "#F9FAFB",
+      "textSecondary": "#E5E7EB",
+      "textTertiary": "#9CA3AF",
+      "textOnMint": "#052E16",
+      "iconDefault": "#CBD5F5",
+      "iconSubtle": "#64748B",
+      "auroraMint": "#7CF2C8",
+      "auroraBlue": "#60A5FA",
+      "auroraPink": "#F472B6",
+      "primaryAccent": "#7CF2C8",
+      "secondaryAccentSoftFill": "#E5F0FF",
+      "neutralDivider": "#1E293B",
+      "focusGlowMint": "rgba(124, 242, 200, 0.35)",
+      "focusGlowBlue": "rgba(96, 165, 250, 0.35)"
+    },
+    "typography": {
+      "title1": "28pt bold",
+      "headline": "17pt semibold",
+      "body": "17pt regular",
+      "subheadline": "15pt regular",
+      "caption2": "11pt regular",
+      "buttonLabel": "17pt semibold"
+    },
+    "spacing": {
+      "pagePadding": 16,
+      "cardPadding": 16,
+      "sectionVerticalGap": 20,
+      "elementVerticalGap": 12
+    },
+    "cornerRadius": {
+      "xxl": 24,
+      "lg": 16,
+      "md": 12,
+      "pill": 999
+    },
+    "blur": {
+      "glassSoft": 16,
+      "glassMedium": 24,
+      "glassStrong": 32
+    },
+    "shadow": {
+      "cardSoft": {
+        "blurRadius": 28,
+        "offsetY": 14,
+        "opacity": 0.2,
+        "color": "rgba(15, 23, 42, 1.0)"
+      },
+      "glowPrimary": {
+        "blurRadius": 30,
+        "offsetY": 0,
+        "opacity": 0.7,
+        "color": "focusGlowMint"
+      },
+      "glowSecondary": {
+        "blurRadius": 30,
+        "offsetY": 0,
+        "opacity": 0.7,
+        "color": "focusGlowBlue"
+      }
+    }
+  },
+  "userExperience": {
+    "premiumFeatures": [
+      "Dark aurora gradient background creates an immersive, atmospheric environment that feels premium and modern.",
+      "Every interactive element (search, stars, text fields, buttons) has a soft glow effect on focus/tap, providing rich visual feedback.",
+      "Glass cards float above the background with soft blur and subtle borders, creating clear visual hierarchy through layering.",
+      "Smooth spring animations on all state changes (scale, glow, slide) make interactions feel polished and intentional.",
+      "Filled rating stars emit a mint glow that pulses on tap, making the rating experience feel rewarding and tactile.",
+      "Overall Score badge animates with a glow pulse when it updates, drawing attention to the computed result.",
+      "Save Visit button has a strong mint glow that intensifies on press and pulses on success, making the final action feel significant."
+    ],
+    "accessibilityConsiderations": [
+      "Light text on dark glass surfaces maintains sufficient contrast (tested against WCAG AA standards).",
+      "Glow effects are supplementary visual feedback; state changes are also communicated through color, scale, and haptics.",
+      "Tap targets remain 44x44pt minimum with generous spacing between interactive elements.",
+      "Text fields support dynamic type scaling through defined typography tokens.",
+      "Haptic feedback on key interactions (star ratings, visibility selection, save button) provides non-visual confirmation."
+    ]
+  },
+  "implementationNotes": {
+    "auroraBackground": "Use 2-3 overlapping radial gradients (auroraMint, auroraBlue, auroraPink) positioned at different points. Gradients should have low opacity (0.08\u20130.15) and high blur (100\u2013140pt) to create a soft, atmospheric glow. Consider subtle parallax effect on scroll for extra depth.",
+    "glassCards": "All cards use cardBackground (rgba(15, 23, 42, 0.40)) with glassSoft blur (16pt), 1px glassStroke border, and cardSoft shadow. This creates a consistent floating glass effect across all sections.",
+    "glowEffects": "Focus/tap glows use glowPrimary (mint) or glowSecondary (blue) with 30pt blur and 0.5\u20130.7 opacity. Glows should appear behind the element, not as an outer stroke.",
+    "animations": "Use spring animations (duration 0.3s, damping 0.7, response 0.5) for scale effects. Use easeInOut (0.2s) for sliding segmented control. Glow pulses use easeInOut with scale 1.0\u21921.1\u21921.0.",
+    "starRatings": "Unfilled stars use iconSubtle (#64748B). Filled stars use auroraMint (#7CF2C8) with a 20pt blur glow at 0.6 opacity. On tap, star scales to 1.15 briefly before returning to 1.0.",
+    "textFields": "Use UITextField/SwiftUI TextField with custom glass background. Apply glowPrimary to border on focus. Cursor and selection highlights use mint accent colors.",
+    "segmentedControl": "Build custom glass container with sliding pill indicator. Selected pill has cardBackground + glassSoft blur + glassStroke border. Unselected options are transparent text."
+  }
+}

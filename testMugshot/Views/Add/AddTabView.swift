@@ -10,12 +10,66 @@ import PhotosUI
 import MapKit
 import CoreLocation
 
+// MARK: - LogVisitView Audit
+//
+// - Ratings UI:
+//   Defined once in `RatingsSection` / `RatingCategoryRow` at the bottom of this file.
+//   Logic is sound (per-category stars + overall score) but the view is tightly coupled
+//   to `LogVisitView` and not reusable elsewhere.
+//
+// - Spacing & padding:
+//   Root form uses a hard-coded `VStack(spacing: 24)` and mixes design-system spacing
+//   (`DS.Spacing.*`) with magic numbers (24, 40, 3...8 line limits, etc.).
+//   Section cards each manage their own padding and vertical spacing, leading to
+//   inconsistent gaps between sections.
+//
+// - Colors, fonts, corner radii:
+//   Most text and backgrounds correctly use `DS.Colors` and `DS.Typography`, but
+//   some elements (e.g. dashed photo placeholder, sliders, list rows) hard-code
+//   sizes and layout instead of leaning on shared card patterns.
+//   Multiple sections create their own card styling (`background + cornerRadius +
+//   dsCardShadow()`), which duplicates what `DSBaseCard` already provides.
+//
+// - Wiring / business logic:
+//   * Photo picking: `selectedPhotos` + `photoImages` are driven by `PhotosPicker`
+//     and `loadPhotos(from:)`, then converted into string paths and cached in
+//     `saveVisit()`. Poster photo index is tracked via `posterPhotoIndex`.
+//   * Ratings: `ratings: [String: Double]` is initialized from
+//     `dataManager.appData.ratingTemplate` and updated through `RatingCategoryRow`
+//     star taps; `overallScore` is computed via `ratingTemplate.calculateOverallScore`.
+//   * Visibility: `visibility: VisitVisibility` is bound to `VisibilitySection`,
+//     which toggles between `.private`, `.friends`, `.everyone`.
+//   * Caption/Notes: `caption` and `notes` bindings are wired into `CaptionSection`
+//     and `NotesSection`; caption is required, notes are optional. Caption already
+//     enforces a 200‑char limit but notes do not.
+//   * Save Visit: `saveVisit()` performs validation (cafe selection, drink type,
+//     caption present, user ID resolution), persists a `Visit` through
+//     `dataManager.addVisit`, then presents `VisitDetailView`. This logic should
+//     remain untouched during the UI refactor.
+
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
+    @State private var showOnboardingFlow = false
     
     var body: some View {
-        LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
+        // Use feature flag to switch between classic and onboarding-style post flow
+        if dataManager.appData.useOnboardingStylePostFlow {
+            // Show placeholder that triggers full screen flow
+            Color.clear
+                .onAppear {
+                    showOnboardingFlow = true
+                }
+                .fullScreenCover(isPresented: $showOnboardingFlow) {
+                    OnboardingStylePostFlowView(
+                        dataManager: dataManager,
+                        preselectedCafe: preselectedCafe
+                    )
+                    .environmentObject(HapticsManager.shared)
+                }
+        } else {
+            LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
+        }
     }
 }
 
@@ -24,6 +78,8 @@ struct LogVisitView: View {
     var preselectedCafe: Cafe? = nil
     @EnvironmentObject var tabCoordinator: TabCoordinator
     @Environment(\.dismiss) var dismiss
+    @StateObject private var hapticsManager = HapticsManager.shared
+    @StateObject private var locationManager = LocationManager()
     
     @State private var selectedCafe: Cafe?
     @State private var isCafeSearchActive = false
@@ -39,6 +95,7 @@ struct LogVisitView: View {
     @State private var showCustomizeRatings = false
     @State private var showPhotoPicker = false
     @State private var validationErrors: [String] = []
+    @State private var isSaving = false
     @State private var savedVisit: Visit?
     @State private var showVisitDetail = false
     
@@ -46,34 +103,77 @@ struct LogVisitView: View {
     @State private var searchText = ""
     @State private var scrollToTop = false
     
-    // Default region for search (can be improved with location manager later)
+    // Default fallback region (used when location not available)
     private let defaultSearchRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     
+    private var currentSearchRegion: MKCoordinateRegion {
+        if let coordinate = locationManager.location?.coordinate {
+            return MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        }
+        return defaultSearchRegion
+    }
+    
     var overallScore: Double {
         dataManager.appData.ratingTemplate.calculateOverallScore(ratings: ratings)
+    }
+    
+    // Helper text for disabled CTA button
+    private var ctaHelperText: String? {
+        if selectedCafe == nil {
+            return "Select a cafe to continue"
+        } else if drinkType == .other && customDrinkType.isEmpty {
+            return "Enter your drink type"
+        } else if caption.isEmpty {
+            return "Add a caption to post"
+        }
+        return nil
     }
     
     var body: some View {
         NavigationStack {
             mainContent
-                .background(Color.creamWhite)
+                .background(DS.Colors.screenBackground)
+                .safeAreaInset(edge: .bottom) {
+                    SaveVisitButton(
+                        title: "Post to Journal",
+                        isEnabled: canSave,
+                        isLoading: isSaving,
+                        helperText: ctaHelperText,
+                        onTap: saveVisit
+                    )
+                }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
+                        Button(action: {
                             resetForm()
                             // Switch to Map tab
                             tabCoordinator.selectedTab = 0
                             // If we're in a sheet (from Saved/Map), dismiss it
                             dismiss()
+                        }) {
+                            HStack(spacing: DS.Spacing.xs) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Cancel")
+                                    .font(DS.Typography.bodyText)
+                            }
+                            .foregroundColor(DS.Colors.textPrimary)
                         }
-                        .foregroundColor(.espressoBrown)
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Text("Log a Visit")
+                            .font(DS.Typography.cardTitle)
+                            .foregroundColor(DS.Colors.textPrimary)
                     }
                 }
-                .toolbarBackground(Color.mugshotMint, for: .navigationBar)
+                .toolbarBackground(DS.Colors.appBarBackground, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .sheet(isPresented: $showCustomizeRatings) {
                     CustomizeRatingsView(
@@ -91,6 +191,7 @@ struct LogVisitView: View {
                     loadPhotos(from: newValue)
                 }
                 .onAppear {
+                    locationManager.requestLocationPermission()
                     if let cafe = preselectedCafe {
                         selectedCafe = cafe
                     }
@@ -107,114 +208,125 @@ struct LogVisitView: View {
                     dismiss()
                 }) {
                     if let visit = savedVisit {
-                        VisitDetailView(visit: visit, dataManager: dataManager)
+                        NavigationStack {
+                            VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
+                        }
                     }
                 }
         }
     }
     
     private var mainContent: some View {
-        ZStack {
-            // Light background
-            Color.sandBeige.opacity(0.3)
-                .ignoresSafeArea()
-            
-            ScrollViewReader { proxy in
-                ScrollView {
-                    formContent
-                        .padding(.horizontal, 16)
-                }
-                .onChange(of: scrollToTop) { _, shouldScroll in
-                    if shouldScroll {
-                        withAnimation {
-                            proxy.scrollTo("top", anchor: .top)
-                        }
-                        scrollToTop = false
+        ScrollViewReader { proxy in
+            ScrollView {
+                formContent
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                    .padding(.bottom, DS.Spacing.xxl) // space above bottom button
+            }
+            .onChange(of: scrollToTop) { _, shouldScroll in
+                if shouldScroll {
+                    withAnimation {
+                        proxy.scrollTo("top", anchor: .top)
                     }
+                    scrollToTop = false
                 }
             }
         }
     }
     
     private var formContent: some View {
-        VStack(spacing: 24) {
-            // Header section (inside scrollable content)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Log a Visit")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.espressoBrown)
-                
-                Text("Share your sip and what made it special.")
-                    .font(.system(size: 16))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-            }
-            .id("top")
-            .padding(.top, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        
-            // Cafe Location
+        VStack(spacing: DS.Spacing.sectionVerticalGap) {
+            // Top anchor for scroll-to-top
+            Color.clear
+                .frame(height: 1)
+                .id("top")
+            
+            // SECTION 1: Cafe Location
             CafeLocationSection(
                 selectedCafe: $selectedCafe,
                 searchText: $searchText,
                 isSearchActive: $isCafeSearchActive,
                 searchService: searchService,
                 dataManager: dataManager,
-                searchRegion: defaultSearchRegion
+                searchRegion: currentSearchRegion
             )
             
-            // Drink Type
-            DrinkTypeSection(
+            // SECTION 2: Drink Type (horizontal pills)
+            DrinkTypePillSelector(
                 drinkType: $drinkType,
                 customDrinkType: $customDrinkType
             )
             
-            // Photos
-            PhotosSection(
-                photoImages: $photoImages,
-                posterPhotoIndex: $posterPhotoIndex,
-                showPhotoPicker: $showPhotoPicker
+            // SECTION 3: Photos (hero area)
+            PhotoUploaderCard(
+                images: photoImages,
+                posterIndex: posterPhotoIndex,
+                maxPhotos: 10,
+                onAddTapped: {
+                    hapticsManager.lightTap()
+                    showPhotoPicker = true
+                },
+                onRemove: { index in
+                    hapticsManager.lightTap()
+                    photoImages.remove(at: index)
+                    if posterPhotoIndex >= photoImages.count {
+                        posterPhotoIndex = max(0, photoImages.count - 1)
+                    }
+                },
+                onSetPoster: { index in
+                    hapticsManager.lightTap()
+                    posterPhotoIndex = index
+                }
             )
             
-            // Ratings
-            RatingsSection(
+            // SECTION 4: Ratings (collapsible with quick-rate)
+            RatingsCard(
                 dataManager: dataManager,
                 ratings: $ratings,
                 overallScore: overallScore,
-                showCustomize: $showCustomizeRatings
+                onCustomizeTapped: { showCustomizeRatings = true }
             )
             
-            // Caption
-            CaptionSection(caption: $caption)
+            // SECTION 5: Caption (single field)
+            CaptionField(
+                caption: $caption,
+                captionLimit: 200
+            )
             
-            // Notes
-            NotesSection(notes: $notes)
+            // SECTION 6: Visibility (slim segmented control)
+            VisibilitySelector(visibility: $visibility)
             
-            // Visibility
-            VisibilitySection(visibility: $visibility)
+            // SECTION 7: More Options (collapsed notes)
+            MoreOptionsSection(
+                notes: $notes,
+                notesLimit: 200
+            )
             
             // Validation errors
             if !validationErrors.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     ForEach(validationErrors, id: \.self) { error in
-                        Text("• \(error)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.red)
+                        HStack(spacing: DS.Spacing.xs) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(DS.Colors.negativeChange)
+                                .font(.system(size: 14))
+                            Text(error)
+                                .font(DS.Typography.bodyText)
+                                .foregroundColor(DS.Colors.negativeChange)
+                        }
                     }
                 }
-                .padding()
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(DesignSystem.cornerRadius)
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.negativeChange.opacity(0.1))
+                .cornerRadius(DS.Radius.md)
             }
-            
-            // Save button
-            Button("Save Visit") {
-                saveVisit()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
         }
+    }
+    
+    private var canSave: Bool {
+        selectedCafe != nil &&
+        (drinkType != .other || !customDrinkType.isEmpty) &&
+        !caption.isEmpty
     }
     
     private func resetForm() {
@@ -272,61 +384,118 @@ struct LogVisitView: View {
     }
     
     private func saveVisit() {
+        // Haptic: confirm save button tap
+        hapticsManager.mediumTap()
+        Task {
+            await saveVisitAsync()
+        }
+    }
+    
+    @MainActor
+    private func saveVisitAsync() async {
         validationErrors = []
         
         // Validate
         guard let cafe = selectedCafe else {
             validationErrors.append("Please select a Cafe location")
+            hapticsManager.playError()
             return
         }
         
         guard drinkType != .other || !customDrinkType.isEmpty else {
             validationErrors.append("Please specify a custom drink type")
+            hapticsManager.playError()
             return
         }
         
         guard !caption.isEmpty else {
             validationErrors.append("Please write a caption")
+            hapticsManager.playError()
             return
         }
         
-        guard let userId = dataManager.appData.currentUser?.id else {
-            return
-        }
-        
-        // Convert photos to strings and cache the images
-        let photoPaths = photoImages.enumerated().map { index, image in
-            let path = "photo_\(UUID().uuidString)_\(index)"
-            // Cache the image for later retrieval
-            PhotoCache.shared.store(image, forKey: path)
-            return path
+        if dataManager.appData.currentUser == nil {
+            if let username = dataManager.appData.currentUserUsername {
+                let newUser = User(
+                    username: username,
+                    displayName: dataManager.appData.currentUserDisplayName,
+                    location: dataManager.appData.currentUserLocation ?? "",
+                    profileImageID: dataManager.appData.currentUserProfileImageId,
+                    bannerImageID: dataManager.appData.currentUserBannerImageId,
+                    bio: dataManager.appData.currentUserBio ?? "",
+                    instagramURL: dataManager.appData.currentUserInstagramHandle,
+                    websiteURL: dataManager.appData.currentUserWebsite,
+                    favoriteDrink: dataManager.appData.currentUserFavoriteDrink
+                )
+                dataManager.setCurrentUser(newUser)
+            } else {
+                validationErrors.append("Please complete your profile setup")
+                hapticsManager.playError()
+                return
+            }
         }
         
         // Parse mentions from caption
         let mentions = MentionParser.parseMentions(from: caption)
         
-        let visit = Visit(
-            cafeId: cafe.id,
-            userId: userId,
-            createdAt: Date(),
-            drinkType: drinkType,
-            customDrinkType: drinkType == .other ? customDrinkType : nil,
-            caption: caption,
-            notes: notes.isEmpty ? nil : notes,
-            photos: photoPaths,
-            posterPhotoIndex: posterPhotoIndex,
-            ratings: ratings,
-            overallScore: overallScore,
-            visibility: visibility,
-            likeCount: 0,
-            likedByUserIds: [],
-            comments: [],
-            mentions: mentions
-        )
+        isSaving = true
+        defer { isSaving = false }
         
-        dataManager.addVisit(visit)
-        savedVisit = visit
-        showVisitDetail = true
+        do {
+            let visit = try await dataManager.createVisit(
+                cafe: cafe,
+                drinkType: drinkType,
+                customDrinkType: drinkType == .other ? customDrinkType : nil,
+                caption: caption,
+                notes: notes.isEmpty ? nil : notes,
+                photoImages: photoImages,
+                posterPhotoIndex: posterPhotoIndex,
+                ratings: ratings,
+                overallScore: overallScore,
+                visibility: visibility,
+                mentions: mentions
+            )
+            savedVisit = visit
+            // Haptic: visit save success
+            hapticsManager.playSuccess()
+            showVisitDetail = true
+        } catch {
+            // Debug logging for visit save errors
+            print("❌ [AddTabView] Save visit error: \(error)")
+            print("❌ [AddTabView] Error type: \(type(of: error))")
+            
+            // Check for specific error types to provide better user feedback
+            if let supabaseError = error as? SupabaseError {
+                print("❌ [AddTabView] SupabaseError: \(supabaseError)")
+                let friendlyMessage = supabaseError.userFriendlyDescription
+                print("❌ [AddTabView] User-friendly message: \(friendlyMessage)")
+                validationErrors.append(friendlyMessage)
+            } else if let decodingError = error as? DecodingError {
+                print("❌ [AddTabView] DecodingError details:")
+                switch decodingError {
+                case .typeMismatch(let type, let context):
+                    print("  Type mismatch: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                    print("  Context: \(context.debugDescription)")
+                case .valueNotFound(let type, let context):
+                    print("  Value not found: expected \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .keyNotFound(let key, let context):
+                    print("  Key not found: \(key.stringValue), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .dataCorrupted(let context):
+                    print("  Data corrupted: \(context.debugDescription)")
+                    if let underlyingError = context.underlyingError {
+                        print("  Underlying error: \(underlyingError)")
+                    }
+                @unknown default:
+                    print("  Unknown decoding error")
+                }
+                validationErrors.append("We received an unexpected response. Please try again.")
+            } else {
+                print("❌ [AddTabView] Unexpected error type: \(type(of: error))")
+                validationErrors.append("Something went wrong saving your visit. Please try again.")
+            }
+            // Haptic: visit save error
+            hapticsManager.playError()
+        }
     }
 }
 
@@ -339,221 +508,200 @@ struct CafeLocationSection: View {
     @ObservedObject var searchService: MapSearchService
     @ObservedObject var dataManager: DataManager
     let searchRegion: MKCoordinateRegion
+    @FocusState private var isSearchFieldFocused: Bool
+    
+    private var shouldShowRecentSearches: Bool {
+        isSearchFieldFocused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    private var referenceLocation: CLLocation {
+        CLLocation(latitude: searchRegion.center.latitude, longitude: searchRegion.center.longitude)
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Cafe Location")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-            
-            if isSearchActive {
-                // Inline search mode
-                VStack(spacing: 8) {
-                    HStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.espressoBrown.opacity(0.6))
-                            
-                            TextField("Search cafes...", text: $searchText)
-                                .foregroundColor(.espressoBrown)
-                                .onChange(of: searchText) { oldValue, newValue in
-                                    if !newValue.isEmpty {
-                                        searchService.search(query: newValue, region: searchRegion)
-                                    } else {
-                                        searchService.cancelSearch()
-                                    }
-                                }
-                            
-                            if !searchText.isEmpty {
-                                Button(action: {
-                                    searchText = ""
-                                    searchService.cancelSearch()
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.espressoBrown.opacity(0.4))
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color.creamWhite)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                .stroke(Color.sandBeige, lineWidth: 1)
-                        )
-                        
-                        Button("Cancel") {
-                            searchText = ""
-                            searchService.cancelSearch()
-                            isSearchActive = false
-                        }
-                        .foregroundColor(.espressoBrown)
-                    }
-                    
-                    // Search results dropdown
-                    if !searchText.isEmpty {
-                        CafeSearchResultsDropdown(
-                            searchService: searchService,
-                            dataManager: dataManager,
-                            searchText: $searchText,
-                            selectedCafe: $selectedCafe,
-                            isSearchActive: $isSearchActive
-                        )
-                    }
-                }
-            } else {
-                // Display selected cafe or search prompt
-                Button(action: {
-                    isSearchActive = true
-                }) {
-                    HStack {
-                        if let cafe = selectedCafe {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Image(systemName: "location.fill")
-                                        .foregroundColor(.mugshotMint)
-                                        .font(.system(size: 14))
-                                    Text(cafe.name)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.espressoBrown)
-                                }
-                                
-                                if !cafe.address.isEmpty {
-                                    Text(cafe.address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                }
-                            }
-                        } else {
+        DSBaseCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Cafe Location")
+                    .font(DS.Typography.sectionTitle)
+                    .foregroundColor(DS.Colors.textPrimary)
+                
+                if isSearchActive {
+                    // Inline search mode
+                    VStack(spacing: DS.Spacing.sm) {
+                        HStack(spacing: DS.Spacing.lg) {
                             HStack {
                                 Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                                Text("Search for a Cafe…")
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.espressoBrown.opacity(0.4))
-                    }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .cardStyle()
-    }
-}
-
-// MARK: - Cafe Search Results Dropdown
-
-struct CafeSearchResultsDropdown: View {
-    @ObservedObject var searchService: MapSearchService
-    @ObservedObject var dataManager: DataManager
-    @Binding var searchText: String
-    @Binding var selectedCafe: Cafe?
-    @Binding var isSearchActive: Bool
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            if searchService.isSearching {
-                HStack {
-                    ProgressView()
-                        .padding()
-                    Spacer()
-                }
-                .background(Color.creamWhite)
-            } else if let error = searchService.searchError {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 24))
-                        .foregroundColor(.espressoBrown.opacity(0.5))
-                    Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .background(Color.creamWhite)
-            } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
-                VStack(spacing: 12) {
-                    Text("No results found")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                .padding()
-                .background(Color.creamWhite)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(searchService.searchResults.enumerated()), id: \.offset) { index, mapItem in
-                            Button(action: {
-                                let cafe = dataManager.findOrCreateCafe(from: mapItem)
-                                selectedCafe = cafe
-                                searchText = ""
-                                searchService.cancelSearch()
-                                isSearchActive = false
-                            }) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(mapItem.name ?? "Unknown")
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(.espressoBrown)
-                                        
-                                        if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
-                                            Text(address)
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                    .foregroundColor(DS.Colors.textSecondary)
+                                
+                                TextField("Search cafes...", text: $searchText)
+                                    .foregroundColor(DS.Colors.textPrimary)
+                                    .focused($isSearchFieldFocused)
+                                    .onChange(of: searchText) { _, newValue in
+                                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !trimmed.isEmpty {
+                                            if !isSearchActive {
+                                                withAnimation {
+                                                    isSearchActive = true
+                                                }
+                                            }
+                                            searchService.search(query: trimmed, region: searchRegion)
+                                        } else {
+                                            searchService.cancelSearch()
+                                            if !isSearchFieldFocused {
+                                                withAnimation {
+                                                    isSearchActive = false
+                                                }
+                                            }
                                         }
                                     }
-                                    Spacer()
+                                    .onChange(of: isSearchFieldFocused) { _, focused in
+                                        if focused {
+                                            withAnimation {
+                                                isSearchActive = true
+                                            }
+                                        } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            withAnimation {
+                                                isSearchActive = false
+                                            }
+                                        }
+                                    }
+                                
+                                if !searchText.isEmpty {
+                                    Button(action: {
+                                        searchText = ""
+                                        searchService.cancelSearch()
+                                        withAnimation {
+                                            isSearchActive = false
+                                        }
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(DS.Colors.iconSubtle)
+                                    }
                                 }
-                                .padding()
-                                .background(Color.creamWhite)
                             }
-                            .buttonStyle(.plain)
+                            .padding(DS.Spacing.md)
+                            .background(DS.Colors.cardBackground)
+                            .cornerRadius(DS.Radius.md)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                            )
                             
-                            if index < searchService.searchResults.count - 1 {
-                                Divider()
-                                    .background(Color.sandBeige)
+                            Button("Cancel") {
+                                searchText = ""
+                                searchService.cancelSearch()
+                                withAnimation {
+                                    isSearchActive = false
+                                }
+                                isSearchFieldFocused = false
                             }
+                            .foregroundColor(DS.Colors.textPrimary)
                         }
+                        
+                        CafeSearchResultsPanel(
+                            searchText: $searchText,
+                            searchService: searchService,
+                            recentSearches: dataManager.appData.recentSearches,
+                            showRecentSearches: shouldShowRecentSearches,
+                            referenceLocation: referenceLocation,
+                            onMapItemSelected: { mapItem in
+                                handleMapItemSelection(mapItem)
+                            },
+                            onRecentSelected: { entry in
+                                handleRecentSelection(entry)
+                            },
+                            emptyRecentStateText: "Search for a cafe to start building your history."
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
+                } else {
+                    // Display selected cafe or search prompt
+                    Button(action: {
+                        withAnimation {
+                            isSearchActive = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            isSearchFieldFocused = true
+                        }
+                    }) {
+                        HStack {
+                            if let cafe = selectedCafe {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "location.fill")
+                                            .foregroundColor(DS.Colors.primaryAccent)
+                                            .font(DS.Typography.caption1())
+                                        Text(cafe.name)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textPrimary)
+                                    }
+                                    
+                                    if !cafe.address.isEmpty {
+                                        Text(cafe.address)
+                                            .font(DS.Typography.bodyText)
+                                            .foregroundColor(DS.Colors.textSecondary)
+                                    }
+                                }
+                            } else {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                    Text("Search for a Cafe…")
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(DS.Colors.iconSubtle)
+                        }
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackground)
+                        .cornerRadius(DS.Radius.md)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .frame(maxHeight: 200)
-                .background(Color.creamWhite)
             }
         }
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
-        .shadow(
-            color: DesignSystem.cardShadow.color,
-            radius: DesignSystem.cardShadow.radius,
-            x: DesignSystem.cardShadow.x,
-            y: DesignSystem.cardShadow.y
-        )
     }
     
-    private func formatAddress(from placemark: MKPlacemark) -> String? {
-        var components: [String] = []
-        if let thoroughfare = placemark.thoroughfare {
-            components.append(thoroughfare)
+    private func handleMapItemSelection(_ mapItem: MKMapItem, recordRecent: Bool = true) {
+        HapticsManager.shared.lightTap()
+        
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        selectedCafe = cafe
+        isSearchFieldFocused = false
+        
+        let queryText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchText = ""
+        searchService.cancelSearch()
+        
+        withAnimation {
+            isSearchActive = false
         }
-        if let locality = placemark.locality {
-            components.append(locality)
+        
+        if recordRecent {
+            dataManager.addRecentSearch(from: mapItem, query: queryText.isEmpty ? (mapItem.name ?? "") : queryText)
         }
-        return components.isEmpty ? nil : components.joined(separator: ", ")
+    }
+    
+    private func handleRecentSelection(_ entry: RecentSearchEntry) {
+        dataManager.promoteRecentSearch(entry)
+        if let mapItem = entry.asMapItem() {
+            handleMapItemSelection(mapItem, recordRecent: false)
+        } else {
+            searchText = entry.query
+            searchService.search(query: entry.query, region: searchRegion)
+            isSearchFieldFocused = true
+            withAnimation {
+                isSearchActive = true
+            }
+        }
     }
 }
 
@@ -567,8 +715,8 @@ struct DrinkTypeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Drink Type")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
             
             VStack(alignment: .leading, spacing: 0) {
                 // Main button
@@ -579,18 +727,18 @@ struct DrinkTypeSection: View {
                 }) {
                     HStack {
                         Text(showDropdown ? "Select drink type" : (drinkType == .other && !customDrinkType.isEmpty ? customDrinkType : (drinkType == .other && customDrinkType.isEmpty ? "Select drink type" : drinkType.rawValue)))
-                            .foregroundColor(showDropdown || (drinkType == .other && customDrinkType.isEmpty) ? .espressoBrown.opacity(0.6) : .espressoBrown)
+                            .foregroundColor(showDropdown || (drinkType == .other && customDrinkType.isEmpty) ? DS.Colors.textSecondary : DS.Colors.textPrimary)
                         Spacer()
                         Image(systemName: showDropdown ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.espressoBrown.opacity(0.4))
-                            .font(.system(size: 12))
+                            .foregroundColor(DS.Colors.iconSubtle)
+                            .font(DS.Typography.caption2())
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -600,6 +748,8 @@ struct DrinkTypeSection: View {
                     VStack(spacing: 0) {
                         ForEach(DrinkType.allCases, id: \.self) { type in
                             Button(action: {
+                                // Haptic: confirm drink type selection
+                                HapticsManager.shared.selectionChanged()
                                 drinkType = type
                                 if type != .other {
                                     customDrinkType = ""
@@ -610,37 +760,32 @@ struct DrinkTypeSection: View {
                             }) {
                                 HStack {
                                     Text(type.rawValue)
-                                        .foregroundColor(.espressoBrown)
+                                        .foregroundColor(DS.Colors.textPrimary)
                                     Spacer()
                                     if drinkType == type {
                                         Image(systemName: "checkmark")
-                                            .foregroundColor(.mugshotMint)
+                                            .foregroundColor(DS.Colors.primaryAccent)
                                     }
                                 }
-                                .padding()
+                                .padding(DS.Spacing.md)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(drinkType == type ? Color.mugshotMint.opacity(0.2) : Color.creamWhite)
+                                .background(drinkType == type ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackground)
                             }
                             .buttonStyle(.plain)
                             
                             if type != DrinkType.allCases.last {
                                 Divider()
-                                    .background(Color.sandBeige)
+                                    .background(DS.Colors.dividerSubtle)
                             }
                         }
                     }
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
-                    )
+                    .dsCardShadow()
                     .padding(.top, 4)
                 }
             }
@@ -648,385 +793,25 @@ struct DrinkTypeSection: View {
             // Custom drink type field (shown when "Other" is selected)
             if drinkType == .other {
                 TextField("What are you drinking?", text: $customDrinkType)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding()
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .tint(DS.Colors.primaryAccent)
+                    .accentColor(DS.Colors.primaryAccent)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
-                    .padding(.top, 8)
+                    .padding(.top, DS.Spacing.sm)
             }
         }
-        .cardStyle()
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.card)
+        .dsCardShadow()
     }
 }
 
-// MARK: - Photos Section
-
-struct PhotosSection: View {
-    @Binding var photoImages: [UIImage]
-    @Binding var posterPhotoIndex: Int
-    @Binding var showPhotoPicker: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Photos")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-            
-            if photoImages.isEmpty {
-                Button(action: {
-                    showPhotoPicker = true
-                }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 32))
-                            .foregroundColor(.espressoBrown.opacity(0.5))
-                        
-                        Text("Tap to add photos (\(photoImages.count)/10)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                        
-                        Text("Photos will be compressed automatically.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.espressoBrown.opacity(0.5))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
-                    .background(Color.clear)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                            .foregroundColor(.sandBeige)
-                    )
-                }
-                .buttonStyle(.plain)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(photoImages.indices, id: \.self) { index in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: photoImages[index])
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 100, height: 100)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
-                                
-                                // Poster indicator
-                                if index == posterPhotoIndex {
-                                    VStack {
-                                        HStack {
-                                            Spacer()
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.mugshotMint)
-                                                .background(Color.white)
-                                                .clipShape(Circle())
-                                                .padding(4)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                                
-                                // Remove button
-                                Button(action: {
-                                    photoImages.remove(at: index)
-                                    if posterPhotoIndex >= photoImages.count - 1 {
-                                        posterPhotoIndex = max(0, photoImages.count - 2)
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.red)
-                                        .background(Color.white)
-                                        .clipShape(Circle())
-                                }
-                                .offset(x: 4, y: -4)
-                                
-                                // Tap to set poster
-                                Button(action: {
-                                    posterPhotoIndex = index
-                                }) {
-                                    Color.clear
-                                        .frame(width: 100, height: 100)
-                                }
-                            }
-                        }
-                        
-                        if photoImages.count < 10 {
-                            Button(action: {
-                                showPhotoPicker = true
-                            }) {
-                                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                    .fill(Color.sandBeige.opacity(0.3))
-                                    .frame(width: 100, height: 100)
-                                    .overlay(
-                                        Image(systemName: "plus")
-                                            .foregroundColor(.espressoBrown.opacity(0.5))
-                                    )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .cardStyle()
-    }
-}
-
-// MARK: - Ratings Section
-
-struct RatingsSection: View {
-    @ObservedObject var dataManager: DataManager
-    @Binding var ratings: [String: Double]
-    let overallScore: Double
-    @Binding var showCustomize: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Ratings")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                
-                Spacer()
-                
-                Button(action: {
-                    showCustomize = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 12))
-                        Text("Customize")
-                            .font(.system(size: 14))
-                    }
-                    .foregroundColor(.mugshotMint)
-                }
-            }
-            
-            ForEach(dataManager.appData.ratingTemplate.categories) { category in
-                RatingCategoryRow(
-                    category: category,
-                    rating: Binding(
-                        get: { ratings[category.name] ?? 0.0 },
-                        set: { ratings[category.name] = $0 }
-                    ),
-                    weightMultiplier: dataManager.appData.ratingTemplate.getWeightMultiplier(for: category)
-                )
-            }
-            
-            Divider()
-                .padding(.vertical, 8)
-            
-            HStack {
-                Text("Overall Score")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                
-                Spacer()
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", overallScore))
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                }
-            }
-        }
-        .cardStyle()
-    }
-}
-
-struct RatingCategoryRow: View {
-    let category: RatingCategory
-    @Binding var rating: Double
-    let weightMultiplier: Double
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                HStack(spacing: 4) {
-                    Text(category.name)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.espressoBrown)
-                    
-                    if weightMultiplier != 1.0 {
-                        Text("(\(formatWeight(weightMultiplier)) importance)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.mugshotMint)
-                    }
-                }
-                
-                Spacer()
-            }
-            
-            HStack(spacing: 4) {
-                ForEach(0..<5) { index in
-                    Button(action: {
-                        let newRating = Double(index + 1)
-                        // Tapping the same star again sets to 0
-                        rating = rating == newRating ? 0.0 : newRating
-                    }) {
-                        Image(systemName: rating > Double(index) ? "star.fill" : "star")
-                            .foregroundColor(rating > Double(index) ? .mugshotMint : .espressoBrown.opacity(0.3))
-                            .font(.system(size: 20))
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 8)
-    }
-    
-    private func formatWeight(_ weight: Double) -> String {
-        if weight == floor(weight) {
-            return String(format: "%.0fx", weight)
-        } else {
-            return String(format: "%.1fx", weight)
-        }
-    }
-}
-
-// MARK: - Caption Section
-
-struct CaptionSection: View {
-    @Binding var caption: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Caption")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                
-                Spacer()
-                
-                Text("\(caption.count)/200")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-            }
-            
-            TextField("Share your thoughts or first impressions…", text: Binding(
-                get: { caption },
-                set: { newValue in
-                    if newValue.count <= 200 {
-                        caption = newValue
-                    }
-                }
-            ), axis: .vertical)
-                .lineLimit(3...6)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
-                )
-        }
-        .cardStyle()
-    }
-}
-
-// MARK: - Notes Section
-
-struct NotesSection: View {
-    @Binding var notes: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Notes (Optional)")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-            
-            TextField("Anything extra you'd like to remember?", text: $notes, axis: .vertical)
-                .lineLimit(3...8)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
-                )
-        }
-        .cardStyle()
-    }
-}
-
-// MARK: - Visibility Section
-
-struct VisibilitySection: View {
-    @Binding var visibility: VisitVisibility
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Visibility")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-            
-            HStack(spacing: 12) {
-                VisibilityButton(
-                    title: "Private",
-                    subtitle: "Only you",
-                    isSelected: visibility == .private,
-                    action: { visibility = .private }
-                )
-                
-                VisibilityButton(
-                    title: "Friends",
-                    subtitle: "Friends can see",
-                    isSelected: visibility == .friends,
-                    action: { visibility = .friends }
-                )
-                
-                VisibilityButton(
-                    title: "Everyone",
-                    subtitle: "Visible to all",
-                    isSelected: visibility == .everyone,
-                    action: { visibility = .everyone }
-                )
-            }
-        }
-        .cardStyle()
-    }
-}
-
-struct VisibilityButton: View {
-    let title: String
-    let subtitle: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isSelected ? .espressoBrown : .espressoBrown.opacity(0.7))
-                
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(isSelected ? Color.mugshotMint.opacity(0.2) : Color.sandBeige.opacity(0.3))
-            .cornerRadius(DesignSystem.cornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 2)
-            )
-        }
-    }
-}
 
 // MARK: - Cafe Search Sheet
 
@@ -1045,12 +830,12 @@ struct CafeSearchSheet: View {
                 HStack {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
+                            .foregroundColor(DS.Colors.textSecondary)
                         
                         TextField("Search cafes...", text: $searchText)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .tint(DS.Colors.primaryAccent)
+                            .accentColor(DS.Colors.primaryAccent)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     searchService.search(query: newValue, region: region)
@@ -1065,32 +850,32 @@ struct CafeSearchSheet: View {
                                 searchService.cancelSearch()
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.espressoBrown.opacity(0.4))
+                                    .foregroundColor(DS.Colors.iconSubtle)
                             }
                         }
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.card)
                 }
-                .padding()
+                .padding(DS.Spacing.pagePadding)
                 
                 // Results
                 if searchService.isSearching {
                     ProgressView()
-                        .padding()
+                        .padding(DS.Spacing.md)
                 } else if let error = searchService.searchError {
-                    VStack(spacing: 12) {
+                    VStack(spacing: DS.Spacing.sm) {
                         Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.espressoBrown.opacity(0.5))
+                            .foregroundColor(DS.Colors.iconSubtle)
                         Text(error)
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                            .foregroundColor(DS.Colors.textSecondary)
                     }
-                    .padding()
+                    .padding(DS.Spacing.md)
                 } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
                     Text("No results found")
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .padding()
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .padding(DS.Spacing.md)
                 } else {
                     List {
                         ForEach(searchService.searchResults, id: \.self) { mapItem in
@@ -1102,11 +887,11 @@ struct CafeSearchSheet: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(mapItem.name ?? "Unknown")
-                                            .foregroundColor(.espressoBrown)
+                                            .foregroundColor(DS.Colors.textPrimary)
                                         if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
                                             Text(address)
                                                 .font(.caption)
-                                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                                .foregroundColor(DS.Colors.textSecondary)
                                         }
                                     }
                                     Spacer()
@@ -1116,7 +901,7 @@ struct CafeSearchSheet: View {
                     }
                 }
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Search Cafes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1171,18 +956,20 @@ struct CustomizeRatingsView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Define what matters most in your coffee journey and how much each criterion should count.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                        .padding(.top)
+                    Text("Define what matters most in your sipping journey and how much each criterion should count.")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .padding(.top, DS.Spacing.md)
                     
                     ForEach(editingCategories.indices, id: \.self) { index in
-                        CustomizeRatingCategoryRow(
-                            category: $editingCategories[index],
-                            onDelete: {
-                                editingCategories.remove(at: index)
-                            }
-                        )
+                        DSBaseCard {
+                            CustomizeRatingCategoryRow(
+                                category: $editingCategories[index],
+                                onDelete: {
+                                    editingCategories.remove(at: index)
+                                }
+                            )
+                        }
                     }
                     
                     Button(action: {
@@ -1195,16 +982,16 @@ struct CustomizeRatingsView: View {
                             Image(systemName: "plus.circle")
                             Text("Add New Category")
                         }
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(DS.Colors.primaryAccent)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.sandBeige.opacity(0.3))
-                        .cornerRadius(DesignSystem.cornerRadius)
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackgroundAlt)
+                        .cornerRadius(DS.Radius.card)
                     }
                 }
-                .padding()
+                .padding(DS.Spacing.pagePadding)
             }
-            .background(Color.creamWhite)
+            .background(DS.Colors.screenBackground)
             .navigationTitle("Customize Ratings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1221,7 +1008,7 @@ struct CustomizeRatingsView: View {
                         dataManager.updateRatingTemplate(updatedTemplate)
                         isPresented = false
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(DSPrimaryButtonStyle())
                 }
             }
         }
@@ -1235,37 +1022,37 @@ struct CustomizeRatingCategoryRow: View {
     @State private var weightMultiplier: Double = 1.0
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack {
                 // Drag handle
                 Image(systemName: "line.3.horizontal")
-                    .foregroundColor(.espressoBrown.opacity(0.4))
+                    .foregroundColor(DS.Colors.iconSubtle)
                 
                 // Category name
                 TextField("Category name", text: $category.name)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding(8)
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.smallCornerRadius)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .tint(DS.Colors.primaryAccent)
+                    .accentColor(DS.Colors.primaryAccent)
+                    .padding(DS.Spacing.sm)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                            .stroke(Color.inputBorder, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
                     )
                 
                 // Delete button
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundColor(DS.Colors.negativeChange)
                 }
             }
             
             // Weight slider
             HStack {
                 Text("Weight")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.textPrimary)
                 
                 Slider(value: $weightMultiplier, in: 0.5...3.0, step: 0.5)
                     .onChange(of: weightMultiplier) { oldValue, newValue in
@@ -1274,14 +1061,14 @@ struct CustomizeRatingCategoryRow: View {
                     }
                 
                 Text(formatWeight(weightMultiplier))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .font(DS.Typography.bodyText)
+                    .foregroundColor(DS.Colors.primaryAccent)
                     .frame(width: 40)
             }
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .padding(DS.Spacing.md)
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.card)
         .onAppear {
             // Weights are stored as multipliers, so use directly
             weightMultiplier = category.weight > 0 ? category.weight : 1.0

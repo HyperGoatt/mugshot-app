@@ -2,148 +2,341 @@
 //  FeedTabView.swift
 //  testMugshot
 //
-//  Created by Joseph Rosso on 11/14/25.
+//  Redesigned feed with coffee-first information hierarchy
 //
 
 import SwiftUI
 
-// Helper view to display the poster image for a visit
-struct PosterImageView: View {
-    let visit: Visit
-    
-    var body: some View {
-        if let posterPath = visit.posterImagePath {
-            PhotoImageView(photoPath: posterPath)
-        } else {
-            // Fallback placeholder
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .fill(Color.sandBeige)
-                .overlay(
-                    Image(systemName: "photo")
-                        .font(.system(size: 48))
-                        .foregroundColor(.espressoBrown.opacity(0.3))
-                )
-        }
-    }
-}
-
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var tabCoordinator: TabCoordinator
+    @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedScope: FeedScope = .friends
     @State private var selectedVisit: Visit?
-    @State private var showVisitDetail = false
     @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
+    @State private var selectedUserId: String?
+    @State private var showNotifications = false
+    @State private var isRefreshing = false
+    @State private var refreshRotation: Double = 0
+    @State private var scrollOffset: CGFloat = 0
+    @State private var headerHeight: CGFloat = 0
+    
+    private var unreadNotificationCount: Int {
+        dataManager.appData.notifications.filter { !$0.isRead }.count
+    }
+    
+    private var showStickyHeader: Bool {
+        scrollOffset < -50 // Show sticky header when scrolled down
+    }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Custom header
-                VStack(alignment: .leading, spacing: 0) {
-                    // Top spacing from safe area
-                    Spacer()
-                        .frame(height: 16)
-                    
-                    // Title and search icon row
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Feed")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            Text("Sips from the community")
-                                .font(.system(size: 15))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            // Search functionality - can be added later
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
-                                .foregroundColor(.espressoBrown)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    
-                    // Space between subtitle and toggle
-                    Spacer()
-                        .frame(height: 12)
-                    
-                    // Pill-style scope toggle container - centered
-                    HStack {
-                        Spacer()
-                        HStack(spacing: 0) {
-                            ForEach(FeedScope.allCases, id: \.self) { scope in
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        selectedScope = scope
-                                    }
-                                }) {
-                                    Text(scope.displayName)
-                                        .font(.system(size: 14, weight: selectedScope == scope ? .semibold : .medium))
-                                        .foregroundColor(selectedScope == scope ? .espressoBrown : .espressoBrown.opacity(0.7))
-                                        .frame(width: 90)
-                                        .frame(height: 36)
-                                        .background(
-                                            selectedScope == scope 
-                                                ? Color.creamWhite 
-                                                : Color.clear
-                                        )
-                                        .cornerRadius(18)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(4)
-                        .background(Color.sandBeige.opacity(0.4))
-                        .cornerRadius(18)
-                        Spacer()
-                    }
-                    .padding(.bottom, 16)
-                }
-                .background(Color.creamWhite)
+        NavigationStack {
+            ZStack(alignment: .top) {
+                // Mint background extends to top of screen
+                DS.Colors.appBarBackground
+                    .ignoresSafeArea()
                 
-                // Feed cards
+                // Main scrollable content with pull-to-refresh
                 ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(visits) { visit in
-                            VisitCard(
-                                visit: visit,
-                                dataManager: dataManager,
-                                selectedScope: selectedScope,
-                                onCafeTap: {
-                                    if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                                        selectedCafe = cafe
-                                        showCafeDetail = true
-                                    }
+                    VStack(spacing: 0) {
+                        // Header section (scrolls with content)
+                        feedHeader
+                            .background(
+                                GeometryReader { geometry in
+                                    Color.clear
+                                        .preference(key: ScrollOffsetPreferenceKey.self, value: geometry.frame(in: .named("scroll")).minY)
+                                        .onAppear {
+                                            headerHeight = geometry.size.height
+                                        }
                                 }
                             )
-                            .onTapGesture {
-                                selectedVisit = visit
-                                showVisitDetail = true
+                        
+                        // Refresh indicator
+                        if isRefreshing {
+                            HStack(spacing: DS.Spacing.sm) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(DS.Colors.primaryAccent)
+                                    .rotationEffect(.degrees(refreshRotation))
+                                Text("Refreshing...")
+                                    .font(DS.Typography.caption1())
+                                    .foregroundColor(DS.Colors.textSecondary)
                             }
+                            .padding(.vertical, DS.Spacing.sm)
+                            .transition(.opacity.combined(with: .scale))
+                        }
+                        
+                        // Feed content with white background
+                        if selectedScope == .discover {
+                            // Discover content (Social Radar + Guides + Spin)
+                            DiscoverContentView(
+                                dataManager: dataManager,
+                                onCafeTap: { cafe in
+                                    selectedCafe = cafe
+                                }
+                            )
+                            .padding(.bottom, DS.Spacing.xxl * 2)
+                            .background(DS.Colors.screenBackground)
+                        } else {
+                            // Standard feed (Friends / Everyone)
+                            LazyVStack(spacing: DS.Spacing.lg) {
+                                ForEach(visits) { visit in
+                                    VisitCard(
+                                        visit: visit,
+                                        dataManager: dataManager,
+                                        selectedScope: selectedScope,
+                                        onCafeTap: {
+                                            print("🔵 [FeedTabView] Cafe pill tapped for visit: \(visit.id)")
+                                            print("🔵 [FeedTabView] visit.cafeId: \(visit.cafeId)")
+                                            if let cafe = dataManager.getCafe(id: visit.cafeId) {
+                                                print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
+                                                selectedCafe = cafe
+                                                print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
+                                            } else {
+                                                print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(visit.cafeId)")
+                                            }
+                                        },
+                                        onAuthorTap: {
+                                            if let supabaseUserId = visit.supabaseUserId,
+                                               supabaseUserId != dataManager.appData.supabaseUserId {
+                                                selectedUserId = supabaseUserId
+                                            }
+                                        },
+                                        onCommentTap: {
+                                            // Open the visit detail view and let the user comment there
+                                            hapticsManager.lightTap()
+                                            selectedVisit = visit
+                                        }
+                                    )
+                                    .onTapGesture {
+                                        hapticsManager.lightTap()
+                                        selectedVisit = visit
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.top, DS.Spacing.lg)
+                            .padding(.bottom, DS.Spacing.xxl * 2)
+                            .background(DS.Colors.screenBackground)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
                 }
-                .background(Color.sandBeige.opacity(0.3))
+                .coordinateSpace(name: "scroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                    scrollOffset = value
+                }
+                .refreshable {
+                    await performRefresh()
+                }
+                
+                // Sticky header (appears when scrolled down)
+                if showStickyHeader {
+                    stickyHeader
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
-            .background(Color.creamWhite)
-        }
-        .fullScreenCover(isPresented: $showVisitDetail) {
-            if let visit = selectedVisit {
-                VisitDetailView(visit: visit, dataManager: dataManager)
+            .animation(.easeInOut(duration: 0.3), value: showStickyHeader)
+            .navigationDestination(item: $selectedVisit) { visit in
+                VisitDetailView(dataManager: dataManager, visit: visit)
             }
-        }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
+            .sheet(isPresented: Binding(
+                get: { selectedUserId != nil },
+                set: { if !$0 { selectedUserId = nil } }
+            )) {
+                if let userId = selectedUserId {
+                    OtherUserProfileView(dataManager: dataManager, userId: userId)
+                }
+            }
+            .sheet(item: $selectedCafe) { cafe in
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    notificationButton
+                }
+            }
+            .sheet(isPresented: $showNotifications) {
+                NotificationsCenterView(dataManager: dataManager)
+            }
+        }
+        .task {
+            // Don't refresh feed for discover scope (it uses local data)
+            if selectedScope != .discover {
+                await dataManager.refreshFeed(scope: selectedScope)
+            }
+        }
+        .onChange(of: selectedScope) { _, newScope in
+            // Don't refresh feed for discover scope (it uses local data)
+            if newScope != .discover {
+                Task {
+                    await dataManager.refreshFeed(scope: newScope)
+                }
+            }
+        }
+        .onChange(of: tabCoordinator.navigationTarget) { _, target in
+            handleNavigationTarget(target)
+        }
+        .onAppear {
+            if let target = tabCoordinator.navigationTarget {
+                handleNavigationTarget(target)
+            }
+        }
+    }
+    
+    // MARK: - Refresh
+    
+    private func performRefresh() async {
+        print("[Feed] Refresh triggered via pull-to-refresh")
+        
+        // Start animation
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isRefreshing = true
+        }
+        
+        // Animate the refresh icon rotation
+        withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+            refreshRotation = 360
+        }
+        
+        // Perform the actual refresh
+        await dataManager.refreshFeed(scope: selectedScope)
+        
+        // Stop animation
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isRefreshing = false
+            refreshRotation = 0
+        }
+    }
+    
+    // MARK: - Header Components
+    
+    private var feedHeader: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            Text("Feed")
+                .font(DS.Typography.screenTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            Text("Sips from the community")
+                .font(DS.Typography.bodyText)
+                .foregroundColor(DS.Colors.textSecondary)
+            
+            HStack {
+                Spacer()
+                DSDesignSegmentedControl(
+                    options: FeedScope.allCases.map { $0.displayName },
+                    selectedIndex: Binding(
+                        get: { FeedScope.allCases.firstIndex(of: selectedScope) ?? 0 },
+                        set: { newIndex in
+                            let newScope = FeedScope.allCases[newIndex]
+                            if newScope != selectedScope {
+                                hapticsManager.selectionChanged()
+                            }
+                            selectedScope = newScope
+                        }
+                    )
+                )
+                Spacer()
+            }
+            .padding(.top, DS.Spacing.sm)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.top, DS.Spacing.md)
+        .padding(.bottom, DS.Spacing.sm)
+    }
+    
+    private var stickyHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Feed")
+                .font(DS.Typography.headline(.bold))
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            Text("Sips from the community")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(.ultraThinMaterial)
+        .background(DS.Colors.appBarBackground.opacity(0.85))
+        .overlay(
+            Rectangle()
+                .fill(DS.Colors.dividerSubtle)
+                .frame(height: 0.5)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+        )
+    }
+    
+    private var notificationButton: some View {
+        Button(action: { showNotifications = true }) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell")
+                    .font(.system(size: 20))
+                    .foregroundColor(DS.Colors.iconDefault)
+                
+                if unreadNotificationCount > 0 {
+                    Text("\(unreadNotificationCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(DS.Colors.textOnMint)
+                        .padding(4)
+                        .background(
+                            Circle()
+                                .fill(DS.Colors.primaryAccent)
+                        )
+                        .offset(x: 8, y: -8)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Navigation
+    
+    private func handleNavigationTarget(_ target: TabCoordinator.NavigationTarget?) {
+        guard let target = target else { return }
+        
+        switch target {
+        case .visitDetail(let visitId):
+            if let visit = visits.first(where: { $0.id == visitId || $0.supabaseId == visitId }) {
+                selectedVisit = visit
+            } else {
+                Task {
+                    await dataManager.refreshFeed(scope: selectedScope)
+                    if let visit = dataManager.getVisit(id: visitId) {
+                        await MainActor.run {
+                            selectedVisit = visit
+                        }
+                    } else {
+                        print("⚠️ [Push] Could not find visit with id: \(visitId)")
+                    }
+                }
+            }
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendProfile(let userId):
+            selectedUserId = userId
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendsFeed:
+            selectedScope = .friends
+            Task {
+                await dataManager.refreshFeed(scope: .friends)
+            }
+            tabCoordinator.clearNavigationTarget()
+            
+        case .notifications:
+            showNotifications = true
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendRequests:
+            // Friend requests are handled by ProfileTabView, not FeedTabView
+            // Just clear the target to avoid infinite loops
+            tabCoordinator.clearNavigationTarget()
+            
+        case .friendsHub:
+            // Friends hub is handled by ProfileTabView, not FeedTabView
+            // Just clear the target to avoid infinite loops
+            tabCoordinator.clearNavigationTarget()
         }
     }
     
@@ -155,691 +348,278 @@ struct FeedTabView: View {
     }
 }
 
+// MARK: - Redesigned Visit Card
+
 struct VisitCard: View {
     let visit: Visit
     @ObservedObject var dataManager: DataManager
     let selectedScope: FeedScope
     var onCafeTap: (() -> Void)? = nil
+    var onAuthorTap: (() -> Void)? = nil
+    var onCommentTap: (() -> Void)? = nil
     
-    var cafe: Cafe? {
+    @StateObject private var hapticsManager = HapticsManager.shared
+    
+    private var isLikedByCurrentUser: Bool {
+        if let userId = dataManager.appData.currentUser?.id {
+            return visit.isLikedBy(userId: userId)
+        }
+        return false
+    }
+    
+    private var cafe: Cafe? {
         dataManager.getCafe(id: visit.cafeId)
     }
     
-    var user: User? {
-        // For now, use current user. Later, fetch by visit.userId
-        dataManager.appData.currentUser?.id == visit.userId ? dataManager.appData.currentUser : nil
+    private var isBookmarked: Bool {
+        guard let cafe = cafe else { return false }
+        return cafe.wantToTry
     }
     
-    var isCurrentUser: Bool {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return false }
-        return visit.userId == currentUserId
+    private var canViewAuthorProfile: Bool {
+        guard let currentUserId = dataManager.appData.supabaseUserId,
+              let visitUserId = visit.supabaseUserId else {
+            return false
+        }
+        return visitUserId != currentUserId
     }
     
-    var isLiked: Bool {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return false }
-        return visit.isLikedBy(userId: currentUserId)
+    private var authorProfileImage: UIImage? {
+        guard let currentUser = dataManager.appData.currentUser,
+              currentUser.id == visit.userId,
+              let imageId = dataManager.appData.currentUserProfileImageId else {
+            return nil
+        }
+        return PhotoCache.shared.retrieve(forKey: imageId)
+    }
+    
+    private var authorRemoteAvatarURL: String? {
+        if let currentUser = dataManager.appData.currentUser,
+           currentUser.id == visit.userId {
+            return dataManager.appData.currentUserAvatarURL
+        }
+        return visit.authorAvatarURL
+    }
+    
+    private var authorName: String {
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return user.displayNameOrUsername
+        }
+        return visit.authorDisplayNameOrUsername
+    }
+    
+    private var authorInitials: String {
+        if let user = dataManager.appData.currentUser, user.id == visit.userId {
+            return String(user.displayNameOrUsername.prefix(1)).uppercased()
+        }
+        return visit.authorInitials
+    }
+    
+    private var cafeName: String? {
+        dataManager.getCafe(id: visit.cafeId)?.name
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Top author bar
-            HStack(alignment: .top, spacing: 12) {
-                // Avatar - 32pt diameter
-                Circle()
-                    .fill(Color.mugshotMint)
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Text(user?.username.prefix(1).uppercased() ?? "U")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                    )
+        DSBaseCard(padding: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header: Avatar, Name, Time, Score
+                headerSection
                 
-                // Name and date
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(user?.displayNameOrUsername ?? user?.username ?? "user")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.espressoBrown)
-                        
-                        if isCurrentUser {
-                            Text("You")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(10)
-                        }
+                // Cafe attribution pill
+                if let name = cafeName, !name.isEmpty {
+                    DSCafeAttributionPill(cafeName: name) {
+                        onCafeTap?()
                     }
-                    
-                    Text(formatDate(visit.createdAt))
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
+                    .padding(.horizontal, DS.Spacing.cardPadding)
+                    .padding(.top, DS.Spacing.xs)
                 }
                 
-                Spacer()
-                
-                // Rating badge
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.sandBeige.opacity(0.5))
-                .cornerRadius(12)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
-            
-            // Main hero image - fixed 4:3 aspect ratio
-            if !visit.photos.isEmpty {
-                PosterImageView(visit: visit)
-                    .aspectRatio(4/3, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-            } else {
-                // Placeholder when no photo
-                Rectangle()
-                    .fill(Color.sandBeige)
-                    .aspectRatio(4/3, contentMode: .fit)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .font(.system(size: 48))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 10) {
-                // Cafe + drink info row
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.mugshotMint)
-                        Button(action: {
-                            onCafeTap?()
-                        }) {
-                            Text(cafe?.name ?? "Unknown Café")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.espressoBrown)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    Text(visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? ""))
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                
-                // Caption
+                // Caption (above image for context)
                 if !visit.caption.isEmpty {
                     MentionText(text: visit.caption, mentions: visit.mentions)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(2)
-                        .padding(.horizontal, 16)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .lineLimit(3)
+                        .padding(.horizontal, DS.Spacing.cardPadding)
+                        .padding(.top, DS.Spacing.md)
                 }
                 
-                // Social row
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if let userId = dataManager.appData.currentUser?.id {
-                            dataManager.toggleVisitLike(visit.id, userId: userId)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isLiked ? "heart.fill" : "heart")
-                                .font(.system(size: 15))
-                                .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
-                            Text("\(visit.likeCount)")
-                                .font(.system(size: 14))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                    }
-                    .buttonStyle(.plain)
+                // Photo carousel
+                if !visit.photos.isEmpty {
+                    MugshotImageCarousel(
+                        photoPaths: visit.photos,
+                        remotePhotoURLs: visit.remotePhotoURLByKey,
+                        height: 320,
+                        cornerRadius: 0,
+                        showIndicators: true
+                    )
+                    .padding(.top, DS.Spacing.md)
+                }
+                
+                // Social actions bar
+                socialActionsBar
+                    .padding(.horizontal, DS.Spacing.cardPadding)
+                    .padding(.vertical, DS.Spacing.md)
+            }
+        }
+    }
+    
+    // MARK: - Header Section
+    
+    private var headerSection: some View {
+        HStack(alignment: .center, spacing: DS.Spacing.sm) {
+            // Tappable author avatar + name + time
+            Button(action: { onAuthorTap?() }) {
+                HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                    // Avatar (48pt for better presence)
+                    FeedAvatarView(
+                        image: authorProfileImage,
+                        remoteURL: authorRemoteAvatarURL,
+                        initials: authorInitials,
+                        size: 48
+                    )
                     
-                    HStack(spacing: 4) {
-                        Image(systemName: "bubble.right")
-                            .font(.system(size: 15))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                        Text("\(visit.commentCount)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-            }
-        }
-        .background(Color.creamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(
-            color: Color.black.opacity(0.05),
-            radius: 4,
-            x: 0,
-            y: 2
-        )
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-    
-    private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-}
-
-struct VisitDetailView: View {
-    @ObservedObject var dataManager: DataManager
-    @State private var visit: Visit
-    @Environment(\.dismiss) var dismiss
-    @State private var commentText = ""
-    @FocusState private var isCommentFocused: Bool
-        @State private var showEdit = false
-        @State private var showDeleteAlert = false
-    
-    init(visit: Visit, dataManager: DataManager) {
-        self._visit = State(initialValue: visit)
-        self.dataManager = dataManager
-    }
-    
-    var cafe: Cafe? {
-        dataManager.getCafe(id: visit.cafeId)
-    }
-    
-    var user: User? {
-        dataManager.appData.currentUser?.id == visit.userId ? dataManager.appData.currentUser : nil
-    }
-    
-    var isLiked: Bool {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return false }
-        return visit.isLikedBy(userId: currentUserId)
-    }
-    
-    var comments: [Comment] {
-        dataManager.getComments(for: visit.id)
-    }
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Photo carousel
-                        if !visit.photos.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    // Show poster image first, then rest
-                                    let orderedPhotos = getOrderedPhotos(for: visit)
-                                    ForEach(orderedPhotos, id: \.self) { photoPath in
-                                        PhotoImageView(photoPath: photoPath)
-                                            .frame(width: 300, height: 300)
-                                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
-                                    }
-                                }
-                                .padding()
-                            }
-                        } else {
-                            // Fallback placeholder when no photos
-                            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                .fill(Color.sandBeige)
-                                .frame(height: 200)
-                                .overlay(
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(.espressoBrown.opacity(0.3))
-                                )
-                                .padding(.horizontal)
-                        }
+                    // Name and timestamp on same row
+                    HStack(spacing: 0) {
+                        Text(authorName)
+                            .font(DS.Typography.headline())
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .lineLimit(1)
                         
-                        VStack(alignment: .leading, spacing: 16) {
-                            // Header: Cafe + Author
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(cafe?.name ?? "Unknown Café")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                if let address = cafe?.address, !address.isEmpty {
-                                    Text(address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                }
-                                
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color.mugshotMint)
-                                        .frame(width: 40, height: 40)
-                                        .overlay(
-                                            Text(user?.username.prefix(1).uppercased() ?? "U")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(.espressoBrown)
-                                        )
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("@\(user?.username ?? "user")")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
-                                        
-                                        Text(timeAgoString(from: visit.createdAt))
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.espressoBrown.opacity(0.6))
-                                    }
-                                    
-                                    Spacer()
-                                }
-                                .padding(.top, 8)
-                            }
-                            
-                            Divider()
-                            
-                            // Drink type
-                            HStack {
-                                Text("Drink")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                Spacer()
-                                
-                                Text(visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? ""))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
-                            }
-                            
-                            // Overall score
-                            HStack {
-                                Text("Overall Score")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                Spacer()
-                                
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.mugshotMint)
-                                    Text(String(format: "%.1f", visit.overallScore))
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.espressoBrown)
-                                }
-                            }
-                            
-                            // Rating breakdown
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Rating Breakdown")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                ForEach(Array(visit.ratings.keys.sorted()), id: \.self) { category in
-                                    if let rating = visit.ratings[category] {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            HStack {
-                                                Text(category)
-                                                    .font(.system(size: 14))
-                                                    .foregroundColor(.espressoBrown)
-                                                Spacer()
-                                                Text(String(format: "%.1f", rating))
-                                                    .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundColor(.mugshotMint)
-                                            }
-                                            
-                                            ProgressView(value: rating, total: 5.0)
-                                                .tint(.mugshotMint)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color.sandBeige.opacity(0.3))
-                            .cornerRadius(DesignSystem.cornerRadius)
-                            
-                            // Caption with mentions
-                            if !visit.caption.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Caption")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown)
-                                    
-                                    MentionText(text: visit.caption, mentions: visit.mentions)
-                                        .font(.system(size: 14))
-                                }
-                            }
-                            
-                            // Notes (private)
-                            if let notes = visit.notes, !notes.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Private Notes")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                    
-                                    Text(notes)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            // Social actions
-                            HStack(spacing: 32) {
-                                Button(action: {
-                                    if let userId = dataManager.appData.currentUser?.id {
-                                        dataManager.toggleVisitLike(visit.id, userId: userId)
-                                        // Update local visit state
-                                        if let updatedVisit = dataManager.getVisit(id: visit.id) {
-                                            visit = updatedVisit
-                                        }
-                                    }
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: isLiked ? "heart.fill" : "heart")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
-                                        Text("\(visit.likeCount)")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                
-                                HStack(spacing: 6) {
-                                    Image(systemName: "bubble.right")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                    Text("\(visit.commentCount)")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown)
-                                }
-                            }
-                            .padding(.vertical, 8)
-                            
-                            // Comments section
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Comments")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                
-                                if comments.isEmpty {
-                                    Text("No comments yet")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.6))
-                                        .padding(.vertical, 8)
-                                } else {
-                                    ForEach(comments) { comment in
-                                        CommentRow(comment: comment, dataManager: dataManager)
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                }
-                
-                // Comment composer
-                VStack(spacing: 0) {
-                    Divider()
-                    HStack(spacing: 12) {
-                        TextField("Add a comment…", text: $commentText, axis: .vertical)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
-                            .padding(8)
-                            .background(Color.inputBackground)
-                            .cornerRadius(DesignSystem.smallCornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                    .stroke(Color.inputBorder, lineWidth: 1)
-                            )
-                            .focused($isCommentFocused)
-                            .lineLimit(1...4)
+                        Text(" · ")
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textTertiary)
                         
-                        Button(action: {
-                            addComment()
-                        }) {
-                            Text("Send")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.mugshotMint)
-                        }
-                        .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    .padding()
-                    .background(Color.creamWhite)
-                }
-            }
-            .background(Color.creamWhite)
-            .navigationTitle("Visit Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                    // Menu for edit/delete if this is the current user's visit
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        if let currentUserId = dataManager.appData.currentUser?.id, currentUserId == visit.userId {
-                            Menu {
-                                Button("Edit") { showEdit = true }
-                                Button(role: .destructive) {
-                                    showDeleteAlert = true
-                                } label: {
-                                    Text("Delete")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                            }
-                        }
-                    }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                        Text(timeAgoString(from: visit.createdAt))
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textSecondary)
                     }
                 }
             }
-            .onAppear {
-                // Refresh visit data
-                if let updatedVisit = dataManager.getVisit(id: visit.id) {
-                    visit = updatedVisit
-                }
-            }
-                .sheet(isPresented: $showEdit) {
-                    EditVisitView(visit: visit, dataManager: dataManager) { updated in
-                        visit = updated
-                    }
-                }
-                .alert("Delete this visit?", isPresented: $showDeleteAlert) {
-                    Button("Delete", role: .destructive) {
-                        dataManager.deleteVisit(id: visit.id)
-                        dismiss()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This will remove it from your map, feed, and saved lists.")
-                }
-        }
-    }
-    
-    private func addComment() {
-        guard let userId = dataManager.appData.currentUser?.id,
-              !commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
-        }
-        
-        dataManager.addComment(to: visit.id, userId: userId, text: commentText)
-        commentText = ""
-        isCommentFocused = false
-        
-        // Refresh visit to get updated comments
-        if let updatedVisit = dataManager.getVisit(id: visit.id) {
-            visit = updatedVisit
-        }
-    }
-    
-    // Simple edit screen for a visit (caption, notes, ratings, visibility)
-    struct EditVisitView: View {
-        @Environment(\.dismiss) var dismiss
-        @ObservedObject var dataManager: DataManager
-        @State private var editableVisit: Visit
-        var onSave: (Visit) -> Void
-        
-        init(visit: Visit, dataManager: DataManager, onSave: @escaping (Visit) -> Void) {
-            self._editableVisit = State(initialValue: visit)
-            self.dataManager = dataManager
-            self.onSave = onSave
-        }
-        
-        var body: some View {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Caption
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Caption")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            TextField("Caption", text: $editableVisit.caption, axis: .vertical)
-                                .lineLimit(3...6)
-                                .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
-                                .padding()
-                                .background(Color.inputBackground)
-                                .cornerRadius(DesignSystem.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                        .stroke(Color.inputBorder, lineWidth: 1)
-                                )
-                        }
-                        
-                        // Notes
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Notes")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            TextField("Notes", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
-                                .lineLimit(3...8)
-                                .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
-                                .padding()
-                                .background(Color.inputBackground)
-                                .cornerRadius(DesignSystem.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                        .stroke(Color.inputBorder, lineWidth: 1)
-                                )
-                        }
-                        
-                        // Visibility
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Visibility")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            Picker("", selection: $editableVisit.visibility) {
-                                Text("Private").tag(VisitVisibility.private)
-                                Text("Friends").tag(VisitVisibility.friends)
-                                Text("Everyone").tag(VisitVisibility.everyone)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-                    .padding()
-                }
-                .background(Color.creamWhite)
-                .navigationTitle("Edit Visit")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") { dismiss() }
-                            .foregroundColor(.espressoBrown)
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Save") {
-                            dataManager.updateVisit(editableVisit)
-                            onSave(editableVisit)
-                            dismiss()
-                        }
-                        .foregroundColor(.mugshotMint)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-    
-    // Helper to get ordered photos (poster first, then rest)
-    private func getOrderedPhotos(for visit: Visit) -> [String] {
-        guard !visit.photos.isEmpty else { return [] }
-        
-        var ordered = visit.photos
-        if let posterPath = visit.posterImagePath,
-           let posterIndex = ordered.firstIndex(of: posterPath) {
-            // Move poster to front
-            ordered.remove(at: posterIndex)
-            ordered.insert(posterPath, at: 0)
-        }
-        return ordered
-    }
-}
-
-struct CommentRow: View {
-    let comment: Comment
-    @ObservedObject var dataManager: DataManager
-    
-    var user: User? {
-        // For now, use current user. Later, fetch by comment.userId
-        dataManager.appData.currentUser?.id == comment.userId ? dataManager.appData.currentUser : nil
-    }
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.mugshotMint)
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Text(user?.username.prefix(1).uppercased() ?? "U")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                )
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("@\(user?.username ?? "user")")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                
-                MentionText(text: comment.text, mentions: comment.mentions)
-                    .font(.system(size: 14))
-                
-                Text(timeAgoString(from: comment.createdAt))
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-            }
+            .buttonStyle(.plain)
+            .disabled(!canViewAuthorProfile)
             
             Spacer()
+            
+            // Score badge (slightly larger)
+            DSScoreBadge(score: visit.overallScore)
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.smallCornerRadius)
+        .padding(.horizontal, DS.Spacing.cardPadding)
+        .padding(.top, DS.Spacing.cardPadding)
     }
     
-    private func timeAgoString(from date: Date) -> String {
+    // MARK: - Social Actions Bar
+    
+    private var socialActionsBar: some View {
+        HStack(spacing: 0) {
+            // Like button
+            LikeButton(
+                isLiked: isLikedByCurrentUser,
+                likeCount: visit.likeCount,
+                onToggle: {
+                    Task {
+                        await dataManager.toggleVisitLike(visit.id)
+                    }
+                }
+            )
+            
+            // Comment button
+            Button(action: {
+                hapticsManager.lightTap()
+                onCommentTap?()
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "bubble.left.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(DS.Colors.iconDefault)
+                    Text("\(visit.comments.count)")
+                        .font(DS.Typography.subheadline(.medium))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, DS.Spacing.md)
+            
+            Spacer()
+            
+            // Bookmark button
+            Button(action: {
+                hapticsManager.lightTap()
+                if let cafe = cafe {
+                    dataManager.toggleCafeWantToTry(cafe: cafe)
+                } else {
+                    // If cafe doesn't exist in local list, we need to get it from the visit
+                    // This shouldn't happen normally, but handle gracefully
+                    print("⚠️ [VisitCard] Cannot bookmark: cafe not found in local list")
+                }
+            }) {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 18))
+                    .foregroundColor(isBookmarked ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
+                    .scaleEffect(isBookmarked ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isBookmarked)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // PERFORMANCE: Static formatter to avoid creating new ones on every render
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter
+    }()
+    
+    private func timeAgoString(from date: Date) -> String {
+        return Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Scroll Offset Preference Key
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// MARK: - Feed Avatar View
+
+private struct FeedAvatarView: View {
+    let image: UIImage?
+    let remoteURL: String?
+    let initials: String
+    let size: CGFloat
+    
+    var body: some View {
+        CachedAvatarImage(
+            image: image,
+            imageURL: remoteURL,
+            cacheNamespace: "feed-avatar"
+        ) {
+            placeholder
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(
+            Circle()
+                .stroke(DS.Colors.cardBackground, lineWidth: 2)
+        )
+        .shadow(color: DS.Shadow.cardSoft.color.opacity(0.4),
+                radius: 4,
+                x: 0,
+                y: 2)
+    }
+    
+    private var placeholder: some View {
+        Circle()
+            .fill(DS.Colors.primaryAccent)
+            .overlay(
+                Text(initials.prefix(2))
+                    .font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundColor(DS.Colors.textOnMint)
+            )
     }
 }
 

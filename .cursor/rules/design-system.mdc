@@ -1,0 +1,112 @@
+---
+alwaysApply: true
+---
+Rule: Mugshot Design System is the single source of truth
+
+This project uses a defined design system stored in design-system.json.
+
+Treat that file as the authoritative source for all UI/UX decisions: colors, typography, spacing, corner radii, shadows, layout patterns, and reusable components. 
+
+design-system
+
+1. Always consult the design system before changing UI
+
+When creating or modifying screens, components, or styles:
+
+Read and follow:
+
+principles.visualStyle, principles.interaction, and principles.layout
+
+foundations.colors.*, foundations.typography.*, foundations.spacing.*
+
+foundations.cornerRadius, foundations.shadow
+
+components.* specs (e.g., BaseCard, PrimaryButton, DesignSegmentedControl, PillChip, ScoreBadge, SectionHeader)
+
+guidelines.creatingNewScreens and guidelines.componentExtension
+
+Do not invent new random colors, fonts, or card shapes if an equivalent token/component already exists.
+
+2. Use tokens, not ad-hoc values
+
+When styling:
+
+Use color tokens from foundations.colors.palette and foundations.colors.roles:
+
+Example: screen backgrounds → screenBackground, cards → cardBackground, accents → primaryAccent / secondaryAccent, text → textPrimary / textSecondary.
+
+Use the design-system typography tokens via the roleMapping:
+
+Example: screen titles → screenTitle, section titles → sectionTitle, card titles → cardTitle, captions/meta → caption1 or caption2.
+
+Use spacing tokens from foundations.spacing.scale:
+
+pagePadding, cardPadding, sectionVerticalGap, cardVerticalGap, etc.
+
+Use corner radius tokens:
+
+Cards → xl, primary buttons → lg, chips/toggles → pill.
+
+Use shadow tokens:
+
+Normal cards → cardSoft; only use cardLifted for special emphasis.
+
+Avoid magic numbers (raw hex colors, random 5/7/19pt spacing, etc.) when a token exists.
+
+3. Reuse core components
+
+When building or updating UI, prefer existing design-system components:
+
+Cards: BaseCard, StatTileCard
+
+Buttons: PrimaryButton for main CTAs
+
+Headers: SectionHeader for section/card titles
+
+Segmented controls: DesignSegmentedControl for toggles (e.g., Friends / Everyone)
+
+Chips/badges: PillChip, ScoreBadge
+
+Rows: ContentPerformanceRow, PlatformRow patterns for list-style stats
+
+Only create new variants if absolutely necessary, and base them on these patterns (same typography, corner radius, spacing, and interaction rules).
+
+4. Layout & page patterns
+
+When adding new screens (e.g., Profile, Coffee Journey, Saved):
+
+Use the app bar pattern:
+
+Mint header band, title (screenTitle), optional subtitle (bodyText), with pagePadding.
+
+Use a single-column vertical scroll:
+
+Sections separated by SectionHeader + BaseCard.
+
+Respect pagePadding horizontally and sectionVerticalGap between major sections.
+
+For metrics, use 2-column grids and StatTileCard as defined in layout.metricGrid.
+
+5. Behavioral rules & accessibility
+
+Respect the interaction principles:
+
+Calm, low-noise, iOS-native behavior.
+
+Tap targets ≥ 44×44 pt.
+
+Subtle animations (no bouncy/novel transitions).
+
+Maintain accessibility:
+
+Keep color contrast sufficient for text.
+
+Don’t rely on color alone for meaning (use icons/labels).
+
+Use typography tokens instead of hard-coded font sizes.
+
+6. If in doubt, align with the design system
+
+When there’s a conflict between existing ad-hoc code and design-system.json, treat the design system as ground truth.
+
+Refactor towards the design system instead of adding new visual styles.

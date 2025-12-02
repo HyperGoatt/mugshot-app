@@ -10,11 +10,13 @@ import Foundation
 enum FeedScope: CaseIterable {
     case friends
     case everyone
+    case discover
     
     var displayName: String {
         switch self {
         case .friends: return "Friends"
         case .everyone: return "Everyone"
+        case .discover: return "Discover"
         }
     }
 }

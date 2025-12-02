@@ -2,78 +2,204 @@
 //  SavedTabView.swift
 //  testMugshot
 //
-//  Created by Joseph Rosso on 11/14/25.
+//  Redesigned Saved tab with icon-based navigation, summary stats,
+//  rich cafe cards with context, and modern interactions.
 //
 
 import SwiftUI
+import CoreLocation
 
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject var tabCoordinator: TabCoordinator
+    @StateObject private var locationManager = LocationManager()
+    @StateObject private var hapticsManager = HapticsManager.shared
+    
+    // MARK: - State
     @State private var selectedTab: SavedTab = .favorites
-    @State private var sortOption: SortOption = .score
+    @State private var sortOption: SavedSortOption = .bestRated
     @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
     @State private var showLogVisit = false
+    @State private var showCafeDetail = false
+    @State private var showNotifications = false
+    @State private var showUndoToast = false
+    @State private var recentlyRemovedCafe: (cafe: Cafe, fromTab: SavedTab)?
     
-    enum SavedTab: String, CaseIterable {
-        case favorites = "Favorites"
-        case wantToTry = "Want to Try"
-        case allCafes = "All Cafes"
+    private var unreadNotificationCount: Int {
+        dataManager.appData.notifications.filter { !$0.isRead }.count
     }
     
-    enum SortOption: String, CaseIterable {
-        case score = "By Score"
-        case date = "By Date"
-        case name = "By Name"
+    // MARK: - Computed Properties
+    
+    private var favoritesCount: Int {
+        dataManager.appData.cafes.filter { $0.isFavorite }.count
     }
+    
+    private var wishlistCount: Int {
+        dataManager.appData.cafes.filter { $0.wantToTry }.count
+    }
+    
+    private var totalCafesCount: Int {
+        // Only count cafes with at least 1 visit for "My Cafes"
+        dataManager.appData.cafes.filter { $0.visitCount >= 1 }.count
+    }
+    
+    private var statTabs: [DSStatTabs.Tab] {
+        [
+            .init(id: "favorites", count: favoritesCount, label: "Favorites"),
+            .init(id: "wishlist", count: wishlistCount, label: "Wishlist"),
+            .init(id: "library", count: totalCafesCount, label: "My Cafes")
+        ]
+    }
+    
+    private var filteredCafes: [Cafe] {
+        var cafes: [Cafe]
+        
+        switch selectedTab {
+        case .favorites:
+            cafes = dataManager.appData.cafes.filter { $0.isFavorite }
+        case .wishlist:
+            cafes = dataManager.appData.cafes.filter { $0.wantToTry }
+        case .library:
+            // Only show cafes with at least 1 visit
+            cafes = dataManager.appData.cafes.filter { $0.visitCount >= 1 }
+        }
+        
+        return sortCafes(cafes)
+    }
+    
+    private func sortCafes(_ cafes: [Cafe]) -> [Cafe] {
+        switch sortOption {
+        case .bestRated:
+            return cafes.sorted { $0.averageRating > $1.averageRating }
+        case .worstRated:
+            return cafes.sorted { $0.averageRating < $1.averageRating }
+        case .mostVisited:
+            return cafes.sorted { $0.visitCount > $1.visitCount }
+        case .recentlyVisited:
+            return cafes.sorted { cafe1, cafe2 in
+                let date1 = dataManager.lastVisitDate(for: cafe1.id) ?? Date.distantPast
+                let date2 = dataManager.lastVisitDate(for: cafe2.id) ?? Date.distantPast
+                return date1 > date2
+            }
+        case .recentlyAdded:
+            return cafes.sorted { cafe1, cafe2 in
+                let date1 = dataManager.dateAddedToWishlist(for: cafe1.id)
+                let date2 = dataManager.dateAddedToWishlist(for: cafe2.id)
+                return date1 > date2
+            }
+        case .closestToMe:
+            guard let userLocation = locationManager.location else {
+                return cafes // Fall back to original order if no location
+            }
+            return cafes.sorted { cafe1, cafe2 in
+                let dist1 = dataManager.distance(to: cafe1, from: userLocation) ?? Double.greatestFiniteMagnitude
+                let dist2 = dataManager.distance(to: cafe2, from: userLocation) ?? Double.greatestFiniteMagnitude
+                return dist1 < dist2
+            }
+        case .alphabetical:
+            return cafes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+    }
+    
+    // MARK: - Body
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
-                // Segmented control
-                Picker("Tab", selection: $selectedTab) {
-                    ForEach(SavedTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
+                // 1. Mint header with title + Instagram-style stat tabs
+                headerSection
                 
-                // Sort option (only for All Cafes)
-                if selectedTab == .allCafes {
-                    Picker("Sort", selection: $sortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
+                // 2. Stat tabs (Instagram-style with counts)
+                DSStatTabs(
+                    tabs: statTabs,
+                    selectedTabId: Binding(
+                        get: { selectedTab.id },
+                        set: { newId in
+                            if let tab = SavedTab(rawValue: newId), tab != selectedTab {
+                                    hapticsManager.selectionChanged()
+                                selectedTab = tab
+                                sortOption = tab.defaultSort
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                }
+                    )
+                )
+                .background(DS.Colors.appBarBackground)
                 
-                // Cafe list
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(filteredAndSortedCafes) { cafe in
-                            CafeCard(
-                                cafe: cafe,
-                                dataManager: dataManager,
-                                showWantToTryTag: selectedTab == .wantToTry,
-                                onLogVisit: {
-                                    selectedCafe = cafe
-                                    showLogVisit = true
-                                },
-                                onShowDetails: {
-                                    selectedCafe = cafe
-                                    showCafeDetail = true
-                                }
+                // 3. Content
+                if filteredCafes.isEmpty {
+                    emptyStateForCurrentTab
+                        .transition(.opacity)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // Filter/Sort bar
+                            DSFilterSortBar(
+                                availableOptions: selectedTab.sortOptions,
+                                selectedOption: $sortOption
                             )
+                            
+                            // Cafe list with swipe actions
+                            LazyVStack(spacing: DS.Spacing.lg) {
+                                ForEach(filteredCafes) { cafe in
+                                    let imageInfo = dataManager.cafeImageInfo(for: cafe.id)
+                                    
+                                    SavedCafeCard(
+                                        cafe: cafe,
+                                        mode: selectedTab,
+                                        lastVisitDate: dataManager.lastVisitDate(for: cafe.id),
+                                        visitCount: cafe.visitCount,
+                                        favoriteDrink: dataManager.favoriteDrink(for: cafe.id),
+                                        cafeImagePath: imageInfo.path,
+                                        cafeImageRemoteURL: imageInfo.remoteURL,
+                                        dataManager: dataManager,
+                                        onLogVisit: {
+                                            selectedCafe = cafe
+                                            showLogVisit = true
+                                        },
+                                        onShowDetails: {
+                                            selectedCafe = cafe
+                                            showCafeDetail = true
+                                        }
+                                    )
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            hapticsManager.lightTap()
+                                            selectedCafe = cafe
+                                            showLogVisit = true
+                                        } label: {
+                                            Label("Log Visit", systemImage: "cup.and.saucer")
+                                        }
+                                        .tint(DS.Colors.primaryAccent)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            removeCafe(cafe)
+                                        } label: {
+                                            Label("Remove", systemImage: "trash")
+                                        }
+                                    }
+                                    .contextMenu {
+                                        cafeContextMenu(for: cafe)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DS.Spacing.pagePadding)
+                            .padding(.top, DS.Spacing.md)
+                            .padding(.bottom, DS.Spacing.xxl * 2)
                         }
                     }
-                    .padding()
+                    .background(DS.Colors.screenBackground)
+                    .transition(.opacity)
                 }
             }
-            .background(Color.creamWhite)
-            .navigationTitle("Saved")
+            .background(DS.Colors.screenBackground)
+            .animation(.easeInOut(duration: 0.2), value: selectedTab)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    notificationButton
+                }
+            }
         }
         .sheet(isPresented: $showLogVisit) {
             if let cafe = selectedCafe {
@@ -85,150 +211,292 @@ struct SavedTabView: View {
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
         }
+        .sheet(isPresented: $showNotifications) {
+            NotificationsCenterView(dataManager: dataManager)
+        }
+        .overlay(alignment: .bottom) {
+            if showUndoToast, let removed = recentlyRemovedCafe {
+                undoToast(for: removed.cafe, fromTab: removed.fromTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .onAppear {
+            locationManager.requestLocationPermission()
+        }
     }
     
-    private var filteredAndSortedCafes: [Cafe] {
-        var cafes: [Cafe]
-        
+    // MARK: - Header Section
+    
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            Text("Saved")
+                .font(DS.Typography.screenTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.top, DS.Spacing.md)
+        .padding(.bottom, DS.Spacing.sm)
+        .background(
+            // Extend mint background above safe area
+            GeometryReader { geometry in
+                DS.Colors.appBarBackground
+                    .frame(height: geometry.size.height + geometry.safeAreaInsets.top + 100)
+                    .offset(y: -geometry.safeAreaInsets.top - 100)
+            }
+        )
+    }
+    
+    // MARK: - Empty States
+    
+    @ViewBuilder
+    private var emptyStateForCurrentTab: some View {
         switch selectedTab {
         case .favorites:
-            cafes = dataManager.appData.cafes.filter { $0.isFavorite }
-        case .wantToTry:
-            cafes = dataManager.appData.cafes.filter { $0.wantToTry }
-        case .allCafes:
-            cafes = dataManager.appData.cafes
+            EmptyStateView(
+                iconName: "MugsyNoFavorites",
+                title: "No favorites yet",
+                subtitle: "Heart a cafe from your visits to add it here.",
+                primaryAction: EmptyStateAction(
+                    title: "View Your Visits",
+                    icon: "list.bullet",
+                    action: {
+                        // Navigate to Profile tab
+                        tabCoordinator.switchToProfile()
+                    }
+                )
+            )
+        case .wishlist:
+            EmptyStateView(
+                iconName: "MugsyNoWishlist",
+                title: "Nothing on your wishlist",
+                subtitle: "Bookmark cafes you want to try from the Feed or Map.",
+                primaryAction: EmptyStateAction(
+                    title: "Explore the Map",
+                    icon: "map",
+                    action: {
+                        // Navigate to Map tab
+                        tabCoordinator.switchToMap()
+                    }
+                )
+            )
+        case .library:
+            EmptyStateView(
+                iconName: "DreamingMug",
+                title: "No cafes yet",
+                subtitle: "Log your first visit to start building your cafe collection.",
+                primaryAction: EmptyStateAction(
+                    title: "Log a Visit",
+                    icon: "plus",
+                    action: {
+                        showLogVisit = true
+                    }
+                )
+            )
+        }
+    }
+    
+    // MARK: - Context Menu
+    
+    @ViewBuilder
+    private func cafeContextMenu(for cafe: Cafe) -> some View {
+        Button {
+            hapticsManager.lightTap()
+            selectedCafe = cafe
+            showLogVisit = true
+        } label: {
+            Label("Log a Visit", systemImage: "cup.and.saucer")
         }
         
-        // Sort
-        switch sortOption {
-        case .score:
-            return cafes.sorted { $0.averageRating > $1.averageRating }
-        case .date:
-            // Sort by most recent visit
-            return cafes.sorted { cafe1, cafe2 in
-                let visits1 = dataManager.getVisitsForCafe(cafe1.id)
-                let visits2 = dataManager.getVisitsForCafe(cafe2.id)
-                let date1 = visits1.first?.date ?? Date.distantPast
-                let date2 = visits2.first?.date ?? Date.distantPast
-                return date1 > date2
+        Button {
+            hapticsManager.lightTap()
+            selectedCafe = cafe
+            showCafeDetail = true
+        } label: {
+            Label("View Details", systemImage: "info.circle")
+        }
+        
+        Button {
+            hapticsManager.lightTap()
+            openInMaps(cafe)
+        } label: {
+            Label("Get Directions", systemImage: "map")
+        }
+        
+        if let websiteURL = cafe.websiteURL, !websiteURL.isEmpty {
+            Button {
+                hapticsManager.lightTap()
+                openWebsite(urlString: websiteURL)
+            } label: {
+                Label("Visit Website", systemImage: "safari")
             }
-        case .name:
-            return cafes.sorted { $0.name < $1.name }
+        }
+        
+        Button {
+            hapticsManager.lightTap()
+            shareCafe(cafe)
+        } label: {
+            Label("Share Cafe", systemImage: "square.and.arrow.up")
+        }
+        
+        Divider()
+        
+        // Toggle actions
+        Button {
+            hapticsManager.lightTap()
+            dataManager.toggleCafeFavorite(cafe.id)
+        } label: {
+            Label(
+                cafe.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                systemImage: cafe.isFavorite ? "heart.slash" : "heart"
+            )
+        }
+        
+        Button {
+            hapticsManager.lightTap()
+            dataManager.toggleCafeWantToTry(cafe.id)
+        } label: {
+            Label(
+                cafe.wantToTry ? "Remove from Wishlist" : "Add to Wishlist",
+                systemImage: cafe.wantToTry ? "bookmark.slash" : "bookmark"
+            )
+        }
+        
+        Divider()
+        
+        Button(role: .destructive) {
+            removeCafe(cafe)
+        } label: {
+            Label("Remove from Saved", systemImage: "trash")
         }
     }
-}
-
-struct CafeCard: View {
-    let cafe: Cafe
-    @ObservedObject var dataManager: DataManager
-    let showWantToTryTag: Bool
-    let onLogVisit: () -> Void
-    let onShowDetails: () -> Void
     
-    // Get cafe image from most recent visit, or nil if no visits/photos
-    var cafeImagePath: String? {
-        let visits = dataManager.getVisitsForCafe(cafe.id)
-        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
-        return sortedVisits.first?.posterImagePath
-    }
+    // MARK: - Notification Button
     
-    var body: some View {
-        HStack(spacing: 16) {
-            // Cafe image - user photos > placeholder
-            if let imagePath = cafeImagePath {
-                PhotoThumbnailView(photoPath: imagePath, size: 80)
-            } else {
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .fill(Color.sandBeige)
-                    .frame(width: 80, height: 80)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.espressoBrown.opacity(0.3))
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(cafe.name)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    if showWantToTryTag {
-                        Text("Wish")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.mugshotMint)
-                            .cornerRadius(4)
-                    }
-                }
-                
-                // Address or neighborhood
-                if !cafe.address.isEmpty {
-                    Text(cafe.address)
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
-                        .lineLimit(1)
-                }
-                
-                HStack(spacing: 8) {
-                    Label(String(format: "%.1f", cafe.averageRating), systemImage: "star.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                    
-                    Text("• \(cafe.visitCount) visits")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                
-                // Quick actions
-                HStack(spacing: 12) {
-                    Button("Log Visit") {
-                        onLogVisit()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.mugshotMint)
-                    
-                    Button("Map") {
-                        openInMaps()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-                    
-                    if cafe.websiteURL != nil {
-                        Button(action: {
-                            if let url = cafe.websiteURL {
-                                openWebsite(urlString: url)
-                            }
-                        }) {
-                            Image(systemName: "safari")
-                                .font(.system(size: 12))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
+    private var notificationButton: some View {
+                Button(action: { showNotifications = true }) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 20))
+                            .foregroundColor(DS.Colors.iconDefault)
+                        
+                        if unreadNotificationCount > 0 {
+                            Text("\(unreadNotificationCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(DS.Colors.textOnMint)
+                                .padding(4)
+                                .background(
+                                    Circle()
+                                        .fill(DS.Colors.primaryAccent)
+                                )
+                                .offset(x: 8, y: -8)
                         }
                     }
-                    
-                    Button("Details") {
-                        onShowDetails()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
                 }
             }
+    
+    // MARK: - Undo Toast
+    
+    @ViewBuilder
+    private func undoToast(for cafe: Cafe, fromTab: SavedTab) -> some View {
+        HStack(spacing: DS.Spacing.md) {
+            Text("Removed \(cafe.name)")
+                .font(DS.Typography.subheadline(.medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
             
             Spacer()
+            
+            Button("Undo") {
+                undoRemoval()
+            }
+            .font(DS.Typography.subheadline(.bold))
+            .foregroundColor(DS.Colors.primaryAccent)
         }
-        .padding()
-        .cardStyle()
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
+        .background(DS.Colors.textPrimary)
+        .cornerRadius(DS.Radius.md)
+        .padding(.horizontal, DS.Spacing.pagePadding)
+        .padding(.bottom, DS.Spacing.xxl)
     }
     
-    private func openInMaps() {
-        guard let location = cafe.location else { return }
+    // MARK: - Actions
+    
+    private func removeCafe(_ cafe: Cafe) {
+        hapticsManager.playWarning()
+        
+        // Store for undo
+        recentlyRemovedCafe = (cafe, selectedTab)
+        
+        // Remove based on current tab
+        switch selectedTab {
+        case .favorites:
+            dataManager.toggleCafeFavorite(cafe.id)
+        case .wishlist:
+            dataManager.toggleCafeWantToTry(cafe.id)
+        case .library:
+            // For library, remove both flags
+            if cafe.isFavorite {
+                dataManager.toggleCafeFavorite(cafe.id)
+            }
+            if cafe.wantToTry {
+                dataManager.toggleCafeWantToTry(cafe.id)
+            }
+        }
+        
+        // Show undo toast
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showUndoToast = true
+        }
+        
+        // Auto-dismiss after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showUndoToast = false
+                recentlyRemovedCafe = nil
+            }
+        }
+    }
+    
+    private func undoRemoval() {
+        guard let removed = recentlyRemovedCafe else { return }
+        
+        hapticsManager.playSuccess()
+        
+        // Re-add based on what was removed
+        switch removed.fromTab {
+        case .favorites:
+            dataManager.toggleCafeFavorite(removed.cafe.id)
+        case .wishlist:
+            dataManager.toggleCafeWantToTry(removed.cafe.id)
+        case .library:
+            // For library, we can't fully restore without knowing original state
+            // Just add back to favorites as a reasonable default
+            if !removed.cafe.isFavorite {
+                dataManager.toggleCafeFavorite(removed.cafe.id)
+            }
+        }
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showUndoToast = false
+            recentlyRemovedCafe = nil
+        }
+    }
+    
+    private func openInMaps(_ cafe: Cafe) {
+        guard let location = cafe.location else {
+            print("[Cafe] Get directions failed - no location for \(cafe.name)")
+            return
+        }
+        
+        print("[Cafe] Get directions tapped for \(cafe.name) at (\(location.latitude), \(location.longitude))")
         
         if let mapURLString = cafe.mapItemURL, let url = URL(string: mapURLString) {
             UIApplication.shared.open(url)
         } else {
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            let encodedName = cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
             if let url = URL(string: urlString) {
                 UIApplication.shared.open(url)
             }
@@ -236,254 +504,43 @@ struct CafeCard: View {
     }
     
     private func openWebsite(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        UIApplication.shared.open(url)
-    }
-}
-
-struct CafeDetailView: View {
-    let cafe: Cafe
-    @ObservedObject var dataManager: DataManager
-    @Environment(\.dismiss) var dismiss
-    @State private var showLogVisit = false
-    
-    var visits: [Visit] {
-        dataManager.getVisitsForCafe(cafe.id)
-    }
-    
-    // Get hero image from most recent visit, or nil if no visits/photos
-    var heroImagePath: String? {
-        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
-        return sortedVisits.first?.posterImagePath
-    }
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Hero image - user photos > placeholder
-                    if let imagePath = heroImagePath {
-                        PhotoImageView(photoPath: imagePath)
-                            .aspectRatio(16/9, contentMode: .fill)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 250)
-                            .clipped()
-                    } else {
-                        RoundedRectangle(cornerRadius: 0)
-                            .fill(Color.sandBeige)
-                            .frame(height: 250)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.espressoBrown.opacity(0.3))
-                            )
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Cafe name and address
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(cafe.name)
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            if !cafe.address.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "location.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.mugshotMint)
-                                    Text(cafe.address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                }
-                            }
-                            
-                            if let category = cafe.placeCategory {
-                                Text(category)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                                    .padding(.top, 2)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 20)
-                        
-                        // Stats row
-                        HStack(spacing: 24) {
-                            VStack(alignment: .leading) {
-                                Text("Average Rating")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.mugshotMint)
-                                        .font(.system(size: 14))
-                                    Text(String(format: "%.1f", cafe.averageRating))
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundColor(.espressoBrown)
-                                }
-                            }
-                            
-                            VStack(alignment: .leading) {
-                                Text("Total Visits")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                                Text("\(cafe.visitCount)")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.espressoBrown)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        Divider()
-                            .padding(.horizontal)
-                        
-                        // Action buttons
-                        VStack(spacing: 12) {
-                            Button("Log Visit") {
-                                showLogVisit = true
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
-                            .frame(maxWidth: .infinity)
-                            
-                            HStack(spacing: 12) {
-                                // Get Directions button
-                                Button(action: {
-                                    openInMaps()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "map")
-                                            .font(.system(size: 14))
-                                        Text("Get Directions")
-                                            .font(.system(size: 14, weight: .medium))
-                                    }
-                                    .foregroundColor(.espressoBrown)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.sandBeige)
-                                    .cornerRadius(DesignSystem.cornerRadius)
-                                }
-                                
-                                // Visit Website button (only if URL available)
-                                if let websiteURL = cafe.websiteURL, !websiteURL.isEmpty {
-                                    Button(action: {
-                                        openWebsite(urlString: websiteURL)
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "safari")
-                                                .font(.system(size: 14))
-                                            Text("Website")
-                                                .font(.system(size: 14, weight: .medium))
-                                        }
-                                        .foregroundColor(.espressoBrown)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(Color.sandBeige)
-                                        .cornerRadius(DesignSystem.cornerRadius)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Recent visits
-                        if !visits.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Recent Visits")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
-                                
-                                ForEach(visits.prefix(5)) { visit in
-                                    VisitRow(visit: visit, dataManager: dataManager)
-                                        .padding(.horizontal)
-                                }
-                            }
-                            .padding(.top, 8)
-                        }
-                    }
-                    .padding(.bottom, 20)
-                }
-            }
-            .background(Color.creamWhite)
-            .navigationTitle("Café Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .sheet(isPresented: $showLogVisit) {
-                LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
-            }
+        // Normalize URL - add https:// if missing
+        var normalizedURL = urlString
+        if !normalizedURL.lowercased().hasPrefix("http://") && !normalizedURL.lowercased().hasPrefix("https://") {
+            normalizedURL = "https://\(normalizedURL)"
         }
-    }
-    
-    private func openInMaps() {
-        guard let location = cafe.location else { return }
         
-        // Use mapItemURL if available, otherwise construct Maps URL from coordinates
-        if let mapURLString = cafe.mapItemURL, let url = URL(string: mapURLString) {
-            UIApplication.shared.open(url)
-        } else {
-            // Fallback: open Maps with coordinates
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-            if let url = URL(string: urlString) {
-                UIApplication.shared.open(url)
-            }
+        print("[Cafe] Open website tapped: \(normalizedURL)")
+        
+        guard let url = URL(string: normalizedURL) else {
+            print("[Cafe] Failed to create URL from: \(normalizedURL)")
+            return
         }
-    }
-    
-    private func openWebsite(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
     }
-}
-
-struct VisitRow: View {
-    let visit: Visit
-    @ObservedObject var dataManager: DataManager
-    @State private var showVisitDetail = false
     
-    var body: some View {
-        Button(action: {
-            showVisitDetail = true
-        }) {
-            HStack(spacing: 12) {
-                // Thumbnail
-                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(visit.date, style: .date)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    Text(visit.drinkType.rawValue)
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
-                        .font(.system(size: 12))
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                }
-            }
-            .padding()
-            .background(Color.sandBeige)
-            .cornerRadius(DesignSystem.smallCornerRadius)
+    private func shareCafe(_ cafe: Cafe) {
+        // Create share content
+        var shareText = cafe.name
+        if !cafe.address.isEmpty {
+            shareText += "\n\(cafe.address)"
         }
-        .buttonStyle(.plain)
-        .fullScreenCover(isPresented: $showVisitDetail) {
-            VisitDetailView(visit: visit, dataManager: dataManager)
+        
+        let activityVC = UIActivityViewController(
+            activityItems: [shareText],
+            applicationActivities: nil
+        )
+        
+        // Present share sheet
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            rootVC.present(activityVC, animated: true)
         }
     }
 }
 
+// MARK: - Preview
+
+#Preview {
+    SavedTabView(dataManager: DataManager.shared)
+}

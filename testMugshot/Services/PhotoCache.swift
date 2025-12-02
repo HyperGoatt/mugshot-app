@@ -14,6 +14,13 @@ class PhotoCache {
     private var cache: [String: UIImage] = [:]
     private let queue = DispatchQueue(label: "com.mugshot.photocache", attributes: .concurrent)
     
+    /// PERFORMANCE: Limit concurrent preloads to avoid I/O contention
+    private let preloadSemaphore = DispatchSemaphore(value: 4)
+    
+    /// PERFORMANCE: Track keys currently being loaded to avoid duplicate work
+    private var loadingKeys = Set<String>()
+    private let loadingKeysLock = NSLock()
+    
     // Directory for storing photos
     private var photosDirectory: URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -68,17 +75,101 @@ class PhotoCache {
         }
     }
     
+    /// PERFORMANCE: Async retrieve that doesn't block main thread
+    func retrieveAsync(forKey key: String, completion: @escaping (UIImage?) -> Void) {
+        // First check memory cache synchronously (fast path)
+        if let cachedImage = queue.sync(execute: { cache[key] }) {
+            completion(cachedImage)
+            return
+        }
+        
+        // Load from disk asynchronously
+        queue.async {
+            let fileURL = self.photosDirectory.appendingPathComponent("\(key).jpg")
+            
+            if FileManager.default.fileExists(atPath: fileURL.path),
+               let imageData = try? Data(contentsOf: fileURL),
+               let image = UIImage(data: imageData) {
+                // Store in memory cache for future access
+                self.queue.async(flags: .barrier) {
+                    self.cache[key] = image
+                }
+                DispatchQueue.main.async {
+                    completion(image)
+                }
+            } else {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+        }
+    }
+    
     // Clear memory cache (disk files remain)
     func clear() {
         queue.async(flags: .barrier) {
             self.cache.removeAll()
         }
+        loadingKeysLock.lock()
+        loadingKeys.removeAll()
+        loadingKeysLock.unlock()
     }
     
-    // Preload images for visits when app starts
-    func preloadImages(for photoPaths: [String]) {
+    // Clean up old files from disk (older than 7 days)
+    func cleanDiskCache() {
         queue.async {
-            for path in photoPaths {
+            let fileManager = FileManager.default
+            let directory = self.photosDirectory
+            let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            
+            do {
+                let resourceKeys: [URLResourceKey] = [.contentModificationDateKey]
+                let files = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: resourceKeys)
+                
+                for file in files {
+                    if let resources = try? file.resourceValues(forKeys: Set(resourceKeys)),
+                       let modificationDate = resources.contentModificationDate,
+                       modificationDate < sevenDaysAgo {
+                        try? fileManager.removeItem(at: file)
+                        print("[PhotoCache] Cleaned up old file: \(file.lastPathComponent)")
+                    }
+                }
+            } catch {
+                print("⚠️ [PhotoCache] Cleanup error: \(error)")
+            }
+        }
+    }
+    
+    // PERFORMANCE: Preload images with limited concurrency and deduplication
+    func preloadImages(for photoPaths: [String]) {
+        // PERFORMANCE: Limit preload batch size to avoid memory pressure
+        let pathsToPreload = Array(photoPaths.prefix(50))
+        
+        queue.async {
+            for path in pathsToPreload {
+                // Skip if already in cache
+                if self.cache[path] != nil {
+                    continue
+                }
+                
+                // Skip if currently loading
+                self.loadingKeysLock.lock()
+                if self.loadingKeys.contains(path) {
+                    self.loadingKeysLock.unlock()
+                    continue
+                }
+                self.loadingKeys.insert(path)
+                self.loadingKeysLock.unlock()
+                
+                // PERFORMANCE: Limit concurrent disk I/O
+                self.preloadSemaphore.wait()
+                defer {
+                    self.preloadSemaphore.signal()
+                    self.loadingKeysLock.lock()
+                    self.loadingKeys.remove(path)
+                    self.loadingKeysLock.unlock()
+                }
+                
                 // Load from disk if not in memory
                 let fileURL = self.photosDirectory.appendingPathComponent("\(path).jpg")
                 
@@ -86,10 +177,17 @@ class PhotoCache {
                    let imageData = try? Data(contentsOf: fileURL),
                    let image = UIImage(data: imageData) {
                     // Store in memory cache
-                    self.cache[path] = image
+                    self.queue.async(flags: .barrier) {
+                        self.cache[path] = image
+                    }
                 }
             }
         }
+    }
+    
+    /// PERFORMANCE: Check if image is in memory cache without disk I/O
+    func hasImageInMemory(forKey key: String) -> Bool {
+        return queue.sync { cache[key] != nil }
     }
 }
 

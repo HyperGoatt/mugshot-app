@@ -25,8 +25,8 @@ struct MentionText: View {
         
         for (range, _) in mentionRanges {
             if let swiftRange = Range(range, in: attributed) {
-                attributed[swiftRange].foregroundColor = .mugshotMint
-                attributed[swiftRange].font = .system(size: 14, weight: .semibold)
+                attributed[swiftRange].foregroundColor = DS.Colors.primaryAccent
+                attributed[swiftRange].font = DS.Typography.bodyText.bold()
             }
         }
         

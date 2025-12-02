@@ -2,17 +2,24 @@
 //  OnboardingView.swift
 //  testMugshot
 //
-//  Created by Joseph Rosso on 11/14/25.
+//  Legacy non-animated onboarding. Not currently used; kept for future reference.
+//  The app now uses MugshotOnboardingView with ConcentricOnboarding for animated onboarding.
 //
 
 import SwiftUI
 
 struct OnboardingView: View {
+    let hasLocationPermission: Bool
+    let onRequestLocation: () -> Void
+    let onComplete: () -> Void
+    
     @ObservedObject var dataManager: DataManager
     @State private var currentStep = 0
     @State private var username = ""
     @State private var location = ""
     @State private var ratingTemplate = RatingTemplate()
+    
+    private var maxStepIndex: Int { 3 } // Welcome, UserInfo, Location, RatingTemplate
     
     var body: some View {
         ZStack {
@@ -25,8 +32,14 @@ struct OnboardingView: View {
                 UserInfoStep(username: $username, location: $location)
                     .tag(1)
                 
-                RatingTemplateStep(ratingTemplate: $ratingTemplate)
+                LocationPermissionStep(
+                    hasLocationPermission: hasLocationPermission,
+                    onRequestLocation: onRequestLocation
+                )
                     .tag(2)
+                
+                RatingTemplateStep(ratingTemplate: $ratingTemplate)
+                    .tag(3)
             }
             .tabViewStyle(.page)
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -46,8 +59,8 @@ struct OnboardingView: View {
                     
                     Spacer()
                     
-                    Button(currentStep == 2 ? "Get Started" : "Next") {
-                        if currentStep == 2 {
+                    Button(currentStep == maxStepIndex ? "Start using Mugshot" : "Next") {
+                        if currentStep == maxStepIndex {
                             completeOnboarding()
                         } else {
                             withAnimation {
@@ -61,6 +74,14 @@ struct OnboardingView: View {
                 .padding()
             }
         }
+        .onChange(of: hasLocationPermission) {
+            if hasLocationPermission && currentStep == 2 {
+                // Auto-advance when location permission is granted
+                withAnimation(.spring()) {
+                    currentStep = min(currentStep + 1, maxStepIndex)
+                }
+            }
+        }
     }
     
     private func completeOnboarding() {
@@ -71,7 +92,7 @@ struct OnboardingView: View {
         )
         dataManager.setCurrentUser(user)
         dataManager.updateRatingTemplate(ratingTemplate)
-        dataManager.completeOnboarding()
+        onComplete()
     }
 }
 
@@ -142,6 +163,59 @@ struct UserInfoStep: View {
                     )
             }
             .padding(.horizontal, 32)
+            
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+struct LocationPermissionStep: View {
+    let hasLocationPermission: Bool
+    let onRequestLocation: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            Text("Enable Location")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .padding(.bottom, 8)
+            
+            Text("We use your location to find nearby cafes and place your visits on the map.")
+                .font(.system(size: 16))
+                .foregroundColor(.espressoBrown.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            
+            if hasLocationPermission {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.mugshotMint)
+                        .font(.system(size: 24))
+                    Text("Location enabled")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.espressoBrown)
+                }
+                .padding()
+                .background(Color.sandBeige)
+                .cornerRadius(DesignSystem.cornerRadius)
+                .padding(.horizontal, 32)
+            } else {
+                Button(action: {
+                    onRequestLocation()
+                }) {
+                    Text("Enable Location")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.mugshotMint)
+                        .foregroundColor(.espressoBrown)
+                        .cornerRadius(16)
+                }
+                .padding(.horizontal, 24)
+            }
             
             Spacer()
         }
