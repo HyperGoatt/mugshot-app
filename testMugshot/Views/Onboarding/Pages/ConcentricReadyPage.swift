@@ -32,7 +32,7 @@ struct ConcentricReadyPage: View {
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Body
-            Text("Start logging visits, explore your map, and share your coffee journey.")
+            Text("Start logging visits, explore your map, and share your sipping journey.")
                 .font(DS.Typography.bodyText)
                 .foregroundStyle(DS.Colors.textSecondary)
                 .multilineTextAlignment(.center)

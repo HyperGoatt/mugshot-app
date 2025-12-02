@@ -68,7 +68,7 @@ struct SignUpView: View {
                                 .multilineTextAlignment(.center)
                             
                             // Value proposition
-                            Text("Create an account to save visits, sync your profile, and keep your coffee journey in one place.")
+                            Text("Create an account to save visits, sync your profile, and keep your sipping journey in one place.")
                                 .font(DS.Typography.subheadline())
                                 .foregroundStyle(DS.Colors.textSecondary)
                                 .multilineTextAlignment(.center)

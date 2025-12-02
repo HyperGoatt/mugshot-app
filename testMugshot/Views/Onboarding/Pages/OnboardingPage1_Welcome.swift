@@ -25,7 +25,7 @@ struct WelcomePage: View {
                 .multilineTextAlignment(.center)
             
             // Subtitle
-            Text("Your personal cafe journal and coffee feed.")
+            Text("Your personal cafe journal and sip feed.")
                 .font(DS.Typography.title2(.regular))
                 .foregroundStyle(DS.Colors.textSecondary)
                 .multilineTextAlignment(.center)

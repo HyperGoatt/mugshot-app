@@ -31,6 +31,7 @@ class DataManager: ObservableObject {
     private let visitService: SupabaseVisitService
     private let socialGraphService: SupabaseSocialGraphService
     private let notificationService: SupabaseNotificationService
+    private let userCafeStateService: SupabaseUserCafeStateService
     private let maxRecentSearches = 10
     
     // Network Monitoring
@@ -46,7 +47,8 @@ class DataManager: ObservableObject {
         cafeService: SupabaseCafeService = .shared,
         visitService: SupabaseVisitService = .shared,
         socialGraphService: SupabaseSocialGraphService = .shared,
-        notificationService: SupabaseNotificationService = .shared
+        notificationService: SupabaseNotificationService = .shared,
+        userCafeStateService: SupabaseUserCafeStateService = .shared
     ) {
         self.authService = authService
         self.profileService = profileService
@@ -55,6 +57,7 @@ class DataManager: ObservableObject {
         self.visitService = visitService
         self.socialGraphService = socialGraphService
         self.notificationService = notificationService
+        self.userCafeStateService = userCafeStateService
         
         // Bind network monitor
         networkMonitor.$isConnected
@@ -181,6 +184,12 @@ class DataManager: ObservableObject {
             throw SupabaseError.invalidSession
         }
         try await authService.resendVerificationEmail(email: email)
+    }
+
+    /// Requests a password reset email for the given address.
+    /// This is used by the Sign In screen's "Forgot password?" flow.
+    func requestPasswordReset(email: String) async throws {
+        try await authService.sendPasswordResetEmail(email: email)
     }
     
     func checkEmailVerificationStatus() async {
@@ -355,6 +364,9 @@ class DataManager: ObservableObject {
                 
                 // Refresh visits
                 try? await refreshProfileVisits()
+                
+                // Restore favorites and wishlist
+                await fetchAndApplyUserCafeStates()
             } else {
                 print("[Auth] refreshAuthStatusFromSupabase: Email not verified - awaiting verification")
                 appData.hasEmailVerified = false
@@ -475,6 +487,9 @@ class DataManager: ObservableObject {
                         
                         // Refresh visits
                         try? await refreshProfileVisits()
+                        
+                        // Restore favorites and wishlist
+                        await fetchAndApplyUserCafeStates()
                     }
                     
                     save()
@@ -620,6 +635,10 @@ class DataManager: ObservableObject {
             // Don't fail sign-in if visits refresh fails - just log it
             print("[DataManager] Error refreshing profile visits (non-fatal): \(error.localizedDescription)")
         }
+        
+        // Step 5b: Restore favorites and wishlist from Supabase
+        print("[DataManager] Restoring favorites and wishlist...")
+        await fetchAndApplyUserCafeStates()
 
         // Step 6: Ensure currentUser is set with correct identity (userId must match supabaseUserId)
         let userUUID = UUID(uuidString: session.userId) ?? UUID()
@@ -936,6 +955,20 @@ class DataManager: ObservableObject {
     }
     
     func logout() {
+        // Log what we're clearing for debugging
+        let favoritesCount = appData.cafes.filter { $0.isFavorite }.count
+        let wantToTryCount = appData.cafes.filter { $0.wantToTry }.count
+        let visitsCount = appData.visits.count
+        let cafesCount = appData.cafes.count
+        
+        print("[Logout] Starting logout - clearing LOCAL state only")
+        print("[Logout] Local data being cleared:")
+        print("[Logout]   - Favorites: \(favoritesCount)")
+        print("[Logout]   - Want to Try: \(wantToTryCount)")
+        print("[Logout]   - Visits: \(visitsCount)")
+        print("[Logout]   - Cafes: \(cafesCount)")
+        print("[Logout] ℹ️ Backend data (Supabase) is preserved and will be restored on next login")
+        
         // Preserve certain device-specific settings that shouldn't reset on logout
         let preserveMarketingOnboarding = appData.hasSeenMarketingOnboarding
         
@@ -956,6 +989,8 @@ class DataManager: ObservableObject {
         PhotoCache.shared.clear()
         // Note: We don't delete the device token on logout - it will be cleaned up
         // when the user logs in again or if they uninstall the app
+        
+        print("[Logout] ✅ Local state cleared successfully")
     }
     
     func deleteAccount() async throws {
@@ -1009,9 +1044,16 @@ class DataManager: ObservableObject {
             let wasFavorite = appData.cafes[index].isFavorite
             appData.cafes[index].isFavorite.toggle()
             save()
-            print("[Cafe] Toggled favorite for \(appData.cafes[index].name) → \(!wasFavorite)")
+            syncWidgetData() // Update widgets when favorites change
+            print("[Favorites] Toggled favorite for \(appData.cafes[index].name) → \(!wasFavorite)")
+            
+            // Sync to Supabase in background
+            let cafe = appData.cafes[index]
+            Task {
+                await syncCafeStateToSupabase(cafe: cafe)
+            }
         } else {
-            print("⚠️ [DataManager] toggleCafeFavorite: Cafe \(cafeId) not found in user's cafe list")
+            print("⚠️ [Favorites] toggleCafeFavorite: Cafe \(cafeId) not found in user's cafe list")
         }
     }
     
@@ -1022,27 +1064,49 @@ class DataManager: ObservableObject {
             let wasFavorite = appData.cafes[index].isFavorite
             appData.cafes[index].isFavorite.toggle()
             save()
-            print("[Cafe] Toggled favorite for \(cafe.name) → \(!wasFavorite)")
+            syncWidgetData() // Update widgets when favorites change
+            print("[Favorites] Toggled favorite for \(cafe.name) → \(!wasFavorite)")
+            
+            // Sync to Supabase in background
+            let updatedCafe = appData.cafes[index]
+            Task {
+                await syncCafeStateToSupabase(cafe: updatedCafe)
+            }
         } else {
             // Cafe doesn't exist, add it with isFavorite = true (user is favoriting it)
             var newCafe = cafe
             newCafe.isFavorite = true
             appData.cafes.append(newCafe)
             save()
-            print("[Cafe] Toggled favorite for \(cafe.name) → true (added new cafe)")
+            syncWidgetData() // Update widgets when favorites change
+            print("[Favorites] Toggled favorite for \(cafe.name) → true (added new cafe)")
+            
+            // Sync to Supabase in background
+            Task {
+                await syncCafeStateToSupabase(cafe: newCafe)
+            }
         }
     }
     
     func toggleCafeWantToTry(_ cafeId: UUID) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
             // Cafe exists, just toggle
+            let wasWantToTry = appData.cafes[index].wantToTry
             appData.cafes[index].wantToTry.toggle()
             save()
+            syncWidgetData() // Update widgets when want-to-try changes
+            print("[WantToTry] Toggled wantToTry for \(appData.cafes[index].name) → \(!wasWantToTry)")
+            
+            // Sync to Supabase in background
+            let cafe = appData.cafes[index]
+            Task {
+                await syncCafeStateToSupabase(cafe: cafe)
+            }
         } else {
             // Cafe doesn't exist in user's list yet - need to get it from visit or create it
             // This can happen when user bookmarks a cafe from a feed post
             // For now, we'll need the cafe object to add it
-            print("⚠️ [DataManager] toggleCafeWantToTry: Cafe \(cafeId) not found in user's cafe list")
+            print("⚠️ [WantToTry] toggleCafeWantToTry: Cafe \(cafeId) not found in user's cafe list")
         }
     }
     
@@ -1053,14 +1117,27 @@ class DataManager: ObservableObject {
             let wasWantToTry = appData.cafes[index].wantToTry
             appData.cafes[index].wantToTry.toggle()
             save()
-            print("[Cafe] Toggled wantToTry for \(cafe.name) → \(!wasWantToTry)")
+            syncWidgetData() // Update widgets when want-to-try changes
+            print("[WantToTry] Toggled wantToTry for \(cafe.name) → \(!wasWantToTry)")
+            
+            // Sync to Supabase in background
+            let updatedCafe = appData.cafes[index]
+            Task {
+                await syncCafeStateToSupabase(cafe: updatedCafe)
+            }
         } else {
             // Cafe doesn't exist, add it with wantToTry = true (user is bookmarking it)
             var newCafe = cafe
             newCafe.wantToTry = true
             appData.cafes.append(newCafe)
             save()
-            print("[Cafe] Toggled wantToTry for \(cafe.name) → true (added new cafe)")
+            syncWidgetData() // Update widgets when want-to-try changes
+            print("[WantToTry] Toggled wantToTry for \(cafe.name) → true (added new cafe)")
+            
+            // Sync to Supabase in background
+            Task {
+                await syncCafeStateToSupabase(cafe: newCafe)
+            }
         }
     }
     
@@ -1452,6 +1529,14 @@ class DataManager: ObservableObject {
         }
         
         save()
+        
+        // Sync widget data after adding a visit
+        syncWidgetData()
+    }
+    
+    /// Sync data to widgets
+    func syncWidgetData() {
+        WidgetSyncService.shared.syncWidgetData(dataManager: self)
     }
     
     func getVisit(id: UUID) -> Visit? {
@@ -2752,31 +2837,36 @@ extension DataManager {
             return
         }
         
+        print("[SipSquad] ========== FETCHING SIP SQUAD DATA ==========")
+        
+        // Step 1: Refresh friends list
+        do {
+            let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            appData.friendsSupabaseUserIds = Set(friends)
+            print("[SipSquad] Friends count: \(friends.count) (ids: \(friends.prefix(3).map { $0.prefix(8) })...)")
+        } catch {
+            print("[SipSquad] Error fetching friends list: \(error.localizedDescription)")
+        }
+        
         guard !appData.friendsSupabaseUserIds.isEmpty else {
-            print("[SipSquad] No friends, skipping fetch")
+            print("[SipSquad] No friends found - Sip Squad will only show user's own visits")
             return
         }
         
-        print("[SipSquad] Fetching friend visits for Sip Squad mode...")
-        
+        // Step 2: Fetch friend visits
         do {
-            // Refresh friends list first
-            let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
-            appData.friendsSupabaseUserIds = Set(friends)
-            
-            // Fetch friends feed to get their visits
             let remoteVisits = try await visitService.fetchFriendsFeed(
                 currentUserId: supabaseUserId,
-                followingIds: friends
+                followingIds: Array(appData.friendsSupabaseUserIds)
             )
             
-            print("[SipSquad] Fetched \(remoteVisits.count) visits from friends feed")
+            print("[SipSquad] Fetched \(remoteVisits.count) visits from friends")
             
             // Map and merge visits (this also upserts cafes via mapRemoteVisit)
             let mapped = remoteVisits.map { mapRemoteVisit($0) }
             mergeVisits(mapped)
             
-            // Ensure cafes are saved after upserting (mergeVisits saves visits, but cafes might need explicit save)
+            // Ensure cafes are saved
             save()
             
             // Update cafe stats for all fetched visits
@@ -2787,7 +2877,8 @@ extension DataManager {
                 }
             }
             
-            print("[SipSquad] Visits merged and cafe stats updated - total cafes in appData: \(appData.cafes.count)")
+            print("[SipSquad] Visits merged - total cafes in appData: \(appData.cafes.count)")
+            print("[SipSquad] ========================================")
         } catch {
             print("[SipSquad] Error fetching friend visits: \(error.localizedDescription)")
         }
@@ -2805,216 +2896,167 @@ extension DataManager {
         let friendIds = appData.friendsSupabaseUserIds
         let currentUserId = appData.currentUser?.id
         
-        print("[SipSquad] Starting getSipSquadCafes()")
-        print("[SipSquad] Current user supabaseUserId: \(supabaseUserId)")
-        print("[SipSquad] Current user userId: \(currentUserId?.uuidString ?? "nil")")
-        print("[SipSquad] Friend count: \(friendIds.count)")
+        print("[SipSquad] ========== AGGREGATING SIP SQUAD CAFES ==========")
+        print("[SipSquad] Current user supabaseUserId: \(supabaseUserId.prefix(8))...")
+        print("[SipSquad] Friends count: \(friendIds.count)")
         print("[SipSquad] Total visits in appData: \(appData.visits.count)")
         
-        // Get all visits from user + friends
-        // Match by supabaseUserId (String) OR userId (UUID) to handle all cases
-        var sipSquadVisits = appData.visits.filter { visit in
-            // Check if this is the current user's visit (by supabaseUserId or userId)
-            let isCurrentUser = (visit.supabaseUserId == supabaseUserId) || 
-                                (currentUserId != nil && visit.userId == currentUserId)
-            
-            // Check if this is a friend's visit (by supabaseUserId)
-            let isFriend = visit.supabaseUserId != nil && friendIds.contains(visit.supabaseUserId!)
-            
-            return isCurrentUser || isFriend
-        }
+        // STEP 1: Collect all Sip Squad visits (user + friends)
+        // Use multiple matching strategies to ensure we don't miss visits
+        var sipSquadVisits: [Visit] = []
+        var userVisitIds = Set<UUID>()
+        var friendVisitIds = Set<UUID>()
         
-        // FALLBACK: If no visits found and we have a current user, try matching by userId only
-        // This handles cases where visits might not have supabaseUserId set
-        if sipSquadVisits.isEmpty, let userId = currentUserId {
-            print("[SipSquad] No visits matched by supabaseUserId, trying fallback match by userId")
-            sipSquadVisits = appData.visits.filter { visit in
-                // Match user's visits by userId
-                let isCurrentUser = visit.userId == userId
-                
-                // Match friend visits - try to match via userId if we can map friend supabaseUserIds to UUIDs
-                // For now, rely on supabaseUserId for friends since we don't have a direct mapping
-                let isFriend = visit.supabaseUserId != nil && friendIds.contains(visit.supabaseUserId!)
-                
-                return isCurrentUser || isFriend
+        for visit in appData.visits {
+            var isCurrentUser = false
+            var isFriend = false
+            
+            // Match current user's visits by supabaseUserId or userId
+            if visit.supabaseUserId == supabaseUserId {
+                isCurrentUser = true
+            } else if let userId = currentUserId, visit.userId == userId {
+                isCurrentUser = true
             }
-            print("[SipSquad] Fallback match found \(sipSquadVisits.count) visits")
+            
+            // Match friend visits by supabaseUserId
+            if let visitAuthorId = visit.supabaseUserId, 
+               friendIds.contains(visitAuthorId),
+               visitAuthorId != supabaseUserId {
+                isFriend = true
+            }
+            
+            if isCurrentUser || isFriend {
+                sipSquadVisits.append(visit)
+                if isCurrentUser {
+                    userVisitIds.insert(visit.id)
+                }
+                if isFriend {
+                    friendVisitIds.insert(visit.id)
+                }
+            }
         }
         
-        print("[SipSquad] Found \(sipSquadVisits.count) total visits (user + friends)")
+        print("[SipSquad] Matched visits - User: \(userVisitIds.count), Friends: \(friendVisitIds.count), Total: \(sipSquadVisits.count)")
         
-        // Count user vs friend visits for debugging
-        let userVisitsCount = sipSquadVisits.filter { visit in
-            (visit.supabaseUserId == supabaseUserId) || 
-            (currentUserId != nil && visit.userId == currentUserId)
-        }.count
-        
-        let friendVisitsCount = sipSquadVisits.filter { visit in
-            guard let id = visit.supabaseUserId else { return false }
-            return friendIds.contains(id) && id != supabaseUserId
-        }.count
-        
-        print("[SipSquad] User visits: \(userVisitsCount)")
-        print("[SipSquad] Friend visits: \(friendVisitsCount)")
+        // If still no visits and user has a current user ID, try fallback
+        if sipSquadVisits.isEmpty, let userId = currentUserId {
+            print("[SipSquad] No visits matched, trying fallback match by userId only...")
+            sipSquadVisits = appData.visits.filter { $0.userId == userId }
+            print("[SipSquad] Fallback matched: \(sipSquadVisits.count) visits")
+        }
         
         guard !sipSquadVisits.isEmpty else {
-            print("[SipSquad] ERROR: No visits found for Sip Squad mode!")
-            print("[SipSquad] Total visits in appData: \(appData.visits.count)")
-            print("[SipSquad] Current user ID: \(currentUserId?.uuidString ?? "nil")")
-            print("[SipSquad] Supabase user ID: \(supabaseUserId)")
+            print("[SipSquad] ERROR: No visits found!")
             if !appData.visits.isEmpty {
-                print("[SipSquad] Sample visit: userId=\(appData.visits.first!.userId), supabaseUserId=\(appData.visits.first!.supabaseUserId ?? "nil")")
+                let sample = appData.visits.first!
+                print("[SipSquad] Sample visit: userId=\(sample.userId), supabaseUserId=\(sample.supabaseUserId ?? "nil")")
             }
             return []
         }
         
-        // Group visits by cafe - use a normalized cafe key for matching
-        var visitsByCafeKey: [String: [Visit]] = [:]
+        // STEP 2: Group visits by normalized cafe key
+        // Use supabaseCafeId when available for consistent grouping across devices
+        var visitsByNormalizedCafeKey: [UUID: [Visit]] = [:]
         
         for visit in sipSquadVisits {
-            // Use supabaseCafeId as primary key if available, otherwise fall back to cafeId
-            // This ensures we group visits correctly even if cafes have different local IDs
-            let cafeKey: UUID
-            if let supabaseCafeId = visit.supabaseCafeId {
-                cafeKey = supabaseCafeId
-            } else {
-                cafeKey = visit.cafeId
-            }
-            
-            let keyString = cafeKey.uuidString
-            if visitsByCafeKey[keyString] == nil {
-                visitsByCafeKey[keyString] = []
-            }
-            visitsByCafeKey[keyString]?.append(visit)
+            let cafeKey = visit.supabaseCafeId ?? visit.cafeId
+            visitsByNormalizedCafeKey[cafeKey, default: []].append(visit)
         }
         
-        print("[SipSquad] Grouped into \(visitsByCafeKey.count) unique cafes")
+        print("[SipSquad] Grouped into \(visitsByNormalizedCafeKey.count) unique cafes")
         
-        // Build list of cafes with aggregated ratings
-        // BUGFIX: Track cafes by ID to prevent duplicates
-        var cafesById: [UUID: Cafe] = [:]
-        var visitsByCafeId: [UUID: [Visit]] = [:]
+        // STEP 3: Build cafe list with aggregated ratings
+        var resultCafes: [Cafe] = []
+        var cafesProcessed: Set<UUID> = []
         
-        for (cafeKeyString, visits) in visitsByCafeKey {
-            guard let cafeKeyUUID = UUID(uuidString: cafeKeyString) else {
-                print("[SipSquad] WARNING: Invalid cafe key UUID: \(cafeKeyString)")
-                continue
-            }
-            
+        for (cafeKey, visits) in visitsByNormalizedCafeKey {
             let firstVisit = visits.first!
             
-            // Try multiple strategies to find the cafe
-            var cafe: Cafe? = nil
+            // Find the cafe using multiple strategies
+            var foundCafe: Cafe? = nil
             
-            // Strategy 1: Match by supabaseId (most reliable)
-            cafe = appData.cafes.first(where: { cafe in
-                if let supabaseId = cafe.supabaseId, supabaseId == cafeKeyUUID {
-                    return true
-                }
-                // Also check if visit has supabaseCafeId that matches
-                if let visitSupabaseCafeId = firstVisit.supabaseCafeId,
-                   visitSupabaseCafeId == cafeKeyUUID {
-                    return true
-                }
-                return false
-            })
+            // Strategy 1: Match by supabaseId
+            foundCafe = appData.cafes.first { $0.supabaseId == cafeKey }
             
-            // Strategy 2: Match by local id if Strategy 1 didn't work
-            if cafe == nil {
-                cafe = appData.cafes.first(where: { $0.id == cafeKeyUUID || $0.id == firstVisit.cafeId })
+            // Strategy 2: Match by local id
+            if foundCafe == nil {
+                foundCafe = appData.cafes.first { $0.id == cafeKey }
             }
             
-            // Strategy 3: Match by visit's supabaseCafeId against cafe's supabaseId
-            if cafe == nil, let visitSupabaseCafeId = firstVisit.supabaseCafeId {
-                cafe = appData.cafes.first(where: { 
-                    ($0.supabaseId ?? $0.id) == visitSupabaseCafeId 
-                })
+            // Strategy 3: Match by visit's cafeId
+            if foundCafe == nil {
+                foundCafe = appData.cafes.first { $0.id == firstVisit.cafeId }
             }
             
-            // Strategy 4: Match by visit's cafeId against cafe's id or supabaseId
-            if cafe == nil {
-                cafe = appData.cafes.first(where: { 
-                    $0.id == firstVisit.cafeId || 
-                    ($0.supabaseId != nil && $0.supabaseId == firstVisit.cafeId)
-                })
+            // Strategy 4: Match by supabaseCafeId -> cafe.supabaseId
+            if foundCafe == nil, let visitSupabaseCafeId = firstVisit.supabaseCafeId {
+                foundCafe = appData.cafes.first { $0.supabaseId == visitSupabaseCafeId }
             }
             
-            guard var foundCafe = cafe else {
-                print("[SipSquad] WARNING: Could not find cafe for key \(cafeKeyString) in \(appData.cafes.count) cafes")
-                print("[SipSquad] Visit cafeId: \(firstVisit.cafeId), supabaseCafeId: \(firstVisit.supabaseCafeId?.uuidString ?? "nil")")
-                // Log all cafe IDs for debugging
-                #if DEBUG
-                for (idx, existingCafe) in appData.cafes.enumerated() {
-                    print("[SipSquad] Cafe[\(idx)]: id=\(existingCafe.id), supabaseId=\(existingCafe.supabaseId?.uuidString ?? "nil"), name=\(existingCafe.name)")
-                }
-                #endif
+            guard let cafe = foundCafe else {
+                print("[SipSquad] ⚠️ Could not find cafe for key \(cafeKey)")
                 continue
             }
             
-            // BUGFIX: Use the cafe's actual ID (not the key) to prevent duplicates
-            // If this cafe was already processed, merge the visits instead
-            let cafeId = foundCafe.id
-            if let existingVisits = visitsByCafeId[cafeId] {
-                // Merge visits - combine all visits for this cafe
-                visitsByCafeId[cafeId] = existingVisits + visits
-            } else {
-                // First time seeing this cafe ID
-                visitsByCafeId[cafeId] = visits
-                
-                // Calculate aggregated average rating
-                let avgRating = computeSipSquadAverageRating(from: visits)
-                
-                // Create a copy with the aggregated rating
-                foundCafe = Cafe(
-                    id: foundCafe.id,
-                    supabaseId: foundCafe.supabaseId,
-                    name: foundCafe.name,
-                    location: foundCafe.location,
-                    address: foundCafe.address,
-                    city: foundCafe.city,
-                    country: foundCafe.country,
-                    isFavorite: foundCafe.isFavorite,
-                    wantToTry: foundCafe.wantToTry,
-                    averageRating: avgRating,
-                    visitCount: visits.count, // Will be updated below if merged
-                    mapItemURL: foundCafe.mapItemURL,
-                    websiteURL: foundCafe.websiteURL,
-                    applePlaceId: foundCafe.applePlaceId,
-                    placeCategory: foundCafe.placeCategory
-                )
-                
-                cafesById[cafeId] = foundCafe
+            // Skip if we've already processed this cafe (handles duplicates)
+            guard !cafesProcessed.contains(cafe.id) else {
+                // Merge visits for duplicate cafe entry
+                if let existingIndex = resultCafes.firstIndex(where: { $0.id == cafe.id }) {
+                    // Recalculate rating with additional visits
+                    let allVisitsForCafe = visitsByNormalizedCafeKey.values.flatMap { $0 }.filter {
+                        ($0.supabaseCafeId ?? $0.cafeId) == cafeKey || $0.cafeId == cafe.id
+                    }
+                    let newAvg = computeSipSquadAverageRating(from: allVisitsForCafe)
+                    var updatedCafe = resultCafes[existingIndex]
+                    updatedCafe = createCafeWithUpdatedRating(updatedCafe, rating: newAvg, visitCount: allVisitsForCafe.count)
+                    resultCafes[existingIndex] = updatedCafe
+                }
+                continue
             }
+            
+            cafesProcessed.insert(cafe.id)
+            
+            // Calculate aggregated rating from all visits for this cafe
+            let avgRating = computeSipSquadAverageRating(from: visits)
+            
+            // Count user vs friend contributions for this cafe
+            let userVisits = visits.filter { userVisitIds.contains($0.id) }
+            let friendVisits = visits.filter { friendVisitIds.contains($0.id) }
+            
+            // Log sample cafe details (first 3 cafes)
+            if resultCafes.count < 3 {
+                print("[SipSquad] Cafe '\(cafe.name)' - \(visits.count) visits (user: \(userVisits.count), friends: \(friendVisits.count)), avgRating: \(avgRating)")
+            }
+            
+            // Create cafe copy with Sip Squad aggregated rating
+            let sipSquadCafe = createCafeWithUpdatedRating(cafe, rating: avgRating, visitCount: visits.count)
+            resultCafes.append(sipSquadCafe)
         }
         
-        // BUGFIX: Recalculate ratings for merged cafes
-        for (cafeId, visits) in visitsByCafeId {
-            if var cafe = cafesById[cafeId] {
-                let avgRating = computeSipSquadAverageRating(from: visits)
-                cafe = Cafe(
-                    id: cafe.id,
-                    supabaseId: cafe.supabaseId,
-                    name: cafe.name,
-                    location: cafe.location,
-                    address: cafe.address,
-                    city: cafe.city,
-                    country: cafe.country,
-                    isFavorite: cafe.isFavorite,
-                    wantToTry: cafe.wantToTry,
-                    averageRating: avgRating,
-                    visitCount: visits.count, // Total Sip Squad visit count (user + friends)
-                    mapItemURL: cafe.mapItemURL,
-                    websiteURL: cafe.websiteURL,
-                    applePlaceId: cafe.applePlaceId,
-                    placeCategory: cafe.placeCategory
-                )
-                cafesById[cafeId] = cafe
-            }
-        }
-        
-        let sipSquadCafes = Array(cafesById.values)
-        print("[SipSquad] Returning \(sipSquadCafes.count) cafes with aggregated ratings (from \(sipSquadVisits.count) total visits)")
-        return sipSquadCafes
+        print("[SipSquad] Aggregated cafes: \(resultCafes.count)")
+        print("[SipSquad] ================================================")
+        return resultCafes
+    }
+    
+    /// Helper to create a cafe copy with updated rating and visit count
+    private func createCafeWithUpdatedRating(_ cafe: Cafe, rating: Double, visitCount: Int) -> Cafe {
+        return Cafe(
+            id: cafe.id,
+            supabaseId: cafe.supabaseId,
+            name: cafe.name,
+            location: cafe.location,
+            address: cafe.address,
+            city: cafe.city,
+            country: cafe.country,
+            isFavorite: cafe.isFavorite,
+            wantToTry: cafe.wantToTry,
+            averageRating: rating,
+            visitCount: visitCount,
+            mapItemURL: cafe.mapItemURL,
+            websiteURL: cafe.websiteURL,
+            applePlaceId: cafe.applePlaceId,
+            placeCategory: cafe.placeCategory
+        )
     }
     
     /// Computes the Sip Squad average rating from a list of visits
@@ -3061,5 +3103,136 @@ extension DataManager {
         // Count unique cafes
         let uniqueCafeIds = Set(friendVisits.map { $0.cafeId })
         return uniqueCafeIds.count
+    }
+}
+
+// MARK: - Favorites & Wishlist Persistence
+
+extension DataManager {
+    /// Syncs a cafe's favorite/wantToTry state to Supabase
+    /// Ensures the cafe exists in Supabase first, then updates user_cafe_states
+    func syncCafeStateToSupabase(cafe: Cafe) async {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            print("[Favorites] Cannot sync - no authenticated user")
+            return
+        }
+        
+        // Determine the Supabase cafe ID
+        var supabaseCafeId = cafe.supabaseId
+        
+        // If cafe doesn't have a Supabase ID, we need to find or create it
+        if supabaseCafeId == nil {
+            do {
+                let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
+                supabaseCafeId = remoteCafe.id
+                
+                // Update local cafe with the Supabase ID
+                if let index = appData.cafes.firstIndex(where: { $0.id == cafe.id }) {
+                    appData.cafes[index].supabaseId = remoteCafe.id
+                    save()
+                    print("[Favorites] Updated cafe '\(cafe.name)' with supabaseId: \(remoteCafe.id)")
+                }
+            } catch {
+                print("[Favorites] Failed to find/create cafe in Supabase: \(error.localizedDescription)")
+                return
+            }
+        }
+        
+        guard let cafeId = supabaseCafeId else {
+            print("[Favorites] Cannot sync - cafe has no Supabase ID")
+            return
+        }
+        
+        // Sync the state
+        do {
+            try await userCafeStateService.upsertCafeState(
+                userId: supabaseUserId,
+                cafeId: cafeId,
+                isFavorite: cafe.isFavorite,
+                wantToTry: cafe.wantToTry
+            )
+            print("[Favorites] Synced state to Supabase - cafe: '\(cafe.name)', favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry)")
+        } catch {
+            print("[Favorites] Failed to sync state to Supabase: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Fetches and applies user's cafe states (favorites/wishlist) from Supabase
+    /// Called after login to restore persisted state
+    func fetchAndApplyUserCafeStates() async {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            print("[Favorites] Cannot fetch states - no authenticated user")
+            return
+        }
+        
+        print("[Favorites] Fetching favorites and wishlist from Supabase for userId=\(supabaseUserId.prefix(8))...")
+        
+        do {
+            let states = try await userCafeStateService.fetchUserCafeStates(userId: supabaseUserId)
+            
+            if states.isEmpty {
+                print("[Favorites] No favorites or wishlist items found in Supabase")
+                return
+            }
+            
+            var appliedFavorites = 0
+            var appliedWantToTry = 0
+            var cafesCreated = 0
+            
+            for state in states {
+                // Find the cafe by supabaseId
+                if let index = appData.cafes.firstIndex(where: { $0.supabaseId == state.cafeId || $0.id == state.cafeId }) {
+                    // Update existing cafe
+                    if state.isFavorite {
+                        appData.cafes[index].isFavorite = true
+                        appliedFavorites += 1
+                    }
+                    if state.wantToTry {
+                        appData.cafes[index].wantToTry = true
+                        appliedWantToTry += 1
+                    }
+                    print("[Favorites] Applied state to existing cafe: '\(appData.cafes[index].name)' - favorite: \(state.isFavorite), wantToTry: \(state.wantToTry)")
+                } else {
+                    // Cafe not in local list - fetch it from Supabase
+                    do {
+                        let remoteCafes = try await cafeService.fetchCafes(ids: [state.cafeId])
+                        if let remoteCafe = remoteCafes.first {
+                            var localCafe = Cafe(
+                                id: remoteCafe.id,
+                                supabaseId: remoteCafe.id,
+                                name: remoteCafe.name,
+                                location: (remoteCafe.latitude != nil && remoteCafe.longitude != nil) 
+                                    ? CLLocationCoordinate2D(latitude: remoteCafe.latitude!, longitude: remoteCafe.longitude!)
+                                    : nil,
+                                address: remoteCafe.address ?? "",
+                                city: remoteCafe.city,
+                                country: remoteCafe.country,
+                                isFavorite: state.isFavorite,
+                                wantToTry: state.wantToTry,
+                                websiteURL: remoteCafe.websiteURL,
+                                applePlaceId: remoteCafe.applePlaceId
+                            )
+                            appData.cafes.append(localCafe)
+                            cafesCreated += 1
+                            if state.isFavorite { appliedFavorites += 1 }
+                            if state.wantToTry { appliedWantToTry += 1 }
+                            print("[Favorites] Created local cafe from Supabase: '\(localCafe.name)' - favorite: \(state.isFavorite), wantToTry: \(state.wantToTry)")
+                        }
+                    } catch {
+                        print("[Favorites] Failed to fetch cafe \(state.cafeId) from Supabase: \(error.localizedDescription)")
+                    }
+                }
+            }
+            
+            save()
+            syncWidgetData()
+            
+            print("[Favorites] ✅ Loaded \(appliedFavorites) favorites, \(appliedWantToTry) want_to_try from Supabase for userId=\(supabaseUserId.prefix(8))...")
+            if cafesCreated > 0 {
+                print("[Favorites] Created \(cafesCreated) new local cafes from Supabase data")
+            }
+        } catch {
+            print("[Favorites] Failed to fetch cafe states from Supabase: \(error.localizedDescription)")
+        }
     }
 }

@@ -4,8 +4,8 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.mugshot.app.shared</string>
 		<string>group.co.mugshot.app.shared</string>
+		<string>group.com.mugshot.app.shared</string>
 	</array>
 </dict>
 </plist>

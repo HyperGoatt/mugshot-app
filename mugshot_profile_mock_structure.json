@@ -114,7 +114,7 @@
         "type": "section",
         "backgroundColor": "#F5F5F7",
         "header": {
-          "title": "Coffee Journey",
+          "title": "Sipping Journey",
           "font": {"size": 20, "weight": "semibold"},
           "color": "#111827",
           "padding": {"top": 16, "leading": 16, "trailing": 16, "bottom": 12}

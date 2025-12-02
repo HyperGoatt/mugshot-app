@@ -181,7 +181,7 @@ extension BadgeDefinition {
         ),
         BadgeDefinition(
             id: "coffee_chronicler",
-            name: "Coffee Chronicler",
+            name: "Sip Chronicler",
             description: "Added notes to 10 visits.",
             category: .journal,
             iconName: "book.fill",

@@ -287,7 +287,7 @@ private struct CoffeeStatsCard: View {
     var body: some View {
         DSBaseCard {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                DSSectionHeader("Coffee Stats")
+                DSSectionHeader("Sip Stats")
                 
                 // Main stats grid
                 HStack(spacing: DS.Spacing.lg) {
@@ -484,7 +484,7 @@ private struct BadgesCard: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     DSSectionHeader("Badges")
                     
-                    Text("Collect badges as you log your coffee journey.")
+                    Text("Collect badges as you log your sipping journey.")
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textSecondary)
                 }

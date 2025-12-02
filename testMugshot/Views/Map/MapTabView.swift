@@ -61,8 +61,9 @@ struct MapTabView: View {
     }
     
     // Feature flag for simplified Sip Squad style (mint pins, no legend)
+    // When Sip Squad Mode is active, always use mint pins
     private var useSipSquadSimplifiedStyle: Bool {
-        isSipSquadMode && dataManager.appData.useSipSquadSimplifiedStyle
+        isSipSquadMode
     }
     
     // Default fallback region (SF) - only used if location unavailable
@@ -97,12 +98,12 @@ struct MapTabView: View {
         
         HapticsManager.shared.lightTap()
         
-        // Use current search text or default to "Coffee" if empty
+        // Use current search text or default to "Café" if empty
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let effectiveQuery = query.isEmpty ? "Coffee" : query
+        let effectiveQuery = query.isEmpty ? "Café" : query
         
         if query.isEmpty {
-            searchText = "Coffee" // Auto-fill search text
+            searchText = "Café" // Auto-fill search text
         }
         
         // Update last search region
@@ -618,11 +619,40 @@ struct MapViewRepresentable: UIViewRepresentable {
         // Update the coordinator's style flag
         context.coordinator.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
         
+        // Check if Sip Squad style flag changed - if so, force refresh all annotations
+        let styleChanged = context.coordinator.previousUseSipSquadSimplifiedStyle != useSipSquadSimplifiedStyle
+        if styleChanged {
+            // Force refresh all existing cafe annotations when style changes
+            let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
+            if !existingAnnotations.isEmpty {
+                // Remove all existing cafe annotations
+                mapView.removeAnnotations(existingAnnotations)
+                
+                // Build updated cafe list (deduplicated)
+                var cafesById: [UUID: Cafe] = [:]
+                for cafe in cafes {
+                    if cafesById[cafe.id] == nil {
+                        cafesById[cafe.id] = cafe
+                    }
+                }
+                
+                // Re-add annotations with updated cafe data
+                // This will trigger mapView(_:viewFor:) to be called with the new style flag
+                let refreshedAnnotations = cafesById.values.map { CafeAnnotation(cafe: $0) }
+                mapView.addAnnotations(refreshedAnnotations)
+            }
+        }
+        // Record the current style flag for the next update cycle
+        context.coordinator.previousUseSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
+        
         // Update region if needed
         if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
            abs(mapView.region.center.longitude - region.center.longitude) > 0.001 {
             mapView.setRegion(region, animated: true)
         }
+        
+        // Skip normal update logic if we already refreshed due to style change
+        guard !styleChanged else { return }
         
         // PERFORMANCE: Build lookup structures once instead of repeated searches
         let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
@@ -677,10 +707,12 @@ struct MapViewRepresentable: UIViewRepresentable {
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var useSipSquadSimplifiedStyle: Bool
+        var previousUseSipSquadSimplifiedStyle: Bool
         let onCafeTap: (Cafe) -> Void
         
         init(useSipSquadSimplifiedStyle: Bool, onCafeTap: @escaping (Cafe) -> Void) {
             self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
+            self.previousUseSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
             self.onCafeTap = onCafeTap
         }
         
@@ -690,12 +722,32 @@ struct MapViewRepresentable: UIViewRepresentable {
                 return nil
             }
             
+            // Handle cluster annotations with mint color
+            if annotation is MKClusterAnnotation {
+                var clusterView = mapView.dequeueReusableAnnotationView(withIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier) as? MKMarkerAnnotationView
+                
+                if clusterView == nil {
+                    clusterView = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier)
+                } else {
+                    clusterView?.annotation = annotation
+                }
+                
+                // Set mint color for cluster pins
+                let mintColor = UIColor(red: 183/255, green: 226/255, blue: 181/255, alpha: 1.0) // #B7E2B5 (mintMain)
+                clusterView?.markerTintColor = mintColor
+                clusterView?.glyphTintColor = UIColor(red: 5/255, green: 46/255, blue: 22/255, alpha: 1.0) // #052E16 (textOnMint)
+                
+                return clusterView
+            }
+            
             guard let cafeAnnotation = annotation as? CafeAnnotation else {
                 return nil
             }
             
             let cafe = cafeAnnotation.cafe
-            let identifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
+            // Include style flag in identifier to force new views when style changes
+            let baseIdentifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
+            let identifier = "\(baseIdentifier)_\(useSipSquadSimplifiedStyle ? "mint" : "rating")"
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
             
             if annotationView == nil {
@@ -1315,7 +1367,8 @@ struct CafeDetailSheet: View {
                         Button(action: {
                             // Haptic: confirm favorite toggle
                             HapticsManager.shared.lightTap()
-                            dataManager.toggleCafeFavorite(cafe.id)
+                            // Use cafe object version to handle case where cafe isn't in user's list yet
+                            dataManager.toggleCafeFavorite(cafe: displayCafe)
                         }) {
                             HStack {
                                 Image(systemName: displayCafe.isFavorite ? "heart.fill" : "heart")
@@ -1337,7 +1390,8 @@ struct CafeDetailSheet: View {
                         Button(action: {
                             // Haptic: confirm want-to-try toggle
                             HapticsManager.shared.lightTap()
-                            dataManager.toggleCafeWantToTry(cafe.id)
+                            // Use cafe object version to handle case where cafe isn't in user's list yet
+                            dataManager.toggleCafeWantToTry(cafe: displayCafe)
                         }) {
                             HStack {
                                 Image(systemName: displayCafe.wantToTry ? "bookmark.fill" : "bookmark")

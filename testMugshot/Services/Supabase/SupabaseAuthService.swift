@@ -273,6 +273,40 @@ final class SupabaseAuthService {
         
         print("[SupabaseAuthService] resendVerificationEmail: Success")
     }
+
+    /// Sends a password reset email using Supabase's recovery flow.
+    /// The backend will email the user a link to reset their password.
+    func sendPasswordResetEmail(email: String) async throws {
+        print("[SupabaseAuthService] sendPasswordResetEmail: Starting for email: \(email)")
+
+        let payload: [String: Any] = [
+            "email": email,
+            "options": [
+                "email_redirect_to": "https://mugshotapp.co/reset"
+            ]
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+
+        // For password reset, Supabase uses the recover endpoint.
+        // This does not require an authenticated session.
+        client.accessToken = nil
+
+        let (data, response) = try await client.request(
+            path: "auth/v1/recover",
+            method: "POST",
+            headers: [:],
+            body: body
+        )
+
+        print("[SupabaseAuthService] sendPasswordResetEmail: Response status: \(response.statusCode)")
+
+        guard (200..<300).contains(response.statusCode) else {
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Failed to send password reset email")
+        }
+
+        print("[SupabaseAuthService] sendPasswordResetEmail: Success")
+    }
     
     func checkEmailVerificationStatus(userId: String) async throws -> Bool {
         print("[SupabaseAuthService] checkEmailVerificationStatus: Fetching user info for userId: \(userId)")

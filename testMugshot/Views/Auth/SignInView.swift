@@ -20,6 +20,7 @@ struct SignInView: View {
     @State private var validationErrors: [String] = []
     @State private var authError: String?
     @State private var isSubmitting = false
+    @State private var resetInfoMessage: String?
     
     var body: some View {
         ZStack {
@@ -52,7 +53,7 @@ struct SignInView: View {
                                 .foregroundStyle(DS.Colors.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
-                            Text("Sign in to continue your coffee journey")
+                            Text("Sign in to continue your sipping journey")
                                 .font(DS.Typography.subheadline())
                                 .foregroundStyle(DS.Colors.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,7 +112,7 @@ struct SignInView: View {
                         .padding(.top, DS.Spacing.lg)
                         
                         // Validation errors
-                        if !validationErrors.isEmpty || authError != nil {
+                        if !validationErrors.isEmpty || authError != nil || resetInfoMessage != nil {
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 ForEach(validationErrors, id: \.self) { error in
                                     Text(error)
@@ -123,6 +124,12 @@ struct SignInView: View {
                                     Text(authError)
                                         .font(DS.Typography.caption1())
                                         .foregroundStyle(DS.Colors.negativeChange)
+                                }
+
+                                if let resetInfoMessage = resetInfoMessage {
+                                    Text(resetInfoMessage)
+                                        .font(DS.Typography.caption1())
+                                        .foregroundStyle(DS.Colors.textSecondary)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,9 +153,7 @@ struct SignInView: View {
                         .padding(.top, DS.Spacing.lg)
                         
                         // Forgot password link
-                        Button(action: {
-                            // TODO: Implement forgot password flow
-                        }) {
+                        Button(action: handleForgotPassword) {
                             Text("Forgot password?")
                                 .font(DS.Typography.subheadline())
                                 .foregroundStyle(DS.Colors.textSecondary)
@@ -180,6 +185,7 @@ struct SignInView: View {
         print("[SignInView] Starting sign in")
         validationErrors = []
         authError = nil
+        resetInfoMessage = nil
         
         // Haptic: confirm sign in button tap
         hapticsManager.mediumTap()
@@ -218,6 +224,55 @@ struct SignInView: View {
                 // Haptic: sign in error
                 hapticsManager.playError()
                 authError = formatSignInError(error)
+            }
+        }
+    }
+
+    private func handleForgotPassword() {
+        print("[SignInView] Forgot password tapped")
+        authError = nil
+        resetInfoMessage = nil
+
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+
+        guard !trimmedEmail.isEmpty else {
+            validationErrors = ["Enter your email above first to reset your password"]
+            hapticsManager.playError()
+            return
+        }
+
+        // Basic email sanity check
+        guard trimmedEmail.contains("@"), trimmedEmail.contains(".") else {
+            validationErrors = ["Please enter a valid email address to reset your password"]
+            hapticsManager.playError()
+            return
+        }
+
+        validationErrors = []
+        isSubmitting = true
+
+        Task { @MainActor in
+            do {
+                print("[SignInView] Requesting password reset email...")
+                try await dataManager.requestPasswordReset(email: trimmedEmail)
+                isSubmitting = false
+                hapticsManager.playSuccess()
+                resetInfoMessage = "If an account exists for \(trimmedEmail), we’ve sent a link to reset your password."
+            } catch {
+                print("[SignInView] Password reset error: \(error.localizedDescription)")
+                isSubmitting = false
+                hapticsManager.playError()
+
+                if let supabaseError = error as? SupabaseError {
+                    switch supabaseError {
+                    case .network(_):
+                        authError = "We couldn’t reach the server. Please check your connection and try again."
+                    default:
+                        authError = "We couldn’t send a reset email right now. Please try again in a moment."
+                    }
+                } else {
+                    authError = "We couldn’t send a reset email right now. Please try again in a moment."
+                }
             }
         }
     }

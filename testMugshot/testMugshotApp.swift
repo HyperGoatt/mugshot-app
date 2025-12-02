@@ -8,11 +8,13 @@
 import SwiftUI
 import UIKit
 import UserNotifications
+import WidgetKit
 
 @main
 struct testMugshotApp: App {
     @StateObject private var dataManager = DataManager.shared
     @StateObject private var supabaseEnvironment = SupabaseEnvironment()
+    @StateObject private var tabCoordinator = TabCoordinator()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     init() {
@@ -27,6 +29,33 @@ struct testMugshotApp: App {
         WindowGroup {
             rootView
                 .environmentObject(supabaseEnvironment)
+                .environmentObject(tabCoordinator)
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
+        }
+    }
+    
+    /// Handle deep links from widgets and other sources
+    private func handleDeepLink(_ url: URL) {
+        print("[App] Received deep link: \(url.absoluteString)")
+        
+        // Only handle widget deep links when the main app is visible
+        guard dataManager.appData.isAuthenticated && dataManager.appData.hasCompletedProfileSetup else {
+            print("[App] Cannot handle deep link - user not fully authenticated")
+            return
+        }
+        
+        Task { @MainActor in
+            let handled = WidgetDeepLinkHandler.shared.handleDeepLink(
+                url: url,
+                tabCoordinator: tabCoordinator,
+                dataManager: dataManager
+            )
+            
+            if !handled {
+                print("[App] Deep link was not handled: \(url.absoluteString)")
+            }
         }
     }
     
@@ -124,9 +153,20 @@ struct testMugshotApp: App {
                 .preferredColorScheme(.light)
         } else {
             // Step 5: Fully authenticated and setup - show main app
-            MainTabView(dataManager: dataManager)
+            MainTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .preferredColorScheme(.light)
+                .onAppear {
+                    // Sync widget data when main app becomes visible
+                    syncWidgetData()
+                }
+        }
+    }
+    
+    /// Sync data to widgets
+    private func syncWidgetData() {
+        Task { @MainActor in
+            WidgetSyncService.shared.syncWidgetData(dataManager: dataManager)
         }
     }
     

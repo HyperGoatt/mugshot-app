@@ -9,7 +9,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
-    @StateObject private var tabCoordinator = TabCoordinator()
+    @ObservedObject var tabCoordinator: TabCoordinator
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var preselectedCafeForLogVisit: Cafe?
     

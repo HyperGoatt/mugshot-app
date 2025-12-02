@@ -38,7 +38,7 @@ struct ProfilePostsGrid: View {
                 .font(DS.Typography.bodyText)
                 .foregroundColor(DS.Colors.textSecondary)
             
-            Text("Your coffee journey photos will appear here")
+            Text("Your sipping journey photos will appear here")
                 .font(DS.Typography.caption1())
                 .foregroundColor(DS.Colors.textTertiary)
                 .multilineTextAlignment(.center)

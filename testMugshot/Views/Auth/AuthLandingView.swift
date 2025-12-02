@@ -45,7 +45,7 @@ struct AuthLandingView: View {
                         .offset(y: showContent ? 0 : 10)
                     
                     // Tagline
-                    Text("Your coffee journey starts here")
+                    Text("Your sipping journey starts here")
                         .font(DS.Typography.bodyText)
                         .foregroundStyle(DS.Colors.textSecondary)
                         .opacity(showContent ? 1 : 0)

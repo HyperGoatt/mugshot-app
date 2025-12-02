@@ -32,7 +32,7 @@ struct ConcentricWelcomePage: View {
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Subtitle
-            Text("Your personal cafe journal and coffee feed.")
+            Text("Your personal cafe journal and sip feed.")
                 .font(DS.Typography.bodyText)
                 .foregroundStyle(DS.Colors.textSecondary)
                 .multilineTextAlignment(.center)

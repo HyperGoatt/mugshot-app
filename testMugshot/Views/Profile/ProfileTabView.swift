@@ -411,7 +411,7 @@ struct ProfileTabView: View {
     #endif
     
     private func createShareText(username: String) -> String {
-        "Check out my Mugshot coffee profile: @\(username)"
+        "Check out my Mugshot profile: @\(username)"
     }
 }
 
@@ -922,8 +922,13 @@ struct EditProfileView: View {
                     
                     // Legal Links
                     VStack(spacing: DS.Spacing.sm) {
-                        Link("Privacy Policy", destination: URL(string: "https://www.apple.com/legal/privacy/")!) // TODO: Replace with real URL
-                        Link("Terms of Service (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) // Standard Apple EULA
+                        if let privacyURL = URL(string: AppConfig.privacyPolicyURLString) {
+                            Link("Privacy Policy", destination: privacyURL)
+                        }
+                        Link(
+                            "Terms of Service (EULA)",
+                            destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+                        ) // Standard Apple EULA
                     }
                     .font(DS.Typography.caption1())
                     .foregroundColor(DS.Colors.textTertiary)

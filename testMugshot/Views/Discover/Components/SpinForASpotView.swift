@@ -8,11 +8,21 @@
 //  - Chain filtering (excludes Starbucks, Dunkin, Panera, etc.)
 //  - Progressive haptics during spin
 //  - Distance slider for radius control
+//  - Celebratory confetti explosion when result is displayed
 //
 
 import SwiftUI
 import MapKit
 import CoreLocation
+
+// MARK: - Preference Key for Image Position
+
+struct ImagePositionPreferenceKey: PreferenceKey {
+    static var defaultValue: CGPoint = .zero
+    static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {
+        value = nextValue()
+    }
+}
 
 // MARK: - Main View
 
@@ -31,6 +41,8 @@ struct SpinForASpotView: View {
     @State private var wheelRotation: Double = 0
     @State private var targetRotation: Double = 0
     @State private var selectedIndex: Int = 0
+    @State private var confettiTrigger: Int = 0
+    @State private var mugsyImagePosition: CGPoint = .zero
     
     @StateObject private var hapticsManager = HapticsManager.shared
     
@@ -277,63 +289,125 @@ struct SpinForASpotView: View {
     // MARK: - Result View
     
     private func resultView(cafe: SpinCafeResult) -> some View {
-        VStack(spacing: DS.Spacing.xl) {
-            // Victory animation
-            VStack(spacing: DS.Spacing.sm) {
-                Image("MugsySpinCelebrate")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 120)
-                
-                Text("Mugsy chose...")
-                    .font(DS.Typography.caption1(.semibold))
-                    .foregroundColor(DS.Colors.textSecondary)
-                    .tracking(2)
-            }
+        GeometryReader { geometry in
+            let confettiSourcePoint = CGPoint(
+                x: geometry.size.width / 2,
+                y: 150
+            )
             
-            // Result card
-            VStack(spacing: DS.Spacing.md) {
-                Text(cafe.name)
-                    .font(DS.Typography.title1())
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                
-                // Distance badge
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 12))
-                    Text(cafe.formattedDistance)
-                }
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.primaryAccent)
-                .padding(.horizontal, DS.Spacing.md)
-                .padding(.vertical, DS.Spacing.xs)
-                .background(DS.Colors.primaryAccentSoftFill)
-                .cornerRadius(DS.Radius.pill)
-                
-                // Address
-                if let address = cafe.address {
-                    Text(address)
+            return ZStack {
+                VStack(spacing: DS.Spacing.xl) {
+                    // Victory animation
+                    VStack(spacing: DS.Spacing.sm) {
+                        Image("MugsySpinCelebrate")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 120)
+                            .background(
+                                GeometryReader { imageGeometry in
+                                    Color.clear
+                                        .preference(
+                                            key: ImagePositionPreferenceKey.self,
+                                            value: CGPoint(
+                                                x: imageGeometry.frame(in: .named("resultView")).midX,
+                                                y: imageGeometry.frame(in: .named("resultView")).midY
+                                            )
+                                        )
+                                        .onAppear {
+                                            // Also set position immediately for debugging
+                                            let position = CGPoint(
+                                                x: imageGeometry.frame(in: .named("resultView")).midX,
+                                                y: imageGeometry.frame(in: .named("resultView")).midY
+                                            )
+                                            print("📍 Image position set: \(position)")
+                                            DispatchQueue.main.async {
+                                                self.mugsyImagePosition = position
+                                            }
+                                        }
+                                }
+                            )
+                        
+                        Text("Mugsy chose...")
+                            .font(DS.Typography.caption1(.semibold))
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .tracking(2)
+                    }
+                    
+                    // Result card
+                    VStack(spacing: DS.Spacing.md) {
+                        Text(cafe.name)
+                            .font(DS.Typography.title1())
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                        
+                        // Distance badge
+                        HStack(spacing: DS.Spacing.xs) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 12))
+                            Text(cafe.formattedDistance)
+                        }
                         .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+                        .foregroundColor(DS.Colors.primaryAccent)
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .background(DS.Colors.primaryAccentSoftFill)
+                        .cornerRadius(DS.Radius.pill)
+                        
+                        // Address
+                        if let address = cafe.address {
+                            Text(address)
+                                .font(DS.Typography.caption1())
+                                .foregroundColor(DS.Colors.textTertiary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
+                        
+                        // Mini map
+                        if let coordinate = cafe.coordinate {
+                            MiniMapPreview(coordinate: coordinate, name: cafe.name)
+                                .frame(height: 100)
+                                .cornerRadius(DS.Radius.md)
+                        }
+                    }
+                    .padding(DS.Spacing.lg)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.xl)
+                    .dsCardShadow()
+                }
+                .transition(.scale.combined(with: .opacity))
+                .coordinateSpace(name: "resultView")
+                .onPreferenceChange(ImagePositionPreferenceKey.self) { position in
+                    print("📍 Preference changed - new position: \(position)")
+                    if position != .zero {
+                        self.mugsyImagePosition = position
+                        print("📍 Mugsy position updated: \(self.mugsyImagePosition)")
+                    }
                 }
                 
-                // Mini map
-                if let coordinate = cafe.coordinate {
-                    MiniMapPreview(coordinate: coordinate, name: cafe.name)
-                        .frame(height: 100)
-                        .cornerRadius(DS.Radius.md)
+                // Confetti overlay - positioned to shoot from Mugsy image
+                if confettiTrigger > 0 {
+                    MugshotConfettiCannon(
+                        trigger: $confettiTrigger,
+                        sourcePoint: confettiSourcePoint,
+                        num: 60,
+                        colors: [
+                            Color(hex: "B7E2B5"),  // Mugshot mint
+                            Color(hex: "FAF8F6"),  // Cream white
+                            Color(hex: "2563EB"),  // Blue accent
+                            Color(hex: "FACC15"),  // Yellow accent
+                            Color(hex: "ECF8EC"),  // Mint soft fill
+                            Color(hex: "8AC28E"),  // Mint dark
+                        ],
+                        confettiSize: 10.0,
+                        openingAngle: .degrees(0),
+                        closingAngle: .degrees(360),
+                        radius: 350.0
+                    )
+                    .allowsHitTesting(false)
                 }
             }
-            .padding(DS.Spacing.lg)
-            .background(DS.Colors.cardBackground)
-            .cornerRadius(DS.Radius.xl)
-            .dsCardShadow()
         }
-        .transition(.scale.combined(with: .opacity))
     }
     
     // MARK: - Bottom Controls
@@ -785,6 +859,13 @@ struct SpinForASpotView: View {
                 self.spinPhase = .result
             }
             self.hapticsManager.playSuccess()
+            
+            // Trigger confetti explosion after a brief delay to allow position to be set
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("🎉 Triggering confetti! Position: \(self.mugsyImagePosition), Trigger: \(self.confettiTrigger)")
+                self.confettiTrigger += 1
+                print("🎉 Confetti trigger set to: \(self.confettiTrigger)")
+            }
         }
     }
     
@@ -848,6 +929,8 @@ struct SpinForASpotView: View {
             cafeResults = []
             wheelRotation = 0
             targetRotation = 0
+            confettiTrigger = 0
+            mugsyImagePosition = .zero
         }
     }
     

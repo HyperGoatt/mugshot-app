@@ -25,7 +25,7 @@ struct ConcentricJournalFeedPage: View {
             .padding(.bottom, DS.Spacing.lg)
             
             // Title
-            Text("Capture your coffee story")
+            Text("Capture your sip story")
                 .font(DS.Typography.screenTitle)
                 .foregroundStyle(DS.Colors.textPrimary)
                 .multilineTextAlignment(.center)

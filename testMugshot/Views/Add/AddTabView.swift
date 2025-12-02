@@ -956,7 +956,7 @@ struct CustomizeRatingsView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Define what matters most in your coffee journey and how much each criterion should count.")
+                    Text("Define what matters most in your sipping journey and how much each criterion should count.")
                         .font(DS.Typography.bodyText)
                         .foregroundColor(DS.Colors.textSecondary)
                         .padding(.top, DS.Spacing.md)
