@@ -108,29 +108,12 @@ struct ProfileCompactHeader: View {
     // MARK: - Avatar View
     
     private var avatarView: some View {
-        Group {
-            if let profileURL = profileImageURL,
-               let url = URL(string: profileURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .failure, .empty:
-                        avatarPlaceholder
-                    @unknown default:
-                        avatarPlaceholder
-                    }
-                }
-            } else if let profileID = profileImageId,
-                      let cachedImage = PhotoCache.shared.retrieve(forKey: profileID) {
-                Image(uiImage: cachedImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                avatarPlaceholder
-            }
+        CachedAvatarImage(
+            imageId: profileImageId,
+            imageURL: profileImageURL,
+            cacheNamespace: "profile-avatar"
+        ) {
+            avatarPlaceholder
         }
         .frame(width: avatarSize, height: avatarSize)
         .clipShape(Circle())

@@ -11,7 +11,8 @@ import UIKit
 
 struct VisitDetailView: View {
     @ObservedObject var dataManager: DataManager
-    @State private var visit: Visit
+    @State private var visitSnapshot: Visit
+    @State private var hasPendingLocalMutation = false
     @State private var commentText: String = ""
     @State private var showCafeDetail = false
     @State private var selectedCafe: Cafe?
@@ -31,11 +32,18 @@ struct VisitDetailView: View {
     
     init(dataManager: DataManager, visit: Visit, showsDismissButton: Bool = false) {
         self.dataManager = dataManager
-        _visit = State(initialValue: visit)
+        _visitSnapshot = State(initialValue: visit)
         self.showsDismissButton = showsDismissButton
     }
     
     // MARK: - Computed Properties
+    
+    private var visit: Visit {
+        if hasPendingLocalMutation {
+            return visitSnapshot
+        }
+        return dataManager.getVisit(id: visitSnapshot.id) ?? visitSnapshot
+    }
     
     private var cafe: Cafe? {
         dataManager.getCafe(id: visit.cafeId)
@@ -235,7 +243,7 @@ struct VisitDetailView: View {
             Text("This action cannot be undone.")
         }
         .sheet(isPresented: $showEditVisit) {
-            EditVisitView(dataManager: dataManager, visit: $visit)
+            EditVisitView(dataManager: dataManager, visit: $visitSnapshot)
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
@@ -294,13 +302,13 @@ struct VisitDetailView: View {
         .onAppear {
             refreshVisit()
         }
-        .onChange(of: dataManager.appData.visits) { _, newVisits in
-            // Simple reactive sync – always refresh from canonical DataManager copy
-            if let updated = newVisits.first(where: { $0.id == visit.id }) {
+        .onReceive(dataManager.$appData) { newAppData in
+            if let updated = newAppData.visits.first(where: { $0.id == visitSnapshot.id }) {
                 #if DEBUG
-                print("📝 [Comment] onChange: syncing visit from DataManager – comments: \(updated.comments.count)")
+                print("📡 [VisitDetail] Synced visit from DataManager - likes: \(updated.likeCount)")
                 #endif
-                visit = updated
+                visitSnapshot = updated
+                hasPendingLocalMutation = false
             }
         }
     }
@@ -308,9 +316,52 @@ struct VisitDetailView: View {
     // MARK: - Actions
     
     private func toggleLike() {
+        guard let currentUser = dataManager.appData.currentUser else {
+            #if DEBUG
+            print("❤️ [VisitDetail] Toggle like aborted - no current user")
+            #endif
+            return
+        }
+        
+        #if DEBUG
+        print("❤️ [VisitDetail] Toggle like tapped for visitId=\(visitSnapshot.id)")
+        print("   Current likeCount=\(visit.likeCount) likedByCurrentUser=\(visit.isLikedBy(userId: currentUser.id))")
+        #endif
+        
+        // Optimistic local update so the heart animation + count react immediately
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            var updatedVisit = visit
+            if updatedVisit.isLikedBy(userId: currentUser.id) {
+                updatedVisit.likedByUserIds.removeAll { $0 == currentUser.id }
+                updatedVisit.likeCount = max(0, updatedVisit.likeCount - 1)
+            } else {
+                updatedVisit.likedByUserIds.append(currentUser.id)
+                updatedVisit.likeCount += 1
+            }
+            visitSnapshot = updatedVisit
+            hasPendingLocalMutation = true
+        }
+        
+        #if DEBUG
+        print("   Optimistic state => likeCount=\(visit.likeCount) likedByCurrentUser=\(visit.isLikedBy(userId: currentUser.id))")
+        #endif
+        
         Task {
             await dataManager.toggleVisitLike(visit.id)
-            refreshVisit()
+            
+            #if DEBUG
+            print("❤️ [VisitDetail] Backend like toggle completed for visitId=\(visit.id)")
+            #endif
+            
+            await MainActor.run {
+                refreshVisit()
+                
+                #if DEBUG
+                if let refreshedUser = dataManager.appData.currentUser {
+                    print("   Refreshed visit => likeCount=\(visit.likeCount) likedByCurrentUser=\(visit.isLikedBy(userId: refreshedUser.id))")
+                }
+                #endif
+            }
         }
     }
     
@@ -372,11 +423,12 @@ struct VisitDetailView: View {
         
         // Add to local state with animation - use full reassignment to trigger re-render
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            var updatedComments = visit.comments
+            var updatedComments = visitSnapshot.comments
             updatedComments.append(optimisticComment)
-            visit.comments = updatedComments  // Full reassignment ensures SwiftUI detects change
+            visitSnapshot.comments = updatedComments  // Full reassignment ensures SwiftUI detects change
             newlyAddedCommentIds.insert(optimisticComment.id)
             lastOptimisticCommentTime = Date()  // Track when we added optimistic comment
+            hasPendingLocalMutation = true
         }
         
         #if DEBUG
@@ -403,8 +455,9 @@ struct VisitDetailView: View {
     }
     
     private func refreshVisit() {
-        if let updated = dataManager.getVisit(id: visit.id) {
-            visit = updated
+        if let updated = dataManager.getVisit(id: visitSnapshot.id) {
+            visitSnapshot = updated
+            hasPendingLocalMutation = false
         }
     }
     

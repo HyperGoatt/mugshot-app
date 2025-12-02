@@ -65,6 +65,25 @@ struct MainTabView: View {
             // Set up push notification navigation listeners
             setupPushNotificationListeners()
         }
+        .overlay(alignment: .top) {
+            if dataManager.isOffline {
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("You are offline")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .background(Color.black.opacity(0.8))
+                .cornerRadius(20)
+                .padding(.top, 60) // Below dynamic island/notch
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(100)
+                .allowsHitTesting(false)
+            }
+        }
     }
     
     private func switchToTab(_ newTab: Int) {

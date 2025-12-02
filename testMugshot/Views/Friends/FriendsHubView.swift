@@ -214,28 +214,48 @@ struct FriendsHubView: View {
     
     @MainActor
     private func performSearch(query: String) async {
+        #if DEBUG
         print("[FriendsSearch] performSearch called with query='\(query)'")
+        #endif
         isSearching = true
         defer { isSearching = false }
         
         do {
             let results = try await dataManager.searchUsers(query: query)
             
-            guard !Task.isCancelled else {
-                print("[FriendsSearch] Task cancelled, not updating UI")
-                return
+            guard !Task.isCancelled else { return }
+            
+            searchResults = results
+            
+            // PERFORMANCE: Batch friendship status checks using concurrent tasks
+            // Limited to avoid overwhelming the server
+            await withTaskGroup(of: (String, FriendshipStatus).self) { group in
+                for profile in results.prefix(10) { // Limit concurrent checks
+                    group.addTask {
+                        do {
+                            let status = try await self.dataManager.checkFriendshipStatus(for: profile.id)
+                            return (profile.id, status)
+                        } catch {
+                            return (profile.id, .none)
+                        }
+                    }
+                }
+                
+                for await (userId, status) in group {
+                    friendshipStatuses[userId] = status
+                }
             }
             
-            print("[FriendsSearch] Final mapped results count: \(results.count)")
-            searchResults = results
-            print("[FriendsSearch] UI updated with \(searchResults.count) results for query='\(query)'")
-            
-            // Fetch friendship status for each result
-            for profile in results {
-                await refreshFriendshipStatus(for: profile.id)
+            // Fetch remaining statuses if more than 10 results
+            if results.count > 10 {
+                for profile in results.dropFirst(10) {
+                    await refreshFriendshipStatus(for: profile.id)
+                }
             }
         } catch {
+            #if DEBUG
             print("[FriendsHub] Search error: \(error.localizedDescription)")
+            #endif
             searchResults = []
         }
     }

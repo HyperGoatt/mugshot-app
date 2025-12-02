@@ -419,6 +419,7 @@ struct ProfileTabView: View {
 
 struct ProfileCafesView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject var tabCoordinator: TabCoordinator
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
     
@@ -483,6 +484,19 @@ struct ProfileCafesView: View {
                 .font(DS.Typography.caption1())
                 .foregroundColor(DS.Colors.textTertiary)
                 .multilineTextAlignment(.center)
+            
+            Button(action: {
+                tabCoordinator.switchToMap()
+            }) {
+                Text("Find a Cafe")
+                    .font(DS.Typography.buttonLabel)
+                    .foregroundColor(DS.Colors.textOnMint)
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.vertical, DS.Spacing.md)
+                    .background(DS.Colors.primaryAccent)
+                    .cornerRadius(DS.Radius.lg)
+            }
+            .padding(.top, DS.Spacing.md)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DS.Spacing.xxl * 2)
@@ -584,6 +598,7 @@ struct CafeListItem: View {
 
 struct ProfileSavedView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject var tabCoordinator: TabCoordinator
     @State private var selectedSegment: SavedSegment = .favorites
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
@@ -659,6 +674,19 @@ struct ProfileSavedView: View {
                 Text(emptyMessage)
                         .font(DS.Typography.bodyText)
                         .foregroundColor(DS.Colors.textSecondary)
+                
+                Button(action: {
+                    tabCoordinator.switchToMap()
+                }) {
+                    Text("Find a Cafe")
+                        .font(DS.Typography.buttonLabel)
+                        .foregroundColor(DS.Colors.primaryAccent)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
+                        .background(DS.Colors.primaryAccentSoftFill)
+                        .cornerRadius(DS.Radius.lg)
+                }
+                .padding(.top, DS.Spacing.sm)
                 }
             .frame(maxWidth: .infinity)
             .padding(.vertical, DS.Spacing.xxl * 2)
@@ -783,6 +811,7 @@ struct EditProfileView: View {
     @State private var selectedProfileImage: PhotosPickerItem?
     @State private var selectedBannerImage: PhotosPickerItem?
     @State private var showLogoutAlert = false
+    @State private var showDeleteAlert = false
     
     private var remoteAvatarURL: String? {
         dataManager.appData.currentUserAvatarURL
@@ -874,6 +903,32 @@ struct EditProfileView: View {
                         .cornerRadius(DS.Radius.lg)
                     }
                     .padding(.top, DS.Spacing.lg)
+                    
+                    // Delete Account Button
+                    Button(role: .destructive, action: { showDeleteAlert = true }) {
+                        HStack {
+                            Image(systemName: "trash")
+                                .font(.system(size: 16))
+                            Text("Delete Account")
+                                .font(DS.Typography.buttonLabel)
+                        }
+                        .foregroundColor(DS.Colors.negativeChange)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DS.Spacing.md)
+                        .background(DS.Colors.cardBackgroundAlt)
+                        .cornerRadius(DS.Radius.lg)
+                    }
+                    .padding(.top, DS.Spacing.md)
+                    
+                    // Legal Links
+                    VStack(spacing: DS.Spacing.sm) {
+                        Link("Privacy Policy", destination: URL(string: "https://www.apple.com/legal/privacy/")!) // TODO: Replace with real URL
+                        Link("Terms of Service (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) // Standard Apple EULA
+                    }
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .padding(.top, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.xl)
                 }
                 .padding(DS.Spacing.pagePadding)
             }
@@ -906,6 +961,19 @@ struct EditProfileView: View {
                 }
             } message: {
                 Text("Are you sure you want to log out? This will clear all your data.")
+            }
+            .alert("Delete Account", isPresented: $showDeleteAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task {
+                        try? await dataManager.deleteAccount()
+                        await MainActor.run {
+                            dismiss()
+                        }
+                    }
+                }
+            } message: {
+                Text("Are you sure? This will permanently delete your account and all your data. This action cannot be undone.")
             }
         }
     }

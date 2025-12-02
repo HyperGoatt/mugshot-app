@@ -81,25 +81,12 @@ struct VisitAvatarView: View {
     let size: CGFloat
     
     var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if let remoteURL, let url = URL(string: remoteURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let asyncImage):
-                        asyncImage
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    default:
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
-            }
+        CachedAvatarImage(
+            image: image,
+            imageURL: remoteURL,
+            cacheNamespace: "visit-avatar"
+        ) {
+            placeholder
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
@@ -261,30 +248,18 @@ struct InlineSocialActions: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            // Like button
-            Button(action: {
-                hapticsManager.lightTap()
-                onLikeTap?()
-            }) {
-                HStack(spacing: 5) {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(isLiked ? DS.Colors.primaryAccent : DS.Colors.iconDefault)
-                        .contentTransition(.symbolEffect(.replace))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLiked)
-                    
-                    if likeCount > 0 {
-                        Text("\(likeCount)")
-                            .font(DS.Typography.subheadline(.medium))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            // Animate count change
-                            .contentTransition(.numericText(value: Double(likeCount)))
-                            .animation(.snappy, value: likeCount)
-                    }
+            // Like button reuses the shared animated component for consistency
+            LikeButton(
+                isLiked: isLiked,
+                likeCount: likeCount,
+                onToggle: {
+                    #if DEBUG
+                    print("❤️ [VisitDetail] Like button tapped - isLiked=\(isLiked) likeCount=\(likeCount)")
+                    #endif
+                    onLikeTap?()
                 }
-                .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.plain)
+            )
+            .padding(.trailing, DS.Spacing.sm)
             
             // Comment button
             Button(action: { onCommentTap?() }) {
@@ -340,8 +315,14 @@ struct DrinkTypePill: View {
     let customDrinkType: String?
     
     private var displayText: String {
-        if let custom = customDrinkType, !custom.isEmpty {
-            return "\(drinkType.rawValue) · \(custom)"
+        let trimmedCustom = customDrinkType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        if drinkType == .other {
+            return trimmedCustom.isEmpty ? "Other" : trimmedCustom
+        }
+        
+        if !trimmedCustom.isEmpty {
+            return "\(drinkType.rawValue) · \(trimmedCustom)"
         }
         return drinkType.rawValue
     }
@@ -403,6 +384,10 @@ struct CompactRatingRow: View {
     let title: String
     let value: Double
     
+    private var clampedValue: Double {
+        min(max(value, 0), 5)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -410,22 +395,60 @@ struct CompactRatingRow: View {
                 .foregroundColor(DS.Colors.textSecondary)
                 .lineLimit(1)
             
-            HStack(spacing: 3) {
+            HStack(spacing: 2) {
                 ForEach(1...5, id: \.self) { index in
-                    RatingDot(isFilled: Double(index) <= value)
+                    RatingStar(state: starState(for: index))
                 }
             }
         }
     }
+    
+    private func starState(for index: Int) -> RatingStar.FillState {
+        let threshold = Double(index)
+        
+        if clampedValue >= threshold {
+            return .full
+        } else if clampedValue >= threshold - 0.5 {
+            return .half
+        } else {
+            return .empty
+        }
+    }
 }
 
-struct RatingDot: View {
-    let isFilled: Bool
+struct RatingStar: View {
+    enum FillState {
+        case empty
+        case half
+        case full
+    }
+    
+    let state: FillState
+    
+    private var symbolName: String {
+        switch state {
+        case .full:
+            return "star.fill"
+        case .half:
+            return "star.leadinghalf.filled"
+        case .empty:
+            return "star"
+        }
+    }
+    
+    private var color: Color {
+        switch state {
+        case .full, .half:
+            return DS.Colors.primaryAccent
+        case .empty:
+            return DS.Colors.iconSubtle.opacity(0.4)
+        }
+    }
     
     var body: some View {
-        Circle()
-            .fill(isFilled ? DS.Colors.primaryAccent : DS.Colors.iconSubtle.opacity(0.3))
-            .frame(width: 10, height: 10)
+        Image(systemName: symbolName)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(color)
     }
 }
 

@@ -563,10 +563,15 @@ struct VisitCard: View {
         }
     }
     
-    private func timeAgoString(from date: Date) -> String {
+    // PERFORMANCE: Static formatter to avoid creating new ones on every render
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter
+    }()
+    
+    private func timeAgoString(from date: Date) -> String {
+        return Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
@@ -588,30 +593,12 @@ private struct FeedAvatarView: View {
     let size: CGFloat
     
     var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if let remoteURL,
-                      let url = URL(string: remoteURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let asyncImage):
-                        asyncImage
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .empty:
-                        placeholder
-                    case .failure:
-                        placeholder
-                    @unknown default:
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
-            }
+        CachedAvatarImage(
+            image: image,
+            imageURL: remoteURL,
+            cacheNamespace: "feed-avatar"
+        ) {
+            placeholder
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

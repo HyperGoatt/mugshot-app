@@ -30,6 +30,13 @@ struct MapTabView: View {
     @State private var selectedVisit: Visit?
     @State private var recenterOnUserRequest = false
     @State private var showFriendsHub = false
+    @State private var lastSearchRegion: MKCoordinateRegion?
+    @State private var searchScope: SearchScope = .cafes
+    
+    enum SearchScope: String, CaseIterable {
+        case cafes = "Cafes"
+        case people = "People"
+    }
     
     private var referenceLocation: CLLocation {
         let activeRegion = region ?? defaultRegion
@@ -73,6 +80,37 @@ struct MapTabView: View {
     
     private var shouldShowRecentSearches: Bool {
         isSearchFieldFocused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    private var shouldShowSearchThisArea: Bool {
+        guard let last = lastSearchRegion, let current = region else { return false }
+        
+        let lastLoc = CLLocation(latitude: last.center.latitude, longitude: last.center.longitude)
+        let currentLoc = CLLocation(latitude: current.center.latitude, longitude: current.center.longitude)
+        
+        // Show if moved more than 2km from last search center
+        return lastLoc.distance(from: currentLoc) > 2000
+    }
+    
+    private func handleSearchThisArea() {
+        guard let currentRegion = region else { return }
+        
+        HapticsManager.shared.lightTap()
+        
+        // Use current search text or default to "Coffee" if empty
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveQuery = query.isEmpty ? "Coffee" : query
+        
+        if query.isEmpty {
+            searchText = "Coffee" // Auto-fill search text
+        }
+        
+        // Update last search region
+        lastSearchRegion = currentRegion
+        
+        // Trigger search
+        isSearchActive = true
+        searchService.search(query: effectiveQuery, region: currentRegion)
     }
     
     var body: some View {
@@ -187,115 +225,161 @@ struct MapTabView: View {
                 }
                 
                 // Inline search bar
-                HStack(spacing: DS.Spacing.lg) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(DS.Colors.textSecondary)
-                        
-                        TextField("Search cafes...", text: $searchText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                            .tint(DS.Colors.primaryAccent)
-                            .accentColor(DS.Colors.primaryAccent)
-                            .focused($isSearchFieldFocused)
-                            .onChange(of: searchText) { _, newValue in
-                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !trimmed.isEmpty {
-                                    if !isSearchActive {
+                VStack(spacing: 0) {
+                    HStack(spacing: DS.Spacing.lg) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(DS.Colors.textSecondary)
+                            
+                            TextField(searchScope == .cafes ? "Search cafes..." : "Search people...", text: $searchText)
+                                .foregroundColor(DS.Colors.textPrimary)
+                                .tint(DS.Colors.primaryAccent)
+                                .accentColor(DS.Colors.primaryAccent)
+                                .textFieldStyle(.plain)
+                                .focused($isSearchFieldFocused)
+                                .onChange(of: searchText) { _, newValue in
+                                    guard searchScope == .cafes else { return } // Only auto-search map for cafes
+                                    
+                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !trimmed.isEmpty {
+                                        if !isSearchActive {
+                                            withAnimation {
+                                                isSearchActive = true
+                                            }
+                                        }
+                                        searchService.search(query: trimmed, region: region ?? defaultRegion)
+                                        if let currentRegion = region {
+                                            lastSearchRegion = currentRegion
+                                        }
+                                    } else {
+                                        searchService.cancelSearch()
+                                        if !isSearchFieldFocused {
+                                            withAnimation {
+                                                isSearchActive = false
+                                            }
+                                        }
+                                    }
+                                }
+                                .onChange(of: isSearchFieldFocused) { _, isFocused in
+                                    if isFocused {
                                         withAnimation {
                                             isSearchActive = true
                                         }
-                                    }
-                                    searchService.search(query: trimmed, region: region ?? defaultRegion)
-                                } else {
-                                    searchService.cancelSearch()
-                                    if !isSearchFieldFocused {
+                                    } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                         withAnimation {
                                             isSearchActive = false
                                         }
                                     }
                                 }
-                            }
-                            .onChange(of: isSearchFieldFocused) { _, isFocused in
-                                if isFocused {
-                                    withAnimation {
-                                        isSearchActive = true
-                                    }
-                                } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    withAnimation {
-                                        isSearchActive = false
-                                    }
+                            
+                            if !searchText.isEmpty {
+                                Button(action: {
+                                    searchText = ""
+                                    searchService.cancelSearch()
+                                    // Don't close search, just clear text
+                                    // isSearchActive = false 
+                                    // isSearchFieldFocused = false
+                                    lastSearchRegion = nil 
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(DS.Colors.iconSubtle)
                                 }
                             }
+                        }
+                        .padding(DS.Spacing.md)
+                        .background(DS.Colors.cardBackground)
+                        .cornerRadius(DS.Radius.card)
+                        .dsCardShadow()
                         
-                        if !searchText.isEmpty {
-                            Button(action: {
+                        if isSearchActive {
+                            Button("Cancel") {
                                 searchText = ""
                                 searchService.cancelSearch()
                                 isSearchActive = false
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(DS.Colors.iconSubtle)
+                                isSearchFieldFocused = false
+                                lastSearchRegion = nil
+                                searchScope = .cafes // Reset scope
+                            }
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .transition(.opacity)
+                        }
+                        
+                        // Notifications bell icon (Hidden when searching to save space)
+                        if !isSearchActive {
+                            Button(action: { showNotifications = true }) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "bell")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(DS.Colors.iconDefault)
+                                        .frame(width: 44, height: 44)
+                                    
+                                    if unreadNotificationCount > 0 {
+                                        Text("\(unreadNotificationCount)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(DS.Colors.textOnMint)
+                                            .padding(4)
+                                            .background(
+                                                Circle()
+                                                    .fill(DS.Colors.primaryAccent)
+                                            )
+                                            .offset(x: 8, y: -8)
+                                    }
+                                }
                             }
                         }
                     }
-                    .padding(DS.Spacing.md)
-                    .background(DS.Colors.cardBackground)
-                    .cornerRadius(DS.Radius.card)
-                    .dsCardShadow()
                     
+                    // Scope Picker (Visible when searching)
                     if isSearchActive {
-                        Button("Cancel") {
-                            searchText = ""
-                            searchService.cancelSearch()
-                            isSearchActive = false
-                            isSearchFieldFocused = false
-                        }
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .transition(.opacity)
-                    }
-                    
-                    // Notifications bell icon
-                    Button(action: { showNotifications = true }) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell")
-                                .font(.system(size: 20))
-                                .foregroundColor(DS.Colors.iconDefault)
-                                .frame(width: 44, height: 44)
-                            
-                            if unreadNotificationCount > 0 {
-                                Text("\(unreadNotificationCount)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(DS.Colors.textOnMint)
-                                    .padding(4)
-                                    .background(
-                                        Circle()
-                                            .fill(DS.Colors.primaryAccent)
-                                    )
-                                    .offset(x: 8, y: -8)
+                        Picker("Scope", selection: $searchScope) {
+                            ForEach(SearchScope.allCases, id: \.self) { scope in
+                                Text(scope.rawValue).tag(scope)
                             }
                         }
+                        .pickerStyle(.segmented)
+                        .padding(.top, DS.Spacing.sm)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
                 .padding(DS.Spacing.pagePadding)
                 .background(DS.Colors.screenBackground.opacity(isSearchActive ? 0.95 : 0))
                 .animation(.easeInOut(duration: 0.2), value: isSearchActive)
                 
-                // Search results list (inline below search bar)
-                if isSearchActive {
-                    CafeSearchResultsPanel(
-                        searchText: $searchText,
-                        searchService: searchService,
-                        recentSearches: dataManager.appData.recentSearches,
-                        showRecentSearches: shouldShowRecentSearches,
-                        referenceLocation: referenceLocation,
-                        onMapItemSelected: { mapItem in
-                            handleSearchResult(mapItem)
-                        },
-                        onRecentSelected: { entry in
-                            handleRecentSearch(entry)
-                        }
+                // Search This Area Button (Only for Cafe mode)
+                if shouldShowSearchThisArea && searchScope == .cafes {
+                    SearchThisAreaButton(
+                        action: handleSearchThisArea,
+                        isSearching: searchService.isSearching
                     )
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .zIndex(100)
+                }
+                
+                // Search results list
+                if isSearchActive {
+                    if searchScope == .cafes {
+                        CafeSearchResultsPanel(
+                            searchText: $searchText,
+                            searchService: searchService,
+                            recentSearches: dataManager.appData.recentSearches,
+                            showRecentSearches: shouldShowRecentSearches,
+                            referenceLocation: referenceLocation,
+                            onMapItemSelected: { mapItem in
+                                handleSearchResult(mapItem)
+                            },
+                            onRecentSelected: { entry in
+                                handleRecentSearch(entry)
+                            }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    } else {
+                        PeopleSearchResultsPanel(
+                            searchText: $searchText,
+                            dataManager: dataManager
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 
                 Spacer()
@@ -433,6 +517,7 @@ struct MapTabView: View {
         let queryText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         searchText = ""
         searchService.cancelSearch()
+        lastSearchRegion = nil // Reset context after selecting
         
         if recordRecent {
             dataManager.addRecentSearch(from: mapItem, query: queryText.isEmpty ? (mapItem.name ?? "") : queryText)
@@ -450,90 +535,41 @@ struct MapTabView: View {
         }
     }
     
+    // PERFORMANCE: Computed property optimized to avoid verbose logging in tight loops
     private var cafesWithLocations: [Cafe] {
         // In Sip Squad mode, show aggregated cafes from user + friends (or just user if no friends)
         if isSipSquadMode {
             let sipSquadCafes = dataManager.getSipSquadCafes()
-            
-            #if DEBUG
-            print("🗺️ [Map] Sip Squad Mode - filtering \(sipSquadCafes.count) aggregated cafes")
-            #endif
-            
-            let filtered = sipSquadCafes.filter { cafe in
-                guard let location = cafe.location else {
-                    #if DEBUG
-                    print("  ❌ '\(cafe.name)' - NO LOCATION in Sip Squad mode")
-                    #endif
-                    return false
-                }
-                guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else {
-                    #if DEBUG
-                    print("  ❌ '\(cafe.name)' - INVALID COORDS in Sip Squad mode: (\(location.latitude), \(location.longitude))")
-                    #endif
-                    return false
-                }
-                let qualifies = cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
-                #if DEBUG
-                if qualifies {
-                    print("  ✅ '\(cafe.name)' - HAS LOCATION in Sip Squad mode at (\(location.latitude), \(location.longitude)), visitCount: \(cafe.visitCount)")
-                } else {
-                    print("  ⚠️ '\(cafe.name)' - HAS LOCATION but doesn't qualify in Sip Squad mode (visitCount: \(cafe.visitCount))")
-                }
-                #endif
-                return qualifies
-            }
-            
-            #if DEBUG
-            print("🗺️ [Map] Sip Squad Mode - \(filtered.count) cafes with valid locations (from \(sipSquadCafes.count) total)")
-            #endif
-            
-            return filtered
+            return filterCafesWithValidLocations(sipSquadCafes)
         }
         
         // Normal mode: Show cafes that have a map location and are either:
         // - Logged at least once (visitCount > 0), or
         // - Marked as favorite, or
         // - Marked as "Want to Try"
-        let totalCafes = dataManager.appData.cafes.count
-        #if DEBUG
-        print("🗺️ [Map] Filtering cafes - total: \(totalCafes)")
-        #endif
-        
-        let filtered = dataManager.appData.cafes.filter { cafe in
-            // Check location first
-            guard let location = cafe.location else {
-                #if DEBUG
-                print("  ❌ '\(cafe.name)' - NO LOCATION (visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry))")
-                #endif
-                return false
-            }
+        return filterCafesWithValidLocations(dataManager.appData.cafes)
+    }
+    
+    // PERFORMANCE: Extracted filtering logic to reduce code duplication and enable optimization
+    private func filterCafesWithValidLocations(_ cafes: [Cafe]) -> [Cafe] {
+        let filtered = cafes.filter { cafe in
+            // Check location first (fast rejection)
+            guard let location = cafe.location else { return false }
             
             // Ensure coordinates are valid
-            guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else {
-                #if DEBUG
-                print("  ❌ '\(cafe.name)' - INVALID COORDS: (\(location.latitude), \(location.longitude))")
-                #endif
-                return false
-            }
+            guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else { return false }
             
             // Check if cafe qualifies (has visits, favorite, or wantToTry)
-            let qualifies = cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
-            #if DEBUG
-            if qualifies {
-                print("  ✅ '\(cafe.name)' - HAS LOCATION at (\(location.latitude), \(location.longitude)), visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry)")
-            } else {
-                print("  ⚠️ '\(cafe.name)' - HAS LOCATION but doesn't qualify (visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry))")
-            }
-            #endif
-            return qualifies
+            return cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
         }
         
+        // PERFORMANCE: Only log summary in debug builds, not per-cafe details
         #if DEBUG
-        print("🗺️ [Map] Filtered result: \(filtered.count) cafes will show pins (from \(totalCafes) total)")
-        if filtered.isEmpty && totalCafes > 0 {
-            print("⚠️ [Map] WARNING: No cafes passed filter! Check locations and visitCount/favorite/wantToTry flags")
+        if filtered.isEmpty && !cafes.isEmpty {
+            print("⚠️ [Map] No cafes passed filter from \(cafes.count) total - check locations and flags")
         }
         #endif
+        
         return filtered
     }
 }
@@ -562,18 +598,14 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.showsBuildings = false
         mapView.showsTraffic = false
         
-        #if DEBUG
-        print("🗺️ [MapView] makeUIView called - initial cafes count: \(cafes.count)")
-        #endif
-        
         // Add initial annotations
         let initialAnnotations = cafes.map { CafeAnnotation(cafe: $0) }
         if !initialAnnotations.isEmpty {
-            #if DEBUG
-            print("🗺️ [MapView] Adding \(initialAnnotations.count) initial annotations")
-            #endif
             mapView.addAnnotations(initialAnnotations)
         }
+        
+        // Register default cluster view
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier)
         
         return mapView
     }
@@ -592,57 +624,54 @@ struct MapViewRepresentable: UIViewRepresentable {
             mapView.setRegion(region, animated: true)
         }
         
-        #if DEBUG
-        print("🗺️ [MapView] updateUIView called with \(cafes.count) cafes")
-        for (index, cafe) in cafes.enumerated() {
-            print("  [\(index)] \(cafe.name) - location: \(cafe.location != nil ? "✅" : "❌"), visitCount: \(cafe.visitCount), favorite: \(cafe.isFavorite), wantToTry: \(cafe.wantToTry)")
-        }
-        #endif
-        
-        // Update annotations - refresh all to handle Favorite/Want to Try state changes
+        // PERFORMANCE: Build lookup structures once instead of repeated searches
         let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
         let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
         let currentCafeIds = Set(cafes.map { $0.id })
         
-        #if DEBUG
-        print("🗺️ [MapView] Existing annotations: \(existingAnnotations.count), Current cafes: \(cafes.count)")
-        #endif
+        // BUGFIX: Handle duplicate cafe IDs safely - keep only the first occurrence
+        // This prevents crashes if getSipSquadCafes() returns duplicates
+        var cafesById: [UUID: Cafe] = [:]
+        for cafe in cafes {
+            if cafesById[cafe.id] == nil {
+                cafesById[cafe.id] = cafe
+            }
+        }
+        let currentCafesById = cafesById
         
         // Remove annotations for cafes that no longer exist
         let toRemove = existingAnnotations.filter { !currentCafeIds.contains($0.cafe.id) }
         if !toRemove.isEmpty {
-            #if DEBUG
-            print("🗺️ [MapView] Removing \(toRemove.count) annotations")
-            #endif
             mapView.removeAnnotations(toRemove)
         }
         
-        // Update existing annotations if cafe state changed (Favorite/Want to Try)
+        // PERFORMANCE: Batch annotation updates to minimize map view operations
+        var annotationsToRemove: [CafeAnnotation] = []
+        var annotationsToAdd: [CafeAnnotation] = []
+        
+        // Check existing annotations for state changes
         for existingAnnotation in existingAnnotations {
-            if let updatedCafe = cafes.first(where: { $0.id == existingAnnotation.cafe.id }) {
-                // Check if Favorite/Want to Try state changed
-                if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
-                   existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
-                   existingAnnotation.cafe.averageRating != updatedCafe.averageRating {
-                    // Remove and re-add to trigger view refresh
-                    mapView.removeAnnotation(existingAnnotation)
-                    let newAnnotation = CafeAnnotation(cafe: updatedCafe)
-                    mapView.addAnnotation(newAnnotation)
-                }
+            guard let updatedCafe = currentCafesById[existingAnnotation.cafe.id] else { continue }
+            
+            // Check if Favorite/Want to Try state changed
+            if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
+               existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
+               existingAnnotation.cafe.averageRating != updatedCafe.averageRating {
+                annotationsToRemove.append(existingAnnotation)
+                annotationsToAdd.append(CafeAnnotation(cafe: updatedCafe))
             }
         }
         
-        // Add new annotations
+        // Add new annotations for cafes not already shown
         let toAdd = cafes.filter { !existingCafeIds.contains($0.id) }
-        let newAnnotations = toAdd.map { CafeAnnotation(cafe: $0) }
-        if !newAnnotations.isEmpty {
-            #if DEBUG
-            print("🗺️ [MapView] Adding \(newAnnotations.count) new annotations")
-            for annotation in newAnnotations {
-                print("  ➕ Adding pin for: \(annotation.cafe.name) at (\(annotation.coordinate.latitude), \(annotation.coordinate.longitude))")
-            }
-            #endif
-            mapView.addAnnotations(newAnnotations)
+        annotationsToAdd.append(contentsOf: toAdd.map { CafeAnnotation(cafe: $0) })
+        
+        // PERFORMANCE: Batch operations
+        if !annotationsToRemove.isEmpty {
+            mapView.removeAnnotations(annotationsToRemove)
+        }
+        if !annotationsToAdd.isEmpty {
+            mapView.addAnnotations(annotationsToAdd)
         }
     }
     
@@ -662,15 +691,8 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
             
             guard let cafeAnnotation = annotation as? CafeAnnotation else {
-                #if DEBUG
-                print("⚠️ [MapView] viewFor annotation: Not a CafeAnnotation, type: \(type(of: annotation))")
-                #endif
                 return nil
             }
-            
-            #if DEBUG
-            print("🗺️ [MapView] Creating view for annotation: \(cafeAnnotation.cafe.name) at (\(cafeAnnotation.coordinate.latitude), \(cafeAnnotation.coordinate.longitude))")
-            #endif
             
             let cafe = cafeAnnotation.cafe
             let identifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
@@ -681,6 +703,8 @@ struct MapViewRepresentable: UIViewRepresentable {
                 annotationView?.canShowCallout = false
                 annotationView?.isEnabled = true
                 annotationView?.isUserInteractionEnabled = true
+                // Enable Clustering
+                annotationView?.clusteringIdentifier = "cafeCluster"
             } else {
                 annotationView?.annotation = annotation
             }
@@ -856,25 +880,13 @@ struct MapViewRepresentable: UIViewRepresentable {
 class CafeAnnotation: NSObject, MKAnnotation {
     let cafe: Cafe
     var coordinate: CLLocationCoordinate2D {
-        guard let location = cafe.location else {
-            #if DEBUG
-            print("⚠️ [CafeAnnotation] Cafe '\(cafe.name)' has nil location, returning (0,0)")
-            #endif
-            return CLLocationCoordinate2D()
-        }
-        return location
+        // PERFORMANCE: Return location directly without debug logging in hot path
+        return cafe.location ?? CLLocationCoordinate2D()
     }
     
     init(cafe: Cafe) {
         self.cafe = cafe
         super.init()
-        #if DEBUG
-        if cafe.location == nil {
-            print("⚠️ [CafeAnnotation] Created annotation for '\(cafe.name)' but location is nil!")
-        } else {
-            print("✅ [CafeAnnotation] Created annotation for '\(cafe.name)' at (\(cafe.location!.latitude), \(cafe.location!.longitude))")
-        }
-        #endif
     }
 }
 

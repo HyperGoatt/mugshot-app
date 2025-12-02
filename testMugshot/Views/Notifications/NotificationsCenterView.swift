@@ -12,7 +12,7 @@ struct NotificationsCenterView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @StateObject private var hapticsManager = HapticsManager.shared
-    @State private var selectedNotification: MugshotNotification?
+    @State private var selectedVisit: Visit?
     
     private var unreadCount: Int {
         dataManager.appData.notifications.filter { !$0.isRead }.count
@@ -81,12 +81,9 @@ struct NotificationsCenterView: View {
                 await dataManager.refreshNotifications()
             }
         }
-        .sheet(item: $selectedNotification) { notification in
-            if let visitId = notification.targetVisitId,
-               let visit = dataManager.appData.visits.first(where: { $0.id == visitId }) {
-                NavigationStack {
-                    VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
-                }
+        .sheet(item: $selectedVisit) { visit in
+            NavigationStack {
+                VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
             }
         }
     }
@@ -117,8 +114,14 @@ struct NotificationsCenterView: View {
         markAsRead(notification)
         
         // Navigate to related content if applicable
-        if notification.targetVisitId != nil {
-            selectedNotification = notification
+        if let visitId = notification.targetVisitId {
+            Task {
+                if let visit = await dataManager.getOrFetchVisit(id: visitId) {
+                    await MainActor.run {
+                        self.selectedVisit = visit
+                    }
+                }
+            }
         }
     }
     

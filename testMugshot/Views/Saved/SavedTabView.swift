@@ -254,7 +254,7 @@ struct SavedTabView: View {
         switch selectedTab {
         case .favorites:
             EmptyStateView(
-                iconName: "DreamingMug",
+                iconName: "MugsyNoFavorites",
                 title: "No favorites yet",
                 subtitle: "Heart a cafe from your visits to add it here.",
                 primaryAction: EmptyStateAction(
@@ -268,7 +268,7 @@ struct SavedTabView: View {
             )
         case .wishlist:
             EmptyStateView(
-                iconName: "BookmarkMug",
+                iconName: "MugsyNoWishlist",
                 title: "Nothing on your wishlist",
                 subtitle: "Bookmark cafes you want to try from the Feed or Map.",
                 primaryAction: EmptyStateAction(

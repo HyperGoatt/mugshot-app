@@ -15,16 +15,17 @@ struct JournalStatsHelper {
     /// - Parameter visits: Array of visits to analyze
     /// - Returns: Number of consecutive days with visits ending today (or yesterday if no visit today yet)
     static func calculateCurrentStreak(visits: [Visit]) -> Int {
+        // PERFORMANCE: Early exit for common case
         guard !visits.isEmpty else { return 0 }
         
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         
-        // Get unique visit dates (start of day only)
+        // PERFORMANCE: Only create Set if we have visits to analyze
         let visitDates = Set(visits.map { calendar.startOfDay(for: $0.createdAt) })
         
         // Check if there's a visit today or yesterday to start counting
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return 0 }
         
         var currentDate: Date
         if visitDates.contains(today) {

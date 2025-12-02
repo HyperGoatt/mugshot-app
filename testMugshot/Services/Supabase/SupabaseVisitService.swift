@@ -414,6 +414,36 @@ final class SupabaseVisitService {
             throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
         }
     }
+    
+    // MARK: - Cafe Aggregate Stats
+    
+    /// Fetches app-wide aggregated statistics for a cafe
+    /// Calls the get_cafe_aggregate_stats PostgreSQL function
+    /// Returns total visits, average rating, and top 5 drinks ordered
+    func fetchCafeAggregateStats(cafeId: UUID) async throws -> CafeAggregateStats {
+        print("[VisitService] Fetching aggregate stats for cafe: \(cafeId)")
+        
+        // Call the RPC function
+        let (data, response) = try await client.request(
+            path: "rest/v1/rpc/get_cafe_aggregate_stats",
+            method: "POST",
+            headers: ["Content-Type": "application/json"],
+            body: try encoder.encode(["p_cafe_id": cafeId.uuidString])
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            print("[VisitService] ❌ Failed to fetch aggregate stats: HTTP \(response.statusCode)")
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("[VisitService] Error: \(errorString)")
+            }
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        
+        // The RPC returns the JSON directly (not wrapped in an array)
+        let stats = try decoder.decode(CafeAggregateStats.self, from: data)
+        print("[VisitService] ✅ Fetched aggregate stats: \(stats.totalVisits) visits, \(stats.averageRating) avg, \(stats.topDrinks.count) drinks")
+        return stats
+    }
 }
 
 // MARK: - Payloads
