@@ -22,6 +22,7 @@ struct VisitDetailHeader: View {
     let initials: String
     let isCurrentUserAuthor: Bool
     var onMenuTap: (() -> Void)? = nil
+    var onAvatarTap: (() -> Void)? = nil
     
     var body: some View {
         HStack(alignment: .center, spacing: DS.Spacing.md) {
@@ -30,7 +31,8 @@ struct VisitDetailHeader: View {
                 image: avatarImage,
                 remoteURL: remoteAvatarURL,
                 initials: initials,
-                size: 44
+                size: 44,
+                onTap: onAvatarTap
             )
             
             // Name and metadata
@@ -79,6 +81,7 @@ struct VisitAvatarView: View {
     let remoteURL: String?
     let initials: String
     let size: CGFloat
+    var onTap: (() -> Void)? = nil
     
     var body: some View {
         CachedAvatarImage(
@@ -94,6 +97,10 @@ struct VisitAvatarView: View {
             Circle()
                 .stroke(DS.Colors.cardBackground, lineWidth: 2)
         )
+        .contentShape(Circle())
+        .onTapGesture {
+            onTap?()
+        }
     }
     
     private var placeholder: some View {
@@ -545,6 +552,20 @@ struct InlineCommentsSection: View {
     var onDeleteComment: ((Comment) -> Void)? = nil
     var isCommentFieldFocused: FocusState<Bool>.Binding
     
+    // Mention autocomplete state
+    @State private var showMentionAutocomplete = false
+    @State private var mentionSearchText = ""
+    @State private var friendProfiles: [RemoteUserProfile] = []
+    
+    private var filteredFriends: [RemoteUserProfile] {
+        guard !mentionSearchText.isEmpty else { return friendProfiles }
+        let searchLower = mentionSearchText.lowercased()
+        return friendProfiles.filter { profile in
+            profile.username.lowercased().contains(searchLower) ||
+            profile.displayName.lowercased().contains(searchLower)
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Section header
@@ -595,6 +616,17 @@ struct InlineCommentsSection: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: comments.count)
             }
             
+            // Mention autocomplete dropdown
+            if showMentionAutocomplete && !filteredFriends.isEmpty {
+                MentionAutocompleteDropdown(
+                    friends: filteredFriends,
+                    onSelect: { profile in
+                        insertMention(username: profile.username)
+                    }
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            
             // Comment input
             HStack(spacing: DS.Spacing.sm) {
                 TextField("Add a comment...", text: $commentText)
@@ -608,10 +640,14 @@ struct InlineCommentsSection: View {
                             .stroke(DS.Colors.borderSubtle.opacity(0.5), lineWidth: 1)
                     )
                     .focused(isCommentFieldFocused)
+                    .onChange(of: commentText) { _, newValue in
+                        checkForMentionTrigger(newValue)
+                    }
                 
                 Button(action: {
                     onPostComment?()
                     isCommentFieldFocused.wrappedValue = false
+                    showMentionAutocomplete = false
                 }) {
                     Text("Post")
                         .font(DS.Typography.subheadline(.semibold))
@@ -636,6 +672,148 @@ struct InlineCommentsSection: View {
                 .stroke(DS.Colors.borderSubtle.opacity(0.4), lineWidth: 0.5)
         )
         .dsCardShadow()
+        .onAppear {
+            loadFriendProfiles()
+        }
+    }
+    
+    // MARK: - Mention Helpers
+    
+    private func checkForMentionTrigger(_ text: String) {
+        // Find the last @ in the text
+        guard let atIndex = text.lastIndex(of: "@") else {
+            withAnimation { showMentionAutocomplete = false }
+            mentionSearchText = ""
+            return
+        }
+        
+        // Get text after the @
+        let afterAt = String(text[text.index(after: atIndex)...])
+        
+        // Check if we're still in a mention context (no space after @)
+        if afterAt.contains(" ") || afterAt.contains("\n") {
+            // User typed space after mention, hide autocomplete
+            withAnimation { showMentionAutocomplete = false }
+            mentionSearchText = ""
+            return
+        }
+        
+        // Show autocomplete with the search text
+        mentionSearchText = afterAt
+        withAnimation { showMentionAutocomplete = true }
+    }
+    
+    private func insertMention(username: String) {
+        // Find the last @ and the text after it
+        guard let atIndex = commentText.lastIndex(of: "@") else { return }
+        
+        // Get text before @
+        let beforeAt = String(commentText[..<atIndex])
+        
+        // Get text after @ (might contain partial username or other text)
+        let afterAtIndex = commentText.index(after: atIndex)
+        let afterAt = String(commentText[afterAtIndex...])
+        
+        // Find where the mention search text ends (if user typed partial username)
+        // We want to replace only the search portion, not everything after @
+        let searchText = mentionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let textToReplace: String
+        if !searchText.isEmpty && afterAt.hasPrefix(searchText) {
+            // User was typing a username, replace that portion
+            textToReplace = searchText
+        } else {
+            // No search text or it doesn't match, replace everything after @
+            // But preserve any text that looks like it's after the mention (has space before it)
+            if let spaceIndex = afterAt.firstIndex(of: " ") {
+                // There's a space, so there's text after the mention
+                // Replace up to the space
+                textToReplace = String(afterAt[..<spaceIndex])
+            } else {
+                // No space, replace everything
+                textToReplace = afterAt
+            }
+        }
+        
+        // Get remaining text after what we're replacing
+        let remainingText: String
+        if afterAt.hasPrefix(textToReplace) {
+            let remainingStart = afterAt.index(afterAt.startIndex, offsetBy: textToReplace.count)
+            remainingText = String(afterAt[remainingStart...])
+        } else {
+            remainingText = afterAt
+        }
+        
+        // Insert the mention with proper spacing
+        let mention = "@\(username)"
+        let spacing = remainingText.isEmpty || remainingText.hasPrefix(" ") ? "" : " "
+        commentText = beforeAt + mention + spacing + remainingText
+        
+        // Hide autocomplete
+        withAnimation { showMentionAutocomplete = false }
+        mentionSearchText = ""
+    }
+    
+    private func loadFriendProfiles() {
+        Task {
+            do {
+                let profiles = try await dataManager.fetchFriendProfiles()
+                await MainActor.run {
+                    friendProfiles = profiles
+                }
+            } catch {
+                print("[InlineCommentsSection] Error loading friend profiles: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+// MARK: - Mention Autocomplete Dropdown
+
+struct MentionAutocompleteDropdown: View {
+    let friends: [RemoteUserProfile]
+    let onSelect: (RemoteUserProfile) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(friends.prefix(5), id: \.id) { profile in
+                Button {
+                    onSelect(profile)
+                } label: {
+                    HStack(spacing: DS.Spacing.sm) {
+                        // Avatar
+                        ProfileAvatarView(
+                            profileImageId: nil,
+                            profileImageURL: profile.avatarURL,
+                            username: profile.username,
+                            size: 32
+                        )
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(profile.displayName)
+                                .font(DS.Typography.subheadline(.medium))
+                                .foregroundColor(DS.Colors.textPrimary)
+                            Text("@\(profile.username)")
+                                .font(DS.Typography.caption1())
+                                .foregroundColor(DS.Colors.primaryAccent)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                
+                if profile.id != friends.prefix(5).last?.id {
+                    Divider()
+                        .padding(.leading, DS.Spacing.md + 32 + DS.Spacing.sm)
+                }
+            }
+        }
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.md)
+        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -645,6 +823,9 @@ struct InlineCommentRow: View {
     let isNewlyAdded: Bool
     var onEdit: ((Comment) -> Void)?
     var onDelete: ((Comment) -> Void)?
+    
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
     
     private var isCurrentUserComment: Bool {
         guard let currentUser = dataManager.appData.currentUser else { return false }
@@ -685,7 +866,8 @@ struct InlineCommentRow: View {
                 image: commenterProfileImage,
                 remoteURL: commenterRemoteAvatarURL,
                 initials: commenterInitials,
-                size: 28
+                size: 28,
+                onTap: { handleAvatarTap() }
             )
             
             VStack(alignment: .leading, spacing: 2) {
@@ -700,10 +882,16 @@ struct InlineCommentRow: View {
                         .foregroundColor(DS.Colors.textTertiary)
                 }
                 
-                // Comment text
-                MentionText(text: comment.text, mentions: comment.mentions)
-                    .font(DS.Typography.subheadline())
-                    .foregroundColor(DS.Colors.textPrimary)
+                // Comment text with tappable mentions
+                MentionText(
+                    text: comment.text,
+                    mentions: comment.mentions,
+                    onMentionTap: { username in
+                        handleMentionTap(username: username)
+                    }
+                )
+                .font(DS.Typography.subheadline())
+                .foregroundColor(DS.Colors.textPrimary)
             }
             
             Spacer(minLength: DS.Spacing.sm)
@@ -744,6 +932,47 @@ struct InlineCommentRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func handleMentionTap(username: String) {
+        profileNavigator.openProfile(
+            handle: .mention(username: username),
+            source: .mentionComment,
+            triggerHaptic: true
+        )
+    }
+    
+    private func handleAvatarTap() {
+        if isCurrentUserComment || comment.supabaseUserId == dataManager.appData.supabaseUserId {
+            tabCoordinator.switchToProfile()
+            return
+        }
+        if let supabaseUserId = comment.supabaseUserId {
+            profileNavigator.openProfile(
+                handle: .supabase(id: supabaseUserId),
+                source: .other,
+                triggerHaptic: true
+            )
+            return
+        }
+        
+        if let username = fallbackUsername {
+            profileNavigator.openProfile(
+                handle: .mention(username: username),
+                source: .other,
+                triggerHaptic: true
+            )
+        }
+    }
+    
+    private var fallbackUsername: String? {
+        let trimmed = commenterUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("@") {
+            let withoutAt = trimmed.dropFirst()
+            return withoutAt.isEmpty ? nil : String(withoutAt)
+        }
+        return trimmed
     }
 }
 

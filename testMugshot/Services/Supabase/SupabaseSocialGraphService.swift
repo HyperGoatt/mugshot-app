@@ -37,6 +37,23 @@ final class SupabaseSocialGraphService {
         return follows.map { $0.followeeId }
     }
     
+    func fetchFollowerIds(for userId: String) async throws -> [String] {
+        let queryItems = [
+            URLQueryItem(name: "followee_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "select", value: "follower_id")
+        ]
+        let (data, response) = try await client.request(
+            path: "rest/v1/follows",
+            method: "GET",
+            queryItems: queryItems
+        )
+        guard (200..<300).contains(response.statusCode) else {
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        let follows = try decoder.decode([RemoteFollow].self, from: data)
+        return follows.map { $0.followerId }
+    }
+    
     func follow(userId: String, targetUserId: String) async throws {
         let payload = FollowMutationPayload(followerId: userId, followeeId: targetUserId)
         let body = try encoder.encode([payload])
@@ -249,6 +266,7 @@ final class SupabaseSocialGraphService {
     // MARK: - Friends
     
     func fetchFriends(for userId: String) async throws -> [String] {
+        // Primary source of truth: explicit friendships table
         let queryItems = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
             URLQueryItem(name: "select", value: "user_id,friend_user_id")
@@ -262,7 +280,19 @@ final class SupabaseSocialGraphService {
             throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
         }
         let friends = try decoder.decode([RemoteFriend].self, from: data)
-        return friends.map { $0.friendUserId }
+        let directFriendIds = friends.map { $0.friendUserId }
+        
+        if !directFriendIds.isEmpty {
+            return directFriendIds
+        }
+        
+        // Fallback: treat mutual follows as friends if explicit friendships
+        // haven't been created yet (e.g., legacy data or pre-friends system).
+        let followingIds = try await fetchFollowingIds(for: userId)
+        let followerIds = try await fetchFollowerIds(for: userId)
+        
+        let mutuals = Set(followingIds).intersection(Set(followerIds))
+        return Array(mutuals)
     }
     
     func removeFriend(userId: String, friendUserId: String) async throws {

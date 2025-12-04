@@ -10,8 +10,12 @@ import SwiftUI
 struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var preselectedCafeForLogVisit: Cafe?
+    
+    // Timer for periodic notification refresh
+    @State private var notificationRefreshTimer: Timer?
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -64,6 +68,13 @@ struct MainTabView: View {
             
             // Set up push notification navigation listeners
             setupPushNotificationListeners()
+            
+            // Start periodic notification refresh (every 60 seconds)
+            startNotificationRefreshTimer()
+        }
+        .onDisappear {
+            // Clean up timer
+            stopNotificationRefreshTimer()
         }
         .overlay(alignment: .top) {
             if dataManager.isOffline {
@@ -84,6 +95,18 @@ struct MainTabView: View {
                 .allowsHitTesting(false)
             }
         }
+        .sheet(
+            item: Binding(
+                get: { profileNavigator.activePresentation },
+                set: { if $0 == nil { profileNavigator.dismissPresentation() } }
+            )
+        ) { presentation in
+            ProfileNavigationSheet(
+                dataManager: dataManager,
+                navigator: profileNavigator,
+                presentation: presentation
+            )
+        }
     }
     
     private func switchToTab(_ newTab: Int) {
@@ -95,6 +118,24 @@ struct MainTabView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
             tabCoordinator.selectedTab = newTab
         }
+    }
+    
+    private func startNotificationRefreshTimer() {
+        // Invalidate any existing timer
+        stopNotificationRefreshTimer()
+        
+        // Create a new timer that fires every 60 seconds
+        notificationRefreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+            Task { @MainActor in
+                guard dataManager.appData.isUserAuthenticated && dataManager.appData.hasEmailVerified else { return }
+                await dataManager.refreshNotifications()
+            }
+        }
+    }
+    
+    private func stopNotificationRefreshTimer() {
+        notificationRefreshTimer?.invalidate()
+        notificationRefreshTimer = nil
     }
     
     private func setupPushNotificationListeners() {

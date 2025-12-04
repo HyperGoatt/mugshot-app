@@ -128,6 +128,12 @@ class DataManager: ObservableObject {
     }
 
     // MARK: - Supabase Auth
+    
+    /// Check if a username is available (not already taken by another user)
+    /// Returns true if the username is available, false if taken
+    func checkUsernameAvailability(_ username: String) async throws -> Bool {
+        return try await profileService.checkUsernameAvailability(username)
+    }
 
     func signUp(
         displayName: String,
@@ -136,47 +142,55 @@ class DataManager: ObservableObject {
         password: String
     ) async throws {
         print("[Auth] signUp: Starting signup for email: \(email)")
+        authErrorMessage = nil
         
-        // Tuple return type change
-        let (session, userId) = try await authService.signUp(
-            email: email,
-            password: password,
-            displayName: displayName,
-            username: username
-        )
+        do {
+            // Tuple return type change
+            let (session, userId) = try await authService.signUp(
+                email: email,
+                password: password,
+                displayName: displayName,
+                username: username
+            )
 
-        print("[Auth] signUp: Signup successful - userId: \(userId)")
-        appData.supabaseUserId = userId
-        appData.currentUserEmail = email
-        appData.currentUserDisplayName = displayName
-        appData.currentUserUsername = username
-        appData.hasEmailVerified = false
-        
-        // Mark this as a NEW account signup - user should see onboarding flow
-        appData.isNewAccountSignup = true
+            print("[Auth] signUp: Signup successful - userId: \(userId), displayName: \(displayName), username: \(username)")
+            appData.supabaseUserId = userId
+            appData.currentUserEmail = email
+            appData.currentUserDisplayName = displayName
+            appData.currentUserUsername = username
+            appData.hasEmailVerified = false
+            print("[Auth] signUp: Stored profile data - currentUserDisplayName=\(appData.currentUserDisplayName ?? "nil"), currentUserUsername=\(appData.currentUserUsername ?? "nil")")
+            
+            // Mark this as a NEW account signup - user should see onboarding flow
+            appData.isNewAccountSignup = true
 
-        if let _ = session {
-             print("[Auth] signUp: Session obtained immediately")
-             // If we get a session, we are authenticated, but we still assume unverified
-             // until proven otherwise (unless Supabase config allows unverified sessions)
-             appData.isUserAuthenticated = true
-        } else {
-             print("[Auth] signUp: No session (awaiting verification)")
-             // No token = not authenticated
-             appData.isUserAuthenticated = false
+            if let _ = session {
+                 print("[Auth] signUp: Session obtained immediately")
+                 // If we get a session, we are authenticated, but we still assume unverified
+                 // until proven otherwise (unless Supabase config allows unverified sessions)
+                 appData.isUserAuthenticated = true
+            } else {
+                 print("[Auth] signUp: No session (awaiting verification)")
+                 // No token = not authenticated
+                 appData.isUserAuthenticated = false
+            }
+
+            let localUser = User(
+                id: UUID(uuidString: userId) ?? UUID(),
+                supabaseUserId: userId,
+                username: username,
+                displayName: displayName,
+                location: appData.currentUserLocation ?? "",
+                bio: appData.currentUserBio ?? ""
+            )
+            appData.currentUser = localUser
+            save()
+            print("[Auth] signUp: Auth state set - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=false, isNewAccountSignup=true")
+            print("[SignUp] Success – verification email sent to \(email)")
+        } catch {
+            print("[SignUp] Error – \(error.localizedDescription)")
+            throw error
         }
-
-        let localUser = User(
-            id: UUID(uuidString: userId) ?? UUID(),
-            supabaseUserId: userId,
-            username: username,
-            displayName: displayName,
-            location: appData.currentUserLocation ?? "",
-            bio: appData.currentUserBio ?? ""
-        )
-        appData.currentUser = localUser
-        save()
-        print("[Auth] signUp: Auth state set - isUserAuthenticated=\(appData.isUserAuthenticated), hasEmailVerified=false, isNewAccountSignup=true")
     }
     
     func resendVerificationEmail() async throws {
@@ -699,10 +713,11 @@ class DataManager: ObservableObject {
         // Use the single source of truth method to refresh auth status
         await refreshAuthStatusFromSupabase()
         
-        // Refresh friends list if authenticated to get accurate count
+        // Refresh friends list and notifications if authenticated to get accurate counts
         if appData.isUserAuthenticated && appData.hasEmailVerified {
-            print("[Auth] bootstrapAuthStateOnLaunch: Refreshing friends list")
+            print("[Auth] bootstrapAuthStateOnLaunch: Refreshing friends list and notifications")
             await refreshFriendsList()
+            await refreshNotifications()
         }
         
         isBootstrapping = false
@@ -745,17 +760,22 @@ class DataManager: ObservableObject {
         let finalDisplayName: String
         if let displayName = appData.currentUserDisplayName, !displayName.isEmpty {
             finalDisplayName = displayName
+            print("[ProfileSetup] Using signup displayName: \(displayName)")
         } else if let username = appData.currentUserUsername, !username.isEmpty {
             finalDisplayName = username.capitalized
+            print("[ProfileSetup] Using username as displayName fallback: \(username.capitalized)")
         } else {
             finalDisplayName = "User"
+            print("[ProfileSetup] WARNING: No displayName or username found, using 'User' fallback")
         }
         
         let finalUsername: String
         if let username = appData.currentUserUsername, !username.isEmpty {
             finalUsername = username.lowercased()
+            print("[ProfileSetup] Using signup username: \(username.lowercased())")
         } else {
             finalUsername = "user"
+            print("[ProfileSetup] WARNING: No username found, using 'user' fallback")
         }
         
         let remoteProfile = RemoteUserProfile(
@@ -803,14 +823,47 @@ class DataManager: ObservableObject {
     private func mapRemoteUserProfile(_ profile: RemoteUserProfile) {
         appData.supabaseUserId = profile.id
         
-        // Only update local values if remote values are non-empty
-        // This preserves local signup data if remote profile is incomplete
-        if !profile.displayName.isEmpty {
-            appData.currentUserDisplayName = profile.displayName
+        // Helper to check if a value is a meaningful user-entered value (not a generic default)
+        func isGenericDefault(_ value: String) -> Bool {
+            let lowered = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            return lowered == "user" || lowered == "username" || lowered.isEmpty
         }
-        if !profile.username.isEmpty {
-            appData.currentUserUsername = profile.username
+        
+        // Helper to check if local has a meaningful value that should be preserved
+        func localHasMeaningfulValue(_ local: String?) -> Bool {
+            guard let local = local else { return false }
+            return !isGenericDefault(local)
         }
+        
+        // For display name: prefer local signup value over generic remote defaults
+        // Only update from remote if: remote is meaningful AND (local is empty OR local is generic)
+        if !profile.displayName.isEmpty && !isGenericDefault(profile.displayName) {
+            // Remote has meaningful value - use it unless local also has meaningful value
+            if !localHasMeaningfulValue(appData.currentUserDisplayName) {
+                appData.currentUserDisplayName = profile.displayName
+                print("[mapRemoteUserProfile] Updated displayName from remote: \(profile.displayName)")
+            } else {
+                print("[mapRemoteUserProfile] Preserved local displayName: \(appData.currentUserDisplayName ?? "nil") (remote was: \(profile.displayName))")
+            }
+        } else if localHasMeaningfulValue(appData.currentUserDisplayName) {
+            // Remote is generic but local has good value - keep local
+            print("[mapRemoteUserProfile] Kept local displayName: \(appData.currentUserDisplayName ?? "nil") (remote was generic: \(profile.displayName))")
+        }
+        
+        // For username: same logic - preserve local signup value over generic remote defaults
+        if !profile.username.isEmpty && !isGenericDefault(profile.username) {
+            // Remote has meaningful value - use it unless local also has meaningful value
+            if !localHasMeaningfulValue(appData.currentUserUsername) {
+                appData.currentUserUsername = profile.username
+                print("[mapRemoteUserProfile] Updated username from remote: \(profile.username)")
+            } else {
+                print("[mapRemoteUserProfile] Preserved local username: \(appData.currentUserUsername ?? "nil") (remote was: \(profile.username))")
+            }
+        } else if localHasMeaningfulValue(appData.currentUserUsername) {
+            // Remote is generic but local has good value - keep local
+            print("[mapRemoteUserProfile] Kept local username: \(appData.currentUserUsername ?? "nil") (remote was generic: \(profile.username))")
+        }
+        
         // For optional fields, only update if remote has a value
         if let bio = profile.bio, !bio.isEmpty {
             appData.currentUserBio = bio
@@ -835,8 +888,22 @@ class DataManager: ObservableObject {
             appData.currentUserBannerURL = bannerURL
         }
 
+        // When creating localUser, use the preserved appData values (which may be local signup values)
         let remoteUUID = UUID(uuidString: profile.id) ?? appData.currentUser?.id ?? UUID()
-        var localUser = profile.toLocalUser(existing: appData.currentUser, overridingId: remoteUUID)
+        var localUser = User(
+            id: remoteUUID,
+            supabaseUserId: profile.id,
+            username: appData.currentUserUsername ?? profile.username,
+            displayName: appData.currentUserDisplayName ?? profile.displayName,
+            location: profile.location ?? appData.currentUserLocation ?? "",
+            avatarImageName: appData.currentUser?.avatarImageName,
+            profileImageID: appData.currentUser?.profileImageID,
+            bannerImageID: appData.currentUser?.bannerImageID,
+            bio: profile.bio ?? appData.currentUserBio ?? "",
+            instagramURL: profile.instagramHandle,
+            websiteURL: profile.websiteURL ?? appData.currentUser?.websiteURL,
+            favoriteDrink: profile.favoriteDrink ?? appData.currentUserFavoriteDrink
+        )
         localUser.supabaseUserId = profile.id
         appData.currentUser = localUser
     }
@@ -1535,8 +1602,107 @@ class DataManager: ObservableObject {
     }
     
     /// Sync data to widgets
+    /// Includes current user's visits and friends' recent visits for the widget
     func syncWidgetData() {
-        WidgetSyncService.shared.syncWidgetData(dataManager: self)
+        // Get friends' visits for the Friends' Latest Sips widget
+        let friendsVisits = getFriendsVisitsForWidget()
+        
+        #if DEBUG
+        print("[WidgetSync] Syncing widget data...")
+        print("[WidgetSync] Friends count: \(appData.friendsSupabaseUserIds.count)")
+        print("[WidgetSync] Friends visits for widget: \(friendsVisits.count)")
+        if let latestFriendVisit = friendsVisits.first {
+            print("[WidgetSync] Latest friend visit: '\(latestFriendVisit.authorDisplayNameOrUsername)' at '\(appData.cafes.first { $0.id == latestFriendVisit.cafeId }?.name ?? "Unknown")' on \(latestFriendVisit.createdAt)")
+        }
+        #endif
+        
+        WidgetSyncService.shared.syncWidgetData(
+            dataManager: self,
+            friendsVisits: friendsVisits
+        )
+    }
+    
+    /// Returns visits from friends for the widget (sorted by date, most recent first)
+    /// Only includes visits that are visible to the current user (everyone or friends visibility)
+    private func getFriendsVisitsForWidget() -> [Visit] {
+        #if DEBUG
+        print("[WidgetSync:Friends] ========== GET FRIENDS VISITS FOR WIDGET ==========")
+        #endif
+        
+        guard let supabaseUserId = appData.supabaseUserId else {
+            #if DEBUG
+            print("[WidgetSync:Friends] ❌ No supabaseUserId - cannot get friends visits")
+            #endif
+            return []
+        }
+        
+        // Normalize IDs to uppercase for case-insensitive comparison
+        let normalizedCurrentUserId = supabaseUserId.uppercased()
+        let normalizedFriendIds = Set(appData.friendsSupabaseUserIds.map { $0.uppercased() })
+        
+        #if DEBUG
+        print("[WidgetSync:Friends] Current user ID: \(supabaseUserId.prefix(8))...")
+        print("[WidgetSync:Friends] Friends IDs: \(appData.friendsSupabaseUserIds.map { $0.prefix(8).description })")
+        print("[WidgetSync:Friends] Total visits in appData: \(appData.visits.count)")
+        #endif
+        
+        guard !normalizedFriendIds.isEmpty else {
+            #if DEBUG
+            print("[WidgetSync:Friends] ❌ No friends - friendsSupabaseUserIds is empty")
+            print("[WidgetSync:Friends] ================================================")
+            #endif
+            return []
+        }
+        
+        // Debug: Analyze all visits to understand why filtering might fail
+        #if DEBUG
+        var visitsByAuthor: [String: Int] = [:]
+        var visitsWithoutAuthor = 0
+        for visit in appData.visits {
+            if let authorId = visit.supabaseUserId {
+                visitsByAuthor[authorId, default: 0] += 1
+            } else {
+                visitsWithoutAuthor += 1
+            }
+        }
+        print("[WidgetSync:Friends] Visits by author ID:")
+        for (authorId, count) in visitsByAuthor {
+            let normalizedAuthorId = authorId.uppercased()
+            let isFriend = normalizedFriendIds.contains(normalizedAuthorId)
+            let isCurrentUser = normalizedAuthorId == normalizedCurrentUserId
+            print("[WidgetSync:Friends]   - \(authorId.prefix(8))...: \(count) visits (friend: \(isFriend), current user: \(isCurrentUser))")
+        }
+        if visitsWithoutAuthor > 0 {
+            print("[WidgetSync:Friends]   - (no author ID): \(visitsWithoutAuthor) visits")
+        }
+        #endif
+        
+        // Filter visits from friends only (not current user)
+        // Include visits with visibility = everyone or friends
+        // Use case-insensitive comparison for IDs
+        let friendsVisits = appData.visits.filter { visit in
+            guard let authorId = visit.supabaseUserId else { return false }
+            let normalizedAuthorId = authorId.uppercased()
+            
+            // Must be from a friend (not current user)
+            guard normalizedFriendIds.contains(normalizedAuthorId) && normalizedAuthorId != normalizedCurrentUserId else { return false }
+            
+            // Must be visible (everyone or friends)
+            return visit.visibility == .everyone || visit.visibility == .friends
+        }
+        
+        // Sort by date, most recent first
+        let sorted = friendsVisits.sorted { $0.createdAt > $1.createdAt }
+        
+        #if DEBUG
+        print("[WidgetSync:Friends] ✅ Found \(sorted.count) visible friend visits")
+        if let latest = sorted.first {
+            print("[WidgetSync:Friends] Latest: '\(latest.authorDisplayNameOrUsername)' - visibility: \(latest.visibility.rawValue)")
+        }
+        print("[WidgetSync:Friends] ================================================")
+        #endif
+        
+        return sorted
     }
     
     func getVisit(id: UUID) -> Visit? {
@@ -1631,7 +1797,8 @@ class DataManager: ObservableObject {
             notes: visit.notes,
             visibility: visit.visibility.supabaseValue,
             ratings: visit.ratings,
-            overallScore: visit.overallScore
+            overallScore: visit.overallScore,
+            posterPhotoURL: visit.posterPhotoURL
         )
         
         print("[DataManager] Visit updated successfully in Supabase for visit \(visit.id)")
@@ -1803,6 +1970,10 @@ class DataManager: ObservableObject {
             let request = try await socialGraphService.sendFriendRequest(from: supabaseUserId, to: targetUserId)
             print("[Friends] Friend request sent - id: \(request.id), from: \(supabaseUserId), to: \(targetUserId)")
             
+            // Update pending request tracking
+            appData.outgoingRequestsByUserId[targetUserId] = request.id.uuidString
+            save()
+            
             // Create a notification for the recipient
             let payload = NotificationInsertPayload(
                 userId: targetUserId,
@@ -1864,6 +2035,9 @@ class DataManager: ObservableObject {
             print("[Friends] Friends list updated: \(previousCount) -> \(appData.friendsSupabaseUserIds.count) friends")
             print("[Friends] Current friends: \(appData.friendsSupabaseUserIds)")
             
+            // Remove from pending requests tracking
+            appData.incomingRequestsByUserId.removeValue(forKey: request.fromUserId)
+            
             // Create notification for the requester that their request was accepted
             let payload = NotificationInsertPayload(
                 userId: request.fromUserId,
@@ -1874,8 +2048,17 @@ class DataManager: ObservableObject {
             )
             try? await notificationService.createNotification(payload)
             
+            save()
+            
             print("[Friends] Friend request accepted successfully - id: \(requestId)")
             save()
+            
+            // WIDGET REFRESH: New friend added - refresh widget to show their visits
+            // Fetch friend visits in background to populate widget data
+            Task {
+                await fetchSipSquadVisitsIfNeeded()
+            }
+            
         } catch {
             print("❌ [Friends] Failed to accept friend request: \(error.localizedDescription)")
             throw error
@@ -1896,6 +2079,13 @@ class DataManager: ObservableObject {
         do {
             try await socialGraphService.cancelFriendRequest(requestId: requestId)
             print("[FriendsRequests] Canceled outgoing request id=\(requestId)")
+            
+            // Remove from pending requests tracking
+            // Find the user ID associated with this request
+            if let (userId, _) = appData.outgoingRequestsByUserId.first(where: { $0.value == requestId.uuidString }) {
+                appData.outgoingRequestsByUserId.removeValue(forKey: userId)
+                save()
+            }
         } catch {
             print("❌ [Friends] Failed to cancel friend request: \(error.localizedDescription)")
             throw error
@@ -1937,6 +2127,24 @@ class DataManager: ObservableObject {
         return friends
     }
     
+    /// Fetch friend profiles as RemoteUserProfile for autocomplete and mentions
+    func fetchFriendProfiles() async throws -> [RemoteUserProfile] {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
+        let friendIds = try await socialGraphService.fetchFriends(for: supabaseUserId)
+        var profiles: [RemoteUserProfile] = []
+        
+        for friendId in friendIds {
+            if let profile = try? await profileService.fetchUserProfile(userId: friendId) {
+                profiles.append(profile)
+            }
+        }
+        
+        return profiles
+    }
+    
     func fetchFriendRequests() async throws -> (incoming: [FriendRequest], outgoing: [FriendRequest]) {
         guard let supabaseUserId = appData.supabaseUserId else {
             throw SupabaseError.invalidSession
@@ -1944,6 +2152,12 @@ class DataManager: ObservableObject {
         
         let incoming = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
         let outgoing = try await socialGraphService.fetchOutgoingFriendRequests(for: supabaseUserId)
+        
+        // Update pending request tracking dictionaries for quick status lookups
+        // Maps userId -> requestId for easy lookup when displaying friendship state
+        appData.incomingRequestsByUserId = Dictionary(uniqueKeysWithValues: incoming.map { ($0.fromUserId, $0.id.uuidString) })
+        appData.outgoingRequestsByUserId = Dictionary(uniqueKeysWithValues: outgoing.map { ($0.toUserId, $0.id.uuidString) })
+        save()
         
         return (
             incoming: incoming.map { FriendRequest(from: $0) },
@@ -1993,9 +2207,18 @@ class DataManager: ObservableObject {
     }
     
     func fetchOtherUserVisits(userId: String) async throws {
+        print("[DataManager] fetchOtherUserVisits: Fetching visits for userId: \(userId)")
         let remoteVisits = try await visitService.fetchVisitsForUserProfile(userId: userId)
+        print("[DataManager] fetchOtherUserVisits: Fetched \(remoteVisits.count) remote visits")
+        
         let mapped = remoteVisits.map { mapRemoteVisit($0) }
+        print("[DataManager] fetchOtherUserVisits: Mapped \(mapped.count) visits, checking supabaseUserId...")
+        for visit in mapped {
+            print("[DataManager] fetchOtherUserVisits: Visit id=\(visit.id), supabaseUserId=\(visit.supabaseUserId ?? "nil"), userId=\(userId)")
+        }
+        
         mergeVisits(mapped)
+        print("[DataManager] fetchOtherUserVisits: Merged visits. Total visits in appData: \(appData.visits.count)")
         
         // Update cafe stats
         let uniqueCafeIds = Set(mapped.map { $0.cafeId })
@@ -2110,6 +2333,15 @@ class DataManager: ObservableObject {
                 if let sampleVisit = mapped.first(where: { $0.cafeId == cafeId }) {
                     updateCafeStatsForVisit(sampleVisit)
                 }
+            }
+            
+            // WIDGET REFRESH: Sync widget data after loading friend visits
+            // This ensures the Friends' Latest Sips widget gets updated
+            if scope == .friends {
+                #if DEBUG
+                print("[RefreshFeed] Syncing widget data after friends feed refresh")
+                #endif
+                syncWidgetData()
             }
         } catch {
             #if DEBUG
@@ -2337,6 +2569,21 @@ class DataManager: ObservableObject {
     func updateRatingTemplate(_ template: RatingTemplate) {
         appData.ratingTemplate = template
         save()
+        
+        // Sync to Supabase in background
+        Task {
+            guard let userId = appData.supabaseUserId else {
+                print("[DataManager] updateRatingTemplate: No supabaseUserId, skipping remote sync")
+                return
+            }
+            do {
+                let remoteTemplate = RemoteRatingTemplate.fromLocal(userId: userId, template: template)
+                _ = try await profileService.upsertRatingTemplate(remoteTemplate)
+                print("[DataManager] Rating template synced to Supabase successfully")
+            } catch {
+                print("[DataManager] Failed to sync rating template to Supabase: \(error.localizedDescription)")
+            }
+        }
     }
     
     // MARK: - Onboarding
@@ -2879,6 +3126,11 @@ extension DataManager {
             
             print("[SipSquad] Visits merged - total cafes in appData: \(appData.cafes.count)")
             print("[SipSquad] ========================================")
+            
+            // WIDGET REFRESH: Sync widget data after loading friend visits
+            // This ensures the Friends' Latest Sips widget gets updated
+            syncWidgetData()
+            
         } catch {
             print("[SipSquad] Error fetching friend visits: \(error.localizedDescription)")
         }
@@ -3103,6 +3355,114 @@ extension DataManager {
         // Count unique cafes
         let uniqueCafeIds = Set(friendVisits.map { $0.cafeId })
         return uniqueCafeIds.count
+    }
+    
+    // MARK: - Map Data: Solo Mode vs Sip Squad Mode
+    
+    /// Returns cafes for SOLO map mode (only current user's visits)
+    /// This ensures friends' visits do NOT appear on the map in solo mode
+    /// Includes cafes that have been visited by current user, or marked as favorite/wantToTry
+    func getCurrentUserCafesForMap() -> [Cafe] {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            #if DEBUG
+            print("[Map:Solo] No supabaseUserId - returning empty cafes")
+            #endif
+            return []
+        }
+        
+        let currentUserId = appData.currentUser?.id
+        
+        // Get cafe IDs where the current user has logged visits
+        let currentUserVisitedCafeIds = Set(
+            appData.visits
+                .filter { visit in
+                    // Match current user by supabaseUserId or local userId
+                    if visit.supabaseUserId == supabaseUserId {
+                        return true
+                    }
+                    if let userId = currentUserId, visit.userId == userId {
+                        return true
+                    }
+                    return false
+                }
+                .map { $0.cafeId }
+        )
+        
+        // Filter cafes to only those visited by current user OR marked as favorite/wantToTry
+        let currentUserCafes = appData.cafes.filter { cafe in
+            // Include if current user has visited
+            if currentUserVisitedCafeIds.contains(cafe.id) {
+                return true
+            }
+            
+            // Also check by supabaseId (for cafes synced from remote)
+            if let supabaseId = cafe.supabaseId, currentUserVisitedCafeIds.contains(supabaseId) {
+                return true
+            }
+            
+            // Include if marked as favorite or want to try (these are always user's own)
+            if cafe.isFavorite || cafe.wantToTry {
+                return true
+            }
+            
+            return false
+        }
+        
+        // Recalculate ratings based on current user's visits only
+        var resultCafes: [Cafe] = []
+        for cafe in currentUserCafes {
+            let userVisitsForCafe = appData.visits.filter { visit in
+                // Check if visit is for this cafe
+                let isForCafe = visit.cafeId == cafe.id || visit.supabaseCafeId == cafe.id || visit.supabaseCafeId == cafe.supabaseId
+                guard isForCafe else { return false }
+                
+                // Check if visit is by current user
+                if visit.supabaseUserId == supabaseUserId {
+                    return true
+                }
+                if let userId = currentUserId, visit.userId == userId {
+                    return true
+                }
+                return false
+            }
+            
+            if userVisitsForCafe.isEmpty && !cafe.isFavorite && !cafe.wantToTry {
+                // Skip cafes with no user visits unless they're favorite/wantToTry
+                continue
+            }
+            
+            // Calculate rating from user's visits only
+            let avgRating: Double
+            if !userVisitsForCafe.isEmpty {
+                let sum = userVisitsForCafe.reduce(0.0) { $0 + $1.overallScore }
+                avgRating = (sum / Double(userVisitsForCafe.count) * 10).rounded() / 10
+            } else {
+                avgRating = cafe.averageRating // Keep existing for favorite/wantToTry without visits
+            }
+            
+            let updatedCafe = createCafeWithUpdatedRating(
+                cafe,
+                rating: avgRating,
+                visitCount: userVisitsForCafe.count
+            )
+            resultCafes.append(updatedCafe)
+        }
+        
+        #if DEBUG
+        print("[Map:Solo] ========== SOLO MODE CAFES ==========")
+        print("[Map:Solo] Current user supabaseUserId: \(supabaseUserId.prefix(8))...")
+        print("[Map:Solo] Total visits in appData: \(appData.visits.count)")
+        print("[Map:Solo] Current user visited cafe IDs: \(currentUserVisitedCafeIds.count)")
+        print("[Map:Solo] Filtered cafes for solo map: \(resultCafes.count)")
+        if resultCafes.count <= 5 {
+            for cafe in resultCafes {
+                print("[Map:Solo]   - '\(cafe.name)' (visits: \(cafe.visitCount), rating: \(cafe.averageRating), fav: \(cafe.isFavorite), want: \(cafe.wantToTry))")
+            }
+        }
+        print("[Map:Solo] ======================================")
+        #endif
+        
+        return resultCafes
     }
 }
 

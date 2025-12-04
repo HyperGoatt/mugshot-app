@@ -15,7 +15,9 @@ struct testMugshotApp: App {
     @StateObject private var dataManager = DataManager.shared
     @StateObject private var supabaseEnvironment = SupabaseEnvironment()
     @StateObject private var tabCoordinator = TabCoordinator()
+    @StateObject private var profileNavigator = ProfileNavigator()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
         // Configure UITextField and UITextView to use light mode colors
@@ -30,9 +32,50 @@ struct testMugshotApp: App {
             rootView
                 .environmentObject(supabaseEnvironment)
                 .environmentObject(tabCoordinator)
+                .environmentObject(profileNavigator)
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
+                .onChange(of: scenePhase) { _, newPhase in
+                    handleScenePhaseChange(newPhase)
+                }
+                .onAppear {
+                    profileNavigator.attach(tabCoordinator: tabCoordinator)
+                }
+        }
+    }
+    
+    /// Handle scene phase changes to refresh widgets and data
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            // App came to foreground - refresh widget data
+            guard dataManager.appData.isAuthenticated && dataManager.appData.hasCompletedProfileSetup else {
+                return
+            }
+            
+            #if DEBUG
+            print("[App] Scene became active - syncing widget data")
+            #endif
+            
+            // Sync widget data when app becomes active
+            syncWidgetData()
+            
+        case .inactive:
+            break
+            
+        case .background:
+            // Sync widget data when going to background to ensure fresh data
+            guard dataManager.appData.isAuthenticated else { return }
+            
+            #if DEBUG
+            print("[App] Scene going to background - final widget sync")
+            #endif
+            
+            syncWidgetData()
+            
+        @unknown default:
+            break
         }
     }
     
@@ -163,10 +206,12 @@ struct testMugshotApp: App {
         }
     }
     
-    /// Sync data to widgets
+    /// Sync data to widgets (calls DataManager which includes friends visits)
     private func syncWidgetData() {
         Task { @MainActor in
-            WidgetSyncService.shared.syncWidgetData(dataManager: dataManager)
+            // IMPORTANT: Call dataManager.syncWidgetData() NOT WidgetSyncService directly
+            // DataManager.syncWidgetData() fetches friends visits and passes them to the widget
+            dataManager.syncWidgetData()
         }
     }
     
@@ -283,15 +328,46 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
     
     // Handle notification received while app is in background
+    // This handles BOTH regular notifications and SILENT push notifications
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        print("[AppDelegate] Received remote notification in background")
-        Task { @MainActor in
-            PushNotificationManager.shared.handleNotificationFromUserInfo(userInfo)
+        // Check if this is a silent push notification (content-available: 1)
+        let aps = userInfo["aps"] as? [String: Any]
+        let isContentAvailable = aps?["content-available"] as? Int == 1
+        let hasAlert = aps?["alert"] != nil
+        let isSilentPush = isContentAvailable && !hasAlert
+        
+        // Check the notification type
+        let notificationType = userInfo["type"] as? String
+        
+        if isSilentPush && notificationType == "widget_update" {
+            // SILENT PUSH: Widget update from friend's new visit
+            print("[AppDelegate] 📱 Received SILENT push for widget update")
+            
+            Task { @MainActor in
+                await PushNotificationManager.shared.handleSilentPushForWidgetUpdate(userInfo: userInfo)
+                completionHandler(.newData)
+            }
+        } else if isSilentPush {
+            // Other silent push types (future expansion)
+            print("[AppDelegate] 📱 Received silent push (type: \(notificationType ?? "unknown"))")
+            
+            Task { @MainActor in
+                // Generic silent push handling - just sync data
+                DataManager.shared.syncWidgetData()
+                completionHandler(.newData)
+            }
+        } else {
+            // Regular visible notification
+            print("[AppDelegate] 🔔 Received remote notification in background")
+            
+            Task { @MainActor in
+                PushNotificationManager.shared.handleNotificationFromUserInfo(userInfo)
+            }
+            completionHandler(.newData)
         }
-        completionHandler(.newData)
     }
 }

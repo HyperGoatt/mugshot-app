@@ -434,28 +434,28 @@ struct MapTabView: View {
             .padding(.bottom, 80) // Reserve space for custom tab bar (≈70pt) + a bit of breathing room
             .ignoresSafeArea(.keyboard, edges: .bottom)
             
-            // Bottom sheet for cafe details
-            if showCafeDetail, let cafe = selectedCafe {
-                VStack {
-                    Spacer()
-                    CafeDetailSheet(
-                        cafe: cafe,
-                        dataManager: dataManager,
-                        isPresented: $showCafeDetail,
-                        onLogVisitRequested: onLogVisitRequested,
-                        onVisitSelected: { visit in
-                            selectedVisit = visit
-                        }
-                    )
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            // Unified café sheet (preview → full)
+            // Presented via .sheet modifier below
+
         }
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
         }
         .sheet(isPresented: $showFriendsHub) {
             FriendsHubView(dataManager: dataManager)
+        }
+        .sheet(isPresented: $showCafeDetail) {
+            if let cafe = selectedCafe {
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .mapSheet,
+                    onLogVisitRequested: onLogVisitRequested,
+                    onDismiss: {
+                        showCafeDetail = false
+                    }
+                )
+            }
         }
         .navigationDestination(item: $selectedVisit) { visit in
             VisitDetailView(dataManager: dataManager, visit: visit)
@@ -536,19 +536,52 @@ struct MapTabView: View {
         }
     }
     
-    // PERFORMANCE: Computed property optimized to avoid verbose logging in tight loops
+    // MARK: - Map Pin Data Sources (Strict Separation)
+    
+    /// Cafes for SOLO mode - only current user's visits
+    /// Friends' visits NEVER appear in solo mode
+    private var currentUserCafesForMap: [Cafe] {
+        dataManager.getCurrentUserCafesForMap()
+    }
+    
+    /// Cafes for SIP SQUAD mode - combined user + friends visits with aggregated ratings
+    private var sipSquadCombinedCafesForMap: [Cafe] {
+        dataManager.getSipSquadCafes()
+    }
+    
+    /// Final computed property used by the map view
+    /// Strictly separated: solo mode uses ONLY current user data, Sip Squad uses combined data
     private var cafesWithLocations: [Cafe] {
-        // In Sip Squad mode, show aggregated cafes from user + friends (or just user if no friends)
+        #if DEBUG
+        let mode = isSipSquadMode ? "sipSquad" : "solo"
+        print("[Map] Building pins - mode: \(mode)")
+        #endif
+        
         if isSipSquadMode {
-            let sipSquadCafes = dataManager.getSipSquadCafes()
-            return filterCafesWithValidLocations(sipSquadCafes)
+            // SIP SQUAD MODE: Show aggregated cafes from user + friends
+            let sipSquadCafes = sipSquadCombinedCafesForMap
+            let filtered = filterCafesWithValidLocations(sipSquadCafes)
+            
+            #if DEBUG
+            print("[Map:SipSquad] Total SipSquad cafes: \(sipSquadCafes.count), with valid locations: \(filtered.count)")
+            #endif
+            
+            return filtered
         }
         
-        // Normal mode: Show cafes that have a map location and are either:
-        // - Logged at least once (visitCount > 0), or
-        // - Marked as favorite, or
-        // - Marked as "Want to Try"
-        return filterCafesWithValidLocations(dataManager.appData.cafes)
+        // SOLO MODE: Show ONLY current user's cafes
+        // This MUST NOT include any friends' visits
+        let soloCafes = currentUserCafesForMap
+        let filtered = filterCafesWithValidLocations(soloCafes)
+        
+        #if DEBUG
+        print("[Map:Solo] Total solo cafes: \(soloCafes.count), with valid locations: \(filtered.count)")
+        if let userId = dataManager.appData.supabaseUserId {
+            print("[Map:Solo] Current user ID: \(userId.prefix(8))...")
+        }
+        #endif
+        
+        return filtered
     }
     
     // PERFORMANCE: Extracted filtering logic to reduce code duplication and enable optimization
@@ -573,6 +606,40 @@ struct MapTabView: View {
         
         return filtered
     }
+    
+    /// Debug helper to verify map data integrity
+    /// Call this in debug builds to check if friend data is leaking into solo mode
+    #if DEBUG
+    private func debugVerifyMapPinIsolation() {
+        guard !isSipSquadMode else { return } // Only check in solo mode
+        
+        guard let supabaseUserId = dataManager.appData.supabaseUserId else { return }
+        let friendIds = dataManager.appData.friendsSupabaseUserIds
+        
+        // Check each cafe shown on the map
+        for cafe in cafesWithLocations {
+            // Get all visits for this cafe
+            let cafeVisits = dataManager.appData.visits.filter { visit in
+                visit.cafeId == cafe.id || visit.supabaseCafeId == cafe.id
+            }
+            
+            // Check if any visits are from friends (not current user)
+            let friendVisitsForCafe = cafeVisits.filter { visit in
+                guard let authorId = visit.supabaseUserId else { return false }
+                return friendIds.contains(authorId) && authorId != supabaseUserId
+            }
+            
+            let userVisitsForCafe = cafeVisits.filter { visit in
+                visit.supabaseUserId == supabaseUserId
+            }
+            
+            // If cafe has only friend visits and no user visits, it shouldn't be on solo map
+            if !friendVisitsForCafe.isEmpty && userVisitsForCafe.isEmpty && !cafe.isFavorite && !cafe.wantToTry {
+                print("🚨 [Map:Solo] DATA LEAK DETECTED: Cafe '\(cafe.name)' has \(friendVisitsForCafe.count) friend visits but 0 user visits and appears in solo mode!")
+            }
+        }
+    }
+    #endif
 }
 
 // MARK: - Map View Representable (to hide POIs)
@@ -1224,292 +1291,6 @@ struct SipSquadToggleButton: View {
     }
 }
 
-// MARK: - Cafe Detail Sheet
-
-struct CafeDetailSheet: View {
-    let cafe: Cafe
-    @ObservedObject var dataManager: DataManager
-    @Binding var isPresented: Bool
-    var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
-    let onVisitSelected: (Visit) -> Void
-    @State private var showLogVisit = false
-    @State private var showFullDetails = false
-    
-    // Get current cafe state from dataManager to reflect real-time changes
-    var currentCafe: Cafe? {
-        dataManager.getCafe(id: cafe.id)
-    }
-    
-    var displayCafe: Cafe {
-        currentCafe ?? cafe
-    }
-    
-    var visits: [Visit] {
-        dataManager.getVisitsForCafe(cafe.id)
-    }
-    
-    /// Get friends who have visited this cafe with their ratings
-    private func getFriendVisitors() -> [WhosBeenIndicator.FriendVisitor] {
-        let friendIds = dataManager.appData.friendsSupabaseUserIds
-        guard !friendIds.isEmpty else { return [] }
-        
-        // Get all visits to this cafe
-        let cafeVisits = dataManager.appData.visits.filter { $0.cafeId == cafe.id }
-        
-        // Filter to visits by friends and build visitor list
-        var seenIds = Set<String>()
-        var visitors: [WhosBeenIndicator.FriendVisitor] = []
-        
-        for visit in cafeVisits {
-            guard let visitorId = visit.supabaseUserId,
-                  friendIds.contains(visitorId),
-                  !seenIds.contains(visitorId) else { continue }
-            
-            seenIds.insert(visitorId)
-            
-            visitors.append(WhosBeenIndicator.FriendVisitor(
-                id: visitorId,
-                displayName: visit.authorDisplayNameOrUsername,
-                avatarURL: visit.authorAvatarURL,
-                rating: visit.overallScore
-            ))
-        }
-        
-        // Sort by rating (highest first)
-        return visitors.sorted { ($0.rating ?? 0) > ($1.rating ?? 0) }
-    }
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header with close button
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    // Cafe name
-                    Text(displayCafe.name)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    // Address with location icon
-                    if !displayCafe.address.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.espressoBrown.opacity(0.6))
-                            Text(displayCafe.address)
-                                .font(.system(size: 14))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // Close button
-                Button(action: {
-                    withAnimation {
-                        isPresented = false
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
-                }
-            }
-            .padding()
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Rating and meta
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.mugshotMint)
-                                .font(.system(size: 14))
-                            Text(String(format: "%.1f", displayCafe.averageRating > 0 ? displayCafe.averageRating : 0.0))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                        }
-                        
-                        Text("·")
-                            .foregroundColor(.espressoBrown.opacity(0.5))
-                        
-                        Text("\(displayCafe.visitCount) visit\(displayCafe.visitCount == 1 ? "" : "s")")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                    }
-                    
-                    Divider()
-                        .padding(.vertical, 4)
-                    
-                    // Primary action - Log a Visit
-                    Button(action: {
-                        if let onLogVisit = onLogVisitRequested {
-                            onLogVisit(displayCafe)
-                        } else {
-                            showLogVisit = true
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.system(size: 16))
-                            Text("Log a Visit")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(.espressoBrown)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.mugshotMint)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                    }
-                    
-                    // Secondary actions
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            // Haptic: confirm favorite toggle
-                            HapticsManager.shared.lightTap()
-                            // Use cafe object version to handle case where cafe isn't in user's list yet
-                            dataManager.toggleCafeFavorite(cafe: displayCafe)
-                        }) {
-                            HStack {
-                                Image(systemName: displayCafe.isFavorite ? "heart.fill" : "heart")
-                                    .font(.system(size: 14))
-                                Text("Favorite")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(displayCafe.isFavorite ? .espressoBrown : .espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.sandBeige)
-                            .cornerRadius(DesignSystem.cornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                    .stroke(displayCafe.isFavorite ? Color.mugshotMint : Color.clear, lineWidth: 2)
-                            )
-                        }
-                        
-                        Button(action: {
-                            // Haptic: confirm want-to-try toggle
-                            HapticsManager.shared.lightTap()
-                            // Use cafe object version to handle case where cafe isn't in user's list yet
-                            dataManager.toggleCafeWantToTry(cafe: displayCafe)
-                        }) {
-                            HStack {
-                                Image(systemName: displayCafe.wantToTry ? "bookmark.fill" : "bookmark")
-                                    .font(.system(size: 14))
-                                Text("Want to Try")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(displayCafe.wantToTry ? .espressoBrown : .espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.sandBeige)
-                            .cornerRadius(DesignSystem.cornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                    .stroke(displayCafe.wantToTry ? Color.mugshotMint : Color.clear, lineWidth: 2)
-                            )
-                        }
-                    }
-                    
-                    // Details button
-                    Button(action: {
-                        showFullDetails = true
-                    }) {
-                        Text("Details")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    
-                    // "Who's Been?" Indicator - shows friends who visited this cafe
-                    WhosBeenIndicator(friendVisitors: getFriendVisitors())
-                    
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    // Entries section
-                    if visits.isEmpty {
-                        Text("No entries yet. Be the first to log a visit!")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.6))
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .padding(.vertical, 16)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Recent Visits")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            ForEach(visits.prefix(5)) { visit in
-                                VisitEntryRow(visit: visit) {
-                                    onVisitSelected(visit)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-        }
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.largeCornerRadius, corners: [.topLeft, .topRight] as UIRectCorner)
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.75)
-        .sheet(isPresented: $showLogVisit) {
-            LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
-        }
-        .sheet(isPresented: $showFullDetails) {
-            CafeDetailView(cafe: cafe, dataManager: dataManager)
-        }
-    }
-}
-
-// MARK: - Visit Entry Row
-
-struct VisitEntryRow: View {
-    let visit: Visit
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                // Thumbnail
-                PhotoThumbnailView(
-                    photoPath: visit.posterImagePath,
-                    remoteURL: visit.posterImagePath.flatMap { visit.remoteURL(for: $0) },
-                    size: 50
-                )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(visit.date, style: .date)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.espressoBrown)
-                    
-                    if !visit.caption.isEmpty {
-                        Text(visit.caption)
-                            .font(.system(size: 12))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                            .lineLimit(1)
-                    }
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
-                        .font(.system(size: 12))
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                }
-            }
-        }
-        .padding()
-        .background(Color.sandBeige.opacity(0.5))
-        .cornerRadius(DesignSystem.smallCornerRadius)
-        .buttonStyle(.plain)
-    }
-}
+// MARK: - Legacy CafeDetailSheet removed
+// The unified café experience is now handled by UnifiedCafeView
 

@@ -12,6 +12,7 @@ import UIKit
 struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedTab: ProfileContentTab = .posts
     @State private var showEditProfile = false
@@ -150,7 +151,11 @@ struct ProfileTabView: View {
         }
             .sheet(isPresented: $showCafeDetail) {
                 if let cafe = selectedCafe {
-                    CafeDetailView(cafe: cafe, dataManager: dataManager)
+                    UnifiedCafeView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        presentationMode: .fullScreen
+                    )
                 }
             }
             .sheet(isPresented: $showFriendsHub) {
@@ -222,12 +227,10 @@ struct ProfileTabView: View {
             }
         }
         .onChange(of: tabCoordinator.navigationTarget) { _, newTarget in
-            // Handle deep link navigation to friend requests or friends hub
-            if newTarget == .friendRequests || newTarget == .friendsHub {
-                print("[ProfileTabView] Deep link navigation to Friends Hub")
-                showFriendsHub = true
-                tabCoordinator.clearNavigationTarget()
-            }
+            handleNavigationTarget(newTarget)
+        }
+        .onAppear {
+            handleNavigationTarget(tabCoordinator.navigationTarget)
         }
         }
     }
@@ -240,6 +243,26 @@ struct ProfileTabView: View {
             pendingFriendRequestCount = count
         }
         print("[ProfileTabView] Pending friend request count: \(count)")
+    }
+
+    private func handleNavigationTarget(_ target: TabCoordinator.NavigationTarget?) {
+        guard let target else { return }
+        
+        switch target {
+        case .friendRequests, .friendsHub:
+            print("[ProfileTabView] Deep link navigation to Friends Hub")
+            showFriendsHub = true
+            tabCoordinator.clearNavigationTarget()
+        case .friendProfile(let userId):
+            profileNavigator.openProfile(
+                handle: .supabase(id: userId),
+                source: .notifications,
+                triggerHaptic: false
+            )
+            tabCoordinator.clearNavigationTarget()
+        default:
+            break
+        }
     }
     
     // MARK: - Profile Header Section
@@ -465,7 +488,11 @@ struct ProfileCafesView: View {
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .fullScreen
+                )
             }
         }
     }
@@ -658,7 +685,11 @@ struct ProfileSavedView: View {
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .fullScreen
+                )
             }
         }
     }

@@ -310,6 +310,64 @@ final class SupabaseUserProfileService {
         return saved
     }
     
+    // MARK: - Username Validation
+    
+    /// Check if a username is available (not already taken by another user)
+    /// Returns true if the username is available, false if taken
+    func checkUsernameAvailability(_ username: String) async throws -> Bool {
+        let normalizedUsername = username.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !normalizedUsername.isEmpty else {
+            print("[SupabaseUserProfileService] checkUsernameAvailability: Empty username provided")
+            return false
+        }
+        
+        print("[SupabaseUserProfileService] checkUsernameAvailability: Checking username '\(normalizedUsername)'")
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/users",
+            method: "GET",
+            queryItems: [
+                URLQueryItem(name: "username", value: "eq.\(normalizedUsername)"),
+                URLQueryItem(name: "select", value: "id"),
+                URLQueryItem(name: "limit", value: "1")
+            ],
+            headers: ["Prefer": "return=representation"],
+            body: nil
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[SupabaseUserProfileService] checkUsernameAvailability: Failed - status: \(response.statusCode), message: \(errorMsg)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMsg)
+        }
+        
+        // If the response is an empty array, the username is available
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("[SupabaseUserProfileService] checkUsernameAvailability: Response: \(jsonString)")
+            let trimmed = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == "[]" {
+                print("[SupabaseUserProfileService] checkUsernameAvailability: Username '\(normalizedUsername)' is available")
+                return true
+            }
+        }
+        
+        // Try to decode to be sure
+        do {
+            struct MinimalProfile: Codable {
+                let id: String
+            }
+            let profiles = try JSONDecoder().decode([MinimalProfile].self, from: data)
+            let isAvailable = profiles.isEmpty
+            print("[SupabaseUserProfileService] checkUsernameAvailability: Username '\(normalizedUsername)' is \(isAvailable ? "available" : "taken")")
+            return isAvailable
+        } catch {
+            // If we can't decode and response was successful, assume username check failed
+            print("[SupabaseUserProfileService] checkUsernameAvailability: Decode error - \(error)")
+            throw SupabaseError.decoding("Failed to check username availability: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - User Search
     
     /// Search for users by username or display name using case-insensitive partial matching

@@ -208,7 +208,11 @@ struct SavedTabView: View {
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .fullScreen
+                )
             }
         }
         .sheet(isPresented: $showNotifications) {
@@ -282,7 +286,7 @@ struct SavedTabView: View {
             )
         case .library:
             EmptyStateView(
-                iconName: "DreamingMug",
+                iconName: "MugsyNoCafes",
                 title: "No cafes yet",
                 subtitle: "Log your first visit to start building your cafe collection.",
                 primaryAction: EmptyStateAction(

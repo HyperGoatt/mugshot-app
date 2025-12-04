@@ -10,7 +10,7 @@ import SwiftUI
 struct MutualFriendsSection: View {
     let mutualFriends: [User]
     @ObservedObject var dataManager: DataManager
-    @State private var selectedUserId: String?
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -21,7 +21,17 @@ struct MutualFriendsSection: View {
                     ForEach(mutualFriends.prefix(10)) { friend in
                         Button(action: {
                             if let userId = friend.supabaseUserId {
-                                selectedUserId = userId
+                                profileNavigator.openProfile(
+                                    handle: .supabase(id: userId, username: friend.username),
+                                    source: .mutualFriends,
+                                    triggerHaptic: false
+                                )
+                            } else {
+                                profileNavigator.openProfile(
+                                    handle: .mention(username: friend.username),
+                                    source: .mutualFriends,
+                                    triggerHaptic: false
+                                )
                             }
                         }) {
                             VStack(spacing: DS.Spacing.xs) {
@@ -42,14 +52,6 @@ struct MutualFriendsSection: View {
                         .buttonStyle(.plain)
                     }
                 }
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { selectedUserId != nil },
-            set: { if !$0 { selectedUserId = nil } }
-        )) {
-            if let userId = selectedUserId {
-                OtherUserProfileView(dataManager: dataManager, userId: userId)
             }
         }
     }

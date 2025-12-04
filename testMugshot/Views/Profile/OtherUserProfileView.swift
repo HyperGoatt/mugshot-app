@@ -15,6 +15,7 @@ struct OtherUserProfileView: View {
     @State private var userProfile: RemoteUserProfile?
     @State private var friendshipStatus: FriendshipStatus = .none
     @State private var mutualFriends: [User] = []
+    @State private var friends: [User] = []
     @State private var friendsCount: Int = 0
     @State private var isLoading = true
     @State private var isLoadingFriendship = false
@@ -22,10 +23,26 @@ struct OtherUserProfileView: View {
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
+    @State private var showFriendsSheet = false
+    @State private var showMutualFriendsSheet = false
     @State private var selectedTab: ProfileContentTab = .posts
     @StateObject private var hapticsManager = HapticsManager.shared
+    @State private var refreshTrigger = UUID() // Force view refresh when data loads
     
     @Environment(\.dismiss) var dismiss
+
+    // Custom initializer so we can optionally seed with an initial profile
+    // (e.g., when opening from a mention tap) and skip the full-screen skeleton.
+    init(
+        dataManager: DataManager,
+        userId: String,
+        initialProfile: RemoteUserProfile? = nil
+    ) {
+        self.dataManager = dataManager
+        self.userId = userId
+        _userProfile = State(initialValue: initialProfile)
+        _isLoading = State(initialValue: initialProfile == nil)
+    }
     
     enum ProfileContentTab: String, CaseIterable {
         case posts = "Posts"
@@ -41,9 +58,20 @@ struct OtherUserProfileView: View {
     }
     
     private var userVisits: [Visit] {
-        dataManager.appData.visits
-            .filter { $0.supabaseUserId == userId }
+        let filtered = dataManager.appData.visits
+            .filter { visit in
+                // Match by supabaseUserId (String) or userId (UUID converted from String)
+                visit.supabaseUserId == userId || 
+                (visit.userId == UUID(uuidString: userId))
+            }
             .sorted { $0.createdAt > $1.createdAt }
+        
+        #if DEBUG
+        print("[OtherUserProfileView] userVisits count: \(filtered.count) for userId: \(userId)")
+        print("[OtherUserProfileView] Total visits in appData: \(dataManager.appData.visits.count)")
+        #endif
+        
+        return filtered
     }
     
     private var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double) {
@@ -79,8 +107,9 @@ struct OtherUserProfileView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     if isLoading {
-                        ProgressView()
-                            .padding(.vertical, DS.Spacing.xxl)
+                        // Improved loading state with skeleton placeholders
+                        ProfileLoadingSkeletonView()
+                            .transition(.opacity)
                     } else if let profile = userProfile {
                         // Profile Header (banner + avatar + name)
                         profileHeaderSection(profile: profile)
@@ -104,7 +133,10 @@ struct OtherUserProfileView: View {
                             instagramHandle: profile.instagramHandle,
                             websiteURL: profile.websiteURL,
                             onFriendsTap: {
-                                // Could navigate to friend list in future
+                                showFriendsSheet = true
+                            },
+                            onMutualTap: mutualFriends.isEmpty ? nil : {
+                                showMutualFriendsSheet = true
                             }
                         )
                         .padding(.top, DS.Spacing.md)
@@ -124,6 +156,7 @@ struct OtherUserProfileView: View {
                             }
                         )
                         .padding(.top, DS.Spacing.lg)
+                        .id(refreshTrigger) // Force refresh when data loads
                         
                         // Content Tabs (Posts / Cafes)
                         contentTabsSection
@@ -160,11 +193,35 @@ struct OtherUserProfileView: View {
             }
             .sheet(isPresented: $showCafeDetail) {
                 if let cafe = selectedCafe {
-                    CafeDetailView(cafe: cafe, dataManager: dataManager)
+                    UnifiedCafeView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        presentationMode: .fullScreen
+                    )
                 }
+            }
+            .sheet(isPresented: $showFriendsSheet) {
+                UserListSheet(
+                    title: "Friends",
+                    users: friends,
+                    emptyMessage: "No friends yet",
+                    dataManager: dataManager
+                )
+            }
+            .sheet(isPresented: $showMutualFriendsSheet) {
+                UserListSheet(
+                    title: "Mutual Friends",
+                    users: mutualFriends,
+                    emptyMessage: "No mutual friends yet",
+                    dataManager: dataManager
+                )
             }
             .task {
                 await loadProfile()
+            }
+            .onChange(of: dataManager.appData.visits.count) { _, _ in
+                // Refresh when visits are loaded/updated
+                // This ensures the view updates when fetchOtherUserVisits completes
             }
             .alert("Remove Friend", isPresented: $showRemoveFriendAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -181,7 +238,8 @@ struct OtherUserProfileView: View {
                             await dataManager.refreshFriendsList()
                         } catch {
                             print("[OtherUserProfileView] Error removing friend: \(error.localizedDescription)")
-                        }
+                    }
+                    await loadFriendsList()
                     }
                 }
             } message: {
@@ -227,6 +285,10 @@ struct OtherUserProfileView: View {
                     .padding(.vertical, DS.Spacing.md)
                     .background(friendButtonBackground)
                     .cornerRadius(DS.Radius.lg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.Radius.lg)
+                            .stroke(friendButtonBorder ?? Color.clear, lineWidth: friendshipStatus == .friends ? 1.5 : 0)
+                    )
                 }
                 .disabled(isLoadingFriendship)
             }
@@ -264,8 +326,11 @@ struct OtherUserProfileView: View {
         switch friendshipStatus {
         case .none, .incomingRequest:
             return DS.Colors.textOnMint
-        case .outgoingRequest, .friends:
-            return DS.Colors.textPrimary
+        case .outgoingRequest:
+            return DS.Colors.textSecondary
+        case .friends:
+            // Friends state uses mint accent for clear visibility
+            return DS.Colors.primaryAccent
         }
     }
     
@@ -273,8 +338,21 @@ struct OtherUserProfileView: View {
         switch friendshipStatus {
         case .none, .incomingRequest:
             return DS.Colors.primaryAccent
-        case .outgoingRequest, .friends:
+        case .outgoingRequest:
             return DS.Colors.cardBackgroundAlt
+        case .friends:
+            // Friends state uses soft mint fill with border for visibility
+            return DS.Colors.mintSoftFill
+        }
+    }
+    
+    private var friendButtonBorder: Color? {
+        switch friendshipStatus {
+        case .friends:
+            // Add border for better visibility on gray backgrounds
+            return DS.Colors.primaryAccent
+        default:
+            return nil
         }
     }
     
@@ -317,6 +395,7 @@ struct OtherUserProfileView: View {
                 }
             )
             .padding(.horizontal, 1)
+            .id(refreshTrigger) // Force refresh when visits load
             
         case .cafes:
             otherUserCafesView
@@ -360,29 +439,88 @@ struct OtherUserProfileView: View {
     // MARK: - Data Loading
     
     private func loadProfile() async {
-        isLoading = true
-        defer { isLoading = false }
+        // If we already have a seeded profile (e.g., from a mention tap),
+        // skip the extra profile fetch and just hydrate secondary data.
+        if userProfile != nil {
+            isLoading = false
+            
+            Task {
+                await loadFriendshipStatus()
+            }
+            
+            Task {
+                await loadMutualFriends()
+            }
+            
+            Task {
+                await loadFriendsList()
+            }
+            
+            Task {
+                do {
+                    try await dataManager.fetchOtherUserVisits(userId: userId)
+                    await MainActor.run {
+                        refreshTrigger = UUID()
+                        #if DEBUG
+                        print("[OtherUserProfileView] (Seeded) Visits loaded - userVisits count: \(userVisits.count)")
+                        print("[OtherUserProfileView] (Seeded) Stats - visits: \(stats.totalVisits), cafes: \(stats.totalCafes), avg: \(stats.averageScore)")
+                        #endif
+                    }
+                } catch {
+                    print("[OtherUserProfileView] Error loading visits: \(error.localizedDescription)")
+                }
+            }
+            
+            return
+        }
         
+        // Normal path: no initial profile, fetch core profile first.
         do {
-            // Load user profile
+            await MainActor.run {
+                isLoading = true
+            }
+            
             if let profile = try await dataManager.fetchOtherUserProfile(userId: userId) {
                 await MainActor.run {
                     userProfile = profile
+                    isLoading = false
                 }
                 
-                // Load friendship status
-                await loadFriendshipStatus()
+                Task {
+                    await loadFriendshipStatus()
+                }
                 
-                // Load mutual friends
-                await loadMutualFriends()
+                Task {
+                    await loadMutualFriends()
+                }
                 
-                // Load friends count for this user
-                await loadFriendsCount()
+                Task {
+                    await loadFriendsList()
+                }
                 
-                // Load user's visits
-                try? await dataManager.fetchOtherUserVisits(userId: userId)
+                Task {
+                    do {
+                        try await dataManager.fetchOtherUserVisits(userId: userId)
+                        await MainActor.run {
+                            refreshTrigger = UUID()
+                            #if DEBUG
+                            print("[OtherUserProfileView] Visits loaded - userVisits count: \(userVisits.count)")
+                            print("[OtherUserProfileView] Stats - visits: \(stats.totalVisits), cafes: \(stats.totalCafes), avg: \(stats.averageScore)")
+                            #endif
+                        }
+                    } catch {
+                        print("[OtherUserProfileView] Error loading visits: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    isLoading = false
+                }
             }
         } catch {
+            await MainActor.run {
+                isLoading = false
+            }
             print("[OtherUserProfileView] Error loading profile: \(error.localizedDescription)")
         }
     }
@@ -403,17 +541,20 @@ struct OtherUserProfileView: View {
             let mutuals = try await dataManager.fetchMutualFriends(userId: userId)
             await MainActor.run {
                 mutualFriends = mutuals
+                    .sorted { $0.displayNameOrUsername.lowercased() < $1.displayNameOrUsername.lowercased() }
             }
         } catch {
             print("[OtherUserProfileView] Error loading mutual friends: \(error.localizedDescription)")
         }
     }
     
-    private func loadFriendsCount() async {
+    private func loadFriendsList() async {
         do {
-            let friends = try await dataManager.fetchFriends(for: userId)
+            let fetchedFriends = try await dataManager.fetchFriends(for: userId)
+                .sorted { $0.displayNameOrUsername.lowercased() < $1.displayNameOrUsername.lowercased() }
             await MainActor.run {
-                friendsCount = friends.count
+                friends = fetchedFriends
+                friendsCount = fetchedFriends.count
             }
         } catch {
             print("[OtherUserProfileView] Error loading friends count: \(error.localizedDescription)")
@@ -438,9 +579,9 @@ struct OtherUserProfileView: View {
                     try await dataManager.acceptFriendRequest(requestId: requestId)
                     await MainActor.run {
                         friendshipStatus = .friends
-                        friendsCount += 1
                     }
                     await dataManager.refreshFriendsList()
+                    await loadFriendsList()
                     hapticsManager.playSuccess()
                     
                 case .outgoingRequest:
@@ -455,5 +596,172 @@ struct OtherUserProfileView: View {
                 hapticsManager.playError()
             }
         }
+    }
+}
+
+// MARK: - Profile Loading Skeleton
+
+/// A polished skeleton loading state for profile view
+struct ProfileLoadingSkeletonView: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Banner skeleton
+            Rectangle()
+                .fill(skeletonGradient)
+                .frame(height: 120)
+            
+            // Avatar skeleton
+            Circle()
+                .fill(skeletonGradient)
+                .frame(width: 80, height: 80)
+                .overlay(
+                    Circle()
+                        .stroke(DS.Colors.cardBackground, lineWidth: 3)
+                )
+                .offset(y: -40)
+                .padding(.bottom, -40)
+            
+            VStack(spacing: DS.Spacing.md) {
+                // Name skeleton
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .fill(skeletonGradient)
+                    .frame(width: 140, height: 20)
+                
+                // Username skeleton
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .fill(skeletonGradient)
+                    .frame(width: 100, height: 14)
+                
+                // Bio skeleton
+                VStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .fill(skeletonGradient)
+                        .frame(height: 12)
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .fill(skeletonGradient)
+                        .frame(width: 200, height: 12)
+                }
+                .padding(.horizontal, DS.Spacing.pagePadding)
+                
+                // Button skeleton
+                RoundedRectangle(cornerRadius: DS.Radius.lg)
+                    .fill(skeletonGradient)
+                    .frame(height: 44)
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                
+                // Stats skeleton
+                HStack(spacing: DS.Spacing.lg) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        VStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: DS.Radius.sm)
+                                .fill(skeletonGradient)
+                                .frame(width: 40, height: 20)
+                            RoundedRectangle(cornerRadius: DS.Radius.sm)
+                                .fill(skeletonGradient)
+                                .frame(width: 60, height: 12)
+                        }
+                    }
+                }
+                .padding(.top, DS.Spacing.md)
+            }
+            .padding(.top, DS.Spacing.md)
+            
+            Spacer()
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+    }
+    
+    private var skeletonGradient: some ShapeStyle {
+        DS.Colors.cardBackgroundAlt.opacity(isAnimating ? 0.6 : 0.3)
+    }
+}
+
+// MARK: - Friends / Mutual Friends Sheet
+
+private struct UserListSheet: View {
+    let title: String
+    let users: [User]
+    let emptyMessage: String
+    @ObservedObject var dataManager: DataManager
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            Group {
+                if users.isEmpty {
+                    VStack(spacing: DS.Spacing.md) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 36))
+                            .foregroundColor(DS.Colors.iconSubtle)
+                        Text(emptyMessage)
+                            .font(DS.Typography.bodyText)
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+                } else {
+                    List {
+                        ForEach(users) { user in
+                            if let supabaseId = user.supabaseUserId {
+                                NavigationLink {
+                                    OtherUserProfileView(dataManager: dataManager, userId: supabaseId)
+                                } label: {
+                                    userRow(user)
+                                }
+                            } else {
+                                userRow(user)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func userRow(_ user: User) -> some View {
+        HStack(spacing: DS.Spacing.md) {
+            ProfileAvatarView(
+                profileImageId: user.effectiveProfileImageID,
+                profileImageURL: user.avatarURL,
+                username: user.username,
+                size: 48
+            )
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(user.displayNameOrUsername)
+                    .font(DS.Typography.subheadline(.semibold))
+                    .foregroundColor(DS.Colors.textPrimary)
+                Text("@\(user.username)")
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textSecondary)
+            }
+            
+            Spacer()
+            
+            if user.supabaseUserId != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(DS.Colors.iconSubtle)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

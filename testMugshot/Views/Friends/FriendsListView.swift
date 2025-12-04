@@ -9,10 +9,10 @@ import SwiftUI
 
 struct FriendsListView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     @State private var friends: [User] = []
     @State private var isLoading = true
-    @State private var selectedUserId: String?
     
     var body: some View {
         Group {
@@ -29,14 +29,6 @@ struct FriendsListView: View {
         }
         .refreshable {
             await loadFriends()
-        }
-        .sheet(isPresented: Binding(
-            get: { selectedUserId != nil },
-            set: { if !$0 { selectedUserId = nil } }
-        )) {
-            if let userId = selectedUserId {
-                OtherUserProfileView(dataManager: dataManager, userId: userId)
-            }
         }
     }
     
@@ -58,15 +50,17 @@ struct FriendsListView: View {
     private var emptyState: some View {
         DSBaseCard {
             VStack(spacing: DS.Spacing.md) {
-                Image(systemName: "person.2")
-                    .font(.system(size: 48))
-                    .foregroundColor(DS.Colors.iconSubtle)
+                Image("MugsyNoFriends")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+                    .accessibilityHidden(true)
                 
                 Text("No friends yet")
                     .font(DS.Typography.sectionTitle)
                     .foregroundColor(DS.Colors.textPrimary)
                 
-                Text("Search by username to add your first coffee friends ☕️")
+                Text("Search by username to add your first friend")
                     .font(DS.Typography.bodyText)
                     .foregroundColor(DS.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -86,7 +80,17 @@ struct FriendsListView: View {
                     friend: friend,
                     onTap: {
                         if let supabaseId = friend.supabaseUserId {
-                            selectedUserId = supabaseId
+                            profileNavigator.openProfile(
+                                handle: .supabase(id: supabaseId, username: friend.username),
+                                source: .friendsList,
+                                triggerHaptic: false
+                            )
+                        } else {
+                            profileNavigator.openProfile(
+                                handle: .mention(username: friend.username),
+                                source: .friendsList,
+                                triggerHaptic: false
+                            )
                         }
                     }
                 )
@@ -137,7 +141,7 @@ struct FriendRow: View {
                     // Avatar
                     ProfileAvatarView(
                         profileImageId: friend.effectiveProfileImageID,
-                        profileImageURL: nil,
+                        profileImageURL: friend.avatarURL,
                         username: friend.username,
                         size: 50
                     )

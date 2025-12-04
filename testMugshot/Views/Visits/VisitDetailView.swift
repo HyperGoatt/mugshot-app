@@ -29,6 +29,8 @@ struct VisitDetailView: View {
     
     @Environment(\.dismiss) private var dismiss
     @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     init(dataManager: DataManager, visit: Visit, showsDismissButton: Bool = false) {
         self.dataManager = dataManager
@@ -72,6 +74,15 @@ struct VisitDetailView: View {
         return visit.authorUsernameHandle
     }
     
+    private var authorUsernamePlain: String {
+        let trimmed = authorUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("@") {
+            let withoutAt = trimmed.dropFirst()
+            return withoutAt.isEmpty ? "" : String(withoutAt)
+        }
+        return trimmed
+    }
+    
     private var authorInitials: String {
         if let user = dataManager.appData.currentUser, user.id == visit.userId {
             return String(user.displayNameOrUsername.prefix(1)).uppercased()
@@ -100,6 +111,29 @@ struct VisitDetailView: View {
         return cafe.wantToTry
     }
     
+    private func handleAuthorAvatarTap() {
+        if isCurrentUserAuthor || dataManager.appData.supabaseUserId == visit.supabaseUserId {
+            tabCoordinator.switchToProfile()
+            return
+        }
+        if let supabaseUserId = visit.supabaseUserId {
+            profileNavigator.openProfile(
+                handle: .supabase(id: supabaseUserId, username: authorUsernamePlain),
+                source: .other,
+                triggerHaptic: true
+            )
+            return
+        }
+        
+        if !authorUsernamePlain.isEmpty {
+            profileNavigator.openProfile(
+                handle: .mention(username: authorUsernamePlain),
+                source: .other,
+                triggerHaptic: true
+            )
+        }
+    }
+    
     // MARK: - Body
     
     var body: some View {
@@ -114,7 +148,8 @@ struct VisitDetailView: View {
                     remoteAvatarURL: authorRemoteAvatarURL,
                     initials: authorInitials,
                     isCurrentUserAuthor: isCurrentUserAuthor,
-                    onMenuTap: { showOwnerOptions = true }
+                    onMenuTap: { showOwnerOptions = true },
+                    onAvatarTap: handleAuthorAvatarTap
                 )
                 .padding(.horizontal, DS.Spacing.pagePadding)
                 .padding(.top, DS.Spacing.md)
@@ -133,7 +168,17 @@ struct VisitDetailView: View {
                 
                 // 3. Caption (no label, flows naturally)
                 if !visit.caption.isEmpty {
-                    MentionText(text: visit.caption, mentions: visit.mentions)
+                    MentionText(
+                        text: visit.caption,
+                        mentions: visit.mentions,
+                        onMentionTap: { username in
+                            profileNavigator.openProfile(
+                                handle: .mention(username: username),
+                                source: .visitCaption,
+                                triggerHaptic: true
+                            )
+                        }
+                    )
                         .font(DS.Typography.bodyText)
                         .foregroundColor(DS.Colors.textPrimary)
                         .padding(.horizontal, DS.Spacing.pagePadding)
@@ -247,9 +292,11 @@ struct VisitDetailView: View {
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
-                NavigationStack {
-                    CafeDetailView(cafe: cafe, dataManager: dataManager)
-                }
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .fullScreen
+                )
             }
         }
         // Postcard preview sheet

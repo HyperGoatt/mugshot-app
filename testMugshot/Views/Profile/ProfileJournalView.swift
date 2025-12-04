@@ -390,7 +390,11 @@ private struct TopCafesCard: View {
             }
             .sheet(isPresented: $showCafeDetail) {
                 if let cafe = selectedCafe {
-                    CafeDetailView(cafe: cafe, dataManager: dataManager)
+                    UnifiedCafeView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        presentationMode: .fullScreen
+                    )
                 }
             }
         }

@@ -13,6 +13,7 @@ struct ProfileSocialRow: View {
     let instagramHandle: String?
     let websiteURL: String?
     let onFriendsTap: () -> Void
+    var onMutualTap: (() -> Void)? = nil
     
     var body: some View {
         HStack(spacing: DS.Spacing.md) {
@@ -35,14 +36,17 @@ struct ProfileSocialRow: View {
                     .font(DS.Typography.caption1())
                     .foregroundColor(DS.Colors.textTertiary)
                 
-                HStack(spacing: 4) {
-                    Text("\(mutual)")
-                        .font(DS.Typography.subheadline(.semibold))
-                        .foregroundColor(DS.Colors.textPrimary)
-                    Text("Mutual")
-                        .font(DS.Typography.subheadline())
-                        .foregroundColor(DS.Colors.textSecondary)
+                Button(action: { onMutualTap?() }) {
+                    HStack(spacing: 4) {
+                        Text("\(mutual)")
+                            .font(DS.Typography.subheadline(.semibold))
+                            .foregroundColor(DS.Colors.textPrimary)
+                        Text("Mutual")
+                            .font(DS.Typography.subheadline())
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
                 }
+                .buttonStyle(.plain)
             }
             
             Spacer()
@@ -142,7 +146,8 @@ struct ProfileSocialStats: View {
             mutualFriendsCount: 3,
             instagramHandle: "joe_coffee",
             websiteURL: "https://mugshot.app",
-            onFriendsTap: {}
+            onFriendsTap: {},
+            onMutualTap: {}
         )
         
         ProfileSocialRow(

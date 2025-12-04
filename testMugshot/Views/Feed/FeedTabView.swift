@@ -10,11 +10,11 @@ import SwiftUI
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var selectedScope: FeedScope = .friends
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
-    @State private var selectedUserId: String?
     @State private var showNotifications = false
     @State private var isRefreshing = false
     @State private var refreshRotation: Double = 0
@@ -79,45 +79,84 @@ struct FeedTabView: View {
                             .background(DS.Colors.screenBackground)
                         } else {
                             // Standard feed (Friends / Everyone)
-                            LazyVStack(spacing: DS.Spacing.lg) {
-                                ForEach(visits) { visit in
-                                    VisitCard(
-                                        visit: visit,
-                                        dataManager: dataManager,
-                                        selectedScope: selectedScope,
-                                        onCafeTap: {
-                                            print("🔵 [FeedTabView] Cafe pill tapped for visit: \(visit.id)")
-                                            print("🔵 [FeedTabView] visit.cafeId: \(visit.cafeId)")
-                                            if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                                                print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
-                                                selectedCafe = cafe
-                                                print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
-                                            } else {
-                                                print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(visit.cafeId)")
+                            if visits.isEmpty && selectedScope == .friends {
+                                // Empty state for Friends tab
+                                friendsEmptyState
+                                    .padding(.bottom, DS.Spacing.xxl * 2)
+                                    .background(DS.Colors.screenBackground)
+                            } else {
+                                LazyVStack(spacing: DS.Spacing.lg) {
+                                    ForEach(visits) { visit in
+                                        VisitCard(
+                                            visit: visit,
+                                            dataManager: dataManager,
+                                            selectedScope: selectedScope,
+                                            onCafeTap: {
+                                                print("🔵 [FeedTabView] Cafe pill tapped for visit: \(visit.id)")
+                                                print("🔵 [FeedTabView] visit.cafeId: \(visit.cafeId)")
+                                                if let cafe = dataManager.getCafe(id: visit.cafeId) {
+                                                    print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
+                                                    selectedCafe = cafe
+                                                    print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
+                                                } else {
+                                                    print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(visit.cafeId)")
+                                                }
+                                            },
+                                            onAuthorTap: {
+                                                if isCurrentUser(
+                                                    supabaseUserId: visit.supabaseUserId,
+                                                    localUserId: visit.userId
+                                                ) {
+                                                    tabCoordinator.switchToProfile()
+                                                    return
+                                                }
+                                                if let supabaseUserId = visit.supabaseUserId {
+                                                    // Extract plain username (strip @ if present)
+                                                    let plainUsername = visit.authorUsername?.hasPrefix("@") == true
+                                                        ? String(visit.authorUsername!.dropFirst())
+                                                        : visit.authorUsername
+                                                    profileNavigator.openProfile(
+                                                        handle: .supabase(
+                                                            id: supabaseUserId,
+                                                            username: plainUsername
+                                                        ),
+                                                        source: .feedAuthor,
+                                                        triggerHaptic: false
+                                                    )
+                                                } else if let username = visit.authorUsername {
+                                                    // Extract plain username (strip @ if present)
+                                                    let plainUsername = username.hasPrefix("@") ? String(username.dropFirst()) : username
+                                                    profileNavigator.openProfile(
+                                                        handle: .mention(username: plainUsername),
+                                                        source: .feedAuthor,
+                                                        triggerHaptic: false
+                                                    )
+                                                }
+                                            },
+                                            onCommentTap: {
+                                                // Open the visit detail view and let the user comment there
+                                                hapticsManager.lightTap()
+                                                selectedVisit = visit
+                                            },
+                                            onMentionTap: { username in
+                                                profileNavigator.openProfile(
+                                                    handle: .mention(username: username),
+                                                    source: .mentionCaption,
+                                                    triggerHaptic: true
+                                                )
                                             }
-                                        },
-                                        onAuthorTap: {
-                                            if let supabaseUserId = visit.supabaseUserId,
-                                               supabaseUserId != dataManager.appData.supabaseUserId {
-                                                selectedUserId = supabaseUserId
-                                            }
-                                        },
-                                        onCommentTap: {
-                                            // Open the visit detail view and let the user comment there
+                                        )
+                                        .onTapGesture {
                                             hapticsManager.lightTap()
                                             selectedVisit = visit
                                         }
-                                    )
-                                    .onTapGesture {
-                                        hapticsManager.lightTap()
-                                        selectedVisit = visit
                                     }
                                 }
+                                .padding(.horizontal, DS.Spacing.pagePadding)
+                                .padding(.top, DS.Spacing.lg)
+                                .padding(.bottom, DS.Spacing.xxl * 2)
+                                .background(DS.Colors.screenBackground)
                             }
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.top, DS.Spacing.lg)
-                            .padding(.bottom, DS.Spacing.xxl * 2)
-                            .background(DS.Colors.screenBackground)
                         }
                     }
                 }
@@ -139,16 +178,12 @@ struct FeedTabView: View {
             .navigationDestination(item: $selectedVisit) { visit in
                 VisitDetailView(dataManager: dataManager, visit: visit)
             }
-            .sheet(isPresented: Binding(
-                get: { selectedUserId != nil },
-                set: { if !$0 { selectedUserId = nil } }
-            )) {
-                if let userId = selectedUserId {
-                    OtherUserProfileView(dataManager: dataManager, userId: userId)
-                }
-            }
             .sheet(item: $selectedCafe) { cafe in
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                UnifiedCafeView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    presentationMode: .fullScreen
+                )
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -314,7 +349,11 @@ struct FeedTabView: View {
             tabCoordinator.clearNavigationTarget()
             
         case .friendProfile(let userId):
-            selectedUserId = userId
+            profileNavigator.openProfile(
+                handle: .supabase(id: userId),
+                source: .notifications,
+                triggerHaptic: false
+            )
             tabCoordinator.clearNavigationTarget()
             
         case .friendsFeed:
@@ -346,6 +385,73 @@ struct FeedTabView: View {
         }
         return dataManager.getFeedVisits(scope: selectedScope, currentUserId: currentUserId)
     }
+    
+    private func isCurrentUser(supabaseUserId: String?, localUserId: UUID) -> Bool {
+        if let currentLocalId = dataManager.appData.currentUser?.id,
+           currentLocalId == localUserId {
+            return true
+        }
+        if let currentSupabaseId = dataManager.appData.supabaseUserId,
+           let supabaseUserId {
+            return currentSupabaseId == supabaseUserId
+        }
+        return false
+    }
+    
+    // MARK: - Empty States
+    
+    private var friendsEmptyState: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: DS.Spacing.lg) {
+                // Illustration
+                Image("MugsyNoFriends")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+                    .accessibilityHidden(true)
+                
+                // Text content
+                VStack(spacing: DS.Spacing.sm) {
+                    Text("No friends yet")
+                        .font(DS.Typography.title2())
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Connect with friends to see their sips in your feed.")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                }
+                
+                // CTA button
+                Button(action: {
+                    hapticsManager.lightTap()
+                    tabCoordinator.navigateToFriendsHub()
+                }) {
+                    HStack(spacing: DS.Spacing.sm) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Find Friends")
+                            .font(DS.Typography.buttonLabel)
+                    }
+                    .foregroundColor(DS.Colors.textOnMint)
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, DS.Spacing.md)
+                    .background(DS.Colors.primaryAccent)
+                    .cornerRadius(DS.Radius.primaryButton)
+                }
+                .padding(.top, DS.Spacing.md)
+            }
+            .padding(.horizontal, DS.Spacing.pagePadding)
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DS.Colors.screenBackground)
+    }
 }
 
 // MARK: - Redesigned Visit Card
@@ -357,6 +463,7 @@ struct VisitCard: View {
     var onCafeTap: (() -> Void)? = nil
     var onAuthorTap: (() -> Void)? = nil
     var onCommentTap: (() -> Void)? = nil
+    var onMentionTap: ((String) -> Void)? = nil
     
     @StateObject private var hapticsManager = HapticsManager.shared
     
@@ -374,14 +481,6 @@ struct VisitCard: View {
     private var isBookmarked: Bool {
         guard let cafe = cafe else { return false }
         return cafe.wantToTry
-    }
-    
-    private var canViewAuthorProfile: Bool {
-        guard let currentUserId = dataManager.appData.supabaseUserId,
-              let visitUserId = visit.supabaseUserId else {
-            return false
-        }
-        return visitUserId != currentUserId
     }
     
     private var authorProfileImage: UIImage? {
@@ -436,7 +535,11 @@ struct VisitCard: View {
                 
                 // Caption (above image for context)
                 if !visit.caption.isEmpty {
-                    MentionText(text: visit.caption, mentions: visit.mentions)
+                    MentionText(
+                        text: visit.caption,
+                        mentions: visit.mentions,
+                        onMentionTap: onMentionTap
+                    )
                         .font(DS.Typography.bodyText)
                         .foregroundColor(DS.Colors.textPrimary)
                         .lineLimit(3)
@@ -497,7 +600,6 @@ struct VisitCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(!canViewAuthorProfile)
             
             Spacer()
             

@@ -20,6 +20,7 @@ struct EditVisitView: View {
     @State private var editedNotes: String
     @State private var editedVisibility: VisitVisibility
     @State private var editedRatings: [String: Double]
+    @State private var editedPosterPhotoIndex: Int
     
     @State private var isSaving = false
     @State private var showError = false
@@ -38,12 +39,18 @@ struct EditVisitView: View {
         _editedNotes = State(initialValue: visit.wrappedValue.notes ?? "")
         _editedVisibility = State(initialValue: visit.wrappedValue.visibility)
         _editedRatings = State(initialValue: visit.wrappedValue.ratings)
+        _editedPosterPhotoIndex = State(initialValue: visit.wrappedValue.posterPhotoIndex)
     }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    // Poster Photo Section (only if visit has photos)
+                    if !visit.photos.isEmpty {
+                        posterPhotoSection
+                    }
+                    
                     // Drink Type Section
                     drinkTypeSection
                     
@@ -87,6 +94,98 @@ struct EditVisitView: View {
                 Text(errorMessage)
             }
         }
+    }
+    
+    // MARK: - Poster Photo Section
+    
+    private var posterPhotoSection: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("Cover Photo")
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            Text("Tap to set as cover image")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textSecondary)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DS.Spacing.sm) {
+                    ForEach(Array(visit.photos.enumerated()), id: \.offset) { index, photoPath in
+                        posterPhotoThumbnail(photoPath: photoPath, index: index)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func posterPhotoThumbnail(photoPath: String, index: Int) -> some View {
+        let isPoster = index == editedPosterPhotoIndex
+        let remoteURL = visit.remotePhotoURLByKey[photoPath]
+        
+        return Button {
+            hapticsManager.lightTap()
+            editedPosterPhotoIndex = index
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                // Photo thumbnail
+                Group {
+                    if let remoteURL = remoteURL, let url = URL(string: remoteURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            case .failure:
+                                placeholderImage
+                            case .empty:
+                                ProgressView()
+                            @unknown default:
+                                placeholderImage
+                            }
+                        }
+                    } else if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
+                        Image(uiImage: cachedImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        placeholderImage
+                    }
+                }
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+                
+                // Poster badge
+                if isPoster {
+                    HStack(spacing: 2) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8))
+                        Text("Cover")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundColor(DS.Colors.textOnMint)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(DS.Colors.primaryAccent)
+                    .clipShape(Capsule())
+                    .offset(x: 4, y: -4)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(isPoster ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var placeholderImage: some View {
+        Rectangle()
+            .fill(DS.Colors.cardBackgroundAlt)
+            .overlay(
+                Image(systemName: "photo")
+                    .foregroundColor(DS.Colors.iconSubtle)
+            )
     }
     
     // MARK: - Drink Type Section
@@ -293,6 +392,15 @@ struct EditVisitView: View {
         updatedVisit.ratings = editedRatings
         updatedVisit.overallScore = newOverallScore
         updatedVisit.mentions = MentionParser.parseMentions(from: editedCaption)
+        updatedVisit.posterPhotoIndex = editedPosterPhotoIndex
+        
+        // Update poster photo URL if index changed and photos exist
+        if !visit.photos.isEmpty && editedPosterPhotoIndex < visit.photos.count {
+            let posterPhotoPath = visit.photos[editedPosterPhotoIndex]
+            if let remoteURL = visit.remotePhotoURLByKey[posterPhotoPath] {
+                updatedVisit.posterPhotoURL = remoteURL
+            }
+        }
         
         Task {
             do {

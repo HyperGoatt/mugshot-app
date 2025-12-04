@@ -291,7 +291,8 @@ final class SupabaseVisitService {
         notes: String?,
         visibility: String,
         ratings: [String: Double],
-        overallScore: Double
+        overallScore: Double,
+        posterPhotoURL: String? = nil
     ) async throws {
         var payload: [String: Any] = [
             "drink_type": drinkType,
@@ -303,15 +304,20 @@ final class SupabaseVisitService {
         
         // Add optional fields
         if let customDrinkType = customDrinkType {
-            payload["custom_drink_type"] = customDrinkType
+            payload["drink_type_custom"] = customDrinkType
         } else {
-            payload["custom_drink_type"] = NSNull()
+            payload["drink_type_custom"] = NSNull()
         }
         
         if let notes = notes {
             payload["notes"] = notes
         } else {
             payload["notes"] = NSNull()
+        }
+        
+        // Update poster photo URL if provided
+        if let posterPhotoURL = posterPhotoURL {
+            payload["poster_photo_url"] = posterPhotoURL
         }
         
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])

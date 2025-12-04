@@ -49,6 +49,12 @@ struct AppData: Codable {
     /// Used to hide older notifications after a \"Clear all\" action, even if they still exist server-side.
     var notificationsClearedAt: Date? = nil
     
+    // Pending friend request tracking for quick status lookups
+    /// Maps target user ID -> request UUID for outgoing pending friend requests
+    var outgoingRequestsByUserId: [String: String] = [:]
+    /// Maps source user ID -> request UUID for incoming pending friend requests  
+    var incomingRequestsByUserId: [String: String] = [:]
+    
     // Feature flags
     var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
     

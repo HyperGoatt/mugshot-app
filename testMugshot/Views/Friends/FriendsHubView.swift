@@ -411,9 +411,9 @@ struct OutgoingRequestRow: View {
     
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var isLoading = false
-    @State private var showProfile = false
     @State private var userProfile: RemoteUserProfile?
     @State private var isLoadingProfile = false
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     var body: some View {
         DSBaseCard {
@@ -426,36 +426,32 @@ struct OutgoingRequestRow: View {
                     size: 50
                 )
                 
-                // User info
+                // User info - use flexible layout
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text(userProfile?.displayName ?? userProfile?.username ?? "User")
                         .font(DS.Typography.cardTitle)
                         .foregroundColor(DS.Colors.textPrimary)
+                        .lineLimit(1)
                     
                     Text("@\(userProfile?.username ?? "user")")
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textSecondary)
+                        .lineLimit(1)
                 }
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 
-                Spacer()
-                
-                // Cancel button
+                // Cancel button - fixed width with icon only
                 if isLoading {
                     ProgressView()
                         .frame(width: 44, height: 44)
                 } else {
                     Button(action: cancelRequest) {
-                        HStack(spacing: DS.Spacing.xs) {
-                            Text("Cancel")
-                                .font(DS.Typography.caption1(.medium))
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .semibold))
-                        }
-                        .foregroundColor(DS.Colors.textSecondary)
-                        .padding(.horizontal, DS.Spacing.md)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(DS.Colors.cardBackgroundAlt)
-                        .cornerRadius(DS.Radius.lg)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .frame(width: 40, height: 36)
+                            .background(DS.Colors.cardBackgroundAlt)
+                            .cornerRadius(DS.Radius.md)
                     }
                 }
             }
@@ -463,11 +459,16 @@ struct OutgoingRequestRow: View {
         .onTapGesture {
             if !isLoading {
                 hapticsManager.lightTap()
-                showProfile = true
+                profileNavigator.openProfile(
+                    handle: .supabase(
+                        id: request.toUserId,
+                        username: userProfile?.username,
+                        seedProfile: userProfile
+                    ),
+                    source: .friendRequest,
+                    triggerHaptic: false
+                )
             }
-        }
-        .sheet(isPresented: $showProfile) {
-            OtherUserProfileView(dataManager: dataManager, userId: request.toUserId)
         }
         .task {
             await loadUserProfile()

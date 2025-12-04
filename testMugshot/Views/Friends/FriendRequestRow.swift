@@ -15,10 +15,10 @@ struct FriendRequestRow: View {
     var onRequestAction: (() -> Void)? = nil
     @StateObject private var hapticsManager = HapticsManager.shared
     @State private var isLoading = false
-    @State private var showProfile = false
     
     @State private var userProfile: RemoteUserProfile?
     @State private var isLoadingProfile = false
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     private var user: User? {
         guard let profile = userProfile else { return nil }
@@ -37,55 +37,54 @@ struct FriendRequestRow: View {
                     size: 50
                 )
                 
-                // User info
+                // User info - use flexible layout
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text(user?.displayNameOrUsername ?? userProfile?.displayName ?? userProfile?.username ?? "User")
                         .font(DS.Typography.cardTitle)
                         .foregroundColor(DS.Colors.textPrimary)
+                        .lineLimit(1)
                     
                     Text("@\(user?.username ?? userProfile?.username ?? "user")")
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textSecondary)
+                        .lineLimit(1)
                 }
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 
-                Spacer()
-                
-                // Actions
+                // Actions - fixed width buttons
                 if isLoading {
                     ProgressView()
                         .frame(width: 44, height: 44)
                 } else if isIncoming {
-                    HStack(spacing: DS.Spacing.sm) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        // Accept button with checkmark icon
                         Button(action: {
-                            // Haptic: confirm accept friend request
                             hapticsManager.lightTap()
                             Task {
                                 await acceptRequest()
                             }
                         }) {
-                            Text("Accept")
-                                .font(DS.Typography.buttonLabel)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(DS.Colors.textOnMint)
-                                .padding(.horizontal, DS.Spacing.md)
-                                .padding(.vertical, DS.Spacing.sm)
+                                .frame(width: 40, height: 36)
                                 .background(DS.Colors.primaryAccent)
-                                .cornerRadius(DS.Radius.lg)
+                                .cornerRadius(DS.Radius.md)
                         }
                         
+                        // Reject button with X icon
                         Button(action: {
-                            // Haptic: confirm reject friend request
                             hapticsManager.lightTap()
                             Task {
                                 await rejectRequest()
                             }
                         }) {
-                            Text("Reject")
-                                .font(DS.Typography.buttonLabel)
-                                .foregroundColor(DS.Colors.textPrimary)
-                                .padding(.horizontal, DS.Spacing.md)
-                                .padding(.vertical, DS.Spacing.sm)
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(DS.Colors.textSecondary)
+                                .frame(width: 40, height: 36)
                                 .background(DS.Colors.cardBackgroundAlt)
-                                .cornerRadius(DS.Radius.lg)
+                                .cornerRadius(DS.Radius.md)
                         }
                     }
                 } else {
@@ -99,14 +98,16 @@ struct FriendRequestRow: View {
             if !isLoading {
                 // Haptic: confirm friend request row tap
                 hapticsManager.lightTap()
-                showProfile = true
-            }
-        }
-        .sheet(isPresented: $showProfile) {
-            if isIncoming {
-                OtherUserProfileView(dataManager: dataManager, userId: request.fromUserId)
-            } else {
-                OtherUserProfileView(dataManager: dataManager, userId: request.toUserId)
+                let otherUserId = isIncoming ? request.fromUserId : request.toUserId
+                profileNavigator.openProfile(
+                    handle: .supabase(
+                        id: otherUserId,
+                        username: userProfile?.username,
+                        seedProfile: userProfile
+                    ),
+                    source: .friendRequest,
+                    triggerHaptic: false
+                )
             }
         }
         .task {

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key></key>
+	<string></string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -41,5 +43,9 @@
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1c2thbW5md2dsY3RxZXd3ZmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzI5NDcsImV4cCI6MjA3OTAwODk0N30.7aBSTJJGzzZb1RKfRDQ3F0iAnJJDMsKff-ieshCFGks</string>
 	<key>SUPABASE_URL</key>
 	<string>https://quskamnfwglctqewwfln.supabase.co</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>
