@@ -31,7 +31,7 @@ struct UnifiedCafeView: View {
     
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var profileNavigator: ProfileNavigator
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // Sheet state
     @State private var sheetDetent: PresentationDetent = .medium
@@ -179,13 +179,8 @@ struct UnifiedCafeView: View {
                 hapticsManager.lightTap()
             }
         }
-        .onTapGesture {
-            // Tapping on preview expands to full
-            if !isExpanded {
-                hapticsManager.lightTap()
-                sheetDetent = .large
-            }
-        }
+        // Note: Removed .onTapGesture that was blocking button taps
+        // Users can drag up to expand, or tap the "View café details" hint
         .sheet(isPresented: $showLogVisit) {
             LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
         }
@@ -373,14 +368,10 @@ extension UnifiedCafeView {
     
     private var previewCTAs: some View {
         VStack(spacing: DS.Spacing.md) {
-            // Primary: Log a Visit
+            // Primary: Log a Visit - always opens LogVisitView with café prepopulated
             Button {
                 hapticsManager.lightTap()
-                if let onLogVisit = onLogVisitRequested {
-                    onLogVisit(currentCafe)
-                } else {
-                    showLogVisit = true
-                }
+                showLogVisit = true
             } label: {
                 HStack(spacing: DS.Spacing.sm) {
                     Image(systemName: "cup.and.saucer.fill")
@@ -452,22 +443,29 @@ extension UnifiedCafeView {
     }
     
     private var viewDetailsHint: some View {
-        HStack {
-            Spacer()
-            
-            HStack(spacing: DS.Spacing.xs) {
-                Text("View café details")
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textTertiary)
+        Button {
+            hapticsManager.lightTap()
+            sheetDetent = .large
+        } label: {
+            HStack {
+                Spacer()
                 
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DS.Colors.textTertiary)
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("View café details")
+                        .font(DS.Typography.caption1())
+                        .foregroundColor(DS.Colors.textTertiary)
+                    
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(DS.Colors.textTertiary)
+                }
+                
+                Spacer()
             }
-            
-            Spacer()
+            .padding(.top, DS.Spacing.sm)
+            .contentShape(Rectangle())
         }
-        .padding(.top, DS.Spacing.sm)
+        .buttonStyle(.plain)
     }
     
     private func shortAddress(_ address: String) -> String {
@@ -1423,7 +1421,7 @@ private struct CafeActivityRow: View {
                 }
                 
                 HStack(spacing: DS.Spacing.xs) {
-                    Text(visit.drinkType.rawValue)
+                    Text(visit.drinkDisplayText)
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textTertiary)
                     

@@ -11,7 +11,7 @@ struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
     @EnvironmentObject private var profileNavigator: ProfileNavigator
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var preselectedCafeForLogVisit: Cafe?
     
     // Timer for periodic notification refresh
@@ -115,7 +115,7 @@ struct MainTabView: View {
         // Haptic: confirm tab switch
         hapticsManager.selectionChanged()
         
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
             tabCoordinator.selectedTab = newTab
         }
     }
@@ -337,7 +337,7 @@ struct TabBarItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TabBarButtonStyle(isPressed: $isPressed))
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isSelected)
+        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isSelected)
         .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isPressed)
     }
 }

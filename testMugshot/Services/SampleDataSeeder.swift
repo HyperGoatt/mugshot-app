@@ -8,6 +8,9 @@
 import Foundation
 import CoreLocation
 
+// PERF: Sample data seeder only available in DEBUG builds
+#if DEBUG
+
 class SampleDataSeeder {
     @MainActor
     static func seedSampleData(dataManager: DataManager) {
@@ -166,3 +169,4 @@ class SampleDataSeeder {
     }
 }
 
+#endif // DEBUG

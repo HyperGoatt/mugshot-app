@@ -53,6 +53,7 @@ struct FriendsHubView: View {
                         .padding(.top, DS.Spacing.md)
                         .padding(.bottom, DS.Spacing.xxl * 2)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .background(DS.Colors.screenBackground)
             .navigationTitle("Friends")
@@ -395,9 +396,10 @@ struct FriendRequestsContentView: View {
     }
     
     private func refreshAfterAction() async {
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // DataManager friend operations now handle state refresh internally
+        // Just reload the local view data
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds for UI smoothness
         await loadFriendRequests()
-        await dataManager.refreshFriendsList()
     }
 }
 
@@ -409,7 +411,7 @@ struct OutgoingRequestRow: View {
     @ObservedObject var dataManager: DataManager
     var onRequestAction: (() -> Void)? = nil
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var isLoading = false
     @State private var userProfile: RemoteUserProfile?
     @State private var isLoadingProfile = false
@@ -483,10 +485,11 @@ struct OutgoingRequestRow: View {
             defer { isLoading = false }
             do {
                 try await dataManager.cancelFriendRequest(requestId: request.id)
-                print("[FriendsRequests] Canceled outgoing request id=\(request.id)")
+                // cancelFriendRequest calls refreshFriendsState internally
+                print("[FriendsRequests] ✅ Canceled outgoing request id=\(request.id)")
                 onRequestAction?()
             } catch {
-                print("[OutgoingRequestRow] Error canceling request: \(error.localizedDescription)")
+                print("[OutgoingRequestRow] ❌ Error canceling request: \(error.localizedDescription)")
                 hapticsManager.playError()
             }
         }

@@ -207,29 +207,59 @@ final class SupabaseSocialGraphService {
             }
         }
         
-        // Step 3: Create bidirectional friend relationships (idempotent - will fail gracefully if already exist)
-        let friendPayloads = [
-            FriendInsertPayload(userId: fromUserId, friendUserId: toUserId),
-            FriendInsertPayload(userId: toUserId, friendUserId: fromUserId)
-        ]
-        let friendBody = try encoder.encode(friendPayloads)
-        let (friendData, friendResponse) = try await client.request(
+        // Step 3: Create bidirectional friend relationships
+        // CRITICAL: Insert each direction separately to ensure both succeed
+        // This prevents partial failures where only one direction gets created
+        
+        print("[SupabaseSocialGraphService] Creating friendship: \(fromUserId.prefix(8)) ↔ \(toUserId.prefix(8))")
+        
+        // Direction 1: fromUserId -> toUserId
+        let payload1 = [FriendInsertPayload(userId: fromUserId, friendUserId: toUserId)]
+        let body1 = try encoder.encode(payload1)
+        let (data1, response1) = try await client.request(
             path: "rest/v1/friends",
             method: "POST",
             headers: ["Prefer": "return=minimal"],
-            body: friendBody
+            body: body1
         )
         
-        // If friends already exist, that's okay - we just need them to exist
-        if !(200..<300).contains(friendResponse.statusCode) {
-            let errorMessage = String(data: friendData, encoding: .utf8) ?? ""
-            // Check if it's a duplicate key error (23505) - if so, friends already exist, which is fine
-            if errorMessage.contains("23505") || errorMessage.contains("duplicate key") || errorMessage.contains("already exists") {
-                print("[SupabaseSocialGraphService] acceptFriendRequest: Friends already exist, continuing")
+        if !(200..<300).contains(response1.statusCode) {
+            let errorMessage = String(data: data1, encoding: .utf8) ?? ""
+            // Only ignore duplicate key errors - everything else should fail
+            if errorMessage.contains("23505") || errorMessage.contains("duplicate key") {
+                print("[SupabaseSocialGraphService] ✅ Direction 1 already exists: \(fromUserId.prefix(8)) -> \(toUserId.prefix(8))")
             } else {
-                throw SupabaseError.server(status: friendResponse.statusCode, message: errorMessage)
+                print("[SupabaseSocialGraphService] ❌ Failed to create direction 1: \(errorMessage)")
+                throw SupabaseError.server(status: response1.statusCode, message: "Failed to create friendship direction 1: \(errorMessage)")
             }
+        } else {
+            print("[SupabaseSocialGraphService] ✅ Created direction 1: \(fromUserId.prefix(8)) -> \(toUserId.prefix(8))")
         }
+        
+        // Direction 2: toUserId -> fromUserId
+        let payload2 = [FriendInsertPayload(userId: toUserId, friendUserId: fromUserId)]
+        let body2 = try encoder.encode(payload2)
+        let (data2, response2) = try await client.request(
+            path: "rest/v1/friends",
+            method: "POST",
+            headers: ["Prefer": "return=minimal"],
+            body: body2
+        )
+        
+        if !(200..<300).contains(response2.statusCode) {
+            let errorMessage = String(data: data2, encoding: .utf8) ?? ""
+            // Only ignore duplicate key errors - everything else should fail
+            if errorMessage.contains("23505") || errorMessage.contains("duplicate key") {
+                print("[SupabaseSocialGraphService] ✅ Direction 2 already exists: \(toUserId.prefix(8)) -> \(fromUserId.prefix(8))")
+            } else {
+                print("[SupabaseSocialGraphService] ❌ Failed to create direction 2: \(errorMessage)")
+                throw SupabaseError.server(status: response2.statusCode, message: "Failed to create friendship direction 2: \(errorMessage)")
+            }
+        } else {
+            print("[SupabaseSocialGraphService] ✅ Created direction 2: \(toUserId.prefix(8)) -> \(fromUserId.prefix(8))")
+        }
+        
+        print("[SupabaseSocialGraphService] 🎉 Bidirectional friendship complete!")
     }
     
     func rejectFriendRequest(requestId: UUID) async throws {
@@ -277,10 +307,14 @@ final class SupabaseSocialGraphService {
             queryItems: queryItems
         )
         guard (200..<300).contains(response.statusCode) else {
-            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[SupabaseSocialGraphService] ❌ fetchFriends failed for \(userId.prefix(8)): \(errorMsg)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMsg)
         }
         let friends = try decoder.decode([RemoteFriend].self, from: data)
         let directFriendIds = friends.map { $0.friendUserId }
+        
+        print("[SupabaseSocialGraphService] ✅ Fetched \(directFriendIds.count) friends for \(userId.prefix(8))")
         
         if !directFriendIds.isEmpty {
             return directFriendIds
@@ -288,34 +322,55 @@ final class SupabaseSocialGraphService {
         
         // Fallback: treat mutual follows as friends if explicit friendships
         // haven't been created yet (e.g., legacy data or pre-friends system).
+        print("[SupabaseSocialGraphService] ⚠️ No explicit friends found, checking mutual follows fallback...")
         let followingIds = try await fetchFollowingIds(for: userId)
         let followerIds = try await fetchFollowerIds(for: userId)
         
         let mutuals = Set(followingIds).intersection(Set(followerIds))
+        print("[SupabaseSocialGraphService] ℹ️ Found \(mutuals.count) mutual follows for \(userId.prefix(8))")
         return Array(mutuals)
     }
     
     func removeFriend(userId: String, friendUserId: String) async throws {
+        print("[SupabaseSocialGraphService] 👋 Removing friendship: \(userId.prefix(8)) ↔ \(friendUserId.prefix(8))")
+        
         // Remove bidirectional friendship - delete both directions
+        // Direction 1: userId -> friendUserId
         let queryItems1 = [
             URLQueryItem(name: "user_id", value: "eq.\(userId)"),
             URLQueryItem(name: "friend_user_id", value: "eq.\(friendUserId)")
         ]
-        _ = try await client.request(
+        let (data1, response1) = try await client.request(
             path: "rest/v1/friends",
             method: "DELETE",
             queryItems: queryItems1
         )
         
+        if !(200..<300).contains(response1.statusCode) {
+            let errorMsg = String(data: data1, encoding: .utf8) ?? "Unknown error"
+            print("[SupabaseSocialGraphService] ❌ Failed to remove direction 1: \(errorMsg)")
+            throw SupabaseError.server(status: response1.statusCode, message: errorMsg)
+        }
+        print("[SupabaseSocialGraphService] ✅ Removed direction 1: \(userId.prefix(8)) -> \(friendUserId.prefix(8))")
+        
+        // Direction 2: friendUserId -> userId
         let queryItems2 = [
             URLQueryItem(name: "user_id", value: "eq.\(friendUserId)"),
             URLQueryItem(name: "friend_user_id", value: "eq.\(userId)")
         ]
-        _ = try await client.request(
+        let (data2, response2) = try await client.request(
             path: "rest/v1/friends",
             method: "DELETE",
             queryItems: queryItems2
         )
+        
+        if !(200..<300).contains(response2.statusCode) {
+            let errorMsg = String(data: data2, encoding: .utf8) ?? "Unknown error"
+            print("[SupabaseSocialGraphService] ❌ Failed to remove direction 2: \(errorMsg)")
+            throw SupabaseError.server(status: response2.statusCode, message: errorMsg)
+        }
+        print("[SupabaseSocialGraphService] ✅ Removed direction 2: \(friendUserId.prefix(8)) -> \(userId.prefix(8))")
+        print("[SupabaseSocialGraphService] 💔 Friendship completely removed")
     }
     
     func checkFriendshipStatus(currentUserId: String, otherUserId: String) async throws -> FriendshipStatus {

@@ -43,6 +43,15 @@
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1c2thbW5md2dsY3RxZXd3ZmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzI5NDcsImV4cCI6MjA3OTAwODk0N30.7aBSTJJGzzZb1RKfRDQ3F0iAnJJDMsKff-ieshCFGks</string>
 	<key>SUPABASE_URL</key>
 	<string>https://quskamnfwglctqewwfln.supabase.co</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackgroundColor</string>
+		<key>UIImageName</key>
+		<string>Mugshot Launch Screen</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<false/>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

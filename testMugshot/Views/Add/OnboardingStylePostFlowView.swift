@@ -20,6 +20,7 @@ struct OnboardingStylePostFlowView: View {
     @State private var selectedCafe: Cafe?
     @State private var drinkType: DrinkType = .coffee
     @State private var customDrinkType: String = ""
+    @State private var drinkSubtype: String = ""
     @State private var photoImages: [UIImage] = []
     @State private var posterPhotoIndex: Int = 0
     @State private var ratings: [String: Double] = [:]
@@ -153,7 +154,8 @@ struct OnboardingStylePostFlowView: View {
             // Step 2: Drink Type
             (AnyView(PostFlowStep2_Drink(
                 drinkType: $drinkType,
-                customDrinkType: $customDrinkType
+                customDrinkType: $customDrinkType,
+                drinkSubtype: $drinkSubtype
             )), DS.Colors.blueSoftFill),
             
             // Step 3: Photos
@@ -198,7 +200,7 @@ struct OnboardingStylePostFlowView: View {
     private var canProceedToNext: Bool {
         switch currentStep {
         case 0: return selectedCafe != nil
-        case 1: return drinkType != .other || !customDrinkType.isEmpty
+        case 1: return (drinkType != .other || !customDrinkType.isEmpty) && !drinkSubtype.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case 2: return true // Photos are optional
         case 3: return true // Ratings are optional
         case 4: return !caption.isEmpty
@@ -237,6 +239,7 @@ struct OnboardingStylePostFlowView: View {
         selectedCafe = nil
         drinkType = .coffee
         customDrinkType = ""
+        drinkSubtype = ""
         photoImages = []
         posterPhotoIndex = 0
         ratings = [:]
@@ -274,6 +277,13 @@ struct OnboardingStylePostFlowView: View {
         
         guard drinkType != .other || !customDrinkType.isEmpty else {
             validationErrors.append("Please specify a custom drink type")
+            currentStep = 1
+            hapticsManager.playError()
+            return
+        }
+        
+        guard !drinkSubtype.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            validationErrors.append("Please specify what drink you got")
             currentStep = 1
             hapticsManager.playError()
             return
@@ -317,6 +327,7 @@ struct OnboardingStylePostFlowView: View {
                 cafe: cafe,
                 drinkType: drinkType,
                 customDrinkType: drinkType == .other ? customDrinkType : nil,
+                drinkSubtype: drinkSubtype.isEmpty ? nil : drinkSubtype,
                 caption: caption,
                 notes: notes.isEmpty ? nil : notes,
                 photoImages: photoImages,
@@ -433,6 +444,7 @@ struct PostFlowStep1_Cafe: View {
 struct PostFlowStep2_Drink: View {
     @Binding var drinkType: DrinkType
     @Binding var customDrinkType: String
+    @Binding var drinkSubtype: String
     
     var body: some View {
         VStack(spacing: DS.Spacing.xl) {
@@ -465,6 +477,13 @@ struct PostFlowStep2_Drink: View {
                     customDrinkType: $customDrinkType
                 )
             }
+            .padding(.horizontal, DS.Spacing.pagePadding)
+            
+            // Drink subtype field
+            DrinkSubtypeField(
+                drinkType: drinkType,
+                drinkSubtype: $drinkSubtype
+            )
             .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Selected drink preview

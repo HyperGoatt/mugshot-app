@@ -20,18 +20,32 @@ struct MentionText: View {
             // Build interactive text with tappable mentions
             InteractiveMentionText(
                 text: text,
+                mentions: mentions,
                 onMentionTap: onMentionTap
             )
         }
     }
     
     private var attributedString: AttributedString {
-        var attributed = AttributedString(text)
-        
-        // Find all mention ranges and apply styling
+        // Replace @[Display Name] with just Display Name in the display text
+        var displayText = text
         let mentionRanges = MentionParser.findMentionRanges(in: text)
         
-        for (range, _) in mentionRanges {
+        // Process mentions in reverse order to preserve indices
+        for (range, displayName) in mentionRanges.reversed() {
+            if let swiftRange = Range(range, in: displayText) {
+                // Replace @[Display Name] with just Display Name
+                displayText.replaceSubrange(swiftRange, with: displayName)
+            }
+        }
+        
+        var attributed = AttributedString(displayText)
+        
+        // Now apply styling to the display names in the modified text
+        // We need to recalculate positions after replacement
+        let updatedMentionRanges = MentionParser.findDisplayNameRanges(in: text, displayText: displayText)
+        
+        for range in updatedMentionRanges {
             if let swiftRange = Range(range, in: attributed) {
                 attributed[swiftRange].foregroundColor = DS.Colors.primaryAccent
                 attributed[swiftRange].font = DS.Typography.bodyText.bold()
@@ -47,6 +61,7 @@ struct MentionText: View {
 /// A text view that renders mentions as tappable links using proper Text concatenation
 private struct InteractiveMentionText: View {
     let text: String
+    let mentions: [Mention]
     let onMentionTap: ((String) -> Void)?
     
     var body: some View {
@@ -68,15 +83,41 @@ private struct InteractiveMentionText: View {
     }
     
     private var attributedStringWithLinks: AttributedString {
-        var attributed = AttributedString(text)
+        // Replace @[Display Name] with just Display Name in the display text
+        var displayText = text
         let mentionRanges = MentionParser.findMentionRanges(in: text)
         
-        for (range, username) in mentionRanges {
-            if let swiftRange = Range(range, in: attributed) {
+        // Create a map of display name to username for link handling
+        // Use the mentions array to get the actual username for each display name
+        var displayNameToUsername: [String: String] = [:]
+        for mention in mentions {
+            displayNameToUsername[mention.displayName] = mention.username
+        }
+        
+        // Process mentions in reverse order to preserve indices
+        for (range, displayName) in mentionRanges.reversed() {
+            if let swiftRange = Range(range, in: displayText) {
+                // Replace @[Display Name] with just Display Name
+                displayText.replaceSubrange(swiftRange, with: displayName)
+            }
+        }
+        
+        var attributed = AttributedString(displayText)
+        
+        // Now apply styling and links to the display names in the modified text
+        let updatedMentionRanges = MentionParser.findDisplayNameRanges(in: text, displayText: displayText)
+        let displayNames = mentionRanges.map { $0.displayName }
+        
+        for (index, range) in updatedMentionRanges.enumerated() {
+            if let swiftRange = Range(range, in: attributed),
+               index < displayNames.count {
+                let displayName = displayNames[index]
+                // Get the username for this display name from the mentions array
+                let username = displayNameToUsername[displayName] ?? displayName
                 attributed[swiftRange].foregroundColor = DS.Colors.primaryAccent
                 attributed[swiftRange].font = DS.Typography.bodyText.bold()
-                // Add link for tap handling
-                if let url = URL(string: "mugshot://mention/\(username)") {
+                // Add link for tap handling using USERNAME (not display name)
+                if let url = URL(string: "mugshot://mention/\(username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? username)") {
                     attributed[swiftRange].link = url
                 }
             }
@@ -96,7 +137,7 @@ private struct InteractiveMentionText: View {
         
         var currentIndex = text.startIndex
         
-        for (range, _) in mentionRanges {
+        for (range, displayName) in mentionRanges {
             guard let rangeStart = Range(NSRange(location: range.location, length: 0), in: text)?.lowerBound,
                   let rangeEnd = Range(NSRange(location: range.location + range.length, length: 0), in: text)?.lowerBound else {
                 continue
@@ -110,9 +151,8 @@ private struct InteractiveMentionText: View {
                 }
             }
             
-            // Add mention
-            let mentionText = String(text[rangeStart..<rangeEnd])
-            segments.append(TextSegment(text: mentionText, isMention: true))
+            // Add mention using just the display name (not the full @[Display Name])
+            segments.append(TextSegment(text: displayName, isMention: true))
             
             currentIndex = rangeEnd
         }
@@ -166,11 +206,15 @@ private struct WrappingHStack: View {
 /// A simpler approach using Text concatenation
 struct TappableMentionText: View {
     let text: String
+    let mentions: [Mention]
     let onMentionTap: ((String) -> Void)?
     @State private var tappedMention: String?
     @State private var showProfile = false
     
     var body: some View {
+        // Create a map of display name to username
+        let displayNameToUsername = Dictionary(uniqueKeysWithValues: mentions.map { ($0.displayName, $0.username) })
+        
         // Parse and build attributed text
         let segments = parseSegments()
         
@@ -181,9 +225,8 @@ struct TappableMentionText: View {
                         .foregroundColor(DS.Colors.primaryAccent)
                         .fontWeight(.semibold)
                         .onTapGesture {
-                            let username = segment.text.hasPrefix("@") 
-                                ? String(segment.text.dropFirst()) 
-                                : segment.text
+                            // segment.text is the display name, we need to map it to username
+                            let username = displayNameToUsername[segment.text] ?? segment.text
                             tappedMention = username
                             onMentionTap?(username)
                         }
@@ -209,7 +252,7 @@ struct TappableMentionText: View {
         
         var currentIndex = text.startIndex
         
-        for (range, _) in mentionRanges {
+        for (range, displayName) in mentionRanges {
             guard let rangeStart = Range(NSRange(location: range.location, length: 0), in: text)?.lowerBound,
                   let rangeEnd = Range(NSRange(location: range.location + range.length, length: 0), in: text)?.lowerBound else {
                 continue
@@ -219,7 +262,8 @@ struct TappableMentionText: View {
                 segments.append(Segment(text: String(text[currentIndex..<rangeStart]), isMention: false))
             }
             
-            segments.append(Segment(text: String(text[rangeStart..<rangeEnd]), isMention: true))
+            // Use display name instead of full @[Display Name] text
+            segments.append(Segment(text: displayName, isMention: true))
             currentIndex = rangeEnd
         }
         

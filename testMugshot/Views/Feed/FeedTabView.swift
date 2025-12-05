@@ -11,7 +11,7 @@ struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
     @EnvironmentObject private var profileNavigator: ProfileNavigator
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var selectedScope: FeedScope = .friends
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
@@ -79,12 +79,24 @@ struct FeedTabView: View {
                             .background(DS.Colors.screenBackground)
                         } else {
                             // Standard feed (Friends / Everyone)
-                            if visits.isEmpty && selectedScope == .friends {
+                            if dataManager.isBootstrapping && visits.isEmpty {
+                                VStack(spacing: DS.Spacing.lg) {
+                                    ForEach(0..<3) { _ in
+                                        DSFeedPostSkeleton()
+                                    }
+                                }
+                                .padding(.horizontal, DS.Spacing.pagePadding)
+                                .padding(.top, DS.Spacing.lg)
+                                .padding(.bottom, DS.Spacing.xxl * 2)
+                                .background(DS.Colors.screenBackground)
+                            } else if visits.isEmpty && selectedScope == .friends {
                                 // Empty state for Friends tab
                                 friendsEmptyState
                                     .padding(.bottom, DS.Spacing.xxl * 2)
                                     .background(DS.Colors.screenBackground)
                             } else {
+                                // PERF: LazyVStack ensures views are only created when visible
+                                // Each VisitCard is an independent view with stable .id() for better performance
                                 LazyVStack(spacing: DS.Spacing.lg) {
                                     ForEach(visits) { visit in
                                         VisitCard(
@@ -465,7 +477,7 @@ struct VisitCard: View {
     var onCommentTap: (() -> Void)? = nil
     var onMentionTap: ((String) -> Void)? = nil
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     private var isLikedByCurrentUser: Bool {
         if let userId = dataManager.appData.currentUser?.id {
@@ -524,14 +536,29 @@ struct VisitCard: View {
                 // Header: Avatar, Name, Time, Score
                 headerSection
                 
-                // Cafe attribution pill
-                if let name = cafeName, !name.isEmpty {
-                    DSCafeAttributionPill(cafeName: name) {
-                        onCafeTap?()
+                // Cafe attribution and drink info (stacked vertically for clarity)
+                VStack(alignment: .leading, spacing: 4) {
+                    // Cafe pill - primary location context
+                    if let name = cafeName, !name.isEmpty {
+                        DSCafeAttributionPill(cafeName: name) {
+                            onCafeTap?()
+                        }
                     }
-                    .padding(.horizontal, DS.Spacing.cardPadding)
-                    .padding(.top, DS.Spacing.xs)
+                    
+                    // Drink info - secondary metadata with icon
+                    HStack(spacing: 4) {
+                        Image(systemName: drinkIconForType(visit.drinkType))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(DS.Colors.textTertiary)
+                        
+                        Text(visit.drinkDisplayText)
+                            .font(DS.Typography.caption1())
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
+                .padding(.horizontal, DS.Spacing.cardPadding)
+                .padding(.top, DS.Spacing.xs)
                 
                 // Caption (above image for context)
                 if !visit.caption.isEmpty {
@@ -674,6 +701,21 @@ struct VisitCard: View {
     
     private func timeAgoString(from date: Date) -> String {
         return Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func drinkIconForType(_ type: DrinkType) -> String {
+        switch type {
+        case .coffee:
+            return "cup.and.saucer.fill"
+        case .matcha, .hojicha, .tea:
+            return "leaf.fill"
+        case .chai:
+            return "flame.fill"
+        case .hotChocolate:
+            return "mug.fill"
+        case .other:
+            return "drop.fill"
+        }
     }
 }
 

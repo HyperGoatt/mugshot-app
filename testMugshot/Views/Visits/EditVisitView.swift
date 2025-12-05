@@ -11,11 +11,12 @@ struct EditVisitView: View {
     @ObservedObject var dataManager: DataManager
     @Binding var visit: Visit
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // Editing state
     @State private var editedDrinkType: DrinkType
     @State private var editedCustomDrinkType: String
+    @State private var editedDrinkSubtype: String
     @State private var editedCaption: String
     @State private var editedNotes: String
     @State private var editedVisibility: VisitVisibility
@@ -35,6 +36,7 @@ struct EditVisitView: View {
         // Initialize editing state from visit
         _editedDrinkType = State(initialValue: visit.wrappedValue.drinkType)
         _editedCustomDrinkType = State(initialValue: visit.wrappedValue.customDrinkType ?? "")
+        _editedDrinkSubtype = State(initialValue: visit.wrappedValue.drinkSubtype ?? "")
         _editedCaption = State(initialValue: visit.wrappedValue.caption)
         _editedNotes = State(initialValue: visit.wrappedValue.notes ?? "")
         _editedVisibility = State(initialValue: visit.wrappedValue.visibility)
@@ -211,6 +213,39 @@ struct EditVisitView: View {
                     .background(DS.Colors.cardBackgroundAlt)
                     .cornerRadius(DS.Radius.md)
             }
+            
+            // Drink Subtype field (always shown)
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("What exactly did you get?")
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textSecondary)
+                
+                TextField(subtypePlaceholder, text: $editedDrinkSubtype)
+                    .font(DS.Typography.bodyText)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackgroundAlt)
+                    .cornerRadius(DS.Radius.md)
+            }
+            .padding(.top, DS.Spacing.xs)
+        }
+    }
+    
+    private var subtypePlaceholder: String {
+        switch editedDrinkType {
+        case .coffee:
+            return "e.g. Iced vanilla latte, Cortado..."
+        case .matcha:
+            return "e.g. Hot matcha with oat milk..."
+        case .hojicha:
+            return "e.g. Iced hojicha latte..."
+        case .tea:
+            return "e.g. Genmaicha, Earl Grey..."
+        case .chai:
+            return "e.g. Dirty chai, Iced chai latte..."
+        case .hotChocolate:
+            return "e.g. Peppermint hot chocolate..."
+        case .other:
+            return "e.g. Lavender latte..."
         }
     }
     
@@ -386,6 +421,7 @@ struct EditVisitView: View {
         var updatedVisit = visit
         updatedVisit.drinkType = editedDrinkType
         updatedVisit.customDrinkType = editedDrinkType == .other ? editedCustomDrinkType : nil
+        updatedVisit.drinkSubtype = editedDrinkSubtype.isEmpty ? nil : editedDrinkSubtype
         updatedVisit.caption = editedCaption
         updatedVisit.notes = editedNotes.isEmpty ? nil : editedNotes
         updatedVisit.visibility = editedVisibility

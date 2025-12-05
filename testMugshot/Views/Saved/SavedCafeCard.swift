@@ -72,7 +72,7 @@ struct SavedCafeCard: View {
     var onLogVisit: () -> Void
     var onShowDetails: () -> Void
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var isPressed = false
     
     // Computed: is this a cafe that hasn't been visited yet?

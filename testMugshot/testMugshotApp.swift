@@ -16,15 +16,31 @@ struct testMugshotApp: App {
     @StateObject private var supabaseEnvironment = SupabaseEnvironment()
     @StateObject private var tabCoordinator = TabCoordinator()
     @StateObject private var profileNavigator = ProfileNavigator()
+    // PERF: HapticsManager singleton provided as environment object to prevent wasteful recreation in every view
+    @StateObject private var hapticsManager = HapticsManager.shared
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     
+    // PERF: Debounce widget sync to max once per 5 minutes
+    @State private var lastWidgetSyncTime: Date? = nil
+    private let widgetSyncMinInterval: TimeInterval = 5 * 60 // 5 minutes
+    
     init() {
+        #if DEBUG
+        print("🚀 [PERF] App init started")
+        let initStart = CFAbsoluteTimeGetCurrent()
+        #endif
+        
         // Configure UITextField and UITextView to use light mode colors
         configureTextInputAppearance()
         // Log Supabase configuration once at launch to verify URL + anon key wiring
         SupabaseConfig.logConfigurationIfAvailable()
         SupabaseConfig.debugPrintConfig()
+        
+        #if DEBUG
+        let initTime = (CFAbsoluteTimeGetCurrent() - initStart) * 1000
+        print("🚀 [PERF] App init completed in \(String(format: "%.2f", initTime))ms")
+        #endif
     }
     
     var body: some Scene {
@@ -33,6 +49,7 @@ struct testMugshotApp: App {
                 .environmentObject(supabaseEnvironment)
                 .environmentObject(tabCoordinator)
                 .environmentObject(profileNavigator)
+                .environmentObject(hapticsManager)
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -49,6 +66,10 @@ struct testMugshotApp: App {
     private func handleScenePhaseChange(_ phase: ScenePhase) {
         switch phase {
         case .active:
+            #if DEBUG
+            print("🚀 [PERF] App became active")
+            #endif
+            
             // App came to foreground - refresh widget data
             guard dataManager.appData.isAuthenticated && dataManager.appData.hasCompletedProfileSetup else {
                 return
@@ -104,29 +125,14 @@ struct testMugshotApp: App {
     
     @ViewBuilder
     private var rootView: some View {
-        if dataManager.isBootstrapping {
-            ZStack {
-                Color(DS.Colors.screenBackground)
-                    .ignoresSafeArea()
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(DS.Colors.primaryAccent)
-                VStack {
-                    Spacer()
-                        Text("Starting up...")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .padding(.bottom, 50)
-                }
+        // Remove artificial "Starting Up" screen and go straight to content
+        // Launch Screen handles the initial brand impression
+        rootContentView
+            .onAppear {
+                // Log routing decision after view appears
+                let routingDecision = determineRoutingDecision()
+                logRoutingDecision(routingDecision)
             }
-        } else {
-            rootContentView
-                .onAppear {
-                    // Log routing decision after bootstrap completes
-                    let routingDecision = determineRoutingDecision()
-                    logRoutingDecision(routingDecision)
-                }
-        }
     }
     
     @ViewBuilder
@@ -208,7 +214,24 @@ struct testMugshotApp: App {
     
     /// Sync data to widgets (calls DataManager which includes friends visits)
     private func syncWidgetData() {
+        // PERF: Debounce widget sync to prevent excessive updates
+        let now = Date()
+        if let lastSync = lastWidgetSyncTime,
+           now.timeIntervalSince(lastSync) < widgetSyncMinInterval {
+            #if DEBUG
+            let timeSinceLastSync = now.timeIntervalSince(lastSync)
+            print("🚀 [PERF] Widget sync skipped (last sync \(Int(timeSinceLastSync))s ago, min interval: \(Int(widgetSyncMinInterval))s)")
+            #endif
+            return
+        }
+        
+        lastWidgetSyncTime = now
+        
         Task { @MainActor in
+            #if DEBUG
+            print("🚀 [PERF] Widget sync initiated")
+            #endif
+            
             // IMPORTANT: Call dataManager.syncWidgetData() NOT WidgetSyncService directly
             // DataManager.syncWidgetData() fetches friends visits and passes them to the widget
             dataManager.syncWidgetData()

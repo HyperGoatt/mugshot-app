@@ -13,7 +13,7 @@ struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var tabCoordinator: TabCoordinator
     @EnvironmentObject private var profileNavigator: ProfileNavigator
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var selectedTab: ProfileContentTab = .posts
     @State private var showEditProfile = false
     @State private var showShareSheet = false
@@ -119,10 +119,10 @@ struct ProfileTabView: View {
                     // MARK: - Content Tabs
                     contentTabsSection
                     
-                    // MARK: - Developer Tools (Debug only)
+                    // MARK: - Developer Tools (Debug only, currently hidden)
                     #if DEBUG
-                    developerToolsSection
-                        #endif
+                    // developerToolsSection
+                    #endif
                 }
                 .padding(.bottom, DS.Spacing.xxl * 2)
         }
@@ -310,24 +310,33 @@ struct ProfileTabView: View {
     
     @ViewBuilder
     private var contentView: some View {
-        switch selectedTab {
-        case .posts:
-            ProfilePostsGrid(
-                visits: userVisits,
-                onSelectVisit: { visit in
-                    hapticsManager.lightTap()
-                    selectedVisit = visit
+        if dataManager.isBootstrapping && userVisits.isEmpty {
+            VStack(spacing: DS.Spacing.lg) {
+                ForEach(0..<3) { _ in
+                    DSCardSkeleton()
                 }
-            )
-            .padding(.horizontal, 1) // Small padding for grid edges
+            }
+            .padding(.horizontal, DS.Spacing.pagePadding)
+        } else {
+            switch selectedTab {
+            case .posts:
+                ProfilePostsGrid(
+                    visits: userVisits,
+                    onSelectVisit: { visit in
+                        hapticsManager.lightTap()
+                        selectedVisit = visit
+                    }
+                )
+                .padding(.horizontal, 1) // Small padding for grid edges
             
-        case .cafes:
-            ProfileCafesView(dataManager: dataManager)
-                .padding(.horizontal, DS.Spacing.pagePadding)
+            case .cafes:
+                ProfileCafesView(dataManager: dataManager)
+                    .padding(.horizontal, DS.Spacing.pagePadding)
             
-        case .journal:
-            ProfileJournalView(dataManager: dataManager)
-                .padding(.horizontal, DS.Spacing.pagePadding)
+            case .journal:
+                ProfileJournalView(dataManager: dataManager)
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+            }
         }
     }
     
@@ -340,6 +349,38 @@ struct ProfileTabView: View {
                 Text("🛠 Developer Tools")
                         .font(DS.Typography.caption1())
                         .foregroundColor(DS.Colors.textSecondary)
+                
+                // Search Mode segmented control
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    Text("Search Mode")
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textPrimary)
+                    
+                    Text(dataManager.appData.mapSearchMode.displayName)
+                        .font(DS.Typography.caption1())
+                        .foregroundColor(DS.Colors.textSecondary)
+                    
+                    let modes = Array(MapSearchMode.allCases)
+                    DSDesignSegmentedControl(
+                        options: modes.map { $0.displayName },
+                        selectedIndex: Binding(
+                            get: {
+                                modes.firstIndex(of: dataManager.appData.mapSearchMode) ?? 0
+                            },
+                            set: { newIndex in
+                                guard newIndex >= 0 && newIndex < modes.count else { return }
+                                let newMode = modes[newIndex]
+                                if newMode != dataManager.appData.mapSearchMode {
+                                    hapticsManager.selectionChanged()
+                                    dataManager.setMapSearchMode(newMode)
+                                }
+                            }
+                        )
+                    )
+                }
+                
+                Divider()
+                    .background(DS.Colors.dividerSubtle)
                 
                 // Post Flow Style Toggle
                 HStack {
@@ -835,7 +876,7 @@ struct SavedCafeListItem: View {
 struct EditProfileView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var dataManager: DataManager
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var editableUser: User
     @State private var showingProfileImagePicker = false
     @State private var showingBannerImagePicker = false

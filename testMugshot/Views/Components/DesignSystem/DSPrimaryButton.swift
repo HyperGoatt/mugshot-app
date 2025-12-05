@@ -20,7 +20,8 @@ struct DSPrimaryButtonStyle: ButtonStyle {
             )
             .opacity(configuration.isPressed ? 0.9 : 1.0)
             .dsCardShadow()
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

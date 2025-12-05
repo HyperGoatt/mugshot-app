@@ -44,7 +44,7 @@ struct SpinForASpotView: View {
     @State private var confettiTrigger: Int = 0
     @State private var mugsyImagePosition: CGPoint = .zero
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // Valid radius values: 0.25, 0.5, 0.75, 1.0, then 1-mile increments to 10
     private let validRadiusValues: [Double] = [0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]

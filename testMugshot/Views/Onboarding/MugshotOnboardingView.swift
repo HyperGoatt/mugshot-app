@@ -10,7 +10,7 @@ import SwiftUI
 struct MugshotOnboardingView: View {
     @ObservedObject var dataManager: DataManager
     @StateObject private var locationManager = LocationManager()
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     private var hasLocationPermission: Bool {
         locationManager.authorizationStatus == .authorizedAlways ||

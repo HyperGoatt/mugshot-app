@@ -49,6 +49,11 @@ struct ProfileJournalView: View {
                 }
             )
             
+            // My Taste - Drink subtypes breakdown
+            if !dataManager.getDrinkSubtypesBreakdown().isEmpty {
+                MyTasteSection(drinkSubtypes: dataManager.getDrinkSubtypesBreakdown())
+            }
+            
             // Streaks & Consistency
             StreaksCard(
                 currentStreak: currentStreak,
@@ -143,7 +148,7 @@ private struct TodaysMugshotCard: View {
                             }
                             
                             HStack(spacing: DS.Spacing.sm) {
-                                Text(visit.drinkType.rawValue)
+                                Text(visit.drinkDisplayText)
                                     .font(DS.Typography.caption1())
                                     .foregroundColor(DS.Colors.textSecondary)
                                 
@@ -1035,7 +1040,7 @@ private struct NoteRowInteractive: View {
                 
                 // Drink / rating hint
                 HStack(spacing: DS.Spacing.sm) {
-                    Text(visit.drinkType.rawValue)
+                    Text(visit.drinkDisplayText)
                         .font(DS.Typography.caption2())
                         .foregroundColor(DS.Colors.textTertiary)
                     
@@ -1172,7 +1177,7 @@ struct NoteDetailEditView: View {
                             .font(.system(size: 12))
                             .foregroundColor(DS.Colors.iconSubtle)
                         
-                        Text(visit.drinkType.rawValue)
+                        Text(visit.drinkDisplayText)
                             .font(DS.Typography.caption1())
                             .foregroundColor(DS.Colors.textSecondary)
                     }

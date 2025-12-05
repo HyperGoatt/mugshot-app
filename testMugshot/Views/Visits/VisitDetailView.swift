@@ -24,11 +24,12 @@ struct VisitDetailView: View {
     @State private var newlyAddedCommentIds: Set<UUID> = []
     @State private var lastOptimisticCommentTime: Date?
     @State private var showPostcardPreview = false
+    @State private var replyingToComment: Comment? = nil
     @FocusState private var isCommentFieldFocused: Bool
     let showsDismissButton: Bool
     
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @EnvironmentObject private var profileNavigator: ProfileNavigator
     
@@ -219,6 +220,7 @@ struct VisitDetailView: View {
                     ReviewSummaryCard(
                         drinkType: visit.drinkType,
                         customDrinkType: visit.customDrinkType,
+                        drinkSubtype: visit.drinkSubtype,
                         ratings: visit.ratings
                     )
                     .padding(.horizontal, DS.Spacing.pagePadding)
@@ -238,7 +240,9 @@ struct VisitDetailView: View {
                     commentText: $commentText,
                     dataManager: dataManager,
                     newlyAddedCommentIds: newlyAddedCommentIds,
-                    onPostComment: addComment,
+                    onPostComment: { parentCommentId in
+                        addComment(parentCommentId: parentCommentId)
+                    },
                     onEditComment: { comment in
                         editingComment = comment
                         editedCommentText = comment.text
@@ -418,11 +422,11 @@ struct VisitDetailView: View {
         }
     }
     
-    private func addComment() {
+    private func addComment(parentCommentId: UUID? = nil) {
         let trimmed = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         #if DEBUG
-        print("📝 [Comment] addComment called - text: '\(trimmed)'")
+        print("📝 [Comment] addComment called - text: '\(trimmed)', parentId: \(parentCommentId?.uuidString ?? "nil")")
         print("📝 [Comment] currentUser: \(dataManager.appData.currentUser != nil ? "✅" : "❌")")
         print("📝 [Comment] supabaseUserId: \(dataManager.appData.supabaseUserId != nil ? "✅" : "❌")")
         #endif
@@ -462,7 +466,11 @@ struct VisitDetailView: View {
             supabaseUserId: supabaseUserId,
             text: trimmed,
             createdAt: Date(),
-            mentions: MentionParser.parseMentions(from: trimmed)
+            mentions: MentionParser.parseMentions(from: trimmed),
+            parentCommentId: parentCommentId,
+            likeCount: 0,
+            likedByUserIds: [],
+            replies: []
         )
         
         // Clear text field immediately for better UX
@@ -484,7 +492,7 @@ struct VisitDetailView: View {
         
         // Update server in background, then refresh from canonical DataManager source
         Task {
-            await dataManager.addComment(to: visit.id, text: trimmed)
+            await dataManager.addComment(to: visit.id, text: trimmed, parentCommentId: parentCommentId)
             
             #if DEBUG
             print("📝 [Comment] Server response received – refreshing visit from DataManager")
@@ -515,8 +523,17 @@ struct VisitDetailView: View {
     }
     
     private func deleteVisit() {
-        dataManager.deleteVisit(id: visit.id)
-        dismiss()
+        Task {
+            do {
+                try await dataManager.deleteVisit(id: visit.id)
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch {
+                print("❌ [VisitDetailView] Failed to delete visit: \(error)")
+                // Show error to user (could add an @State alert here if needed)
+            }
+        }
     }
 }
 

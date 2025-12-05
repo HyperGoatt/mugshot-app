@@ -13,7 +13,7 @@ struct FriendSearchResultRow: View {
     @ObservedObject var dataManager: DataManager
     var onStatusChanged: (() -> Void)? = nil
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var isLoading = false
     @EnvironmentObject private var profileNavigator: ProfileNavigator
     
@@ -131,8 +131,7 @@ struct FriendSearchResultRow: View {
             defer { isLoading = false }
             do {
                 try await dataManager.sendFriendRequest(to: profile.id)
-                // Refresh friend requests to update status
-                _ = try? await dataManager.fetchFriendRequests()
+                // sendFriendRequest updates pending request tracking internally
                 hapticsManager.playSuccess()
                 onStatusChanged?()
             } catch {
@@ -150,8 +149,7 @@ struct FriendSearchResultRow: View {
             defer { isLoading = false }
             do {
                 try await dataManager.cancelFriendRequest(requestId: requestId)
-                // Refresh friend requests to update status
-                _ = try? await dataManager.fetchFriendRequests()
+                // cancelFriendRequest calls refreshFriendsState internally
                 onStatusChanged?()
             } catch {
                 print("[FriendSearchResultRow] Error canceling request: \(error.localizedDescription)")
@@ -168,9 +166,7 @@ struct FriendSearchResultRow: View {
             defer { isLoading = false }
             do {
                 try await dataManager.acceptFriendRequest(requestId: requestId)
-                await dataManager.refreshFriendsList()
-                // Refresh friend requests to update status
-                _ = try? await dataManager.fetchFriendRequests()
+                // acceptFriendRequest calls refreshFriendsState internally
                 hapticsManager.playSuccess()
                 onStatusChanged?()
             } catch {

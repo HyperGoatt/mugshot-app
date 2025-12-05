@@ -50,6 +50,11 @@ class DataManager: ObservableObject {
         notificationService: SupabaseNotificationService = .shared,
         userCafeStateService: SupabaseUserCafeStateService = .shared
     ) {
+        #if DEBUG
+        let initStart = CFAbsoluteTimeGetCurrent()
+        print("🚀 [PERF] DataManager init started")
+        #endif
+        
         self.authService = authService
         self.profileService = profileService
         self.storageService = storageService
@@ -60,26 +65,43 @@ class DataManager: ObservableObject {
         self.userCafeStateService = userCafeStateService
         
         // Bind network monitor
+        // PERF: assign(to:on:) is safe here since DataManager is a singleton living for app lifetime
         networkMonitor.$isConnected
             .receive(on: RunLoop.main)
             .map { !$0 }
             .assign(to: \.isOffline, on: self)
             .store(in: &cancellables)
         
-        // Schedule disk cache cleanup
-        PhotoCache.shared.cleanDiskCache()
+        // PERF: Schedule disk cache cleanup on background queue to avoid blocking launch
+        DispatchQueue.global(qos: .utility).async {
+            PhotoCache.shared.cleanDiskCache()
+        }
             
         // Try to load existing data, otherwise start fresh
+        #if DEBUG
+        let loadStart = CFAbsoluteTimeGetCurrent()
+        #endif
+        
         if let data = UserDefaults.standard.data(forKey: dataKey),
            let decoded = try? JSONDecoder().decode(AppData.self, from: data) {
             self.appData = decoded
-            // PERFORMANCE: Defer image preloading to background after UI is responsive
+            
+            #if DEBUG
+            let loadTime = (CFAbsoluteTimeGetCurrent() - loadStart) * 1000
+            print("🚀 [PERF] AppData decoded in \(String(format: "%.2f", loadTime))ms (\(decoded.visits.count) visits, \(decoded.cafes.count) cafes)")
+            #endif
+            
+            // PERF: Defer image preloading to background after UI is responsive
             // Capture photo paths before async dispatch to avoid MainActor isolation issues
             let photoPaths = decoded.visits.flatMap { $0.photos }
             let profileImageId = decoded.currentUserProfileImageId
             let bannerImageId = decoded.currentUserBannerImageId
             
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
+                #if DEBUG
+                print("🚀 [PERF] Starting background image preload (\(photoPaths.count) visit photos)")
+                #endif
+                
                 PhotoCache.shared.preloadImages(for: photoPaths)
                 
                 // Preload profile images
@@ -96,8 +118,18 @@ class DataManager: ObservableObject {
             }
         } else {
             self.appData = AppData()
+            
+            #if DEBUG
+            print("🚀 [PERF] No cached AppData found, starting fresh")
+            #endif
         }
         
+        #if DEBUG
+        let initTime = (CFAbsoluteTimeGetCurrent() - initStart) * 1000
+        print("🚀 [PERF] DataManager init completed in \(String(format: "%.2f", initTime))ms")
+        #endif
+        
+        // PERF: Bootstrap auth state asynchronously without blocking init
         Task {
             await bootstrapAuthStateOnLaunch()
         }
@@ -707,20 +739,54 @@ class DataManager: ObservableObject {
     }
 
     func bootstrapAuthStateOnLaunch() async {
+        #if DEBUG
+        let bootstrapStart = CFAbsoluteTimeGetCurrent()
+        print("🚀 [PERF] Auth bootstrap started")
+        #endif
+        
         print("[Auth] bootstrapAuthStateOnLaunch: Starting")
         isBootstrapping = true
         
         // Use the single source of truth method to refresh auth status
+        #if DEBUG
+        let authStart = CFAbsoluteTimeGetCurrent()
+        #endif
+        
         await refreshAuthStatusFromSupabase()
         
-        // Refresh friends list and notifications if authenticated to get accurate counts
+        #if DEBUG
+        let authTime = (CFAbsoluteTimeGetCurrent() - authStart) * 1000
+        print("🚀 [PERF] Auth status refresh took \(String(format: "%.2f", authTime))ms")
+        #endif
+        
+        // PERF: Only refresh friends/notifications if authenticated, running in parallel
         if appData.isUserAuthenticated && appData.hasEmailVerified {
             print("[Auth] bootstrapAuthStateOnLaunch: Refreshing friends list and notifications")
-            await refreshFriendsList()
-            await refreshNotifications()
+            
+            #if DEBUG
+            let dataStart = CFAbsoluteTimeGetCurrent()
+            #endif
+            
+            // PERF: Run friends list and notifications refresh in parallel
+            async let friendsTask = refreshFriendsList()
+            async let notificationsTask = refreshNotifications()
+            
+            await friendsTask
+            await notificationsTask
+            
+            #if DEBUG
+            let dataTime = (CFAbsoluteTimeGetCurrent() - dataStart) * 1000
+            print("🚀 [PERF] Friends/notifications refresh took \(String(format: "%.2f", dataTime))ms")
+            #endif
         }
         
         isBootstrapping = false
+        
+        #if DEBUG
+        let bootstrapTime = (CFAbsoluteTimeGetCurrent() - bootstrapStart) * 1000
+        print("🚀 [PERF] Auth bootstrap completed in \(String(format: "%.2f", bootstrapTime))ms")
+        #endif
+        
         print("[Auth] bootstrapAuthStateOnLaunch: Complete")
     }
 
@@ -1362,6 +1428,7 @@ class DataManager: ObservableObject {
         cafe: Cafe,
         drinkType: DrinkType,
         customDrinkType: String?,
+        drinkSubtype: String?,
         caption: String,
         notes: String?,
         photoImages: [UIImage],
@@ -1439,13 +1506,25 @@ class DataManager: ObservableObject {
             validOverallScore = overallScore
         }
         
-        // Validate and clean ratings - remove any NaN or infinite values
+        // Validate and clean ratings
+        // 1. Remove any NaN or infinite values
+        // 2. Ensure value is between 0 and 5
+        // 3. Filter to only include categories currently in the user's template (to remove stale categories like "Value")
+        // 4. Only include ratings > 0 (0 means not rated)
         var validRatings: [String: Double] = [:]
+        let templateCategories = Set(appData.ratingTemplate.categories.map { $0.name })
+        
         for (key, value) in ratings {
-            if !value.isNaN && !value.isInfinite && value >= 0 && value <= 5 {
+            // Check if category exists in current template
+            guard templateCategories.contains(key) else {
+                print("⚠️ [CreateVisit] Skipping rating for '\(key)' - not in current template")
+                continue
+            }
+            
+            if !value.isNaN && !value.isInfinite && value > 0 && value <= 5 {
                 validRatings[key] = value
             } else {
-                print("⚠️ [CreateVisit] Invalid rating for '\(key)': \(value), skipping")
+                print("⚠️ [CreateVisit] Invalid rating for '\(key)': \(value) (must be > 0 and <= 5), skipping")
             }
         }
         
@@ -1474,11 +1553,16 @@ class DataManager: ObservableObject {
         
         print("📝 [CreateVisit] Final drinkType: \(finalDrinkType ?? "nil"), custom: \(finalDrinkTypeCustom ?? "nil")")
         
+        // Clean drinkSubtype
+        let finalDrinkSubtype = drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanDrinkSubtype = finalDrinkSubtype?.isEmpty == true ? nil : finalDrinkSubtype
+        
         let payload = VisitInsertPayload(
             userId: supabaseUserId,
             cafeId: remoteCafe.id,
             drinkType: finalDrinkType,
             drinkTypeCustom: finalDrinkTypeCustom,
+            drinkSubtype: cleanDrinkSubtype,
             caption: trimmedCaption,
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),
             visibility: visibility.supabaseValue,
@@ -1789,14 +1873,33 @@ class DataManager: ObservableObject {
             return
         }
         
+        // Filter ratings to match current template and ensure valid values
+        var validRatings: [String: Double] = [:]
+        let templateCategories = Set(appData.ratingTemplate.categories.map { $0.name })
+        
+        for (key, value) in visit.ratings {
+            // Check if category exists in current template
+            guard templateCategories.contains(key) else {
+                print("⚠️ [UpdateVisit] Skipping rating for '\(key)' - not in current template")
+                continue
+            }
+            
+            if !value.isNaN && !value.isInfinite && value >= 0 && value <= 5 {
+                validRatings[key] = value
+            } else {
+                print("⚠️ [UpdateVisit] Invalid rating for '\(key)': \(value) (must be > 0 and <= 5), skipping")
+            }
+        }
+        
         try await visitService.updateVisit(
             visitId: supabaseId,
             drinkType: visit.drinkType.rawValue,
             customDrinkType: visit.customDrinkType,
+            drinkSubtype: visit.drinkSubtype,
             caption: visit.caption,
             notes: visit.notes,
             visibility: visit.visibility.supabaseValue,
-            ratings: visit.ratings,
+            ratings: validRatings,
             overallScore: visit.overallScore,
             posterPhotoURL: visit.posterPhotoURL
         )
@@ -1804,9 +1907,21 @@ class DataManager: ObservableObject {
         print("[DataManager] Visit updated successfully in Supabase for visit \(visit.id)")
     }
         
-        // Delete a visit and update cafe stats accordingly
-        func deleteVisit(id: UUID) {
-            guard let visit = getVisit(id: id) else { return }
+        /// Delete a visit both locally and from Supabase
+        /// This will also cascade delete related photos, likes, and comments via database constraints
+        func deleteVisit(id: UUID) async throws {
+            guard let visit = getVisit(id: id) else {
+                print("[DataManager] deleteVisit: Visit not found with id \(id)")
+                return
+            }
+            
+            // If visit has a supabaseId, delete it from the backend
+            if let supabaseId = visit.supabaseId {
+                print("[DataManager] Deleting visit from Supabase: \(supabaseId)")
+                try await visitService.deleteVisit(visitId: supabaseId)
+            }
+            
+            // Remove from local storage
             appData.visits.removeAll { $0.id == id }
             
             // Update cafe stats
@@ -1816,14 +1931,63 @@ class DataManager: ObservableObject {
                 let totalRating = cafeVisits.reduce(0.0) { $0 + $1.overallScore }
                 appData.cafes[cafeIndex].averageRating = cafeVisits.isEmpty ? 0.0 : (totalRating / Double(cafeVisits.count))
             }
+            
             save()
+            print("[DataManager] Visit deleted successfully (local and remote)")
         }
     
     func getVisitsForCafe(_ cafeId: UUID) -> [Visit] {
         let sourceVisits = visitsForCurrentUser()
+        let matchingIds = normalizedCafeIds(for: cafeId)
+        
         return sourceVisits
-            .filter { $0.cafeId == cafeId }
+            .filter { visitMatchesCafeIdentifiers(visit: $0, identifiers: matchingIds) }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+    
+    /// Returns a dictionary keyed by cafeId containing the current user's visit counts
+    func currentUserVisitCountsByCafe() -> [UUID: Int] {
+        var counts: [UUID: Int] = [:]
+        for visit in visitsForCurrentUser() {
+            counts[visit.cafeId, default: 0] += 1
+        }
+        return counts
+    }
+    
+    /// Returns the unique cafe IDs the current user has visited at least once
+    func currentUserVisitedCafeIds() -> Set<UUID> {
+        Set(currentUserVisitCountsByCafe().keys)
+    }
+    
+    /// Builds a set of identifiers (local + supabase IDs) for a cafe
+    private func normalizedCafeIds(for cafeId: UUID) -> Set<UUID> {
+        var ids: Set<UUID> = [cafeId]
+        
+        if let cafe = getCafe(id: cafeId) {
+            ids.insert(cafe.id)
+            if let supabaseId = cafe.supabaseId {
+                ids.insert(supabaseId)
+            }
+        } else if let matchingBySupabase = appData.cafes.first(where: { $0.supabaseId == cafeId }) {
+            ids.insert(matchingBySupabase.id)
+            if let supabaseId = matchingBySupabase.supabaseId {
+                ids.insert(supabaseId)
+            }
+        }
+        
+        return ids
+    }
+    
+    /// Checks whether a visit belongs to any of the provided cafe identifiers
+    private func visitMatchesCafeIdentifiers(visit: Visit, identifiers: Set<UUID>) -> Bool {
+        if identifiers.contains(visit.cafeId) {
+            return true
+        }
+        if let supabaseCafeId = visit.supabaseCafeId,
+           identifiers.contains(supabaseCafeId) {
+            return true
+        }
+        return false
     }
     
     /// Fetches app-wide aggregated statistics for a cafe from Supabase
@@ -1956,6 +2120,39 @@ class DataManager: ObservableObject {
     
     // MARK: - Friend Operations
     
+    /// Centralized method to refresh all friendship-related state from the backend
+    /// Call this after any friend operation to ensure consistency
+    @MainActor
+    func refreshFriendsState() async {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            print("[Friends] refreshFriendsState: No user ID, skipping")
+            return
+        }
+        
+        print("[Friends] 🔄 Refreshing complete friends state...")
+        
+        do {
+            // Fetch current friends list
+            let friendIds = try await socialGraphService.fetchFriends(for: supabaseUserId)
+            let previousCount = appData.friendsSupabaseUserIds.count
+            appData.friendsSupabaseUserIds = Set(friendIds)
+            print("[Friends] ✅ Friends list updated: \(previousCount) -> \(friendIds.count) friends")
+            
+            // Fetch pending requests to update status tracking
+            let incoming = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+            let outgoing = try await socialGraphService.fetchOutgoingFriendRequests(for: supabaseUserId)
+            
+            // Update request tracking dictionaries
+            appData.incomingRequestsByUserId = Dictionary(uniqueKeysWithValues: incoming.map { ($0.fromUserId, $0.id.uuidString) })
+            appData.outgoingRequestsByUserId = Dictionary(uniqueKeysWithValues: outgoing.map { ($0.toUserId, $0.id.uuidString) })
+            print("[Friends] ✅ Request tracking updated: \(incoming.count) incoming, \(outgoing.count) outgoing")
+            
+            save()
+        } catch {
+            print("[Friends] ❌ Error refreshing friends state: \(error.localizedDescription)")
+        }
+    }
+    
     func sendFriendRequest(to targetUserId: String) async throws {
         guard let supabaseUserId = appData.supabaseUserId else {
             throw SupabaseError.invalidSession
@@ -1968,11 +2165,13 @@ class DataManager: ObservableObject {
         
         do {
             let request = try await socialGraphService.sendFriendRequest(from: supabaseUserId, to: targetUserId)
-            print("[Friends] Friend request sent - id: \(request.id), from: \(supabaseUserId), to: \(targetUserId)")
+            print("[Friends] ✅ Friend request sent - id: \(request.id), to: \(targetUserId)")
             
-            // Update pending request tracking
-            appData.outgoingRequestsByUserId[targetUserId] = request.id.uuidString
-            save()
+            // Update pending request tracking immediately
+            await MainActor.run {
+                appData.outgoingRequestsByUserId[targetUserId] = request.id.uuidString
+                save()
+            }
             
             // Create a notification for the recipient
             let payload = NotificationInsertPayload(
@@ -1983,8 +2182,11 @@ class DataManager: ObservableObject {
                 commentId: nil
             )
             try? await notificationService.createNotification(payload)
+            
+            print("[Friends] Friend request flow complete")
         } catch {
-            print("❌ [Friends] Failed to send friend request: \(error.localizedDescription)")
+            print("[Friends] ❌ Failed to send friend request: \(error.localizedDescription)")
+            
             // Convert technical errors to user-friendly messages
             if let supabaseError = error as? SupabaseError {
                 switch supabaseError {
@@ -2002,45 +2204,39 @@ class DataManager: ObservableObject {
     
     func acceptFriendRequest(requestId: UUID) async throws {
         guard let supabaseUserId = appData.supabaseUserId else {
-            print("❌ [Friends] Cannot accept request - no supabaseUserId")
+            print("[Friends] ❌ Cannot accept request - no supabaseUserId")
             throw SupabaseError.invalidSession
         }
         
-        print("[Friends] Accepting friend request id=\(requestId) for user=\(supabaseUserId)")
+        print("[Friends] 🤝 Accepting friend request id=\(requestId)")
         
         do {
             // First, fetch the request to get fromUserId and toUserId
             let incomingRequests = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
-            print("[Friends] Found \(incomingRequests.count) incoming requests")
             
             guard let request = incomingRequests.first(where: { $0.id == requestId }) else {
-                print("❌ [Friends] Friend request \(requestId) not found in incoming requests")
+                print("[Friends] ❌ Friend request \(requestId) not found in incoming requests")
                 throw SupabaseError.decoding("Friend request not found")
             }
             
-            print("[Friends] Accepting request from=\(request.fromUserId) to=\(request.toUserId)")
+            let fromUserId = request.fromUserId
+            print("[Friends] Accepting request from user \(fromUserId.prefix(8))...")
             
+            // Accept the request in backend (updates request + creates friendship)
             try await socialGraphService.acceptFriendRequest(
                 requestId: requestId,
-                fromUserId: request.fromUserId,
+                fromUserId: fromUserId,
                 toUserId: request.toUserId
             )
             
-            print("[Friends] Backend accept successful, refreshing friends list...")
+            print("[Friends] ✅ Backend accept successful")
             
-            // Refresh friends list
-            let friends = try await socialGraphService.fetchFriends(for: supabaseUserId)
-            let previousCount = appData.friendsSupabaseUserIds.count
-            appData.friendsSupabaseUserIds = Set(friends)
-            print("[Friends] Friends list updated: \(previousCount) -> \(appData.friendsSupabaseUserIds.count) friends")
-            print("[Friends] Current friends: \(appData.friendsSupabaseUserIds)")
-            
-            // Remove from pending requests tracking
-            appData.incomingRequestsByUserId.removeValue(forKey: request.fromUserId)
+            // Refresh complete friends state (friends list + pending requests)
+            await refreshFriendsState()
             
             // Create notification for the requester that their request was accepted
             let payload = NotificationInsertPayload(
-                userId: request.fromUserId,
+                userId: fromUserId,
                 actorUserId: supabaseUserId,
                 type: "friend_accept",
                 visitId: nil,
@@ -2048,46 +2244,77 @@ class DataManager: ObservableObject {
             )
             try? await notificationService.createNotification(payload)
             
-            save()
-            
-            print("[Friends] Friend request accepted successfully - id: \(requestId)")
-            save()
-            
-            // WIDGET REFRESH: New friend added - refresh widget to show their visits
-            // Fetch friend visits in background to populate widget data
+            // Fetch friend's visits in background for Sip Squad mode and widgets
             Task {
-                await fetchSipSquadVisitsIfNeeded()
+                do {
+                    try await fetchOtherUserVisits(userId: fromUserId)
+                    await fetchSipSquadVisitsIfNeeded()
+                    print("[Friends] ✅ Fetched new friend's visits for Sip Squad")
+                } catch {
+                    print("[Friends] ⚠️ Error fetching friend's visits: \(error.localizedDescription)")
+                }
             }
             
+            print("[Friends] 🎉 Friend request accepted - you and \(fromUserId.prefix(8))... are now friends!")
+            
         } catch {
-            print("❌ [Friends] Failed to accept friend request: \(error.localizedDescription)")
+            print("[Friends] ❌ Failed to accept friend request: \(error.localizedDescription)")
             throw error
         }
     }
     
     func rejectFriendRequest(requestId: UUID) async throws {
+        guard let supabaseUserId = appData.supabaseUserId else {
+            throw SupabaseError.invalidSession
+        }
+        
         do {
+            // Find the request to identify the sender
+            let incomingRequests = try await socialGraphService.fetchIncomingFriendRequests(for: supabaseUserId)
+            let request = incomingRequests.first(where: { $0.id == requestId })
+            let fromUserId = request?.fromUserId
+            
+            // Reject the request
             try await socialGraphService.rejectFriendRequest(requestId: requestId)
-            print("[Friends] Friend request rejected - id: \(requestId)")
+            print("[Friends] ✅ Friend request rejected - id: \(requestId)")
+            
+            // Remove from tracking immediately
+            if let fromUserId = fromUserId {
+                await MainActor.run {
+                    appData.incomingRequestsByUserId.removeValue(forKey: fromUserId)
+                    save()
+                }
+            }
+            
+            // Full state refresh to ensure consistency
+            await refreshFriendsState()
         } catch {
-            print("❌ [Friends] Failed to reject friend request: \(error.localizedDescription)")
+            print("[Friends] ❌ Failed to reject friend request: \(error.localizedDescription)")
             throw error
         }
     }
     
     func cancelFriendRequest(requestId: UUID) async throws {
         do {
-            try await socialGraphService.cancelFriendRequest(requestId: requestId)
-            print("[FriendsRequests] Canceled outgoing request id=\(requestId)")
+            // Find the target user ID before canceling
+            let targetUserId = appData.outgoingRequestsByUserId.first(where: { $0.value == requestId.uuidString })?.key
             
-            // Remove from pending requests tracking
-            // Find the user ID associated with this request
-            if let (userId, _) = appData.outgoingRequestsByUserId.first(where: { $0.value == requestId.uuidString }) {
-                appData.outgoingRequestsByUserId.removeValue(forKey: userId)
-                save()
+            // Cancel the request
+            try await socialGraphService.cancelFriendRequest(requestId: requestId)
+            print("[Friends] ✅ Outgoing request canceled - id: \(requestId)")
+            
+            // Remove from tracking immediately
+            if let targetUserId = targetUserId {
+                await MainActor.run {
+                    appData.outgoingRequestsByUserId.removeValue(forKey: targetUserId)
+                    save()
+                }
             }
+            
+            // Full state refresh to ensure consistency
+            await refreshFriendsState()
         } catch {
-            print("❌ [Friends] Failed to cancel friend request: \(error.localizedDescription)")
+            print("[Friends] ❌ Failed to cancel friend request: \(error.localizedDescription)")
             throw error
         }
     }
@@ -2097,16 +2324,26 @@ class DataManager: ObservableObject {
             throw SupabaseError.invalidSession
         }
         
+        print("[Friends] 👋 Removing friend \(userId.prefix(8))...")
+        
         do {
+            // Remove friendship from backend
             try await socialGraphService.removeFriend(userId: supabaseUserId, friendUserId: userId)
+            print("[Friends] ✅ Backend friendship removed")
             
-            // Update local friends list
-            appData.friendsSupabaseUserIds.remove(userId)
+            // Update local friends list immediately
+            await MainActor.run {
+                appData.friendsSupabaseUserIds.remove(userId)
+                save()
+            }
             
-            print("[Friends] Friend removed - userId: \(userId)")
-            save()
+            // Full state refresh to ensure consistency
+            await refreshFriendsState()
+            
+            print("[Friends] 💔 Friend removed successfully - \(userId.prefix(8))...")
+            
         } catch {
-            print("❌ [Friends] Failed to remove friend: \(error.localizedDescription)")
+            print("[Friends] ❌ Failed to remove friend: \(error.localizedDescription)")
             throw error
         }
     }
@@ -2165,11 +2402,31 @@ class DataManager: ObservableObject {
         )
     }
     
+    /// Check friendship status with a user
+    /// Uses local cache first for friends, then checks backend for request states
     func checkFriendshipStatus(for userId: String) async throws -> FriendshipStatus {
         guard let supabaseUserId = appData.supabaseUserId else {
             throw SupabaseError.invalidSession
         }
         
+        // Quick check: are they already a confirmed friend? (local cache)
+        if appData.friendsSupabaseUserIds.contains(userId) {
+            return .friends
+        }
+        
+        // Check if there's a pending outgoing request (local cache)
+        if let requestIdString = appData.outgoingRequestsByUserId[userId],
+           let requestId = UUID(uuidString: requestIdString) {
+            return .outgoingRequest(requestId)
+        }
+        
+        // Check if there's a pending incoming request (local cache)
+        if let requestIdString = appData.incomingRequestsByUserId[userId],
+           let requestId = UUID(uuidString: requestIdString) {
+            return .incomingRequest(requestId)
+        }
+        
+        // If not in local cache, check backend (handles edge cases like concurrent requests)
         return try await socialGraphService.checkFriendshipStatus(
             currentUserId: supabaseUserId,
             otherUserId: userId
@@ -2229,15 +2486,10 @@ class DataManager: ObservableObject {
         }
     }
     
+    /// Refresh the friends list from the backend
+    /// This is a convenience method that calls refreshFriendsState
     func refreshFriendsList() async {
-        guard let supabaseUserId = appData.supabaseUserId else { return }
-        do {
-            let friendIds = try await socialGraphService.fetchFriends(for: supabaseUserId)
-            appData.friendsSupabaseUserIds = Set(friendIds)
-            save()
-        } catch {
-            print("[DataManager] Error refreshing friends list: \(error.localizedDescription)")
-        }
+        await refreshFriendsState()
     }
     
     func getIncomingFriendRequestCount() async -> Int {
@@ -2420,7 +2672,7 @@ class DataManager: ObservableObject {
     }
     
     // MARK: - Comment Operations
-    func addComment(to visitId: UUID, text: String) async {
+    func addComment(to visitId: UUID, text: String, parentCommentId: UUID? = nil) async {
         guard
             let supabaseUserId = appData.supabaseUserId,
             let currentUser = appData.currentUser,
@@ -2434,7 +2686,8 @@ class DataManager: ObservableObject {
             let remoteComment = try await visitService.addComment(
                 visitId: remoteVisitId,
                 userId: supabaseUserId,
-                text: text
+                text: text,
+                parentCommentId: parentCommentId
             )
             
             let comment = Comment(
@@ -2445,7 +2698,11 @@ class DataManager: ObservableObject {
                 supabaseUserId: supabaseUserId,
                 text: text,
                 createdAt: remoteComment.createdAt ?? Date(),
-                mentions: MentionParser.parseMentions(from: text)
+                mentions: MentionParser.parseMentions(from: text),
+                parentCommentId: parentCommentId,
+                likeCount: 0,
+                likedByUserIds: [],
+                replies: []
             )
 
             // Update state on MainActor to ensure UI sees the change immediately
@@ -2474,6 +2731,50 @@ class DataManager: ObservableObject {
             }
         } catch {
             print("Supabase comment failed: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Toggle like on a comment. Adds like if not liked, removes if already liked.
+    func toggleCommentLike(_ comment: Comment, in visitId: UUID) async {
+        guard
+            let supabaseUserId = appData.supabaseUserId,
+            let index = appData.visits.firstIndex(where: { $0.id == visitId }),
+            let commentIndex = appData.visits[index].comments.firstIndex(where: { $0.id == comment.id }),
+            let remoteCommentId = comment.supabaseId
+        else {
+            return
+        }
+        
+        let isCurrentlyLiked = comment.isLikedBy(supabaseUserId: supabaseUserId)
+        
+        do {
+            if isCurrentlyLiked {
+                // Unlike
+                try await visitService.removeCommentLike(commentId: remoteCommentId, userId: supabaseUserId)
+                
+                await MainActor.run {
+                    if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }),
+                       let safeCommentIndex = appData.visits[safeIndex].comments.firstIndex(where: { $0.id == comment.id }) {
+                        appData.visits[safeIndex].comments[safeCommentIndex].likeCount = max(0, appData.visits[safeIndex].comments[safeCommentIndex].likeCount - 1)
+                        appData.visits[safeIndex].comments[safeCommentIndex].likedByUserIds.removeAll { $0 == supabaseUserId }
+                        save()
+                    }
+                }
+            } else {
+                // Like
+                try await visitService.addCommentLike(commentId: remoteCommentId, userId: supabaseUserId)
+                
+                await MainActor.run {
+                    if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }),
+                       let safeCommentIndex = appData.visits[safeIndex].comments.firstIndex(where: { $0.id == comment.id }) {
+                        appData.visits[safeIndex].comments[safeCommentIndex].likeCount += 1
+                        appData.visits[safeIndex].comments[safeCommentIndex].likedByUserIds.append(supabaseUserId)
+                        save()
+                    }
+                }
+            }
+        } catch {
+            print("Failed to toggle comment like: \(error.localizedDescription)")
         }
     }
     
@@ -2649,6 +2950,28 @@ class DataManager: ObservableObject {
             .mapValues { $0.count }
         
         return drinkTypeCounts.map { (drinkType: $0.key, count: $0.value, fraction: Double($0.value) / Double(totalVisits)) }
+            .sorted { $0.count > $1.count }
+    }
+    
+    // Get drink subtypes breakdown (all unique drinks ordered with counts)
+    // Used for "My Taste" visualization in Profile Journal
+    func getDrinkSubtypesBreakdown() -> [(name: String, count: Int)] {
+        let visits = visitsForCurrentUser()
+        
+        // Collect all drink subtypes (non-empty only)
+        let subtypes = visits.compactMap { visit -> String? in
+            if let subtype = visit.drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !subtype.isEmpty {
+                return subtype
+            }
+            return nil
+        }
+        
+        // Group by subtype and count
+        let grouped = Dictionary(grouping: subtypes, by: { $0 })
+        
+        return grouped
+            .map { (name: $0.key, count: $0.value.count) }
             .sorted { $0.count > $1.count }
     }
 
@@ -2857,6 +3180,7 @@ class DataManager: ObservableObject {
         let likeUsers = (remote.likes ?? []).compactMap { UUID(uuidString: $0.userId) }
         let comments = (remote.comments ?? []).map { remoteComment -> Comment in
             let commentUserId = UUID(uuidString: remoteComment.userId) ?? UUID()
+            let likedByUserIds = (remoteComment.likes ?? []).map { $0.userId }
             return Comment(
                 id: remoteComment.id,
                 supabaseId: remoteComment.id,
@@ -2865,7 +3189,14 @@ class DataManager: ObservableObject {
                 supabaseUserId: remoteComment.userId,
                 text: remoteComment.text,
                 createdAt: remoteComment.createdAt ?? Date(),
-                mentions: MentionParser.parseMentions(from: remoteComment.text)
+                mentions: MentionParser.parseMentions(from: remoteComment.text),
+                parentCommentId: remoteComment.parentCommentId,
+                likeCount: remoteComment.likes?.count ?? 0,
+                likedByUserIds: likedByUserIds,
+                replies: [], // Will be built in UI by grouping comments
+                authorDisplayName: remoteComment.author?.displayName,
+                authorUsername: remoteComment.author?.username,
+                authorAvatarURL: remoteComment.author?.avatarURL
             )
         }
         
@@ -2890,6 +3221,7 @@ class DataManager: ObservableObject {
             createdAt: remote.createdAt ?? Date(),
             drinkType: mappedDrinkType,
             customDrinkType: remote.drinkTypeCustom,
+            drinkSubtype: remote.drinkSubtype,
             caption: remote.caption,
             notes: remote.notes,
             photos: photoKeys,
@@ -2984,10 +3316,29 @@ private struct UploadedVisitPhoto {
 
 extension DataManager {
     private func visitsForCurrentUser() -> [Visit] {
-        guard let userId = appData.currentUser?.id else {
+        let supabaseUserId = appData.supabaseUserId
+        let fallbackUserId = appData.currentUser?.id ?? supabaseUserId.flatMap(UUID.init(uuidString:))
+        
+        let filteredVisits = appData.visits.filter { visit in
+            if let supabaseUserId = supabaseUserId,
+               let visitSupabaseId = visit.supabaseUserId,
+               visitSupabaseId == supabaseUserId {
+                return true
+            }
+            
+            if let fallbackUserId = fallbackUserId,
+               visit.userId == fallbackUserId {
+                return true
+            }
+            
+            return false
+        }
+        
+        if supabaseUserId == nil && fallbackUserId == nil {
             return appData.visits
         }
-        return visits(for: userId)
+        
+        return filteredVisits
     }
     
     private func visits(for userId: UUID) -> [Visit] {
@@ -3038,11 +3389,14 @@ extension DataManager {
         print("[FeatureFlag] Sip Squad style: \(appData.useSipSquadSimplifiedStyle ? "Simplified (mint)" : "Standard (color-coded)")")
     }
     
-    /// Sets Sip Squad simplified style directly
-    func setSipSquadSimplifiedStyle(enabled: Bool) {
-        appData.useSipSquadSimplifiedStyle = enabled
+    /// Sets the map search mode used for cafe/place search in debug builds.
+    /// This is a developer-only flag and is not exposed to end users.
+    func setMapSearchMode(_ mode: MapSearchMode) {
+        appData.mapSearchMode = mode
         save()
-        print("[FeatureFlag] Sip Squad style set to: \(enabled ? "Simplified (mint)" : "Standard (color-coded)")")
+        #if DEBUG
+        print("[Search] DevFlag SearchMode=\(mode.logLabel)")
+        #endif
     }
 }
 

@@ -13,7 +13,7 @@ struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject var tabCoordinator: TabCoordinator
     @StateObject private var locationManager = LocationManager()
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // MARK: - State
     @State private var selectedTab: SavedTab = .favorites
@@ -38,10 +38,13 @@ struct SavedTabView: View {
     private var wishlistCount: Int {
         dataManager.appData.cafes.filter { $0.wantToTry }.count
     }
+
+    private var currentUserVisitCountsByCafe: [UUID: Int] {
+        dataManager.currentUserVisitCountsByCafe()
+    }
     
     private var totalCafesCount: Int {
-        // Only count cafes with at least 1 visit for "My Cafes"
-        dataManager.appData.cafes.filter { $0.visitCount >= 1 }.count
+        currentUserVisitCountsByCafe.count
     }
     
     private var statTabs: [DSStatTabs.Tab] {
@@ -52,7 +55,7 @@ struct SavedTabView: View {
         ]
     }
     
-    private var filteredCafes: [Cafe] {
+    private func filteredCafes(using visitCounts: [UUID: Int]) -> [Cafe] {
         var cafes: [Cafe]
         
         switch selectedTab {
@@ -61,21 +64,23 @@ struct SavedTabView: View {
         case .wishlist:
             cafes = dataManager.appData.cafes.filter { $0.wantToTry }
         case .library:
-            // Only show cafes with at least 1 visit
-            cafes = dataManager.appData.cafes.filter { $0.visitCount >= 1 }
+            cafes = dataManager.appData.cafes.filter { (visitCounts[$0.id] ?? 0) > 0 }
+            logMyCafesDebugInfo(visitCounts: visitCounts, cafes: cafes)
         }
         
-        return sortCafes(cafes)
+        return sortCafes(cafes, visitCounts: visitCounts)
     }
     
-    private func sortCafes(_ cafes: [Cafe]) -> [Cafe] {
+    private func sortCafes(_ cafes: [Cafe], visitCounts: [UUID: Int]) -> [Cafe] {
         switch sortOption {
         case .bestRated:
             return cafes.sorted { $0.averageRating > $1.averageRating }
         case .worstRated:
             return cafes.sorted { $0.averageRating < $1.averageRating }
         case .mostVisited:
-            return cafes.sorted { $0.visitCount > $1.visitCount }
+            return cafes.sorted {
+                (visitCounts[$0.id] ?? 0) > (visitCounts[$1.id] ?? 0)
+            }
         case .recentlyVisited:
             return cafes.sorted { cafe1, cafe2 in
                 let date1 = dataManager.lastVisitDate(for: cafe1.id) ?? Date.distantPast
@@ -105,7 +110,10 @@ struct SavedTabView: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationStack {
+        let visitCounts = currentUserVisitCountsByCafe
+        let cafesForDisplay = filteredCafes(using: visitCounts)
+        
+        return NavigationStack {
             VStack(spacing: 0) {
                 // 1. Mint header with title + Instagram-style stat tabs
                 headerSection
@@ -127,7 +135,7 @@ struct SavedTabView: View {
                 .background(DS.Colors.appBarBackground)
                 
                 // 3. Content
-                if filteredCafes.isEmpty {
+                if cafesForDisplay.isEmpty {
                     emptyStateForCurrentTab
                         .transition(.opacity)
                 } else {
@@ -141,14 +149,15 @@ struct SavedTabView: View {
                             
                             // Cafe list with swipe actions
                             LazyVStack(spacing: DS.Spacing.lg) {
-                                ForEach(filteredCafes) { cafe in
+                                ForEach(cafesForDisplay) { cafe in
+                                    let visitCount = visitCounts[cafe.id] ?? 0
                                     let imageInfo = dataManager.cafeImageInfo(for: cafe.id)
                                     
                                     SavedCafeCard(
                                         cafe: cafe,
                                         mode: selectedTab,
                                         lastVisitDate: dataManager.lastVisitDate(for: cafe.id),
-                                        visitCount: cafe.visitCount,
+                                        visitCount: visitCount,
                                         favoriteDrink: dataManager.favoriteDrink(for: cafe.id),
                                         cafeImagePath: imageInfo.path,
                                         cafeImageRemoteURL: imageInfo.remoteURL,
@@ -298,6 +307,30 @@ struct SavedTabView: View {
                 )
             )
         }
+    }
+    
+    // MARK: - Debug Logging
+    
+    private func logMyCafesDebugInfo(visitCounts: [UUID: Int], cafes: [Cafe]) {
+        #if DEBUG
+        let userIdentifier = dataManager.appData.supabaseUserId ??
+            dataManager.appData.currentUser?.id.uuidString ??
+            "unknown"
+        let totalVisits = visitCounts.values.reduce(0, +)
+        
+        print("[MyCafes] Building list for currentUserId=\(userIdentifier)")
+        print("[MyCafes] Total visits for current user: \(totalVisits)")
+        print("[MyCafes] Unique cafes for current user: \(cafes.count)")
+        
+        if cafes.isEmpty {
+            print("[MyCafes] No cafes to include for current user.")
+        }
+        
+        for cafe in cafes {
+            let visitCount = visitCounts[cafe.id] ?? 0
+            print("[MyCafes] Cafe '\(cafe.name)' included with visitCountForCurrentUser=\(visitCount)")
+        }
+        #endif
     }
     
     // MARK: - Context Menu

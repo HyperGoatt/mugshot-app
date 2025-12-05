@@ -15,7 +15,7 @@ struct MapTabView: View {
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     @State private var region: MKCoordinateRegion?
     @State private var selectedCafe: Cafe?
@@ -47,7 +47,7 @@ struct MapTabView: View {
         dataManager.appData.notifications.filter { !$0.isRead }.count
     }
     
-    // Sip Squad mode state (bound to persisted AppData)
+    // Simplified Sip Squad mode state (bound to persisted AppData)
     private var isSipSquadMode: Bool {
         dataManager.appData.isSipSquadModeEnabled
     }
@@ -111,7 +111,11 @@ struct MapTabView: View {
         
         // Trigger search
         isSearchActive = true
-        searchService.search(query: effectiveQuery, region: currentRegion)
+        searchService.search(
+            query: effectiveQuery,
+            region: currentRegion,
+            mode: dataManager.appData.mapSearchMode
+        )
     }
     
     var body: some View {
@@ -248,12 +252,19 @@ struct MapTabView: View {
                                                 isSearchActive = true
                                             }
                                         }
-                                        searchService.search(query: trimmed, region: region ?? defaultRegion)
+                                        searchService.search(
+                                            query: trimmed,
+                                            region: region ?? defaultRegion,
+                                            mode: dataManager.appData.mapSearchMode
+                                        )
                                         if let currentRegion = region {
                                             lastSearchRegion = currentRegion
                                         }
                                     } else {
                                         searchService.cancelSearch()
+                                        // If cleared, fetch suggestions again
+                                        searchService.searchNearby(region: region ?? defaultRegion)
+                                        
                                         if !isSearchFieldFocused {
                                             withAnimation {
                                                 isSearchActive = false
@@ -263,6 +274,11 @@ struct MapTabView: View {
                                 }
                                 .onChange(of: isSearchFieldFocused) { _, isFocused in
                                     if isFocused {
+                                        // Fetch suggestions immediately on focus
+                                        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            searchService.searchNearby(region: region ?? defaultRegion)
+                                        }
+                                        
                                         withAnimation {
                                             isSearchActive = true
                                         }
@@ -365,8 +381,10 @@ struct MapTabView: View {
                             searchService: searchService,
                             recentSearches: dataManager.appData.recentSearches,
                             showRecentSearches: shouldShowRecentSearches,
+                            nearbySuggestions: searchService.nearbySuggestions,
                             referenceLocation: referenceLocation,
                             onMapItemSelected: { mapItem in
+                                print("[Search] User selected nearby suggestion: \(mapItem.name ?? "Unknown")")
                                 handleSearchResult(mapItem)
                             },
                             onRecentSelected: { entry in
@@ -531,7 +549,11 @@ struct MapTabView: View {
             handleSearchResult(mapItem, recordRecent: false)
         } else {
             searchText = entry.query
-            searchService.search(query: entry.query, region: region ?? defaultRegion)
+            searchService.search(
+                query: entry.query,
+                region: region ?? defaultRegion,
+                mode: dataManager.appData.mapSearchMode
+            )
             isSearchFieldFocused = true
         }
     }

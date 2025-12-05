@@ -27,11 +27,11 @@ struct AuthFlowRootView: View {
             switch mode {
             case .loading:
                 ZStack {
-                    Color(DS.Colors.screenBackground)
+                    Color(DS.Colors.primaryAccent) // Match launch screen background
                         .ignoresSafeArea()
                     ProgressView()
                         .scaleEffect(1.5)
-                        .tint(DS.Colors.primaryAccent)
+                        .tint(DS.Colors.textOnMint)
                 }
             case .landing:
                 AuthLandingView(

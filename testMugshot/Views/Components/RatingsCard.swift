@@ -16,7 +16,7 @@ struct RatingsCard: View {
     
     @State private var isExpanded: Bool = false
     @State private var quickRating: Double = 0
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // Compute if any detailed ratings have been set
     private var hasDetailedRatings: Bool {
@@ -158,7 +158,7 @@ struct HalfStarRatingRow: View {
     var starSize: CGFloat = 32
     var onRatingChanged: ((Double) -> Void)?
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var lastTappedStar: Int? = nil
     @State private var tapCount: Int = 0
     
@@ -281,7 +281,7 @@ struct HalfStarCategoryRow: View {
     @Binding var rating: Double
     let weightMultiplier: Double
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var lastTappedStar: Int? = nil
     @State private var tapCount: Int = 0
     @State private var triggerID: Int = 0

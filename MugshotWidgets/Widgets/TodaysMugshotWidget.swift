@@ -82,20 +82,19 @@ struct TodaysMugshotProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodaysMugshotEntry>) -> Void) {
         let entry = createEntry()
         
-        // Refresh at the start of the next hour, or at midnight (whichever is sooner)
+        // PERF: Refresh every 2 hours or at midnight (whichever is sooner) to reduce battery usage
         let calendar = Calendar.current
         let now = Date()
         
-        // Calculate next hour
-        let nextHour = calendar.date(byAdding: .hour, value: 1, to: now)!
-        let startOfNextHour = calendar.date(bySetting: .minute, value: 0, of: nextHour)!
+        // Calculate 2 hours from now
+        let twoHoursFromNow = calendar.date(byAdding: .hour, value: 2, to: now)!
         
         // Calculate midnight
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
         let midnight = calendar.startOfDay(for: tomorrow)
         
         // Use whichever is sooner
-        let refreshDate = min(startOfNextHour, midnight)
+        let refreshDate = min(twoHoursFromNow, midnight)
         
         let timeline = Timeline(entries: [entry], policy: .after(refreshDate))
         completion(timeline)

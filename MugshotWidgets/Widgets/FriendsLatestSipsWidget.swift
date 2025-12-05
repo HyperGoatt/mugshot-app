@@ -88,13 +88,14 @@ struct FriendsLatestSipsProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<FriendsLatestSipsEntry>) -> Void) {
         let entries = createEntries()
         
-        // If we have multiple visits, show a new one every 30 minutes
-        // Otherwise, refresh in an hour
+        // PERF: Increased refresh intervals to reduce battery drain
+        // If we have multiple visits, show a new one every hour
+        // Otherwise, refresh in 2 hours
         let refreshDate: Date
         if entries.count > 1 {
-            refreshDate = Date().addingTimeInterval(30 * 60) // 30 minutes
+            refreshDate = Date().addingTimeInterval(60 * 60) // 1 hour (was 30 min)
         } else {
-            refreshDate = Date().addingTimeInterval(60 * 60) // 1 hour
+            refreshDate = Date().addingTimeInterval(2 * 60 * 60) // 2 hours (was 1 hour)
         }
         
         let timeline = Timeline(entries: entries, policy: .after(refreshDate))

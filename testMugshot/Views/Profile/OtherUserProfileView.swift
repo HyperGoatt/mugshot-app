@@ -26,7 +26,7 @@ struct OtherUserProfileView: View {
     @State private var showFriendsSheet = false
     @State private var showMutualFriendsSheet = false
     @State private var selectedTab: ProfileContentTab = .posts
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var refreshTrigger = UUID() // Force view refresh when data loads
     
     @Environment(\.dismiss) var dismiss
@@ -232,14 +232,13 @@ struct OtherUserProfileView: View {
                         
                         do {
                             try await dataManager.removeFriend(userId: userId)
-                            await MainActor.run {
-                                friendshipStatus = .none
-                            }
-                            await dataManager.refreshFriendsList()
+                            // removeFriend already calls refreshFriendsState internally
+                            await loadFriendshipStatus()
+                            await loadFriendsList()
                         } catch {
                             print("[OtherUserProfileView] Error removing friend: \(error.localizedDescription)")
+                            hapticsManager.playError()
                     }
-                    await loadFriendsList()
                     }
                 }
             } message: {
@@ -550,14 +549,19 @@ struct OtherUserProfileView: View {
     
     private func loadFriendsList() async {
         do {
+            print("[OtherUserProfileView] 🔄 Fetching friends list for user \(userId.prefix(8))...")
             let fetchedFriends = try await dataManager.fetchFriends(for: userId)
                 .sorted { $0.displayNameOrUsername.lowercased() < $1.displayNameOrUsername.lowercased() }
             await MainActor.run {
                 friends = fetchedFriends
                 friendsCount = fetchedFriends.count
+                print("[OtherUserProfileView] ✅ Loaded \(friendsCount) friends for user \(userId.prefix(8))")
             }
         } catch {
-            print("[OtherUserProfileView] Error loading friends count: \(error.localizedDescription)")
+            print("[OtherUserProfileView] ❌ Error loading friends count: \(error.localizedDescription)")
+            await MainActor.run {
+                friendsCount = 0
+            }
         }
     }
     
@@ -577,10 +581,8 @@ struct OtherUserProfileView: View {
                     
                 case .incomingRequest(let requestId):
                     try await dataManager.acceptFriendRequest(requestId: requestId)
-                    await MainActor.run {
-                        friendshipStatus = .friends
-                    }
-                    await dataManager.refreshFriendsList()
+                    // acceptFriendRequest already calls refreshFriendsState internally
+                    await loadFriendshipStatus()
                     await loadFriendsList()
                     hapticsManager.playSuccess()
                     

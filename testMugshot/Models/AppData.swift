@@ -65,6 +65,10 @@ struct AppData: Codable {
     /// When false, uses standard color-coded pins with legend
     var useSipSquadSimplifiedStyle: Bool = false
     
+    /// Developer-only flag to switch between Mugshot-ranked search
+    /// and Apple Maps' native ordering for place search.
+    var mapSearchMode: MapSearchMode = .mugshot
+    
     init(
         currentUser: User? = nil,
         supabaseUserId: String? = nil,
@@ -95,7 +99,8 @@ struct AppData: Codable {
         friendsSupabaseUserIds: Set<String> = [],
         useOnboardingStylePostFlow: Bool = false,
         isSipSquadModeEnabled: Bool = false,
-        useSipSquadSimplifiedStyle: Bool = false
+        useSipSquadSimplifiedStyle: Bool = false,
+        mapSearchMode: MapSearchMode = .mugshot
     ) {
         self.currentUser = currentUser
         self.supabaseUserId = supabaseUserId
@@ -128,6 +133,7 @@ struct AppData: Codable {
         self.isSipSquadModeEnabled = isSipSquadModeEnabled
         self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
         self.notificationsClearedAt = nil
+        self.mapSearchMode = mapSearchMode
     }
 }
 

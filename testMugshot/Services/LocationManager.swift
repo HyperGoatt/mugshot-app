@@ -23,7 +23,9 @@ class LocationManager: NSObject, ObservableObject {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.distanceFilter = 10 // Update every 10 meters
+        // PERF: Increased from 10m to 50m for better battery life
+        // Most map use cases don't need sub-50m accuracy
+        locationManager.distanceFilter = 50 // Update every 50 meters
         authorizationStatus = locationManager.authorizationStatus
     }
     

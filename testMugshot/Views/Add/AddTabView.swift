@@ -78,13 +78,14 @@ struct LogVisitView: View {
     var preselectedCafe: Cafe? = nil
     @EnvironmentObject var tabCoordinator: TabCoordinator
     @Environment(\.dismiss) var dismiss
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @StateObject private var locationManager = LocationManager()
     
     @State private var selectedCafe: Cafe?
     @State private var isCafeSearchActive = false
     @State private var drinkType: DrinkType = .coffee
     @State private var customDrinkType: String = ""
+    @State private var drinkSubtype: String = ""
     @State private var caption: String = ""
     @State private var notes: String = ""
     @State private var selectedPhotos: [PhotosPickerItem] = []
@@ -129,6 +130,8 @@ struct LogVisitView: View {
             return "Select a cafe to continue"
         } else if drinkType == .other && customDrinkType.isEmpty {
             return "Enter your drink type"
+        } else if drinkSubtype.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Add drink details"
         } else if caption.isEmpty {
             return "Add a caption to post"
         }
@@ -139,15 +142,6 @@ struct LogVisitView: View {
         NavigationStack {
             mainContent
                 .background(DS.Colors.screenBackground)
-                .safeAreaInset(edge: .bottom) {
-                    SaveVisitButton(
-                        title: "Post to Journal",
-                        isEnabled: canSave,
-                        isLoading: isSaving,
-                        helperText: ctaHelperText,
-                        onTap: saveVisit
-                    )
-                }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -180,6 +174,19 @@ struct LogVisitView: View {
                         dataManager: dataManager,
                         isPresented: $showCustomizeRatings
                     )
+                }
+                .onChange(of: showCustomizeRatings) { _, isPresented in
+                    if !isPresented {
+                        // Clean up ratings that are no longer in the template
+                        let templateCategories = Set(dataManager.appData.ratingTemplate.categories.map { $0.name })
+                        let currentRatingKeys = Array(ratings.keys)
+                        
+                        for key in currentRatingKeys {
+                            if !templateCategories.contains(key) {
+                                ratings.removeValue(forKey: key)
+                            }
+                        }
+                    }
                 }
                 .photosPicker(
                     isPresented: $showPhotoPicker,
@@ -221,8 +228,9 @@ struct LogVisitView: View {
             ScrollView {
                 formContent
                     .padding(.horizontal, DS.Spacing.pagePadding)
-                    .padding(.bottom, DS.Spacing.xxl) // space above bottom button
+                    .padding(.bottom, DS.Spacing.xxl + 70) // extra padding for tab bar so button is visible when scrolled to bottom
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: scrollToTop) { _, shouldScroll in
                 if shouldScroll {
                     withAnimation {
@@ -251,10 +259,16 @@ struct LogVisitView: View {
                 searchRegion: currentSearchRegion
             )
             
-            // SECTION 2: Drink Type (horizontal pills)
+            // SECTION 2: Drink Type (horizontal pills) + Subtype
             DrinkTypePillSelector(
                 drinkType: $drinkType,
                 customDrinkType: $customDrinkType
+            )
+            
+            // SECTION 2b: Drink Subtype (optional text field)
+            DrinkSubtypeField(
+                drinkType: drinkType,
+                drinkSubtype: $drinkSubtype
             )
             
             // SECTION 3: Photos (hero area)
@@ -320,12 +334,23 @@ struct LogVisitView: View {
                 .background(DS.Colors.negativeChange.opacity(0.1))
                 .cornerRadius(DS.Radius.md)
             }
+            
+            // Post button at the bottom of the form
+            SaveVisitButton(
+                title: "Post to Journal",
+                isEnabled: canSave,
+                isLoading: isSaving,
+                helperText: ctaHelperText,
+                onTap: saveVisit
+            )
+            .padding(.top, DS.Spacing.lg)
         }
     }
     
     private var canSave: Bool {
         selectedCafe != nil &&
         (drinkType != .other || !customDrinkType.isEmpty) &&
+        !drinkSubtype.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !caption.isEmpty
     }
     
@@ -335,6 +360,7 @@ struct LogVisitView: View {
         isCafeSearchActive = false
         drinkType = .coffee
         customDrinkType = ""
+        drinkSubtype = ""
         caption = ""
         notes = ""
         selectedPhotos = []
@@ -408,6 +434,12 @@ struct LogVisitView: View {
             return
         }
         
+        guard !drinkSubtype.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            validationErrors.append("Please specify what drink you got")
+            hapticsManager.playError()
+            return
+        }
+        
         guard !caption.isEmpty else {
             validationErrors.append("Please write a caption")
             hapticsManager.playError()
@@ -446,6 +478,7 @@ struct LogVisitView: View {
                 cafe: cafe,
                 drinkType: drinkType,
                 customDrinkType: drinkType == .other ? customDrinkType : nil,
+                drinkSubtype: drinkSubtype.isEmpty ? nil : drinkSubtype,
                 caption: caption,
                 notes: notes.isEmpty ? nil : notes,
                 photoImages: photoImages,
@@ -544,7 +577,11 @@ struct CafeLocationSection: View {
                                                     isSearchActive = true
                                                 }
                                             }
-                                            searchService.search(query: trimmed, region: searchRegion)
+                                            searchService.search(
+                                                query: trimmed,
+                                                region: searchRegion,
+                                                mode: dataManager.appData.mapSearchMode
+                                            )
                                         } else {
                                             searchService.cancelSearch()
                                             if !isSearchFieldFocused {
@@ -696,7 +733,11 @@ struct CafeLocationSection: View {
             handleMapItemSelection(mapItem, recordRecent: false)
         } else {
             searchText = entry.query
-            searchService.search(query: entry.query, region: searchRegion)
+            searchService.search(
+                query: entry.query,
+                region: searchRegion,
+                mode: dataManager.appData.mapSearchMode
+            )
             isSearchFieldFocused = true
             withAnimation {
                 isSearchActive = true
@@ -838,7 +879,11 @@ struct CafeSearchSheet: View {
                             .accentColor(DS.Colors.primaryAccent)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
-                                    searchService.search(query: newValue, region: region)
+                                    searchService.search(
+                                        query: newValue,
+                                        region: region,
+                                        mode: dataManager.appData.mapSearchMode
+                                    )
                                 } else {
                                     searchService.cancelSearch()
                                 }
@@ -1080,6 +1125,64 @@ struct CustomizeRatingCategoryRow: View {
             return String(format: "%.0fx", weight)
         } else {
             return String(format: "%.1fx", weight)
+        }
+    }
+}
+
+// MARK: - Drink Subtype Field
+
+struct DrinkSubtypeField: View {
+    let drinkType: DrinkType
+    @Binding var drinkSubtype: String
+    
+    var body: some View {
+        DSBaseCard {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: 4) {
+                    Text("What exactly did you get?")
+                        .font(DS.Typography.sectionTitle)
+                        .foregroundColor(DS.Colors.textPrimary)
+                    
+                    Text("*")
+                        .font(DS.Typography.sectionTitle)
+                        .foregroundColor(DS.Colors.negativeChange)
+                }
+                
+                Text("Tell us the specific drink you ordered")
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textSecondary)
+                
+                TextField(placeholderText, text: $drinkSubtype)
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .tint(DS.Colors.primaryAccent)
+                    .accentColor(DS.Colors.primaryAccent)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackgroundAlt)
+                    .cornerRadius(DS.Radius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                    )
+            }
+        }
+    }
+    
+    private var placeholderText: String {
+        switch drinkType {
+        case .coffee:
+            return "e.g. Iced vanilla latte, Cortado..."
+        case .matcha:
+            return "e.g. Hot matcha with oat milk..."
+        case .hojicha:
+            return "e.g. Iced hojicha latte..."
+        case .tea:
+            return "e.g. Genmaicha, Earl Grey..."
+        case .chai:
+            return "e.g. Dirty chai, Iced chai latte..."
+        case .hotChocolate:
+            return "e.g. Peppermint hot chocolate..."
+        case .other:
+            return "e.g. Lavender latte..."
         }
     }
 }

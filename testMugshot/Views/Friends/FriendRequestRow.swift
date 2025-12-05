@@ -13,7 +13,7 @@ struct FriendRequestRow: View {
     let currentUserId: String
     @ObservedObject var dataManager: DataManager
     var onRequestAction: (() -> Void)? = nil
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var isLoading = false
     
     @State private var userProfile: RemoteUserProfile?
@@ -121,17 +121,20 @@ struct FriendRequestRow: View {
         
         do {
             try await dataManager.acceptFriendRequest(requestId: request.id)
+            // acceptFriendRequest already calls refreshFriendsState internally
+            
             // Haptic: friend request accepted successfully
             await MainActor.run {
                 hapticsManager.playSuccess()
             }
-            // Refresh friends list
-            await dataManager.refreshFriendsList()
+            
             // Notify parent to refresh requests list
             onRequestAction?()
         } catch {
             print("[FriendRequestRow] Error accepting request: \(error.localizedDescription)")
-            // TODO: Show user-friendly error message
+            await MainActor.run {
+                hapticsManager.playError()
+            }
         }
     }
     
@@ -141,11 +144,15 @@ struct FriendRequestRow: View {
         
         do {
             try await dataManager.rejectFriendRequest(requestId: request.id)
+            // rejectFriendRequest already calls refreshFriendsState internally
+            
             // Notify parent to refresh requests list
             onRequestAction?()
         } catch {
             print("[FriendRequestRow] Error rejecting request: \(error.localizedDescription)")
-            // TODO: Show user-friendly error message
+            await MainActor.run {
+                hapticsManager.playError()
+            }
         }
     }
     
