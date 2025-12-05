@@ -179,6 +179,51 @@ class PushNotificationManager: NSObject, ObservableObject {
         routeToDestination(payload: payload)
     }
     
+    // MARK: - Silent Push for Widget Updates
+    
+    /// Handle silent push notification for widget updates
+    /// Called when a friend posts a new visit - fetches latest data and refreshes widgets
+    func handleSilentPushForWidgetUpdate(userInfo: [AnyHashable: Any]) async {
+        print("[Push] 📱 Processing silent push for widget update")
+        
+        // Extract metadata from payload (optional, for debugging)
+        let visitId = userInfo["visit_id"] as? String
+        let authorId = userInfo["author_id"] as? String
+        
+        #if DEBUG
+        print("[Push] Silent push details - visit_id: \(visitId ?? "nil"), author_id: \(authorId?.prefix(8).description ?? "nil")")
+        #endif
+        
+        // Ensure user is authenticated before fetching data
+        guard dataManager.appData.isUserAuthenticated,
+              dataManager.appData.supabaseUserId != nil else {
+            print("⚠️ [Push] User not authenticated, skipping widget update")
+            return
+        }
+        
+        do {
+            // Step 1: Fetch latest friend visits from Supabase
+            print("[Push] Fetching latest friend visits...")
+            await dataManager.fetchSipSquadVisitsIfNeeded()
+            
+            // Step 2: Sync updated data to widget container
+            print("[Push] Syncing widget data...")
+            dataManager.syncWidgetData()
+            
+            // Step 3: Force reload widget timelines
+            print("[Push] Reloading widget timelines...")
+            WidgetSyncService.shared.reloadWidget(kind: "FriendsLatestSipsWidget")
+            
+            print("✅ [Push] Widget update complete - friend visits refreshed")
+            
+        } catch {
+            print("❌ [Push] Failed to update widget data: \(error.localizedDescription)")
+            
+            // Still try to sync whatever data we have
+            dataManager.syncWidgetData()
+        }
+    }
+    
     // MARK: - Routing
     
     private func routeToDestination(payload: PushNotificationPayload) {

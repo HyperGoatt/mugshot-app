@@ -2,6 +2,18 @@
 //  CafeDetailView.swift
 //  testMugshot
 //
+//  ⚠️ DEPRECATED: This view has been superseded by UnifiedCafeView.swift
+//  located at Views/Cafe/UnifiedCafeView.swift
+//
+//  UnifiedCafeView provides a unified café experience with:
+//  - Preview state (medium detent) for quick info over the map
+//  - Full state (expanded) for complete café profile
+//  - Consistent experience from Map, Feed, Saved, and all other entry points
+//
+//  This file is kept for reference but should not be used for new development.
+//  All usages have been migrated to UnifiedCafeView.
+//
+//  Original description:
 //  Cafe Profile - the main view when a user taps a cafe anywhere in the app.
 //  Flagship experience: social, visual, data-rich.
 //
@@ -10,15 +22,16 @@
 import SwiftUI
 import MapKit
 
+@available(*, deprecated, message: "Use UnifiedCafeView instead for the unified café experience")
 struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
     
     // State
     @State private var showLogVisit = false
     @State private var selectedVisit: Visit?
-    @State private var selectedUserId: String?
     @State private var currentPhotoIndex: Int = 0
     @State private var selectedPhotoIndex: Int?
     @State private var showPhotoGallery = false
@@ -124,14 +137,6 @@ struct CafeDetailView: View {
             }
             .sheet(isPresented: $showLogVisit) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
-            }
-            .sheet(isPresented: Binding(
-                get: { selectedUserId != nil },
-                set: { if !$0 { selectedUserId = nil } }
-            )) {
-                if let userId = selectedUserId {
-                    OtherUserProfileView(dataManager: dataManager, userId: userId)
-                }
             }
             .sheet(isPresented: $showPhotoGallery) {
                 PhotoGallerySheet(
@@ -378,7 +383,20 @@ struct CafeDetailView: View {
                         ForEach(Array(uniqueFriendVisitors.prefix(4).enumerated()), id: \.element.id) { index, visit in
                             FriendAvatarCircle(visit: visit) {
                                 if let userId = visit.supabaseUserId {
-                                    selectedUserId = userId
+                                    profileNavigator.openProfile(
+                                        handle: .supabase(
+                                            id: userId,
+                                            username: visit.authorUsername
+                                        ),
+                                        source: .savedCafeVisitors,
+                                        triggerHaptic: false
+                                    )
+                                } else if let username = visit.authorUsername {
+                                    profileNavigator.openProfile(
+                                        handle: .mention(username: username),
+                                        source: .savedCafeVisitors,
+                                        triggerHaptic: false
+                                    )
                                 }
                             }
                             .zIndex(Double(4 - index))

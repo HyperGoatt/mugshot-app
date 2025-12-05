@@ -14,7 +14,7 @@ struct DSCafeAttributionPill: View {
     var body: some View {
         Button(action: { onTap?() }) {
             HStack(spacing: 4) {
-                Image(systemName: "cup.and.saucer.fill")
+                Image(systemName: "location.fill")
                     .font(.system(size: 11, weight: .medium))
                 
                 Text(cafeName)

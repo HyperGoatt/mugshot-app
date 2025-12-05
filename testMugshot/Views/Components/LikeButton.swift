@@ -15,7 +15,7 @@ struct LikeButton: View {
     /// Callback invoked when the like state should be toggled in the data model
     var onToggle: (() -> Void)? = nil
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var ringScale: CGFloat = 0
     @State private var ringOpacity: Double = 0
     @State private var heartScale: CGFloat = 1.0

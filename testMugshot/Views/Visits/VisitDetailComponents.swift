@@ -22,6 +22,7 @@ struct VisitDetailHeader: View {
     let initials: String
     let isCurrentUserAuthor: Bool
     var onMenuTap: (() -> Void)? = nil
+    var onAvatarTap: (() -> Void)? = nil
     
     var body: some View {
         HStack(alignment: .center, spacing: DS.Spacing.md) {
@@ -30,7 +31,8 @@ struct VisitDetailHeader: View {
                 image: avatarImage,
                 remoteURL: remoteAvatarURL,
                 initials: initials,
-                size: 44
+                size: 44,
+                onTap: onAvatarTap
             )
             
             // Name and metadata
@@ -79,6 +81,7 @@ struct VisitAvatarView: View {
     let remoteURL: String?
     let initials: String
     let size: CGFloat
+    var onTap: (() -> Void)? = nil
     
     var body: some View {
         CachedAvatarImage(
@@ -94,6 +97,10 @@ struct VisitAvatarView: View {
             Circle()
                 .stroke(DS.Colors.cardBackground, lineWidth: 2)
         )
+        .contentShape(Circle())
+        .onTapGesture {
+            onTap?()
+        }
     }
     
     private var placeholder: some View {
@@ -244,7 +251,7 @@ struct InlineSocialActions: View {
     var onBookmarkTap: (() -> Void)? = nil
     var onShareTap: (() -> Void)? = nil
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     var body: some View {
         HStack(spacing: 0) {
@@ -313,18 +320,29 @@ struct InlineSocialActions: View {
 struct DrinkTypePill: View {
     let drinkType: DrinkType
     let customDrinkType: String?
+    let drinkSubtype: String?
+    
+    init(drinkType: DrinkType, customDrinkType: String? = nil, drinkSubtype: String? = nil) {
+        self.drinkType = drinkType
+        self.customDrinkType = customDrinkType
+        self.drinkSubtype = drinkSubtype
+    }
     
     private var displayText: String {
         let trimmedCustom = customDrinkType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
+        let typeText: String
         if drinkType == .other {
-            return trimmedCustom.isEmpty ? "Other" : trimmedCustom
+            typeText = trimmedCustom.isEmpty ? "Other" : trimmedCustom
+        } else {
+            typeText = drinkType.rawValue
         }
         
-        if !trimmedCustom.isEmpty {
-            return "\(drinkType.rawValue) · \(trimmedCustom)"
+        if let subtype = drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines), !subtype.isEmpty {
+            return "\(typeText) · \(subtype)"
         }
-        return drinkType.rawValue
+        
+        return typeText
     }
     
     private var icon: String {
@@ -458,12 +476,13 @@ struct RatingStar: View {
 struct ReviewSummaryCard: View {
     let drinkType: DrinkType
     let customDrinkType: String?
+    let drinkSubtype: String?
     let ratings: [String: Double]
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
             // Drink pill
-            DrinkTypePill(drinkType: drinkType, customDrinkType: customDrinkType)
+            DrinkTypePill(drinkType: drinkType, customDrinkType: customDrinkType, drinkSubtype: drinkSubtype)
             
             // Ratings grid
             if !ratings.isEmpty {
@@ -535,98 +554,82 @@ struct CollapsiblePrivateNotes: View {
 
 // MARK: - Inline Comments Section
 
+// Helper structure to organize comments into threads
+struct CommentThread {
+    let comment: Comment
+    var replies: [Comment]
+    var isExpanded: Bool = true
+}
+
 struct InlineCommentsSection: View {
     let comments: [Comment]
     @Binding var commentText: String
     let dataManager: DataManager
     let newlyAddedCommentIds: Set<UUID>
-    var onPostComment: (() -> Void)? = nil
+    var onPostComment: ((UUID?) -> Void)? = nil // Now accepts optional parent comment ID
     var onEditComment: ((Comment) -> Void)? = nil
     var onDeleteComment: ((Comment) -> Void)? = nil
     var isCommentFieldFocused: FocusState<Bool>.Binding
     
+    // Reply state
+    @State private var replyingTo: Comment?
+    @State private var expandedThreads: Set<UUID> = []
+    
+    // Mention autocomplete state
+    @State private var showMentionAutocomplete = false
+    @State private var mentionSearchText = ""
+    @State private var friendProfiles: [RemoteUserProfile] = []
+    
+    // Organize comments into threads (top-level comments with their replies)
+    private var commentThreads: [CommentThread] {
+        let topLevelComments = comments.filter { $0.parentCommentId == nil }
+        return topLevelComments.map { topLevel in
+            let replies = comments.filter { $0.parentCommentId == topLevel.supabaseId }
+            let isExpanded = expandedThreads.contains(topLevel.id) || replies.isEmpty
+            return CommentThread(comment: topLevel, replies: replies, isExpanded: isExpanded)
+        }
+    }
+    
+    // Total comment count (including replies)
+    private var totalCommentCount: Int {
+        comments.count
+    }
+    
+    private var filteredFriends: [RemoteUserProfile] {
+        guard !mentionSearchText.isEmpty else { return friendProfiles }
+        let searchLower = mentionSearchText.lowercased()
+        return friendProfiles.filter { profile in
+            profile.username.lowercased().contains(searchLower) ||
+            profile.displayName.lowercased().contains(searchLower)
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Section header
-            HStack {
-                Text("Comments")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                if !comments.isEmpty {
-                    Text("(\(comments.count))")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                
-                Spacer()
+            sectionHeader
+            
+            // Comments list (threaded)
+            commentsList
+            
+            // Mention autocomplete dropdown
+            if showMentionAutocomplete && !filteredFriends.isEmpty {
+                MentionAutocompleteDropdown(
+                    friends: filteredFriends,
+                    onSelect: { profile in
+                        // Use display name for mention display
+                        let displayName = profile.displayName ?? profile.username
+                        insertMention(username: profile.username, displayName: displayName)
+                    }
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             
-            // Comments list
-            if comments.isEmpty {
-                Text("No comments yet. Be the first!")
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .padding(.vertical, DS.Spacing.sm)
-            } else {
-                VStack(spacing: DS.Spacing.sm) {
-                    ForEach(comments) { comment in
-                        InlineCommentRow(
-                            comment: comment,
-                            dataManager: dataManager,
-                            isNewlyAdded: newlyAddedCommentIds.contains(comment.id),
-                            onEdit: onEditComment,
-                            onDelete: onDeleteComment
-                        )
-                        .id(comment.id)
-                        // Swipe actions only for comments authored by the current user
-                        .modifier(CommentSwipeActionsModifier(
-                            comment: comment,
-                            dataManager: dataManager,
-                            onEdit: onEditComment,
-                            onDelete: onDeleteComment
-                        ))
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .opacity
-                        ))
-                    }
-                }
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: comments.count)
-            }
+            // Reply indicator (if replying to a comment)
+            replyIndicator
             
             // Comment input
-            HStack(spacing: DS.Spacing.sm) {
-                TextField("Add a comment...", text: $commentText)
-                    .font(DS.Typography.bodyText)
-                    .padding(.horizontal, DS.Spacing.md)
-                    .padding(.vertical, DS.Spacing.sm)
-                    .background(DS.Colors.cardBackgroundAlt)
-                    .cornerRadius(DS.Radius.pill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DS.Radius.pill)
-                            .stroke(DS.Colors.borderSubtle.opacity(0.5), lineWidth: 1)
-                    )
-                    .focused(isCommentFieldFocused)
-                
-                Button(action: {
-                    onPostComment?()
-                    isCommentFieldFocused.wrappedValue = false
-                }) {
-                    Text("Post")
-                        .font(DS.Typography.subheadline(.semibold))
-                        .foregroundColor(DS.Colors.textOnMint)
-                        .padding(.horizontal, DS.Spacing.lg)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(
-                            commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? DS.Colors.primaryAccent.opacity(0.5)
-                                : DS.Colors.primaryAccent
-                        )
-                        .cornerRadius(DS.Radius.pill)
-                }
-                .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+            commentInput
         }
         .padding(DS.Spacing.cardPadding)
         .background(DS.Colors.cardBackground)
@@ -636,8 +639,573 @@ struct InlineCommentsSection: View {
                 .stroke(DS.Colors.borderSubtle.opacity(0.4), lineWidth: 0.5)
         )
         .dsCardShadow()
+        .onAppear {
+            loadFriendProfiles()
+        }
+    }
+    
+    // MARK: - Sub-views
+    
+    private var sectionHeader: some View {
+        HStack {
+            Text("Comments")
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+            
+            if !comments.isEmpty {
+                Text("(\(totalCommentCount))")
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textSecondary)
+            }
+            
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    private var commentsList: some View {
+        if comments.isEmpty {
+            Text("No comments yet. Be the first!")
+                .font(DS.Typography.bodyText)
+                .foregroundColor(DS.Colors.textTertiary)
+                .padding(.vertical, DS.Spacing.sm)
+        } else {
+            VStack(spacing: DS.Spacing.sm) {
+                ForEach(commentThreads, id: \.comment.id) { thread in
+                    commentThreadView(thread)
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: comments.count)
+        }
+    }
+    
+    private func commentThreadView(_ thread: CommentThread) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            // Top-level comment
+            ThreadedCommentRow(
+                comment: thread.comment,
+                dataManager: dataManager,
+                isNewlyAdded: newlyAddedCommentIds.contains(thread.comment.id),
+                indent: 0,
+                replyingTo: $replyingTo,
+                onEdit: onEditComment,
+                onDelete: onDeleteComment,
+                onToggleLike: { comment in
+                    handleToggleLike(comment)
+                }
+            )
+            .id(thread.comment.id)
+            
+            // Replies
+            if !thread.replies.isEmpty {
+                if thread.isExpanded {
+                    repliesView(for: thread)
+                } else {
+                    expandButton(for: thread)
+                }
+            }
+        }
+    }
+    
+    private func repliesView(for thread: CommentThread) -> some View {
+        ForEach(thread.replies) { reply in
+            ThreadedCommentRow(
+                comment: reply,
+                dataManager: dataManager,
+                isNewlyAdded: newlyAddedCommentIds.contains(reply.id),
+                indent: 1,
+                replyingTo: $replyingTo,
+                onEdit: onEditComment,
+                onDelete: onDeleteComment,
+                onToggleLike: { comment in
+                    handleToggleLike(comment)
+                }
+            )
+            .id(reply.id)
+            .transition(.asymmetric(
+                insertion: .move(edge: .bottom).combined(with: .opacity),
+                removal: .opacity
+            ))
+        }
+    }
+    
+    private func expandButton(for thread: CommentThread) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                _ = expandedThreads.insert(thread.comment.id)
+            }
+        } label: {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.system(size: 12, weight: .medium))
+                Text("View \(thread.replies.count) \(thread.replies.count == 1 ? "reply" : "replies")")
+                    .font(DS.Typography.caption1(.medium))
+            }
+            .foregroundColor(DS.Colors.primaryAccent)
+            .padding(.leading, 44)
+            .padding(.vertical, DS.Spacing.xs)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    @ViewBuilder
+    private var replyIndicator: some View {
+        if let replyingTo = replyingTo {
+            let replyToName = replyingTo.authorDisplayName ?? replyingTo.authorUsername ?? "someone"
+            HStack {
+                Text("Replying to \(replyToName)")
+                    .font(DS.Typography.caption1())
+                    .foregroundColor(DS.Colors.textSecondary)
+                
+                Spacer()
+                
+                Button {
+                    withAnimation {
+                        self.replyingTo = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(DS.Colors.iconSubtle)
+                }
+            }
+            .padding(.horizontal, DS.Spacing.sm)
+            .padding(.vertical, DS.Spacing.xs)
+            .background(DS.Colors.cardBackgroundAlt)
+            .cornerRadius(DS.Radius.sm)
+        }
+    }
+    
+    private var commentInput: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            TextField(replyingTo == nil ? "Add a comment..." : "Add a reply...", text: $commentText)
+                .font(DS.Typography.bodyText)
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.sm)
+                .background(DS.Colors.cardBackgroundAlt)
+                .cornerRadius(DS.Radius.pill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.pill)
+                        .stroke(DS.Colors.borderSubtle.opacity(0.5), lineWidth: 1)
+                )
+                .focused(isCommentFieldFocused)
+                .onChange(of: commentText) { _, newValue in
+                    checkForMentionTrigger(newValue)
+                }
+            
+            postButton
+        }
+    }
+    
+    private var postButton: some View {
+        Button(action: {
+            handlePostComment()
+        }) {
+            Text("Post")
+                .font(DS.Typography.subheadline(.semibold))
+                .foregroundColor(DS.Colors.textOnMint)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
+                .background(
+                    commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? DS.Colors.primaryAccent.opacity(0.5)
+                        : DS.Colors.primaryAccent
+                )
+                .cornerRadius(DS.Radius.pill)
+        }
+        .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+    
+    // MARK: - Actions
+    
+    private func handlePostComment() {
+        // Pass the parent comment's supabaseId if replying
+        let parentId = replyingTo?.supabaseId
+        onPostComment?(parentId)
+        isCommentFieldFocused.wrappedValue = false
+        showMentionAutocomplete = false
+        // Clear reply state after posting
+        withAnimation {
+            replyingTo = nil
+        }
+    }
+    
+    private func handleToggleLike(_ comment: Comment) {
+        guard let visitId = comments.first?.visitId else { return }
+        Task {
+            await dataManager.toggleCommentLike(comment, in: visitId)
+        }
+    }
+    
+    // MARK: - Mention Helpers
+    
+    private func checkForMentionTrigger(_ text: String) {
+        // Find the last @ in the text
+        guard let atIndex = text.lastIndex(of: "@") else {
+            withAnimation { showMentionAutocomplete = false }
+            mentionSearchText = ""
+            return
+        }
+        
+        // Get text after the @
+        let afterAt = String(text[text.index(after: atIndex)...])
+        
+        // Check if we're still in a mention context (no space after @)
+        if afterAt.contains(" ") || afterAt.contains("\n") {
+            // User typed space after mention, hide autocomplete
+            withAnimation { showMentionAutocomplete = false }
+            mentionSearchText = ""
+            return
+        }
+        
+        // Show autocomplete with the search text
+        mentionSearchText = afterAt
+        withAnimation { showMentionAutocomplete = true }
+    }
+    
+    private func insertMention(username: String, displayName: String) {
+        // Find the last @ and the text after it
+        guard let atIndex = commentText.lastIndex(of: "@") else { return }
+        
+        // Get text before @
+        let beforeAt = String(commentText[..<atIndex])
+        
+        // Get text after @ (might contain partial username or other text)
+        let afterAtIndex = commentText.index(after: atIndex)
+        let afterAt = String(commentText[afterAtIndex...])
+        
+        // Find where the mention search text ends (if user typed partial username)
+        // We want to replace only the search portion, not everything after @
+        let searchText = mentionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let textToReplace: String
+        if !searchText.isEmpty && afterAt.hasPrefix(searchText) {
+            // User was typing a username, replace that portion
+            textToReplace = searchText
+        } else {
+            // No search text or it doesn't match, replace everything after @
+            // But preserve any text that looks like it's after the mention (has space before it)
+            if let spaceIndex = afterAt.firstIndex(of: " ") {
+                // There's a space, so there's text after the mention
+                // Replace up to the space
+                textToReplace = String(afterAt[..<spaceIndex])
+            } else {
+                // No space, replace everything
+                textToReplace = afterAt
+            }
+        }
+        
+        // Get remaining text after what we're replacing
+        let remainingText: String
+        if afterAt.hasPrefix(textToReplace) {
+            let remainingStart = afterAt.index(afterAt.startIndex, offsetBy: textToReplace.count)
+            remainingText = String(afterAt[remainingStart...])
+        } else {
+            remainingText = afterAt
+        }
+        
+        // Insert the mention using @[displayName|username] format
+        // This encodes both display name and username for proper resolution
+        let mention = "@[\(displayName)|\(username)]"
+        let spacing = remainingText.isEmpty || remainingText.hasPrefix(" ") ? "" : " "
+        commentText = beforeAt + mention + spacing + remainingText
+        
+        // Hide autocomplete
+        withAnimation { showMentionAutocomplete = false }
+        mentionSearchText = ""
+    }
+    
+    private func loadFriendProfiles() {
+        Task {
+            do {
+                let profiles = try await dataManager.fetchFriendProfiles()
+                await MainActor.run {
+                    friendProfiles = profiles
+                }
+            } catch {
+                print("[InlineCommentsSection] Error loading friend profiles: \(error.localizedDescription)")
+            }
+        }
     }
 }
+
+// MARK: - Mention Autocomplete Dropdown
+
+struct MentionAutocompleteDropdown: View {
+    let friends: [RemoteUserProfile]
+    let onSelect: (RemoteUserProfile) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(friends.prefix(5), id: \.id) { profile in
+                Button {
+                    onSelect(profile)
+                } label: {
+                    HStack(spacing: DS.Spacing.sm) {
+                        // Avatar
+                        ProfileAvatarView(
+                            profileImageId: nil,
+                            profileImageURL: profile.avatarURL,
+                            username: profile.username,
+                            size: 32
+                        )
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(profile.displayName)
+                                .font(DS.Typography.subheadline(.medium))
+                                .foregroundColor(DS.Colors.textPrimary)
+                            Text("@\(profile.username)")
+                                .font(DS.Typography.caption1())
+                                .foregroundColor(DS.Colors.primaryAccent)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                
+                if profile.id != friends.prefix(5).last?.id {
+                    Divider()
+                        .padding(.leading, DS.Spacing.md + 32 + DS.Spacing.sm)
+                }
+            }
+        }
+        .background(DS.Colors.cardBackgroundAlt)
+        .cornerRadius(DS.Radius.md)
+        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+}
+
+// MARK: - Threaded Comment Row
+
+struct ThreadedCommentRow: View {
+    let comment: Comment
+    @ObservedObject var dataManager: DataManager
+    let isNewlyAdded: Bool
+    let indent: Int // 0 for top-level, 1+ for replies
+    @Binding var replyingTo: Comment?
+    var onEdit: ((Comment) -> Void)?
+    var onDelete: ((Comment) -> Void)?
+    var onToggleLike: ((Comment) -> Void)?
+    
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
+    @EnvironmentObject private var hapticsManager: HapticsManager
+    
+    private var isCurrentUserComment: Bool {
+        guard let currentUser = dataManager.appData.currentUser else { return false }
+        return currentUser.id == comment.userId
+    }
+    
+    private var isLikedByCurrentUser: Bool {
+        guard let supabaseUserId = dataManager.appData.supabaseUserId else { return false }
+        return comment.isLikedBy(supabaseUserId: supabaseUserId)
+    }
+    
+    private var commenterProfileImage: UIImage? {
+        guard isCurrentUserComment,
+              let imageId = dataManager.appData.currentUserProfileImageId else {
+            return nil
+        }
+        return PhotoCache.shared.retrieve(forKey: imageId)
+    }
+    
+    private var commenterRemoteAvatarURL: String? {
+        if isCurrentUserComment {
+            return dataManager.appData.currentUserAvatarURL
+        }
+        // Use author avatar URL from comment if available
+        return comment.authorAvatarURL
+    }
+    
+    private var commenterInitials: String {
+        if let user = dataManager.appData.currentUser, user.id == comment.userId {
+            return String(user.displayNameOrUsername.prefix(1)).uppercased()
+        }
+        // Use author display name from comment if available
+        if let displayName = comment.authorDisplayName, !displayName.isEmpty {
+            return String(displayName.prefix(1)).uppercased()
+        }
+        return "U"
+    }
+    
+    private var commenterUsername: String {
+        if let user = dataManager.appData.currentUser, user.id == comment.userId {
+            return user.displayNameOrUsername
+        }
+        // Use author display name from comment if available (not username with @)
+        if let displayName = comment.authorDisplayName, !displayName.isEmpty {
+            return displayName
+        }
+        return "Unknown"
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Indentation for replies
+            if indent > 0 {
+                Color.clear
+                    .frame(width: CGFloat(indent) * 36) // 36pt per indent level
+            }
+            
+            HStack(alignment: .top, spacing: DS.Spacing.sm) {
+                // Avatar
+                VisitAvatarView(
+                    image: commenterProfileImage,
+                    remoteURL: commenterRemoteAvatarURL,
+                    initials: commenterInitials,
+                    size: indent > 0 ? 24 : 28, // Smaller avatar for replies
+                    onTap: { handleAvatarTap() }
+                )
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    // Username and time
+                    HStack(spacing: 4) {
+                        Text(commenterUsername)
+                            .font(DS.Typography.caption1(.semibold))
+                            .foregroundColor(DS.Colors.textPrimary)
+                        
+                        Text(timeAgoString(from: comment.createdAt))
+                            .font(DS.Typography.caption2())
+                            .foregroundColor(DS.Colors.textTertiary)
+                    }
+                    
+                    // Comment text with tappable mentions
+                    MentionText(
+                        text: comment.text,
+                        mentions: comment.mentions,
+                        onMentionTap: { username in
+                            handleMentionTap(username: username)
+                        }
+                    )
+                    .font(DS.Typography.subheadline())
+                    .foregroundColor(DS.Colors.textPrimary)
+                    
+                    // Action buttons (Like & Reply)
+                    HStack(spacing: DS.Spacing.md) {
+                        // Like button
+                        Button {
+                            hapticsManager.lightTap()
+                            onToggleLike?(comment)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: isLikedByCurrentUser ? "heart.fill" : "heart")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(isLikedByCurrentUser ? .red : DS.Colors.iconSubtle)
+                                
+                                if comment.likeCount > 0 {
+                                    Text("\(comment.likeCount)")
+                                        .font(DS.Typography.caption2(.medium))
+                                        .foregroundColor(DS.Colors.textSecondary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        
+                        // Reply button (only on top-level comments)
+                        if indent == 0 {
+                            Button {
+                                hapticsManager.lightTap()
+                                withAnimation {
+                                    replyingTo = comment
+                                }
+                            } label: {
+                                Text("Reply")
+                                    .font(DS.Typography.caption2(.medium))
+                                    .foregroundColor(DS.Colors.primaryAccent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+                
+                Spacer(minLength: DS.Spacing.sm)
+                
+                // Edit/Delete menu (only for own comments)
+                if isCurrentUserComment, onEdit != nil || onDelete != nil {
+                    Menu {
+                        if let onEdit {
+                            Button {
+                                onEdit(comment)
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                        }
+                        
+                        if let onDelete {
+                            Button(role: .destructive) {
+                                onDelete(comment)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(DS.Colors.iconSubtle)
+                            .padding(.horizontal, DS.Spacing.xs)
+                    }
+                    .contentShape(Rectangle())
+                }
+            }
+            .padding(DS.Spacing.sm)
+            .background(DS.Colors.cardBackgroundAlt)
+            .cornerRadius(DS.Radius.md)
+        }
+    }
+    
+    private func timeAgoString(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func handleMentionTap(username: String) {
+        profileNavigator.openProfile(
+            handle: .mention(username: username),
+            source: .mentionComment,
+            triggerHaptic: true
+        )
+    }
+    
+    private func handleAvatarTap() {
+        if isCurrentUserComment || comment.supabaseUserId == dataManager.appData.supabaseUserId {
+            tabCoordinator.switchToProfile()
+            return
+        }
+        if let supabaseUserId = comment.supabaseUserId {
+            profileNavigator.openProfile(
+                handle: .supabase(id: supabaseUserId),
+                source: .other,
+                triggerHaptic: true
+            )
+            return
+        }
+        
+        if let username = fallbackUsername {
+            profileNavigator.openProfile(
+                handle: .mention(username: username),
+                source: .other,
+                triggerHaptic: true
+            )
+        }
+    }
+    
+    private var fallbackUsername: String? {
+        let trimmed = commenterUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("@") {
+            let withoutAt = trimmed.dropFirst()
+            return withoutAt.isEmpty ? nil : String(withoutAt)
+        }
+        return trimmed
+    }
+}
+
+// MARK: - Original Inline Comment Row (kept for backward compatibility if needed)
 
 struct InlineCommentRow: View {
     let comment: Comment
@@ -645,6 +1213,9 @@ struct InlineCommentRow: View {
     let isNewlyAdded: Bool
     var onEdit: ((Comment) -> Void)?
     var onDelete: ((Comment) -> Void)?
+    
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
     
     private var isCurrentUserComment: Bool {
         guard let currentUser = dataManager.appData.currentUser else { return false }
@@ -660,22 +1231,33 @@ struct InlineCommentRow: View {
     }
     
     private var commenterRemoteAvatarURL: String? {
-        guard isCurrentUserComment else { return nil }
-        return dataManager.appData.currentUserAvatarURL
+        if isCurrentUserComment {
+            return dataManager.appData.currentUserAvatarURL
+        }
+        // Use author avatar URL from comment if available
+        return comment.authorAvatarURL
     }
     
     private var commenterInitials: String {
         if let user = dataManager.appData.currentUser, user.id == comment.userId {
             return String(user.displayNameOrUsername.prefix(1)).uppercased()
         }
+        // Use author display name from comment if available
+        if let displayName = comment.authorDisplayName, !displayName.isEmpty {
+            return String(displayName.prefix(1)).uppercased()
+        }
         return "U"
     }
     
     private var commenterUsername: String {
         if let user = dataManager.appData.currentUser, user.id == comment.userId {
-            return "@\(user.username)"
+            return user.displayNameOrUsername
         }
-        return "@friend"
+        // Use author display name from comment if available (not username with @)
+        if let displayName = comment.authorDisplayName, !displayName.isEmpty {
+            return displayName
+        }
+        return "Unknown"
     }
     
     var body: some View {
@@ -685,7 +1267,8 @@ struct InlineCommentRow: View {
                 image: commenterProfileImage,
                 remoteURL: commenterRemoteAvatarURL,
                 initials: commenterInitials,
-                size: 28
+                size: 28,
+                onTap: { handleAvatarTap() }
             )
             
             VStack(alignment: .leading, spacing: 2) {
@@ -700,10 +1283,16 @@ struct InlineCommentRow: View {
                         .foregroundColor(DS.Colors.textTertiary)
                 }
                 
-                // Comment text
-                MentionText(text: comment.text, mentions: comment.mentions)
-                    .font(DS.Typography.subheadline())
-                    .foregroundColor(DS.Colors.textPrimary)
+                // Comment text with tappable mentions
+                MentionText(
+                    text: comment.text,
+                    mentions: comment.mentions,
+                    onMentionTap: { username in
+                        handleMentionTap(username: username)
+                    }
+                )
+                .font(DS.Typography.subheadline())
+                .foregroundColor(DS.Colors.textPrimary)
             }
             
             Spacer(minLength: DS.Spacing.sm)
@@ -744,6 +1333,47 @@ struct InlineCommentRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func handleMentionTap(username: String) {
+        profileNavigator.openProfile(
+            handle: .mention(username: username),
+            source: .mentionComment,
+            triggerHaptic: true
+        )
+    }
+    
+    private func handleAvatarTap() {
+        if isCurrentUserComment || comment.supabaseUserId == dataManager.appData.supabaseUserId {
+            tabCoordinator.switchToProfile()
+            return
+        }
+        if let supabaseUserId = comment.supabaseUserId {
+            profileNavigator.openProfile(
+                handle: .supabase(id: supabaseUserId),
+                source: .other,
+                triggerHaptic: true
+            )
+            return
+        }
+        
+        if let username = fallbackUsername {
+            profileNavigator.openProfile(
+                handle: .mention(username: username),
+                source: .other,
+                triggerHaptic: true
+            )
+        }
+    }
+    
+    private var fallbackUsername: String? {
+        let trimmed = commenterUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("@") {
+            let withoutAt = trimmed.dropFirst()
+            return withoutAt.isEmpty ? nil : String(withoutAt)
+        }
+        return trimmed
     }
 }
 

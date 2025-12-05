@@ -88,13 +88,14 @@ struct FriendsLatestSipsProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<FriendsLatestSipsEntry>) -> Void) {
         let entries = createEntries()
         
-        // If we have multiple visits, show a new one every 30 minutes
-        // Otherwise, refresh in an hour
+        // PERF: Increased refresh intervals to reduce battery drain
+        // If we have multiple visits, show a new one every hour
+        // Otherwise, refresh in 2 hours
         let refreshDate: Date
         if entries.count > 1 {
-            refreshDate = Date().addingTimeInterval(30 * 60) // 30 minutes
+            refreshDate = Date().addingTimeInterval(60 * 60) // 1 hour (was 30 min)
         } else {
-            refreshDate = Date().addingTimeInterval(60 * 60) // 1 hour
+            refreshDate = Date().addingTimeInterval(2 * 60 * 60) // 2 hours (was 1 hour)
         }
         
         let timeline = Timeline(entries: entries, policy: .after(refreshDate))
@@ -104,14 +105,44 @@ struct FriendsLatestSipsProvider: TimelineProvider {
     private func createEntries() -> [FriendsLatestSipsEntry] {
         let data = WidgetDataStore.shared.load()
         
+        #if DEBUG
+        // Debug logging for widget data pipeline
+        print("[Widget:FriendsLatestSips] ========== CREATING ENTRIES ==========")
+        print("[Widget:FriendsLatestSips] Current user ID: \(data.currentUserId ?? "nil")")
+        print("[Widget:FriendsLatestSips] Total friends visits in data: \(data.friendsVisits.count)")
+        print("[Widget:FriendsLatestSips] Last sync date: \(data.lastSyncDate)")
+        #endif
+        
         // Filter to recent friend visits (last 48 hours)
         let cutoffDate = Date().addingTimeInterval(-48 * 60 * 60)
         let recentFriendsVisits = data.friendsVisits.filter { $0.createdAt > cutoffDate }
         
-        // Check if user has friends
+        #if DEBUG
+        print("[Widget:FriendsLatestSips] Recent friends visits (last 48h): \(recentFriendsVisits.count)")
+        if let latest = recentFriendsVisits.first {
+            print("[Widget:FriendsLatestSips] Latest visit: '\(latest.authorDisplayNameOrUsername)' at '\(latest.cafeName)' on \(latest.createdAt)")
+        }
+        #endif
+        
+        // Check if user has friends - improved logic
+        // User has friends if there are ANY friends visits in the data (even if older than 48h)
+        // OR if the user is authenticated
         let hasFriends = !data.friendsVisits.isEmpty || data.currentUserId != nil
         
+        #if DEBUG
+        print("[Widget:FriendsLatestSips] Has friends: \(hasFriends)")
+        #endif
+        
         if recentFriendsVisits.isEmpty {
+            #if DEBUG
+            if data.friendsVisits.isEmpty {
+                print("[Widget:FriendsLatestSips] Result: No friends visits in data -> showing noFriends or noRecentVisits")
+            } else {
+                print("[Widget:FriendsLatestSips] Result: Has \(data.friendsVisits.count) friends visits but none recent -> showing noRecentVisits")
+            }
+            print("[Widget:FriendsLatestSips] ======================================")
+            #endif
+            
             if hasFriends {
                 return [FriendsLatestSipsEntry.noRecentVisits]
             } else {
@@ -133,6 +164,11 @@ struct FriendsLatestSipsProvider: TimelineProvider {
                 totalFriendsVisits: recentFriendsVisits.count
             ))
         }
+        
+        #if DEBUG
+        print("[Widget:FriendsLatestSips] Result: Created \(entries.count) timeline entries")
+        print("[Widget:FriendsLatestSips] ======================================")
+        #endif
         
         return entries
     }

@@ -588,7 +588,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = testMugshot/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mugshot;
-				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show nearby cafes and place your visits on the map.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Mugshot needs access to save postcards to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Mugshot needs access to your photos so you can attach pictures to your cafe visits.";
@@ -597,6 +597,7 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -625,7 +626,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = testMugshot/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mugshot;
-				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show nearby cafes and place your visits on the map.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Mugshot needs access to save postcards to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Mugshot needs access to your photos so you can attach pictures to your cafe visits.";
@@ -634,6 +635,7 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

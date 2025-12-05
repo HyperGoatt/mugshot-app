@@ -23,6 +23,11 @@ struct SignUpView: View {
     @State private var authError: String?
     @State private var isSubmitting = false
     
+    // Username availability states
+    @State private var isCheckingUsername = false
+    @State private var usernameAvailable: Bool? = nil // nil = not checked, true = available, false = taken
+    @State private var usernameCheckTask: Task<Void, Never>? = nil
+    
     var body: some View {
         ZStack {
             DS.Colors.mintSoftFill
@@ -117,6 +122,30 @@ struct SignUpView: View {
                                         .autocorrectionDisabled()
                                         .foregroundStyle(DS.Colors.textPrimary)
                                         .tint(DS.Colors.primaryAccent)
+                                        .onChange(of: username) { _, newValue in
+                                            // Reset availability when username changes
+                                            usernameAvailable = nil
+                                            // Debounce username check
+                                            usernameCheckTask?.cancel()
+                                            let trimmed = newValue.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                                            guard !trimmed.isEmpty, trimmed.count >= 3 else { return }
+                                            usernameCheckTask = Task {
+                                                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second debounce
+                                                guard !Task.isCancelled else { return }
+                                                await checkUsernameAvailability(trimmed)
+                                            }
+                                        }
+                                    
+                                    // Username availability indicator
+                                    if isCheckingUsername {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                            .padding(.trailing, DS.Spacing.md)
+                                    } else if let available = usernameAvailable {
+                                        Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                            .foregroundStyle(available ? DS.Colors.positiveChange : DS.Colors.negativeChange)
+                                            .padding(.trailing, DS.Spacing.md)
+                                    }
                                 }
                                 .padding(.vertical, DS.Spacing.md)
                                 .background(
@@ -125,8 +154,19 @@ struct SignUpView: View {
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                        .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                                        .stroke(usernameAvailable == false ? DS.Colors.negativeChange : DS.Colors.borderSubtle, lineWidth: 1)
                                 )
+                                
+                                // Username availability message
+                                if usernameAvailable == false {
+                                    Text("That username is already taken")
+                                        .font(DS.Typography.caption1())
+                                        .foregroundStyle(DS.Colors.negativeChange)
+                                } else if usernameAvailable == true {
+                                    Text("Username is available!")
+                                        .font(DS.Typography.caption1())
+                                        .foregroundStyle(DS.Colors.positiveChange)
+                                }
                             }
                             
                             // Email
@@ -231,6 +271,24 @@ struct SignUpView: View {
         }
     }
     
+    private func checkUsernameAvailability(_ username: String) async {
+        await MainActor.run { isCheckingUsername = true }
+        defer { Task { @MainActor in isCheckingUsername = false } }
+        
+        do {
+            let available = try await dataManager.checkUsernameAvailability(username)
+            await MainActor.run {
+                usernameAvailable = available
+            }
+        } catch {
+            print("[SignUp] Username availability check failed: \(error.localizedDescription)")
+            // On error, don't block the user - they'll get an error at signup if username is taken
+            await MainActor.run {
+                usernameAvailable = nil
+            }
+        }
+    }
+    
     private func handleSignUp() {
         validationErrors = []
         authError = nil
@@ -243,16 +301,21 @@ struct SignUpView: View {
             validationErrors.append("Display name is required")
         }
         
-        if username.trimmingCharacters(in: .whitespaces).isEmpty {
+        let trimmedUsername = username.lowercased().trimmingCharacters(in: .whitespaces)
+        
+        if trimmedUsername.isEmpty {
             validationErrors.append("Username is required")
         } else {
             // Basic username validation (alphanumeric, lowercase)
-            let usernameLower = username.lowercased()
-            if usernameLower != username {
-                validationErrors.append("Username must be lowercase")
-            }
-            if !usernameLower.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }) {
+            if !trimmedUsername.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }) {
                 validationErrors.append("Username can only contain letters, numbers, _, and -")
+            }
+            if trimmedUsername.count < 3 {
+                validationErrors.append("Username must be at least 3 characters")
+            }
+            // Check if username was marked as taken
+            if usernameAvailable == false {
+                validationErrors.append("That username is already taken")
             }
         }
         
@@ -274,12 +337,23 @@ struct SignUpView: View {
         
         isSubmitting = true
         let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespaces)
-        let trimmedUsername = username.lowercased().trimmingCharacters(in: .whitespaces)
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
         let trimmedPassword = password
         
         Task { @MainActor in
             do {
+                // Final username availability check before signup (in case debounced check didn't complete)
+                if usernameAvailable == nil {
+                    let available = try await dataManager.checkUsernameAvailability(trimmedUsername)
+                    if !available {
+                        isSubmitting = false
+                        usernameAvailable = false
+                        hapticsManager.playError()
+                        authError = "That username is already taken. Please choose another."
+                        return
+                    }
+                }
+                
                 try await dataManager.signUp(
                     displayName: trimmedDisplayName,
                     username: trimmedUsername,

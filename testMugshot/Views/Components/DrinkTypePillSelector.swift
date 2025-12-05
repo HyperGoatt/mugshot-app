@@ -10,7 +10,7 @@ import SwiftUI
 struct DrinkTypePillSelector: View {
     @Binding var drinkType: DrinkType
     @Binding var customDrinkType: String
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {

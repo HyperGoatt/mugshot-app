@@ -11,7 +11,7 @@ import UIKit
 struct NotificationsCenterView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var selectedVisit: Visit?
     
     private var unreadCount: Int {

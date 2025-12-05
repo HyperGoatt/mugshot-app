@@ -49,6 +49,12 @@ struct AppData: Codable {
     /// Used to hide older notifications after a \"Clear all\" action, even if they still exist server-side.
     var notificationsClearedAt: Date? = nil
     
+    // Pending friend request tracking for quick status lookups
+    /// Maps target user ID -> request UUID for outgoing pending friend requests
+    var outgoingRequestsByUserId: [String: String] = [:]
+    /// Maps source user ID -> request UUID for incoming pending friend requests  
+    var incomingRequestsByUserId: [String: String] = [:]
+    
     // Feature flags
     var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
     
@@ -58,6 +64,10 @@ struct AppData: Codable {
     /// When true, Sip Squad mode uses simplified styling (mint pins with rating, no color legend)
     /// When false, uses standard color-coded pins with legend
     var useSipSquadSimplifiedStyle: Bool = false
+    
+    /// Developer-only flag to switch between Mugshot-ranked search
+    /// and Apple Maps' native ordering for place search.
+    var mapSearchMode: MapSearchMode = .mugshot
     
     init(
         currentUser: User? = nil,
@@ -89,7 +99,8 @@ struct AppData: Codable {
         friendsSupabaseUserIds: Set<String> = [],
         useOnboardingStylePostFlow: Bool = false,
         isSipSquadModeEnabled: Bool = false,
-        useSipSquadSimplifiedStyle: Bool = false
+        useSipSquadSimplifiedStyle: Bool = false,
+        mapSearchMode: MapSearchMode = .mugshot
     ) {
         self.currentUser = currentUser
         self.supabaseUserId = supabaseUserId
@@ -122,6 +133,7 @@ struct AppData: Codable {
         self.isSipSquadModeEnabled = isSipSquadModeEnabled
         self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
         self.notificationsClearedAt = nil
+        self.mapSearchMode = mapSearchMode
     }
 }
 

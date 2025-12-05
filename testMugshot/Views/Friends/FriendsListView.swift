@@ -9,10 +9,12 @@ import SwiftUI
 
 struct FriendsListView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var profileNavigator: ProfileNavigator
+    @Environment(\.dismiss) private var dismiss
     
     @State private var friends: [User] = []
     @State private var isLoading = true
-    @State private var selectedUserId: String?
+    @State private var refreshTrigger = UUID()
     
     var body: some View {
         Group {
@@ -24,18 +26,25 @@ struct FriendsListView: View {
                 friendsList
             }
         }
-        .task {
+        .id(refreshTrigger) // Force view refresh when trigger changes
+        .task(id: refreshTrigger) {
             await loadFriends()
         }
         .refreshable {
             await loadFriends()
         }
-        .sheet(isPresented: Binding(
-            get: { selectedUserId != nil },
-            set: { if !$0 { selectedUserId = nil } }
-        )) {
-            if let userId = selectedUserId {
-                OtherUserProfileView(dataManager: dataManager, userId: userId)
+        .onAppear {
+            // Always refresh friends list when view appears
+            // This catches cases where friends were added/removed from other screens
+            Task {
+                await loadFriends()
+            }
+        }
+        .onChange(of: dataManager.appData.friendsSupabaseUserIds) { oldValue, newValue in
+            // Reload friends when the set changes (detects add/remove)
+            if oldValue != newValue {
+                print("[FriendsListView] 🔄 Friends set changed: \(oldValue.count) -> \(newValue.count)")
+                refreshTrigger = UUID() // Force complete refresh
             }
         }
     }
@@ -58,15 +67,17 @@ struct FriendsListView: View {
     private var emptyState: some View {
         DSBaseCard {
             VStack(spacing: DS.Spacing.md) {
-                Image(systemName: "person.2")
-                    .font(.system(size: 48))
-                    .foregroundColor(DS.Colors.iconSubtle)
+                Image("MugsyNoFriends")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+                    .accessibilityHidden(true)
                 
                 Text("No friends yet")
                     .font(DS.Typography.sectionTitle)
                     .foregroundColor(DS.Colors.textPrimary)
                 
-                Text("Search by username to add your first coffee friends ☕️")
+                Text("Search by username to add your first friend")
                     .font(DS.Typography.bodyText)
                     .foregroundColor(DS.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -85,8 +96,24 @@ struct FriendsListView: View {
                 FriendRow(
                     friend: friend,
                     onTap: {
-                        if let supabaseId = friend.supabaseUserId {
-                            selectedUserId = supabaseId
+                        // Dismiss the Friends Hub sheet first, THEN navigate
+                        dismiss()
+                        
+                        // Small delay to ensure sheet dismissal completes
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if let supabaseId = friend.supabaseUserId {
+                                profileNavigator.openProfile(
+                                    handle: .supabase(id: supabaseId, username: friend.username),
+                                    source: .friendsList,
+                                    triggerHaptic: false
+                                )
+                            } else {
+                                profileNavigator.openProfile(
+                                    handle: .mention(username: friend.username),
+                                    source: .friendsList,
+                                    triggerHaptic: false
+                                )
+                            }
                         }
                     }
                 )
@@ -125,7 +152,7 @@ struct FriendRow: View {
     let friend: User
     let onTap: () -> Void
     
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     var body: some View {
         Button(action: {
@@ -137,7 +164,7 @@ struct FriendRow: View {
                     // Avatar
                     ProfileAvatarView(
                         profileImageId: friend.effectiveProfileImageID,
-                        profileImageURL: nil,
+                        profileImageURL: friend.avatarURL,
                         username: friend.username,
                         size: 50
                     )

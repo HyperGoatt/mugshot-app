@@ -9,7 +9,7 @@ import SwiftUI
 
 struct VisibilitySelector: View {
     @Binding var visibility: VisitVisibility
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {

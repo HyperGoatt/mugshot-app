@@ -148,7 +148,11 @@ struct SeedCafesPage: View {
     private func loadNearbyCafes() {
         // Search for "coffee" or "cafe" near location
         let query = "coffee cafe"
-        searchService.search(query: query, region: defaultRegion)
+        searchService.search(
+            query: query,
+            region: defaultRegion,
+            mode: dataManager.appData.mapSearchMode
+        )
     }
     
     private func searchCafes() {
@@ -159,7 +163,11 @@ struct SeedCafesPage: View {
         }
         
         isSearching = true
-        searchService.search(query: searchText, region: defaultRegion)
+        searchService.search(
+            query: searchText,
+            region: defaultRegion,
+            mode: dataManager.appData.mapSearchMode
+        )
     }
     
     private func convertSearchResultsToCafes() {

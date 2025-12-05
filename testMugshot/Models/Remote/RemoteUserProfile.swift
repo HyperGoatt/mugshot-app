@@ -64,6 +64,7 @@ extension RemoteUserProfile {
             avatarImageName: existing?.avatarImageName,
             profileImageID: existing?.profileImageID,
             bannerImageID: existing?.bannerImageID,
+            avatarURL: avatarURL ?? existing?.avatarURL,
             bio: bio ?? "",
             instagramURL: instagramHandle,
             websiteURL: websiteURL ?? existing?.websiteURL,

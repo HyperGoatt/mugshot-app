@@ -80,6 +80,7 @@ struct RemoteVisit: Codable {
     let cafeId: UUID
     var drinkType: String?
     var drinkTypeCustom: String?
+    var drinkSubtype: String?
     var caption: String
     var notes: String?
     var visibility: String
@@ -101,6 +102,7 @@ struct RemoteVisit: Codable {
         case cafeId = "cafe_id"
         case drinkType = "drink_type"
         case drinkTypeCustom = "drink_type_custom"
+        case drinkSubtype = "drink_subtype"
         case caption
         case notes
         case visibility
@@ -133,6 +135,7 @@ struct RemoteVisit: Codable {
         cafeId = try container.decode(UUID.self, forKey: .cafeId)
         drinkType = try container.decodeIfPresent(String.self, forKey: .drinkType)
         drinkTypeCustom = try container.decodeIfPresent(String.self, forKey: .drinkTypeCustom)
+        drinkSubtype = try container.decodeIfPresent(String.self, forKey: .drinkSubtype)
         caption = try container.decode(String.self, forKey: .caption)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         visibility = try container.decode(String.self, forKey: .visibility)
@@ -220,6 +223,10 @@ struct RemoteComment: Codable {
     let visitId: UUID
     let text: String
     let createdAt: Date?
+    let parentCommentId: UUID?
+    var likes: [RemoteCommentLike]?
+    // Author profile data (from join with users table)
+    var author: RemoteUserProfile?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -227,6 +234,9 @@ struct RemoteComment: Codable {
         case visitId = "visit_id"
         case text
         case createdAt = "created_at"
+        case parentCommentId = "parent_comment_id"
+        case likes = "comment_likes"
+        case author = "author"
     }
     
     init(from decoder: Decoder) throws {
@@ -245,6 +255,41 @@ struct RemoteComment: Codable {
         
         visitId = try container.decode(UUID.self, forKey: .visitId)
         text = try container.decode(String.self, forKey: .text)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        parentCommentId = try container.decodeIfPresent(UUID.self, forKey: .parentCommentId)
+        likes = try container.decodeIfPresent([RemoteCommentLike].self, forKey: .likes)
+        author = try container.decodeIfPresent(RemoteUserProfile.self, forKey: .author)
+    }
+}
+
+struct RemoteCommentLike: Codable {
+    let id: UUID
+    let userId: String
+    let commentId: UUID
+    let createdAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case commentId = "comment_id"
+        case createdAt = "created_at"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(UUID.self, forKey: .id)
+        
+        // Handle userId: Supabase returns UUID as string, decode as UUID then convert to String
+        if let userIdUUID = try? container.decode(UUID.self, forKey: .userId) {
+            userId = userIdUUID.uuidString
+        } else if let userIdString = try? container.decode(String.self, forKey: .userId) {
+            userId = userIdString
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.userId, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "user_id is required"))
+        }
+        
+        commentId = try container.decode(UUID.self, forKey: .commentId)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
     }
 }

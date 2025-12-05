@@ -12,14 +12,23 @@ class PhotoCache {
     static let shared = PhotoCache()
     
     private var cache: [String: UIImage] = [:]
+    private var thumbnailCache: [String: UIImage] = [:]
     private let queue = DispatchQueue(label: "com.mugshot.photocache", attributes: .concurrent)
     
-    /// PERFORMANCE: Limit concurrent preloads to avoid I/O contention
+    /// PERF: Limit concurrent preloads to avoid I/O contention
     private let preloadSemaphore = DispatchSemaphore(value: 4)
     
-    /// PERFORMANCE: Track keys currently being loaded to avoid duplicate work
+    /// PERF: Track keys currently being loaded to avoid duplicate work
     private var loadingKeys = Set<String>()
     private let loadingKeysLock = NSLock()
+    
+    /// PERF: Memory limit for in-memory cache (50MB)
+    private let maxCacheMemoryBytes: Int = 50 * 1024 * 1024
+    private var currentCacheMemoryBytes: Int = 0
+    
+    /// PERF: Maximum image dimensions for storage (reduces disk usage and memory)
+    private let maxImageDimension: CGFloat = 2048
+    private let thumbnailSize: CGSize = CGSize(width: 300, height: 300)
     
     // Directory for storing photos
     private var photosDirectory: URL {
@@ -34,21 +43,137 @@ class PhotoCache {
         return photosPath
     }
     
-    private init() {}
+    private init() {
+        // PERF: Listen for memory warnings and clear memory cache
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMemoryWarning),
+            name: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleMemoryWarning() {
+        #if DEBUG
+        print("⚠️ [PhotoCache] Memory warning received - clearing memory cache")
+        #endif
+        
+        queue.async(flags: .barrier) {
+            let oldCount = self.cache.count
+            self.cache.removeAll()
+            self.thumbnailCache.removeAll()
+            self.currentCacheMemoryBytes = 0
+            
+            #if DEBUG
+            print("⚠️ [PhotoCache] Cleared \(oldCount) images from memory")
+            #endif
+        }
+    }
+    
+    // PERF: Downscale image if it exceeds max dimensions
+    private func downscaleImageIfNeeded(_ image: UIImage) -> UIImage {
+        let size = image.size
+        let maxDim = max(size.width, size.height)
+        
+        // No need to downscale if within limits
+        guard maxDim > maxImageDimension else {
+            return image
+        }
+        
+        let scale = maxImageDimension / maxDim
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        defer { UIGraphicsEndImageContext() }
+        
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+    }
+    
+    // PERF: Generate thumbnail for grid views
+    private func generateThumbnail(from image: UIImage) -> UIImage {
+        let size = image.size
+        let scale = min(thumbnailSize.width / size.width, thumbnailSize.height / size.height)
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        defer { UIGraphicsEndImageContext() }
+        
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+    }
+    
+    // PERF: Estimate memory footprint of image
+    private func estimateImageMemorySize(_ image: UIImage) -> Int {
+        guard let cgImage = image.cgImage else { return 0 }
+        return cgImage.bytesPerRow * cgImage.height
+    }
+    
+    // PERF: Enforce memory limit by evicting oldest images
+    private func enforceMemoryLimit() {
+        guard currentCacheMemoryBytes > maxCacheMemoryBytes else { return }
+        
+        // Remove 25% of cache to avoid thrashing
+        let targetBytes = Int(Double(maxCacheMemoryBytes) * 0.75)
+        
+        #if DEBUG
+        print("⚠️ [PhotoCache] Memory limit exceeded (\(currentCacheMemoryBytes / 1024 / 1024)MB), evicting to \(targetBytes / 1024 / 1024)MB")
+        #endif
+        
+        // Simple eviction: clear half the cache
+        // (A proper LRU would be better but adds complexity)
+        let keysToRemove = Array(cache.keys.prefix(cache.count / 2))
+        for key in keysToRemove {
+            if let image = cache[key] {
+                currentCacheMemoryBytes -= estimateImageMemorySize(image)
+                cache.removeValue(forKey: key)
+            }
+        }
+    }
     
     // Store image both in memory and on disk
     func store(_ image: UIImage, forKey key: String) {
         queue.async(flags: .barrier) {
+            // PERF: Downscale image before storing to save memory and disk space
+            let scaledImage = self.downscaleImageIfNeeded(image)
+            
             // Store in memory cache
-            self.cache[key] = image
+            self.cache[key] = scaledImage
+            let memorySize = self.estimateImageMemorySize(scaledImage)
+            self.currentCacheMemoryBytes += memorySize
+            
+            // PERF: Enforce memory limit
+            self.enforceMemoryLimit()
+            
+            // PERF: Generate and cache thumbnail
+            let thumbnail = self.generateThumbnail(from: scaledImage)
+            self.thumbnailCache[key] = thumbnail
             
             // Store on disk
             let fileURL = self.photosDirectory.appendingPathComponent("\(key).jpg")
             
             // Compress and save image as JPEG
-            if let imageData = image.jpegData(compressionQuality: 0.8) {
+            if let imageData = scaledImage.jpegData(compressionQuality: 0.8) {
                 try? imageData.write(to: fileURL)
             }
+        }
+    }
+    
+    // Retrieve thumbnail for grid views (faster, uses less memory)
+    func retrieveThumbnail(forKey key: String) -> UIImage? {
+        return queue.sync {
+            if let thumbnail = thumbnailCache[key] {
+                return thumbnail
+            }
+            
+            // If full image is in cache, generate thumbnail from it
+            if let fullImage = cache[key] {
+                let thumbnail = generateThumbnail(from: fullImage)
+                thumbnailCache[key] = thumbnail
+                return thumbnail
+            }
+            
+            return nil
         }
     }
     
@@ -109,6 +234,8 @@ class PhotoCache {
     func clear() {
         queue.async(flags: .barrier) {
             self.cache.removeAll()
+            self.thumbnailCache.removeAll()
+            self.currentCacheMemoryBytes = 0
         }
         loadingKeysLock.lock()
         loadingKeys.removeAll()

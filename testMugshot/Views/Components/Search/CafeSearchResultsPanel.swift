@@ -14,6 +14,7 @@ struct CafeSearchResultsPanel: View {
     @ObservedObject var searchService: MapSearchService
     let recentSearches: [RecentSearchEntry]
     let showRecentSearches: Bool
+    var nearbySuggestions: [MKMapItem] = []
     let referenceLocation: CLLocation?
     let onMapItemSelected: (MKMapItem) -> Void
     let onRecentSelected: (RecentSearchEntry) -> Void
@@ -29,7 +30,7 @@ struct CafeSearchResultsPanel: View {
             
             Group {
                 if showRecentSearches {
-                    recentSearchContent
+                    suggestionsContent
                 } else if searchService.isSearching {
                     ProgressView()
                         .padding(DS.Spacing.md)
@@ -50,20 +51,36 @@ struct CafeSearchResultsPanel: View {
         .cornerRadius(DS.Radius.card, corners: [.bottomLeft, .bottomRight] as UIRectCorner)
     }
     
-    private var recentSearchContent: some View {
+    private var suggestionsContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.cardVerticalGap) {
-                DSSectionHeader("Recent Searches", subtitle: "Most recent first")
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-                    .padding(.top, DS.Spacing.md)
-                
-                if sortedRecentSearches.isEmpty {
-                    Text(emptyRecentStateText)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
+                // 1. Nearby Suggestions
+                if !nearbySuggestions.isEmpty {
+                    DSSectionHeader("Nearby", subtitle: "Quick pick")
                         .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.bottom, DS.Spacing.lg)
-                } else {
+                        .padding(.top, DS.Spacing.md)
+                    
+                    ForEach(nearbySuggestions, id: \.self) { item in
+                        SearchResultRow(
+                            title: item.name ?? "Unknown",
+                            subtitle: MapSearchClassifier.subtitle(from: item.placemark),
+                            distanceText: distanceText(for: item),
+                            isCoffeeDestination: true,
+                            onTap: {
+                                onMapItemSelected(item)
+                            }
+                        )
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                
+                // 2. Recent Searches
+                if !sortedRecentSearches.isEmpty {
+                    DSSectionHeader("Recent Searches", subtitle: "Most recent first")
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, nearbySuggestions.isEmpty ? DS.Spacing.md : DS.Spacing.lg)
+                    
                     ForEach(sortedRecentSearches) { entry in
                         RecentSearchRow(
                             entry: entry,
@@ -75,6 +92,16 @@ struct CafeSearchResultsPanel: View {
                         .padding(.horizontal, DS.Spacing.pagePadding)
                     }
                     .padding(.bottom, DS.Spacing.md)
+                } else if nearbySuggestions.isEmpty {
+                    DSSectionHeader("Recent Searches", subtitle: "Most recent first")
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.top, DS.Spacing.md)
+                    
+                    Text(emptyRecentStateText)
+                        .font(DS.Typography.bodyText)
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .padding(.horizontal, DS.Spacing.pagePadding)
+                        .padding(.bottom, DS.Spacing.lg)
                 }
             }
         }

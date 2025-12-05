@@ -138,7 +138,7 @@ final class WidgetSyncService {
         friendsVisits: [Visit] = [],
         userLocation: CLLocation? = nil
     ) {
-        print("[WidgetSync] Starting widget data sync...")
+        print("[WidgetSync] ========== STARTING WIDGET DATA SYNC ==========")
         
         let appData = dataManager.appData
         var container = WidgetDataContainer()
@@ -147,6 +147,12 @@ final class WidgetSyncService {
         container.currentUserId = appData.supabaseUserId
         container.currentUserDisplayName = appData.currentUserDisplayName
         container.currentUserAvatarURL = appData.currentUserAvatarURL
+        
+        print("[WidgetSync] User: \(appData.currentUserDisplayName ?? appData.supabaseUserId?.prefix(8).description ?? "nil")")
+        print("[WidgetSync] Friends count: \(appData.friendsSupabaseUserIds.count)")
+        print("[WidgetSync] Total visits in appData: \(appData.visits.count)")
+        print("[WidgetSync] Total cafes in appData: \(appData.cafes.count)")
+        print("[WidgetSync] Friends visits passed in: \(friendsVisits.count)")
         
         // Convert user visits
         container.userVisits = appData.visits
@@ -163,11 +169,18 @@ final class WidgetSyncService {
             return calendar.isDateInToday(visit.createdAt)
         }
         
-        // Friends' visits
+        // Friends' visits - with detailed logging
+        print("[WidgetSync] Mapping \(friendsVisits.count) friend visits...")
         container.friendsVisits = friendsVisits
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(20)
-            .map { mapVisitToWidget($0, cafes: appData.cafes) }
+            .map { visit in
+                let widgetVisit = mapVisitToWidget(visit, cafes: appData.cafes)
+                print("[WidgetSync]   - Visit by '\(visit.authorDisplayNameOrUsername)' at '\(widgetVisit.cafeName)' on \(visit.createdAt)")
+                return widgetVisit
+            }
+        
+        print("[WidgetSync] Final friendsVisits count for widget: \(container.friendsVisits.count)")
         
         // Streak data
         container.currentStreak = JournalStatsHelper.calculateCurrentStreak(visits: appData.visits)
@@ -208,7 +221,16 @@ final class WidgetSyncService {
         // Reload all widget timelines
         WidgetCenter.shared.reloadAllTimelines()
         
-        print("[WidgetSync] Widget data sync complete")
+        print("[WidgetSync] ========== WIDGET DATA SYNC COMPLETE ==========")
+        print("[WidgetSync] Summary:")
+        print("[WidgetSync]   - User visits: \(container.userVisits.count)")
+        print("[WidgetSync]   - Friends visits: \(container.friendsVisits.count)")
+        print("[WidgetSync]   - Today's visit: \(container.todaysVisit != nil ? "Yes" : "No")")
+        print("[WidgetSync]   - Favorite cafes: \(container.favoriteCafes.count)")
+        if let latestFriend = container.friendsVisits.first {
+            print("[WidgetSync]   - Latest friend visit: '\(latestFriend.authorDisplayName ?? latestFriend.authorUsername ?? "Unknown")' at '\(latestFriend.cafeName)'")
+        }
+        print("[WidgetSync] ================================================")
     }
     
     /// Quick sync for specific widget kinds
@@ -225,21 +247,49 @@ final class WidgetSyncService {
     
     private func saveWidgetData(_ container: WidgetDataContainer) {
         guard let url = MugshotAppGroup.widgetDataURL else {
-            print("[WidgetSync] Error: No App Group container URL")
+            print("[WidgetSync] ❌ Error: No App Group container URL - check entitlements!")
+            print("[WidgetSync] App Group ID: \(MugshotAppGroup.identifier)")
             return
         }
         
         do {
             let data = try encoder.encode(container)
             try data.write(to: url, options: .atomic)
-            print("[WidgetSync] Saved widget data to: \(url.path)")
+            
+            // Verify file was written
+            let fileExists = FileManager.default.fileExists(atPath: url.path)
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+            
+            print("[WidgetSync] ✅ Saved widget data:")
+            print("[WidgetSync]   - Path: \(url.path)")
+            print("[WidgetSync]   - File exists: \(fileExists)")
+            print("[WidgetSync]   - Size: \(fileSize) bytes")
+            print("[WidgetSync]   - Friends visits in container: \(container.friendsVisits.count)")
         } catch {
-            print("[WidgetSync] Error saving widget data: \(error)")
+            print("[WidgetSync] ❌ Error saving widget data: \(error)")
         }
     }
     
     private func mapVisitToWidget(_ visit: Visit, cafes: [Cafe]) -> WidgetVisit {
-        let cafe = cafes.first { $0.id == visit.cafeId }
+        // Find cafe using multiple matching strategies:
+        // 1. Match by local cafeId
+        // 2. Match by supabaseCafeId -> cafe.supabaseId
+        // 3. Match by supabaseCafeId -> cafe.id (in case IDs were synced)
+        var cafe: Cafe? = cafes.first { $0.id == visit.cafeId }
+        
+        if cafe == nil, let supabaseCafeId = visit.supabaseCafeId {
+            cafe = cafes.first { $0.supabaseId == supabaseCafeId }
+            
+            if cafe == nil {
+                cafe = cafes.first { $0.id == supabaseCafeId }
+            }
+        }
+        
+        #if DEBUG
+        if cafe == nil {
+            print("[WidgetSync] ⚠️ Could not find cafe for visit - cafeId: \(visit.cafeId), supabaseCafeId: \(visit.supabaseCafeId?.uuidString ?? "nil")")
+        }
+        #endif
         
         return WidgetVisit(
             id: visit.id.uuidString,

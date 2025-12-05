@@ -14,6 +14,7 @@ struct PeopleSearchResultsPanel: View {
     @State private var results: [RemoteUserProfile] = []
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var friendshipStatuses: [String: FriendshipStatus] = [:]
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -44,11 +45,13 @@ struct PeopleSearchResultsPanel: View {
                             ForEach(results, id: \.id) { profile in
                                 FriendSearchResultRow(
                                     profile: profile,
-                                    friendshipStatus: getFriendshipStatus(for: profile.id),
+                                    friendshipStatus: friendshipStatuses[profile.id] ?? .none,
                                     dataManager: dataManager,
                                     onStatusChanged: {
                                         // Refresh status if changed
-                                        // DataManager updates should propagate
+                                        Task {
+                                            await refreshFriendshipStatus(for: profile.id)
+                                        }
                                     }
                                 )
                                 .padding(.horizontal, DS.Spacing.pagePadding)
@@ -66,6 +69,13 @@ struct PeopleSearchResultsPanel: View {
         .onChange(of: searchText) { _, newValue in
             performSearch(query: newValue)
         }
+        .onAppear {
+            // Refresh friends list and friend request data for accurate status display
+            Task {
+                await dataManager.refreshFriendsList()
+                _ = try? await dataManager.fetchFriendRequests()
+            }
+        }
     }
     
     private func performSearch(query: String) {
@@ -74,6 +84,7 @@ struct PeopleSearchResultsPanel: View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             results = []
+            friendshipStatuses = [:]
             isSearching = false
             return
         }
@@ -92,6 +103,8 @@ struct PeopleSearchResultsPanel: View {
                         self.results = users
                         self.isSearching = false
                     }
+                    // Refresh friendship statuses after results are loaded
+                    await refreshFriendshipStatuses(for: users)
                 }
             } catch {
                 print("Error searching users: \(error)")
@@ -104,13 +117,63 @@ struct PeopleSearchResultsPanel: View {
         }
     }
     
-    private func getFriendshipStatus(for userId: String) -> FriendshipStatus {
-        // For unified search (Map tab), we only differentiate between "Friends" and "Not friends".
-        // Detailed request state (incoming/outgoing) is handled in FriendsHubView.
-        if dataManager.appData.friendsSupabaseUserIds.contains(userId) {
-            return .friends
-        } else {
-            return .none
+    // MARK: - Friendship Status Management
+    
+    /// Refresh friendship statuses for all search results using async checks
+    private func refreshFriendshipStatuses(for profiles: [RemoteUserProfile]) async {
+        // Clear existing statuses
+        await MainActor.run {
+            friendshipStatuses.removeAll()
+        }
+        
+        // Batch check friendship statuses concurrently (like FriendsHubView does)
+        await withTaskGroup(of: (String, FriendshipStatus).self) { group in
+            for profile in profiles.prefix(10) { // Limit concurrent checks
+                group.addTask {
+                    do {
+                        let status = try await self.dataManager.checkFriendshipStatus(for: profile.id)
+                        return (profile.id, status)
+                    } catch {
+                        print("[PeopleSearch] Error checking friendship status for \(profile.id): \(error.localizedDescription)")
+                        return (profile.id, .none)
+                    }
+                }
+            }
+            
+            for await (userId, status) in group {
+                await MainActor.run {
+                    friendshipStatuses[userId] = status
+                }
+            }
+        }
+        
+        // Fetch remaining statuses if more than 10 results
+        if profiles.count > 10 {
+            for profile in profiles.dropFirst(10) {
+                do {
+                    let status = try await dataManager.checkFriendshipStatus(for: profile.id)
+                    await MainActor.run {
+                        friendshipStatuses[profile.id] = status
+                    }
+                } catch {
+                    print("[PeopleSearch] Error checking friendship status for \(profile.id): \(error.localizedDescription)")
+                    await MainActor.run {
+                        friendshipStatuses[profile.id] = .none
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Refresh friendship status for a single user
+    private func refreshFriendshipStatus(for userId: String) async {
+        do {
+            let status = try await dataManager.checkFriendshipStatus(for: userId)
+            await MainActor.run {
+                friendshipStatuses[userId] = status
+            }
+        } catch {
+            print("[PeopleSearch] Error refreshing friendship status for \(userId): \(error.localizedDescription)")
         }
     }
 }

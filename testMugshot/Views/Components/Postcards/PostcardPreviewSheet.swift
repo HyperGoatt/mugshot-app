@@ -37,7 +37,7 @@ struct PostcardPreviewSheet: View {
     let authorAvatarURL: String?
     
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var hapticsManager = HapticsManager.shared
+    @EnvironmentObject private var hapticsManager: HapticsManager
     
     // All loaded photos
     @State private var loadedPhotos: [UIImage] = []
