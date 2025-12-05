@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NotificationsCenterView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedNotification: MugshotNotification?
+    @EnvironmentObject private var hapticsManager: HapticsManager
+    @State private var selectedVisit: Visit?
     
     private var unreadCount: Int {
         dataManager.appData.notifications.filter { !$0.isRead }.count
@@ -50,16 +52,38 @@ struct NotificationsCenterView: View {
             }
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    if !sortedNotifications.isEmpty {
+                        // Mark all as read
+                        Button {
+                            markAllAsRead()
+                        } label: {
+                            Image(systemName: "envelope.open")
+                                .foregroundColor(DS.Colors.iconDefault)
+                        }
+                        .accessibilityLabel("Mark all as read")
+                        
+                        // Clear all notifications
+                        Button {
+                            Task {
+                                await dataManager.clearAllNotifications()
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundColor(DS.Colors.iconDefault)
+                        }
+                        .accessibilityLabel("Clear all notifications")
+                    }
+                }
+            }
             .task {
                 await dataManager.refreshNotifications()
             }
         }
-        .sheet(item: $selectedNotification) { notification in
-            if let visitId = notification.targetVisitId,
-               let visit = dataManager.appData.visits.first(where: { $0.id == visitId }) {
-                NavigationStack {
-                    VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
-                }
+        .sheet(item: $selectedVisit) { visit in
+            NavigationStack {
+                VisitDetailView(dataManager: dataManager, visit: visit, showsDismissButton: true)
             }
         }
     }
@@ -83,12 +107,21 @@ struct NotificationsCenterView: View {
     }
     
     private func handleNotificationTap(_ notification: MugshotNotification) {
+        // Haptic: confirm notification tap
+        hapticsManager.lightTap()
+        
         // Mark as read
         markAsRead(notification)
         
         // Navigate to related content if applicable
-        if notification.targetVisitId != nil {
-            selectedNotification = notification
+        if let visitId = notification.targetVisitId {
+            Task {
+                if let visit = await dataManager.getOrFetchVisit(id: visitId) {
+                    await MainActor.run {
+                        self.selectedVisit = visit
+                    }
+                }
+            }
         }
     }
     
@@ -202,8 +235,30 @@ struct NotificationRowView: View {
     
     private func loadActorImage() {
         guard let avatarKey = notification.actorAvatarKey else { return }
+        
+        // 1) Try local cache (memory/disk) first
         if let cachedImage = PhotoCache.shared.retrieve(forKey: avatarKey) {
             actorImage = cachedImage
+            return
+        }
+        
+        // 2) If the key looks like a URL, fetch and cache the avatar
+        guard let url = URL(string: avatarKey) else { return }
+        
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let image = UIImage(data: data) else { return }
+                
+                // Store in shared cache for future notifications from this actor
+                PhotoCache.shared.store(image, forKey: avatarKey)
+                
+                await MainActor.run {
+                    actorImage = image
+                }
+            } catch {
+                print("⚠️ [Notifications] Failed to load actor avatar: \(error.localizedDescription)")
+            }
         }
     }
 }

@@ -3,6 +3,7 @@
 //  testMugshot
 //
 //  Reusable carousel for displaying up to 10 photo paths with Mugshot styling.
+//  Updated with indicators inside the image and gradient overlay.
 //
 
 import SwiftUI
@@ -19,8 +20,8 @@ struct MugshotImageCarousel: View {
     init(
         photoPaths: [String],
         remotePhotoURLs: [String: String] = [:],
-        height: CGFloat = 280,
-        cornerRadius: CGFloat = DS.Radius.card,
+        height: CGFloat = 320,
+        cornerRadius: CGFloat = DS.Radius.lg,
         showIndicators: Bool = true
     ) {
         // Limit to 10 images for performance + UX
@@ -39,16 +40,18 @@ struct MugshotImageCarousel: View {
     }
     
     var body: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            if photoPaths.isEmpty {
-                placeholder
-            } else {
+        if photoPaths.isEmpty {
+            placeholder
+        } else {
+            ZStack(alignment: .bottom) {
                 carousel
                 
+                // Indicators inside image with gradient backdrop
                 if showIndicators && photoPaths.count > 1 {
-                    indicators
+                    indicatorsOverlay
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         }
     }
     
@@ -59,9 +62,7 @@ struct MugshotImageCarousel: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: height)
                     .background(DS.Colors.cardBackgroundAlt)
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                     .tag(index)
-                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -72,16 +73,35 @@ struct MugshotImageCarousel: View {
         }
     }
     
-    private var indicators: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            ForEach(photoPaths.indices, id: \.self) { index in
-                Circle()
-                    .fill(index == currentIndex ? DS.Colors.primaryAccent : DS.Colors.iconSubtle.opacity(0.35))
-                    .frame(width: index == currentIndex ? 8 : 6, height: index == currentIndex ? 8 : 6)
-                    .animation(.easeInOut(duration: 0.15), value: currentIndex)
+    private var indicatorsOverlay: some View {
+        VStack {
+            Spacer()
+            
+            // Gradient backdrop for indicators
+            ZStack(alignment: .bottom) {
+                // Subtle gradient fade
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.25)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 50)
+                
+                // Indicators
+                HStack(spacing: 6) {
+                    ForEach(photoPaths.indices, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentIndex ? Color.white : Color.white.opacity(0.5))
+                            .frame(
+                                width: index == currentIndex ? 8 : 6,
+                                height: index == currentIndex ? 8 : 6
+                            )
+                            .animation(.easeInOut(duration: 0.15), value: currentIndex)
+                    }
+                }
+                .padding(.bottom, 12)
             }
         }
-        .frame(maxWidth: .infinity)
     }
     
     private var placeholder: some View {
@@ -100,4 +120,3 @@ struct MugshotImageCarousel: View {
             )
     }
 }
-

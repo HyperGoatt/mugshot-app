@@ -28,7 +28,8 @@ final class SupabaseNotificationService {
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
         let (data, response) = try await client.request(
-            path: "rest/v1/notifications",
+            // Use view that joins notifications with actor profile info
+            path: "rest/v1/notifications_with_actor",
             method: "GET",
             queryItems: queryItems
         )
@@ -47,6 +48,17 @@ final class SupabaseNotificationService {
             queryItems: [URLQueryItem(name: "id", value: "eq.\(id.uuidString)")],
             headers: ["Prefer": "return=minimal"],
             body: body
+        )
+    }
+    
+    /// Permanently delete all notifications for a user.
+    /// Used by \"Clear all\" in the Notifications center.
+    func clearAllNotifications(for userId: String) async throws {
+        _ = try await client.request(
+            path: "rest/v1/notifications",
+            method: "DELETE",
+            queryItems: [URLQueryItem(name: "user_id", value: "eq.\(userId)")],
+            headers: ["Prefer": "return=minimal"]
         )
     }
     

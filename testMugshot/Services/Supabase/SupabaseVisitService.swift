@@ -22,12 +22,16 @@ final class SupabaseVisitService {
     
     // MARK: - Fetch feeds
     
+    // PERF: Pagination limit of 50 is reasonable for initial feed load
+    // Future optimization: implement incremental loading/infinite scroll
     func fetchEveryoneFeed(limit: Int = 50) async throws -> [RemoteVisit] {
         var queryItems = baseSelectQuery(limit: limit)
         queryItems.append(URLQueryItem(name: "visibility", value: "eq.everyone"))
         return try await fetchVisits(queryItems: queryItems)
     }
     
+    // PERF: Friends feed limited to 50 most recent visits
+    // All calls run off main thread via async/await
     func fetchFriendsFeed(currentUserId: String, followingIds: [String], limit: Int = 50) async throws -> [RemoteVisit] {
         var userIds = Set(followingIds)
         userIds.insert(currentUserId)
@@ -86,7 +90,7 @@ final class SupabaseVisitService {
         
         guard (200..<300).contains(response.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("❌ [VisitService] Supabase visit insert failed:")
+            print("❌ [VisitService] ===== VISIT INSERT FAILED =====")
             print("❌ [VisitService] Status: \(response.statusCode)")
             print("❌ [VisitService] Error message: \(errorMessage)")
             
@@ -102,6 +106,14 @@ final class SupabaseVisitService {
                 if let details = errorJSON["details"] as? String {
                     print("❌ [VisitService] Details: \(details)")
                 }
+                if let code = errorJSON["code"] as? String {
+                    print("❌ [VisitService] Error code: \(code)")
+                }
+            }
+            
+            // Log the request payload for debugging
+            if let bodyString = String(data: body, encoding: .utf8) {
+                print("❌ [VisitService] Request payload that failed: \(bodyString)")
             }
             
             throw SupabaseError.server(status: response.statusCode, message: errorMessage)
@@ -221,8 +233,8 @@ final class SupabaseVisitService {
         )
     }
     
-    func addComment(visitId: UUID, userId: String, text: String) async throws -> RemoteComment {
-        let payload = CommentInsertPayload(visitId: visitId, userId: userId, text: text)
+    func addComment(visitId: UUID, userId: String, text: String, parentCommentId: UUID? = nil) async throws -> RemoteComment {
+        let payload = CommentInsertPayload(visitId: visitId, userId: userId, text: text, parentCommentId: parentCommentId)
         let body = try encoder.encode([payload])
         let (data, response) = try await client.request(
             path: "rest/v1/comments",
@@ -250,8 +262,151 @@ final class SupabaseVisitService {
         )
     }
     
+    /// Delete a visit from Supabase
+    /// This will cascade delete related photos, likes, and comments via database constraints
+    /// RLS policy requires: auth.uid() = user_id (only the author can delete their own visit)
+    func deleteVisit(visitId: UUID) async throws {
+        print("[VisitService] ===== Deleting Visit =====")
+        print("[VisitService] visitId = \(visitId)")
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/visits",
+            method: "DELETE",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(visitId.uuidString)")
+            ]
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [VisitService] Failed to delete visit: \(errorMessage)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        }
+        
+        print("✅ [VisitService] Visit deleted successfully")
+    }
+    
+    /// Update the notes field of a visit. Used when the author edits their notes in the Journal.
+    func updateVisitNotes(visitId: UUID, notes: String?) async throws {
+        let payload: [String: Any?] = ["notes": notes]
+        let body = try JSONSerialization.data(withJSONObject: payload.compactMapValues { $0 }, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/visits",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(visitId.uuidString)")
+            ],
+            headers: ["Prefer": "return=minimal"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [VisitService] Failed to update visit notes: \(errorMessage)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        }
+        
+        print("✅ [VisitService] Visit notes updated successfully for visitId: \(visitId)")
+    }
+    
+    /// Update multiple fields of a visit. Used when the author edits their visit.
+    func updateVisit(
+        visitId: UUID,
+        drinkType: String,
+        customDrinkType: String?,
+        drinkSubtype: String?,
+        caption: String,
+        notes: String?,
+        visibility: String,
+        ratings: [String: Double],
+        overallScore: Double,
+        posterPhotoURL: String? = nil
+    ) async throws {
+        var payload: [String: Any] = [
+            "drink_type": drinkType,
+            "caption": caption,
+            "visibility": visibility,
+            "ratings": ratings,
+            "overall_score": overallScore
+        ]
+        
+        // Add optional fields
+        if let customDrinkType = customDrinkType {
+            payload["drink_type_custom"] = customDrinkType
+        } else {
+            payload["drink_type_custom"] = NSNull()
+        }
+        
+        if let drinkSubtype = drinkSubtype {
+            payload["drink_subtype"] = drinkSubtype
+        } else {
+            payload["drink_subtype"] = NSNull()
+        }
+        
+        if let notes = notes {
+            payload["notes"] = notes
+        } else {
+            payload["notes"] = NSNull()
+        }
+        
+        // Update poster photo URL if provided
+        if let posterPhotoURL = posterPhotoURL {
+            payload["poster_photo_url"] = posterPhotoURL
+        }
+        
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/visits",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(visitId.uuidString)")
+            ],
+            headers: ["Prefer": "return=minimal"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [VisitService] Failed to update visit: \(errorMessage)")
+            throw SupabaseError.server(status: response.statusCode, message: errorMessage)
+        }
+        
+        print("✅ [VisitService] Visit updated successfully for visitId: \(visitId)")
+    }
+    
+    /// Update the text of a comment. Used when the author edits their own comment.
+    func updateComment(commentId: UUID, newText: String) async throws -> RemoteComment {
+        let payload = ["text": newText]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        
+        let (data, response) = try await client.request(
+            path: "rest/v1/comments",
+            method: "PATCH",
+            queryItems: [
+                URLQueryItem(name: "id", value: "eq.\(commentId.uuidString)"),
+                URLQueryItem(name: "select", value: "*")
+            ],
+            headers: ["Prefer": "return=representation"],
+            body: body
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        
+        let comments = try decoder.decode([RemoteComment].self, from: data)
+        guard let updated = comments.first else {
+            throw SupabaseError.decoding("Comment update returned empty response.")
+        }
+        return updated
+    }
+    
     func fetchComments(visitId: UUID) async throws -> [RemoteComment] {
         let queryItems = [
+            // Join users table to get author profile (display_name, username, avatar_url)
+            URLQueryItem(name: "select", value: "*,comment_likes(*),author:users!comments_user_id_fkey(id,display_name,username,avatar_url)"),
             URLQueryItem(name: "visit_id", value: "eq.\(visitId.uuidString)"),
             URLQueryItem(name: "order", value: "created_at.asc")
         ]
@@ -266,10 +421,43 @@ final class SupabaseVisitService {
         return try decoder.decode([RemoteComment].self, from: data)
     }
     
+    // MARK: - Comment Likes
+    
+    func addCommentLike(commentId: UUID, userId: String) async throws -> RemoteCommentLike {
+        let payload = CommentLikeInsertPayload(commentId: commentId, userId: userId)
+        let body = try encoder.encode([payload])
+        let (data, response) = try await client.request(
+            path: "rest/v1/comment_likes",
+            method: "POST",
+            headers: ["Prefer": "return=representation"],
+            body: body
+        )
+        guard (200..<300).contains(response.statusCode) else {
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        let likes = try decoder.decode([RemoteCommentLike].self, from: data)
+        guard let saved = likes.first else {
+            throw SupabaseError.decoding("Comment like insert returned empty response.")
+        }
+        return saved
+    }
+    
+    func removeCommentLike(commentId: UUID, userId: String) async throws {
+        _ = try await client.request(
+            path: "rest/v1/comment_likes",
+            method: "DELETE",
+            queryItems: [
+                URLQueryItem(name: "comment_id", value: "eq.\(commentId.uuidString)"),
+                URLQueryItem(name: "user_id", value: "eq.\(userId)")
+            ]
+        )
+    }
+    
     // MARK: - Helpers
     
     private func baseSelectQuery(limit: Int) -> [URLQueryItem] {
-        let selectValue = "*,cafe:cafe_id(*),visit_photos(*),likes(*),comments(*),author:users!visits_user_id_fkey(id,display_name,username,avatar_url)"
+        // Include author profile for both visit author and comment authors
+        let selectValue = "*,cafe:cafe_id(*),visit_photos(*),likes(*),comments(*,comment_likes(*),author:users!comments_user_id_fkey(id,display_name,username,avatar_url)),author:users!visits_user_id_fkey(id,display_name,username,avatar_url)"
         return [
             URLQueryItem(name: "select", value: selectValue),
             URLQueryItem(name: "order", value: "created_at.desc"),
@@ -302,6 +490,36 @@ final class SupabaseVisitService {
             throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
         }
     }
+    
+    // MARK: - Cafe Aggregate Stats
+    
+    /// Fetches app-wide aggregated statistics for a cafe
+    /// Calls the get_cafe_aggregate_stats PostgreSQL function
+    /// Returns total visits, average rating, and top 5 drinks ordered
+    func fetchCafeAggregateStats(cafeId: UUID) async throws -> CafeAggregateStats {
+        print("[VisitService] Fetching aggregate stats for cafe: \(cafeId)")
+        
+        // Call the RPC function
+        let (data, response) = try await client.request(
+            path: "rest/v1/rpc/get_cafe_aggregate_stats",
+            method: "POST",
+            headers: ["Content-Type": "application/json"],
+            body: try encoder.encode(["p_cafe_id": cafeId.uuidString])
+        )
+        
+        guard (200..<300).contains(response.statusCode) else {
+            print("[VisitService] ❌ Failed to fetch aggregate stats: HTTP \(response.statusCode)")
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("[VisitService] Error: \(errorString)")
+            }
+            throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        
+        // The RPC returns the JSON directly (not wrapped in an array)
+        let stats = try decoder.decode(CafeAggregateStats.self, from: data)
+        print("[VisitService] ✅ Fetched aggregate stats: \(stats.totalVisits) visits, \(stats.averageRating) avg, \(stats.topDrinks.count) drinks")
+        return stats
+    }
 }
 
 // MARK: - Payloads
@@ -311,6 +529,7 @@ struct VisitInsertPayload: Encodable {
     let cafeId: UUID
     var drinkType: String?
     var drinkTypeCustom: String?
+    var drinkSubtype: String?
     let caption: String
     let notes: String?
     let visibility: String
@@ -323,6 +542,7 @@ struct VisitInsertPayload: Encodable {
         case cafeId = "cafe_id"
         case drinkType = "drink_type"
         case drinkTypeCustom = "drink_type_custom"
+        case drinkSubtype = "drink_subtype"
         case caption
         case notes
         case visibility
@@ -363,11 +583,23 @@ private struct CommentInsertPayload: Encodable {
     let visitId: UUID
     let userId: String
     let text: String
+    let parentCommentId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case visitId = "visit_id"
         case userId = "user_id"
         case text
+        case parentCommentId = "parent_comment_id"
+    }
+}
+
+private struct CommentLikeInsertPayload: Encodable {
+    let commentId: UUID
+    let userId: String
+    
+    enum CodingKeys: String, CodingKey {
+        case commentId = "comment_id"
+        case userId = "user_id"
     }
 }
 

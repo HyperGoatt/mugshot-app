@@ -15,6 +15,7 @@ struct LikeButton: View {
     /// Callback invoked when the like state should be toggled in the data model
     var onToggle: (() -> Void)? = nil
     
+    @EnvironmentObject private var hapticsManager: HapticsManager
     @State private var ringScale: CGFloat = 0
     @State private var ringOpacity: Double = 0
     @State private var heartScale: CGFloat = 1.0
@@ -74,9 +75,8 @@ struct LikeButton: View {
         // Trigger animation immediately based on current state
         // The binding will update reactively when data model changes
         if !wasLiked {
-            // Haptic feedback
-            let impact = UIImpactFeedbackGenerator(style: .light)
-            impact.impactOccurred()
+            // Haptic: confirm like toggle
+            hapticsManager.lightTap()
             
             // Show ring and start animation
             showRing = true
@@ -103,6 +103,8 @@ struct LikeButton: View {
                 }
             }
         } else {
+            // Haptic: confirm unlike toggle
+            hapticsManager.lightTap()
             // Smooth transition to unliked (no animation)
             withAnimation(.easeOut(duration: 0.2)) {
                 heartScale = 1.0

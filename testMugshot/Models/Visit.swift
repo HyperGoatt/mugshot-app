@@ -50,6 +50,7 @@ struct Visit: Identifiable {
     var createdAt: Date // Renamed from date for clarity
     var drinkType: DrinkType
     var customDrinkType: String? // For "Other" option
+    var drinkSubtype: String? // Optional free-text for specific drink (e.g., "Iced vanilla latte")
     var caption: String
     var notes: String? // Private notes (optional)
     var photos: [String] // Store image names/paths
@@ -77,6 +78,7 @@ struct Visit: Identifiable {
         createdAt: Date = Date(),
         drinkType: DrinkType,
         customDrinkType: String? = nil,
+        drinkSubtype: String? = nil,
         caption: String = "",
         notes: String? = nil,
         photos: [String] = [],
@@ -103,6 +105,7 @@ struct Visit: Identifiable {
         self.createdAt = createdAt
         self.drinkType = drinkType
         self.customDrinkType = customDrinkType
+        self.drinkSubtype = drinkSubtype
         self.caption = caption
         self.notes = notes
         self.photos = photos
@@ -164,6 +167,22 @@ struct Visit: Identifiable {
     var authorInitials: String {
         String(authorDisplayNameOrUsername.prefix(1)).uppercased()
     }
+    
+    // Display drink type with optional subtype
+    var drinkDisplayText: String {
+        let typeText: String
+        if drinkType == .other, let custom = customDrinkType, !custom.isEmpty {
+            typeText = custom
+        } else {
+            typeText = drinkType.rawValue
+        }
+        
+        if let subtype = drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines), !subtype.isEmpty {
+            return "\(typeText) · \(subtype)"
+        }
+        
+        return typeText
+    }
 }
 
 extension Visit: Hashable {
@@ -179,7 +198,7 @@ extension Visit: Hashable {
 // Make Visit Codable with custom implementation
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {
-        case id, supabaseId, supabaseCafeId, supabaseUserId, cafeId, userId, drinkType, customDrinkType, caption, notes, photos
+        case id, supabaseId, supabaseCafeId, supabaseUserId, cafeId, userId, drinkType, customDrinkType, drinkSubtype, caption, notes, photos
         case posterPhotoIndex, posterPhotoURL, remotePhotoURLByKey, ratings, overallScore, visibility, comments, mentions
         case createdAt, date // Support both for backward compatibility
         case likeCount, likes // Support both for backward compatibility
@@ -207,6 +226,7 @@ extension Visit: Codable {
         
         drinkType = try container.decode(DrinkType.self, forKey: .drinkType)
         customDrinkType = try container.decodeIfPresent(String.self, forKey: .customDrinkType)
+        drinkSubtype = try container.decodeIfPresent(String.self, forKey: .drinkSubtype)
         caption = try container.decode(String.self, forKey: .caption)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         photos = try container.decode([String].self, forKey: .photos)
@@ -245,6 +265,7 @@ extension Visit: Codable {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(drinkType, forKey: .drinkType)
         try container.encodeIfPresent(customDrinkType, forKey: .customDrinkType)
+        try container.encodeIfPresent(drinkSubtype, forKey: .drinkSubtype)
         try container.encode(caption, forKey: .caption)
         try container.encodeIfPresent(notes, forKey: .notes)
         try container.encode(photos, forKey: .photos)
@@ -273,10 +294,20 @@ struct Comment: Identifiable, Codable {
     var text: String
     var createdAt: Date
     var mentions: [Mention]
+    var parentCommentId: UUID? // For reply threads
+    var likeCount: Int // Total likes on this comment
+    var likedByUserIds: [String] // Track which users liked this comment (Supabase user IDs)
+    var replies: [Comment] // Nested replies (populated in UI)
+    // Author profile data (from Supabase join)
+    var authorDisplayName: String?
+    var authorUsername: String?
+    var authorAvatarURL: String?
     
     enum CodingKeys: String, CodingKey {
         case id, supabaseId, visitId, userId, supabaseUserId, text, mentions
         case createdAt, date // Support both for backward compatibility
+        case parentCommentId, likeCount, likedByUserIds, replies
+        case authorDisplayName, authorUsername, authorAvatarURL
     }
     
     init(
@@ -287,7 +318,14 @@ struct Comment: Identifiable, Codable {
         supabaseUserId: String? = nil,
         text: String,
         createdAt: Date = Date(),
-        mentions: [Mention] = []
+        mentions: [Mention] = [],
+        parentCommentId: UUID? = nil,
+        likeCount: Int = 0,
+        likedByUserIds: [String] = [],
+        replies: [Comment] = [],
+        authorDisplayName: String? = nil,
+        authorUsername: String? = nil,
+        authorAvatarURL: String? = nil
     ) {
         self.id = id
         self.supabaseId = supabaseId
@@ -297,6 +335,13 @@ struct Comment: Identifiable, Codable {
         self.text = text
         self.createdAt = createdAt
         self.mentions = mentions
+        self.parentCommentId = parentCommentId
+        self.likeCount = likeCount
+        self.likedByUserIds = likedByUserIds
+        self.replies = replies
+        self.authorDisplayName = authorDisplayName
+        self.authorUsername = authorUsername
+        self.authorAvatarURL = authorAvatarURL
     }
     
     init(from decoder: Decoder) throws {
@@ -318,6 +363,13 @@ struct Comment: Identifiable, Codable {
         }
         
         mentions = try container.decodeIfPresent([Mention].self, forKey: .mentions) ?? []
+        parentCommentId = try container.decodeIfPresent(UUID.self, forKey: .parentCommentId)
+        likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
+        likedByUserIds = try container.decodeIfPresent([String].self, forKey: .likedByUserIds) ?? []
+        replies = try container.decodeIfPresent([Comment].self, forKey: .replies) ?? []
+        authorDisplayName = try container.decodeIfPresent(String.self, forKey: .authorDisplayName)
+        authorUsername = try container.decodeIfPresent(String.self, forKey: .authorUsername)
+        authorAvatarURL = try container.decodeIfPresent(String.self, forKey: .authorAvatarURL)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -330,6 +382,13 @@ struct Comment: Identifiable, Codable {
         try container.encode(text, forKey: .text)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(mentions, forKey: .mentions)
+        try container.encodeIfPresent(parentCommentId, forKey: .parentCommentId)
+        try container.encode(likeCount, forKey: .likeCount)
+        try container.encode(likedByUserIds, forKey: .likedByUserIds)
+        try container.encode(replies, forKey: .replies)
+        try container.encodeIfPresent(authorDisplayName, forKey: .authorDisplayName)
+        try container.encodeIfPresent(authorUsername, forKey: .authorUsername)
+        try container.encodeIfPresent(authorAvatarURL, forKey: .authorAvatarURL)
     }
     
     // Computed property for backward compatibility
@@ -337,15 +396,32 @@ struct Comment: Identifiable, Codable {
         get { createdAt }
         set { createdAt = newValue }
     }
+    
+    // Check if a user liked this comment
+    func isLikedBy(supabaseUserId: String) -> Bool {
+        likedByUserIds.contains(supabaseUserId)
+    }
+    
+    // Check if this is a top-level comment
+    var isTopLevel: Bool {
+        parentCommentId == nil
+    }
+    
+    // Get count of all replies (including nested)
+    var totalReplyCount: Int {
+        replies.count + replies.reduce(0) { $0 + $1.totalReplyCount }
+    }
 }
 
 struct Mention: Identifiable, Codable {
     let id: UUID
     var username: String
+    var displayName: String  // Display name shown to users
     
-    init(id: UUID = UUID(), username: String) {
+    init(id: UUID = UUID(), username: String, displayName: String? = nil) {
         self.id = id
         self.username = username
+        self.displayName = displayName ?? username
     }
 }
 

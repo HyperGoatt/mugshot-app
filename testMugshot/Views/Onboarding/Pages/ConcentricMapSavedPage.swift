@@ -32,7 +32,7 @@ struct ConcentricMapSavedPage: View {
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Body
-            Text("Find cafés you've visited, save favorites, and track your want-to-try list.")
+            Text("Find cafes you've visited, save favorites, and track your want-to-try list.")
                 .font(DS.Typography.bodyText)
                 .foregroundStyle(DS.Colors.textSecondary)
                 .multilineTextAlignment(.center)

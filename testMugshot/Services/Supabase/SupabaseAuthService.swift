@@ -30,6 +30,12 @@ private struct SupabaseAuthResponse: Codable {
     }
 }
 
+/// Response format when Supabase returns user directly at root level (email verification required, no session)
+private struct SupabaseSignUpUserResponse: Codable {
+    let id: String
+    let email: String?
+}
+
 final class SupabaseAuthService {
     static let shared = SupabaseAuthService(client: SupabaseClientProvider.shared)
 
@@ -273,6 +279,40 @@ final class SupabaseAuthService {
         
         print("[SupabaseAuthService] resendVerificationEmail: Success")
     }
+
+    /// Sends a password reset email using Supabase's recovery flow.
+    /// The backend will email the user a link to reset their password.
+    func sendPasswordResetEmail(email: String) async throws {
+        print("[SupabaseAuthService] sendPasswordResetEmail: Starting for email: \(email)")
+
+        let payload: [String: Any] = [
+            "email": email,
+            "options": [
+                "email_redirect_to": "https://mugshotapp.co/reset"
+            ]
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+
+        // For password reset, Supabase uses the recover endpoint.
+        // This does not require an authenticated session.
+        client.accessToken = nil
+
+        let (data, response) = try await client.request(
+            path: "auth/v1/recover",
+            method: "POST",
+            headers: [:],
+            body: body
+        )
+
+        print("[SupabaseAuthService] sendPasswordResetEmail: Response status: \(response.statusCode)")
+
+        guard (200..<300).contains(response.statusCode) else {
+            handleErrorResponse(data: data, response: response)
+            throw SupabaseError.server(status: response.statusCode, message: "Failed to send password reset email")
+        }
+
+        print("[SupabaseAuthService] sendPasswordResetEmail: Success")
+    }
     
     func checkEmailVerificationStatus(userId: String) async throws -> Bool {
         print("[SupabaseAuthService] checkEmailVerificationStatus: Fetching user info for userId: \(userId)")
@@ -399,21 +439,36 @@ final class SupabaseAuthService {
 
     private func parseAuthResponse(data: Data) throws -> (session: SupabaseSession?, userId: String) {
         let decoder = JSONDecoder()
-        let response = try decoder.decode(SupabaseAuthResponse.self, from: data)
         
-        if let accessToken = response.accessToken, !accessToken.isEmpty {
-            let session = SupabaseSession(
-                accessToken: accessToken,
-                refreshToken: response.refreshToken,
-                userId: response.user.id
-            )
-            store(session: session)
-            client.accessToken = session.accessToken
-            return (session, response.user.id)
-        } else {
-            // User created but no session (likely needs email verification)
-            return (nil, response.user.id)
+        // Try nested format first (has session with access_token and nested user object)
+        if let response = try? decoder.decode(SupabaseAuthResponse.self, from: data) {
+            if let accessToken = response.accessToken, !accessToken.isEmpty {
+                let session = SupabaseSession(
+                    accessToken: accessToken,
+                    refreshToken: response.refreshToken,
+                    userId: response.user.id
+                )
+                store(session: session)
+                client.accessToken = session.accessToken
+                print("[SupabaseAuthService] parseAuthResponse: Decoded nested format with session")
+                return (session, response.user.id)
+            } else {
+                // User created but no session (likely needs email verification)
+                print("[SupabaseAuthService] parseAuthResponse: Decoded nested format without session")
+                return (nil, response.user.id)
+            }
         }
+        
+        // Fallback: root-level user format (email verification required, no session)
+        // Supabase returns user object directly at root when email confirmation is pending
+        if let rootUser = try? decoder.decode(SupabaseSignUpUserResponse.self, from: data) {
+            print("[SupabaseAuthService] parseAuthResponse: Decoded root-level user format (email verification required)")
+            return (nil, rootUser.id)
+        }
+        
+        // Neither format worked - throw decoding error
+        print("[SupabaseAuthService] parseAuthResponse: Failed to decode response")
+        throw SupabaseError.decoding("Unable to parse auth response")
     }
 
     private func parseUserResponse(_ data: Data) throws -> [String: Any] {

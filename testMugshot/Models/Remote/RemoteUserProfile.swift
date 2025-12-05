@@ -57,12 +57,14 @@ extension RemoteUserProfile {
     func toLocalUser(existing: User? = nil, overridingId: UUID? = nil) -> User {
         User(
             id: overridingId ?? existing?.id ?? UUID(),
+            supabaseUserId: existing?.supabaseUserId ?? id,
             username: username,
             displayName: displayName,
             location: location ?? "",
             avatarImageName: existing?.avatarImageName,
             profileImageID: existing?.profileImageID,
             bannerImageID: existing?.bannerImageID,
+            avatarURL: avatarURL ?? existing?.avatarURL,
             bio: bio ?? "",
             instagramURL: instagramHandle,
             websiteURL: websiteURL ?? existing?.websiteURL,

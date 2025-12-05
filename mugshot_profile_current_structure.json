@@ -124,7 +124,7 @@
           "subtitle": null
         },
         {
-          "label": "CAFÉS VISITED",
+          "label": "CAFES VISITED",
           "value": "4",
           "subtitle": null
         },
@@ -157,11 +157,11 @@
       },
       "content": {
         "title": {
-          "text": "Coffee Journey",
+          "text": "Sipping Journey",
           "font": "sectionTitle"
         },
         "subtitle": {
-          "text": "10 visits across 4 cafés",
+          "text": "10 visits across 4 cafes",
           "font": "bodySecondary"
         }
       }

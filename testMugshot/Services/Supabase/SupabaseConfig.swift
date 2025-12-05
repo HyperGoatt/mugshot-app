@@ -33,7 +33,9 @@ enum SupabaseConfig {
     }
 
     /// Convenience helper to log a redacted view of the Supabase configuration for debugging.
+    /// PERFORMANCE: Only logs in DEBUG builds to avoid startup overhead
     static func logConfigurationIfAvailable() {
+        #if DEBUG
         let urlDescription: String
         if let urlString = Bundle.main.object(forInfoDictionaryKey: urlPlistKey) as? String {
             urlDescription = urlString
@@ -50,15 +52,19 @@ enum SupabaseConfig {
         }
 
         print("[SupabaseConfig] URL=\(urlDescription), anonKey=\(anonKeyDescription)")
+        #endif
     }
 
     /// Debug helper to inspect the raw Info.plist contents at runtime.
+    /// PERFORMANCE: Only logs in DEBUG builds
     static func debugPrintConfig() {
+        #if DEBUG
         let info = Bundle.main.infoDictionary ?? [:]
         let keys = Array(info.keys).sorted()
         print("[SupabaseConfig] Keys:", keys)
         print("[SupabaseConfig] SUPABASE_URL =", info["SUPABASE_URL"] ?? "nil")
         print("[SupabaseConfig] SUPABASE_ANON_KEY =", info["SUPABASE_ANON_KEY"] ?? "nil")
+        #endif
     }
 }
 
