@@ -142,64 +142,70 @@ struct SmallTodaysMugshotView: View {
     
     var body: some View {
         if let visit = entry.visit {
-            // Has a visit today - show it
+            // Has a visit today - show it with bold design
             Link(destination: WidgetDeepLink.visitDetail(visitId: visit.id) ?? WidgetDeepLink.feed!) {
-                VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-                    // Header
-                    HStack {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(WidgetDS.Colors.primaryAccent)
-                        Text("Today's Mugshot")
-                            .font(.system(size: 10, weight: .medium))
+                VStack(alignment: .leading, spacing: 0) {
+                    // Subtle mint accent bar at top
+                    Rectangle()
+                        .fill(WidgetDS.Colors.primaryAccent)
+                        .frame(height: 3)
+                    
+                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+                        Spacer()
+                        
+                        // Cafe name - LARGE and BOLD
+                        Text(visit.cafeName)
+                            .font(WidgetDS.Typography.contentTitle)
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7) // Allow more scaling
+                        
+                        // Drink type with better spacing
+                        Text(visit.drinkDisplayName)
+                            .font(WidgetDS.Typography.contentBody)
                             .foregroundColor(WidgetDS.Colors.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.9)
+                        
+                        // Prominent rating with larger stars
+                        EnhancedRatingDisplay(rating: visit.overallScore, showStars: true, size: 13)
+                        
                         Spacer()
                     }
-                    
-                    Spacer()
-                    
-                    // Cafe name
-                    Text(visit.cafeName)
-                        .font(WidgetDS.Typography.headline)
-                        .foregroundColor(WidgetDS.Colors.textPrimary)
-                        .lineLimit(2)
-                    
-                    // Drink type
-                    Text(visit.drinkDisplayName)
-                        .font(WidgetDS.Typography.caption)
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
-                        .lineLimit(1)
-                    
-                    // Rating
-                    HStack(spacing: WidgetDS.Spacing.sm) {
-                        WidgetStarRating(rating: visit.overallScore, size: 10)
-                        Text(String(format: "%.1f", visit.overallScore))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                    }
+                    .padding(WidgetDS.Spacing.widgetPadding)
                 }
-                .padding(WidgetDS.Spacing.lg)
             }
         } else {
-            // No visit today - show CTA
+            // No visit today - bold motivational CTA
             Link(destination: WidgetDeepLink.logVisit!) {
-                VStack(spacing: WidgetDS.Spacing.md) {
-                    Spacer()
+                ZStack {
+                    // Mint gradient background for visual interest
+                    VStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(WidgetDS.Gradients.mintSubtle)
+                            .frame(height: 80)
+                    }
                     
-                    WidgetMugsyIcon(size: 32)
-                    
-                    Text("No mugshot yet today")
-                        .font(WidgetDS.Typography.caption)
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("Log a visit")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(WidgetDS.Colors.primaryAccent)
-                    
-                    Spacer()
+                    VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                        Spacer()
+                        
+                        // Large coffee cup icon
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 40, weight: .semibold)) // Reduced from 48
+                            .foregroundColor(WidgetDS.Colors.primaryAccent)
+                        
+                        // Bold CTA text
+                        Text("Log Today's Sip")
+                            .font(.system(size: 15, weight: .bold)) // Reduced from 16
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                            .multilineTextAlignment(.center)
+                            .minimumScaleFactor(0.8) // Allow scaling
+                        
+                        Spacer()
+                    }
+                    .padding(WidgetDS.Spacing.widgetPadding)
                 }
-                .padding(WidgetDS.Spacing.lg)
             }
         }
     }
@@ -212,13 +218,13 @@ struct MediumTodaysMugshotView: View {
     
     var body: some View {
         if let visit = entry.visit {
-            // Has a visit today - show detailed view
+            // Has a visit today - larger, more visual layout
             Link(destination: WidgetDeepLink.visitDetail(visitId: visit.id) ?? WidgetDeepLink.feed!) {
-                HStack(spacing: WidgetDS.Spacing.lg) {
-                    // Left side - photo placeholder or icon
+                HStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                    // Left side - LARGER photo (100x100)
                     ZStack {
-                        RoundedRectangle(cornerRadius: WidgetDS.Radius.md)
-                            .fill(WidgetDS.Colors.mintSoftFill)
+                        RoundedRectangle(cornerRadius: WidgetDS.Radius.lg)
+                            .fill(WidgetDS.Gradients.mintSubtle)
                         
                         if let photoURL = visit.posterPhotoURL, let url = URL(string: photoURL) {
                             AsyncImage(url: url) { phase in
@@ -233,109 +239,108 @@ struct MediumTodaysMugshotView: View {
                                     visitPhotoPlaceholder
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: WidgetDS.Radius.md))
+                            .clipShape(RoundedRectangle(cornerRadius: WidgetDS.Radius.lg))
                         } else {
                             visitPhotoPlaceholder
                         }
                     }
-                    .frame(width: 80, height: 80)
+                    .frame(width: 100, height: 100)
                     
-                    // Right side - visit info
-                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-                        // Header
-                        HStack {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.primaryAccent)
-                            Text("Today's Mugshot")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(WidgetDS.Colors.textSecondary)
-                            Spacer()
-                            Text(formattedTime(visit.createdAt))
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.textTertiary)
-                        }
+                    // Right side - visit info with bold typography
+                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
+                        // Time in subtle text
+                        Text(formattedTime(visit.createdAt))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(WidgetDS.Colors.textTertiary)
+                            .textCase(.uppercase)
+                            .tracking(0.5)
                         
-                        // Cafe name
+                        // Cafe name - LARGE 22pt bold
                         Text(visit.cafeName)
-                            .font(WidgetDS.Typography.title)
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundColor(WidgetDS.Colors.textPrimary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                         
-                        // Drink type
-                        Text(visit.drinkDisplayName)
-                            .font(WidgetDS.Typography.body)
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                            .lineLimit(1)
-                        
-                        // Rating and caption
-                        HStack(spacing: WidgetDS.Spacing.md) {
-                            HStack(spacing: WidgetDS.Spacing.sm) {
-                                WidgetStarRating(rating: visit.overallScore, size: 11)
-                                Text(String(format: "%.1f", visit.overallScore))
-                                    .font(.system(size: 12, weight: .medium))
+                        // City with location icon
+                        if let city = visit.cafeCity {
+                            HStack(spacing: 4) {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(WidgetDS.Colors.textTertiary)
+                                Text(city)
+                                    .font(WidgetDS.Typography.contentBody)
                                     .foregroundColor(WidgetDS.Colors.textSecondary)
                             }
-                            
-                            if !visit.caption.isEmpty {
-                                Text(visit.caption)
-                                    .font(WidgetDS.Typography.caption)
-                                    .foregroundColor(WidgetDS.Colors.textTertiary)
-                                    .lineLimit(1)
-                            }
                         }
+                        
+                        Spacer()
+                        
+                        // Rating as prominent pill badge
+                        EnhancedBadge(
+                            text: String(format: "%.1f", visit.overallScore),
+                            icon: "star.fill",
+                            backgroundColor: WidgetDS.Colors.yellowAccent.opacity(0.15),
+                            foregroundColor: WidgetDS.Colors.textPrimary
+                        )
                     }
                     
                     Spacer()
                 }
-                .padding(WidgetDS.Spacing.lg)
+                .padding(WidgetDS.Spacing.widgetPadding)
             }
         } else {
-            // No visit today - show CTA with more space
+            // No visit today - horizontally split bold design
             Link(destination: WidgetDeepLink.logVisit!) {
-                HStack(spacing: WidgetDS.Spacing.xl) {
-                    // Left side - Mugsy icon
+                HStack(spacing: 0) {
+                    // Left side - large cup with mint gradient
                     ZStack {
-                        Circle()
-                            .fill(WidgetDS.Colors.mintSoftFill)
-                            .frame(width: 64, height: 64)
+                        Rectangle()
+                            .fill(WidgetDS.Gradients.mintBold)
                         
                         Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(WidgetDS.Colors.primaryAccent)
+                            .font(.system(size: 56, weight: .bold))
+                            .foregroundColor(WidgetDS.Colors.neutralCard)
+                            .opacity(0.9)
                     }
+                    .frame(width: 120)
                     
-                    // Right side - message and CTA
-                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
-                        Text("No mugshot yet today")
-                            .font(WidgetDS.Typography.title)
-                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                    // Right side - bold CTA messaging
+                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+                        Spacer()
                         
-                        Text("Tap to log your first sip of the day")
-                            .font(WidgetDS.Typography.body)
+                        Text("Start Your Day")
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(WidgetDS.Colors.textSecondary)
+                            .textCase(.uppercase)
+                            .tracking(0.8)
                         
-                        HStack {
-                            Text("Log a visit")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(WidgetDS.Colors.textOnMint)
-                                .padding(.horizontal, WidgetDS.Spacing.lg)
-                                .padding(.vertical, WidgetDS.Spacing.md)
-                                .background(WidgetDS.Colors.primaryAccent)
-                                .cornerRadius(WidgetDS.Radius.md)
+                        Text("Log Your\nFirst Sip")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                            .lineLimit(2)
+                        
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
+                            Text("Log Visit")
+                                .font(.system(size: 15, weight: .semibold))
                         }
+                        .foregroundColor(WidgetDS.Colors.primaryAccent)
+                        
+                        Spacer()
                     }
+                    .padding(.horizontal, WidgetDS.Spacing.widgetPadding)
                     
                     Spacer()
                 }
-                .padding(WidgetDS.Spacing.lg)
             }
         }
     }
     
     private var visitPhotoPlaceholder: some View {
         Image(systemName: "cup.and.saucer.fill")
-            .font(.system(size: 28))
+            .font(.system(size: 36))
             .foregroundColor(WidgetDS.Colors.primaryAccent)
     }
     

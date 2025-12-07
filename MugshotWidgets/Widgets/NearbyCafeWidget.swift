@@ -156,64 +156,56 @@ struct SmallNearbyCafeView: View {
     let cafes: [WidgetCafe]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-            // Header
-            HStack {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(WidgetDS.Colors.blueAccent)
-                Text("Nearby")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                Spacer()
-            }
-            
-            // Show closest cafe prominently
-            if let closest = cafes.first {
-                Link(destination: WidgetDeepLink.mapCafe(cafeId: closest.id) ?? WidgetDeepLink.map!) {
-                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.xs) {
+        if let closest = cafes.first {
+            // Hero layout - closest cafe takes 80% of space
+            Link(destination: WidgetDeepLink.mapCafe(cafeId: closest.id) ?? WidgetDeepLink.map!) {
+                ZStack {
+                    // Subtle blue tint for "nearby" feeling
+                    VStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(WidgetDS.Gradients.blueSubtle)
+                            .frame(height: 90)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
                         Spacer()
                         
-                        // Distance badge
+                        // Large distance badge with blue gradient (18pt bold)
                         if let distance = closest.distanceString {
-                            HStack(spacing: 2) {
-                                Image(systemName: "figure.walk")
-                                    .font(.system(size: 10))
-                                Text(distance)
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundColor(WidgetDS.Colors.blueAccent)
+                            DistanceBadge(distance: distance, isProminent: true)
                         }
                         
-                        // Cafe name
+                        // Cafe name - 18pt bold, 2 lines max
                         Text(closest.name)
-                            .font(WidgetDS.Typography.headline)
+                            .font(WidgetDS.Typography.contentTitle)
                             .foregroundColor(WidgetDS.Colors.textPrimary)
                             .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                         
-                        // Rating
+                        // Larger rating
                         if closest.averageRating > 0 {
-                            HStack(spacing: 2) {
-                                Image(systemName: "star.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(WidgetDS.Colors.yellowAccent)
-                                Text(String(format: "%.1f", closest.averageRating))
-                                    .font(.system(size: 10, weight: .medium))
+                            EnhancedRatingDisplay(rating: closest.averageRating, showStars: false, size: 12)
+                        }
+                        
+                        // Other cafes count - more prominent
+                        if cafes.count > 1 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "building.2.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(WidgetDS.Colors.blueAccent)
+                                Text("+\(cafes.count - 1) more nearby")
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(WidgetDS.Colors.textSecondary)
                             }
                         }
                         
-                        // Other cafes count
-                        if cafes.count > 1 {
-                            Text("+\(cafes.count - 1) more nearby")
-                                .font(.system(size: 9))
-                                .foregroundColor(WidgetDS.Colors.textTertiary)
-                        }
+                        Spacer()
                     }
+                    .padding(WidgetDS.Spacing.widgetPadding)
                 }
             }
         }
-        .padding(WidgetDS.Spacing.lg)
     }
 }
 
@@ -223,38 +215,54 @@ struct MediumNearbyCafeView: View {
     let cafes: [WidgetCafe]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
-            // Header
-            HStack {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(WidgetDS.Colors.blueAccent)
-                Text("Nearby Cafes")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
+        ZStack {
+            // Subtle blue tint background
+            VStack {
                 Spacer()
+                Rectangle()
+                    .fill(WidgetDS.Gradients.blueSubtle)
+                    .frame(height: 80)
+            }
+            
+            VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+                // Header with prominent title
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(WidgetDS.Colors.blueAccent)
+                        Text("Nearby")
+                            .font(WidgetDS.Typography.widgetTitle)
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                    }
+                    Spacer()
+                    
+                    Link(destination: WidgetDeepLink.map!) {
+                        HStack(spacing: 4) {
+                            Text("Map")
+                                .font(.system(size: 13, weight: .semibold))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(WidgetDS.Colors.blueAccent)
+                    }
+                }
                 
-                Link(destination: WidgetDeepLink.map!) {
-                    Text("Open Map")
-                        .font(.system(size: 10))
-                        .foregroundColor(WidgetDS.Colors.primaryAccent)
+                // Larger distance indicators, bigger cafe names
+                ForEach(cafes.prefix(3)) { cafe in
+                    Link(destination: WidgetDeepLink.mapCafe(cafeId: cafe.id) ?? WidgetDeepLink.map!) {
+                        EnhancedNearbyCafeRow(cafe: cafe)
+                    }
                 }
+                
+                Spacer()
             }
-            
-            // Cafe list
-            ForEach(cafes.prefix(3)) { cafe in
-                Link(destination: WidgetDeepLink.mapCafe(cafeId: cafe.id) ?? WidgetDeepLink.map!) {
-                    NearbyCafeRow(cafe: cafe)
-                }
-            }
-            
-            Spacer()
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
-        .padding(WidgetDS.Spacing.lg)
     }
 }
 
-// MARK: - Nearby Cafe Row
+// MARK: - Nearby Cafe Row (Legacy)
 
 struct NearbyCafeRow: View {
     let cafe: WidgetCafe
@@ -324,39 +332,112 @@ struct NearbyCafeRow: View {
     }
 }
 
+// MARK: - Enhanced Nearby Cafe Row (Larger indicators, visual scale/size)
+
+struct EnhancedNearbyCafeRow: View {
+    let cafe: WidgetCafe
+    
+    var body: some View {
+        HStack(spacing: WidgetDS.Spacing.contentSpacing) {
+            // Prominent distance badge
+            if let distance = cafe.distanceString {
+                DistanceBadge(distance: distance, isProminent: false)
+                    .frame(width: 70)
+            }
+            
+            // Cafe info with bigger names
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(cafe.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    // Favorite/bookmark indicator
+                    if cafe.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(WidgetDS.Colors.redAccent)
+                    } else if cafe.wantToTry {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(WidgetDS.Colors.yellowAccent)
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    if let city = cafe.city {
+                        Text(city)
+                            .font(.system(size: 12))
+                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                    }
+                    
+                    if cafe.averageRating > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(WidgetDS.Colors.yellowAccent)
+                            Text(String(format: "%.1f", cafe.averageRating))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - Empty State View
 
 struct EmptyNearbyCafeView: View {
     var body: some View {
         Link(destination: WidgetDeepLink.map!) {
-            VStack(spacing: WidgetDS.Spacing.lg) {
-                HStack {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(WidgetDS.Colors.blueAccent)
-                    Text("Nearby")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+            ZStack {
+                // Blue tint background
+                VStack {
                     Spacer()
+                    Rectangle()
+                        .fill(WidgetDS.Gradients.blueSubtle)
+                        .frame(height: 90)
                 }
                 
-                Spacer()
-                
-                Image(systemName: "map")
-                    .font(.system(size: 28))
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
-                
-                Text("No nearby cafes yet")
-                    .font(WidgetDS.Typography.body)
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                
-                Text("Explore the map in Mugshot")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(WidgetDS.Colors.primaryAccent)
-                
-                Spacer()
+                VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(WidgetDS.Colors.blueAccent)
+                        Text("Nearby")
+                            .font(WidgetDS.Typography.widgetTitle)
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 40, weight: .medium)) // Reduced from 48
+                        .foregroundColor(WidgetDS.Colors.blueAccent.opacity(0.4))
+                    
+                    VStack(spacing: 4) { // Reduced spacing
+                        Text("Nothing nearby")
+                            .font(.system(size: 15, weight: .bold)) // Reduced from 17
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                        
+                        Text("Explore the map")
+                            .font(.system(size: 13, weight: .medium)) // Reduced from 14
+                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(WidgetDS.Spacing.widgetPadding)
             }
-            .padding(WidgetDS.Spacing.lg)
         }
     }
 }

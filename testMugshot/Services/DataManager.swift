@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import MapKit
 import UIKit
+import CoreLocation
 
 @MainActor
 class DataManager: ObservableObject {
@@ -1686,15 +1687,30 @@ class DataManager: ObservableObject {
     }
     
     /// Sync data to widgets
-    /// Includes current user's visits and friends' recent visits for the widget
+    /// Includes current user's visits, friends' recent visits, and nearby cafes (if location authorized)
     func syncWidgetData() {
         // Get friends' visits for the Friends' Latest Sips widget
         let friendsVisits = getFriendsVisitsForWidget()
+        
+        // Get current location for Nearby Cafes widget
+        // We use a temporary CLLocationManager just to check authorization and get the last location
+        // This avoids needing a persistent LocationManager in DataManager
+        var userLocation: CLLocation? = nil
+        let locationManager = CLLocationManager()
+        let authStatus = locationManager.authorizationStatus
+        
+        if authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways {
+            userLocation = locationManager.location
+        }
         
         #if DEBUG
         print("[WidgetSync] Syncing widget data...")
         print("[WidgetSync] Friends count: \(appData.friendsSupabaseUserIds.count)")
         print("[WidgetSync] Friends visits for widget: \(friendsVisits.count)")
+        print("[WidgetSync] Location authorized: \(userLocation != nil)")
+        if let loc = userLocation {
+            print("[WidgetSync] Location: \(loc.coordinate.latitude), \(loc.coordinate.longitude)")
+        }
         if let latestFriendVisit = friendsVisits.first {
             print("[WidgetSync] Latest friend visit: '\(latestFriendVisit.authorDisplayNameOrUsername)' at '\(appData.cafes.first { $0.id == latestFriendVisit.cafeId }?.name ?? "Unknown")' on \(latestFriendVisit.createdAt)")
         }
@@ -1702,7 +1718,8 @@ class DataManager: ObservableObject {
         
         WidgetSyncService.shared.syncWidgetData(
             dataManager: self,
-            friendsVisits: friendsVisits
+            friendsVisits: friendsVisits,
+            userLocation: userLocation
         )
     }
     
@@ -2057,6 +2074,230 @@ class DataManager: ObservableObject {
             return (nil, nil)
         }
         return (path, visit.remoteURL(for: path))
+    }
+    
+    // MARK: - Discover Tab Helpers
+    
+    /// Search for nearby cafes using Apple Maps
+    /// Returns cafes from Apple Maps search, merged with existing database data if available
+    func searchNearbyCafes(near location: CLLocation, radiusMiles: Double = 3.0, limit: Int = 5) async -> [Cafe] {
+        let radiusMeters = radiusMiles * 1609.344
+        let center = location.coordinate
+        
+        return await withCheckedContinuation { continuation in
+            let dispatchGroup = DispatchGroup()
+            var poiResults: [MKMapItem] = []
+            var keywordResults: [MKMapItem] = []
+            
+            // 1) POI Category search (.cafe, .bakery)
+            dispatchGroup.enter()
+            let poiRequest = MKLocalPointsOfInterestRequest(center: center, radius: radiusMeters)
+            poiRequest.pointOfInterestFilter = MKPointOfInterestFilter(including: [.cafe, .bakery])
+            let poiSearch = MKLocalSearch(request: poiRequest)
+            poiSearch.start { response, error in
+                if let response = response {
+                    poiResults = response.mapItems
+                }
+                dispatchGroup.leave()
+            }
+            
+            // 2) Keyword search ("coffee")
+            dispatchGroup.enter()
+            let keywordRequest = MKLocalSearch.Request()
+            keywordRequest.naturalLanguageQuery = "coffee"
+            keywordRequest.resultTypes = [.pointOfInterest]
+            keywordRequest.region = MKCoordinateRegion(
+                center: center,
+                latitudinalMeters: radiusMeters * 2,
+                longitudinalMeters: radiusMeters * 2
+            )
+            let keywordSearch = MKLocalSearch(request: keywordRequest)
+            keywordSearch.start { response, error in
+                if let response = response {
+                    keywordResults = response.mapItems
+                }
+                dispatchGroup.leave()
+            }
+            
+            dispatchGroup.notify(queue: .main) {
+                let combined = poiResults + keywordResults
+                
+                // Deduplicate by name and coordinate
+                var seenItems = Set<String>()
+                var uniqueMapItems: [MKMapItem] = []
+                
+                for item in combined {
+                    let name = item.name ?? "Unknown"
+                    let coordinate: String
+                    if let itemLocation = item.placemark.location {
+                        coordinate = String(format: "%.6f,%.6f", itemLocation.coordinate.latitude, itemLocation.coordinate.longitude)
+                    } else {
+                        coordinate = UUID().uuidString
+                    }
+                    let uniqueKey = "\(name)|\(coordinate)"
+                    
+                    if !seenItems.contains(uniqueKey) {
+                        seenItems.insert(uniqueKey)
+                        uniqueMapItems.append(item)
+                    }
+                }
+                
+                // Convert to Cafe objects and merge with database
+                var cafes: [Cafe] = []
+                
+                for item in uniqueMapItems {
+                    guard let itemLocation = item.placemark.location else { continue }
+                    
+                    let distance = itemLocation.distance(from: location)
+                    
+                    // Check if cafe exists in database by Apple Place ID or name
+                    var existingCafe: Cafe?
+                    if let placeId = item.identifier?.rawValue {
+                        existingCafe = self.appData.cafes.first { $0.applePlaceId == placeId }
+                    }
+                    if existingCafe == nil, let name = item.name {
+                        existingCafe = self.appData.cafes.first { $0.name.lowercased() == name.lowercased() }
+                    }
+                    
+                    let cafe: Cafe
+                    if let existing = existingCafe {
+                        cafe = existing
+                    } else {
+                        // Create new cafe from map item
+                        cafe = Cafe(
+                            name: item.name ?? "Unknown Cafe",
+                            location: itemLocation.coordinate,
+                            address: item.placemark.title ?? "",
+                            city: item.placemark.locality,
+                            country: item.placemark.country,
+                            mapItemURL: item.url?.absoluteString,
+                            websiteURL: item.url?.absoluteString,
+                            applePlaceId: item.identifier?.rawValue,
+                            placeCategory: item.pointOfInterestCategory?.rawValue
+                        )
+                    }
+                    
+                    cafes.append(cafe)
+                }
+                
+                // Sort by distance and take top N
+                let sortedCafes = cafes.sorted { cafe1, cafe2 in
+                    guard let loc1 = cafe1.location, let loc2 = cafe2.location else { return false }
+                    let dist1 = location.distance(from: CLLocation(latitude: loc1.latitude, longitude: loc1.longitude))
+                    let dist2 = location.distance(from: CLLocation(latitude: loc2.latitude, longitude: loc2.longitude))
+                    return dist1 < dist2
+                }
+                
+                continuation.resume(returning: Array(sortedCafes.prefix(limit)))
+            }
+        }
+    }
+    
+    /// Get the most recent visits from friends for the "What Your Friends Are Sipping" section
+    /// Returns up to `limit` most recent visits from friends
+    func getRecentFriendVisits(limit: Int = 5) -> [Visit] {
+        guard let currentUserId = appData.currentUser?.id else { return [] }
+        
+        let friendIds = appData.friendsSupabaseUserIds
+        
+        // Get visits from friends in the last 7 days
+        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let recentFriendVisits = appData.visits.filter { visit in
+            guard let authorId = visit.supabaseUserId else { return false }
+            return friendIds.contains(authorId) &&
+                   visit.userId != currentUserId &&
+                   visit.createdAt >= sevenDaysAgo
+        }
+        
+        // Sort by most recent and limit
+        return Array(recentFriendVisits.sorted { $0.createdAt > $1.createdAt }.prefix(limit))
+    }
+    
+    /// Get the most popular drink for a cafe from all visits
+    /// Prioritizes subtype, falls back to drink type if no subtype exists
+    /// Returns nil only if cafe has no visits with drink data
+    func getMostOrderedDrinkSubtype(for cafeId: UUID) -> String? {
+        // Get all visits for this cafe (from all users)
+        let cafeVisits = appData.visits.filter { $0.cafeId == cafeId }
+        
+        guard !cafeVisits.isEmpty else { return nil }
+        
+        // Try subtypes first
+        let subtypes = cafeVisits.compactMap { $0.drinkSubtype }.filter { !$0.isEmpty }
+        
+        if !subtypes.isEmpty {
+            // Count subtype occurrences
+            let subtypeCounts = Dictionary(grouping: subtypes) { $0 }
+                .mapValues { $0.count }
+            
+            // Return the most popular subtype
+            if let mostPopular = subtypeCounts.max(by: { $0.value < $1.value })?.key {
+                return mostPopular
+            }
+        }
+        
+        // Fallback to drink type if no subtypes
+        let drinkTypes = cafeVisits.map { $0.drinkType.rawValue }
+        
+        guard !drinkTypes.isEmpty else { return nil }
+        
+        let drinkTypeCounts = Dictionary(grouping: drinkTypes) { $0 }
+            .mapValues { $0.count }
+        
+        return drinkTypeCounts.max(by: { $0.value < $1.value })?.key
+    }
+    
+    /// Get photo URLs for a cafe, prioritizing friends' photos
+    /// Returns up to 4 photo URLs
+    func getPhotoURLsForCafe(_ cafeId: UUID, limit: Int = 4) -> [String] {
+        let friendIds = appData.friendsSupabaseUserIds
+        
+        // Get all visits for this cafe
+        let cafeVisits = appData.visits.filter { $0.cafeId == cafeId }
+        
+        // Separate friend visits and other visits
+        let friendVisits = cafeVisits.filter { visit in
+            guard let authorId = visit.supabaseUserId else { return false }
+            return friendIds.contains(authorId)
+        }
+        let otherVisits = cafeVisits.filter { visit in
+            guard let authorId = visit.supabaseUserId else { return true }
+            return !friendIds.contains(authorId)
+        }
+        
+        // Collect photo URLs: prioritize friends' photos
+        var photoURLs: [String] = []
+        
+        // Add friend photos first
+        for visit in friendVisits.sorted(by: { $0.createdAt > $1.createdAt }) {
+            if let posterURL = visit.posterPhotoURL, !posterURL.isEmpty {
+                photoURLs.append(posterURL)
+                if photoURLs.count >= limit { break }
+            }
+        }
+        
+        // Fill remaining slots with other users' photos
+        if photoURLs.count < limit {
+            for visit in otherVisits.sorted(by: { $0.createdAt > $1.createdAt }) {
+                if let posterURL = visit.posterPhotoURL, !posterURL.isEmpty {
+                    photoURLs.append(posterURL)
+                    if photoURLs.count >= limit { break }
+                }
+            }
+        }
+        
+        return photoURLs
+    }
+    
+    /// Calculate average rating for a cafe from all visits
+    func calculateAverageRating(for cafeId: UUID) -> (average: Double, count: Int) {
+        let cafeVisits = appData.visits.filter { $0.cafeId == cafeId }
+        let ratingsWithScores = cafeVisits.filter { $0.overallScore > 0 }
+        
+        guard !ratingsWithScores.isEmpty else { return (0, 0) }
+        
+        let average = ratingsWithScores.reduce(0.0) { $0 + $1.overallScore } / Double(ratingsWithScores.count)
+        return (average, ratingsWithScores.count)
     }
     
     // MARK: - Like Operations

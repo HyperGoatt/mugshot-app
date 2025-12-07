@@ -57,7 +57,9 @@ final class SupabaseAuthService {
         
         // Basic validation - ensure token is not empty
         guard !session.accessToken.isEmpty else {
+            #if DEBUG
             print("[SupabaseAuthService] restoreSession: Found session with empty token - clearing")
+            #endif
             clearSession()
             return nil
         }
@@ -67,7 +69,9 @@ final class SupabaseAuthService {
 
     @discardableResult
     func signUp(email: String, password: String, displayName: String, username: String) async throws -> (session: SupabaseSession?, userId: String) {
+        #if DEBUG
         print("[SupabaseAuthService] signUp: Starting for email=\(email)")
+        #endif
         
         let payload: [String: Any] = [
             "email": email,
@@ -103,18 +107,22 @@ final class SupabaseAuthService {
         }
 
         let result = try parseAuthResponse(data: data)
+        #if DEBUG
         if result.session != nil {
             print("[SupabaseAuthService] signUp: Success - Session created for userId=\(result.userId)")
         } else {
             print("[SupabaseAuthService] signUp: Success - User created (userId=\(result.userId)), awaiting verification (no session)")
         }
+        #endif
         
         return result
     }
 
     @discardableResult
     func signIn(email: String, password: String) async throws -> SupabaseSession {
+        #if DEBUG
         print("[SupabaseAuthService] signIn: Starting for email=\(email)")
+        #endif
         let payload: [String: Any] = [
             "email": email,
             "password": password
@@ -138,11 +146,15 @@ final class SupabaseAuthService {
 
         let result = try parseAuthResponse(data: data)
         guard let session = result.session else {
+            #if DEBUG
             print("[SupabaseAuthService] signIn: Error - Successful response but no access token found")
+            #endif
             throw SupabaseError.server(status: 200, message: "No access token returned")
         }
         
+        #if DEBUG
         print("[SupabaseAuthService] signIn: Success - userId: \(session.userId)")
+        #endif
         return session
     }
 

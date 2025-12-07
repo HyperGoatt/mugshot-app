@@ -163,56 +163,77 @@ struct SmallCafeOfTheDayView: View {
     
     var body: some View {
         Link(destination: WidgetDeepLink.cafeDetail(cafeId: cafe.id) ?? WidgetDeepLink.map!) {
-            VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-                // Header
-                HStack {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10))
-                        .foregroundColor(WidgetDS.Colors.yellowAccent)
-                    Text("Cafe of the Day")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+            ZStack {
+                // Subtle warm gradient background for special feel
+                VStack {
+                    Spacer()
+                    Rectangle()
+                        .fill(WidgetDS.Gradients.featured)
+                        .frame(height: 100)
+                }
+                
+                VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+                    // Prominent "Featured" badge at top
+                    HStack {
+                        EnhancedBadge(
+                            text: "FEATURED",
+                            icon: "sparkles",
+                            backgroundColor: WidgetDS.Colors.yellowAccent.opacity(0.2),
+                            foregroundColor: WidgetDS.Colors.yellowGradient
+                        )
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                    
+                    // Large coffee cup icon (48pt) with sparkle
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        WidgetDS.Colors.yellowAccent.opacity(0.2),
+                                        WidgetDS.Colors.yellowAccent.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(WidgetDS.Colors.yellowGradient)
+                    }
+                    
+                    // Cafe name - 18pt bold
+                    Text(cafe.name)
+                        .font(WidgetDS.Typography.contentTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                    
+                    // Location with icon
+                    if let city = cafe.city {
+                        HStack(spacing: 4) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(WidgetDS.Colors.textTertiary)
+                            Text(city)
+                                .font(WidgetDS.Typography.contentBody)
+                                .foregroundColor(WidgetDS.Colors.textSecondary)
+                        }
+                    }
+                    
+                    // Prominent rating
+                    if cafe.averageRating > 0 {
+                        EnhancedRatingDisplay(rating: cafe.averageRating, showStars: false, size: 12)
+                    }
+                    
                     Spacer()
                 }
-                
-                Spacer()
-                
-                // Cafe icon
-                ZStack {
-                    Circle()
-                        .fill(WidgetDS.Colors.mintSoftFill)
-                        .frame(width: 36, height: 36)
-                    
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(WidgetDS.Colors.primaryAccent)
-                }
-                
-                // Cafe name
-                Text(cafe.name)
-                    .font(WidgetDS.Typography.headline)
-                    .foregroundColor(WidgetDS.Colors.textPrimary)
-                    .lineLimit(2)
-                
-                // Location
-                if let city = cafe.city {
-                    Text(city)
-                        .font(WidgetDS.Typography.caption)
-                        .foregroundColor(WidgetDS.Colors.textTertiary)
-                        .lineLimit(1)
-                }
-                
-                // Rating
-                if cafe.averageRating > 0 {
-                    HStack(spacing: 2) {
-                        WidgetStarRating(rating: cafe.averageRating, size: 9)
-                        Text(String(format: "%.1f", cafe.averageRating))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                    }
-                }
+                .padding(WidgetDS.Spacing.widgetPadding)
             }
-            .padding(WidgetDS.Spacing.lg)
         }
     }
 }
@@ -224,105 +245,103 @@ struct MediumCafeOfTheDayView: View {
     
     var body: some View {
         Link(destination: WidgetDeepLink.cafeDetail(cafeId: cafe.id) ?? WidgetDeepLink.map!) {
-            HStack(spacing: WidgetDS.Spacing.xl) {
-                // Left side - Cafe visual
+            HStack(spacing: 0) {
+                // Left side - large graphic/illustration (100x100) with warm gradient
                 ZStack {
-                    RoundedRectangle(cornerRadius: WidgetDS.Radius.md)
+                    RoundedRectangle(cornerRadius: 0)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    WidgetDS.Colors.mintSoftFill,
-                                    WidgetDS.Colors.primaryAccent.opacity(0.3)
+                                    WidgetDS.Colors.yellowAccent.opacity(0.3),
+                                    WidgetDS.Colors.yellowGradient.opacity(0.2)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                     
-                    VStack(spacing: WidgetDS.Spacing.sm) {
+                    VStack(spacing: WidgetDS.Spacing.md) {
                         Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(WidgetDS.Colors.primaryAccent)
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundColor(WidgetDS.Colors.yellowGradient)
                         
                         Image(systemName: "sparkles")
-                            .font(.system(size: 14))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(WidgetDS.Colors.yellowAccent)
                     }
                 }
-                .frame(width: 80, height: 80)
+                .frame(width: 110)
                 
-                // Right side - Cafe details
-                VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-                    // Header
-                    HStack {
-                        Text("Cafe of the Day")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                        
-                        Spacer()
+                // Right side - featured content with gold accent
+                VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
+                    // "Today's Pick" in large bold type (20pt)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TODAY'S PICK")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(WidgetDS.Colors.yellowGradient)
+                            .tracking(0.8)
                         
                         Text(formattedDate)
-                            .font(.system(size: 10))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundColor(WidgetDS.Colors.textTertiary)
                     }
                     
-                    // Cafe name
+                    // Cafe name - bold and prominent
                     Text(cafe.name)
-                        .font(WidgetDS.Typography.title)
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(WidgetDS.Colors.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
                     
-                    // Location
-                    if let city = cafe.city {
-                        HStack(spacing: WidgetDS.Spacing.xs) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 9))
-                                .foregroundColor(WidgetDS.Colors.textTertiary)
-                            Text(city)
-                                .font(WidgetDS.Typography.body)
-                                .foregroundColor(WidgetDS.Colors.textSecondary)
-                            
-                            if let distance = cafe.distanceString {
-                                Text("• \(distance)")
-                                    .font(WidgetDS.Typography.body)
+                    Spacer()
+                    
+                    // Location and stats
+                    HStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                        if let city = cafe.city {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("LOCATION")
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundColor(WidgetDS.Colors.textTertiary)
-                            }
-                        }
-                    }
-                    
-                    // Rating and visits
-                    HStack(spacing: WidgetDS.Spacing.lg) {
-                        if cafe.averageRating > 0 {
-                            HStack(spacing: WidgetDS.Spacing.xs) {
-                                WidgetStarRating(rating: cafe.averageRating, size: 11)
-                                Text(String(format: "%.1f", cafe.averageRating))
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(WidgetDS.Colors.textSecondary)
+                                    .tracking(0.5)
+                                Text(city)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(WidgetDS.Colors.textPrimary)
                             }
                         }
                         
-                        if cafe.visitCount > 0 {
-                            HStack(spacing: WidgetDS.Spacing.xs) {
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 9))
+                        if cafe.averageRating > 0 {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("RATING")
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundColor(WidgetDS.Colors.textTertiary)
-                                Text("\(cafe.visitCount) visits")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(WidgetDS.Colors.textTertiary)
+                                    .tracking(0.5)
+                                HStack(spacing: 3) {
+                                    Image(systemName: "star.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(WidgetDS.Colors.yellowAccent)
+                                    Text(String(format: "%.1f", cafe.averageRating))
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                                }
                             }
                         }
                         
                         Spacer()
-                        
-                        Text("Tap to view")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.primaryAccent)
                     }
+                    
+                    // Prominent "Explore" CTA
+                    HStack(spacing: 4) {
+                        Text("Explore")
+                            .font(.system(size: 14, weight: .semibold))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(WidgetDS.Colors.yellowGradient)
                 }
+                .padding(WidgetDS.Spacing.widgetPadding)
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
         }
     }
     
@@ -338,35 +357,46 @@ struct MediumCafeOfTheDayView: View {
 struct EmptyCafeOfTheDayView: View {
     var body: some View {
         Link(destination: WidgetDeepLink.logVisit!) {
-            VStack(spacing: WidgetDS.Spacing.lg) {
-                HStack {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10))
-                        .foregroundColor(WidgetDS.Colors.yellowAccent)
-                    Text("Cafe of the Day")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+            ZStack {
+                // Warm gradient background
+                VStack {
                     Spacer()
+                    Rectangle()
+                        .fill(WidgetDS.Gradients.featured)
+                        .frame(height: 90)
                 }
                 
-                Spacer()
-                
-                Image(systemName: "cup.and.saucer")
-                    .font(.system(size: 28))
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
-                
-                Text("Log a visit to start")
-                    .font(WidgetDS.Typography.body)
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                
-                Text("getting recommendations")
-                    .font(WidgetDS.Typography.caption)
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
-                
-                Spacer()
+                VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                    HStack {
+                        EnhancedBadge(
+                            text: "FEATURED",
+                            icon: "sparkles",
+                            backgroundColor: WidgetDS.Colors.yellowAccent.opacity(0.2),
+                            foregroundColor: WidgetDS.Colors.yellowGradient
+                        )
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "cup.and.saucer")
+                        .font(.system(size: 42, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.yellowGradient.opacity(0.6))
+                    
+                    VStack(spacing: 8) {
+                        Text("Coming Soon")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
+                        
+                        Text("Log visits to unlock")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(WidgetDS.Spacing.widgetPadding)
             }
-            .padding(WidgetDS.Spacing.lg)
         }
     }
 }

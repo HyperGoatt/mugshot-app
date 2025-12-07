@@ -3,7 +3,7 @@
 //  testMugshot
 //
 //  The main content view for the "Discover" scope in the Feed tab.
-//  Features: Social Radar (Friends are Visiting), Spin for a Spot.
+//  Features: Personalized greeting, Spin for a Spot, Friend activity, Nearby cafes.
 //
 
 import SwiftUI
@@ -16,27 +16,39 @@ struct DiscoverContentView: View {
     // State for Spin feature
     @State private var showSpinResult = false
     
+    // State for nearby cafes
+    @State private var nearbyCafes: [NearbyCafeData] = []
+    @State private var isLoadingCafes = false
+    
     // Callbacks
     var onCafeTap: ((Cafe) -> Void)?
+    var onVisitTap: ((Visit) -> Void)?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sectionVerticalGap) {
-            
-            // 1. Greeting Header
-            greetingHeader
-            
-            // 2. Social Radar (Friends are Visiting)
-            socialRadarSection
-            
-            // 3. Spin Button (inline CTA)
-            spinButtonSection
-            
-            // 4. Coming Soon Placeholder
-            comingSoonSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Spacing.sectionVerticalGap) {
+                
+                // 1. Personalized Greeting
+                greetingHeader
+                
+                // 2. Cafes Near You (Top 5)
+                nearbyCafesSection
+                
+                // 3. What Your Friends Are Sipping
+                friendsSippingSection
+                
+                // 4. Spin for a Spot
+                spinButtonSection
+            }
+            .padding(.top, DS.Spacing.md)
         }
-        .padding(.top, DS.Spacing.md)
         .onAppear {
             locationManager.requestLocationPermission()
+        }
+        .onChange(of: locationManager.location) { _, newLocation in
+            if newLocation != nil {
+                loadNearbyCafes()
+            }
         }
         .fullScreenCover(isPresented: $showSpinResult) {
             SpinForASpotView(
@@ -66,17 +78,12 @@ struct DiscoverContentView: View {
     }
     
     private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        let name = dataManager.appData.currentUser?.displayNameOrUsername
+        let firstName = dataManager.appData.currentUser?.displayNameOrUsername
             .split(separator: " ")
             .first
             .map(String.init) ?? "Friend"
         
-        switch hour {
-        case 5..<12: return "Good Morning, \(name)"
-        case 12..<17: return "Good Afternoon, \(name)"
-        default: return "Good Evening, \(name)"
-        }
+        return GreetingHelper.getGreeting(userName: firstName)
     }
     
     private var formattedDate: String {
@@ -85,140 +92,7 @@ struct DiscoverContentView: View {
         return formatter.string(from: Date()).uppercased()
     }
     
-    // MARK: - Social Radar Section
-    
-    private var socialRadarSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            // Section Header
-            HStack {
-                Text("Friends are Visiting")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Spacer()
-                
-                Image(systemName: "person.2.fill")
-                    .foregroundColor(DS.Colors.primaryAccent)
-                    .font(.system(size: 16))
-            }
-            .padding(.horizontal, DS.Spacing.pagePadding)
-            
-            // Horizontal Scroll of Social Cafe Cards
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DS.Spacing.md) {
-                    let cafesWithFriendActivity = getCafesWithFriendActivity()
-                    
-                    if cafesWithFriendActivity.isEmpty {
-                        emptyFriendsPlaceholder
-                    } else {
-                        ForEach(cafesWithFriendActivity, id: \.cafe.id) { item in
-                            SocialCafeCard(
-                                cafe: item.cafe,
-                                friendVisitors: item.visitors,
-                                onTap: { onCafeTap?(item.cafe) }
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal, DS.Spacing.pagePadding)
-            }
-        }
-    }
-    
-    private var emptyFriendsPlaceholder: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "person.2.slash")
-                .font(.system(size: 32))
-                .foregroundColor(DS.Colors.textTertiary)
-            
-            Text("No recent friend activity")
-                .font(DS.Typography.subheadline())
-                .foregroundColor(DS.Colors.textSecondary)
-            
-            Text("Be the trendsetter!")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-        .frame(width: 260, height: 120)
-        .background(DS.Colors.cardBackground)
-        .cornerRadius(DS.Radius.lg)
-    }
-    
-    /// Returns cafes visited by friends with their visitor info
-    private func getCafesWithFriendActivity() -> [(cafe: Cafe, visitors: [SocialCafeCard.FriendVisitor])] {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return [] }
-        
-        let friendIds = dataManager.appData.friendsSupabaseUserIds
-        
-        // Get visits from friends in the last 7 days
-        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-        let recentFriendVisits = dataManager.appData.visits.filter { visit in
-            guard let authorId = visit.supabaseUserId else { return false }
-            return friendIds.contains(authorId) &&
-                   visit.userId != currentUserId &&
-                   visit.createdAt >= sevenDaysAgo
-        }
-        
-        // Group by cafe
-        let visitsByCafe = Dictionary(grouping: recentFriendVisits) { $0.cafeId }
-        
-        // Build result with visitor info
-        var results: [(cafe: Cafe, visitors: [SocialCafeCard.FriendVisitor])] = []
-        
-        for (cafeId, visits) in visitsByCafe {
-            guard let cafe = dataManager.getCafe(id: cafeId) else { continue }
-            
-            // Build unique visitors list
-            var seenIds = Set<String>()
-            var visitors: [SocialCafeCard.FriendVisitor] = []
-            
-            for visit in visits {
-                guard let visitorId = visit.supabaseUserId,
-                      !seenIds.contains(visitorId) else { continue }
-                seenIds.insert(visitorId)
-                
-                visitors.append(SocialCafeCard.FriendVisitor(
-                    id: visitorId,
-                    displayName: visit.authorDisplayNameOrUsername,
-                    avatarURL: visit.authorAvatarURL,
-                    rating: visit.overallScore
-                ))
-            }
-            
-            results.append((cafe: cafe, visitors: visitors))
-        }
-        
-        // Sort by number of visitors (most popular first)
-        return results.sorted { $0.visitors.count > $1.visitors.count }
-    }
-    
-    // MARK: - Coming Soon Section
-    
-    private var comingSoonSection: some View {
-        VStack(spacing: 0) {
-            // Decorative icon - same size as EmptyStateView images
-            Image("MugsyComingSoon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 160, height: 160)
-                .padding(.bottom, DS.Spacing.xs)
-            
-            VStack(spacing: DS.Spacing.xs) {
-                Text("More features coming soon")
-                    .font(DS.Typography.headline())
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Text("We're cooking up something special")
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DS.Spacing.xl)
-        .padding(.horizontal, DS.Spacing.pagePadding)
-    }
-    
-    // MARK: - Spin Button Section
+    // MARK: - Spin for a Spot Section
     
     private var spinButtonSection: some View {
         Button(action: {
@@ -240,7 +114,182 @@ struct DiscoverContentView: View {
             .dsCardShadow()
         }
         .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.top, DS.Spacing.md)
+    }
+    
+    // MARK: - What Your Friends Are Sipping
+    
+    private var friendsSippingSection: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            // Section Header
+            Text("What your friends are sipping")
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+                .padding(.horizontal, DS.Spacing.pagePadding)
+            
+            // Horizontal Scroll of Friend Visit Cards
+            let recentFriendVisits = dataManager.getRecentFriendVisits(limit: 5)
+            
+            if recentFriendVisits.isEmpty {
+                emptyFriendsPlaceholder
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: DS.Spacing.md) {
+                        ForEach(recentFriendVisits, id: \.id) { visit in
+                            FriendVisitCard(
+                                visit: visit,
+                                cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Cafe",
+                                onTap: { onVisitTap?(visit) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+                }
+            }
+        }
+    }
+    
+    private var emptyFriendsPlaceholder: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 32))
+                .foregroundColor(DS.Colors.textTertiary)
+            
+            Text("Your Sip Squad is quiet")
+                .font(DS.Typography.subheadline(.semibold))
+                .foregroundColor(DS.Colors.textSecondary)
+            
+            Text("Be the first to log a sip today!")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 160)
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.lg)
+        .dsCardShadow()
+    }
+    
+    // MARK: - Cafes Near You (Top 5)
+    
+    private var nearbyCafesSection: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            // Section Header
+            Text("Cafes near you")
+                .font(DS.Typography.sectionTitle)
+                .foregroundColor(DS.Colors.textPrimary)
+                .padding(.horizontal, DS.Spacing.pagePadding)
+            
+            if isLoadingCafes {
+                loadingPlaceholder
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+            } else if nearbyCafes.isEmpty {
+                emptyNearbyCafesPlaceholder
+                    .padding(.horizontal, DS.Spacing.pagePadding)
+            } else {
+                // Vertical list of compact cafe cards
+                VStack(spacing: DS.Spacing.sm) {
+                    ForEach(nearbyCafes, id: \.cafe.id) { item in
+                        NearbyCafeCard(
+                            cafe: item.cafe,
+                            distance: item.distance,
+                            averageRating: item.averageRating,
+                            totalRatings: item.totalRatings,
+                            photoURL: item.photoURL,
+                            hasVisits: item.hasVisits,
+                            onTap: { onCafeTap?(item.cafe) }
+                        )
+                    }
+                }
+                .padding(.horizontal, DS.Spacing.pagePadding)
+            }
+        }
+    }
+    
+    private var loadingPlaceholder: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            ProgressView()
+                .tint(DS.Colors.primaryAccent)
+            Text("Finding cafes nearby...")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DS.Spacing.xl)
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.lg)
+        .dsCardShadow()
+    }
+    
+    private var emptyNearbyCafesPlaceholder: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            Image(systemName: locationManager.location == nil ? "location.slash" : "magnifyingglass")
+                .font(.system(size: 24))
+                .foregroundColor(DS.Colors.textTertiary)
+            
+            Text(locationManager.location == nil ? "Location unavailable" : "No cafes found nearby")
+                .font(DS.Typography.subheadline(.semibold))
+                .foregroundColor(DS.Colors.textSecondary)
+            
+            Text(locationManager.location == nil ? "Check location permissions" : "Try again later")
+                .font(DS.Typography.caption1())
+                .foregroundColor(DS.Colors.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DS.Spacing.xl)
+        .background(DS.Colors.cardBackground)
+        .cornerRadius(DS.Radius.lg)
+        .dsCardShadow()
+    }
+    
+    // MARK: - Nearby Cafes Data Structure
+    
+    struct NearbyCafeData {
+        let cafe: Cafe
+        let distance: Double?
+        let averageRating: Double?
+        let totalRatings: Int
+        let photoURL: String?
+        let hasVisits: Bool
+    }
+    
+    /// Load nearby cafes using Apple Maps search
+    private func loadNearbyCafes() {
+        guard let userLocation = locationManager.location else {
+            isLoadingCafes = false
+            return
+        }
+        
+        isLoadingCafes = true
+        
+        Task {
+            let cafes = await dataManager.searchNearbyCafes(near: userLocation, radiusMiles: 3.0, limit: 5)
+            
+            await MainActor.run {
+                nearbyCafes = cafes.map { cafe in
+                    let distance = cafe.location.map { location in
+                        userLocation.distance(from: CLLocation(latitude: location.latitude, longitude: location.longitude))
+                    }
+                    
+                    // Get ratings
+                    let ratings = dataManager.calculateAverageRating(for: cafe.id)
+                    let hasVisits = ratings.count > 0
+                    
+                    // Get first photo for thumbnail
+                    let photoURL = dataManager.getPhotoURLsForCafe(cafe.id, limit: 1).first
+                    
+                    return NearbyCafeData(
+                        cafe: cafe,
+                        distance: distance,
+                        averageRating: ratings.average > 0 ? ratings.average : nil,
+                        totalRatings: ratings.count,
+                        photoURL: photoURL,
+                        hasVisits: hasVisits
+                    )
+                }
+                isLoadingCafes = false
+            }
+        }
     }
 }
 
@@ -248,8 +297,11 @@ struct DiscoverContentView: View {
 
 #Preview {
     ScrollView {
-        DiscoverContentView(dataManager: DataManager.shared)
+        DiscoverContentView(
+            dataManager: DataManager.shared,
+            onCafeTap: { _ in },
+            onVisitTap: { _ in }
+        )
     }
     .background(DS.Colors.screenBackground)
 }
-

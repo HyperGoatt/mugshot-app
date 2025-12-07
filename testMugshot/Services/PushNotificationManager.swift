@@ -78,14 +78,18 @@ class PushNotificationManager: NSObject, ObservableObject {
     /// Called by AppDelegate when device token is received from APNs
     func didRegisterForRemoteNotifications(deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        #if DEBUG
         print("[Push] Received device token: \(tokenString.prefix(20))...")
+        #endif
         
         currentDeviceToken = tokenString
         
         // Only register token if user is authenticated
         guard dataManager.appData.isUserAuthenticated,
               let userId = dataManager.appData.supabaseUserId else {
+            #if DEBUG
             print("⚠️ [Push] User not authenticated, storing token for later registration")
+            #endif
             return
         }
         
@@ -101,12 +105,16 @@ class PushNotificationManager: NSObject, ObservableObject {
     
     /// Register or update device token in Supabase
     private func registerTokenWithSupabase(token: String, userId: String) async {
+        #if DEBUG
         print("[Push] Registering device token for userId=\(userId.prefix(8))...")
+        #endif
         
         do {
             // Ensure we have a valid session
             guard let session = SupabaseAuthService.shared.restoreSession() else {
+                #if DEBUG
                 print("⚠️ [Push] No session found, cannot register token")
+                #endif
                 return
             }
             
@@ -114,9 +122,13 @@ class PushNotificationManager: NSObject, ObservableObject {
             SupabaseClientProvider.shared.accessToken = session.accessToken
             
             try await deviceService.upsertDeviceToken(userId: userId, token: token, platform: "ios")
+            #if DEBUG
             print("✅ [Push] Device token registered successfully in Supabase")
+            #endif
         } catch {
+            #if DEBUG
             print("❌ [Push] Error registering device token: \(error.localizedDescription)")
+            #endif
         }
     }
     

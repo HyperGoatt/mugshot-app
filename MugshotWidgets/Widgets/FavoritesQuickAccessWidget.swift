@@ -149,28 +149,28 @@ struct MediumFavoritesView: View {
     let cafes: [WidgetCafe]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
-            // Header
-            HStack {
+        VStack(alignment: .leading, spacing: WidgetDS.Spacing.rowSpacing) {
+            // Larger title with bigger heart icon (14pt)
+            HStack(spacing: 6) {
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 10))
+                    .font(.system(size: 14))
                     .foregroundColor(WidgetDS.Colors.redAccent)
-                Text("Favorite Cafes")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
+                Text("Favorites")
+                    .font(WidgetDS.Typography.widgetTitle)
+                    .foregroundColor(WidgetDS.Colors.textPrimary)
                 Spacer()
             }
             
-            // Cafe list (show up to 3)
+            // Cafe rows with more breathing room (16pt gaps)
             ForEach(cafes.prefix(3)) { cafe in
                 Link(destination: WidgetDeepLink.cafeDetail(cafeId: cafe.id) ?? WidgetDeepLink.saved!) {
-                    FavoriteCafeRow(cafe: cafe, compact: true)
+                    EnhancedFavoriteCafeRow(cafe: cafe)
                 }
             }
             
             Spacer()
         }
-        .padding(WidgetDS.Spacing.lg)
+        .padding(WidgetDS.Spacing.widgetPadding)
     }
 }
 
@@ -180,43 +180,44 @@ struct LargeFavoritesView: View {
     let cafes: [WidgetCafe]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
-            // Header
+        VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+            // Header with prominent title
             HStack {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(WidgetDS.Colors.redAccent)
-                Text("Favorite Cafes")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
+                HStack(spacing: 6) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(WidgetDS.Colors.redAccent)
+                    Text("Favorites")
+                        .font(WidgetDS.Typography.widgetTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                }
                 Spacer()
                 
                 Link(destination: WidgetDeepLink.saved!) {
-                    Text("See all")
-                        .font(.system(size: 11))
-                        .foregroundColor(WidgetDS.Colors.primaryAccent)
+                    HStack(spacing: 4) {
+                        Text("See all")
+                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(WidgetDS.Colors.primaryAccent)
                 }
             }
             
-            // Cafe list (show up to 6)
+            // Cafe rows with better spacing
             ForEach(cafes.prefix(6)) { cafe in
                 Link(destination: WidgetDeepLink.cafeDetail(cafeId: cafe.id) ?? WidgetDeepLink.saved!) {
-                    FavoriteCafeRow(cafe: cafe, compact: false)
-                }
-                
-                if cafe.id != cafes.prefix(6).last?.id {
-                    Divider()
-                        .background(WidgetDS.Colors.neutralDivider)
+                    EnhancedFavoriteCafeRow(cafe: cafe)
                 }
             }
             
             Spacer()
         }
-        .padding(WidgetDS.Spacing.lg)
+        .padding(WidgetDS.Spacing.widgetPadding)
     }
 }
 
-// MARK: - Favorite Cafe Row
+// MARK: - Favorite Cafe Row (Legacy)
 
 struct FavoriteCafeRow: View {
     let cafe: WidgetCafe
@@ -281,39 +282,101 @@ struct FavoriteCafeRow: View {
     }
 }
 
+// MARK: - Enhanced Favorite Cafe Row (Rounded squares with gradients, larger text)
+
+struct EnhancedFavoriteCafeRow: View {
+    let cafe: WidgetCafe
+    
+    var body: some View {
+        HStack(spacing: WidgetDS.Spacing.contentSpacing) {
+            // Rounded square icon (40x40) with mint gradient
+            ZStack {
+                RoundedRectangle(cornerRadius: WidgetDS.Radius.md)
+                    .fill(WidgetDS.Gradients.mintSubtle)
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(WidgetDS.Colors.primaryAccent)
+            }
+            
+            // Cafe info with larger names (16pt semibold)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(cafe.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(WidgetDS.Colors.textPrimary)
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    if let city = cafe.city {
+                        Text(city)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                    }
+                    
+                    if let distance = cafe.distanceString {
+                        Text("•")
+                            .font(.system(size: 12))
+                            .foregroundColor(WidgetDS.Colors.textTertiary)
+                        Text(distance)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(WidgetDS.Colors.blueAccent)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Prominent rating
+            if cafe.averageRating > 0 {
+                EnhancedBadge(
+                    text: String(format: "%.1f", cafe.averageRating),
+                    icon: "star.fill",
+                    backgroundColor: WidgetDS.Colors.yellowAccent.opacity(0.15),
+                    foregroundColor: WidgetDS.Colors.textPrimary
+                )
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - Empty State View
 
 struct EmptyFavoritesView: View {
     var body: some View {
         Link(destination: WidgetDeepLink.saved ?? WidgetDeepLink.map!) {
-            VStack(spacing: WidgetDS.Spacing.lg) {
-                HStack {
+            VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                HStack(spacing: 6) {
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 14))
                         .foregroundColor(WidgetDS.Colors.redAccent)
-                    Text("Favorite Cafes")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                    Text("Favorites")
+                        .font(WidgetDS.Typography.widgetTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
                     Spacer()
                 }
                 
                 Spacer()
                 
+                // Larger heart icon
                 Image(systemName: "heart")
-                    .font(.system(size: 28))
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
+                    .font(.system(size: 48, weight: .medium))
+                    .foregroundColor(WidgetDS.Colors.redAccent.opacity(0.3))
                 
-                Text("No favorite cafes yet")
-                    .font(WidgetDS.Typography.body)
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                
-                Text("Tap to explore")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(WidgetDS.Colors.primaryAccent)
+                VStack(spacing: 8) {
+                    Text("No favorites yet")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                    
+                    Text("Find cafes you love")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                }
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
     }
 }

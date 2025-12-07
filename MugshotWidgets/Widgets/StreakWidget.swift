@@ -137,62 +137,82 @@ struct SmallStreakView: View {
         let destination = entry.hasVisitToday ? WidgetDeepLink.journal! : WidgetDeepLink.logVisit!
         
         Link(destination: destination) {
-            VStack(spacing: WidgetDS.Spacing.md) {
-                // Header
-                HStack {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(entry.currentStreak > 0 ? .orange : WidgetDS.Colors.textTertiary)
-                    Text("Streak")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+            if entry.currentStreak > 0 {
+                // Active streak - CELEBRATORY with huge flame and number
+                VStack(spacing: WidgetDS.Spacing.contentSpacing) {
                     Spacer()
-                }
-                
-                Spacer()
-                
-                if entry.currentStreak > 0 {
-                    // Has a streak
-                    VStack(spacing: WidgetDS.Spacing.xs) {
-                        Text("\(entry.currentStreak)")
-                            .font(WidgetDS.Typography.statNumber)
-                            .foregroundColor(WidgetDS.Colors.textPrimary)
-                        
-                        Text(entry.currentStreak == 1 ? "day" : "days")
-                            .font(WidgetDS.Typography.caption)
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                    
+                    // HUGE flame icon (40pt) with gradient effect
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [WidgetDS.Colors.yellowAccent, WidgetDS.Colors.orangeGradient],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    
+                    // Streak number - 48pt BOLD
+                    Text("\(entry.currentStreak)")
+                        .font(WidgetDS.Typography.displayLarge)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                    
+                    // "days" label - much smaller
+                    Text(entry.currentStreak == 1 ? "day" : "days")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    
+                    // Best streak with trophy
+                    if entry.longestStreak > entry.currentStreak {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(WidgetDS.Colors.yellowAccent)
+                            Text("Best: \(entry.longestStreak)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textTertiary)
+                        }
                     }
                     
-                    // Best streak
-                    HStack(spacing: WidgetDS.Spacing.xs) {
-                        Image(systemName: "trophy.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(WidgetDS.Colors.yellowAccent)
-                        Text("Best: \(entry.longestStreak)")
-                            .font(.system(size: 11))
-                            .foregroundColor(WidgetDS.Colors.textTertiary)
+                    Spacer()
+                }
+                .padding(WidgetDS.Spacing.widgetPadding)
+            } else {
+                // No streak - motivational with mint background
+                ZStack {
+                    // Mint background accent
+                    VStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(WidgetDS.Gradients.mintSubtle)
+                            .frame(height: 90)
                     }
-                } else {
-                    // No streak
-                    VStack(spacing: WidgetDS.Spacing.sm) {
+                    
+                    VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                        Spacer()
+                        
+                        // Outlined flame (36pt)
                         Image(systemName: "flame")
-                            .font(.system(size: 24))
+                            .font(.system(size: 36, weight: .medium))
                             .foregroundColor(WidgetDS.Colors.textTertiary)
                         
-                        Text("Start your streak")
-                            .font(WidgetDS.Typography.caption)
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                        Text("Start Your\nStreak")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(WidgetDS.Colors.textPrimary)
                             .multilineTextAlignment(.center)
                         
-                        Text("Log a visit")
-                            .font(.system(size: 11, weight: .semibold))
+                        Text("Log today")
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(WidgetDS.Colors.primaryAccent)
+                        
+                        Spacer()
                     }
+                    .padding(WidgetDS.Spacing.widgetPadding)
                 }
-                
-                Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
         }
     }
 }
@@ -206,65 +226,66 @@ struct MediumStreakView: View {
         let destination = entry.hasVisitToday ? WidgetDeepLink.journal! : WidgetDeepLink.logVisit!
         
         Link(destination: destination) {
-            HStack(spacing: WidgetDS.Spacing.xl) {
-                // Left side - streak number
-                VStack(spacing: WidgetDS.Spacing.sm) {
-                    // Streak icon and number
-                    HStack(spacing: WidgetDS.Spacing.sm) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(entry.currentStreak > 0 ? .orange : WidgetDS.Colors.textTertiary)
-                        
-                        if entry.currentStreak > 0 {
-                            Text("\(entry.currentStreak)")
-                                .font(WidgetDS.Typography.statNumber)
-                                .foregroundColor(WidgetDS.Colors.textPrimary)
-                        }
+            HStack(spacing: WidgetDS.Spacing.sectionSpacing) {
+                // Left section - GIANT streak number (56pt bold) with gradient background
+                ZStack {
+                    // Subtle mint-to-white gradient background
+                    if entry.currentStreak > 0 {
+                        RoundedRectangle(cornerRadius: WidgetDS.Radius.lg)
+                            .fill(WidgetDS.Gradients.mintSubtle)
                     }
                     
-                    if entry.currentStreak > 0 {
-                        Text(entry.currentStreak == 1 ? "day streak" : "day streak")
-                            .font(WidgetDS.Typography.caption)
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                        
-                        // Best streak
-                        HStack(spacing: WidgetDS.Spacing.xs) {
-                            Image(systemName: "trophy.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.yellowAccent)
-                            Text("Best: \(entry.longestStreak) days")
-                                .font(.system(size: 11))
+                    VStack(spacing: WidgetDS.Spacing.md) {
+                        if entry.currentStreak > 0 {
+                            // Flame with gradient
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [WidgetDS.Colors.yellowAccent, WidgetDS.Colors.orangeGradient],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                            
+                            // Giant streak number
+                            Text("\(entry.currentStreak)")
+                                .font(.system(size: 56, weight: .bold))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
+                            
+                            // "day streak" below
+                            Text("day streak")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textSecondary)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                        } else {
+                            // No streak state
+                            Image(systemName: "flame")
+                                .font(.system(size: 32, weight: .medium))
                                 .foregroundColor(WidgetDS.Colors.textTertiary)
+                            
+                            Text("Start\nStreak")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
+                                .multilineTextAlignment(.center)
                         }
-                    } else {
-                        Text("No active streak")
-                            .font(WidgetDS.Typography.caption)
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                        
-                        Text("Log a visit to start")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.primaryAccent)
                     }
                 }
-                .frame(minWidth: 80)
+                .frame(width: 130)
                 
-                // Divider
-                Rectangle()
-                    .fill(WidgetDS.Colors.neutralDivider)
-                    .frame(width: 1)
-                    .padding(.vertical, WidgetDS.Spacing.md)
-                
-                // Right side - weekly view
-                VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
-                    Text("This Week")
-                        .font(.system(size: 11, weight: .medium))
+                // Right section - bigger weekday circles (28pt each)
+                VStack(alignment: .leading, spacing: WidgetDS.Spacing.contentSpacing) {
+                    Text("THIS WEEK")
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(WidgetDS.Colors.textSecondary)
+                        .tracking(0.8)
                     
-                    // Weekly pill row
+                    // Bigger weekday circles
                     if !entry.weekdayMap.isEmpty {
-                        HStack(spacing: WidgetDS.Spacing.sm) {
+                        HStack(spacing: WidgetDS.Spacing.md) {
                             ForEach(entry.weekdayMap) { day in
-                                WeekdayPill(
+                                EnhancedWeekdayPill(
                                     dayLetter: day.dayLetter,
                                     hasVisit: day.hasVisit,
                                     isToday: isToday(day)
@@ -272,39 +293,52 @@ struct MediumStreakView: View {
                             }
                         }
                     } else {
-                        // Fallback empty state
-                        HStack(spacing: WidgetDS.Spacing.sm) {
+                        HStack(spacing: WidgetDS.Spacing.md) {
                             ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { letter in
-                                WeekdayPill(dayLetter: letter, hasVisit: false, isToday: false)
+                                EnhancedWeekdayPill(dayLetter: letter, hasVisit: false, isToday: false)
                             }
                         }
                     }
                     
-                    // Status message
+                    Spacer()
+                    
+                    // Status bar with larger icons and text
                     if !entry.hasVisitToday && entry.currentStreak > 0 {
-                        HStack(spacing: WidgetDS.Spacing.xs) {
+                        HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.yellowAccent)
-                            Text("Keep your streak! Log today")
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.textSecondary)
+                                .font(.system(size: 14))
+                                .foregroundColor(WidgetDS.Colors.orangeGradient)
+                            Text("Keep your streak!")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
                         }
                     } else if entry.hasVisitToday {
-                        HStack(spacing: WidgetDS.Spacing.xs) {
+                        HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 10))
+                                .font(.system(size: 14))
                                 .foregroundColor(WidgetDS.Colors.primaryAccent)
-                            Text("Today's mugshot logged!")
-                                .font(.system(size: 10))
-                                .foregroundColor(WidgetDS.Colors.textSecondary)
+                            Text("Logged today!")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
+                        }
+                    }
+                    
+                    // Best streak if different from current
+                    if entry.longestStreak > entry.currentStreak && entry.currentStreak > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(WidgetDS.Colors.yellowAccent)
+                            Text("Best: \(entry.longestStreak) days")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(WidgetDS.Colors.textTertiary)
                         }
                     }
                 }
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
     }
     
@@ -316,7 +350,7 @@ struct MediumStreakView: View {
     }
 }
 
-// MARK: - Weekday Pill
+// MARK: - Weekday Pill (Legacy - kept for compatibility)
 
 struct WeekdayPill: View {
     let dayLetter: String
@@ -355,6 +389,61 @@ struct WeekdayPill: View {
             return WidgetDS.Colors.mintSoftFill
         } else {
             return WidgetDS.Colors.neutralBorder.opacity(0.5)
+        }
+    }
+}
+
+// MARK: - Enhanced Weekday Pill (28pt circles, clearer indicators)
+
+struct EnhancedWeekdayPill: View {
+    let dayLetter: String
+    let hasVisit: Bool
+    let isToday: Bool
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(dayLetter)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(textColor)
+            
+            Circle()
+                .fill(fillColor)
+                .frame(width: 28, height: 28)
+                .overlay {
+                    if hasVisit {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .overlay {
+                    if isToday {
+                        Circle()
+                            .stroke(strokeColor, lineWidth: 2.5)
+                    }
+                }
+        }
+    }
+    
+    private var fillColor: Color {
+        if hasVisit {
+            return WidgetDS.Colors.primaryAccent
+        } else if isToday {
+            return WidgetDS.Colors.mintSoftFill
+        } else {
+            return WidgetDS.Colors.neutralCardAlt
+        }
+    }
+    
+    private var strokeColor: Color {
+        hasVisit ? WidgetDS.Colors.mintDark : WidgetDS.Colors.primaryAccent
+    }
+    
+    private var textColor: Color {
+        if hasVisit || isToday {
+            return WidgetDS.Colors.textPrimary
+        } else {
+            return WidgetDS.Colors.textTertiary
         }
     }
 }

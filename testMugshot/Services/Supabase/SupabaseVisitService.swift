@@ -116,9 +116,53 @@ final class SupabaseVisitService {
                 print("❌ [VisitService] Request payload that failed: \(bodyString)")
             }
             
+            // Check if error indicates expired JWT token
+            let isExpiredToken = response.statusCode == 401 && errorMessage.localizedCaseInsensitiveContains("JWT expired")
+            
+            if isExpiredToken {
+                print("⚠️ [VisitService] JWT token expired - attempting to refresh and retry")
+                do {
+                    // Refresh the session
+                    let newSession = try await SupabaseAuthService.shared.refreshSession()
+                    client.accessToken = newSession.accessToken
+                    print("✅ [VisitService] Session refreshed successfully, retrying visit creation")
+                    
+                    // Retry the request with the new token
+                    let (retryData, retryResponse) = try await client.request(
+                        path: "rest/v1/visits",
+                        method: "POST",
+                        headers: ["Prefer": "return=representation"],
+                        body: body
+                    )
+                    
+                    print("[VisitService] Retry response status: \(retryResponse.statusCode)")
+                    
+                    guard (200..<300).contains(retryResponse.statusCode) else {
+                        let retryErrorMessage = String(data: retryData, encoding: .utf8) ?? "Unknown error"
+                        print("❌ [VisitService] Retry failed: \(retryErrorMessage)")
+                        throw SupabaseError.server(status: retryResponse.statusCode, message: retryErrorMessage)
+                    }
+                    
+                    // Continue with the retry response instead of throwing
+                    return try await processVisitResponse(data: retryData, photos: photos)
+                } catch {
+                    print("❌ [VisitService] Failed to refresh session: \(error.localizedDescription)")
+                    // Clear session if refresh failed
+                    await SupabaseAuthService.shared.signOut()
+                    throw SupabaseError.invalidSession
+                }
+            }
+            
             throw SupabaseError.server(status: response.statusCode, message: errorMessage)
         }
         
+        // Process the successful response
+        return try await processVisitResponse(data: data, photos: photos)
+    }
+    
+    /// Helper method to process visit creation response
+    /// Decodes the visit, inserts photos, and fetches the full visit with relations
+    private func processVisitResponse(data: Data, photos: [VisitPhotoUpload]) async throws -> RemoteVisit {
         // Debug: Log raw JSON response before decoding (for debugging date format issues)
         #if DEBUG
         if let jsonString = String(data: data, encoding: .utf8) {
@@ -212,6 +256,26 @@ final class SupabaseVisitService {
         )
         
         guard (200..<300).contains(response.statusCode) else {
+            // Try to refresh token and retry if JWT expired
+            if try await handleJWTExpiration(response: response, data: data) {
+                let (retryData, retryResponse) = try await client.request(
+                    path: "rest/v1/likes",
+                    method: "POST",
+                    headers: ["Prefer": "return=representation"],
+                    body: body
+                )
+                
+                guard (200..<300).contains(retryResponse.statusCode) else {
+                    throw SupabaseError.server(status: retryResponse.statusCode, message: String(data: retryData, encoding: .utf8))
+                }
+                
+                let likes = try decoder.decode([RemoteLike].self, from: retryData)
+                guard let saved = likes.first else {
+                    throw SupabaseError.decoding("Like insert returned empty response.")
+                }
+                return saved
+            }
+            
             throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
         }
         
@@ -242,9 +306,31 @@ final class SupabaseVisitService {
             headers: ["Prefer": "return=representation"],
             body: body
         )
+        
         guard (200..<300).contains(response.statusCode) else {
+            // Try to refresh token and retry if JWT expired
+            if try await handleJWTExpiration(response: response, data: data) {
+                let (retryData, retryResponse) = try await client.request(
+                    path: "rest/v1/comments",
+                    method: "POST",
+                    headers: ["Prefer": "return=representation"],
+                    body: body
+                )
+                
+                guard (200..<300).contains(retryResponse.statusCode) else {
+                    throw SupabaseError.server(status: retryResponse.statusCode, message: String(data: retryData, encoding: .utf8))
+                }
+                
+                let comments = try decoder.decode([RemoteComment].self, from: retryData)
+                guard let saved = comments.first else {
+                    throw SupabaseError.decoding("Comment insert returned empty response.")
+                }
+                return saved
+            }
+            
             throw SupabaseError.server(status: response.statusCode, message: String(data: data, encoding: .utf8))
         }
+        
         let comments = try decoder.decode([RemoteComment].self, from: data)
         guard let saved = comments.first else {
             throw SupabaseError.decoding("Comment insert returned empty response.")
@@ -451,6 +537,31 @@ final class SupabaseVisitService {
                 URLQueryItem(name: "user_id", value: "eq.\(userId)")
             ]
         )
+    }
+    
+    // MARK: - JWT Refresh Helper
+    
+    /// Checks if a response indicates JWT expiration and refreshes the session if needed
+    /// Returns true if token was refreshed and request should be retried
+    private func handleJWTExpiration(response: HTTPURLResponse, data: Data) async throws -> Bool {
+        let errorMessage = String(data: data, encoding: .utf8) ?? ""
+        let isExpiredToken = response.statusCode == 401 && errorMessage.localizedCaseInsensitiveContains("JWT expired")
+        
+        if isExpiredToken {
+            print("⚠️ [VisitService] JWT token expired - attempting to refresh")
+            do {
+                let newSession = try await SupabaseAuthService.shared.refreshSession()
+                client.accessToken = newSession.accessToken
+                print("✅ [VisitService] Session refreshed successfully")
+                return true
+            } catch {
+                print("❌ [VisitService] Failed to refresh session: \(error.localizedDescription)")
+                await SupabaseAuthService.shared.signOut()
+                throw SupabaseError.invalidSession
+            }
+        }
+        
+        return false
     }
     
     // MARK: - Helpers

@@ -40,11 +40,62 @@ enum WidgetDS {
         static let cardBackground = neutralCard
         static let primaryAccent = mintMain
         static let secondaryAccent = blueAccent
+        
+        // Gradient colors
+        static let mintTintedBackground = Color(hex: "F0F9F0")  // Subtle mint tint
+        static let orangeGradient = Color(hex: "FF6B35")        // For streak flames
+        static let yellowGradient = Color(hex: "FFA500")        // For featured content
+    }
+    
+    // MARK: - Gradients
+    
+    enum Gradients {
+        static let mintSubtle = LinearGradient(
+            colors: [Colors.mintSoftFill, Colors.neutralCard],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        
+        static let mintBold = LinearGradient(
+            colors: [Colors.mintLight, Colors.mintMain],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        
+        static let blueSubtle = LinearGradient(
+            colors: [Colors.blueSoftFill, Colors.neutralCard],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        
+        static let flame = LinearGradient(
+            colors: [Colors.yellowAccent, Colors.orangeGradient],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
+        static let featured = LinearGradient(
+            colors: [Colors.yellowAccent.opacity(0.3), Colors.neutralCard],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
     
     // MARK: - Typography
     
     enum Typography {
+        // Hero typography for maximum impact
+        static let displayLarge = Font.system(size: 36, weight: .bold)      // Reduced from 48
+        static let displayMedium = Font.system(size: 28, weight: .bold)     // Reduced from 36
+        static let displaySmall = Font.system(size: 22, weight: .bold)      // Reduced from 28
+        
+        // Widget titles and content
+        static let widgetTitle = Font.system(size: 14, weight: .bold)       // Reduced from 18
+        static let contentTitle = Font.system(size: 15, weight: .semibold)  // Reduced from 18
+        static let contentBody = Font.system(size: 13, weight: .regular)    // Reduced from 15
+        static let badgeText = Font.system(size: 11, weight: .semibold)     // Reduced from 13
+        
+        // Legacy (kept for compatibility)
         static let title = Font.system(size: 17, weight: .semibold)
         static let headline = Font.system(size: 15, weight: .semibold)
         static let body = Font.system(size: 13, weight: .regular)
@@ -61,6 +112,13 @@ enum WidgetDS {
         static let md: CGFloat = 8
         static let lg: CGFloat = 12
         static let xl: CGFloat = 16
+        static let xxl: CGFloat = 20
+        
+        // Layout-specific spacing
+        static let widgetPadding: CGFloat = 14      // Reduced from 18
+        static let contentSpacing: CGFloat = 10     // Reduced from 14
+        static let sectionSpacing: CGFloat = 16     // Reduced from 20
+        static let rowSpacing: CGFloat = 12         // Reduced from 16
     }
     
     // MARK: - Corner Radius
@@ -229,6 +287,159 @@ struct WidgetMugsyIcon: View {
         Image(systemName: "cup.and.saucer.fill")
             .font(.system(size: size))
             .foregroundColor(WidgetDS.Colors.primaryAccent)
+    }
+}
+
+// MARK: - Enhanced Icon Frame with Gradient
+
+struct EnhancedIconFrame: View {
+    let icon: String
+    let size: CGFloat
+    let gradient: LinearGradient
+    let iconColor: Color
+    
+    init(
+        icon: String,
+        size: CGFloat = 48,
+        gradient: LinearGradient = WidgetDS.Gradients.mintSubtle,
+        iconColor: Color = WidgetDS.Colors.primaryAccent
+    ) {
+        self.icon = icon
+        self.size = size
+        self.gradient = gradient
+        self.iconColor = iconColor
+    }
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: WidgetDS.Radius.md)
+                .fill(gradient)
+            
+            Image(systemName: icon)
+                .font(.system(size: size * 0.5, weight: .semibold))
+                .foregroundColor(iconColor)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Enhanced Badge/Pill Component
+
+struct EnhancedBadge: View {
+    let text: String
+    let icon: String?
+    let backgroundColor: Color
+    let foregroundColor: Color
+    
+    init(
+        text: String,
+        icon: String? = nil,
+        backgroundColor: Color = WidgetDS.Colors.blueSoftFill,
+        foregroundColor: Color = WidgetDS.Colors.blueAccent
+    ) {
+        self.text = text
+        self.icon = icon
+        self.backgroundColor = backgroundColor
+        self.foregroundColor = foregroundColor
+    }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            Text(text)
+                .font(WidgetDS.Typography.badgeText)
+        }
+        .foregroundColor(foregroundColor)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(backgroundColor)
+        .cornerRadius(WidgetDS.Radius.pill)
+    }
+}
+
+// MARK: - Enhanced Rating Display
+
+struct EnhancedRatingDisplay: View {
+    let rating: Double
+    let showStars: Bool
+    let size: CGFloat
+    
+    init(rating: Double, showStars: Bool = true, size: CGFloat = 12) {
+        self.rating = rating
+        self.showStars = showStars
+        self.size = size
+    }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            if showStars {
+                WidgetStarRating(rating: rating, size: size)
+            } else {
+                Image(systemName: "star.fill")
+                    .font(.system(size: size))
+                    .foregroundColor(WidgetDS.Colors.yellowAccent)
+            }
+            Text(String(format: "%.1f", rating))
+                .font(.system(size: size + 2, weight: .semibold))
+                .foregroundColor(WidgetDS.Colors.textPrimary)
+        }
+    }
+}
+
+// MARK: - Distance Badge
+
+struct DistanceBadge: View {
+    let distance: String
+    let isProminent: Bool
+    
+    init(distance: String, isProminent: Bool = false) {
+        self.distance = distance
+        self.isProminent = isProminent
+    }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "figure.walk")
+                .font(.system(size: isProminent ? 14 : 11, weight: .semibold))
+            Text(distance)
+                .font(.system(size: isProminent ? 18 : 13, weight: .bold))
+        }
+        .foregroundColor(WidgetDS.Colors.blueAccent)
+        .padding(.horizontal, isProminent ? 12 : 8)
+        .padding(.vertical, isProminent ? 8 : 5)
+        .background(WidgetDS.Colors.blueSoftFill)
+        .cornerRadius(WidgetDS.Radius.pill)
+    }
+}
+
+// MARK: - Widget Header Component
+
+struct WidgetHeader: View {
+    let icon: String
+    let title: String
+    let iconColor: Color
+    
+    init(icon: String, title: String, iconColor: Color = WidgetDS.Colors.primaryAccent) {
+        self.icon = icon
+        self.title = title
+        self.iconColor = iconColor
+    }
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(iconColor)
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(WidgetDS.Colors.textSecondary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+            Spacer()
+        }
     }
 }
 

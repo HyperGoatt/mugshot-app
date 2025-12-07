@@ -193,7 +193,7 @@ struct FriendsLatestSipsEntryView: View {
     }
 }
 
-// MARK: - Friend Visit View
+// MARK: - Friend Visit View (Enhanced with social engagement focus)
 
 struct FriendVisitView: View {
     let visit: WidgetVisit
@@ -201,20 +201,20 @@ struct FriendVisitView: View {
     
     var body: some View {
         Link(destination: WidgetDeepLink.visitDetail(visitId: visit.id) ?? WidgetDeepLink.feed!) {
-            HStack(spacing: WidgetDS.Spacing.lg) {
-                // Left side - friend avatar and photo
+            HStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                // Left side - LARGER avatar (56x56) and visit photo (80x80)
                 VStack(spacing: WidgetDS.Spacing.md) {
-                    // Friend avatar
+                    // Larger friend avatar with better presence
                     WidgetAvatar(
                         imageURL: visit.authorAvatarURL,
                         initials: String(visit.authorDisplayNameOrUsername.prefix(1)).uppercased(),
-                        size: 40
+                        size: 56
                     )
                     
-                    // Visit photo placeholder
+                    // Larger visit photo
                     ZStack {
-                        RoundedRectangle(cornerRadius: WidgetDS.Radius.sm)
-                            .fill(WidgetDS.Colors.mintSoftFill)
+                        RoundedRectangle(cornerRadius: WidgetDS.Radius.md)
+                            .fill(WidgetDS.Gradients.mintSubtle)
                         
                         if let photoURL = visit.posterPhotoURL, let url = URL(string: photoURL) {
                             AsyncImage(url: url) { phase in
@@ -229,109 +229,115 @@ struct FriendVisitView: View {
                                     photoPlaceholder
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: WidgetDS.Radius.sm))
+                            .clipShape(RoundedRectangle(cornerRadius: WidgetDS.Radius.md))
                         } else {
                             photoPlaceholder
                         }
                     }
-                    .frame(width: 48, height: 48)
+                    .frame(width: 80, height: 80)
                 }
                 
-                // Right side - visit details
-                VStack(alignment: .leading, spacing: WidgetDS.Spacing.sm) {
-                    // Header - friend name and time
-                    HStack {
-                        Text(visit.authorDisplayNameOrUsername)
-                            .font(WidgetDS.Typography.headline)
-                            .foregroundColor(WidgetDS.Colors.textPrimary)
-                        
-                        Spacer()
-                        
-                        Text(visit.relativeTimeString)
-                            .font(WidgetDS.Typography.caption)
-                            .foregroundColor(WidgetDS.Colors.textTertiary)
-                    }
-                    
-                    // Cafe name
-                    Text(visit.cafeName)
-                        .font(WidgetDS.Typography.body)
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                // Right side - visit details with social context
+                VStack(alignment: .leading, spacing: WidgetDS.Spacing.md) {
+                    // Friend name - 18pt bold, much more prominent
+                    Text(visit.authorDisplayNameOrUsername)
+                        .font(WidgetDS.Typography.contentTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
                         .lineLimit(1)
                     
-                    // Drink type
-                    Text(visit.drinkDisplayName)
-                        .font(WidgetDS.Typography.caption)
+                    // Better time stamp
+                    Text(visit.relativeTimeString)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(WidgetDS.Colors.textTertiary)
-                        .lineLimit(1)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
                     
-                    // Rating
-                    HStack(spacing: WidgetDS.Spacing.sm) {
-                        WidgetStarRating(rating: visit.overallScore, size: 11)
-                        Text(String(format: "%.1f", visit.overallScore))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(WidgetDS.Colors.textSecondary)
-                        
-                        Spacer()
-                        
-                        // Indicator if there are more visits
-                        if totalVisits > 1 {
-                            HStack(spacing: 2) {
-                                ForEach(0..<min(totalVisits, 5), id: \.self) { index in
-                                    Circle()
-                                        .fill(index == 0 ? WidgetDS.Colors.primaryAccent : WidgetDS.Colors.textTertiary.opacity(0.4))
-                                        .frame(width: 4, height: 4)
-                                }
-                            }
+                    Spacer()
+                    
+                    // More prominent cafe name
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(WidgetDS.Colors.primaryAccent)
+                            Text(visit.cafeName)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(WidgetDS.Colors.textPrimary)
+                                .lineLimit(1)
                         }
+                        
+                        // Drink type
+                        Text(visit.drinkDisplayName)
+                            .font(.system(size: 13))
+                            .foregroundColor(WidgetDS.Colors.textSecondary)
+                            .lineLimit(1)
                     }
+                    
+                    // Rating badge
+                    EnhancedBadge(
+                        text: String(format: "%.1f", visit.overallScore),
+                        icon: "star.fill",
+                        backgroundColor: WidgetDS.Colors.yellowAccent.opacity(0.15),
+                        foregroundColor: WidgetDS.Colors.textPrimary
+                    )
                 }
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
     }
     
     private var photoPlaceholder: some View {
         Image(systemName: "cup.and.saucer.fill")
-            .font(.system(size: 18))
-            .foregroundColor(WidgetDS.Colors.primaryAccent.opacity(0.6))
+            .font(.system(size: 28))
+            .foregroundColor(WidgetDS.Colors.primaryAccent.opacity(0.5))
     }
 }
 
-// MARK: - No Friends View
+// MARK: - No Friends View (Friendly illustration encouraging connections)
 
 struct NoFriendsView: View {
     var body: some View {
         Link(destination: WidgetDeepLink.friendsHub!) {
-            VStack(spacing: WidgetDS.Spacing.lg) {
-                HStack {
-                    Image(systemName: "person.2")
-                        .font(.system(size: 10))
+            VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 14))
                         .foregroundColor(WidgetDS.Colors.primaryAccent)
-                    Text("Friends' Latest Sips")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                    Text("Friends")
+                        .font(WidgetDS.Typography.widgetTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
                     Spacer()
                 }
                 
                 Spacer()
                 
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(WidgetDS.Colors.primaryAccent)
+                // Friendly illustration
+                ZStack {
+                    Circle()
+                        .fill(WidgetDS.Gradients.mintSubtle)
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 36, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.primaryAccent)
+                }
                 
-                Text("No sips from friends yet")
-                    .font(WidgetDS.Typography.body)
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                
-                Text("Find friends on Mugshot")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(WidgetDS.Colors.primaryAccent)
+                VStack(spacing: 8) {
+                    Text("Connect with\nFriends")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("See what they're sipping")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                }
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
     }
 }
@@ -341,34 +347,43 @@ struct NoFriendsView: View {
 struct NoRecentVisitsView: View {
     var body: some View {
         Link(destination: WidgetDeepLink.feed!) {
-            VStack(spacing: WidgetDS.Spacing.lg) {
-                HStack {
-                    Image(systemName: "person.2")
-                        .font(.system(size: 10))
+            VStack(spacing: WidgetDS.Spacing.contentSpacing) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 14))
                         .foregroundColor(WidgetDS.Colors.primaryAccent)
-                    Text("Friends' Latest Sips")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                    Text("Friends")
+                        .font(WidgetDS.Typography.widgetTitle)
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
                     Spacer()
                 }
                 
                 Spacer()
                 
-                Image(systemName: "cup.and.saucer")
-                    .font(.system(size: 28))
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
+                ZStack {
+                    Circle()
+                        .fill(WidgetDS.Colors.mintSoftFill)
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: "cup.and.saucer")
+                        .font(.system(size: 36, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.primaryAccent.opacity(0.6))
+                }
                 
-                Text("No recent activity")
-                    .font(WidgetDS.Typography.body)
-                    .foregroundColor(WidgetDS.Colors.textSecondary)
-                
-                Text("Your friends haven't logged visits lately")
-                    .font(WidgetDS.Typography.caption)
-                    .foregroundColor(WidgetDS.Colors.textTertiary)
+                VStack(spacing: 8) {
+                    Text("Quiet Today")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(WidgetDS.Colors.textPrimary)
+                    
+                    Text("No recent sips from friends")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(WidgetDS.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
                 
                 Spacer()
             }
-            .padding(WidgetDS.Spacing.lg)
+            .padding(WidgetDS.Spacing.widgetPadding)
         }
     }
 }

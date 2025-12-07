@@ -19,6 +19,7 @@ struct ProfileTabView: View {
     @State private var showShareSheet = false
     @State private var showNotifications = false
     @State private var showFriendsHub = false
+    @State private var showFeedbackBoard = false
     @State private var selectedVisit: Visit?
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
@@ -196,6 +197,12 @@ struct ProfileTabView: View {
                         }
                     }
                 }
+                
+                Button(action: { showFeedbackBoard = true }) {
+                    Image(systemName: "bubble.left.and.text.bubble.right")
+                        .font(.system(size: 20))
+                        .foregroundColor(DS.Colors.iconDefault)
+                }
                     
                     Button(action: { showEditProfile = true }) {
                         Image(systemName: "gearshape")
@@ -206,6 +213,9 @@ struct ProfileTabView: View {
         }
         .sheet(isPresented: $showNotifications) {
             NotificationsCenterView(dataManager: dataManager)
+        }
+        .sheet(isPresented: $showFeedbackBoard) {
+            FeedbackBoardView(dataManager: dataManager)
         }
         .task {
             do {
