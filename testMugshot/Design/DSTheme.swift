@@ -32,7 +32,7 @@ enum DS {
         static let iconDefault = Color(hex: "6B7280")
         static let iconSubtle = Color(hex: "9CA3AF")
         
-        // Roles
+        // Roles (Legacy Light - for backwards compatibility)
         static let appBarBackground = mintLight
         static let screenBackground = neutralBackground
         static let cardBackground = neutralCard
@@ -46,6 +46,107 @@ enum DS {
         static let positiveChange = mintMain
         static let negativeChange = redAccent
         static let neutralChange = yellowAccent
+        
+        // MARK: - Theme-Aware Dynamic Colors
+        
+        /// Dynamic screen background (adapts to current theme)
+        static var dynamicBackground: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return neutralBackground
+            case .light20: return light20Background
+            case .modernDark: return modernBackground
+            }
+        }
+        
+        /// Dynamic card/surface background
+        static var dynamicCardBackground: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return neutralCard
+            case .light20: return light20Background
+            case .modernDark: return modernSurface
+            }
+        }
+        
+        /// Dynamic alternate card background (for layering)
+        static var dynamicCardBackgroundAlt: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return neutralCardAlt
+            case .light20: return light20Surface
+            case .modernDark: return modernGlass
+            }
+        }
+        
+        /// Dynamic primary text color
+        static var dynamicTextPrimary: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return textPrimary
+            case .light20: return light20CharcoalBlack
+            case .modernDark: return modernTextPrimary
+            }
+        }
+        
+        /// Dynamic secondary text color
+        static var dynamicTextSecondary: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return textSecondary
+            case .light20: return light20TextSecondary
+            case .modernDark: return modernTextSecondary
+            }
+        }
+        
+        /// Dynamic tertiary text color
+        static var dynamicTextTertiary: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return textTertiary
+            case .light20: return light20TextTertiary
+            case .modernDark: return modernTextTertiary
+            }
+        }
+        
+        /// Dynamic primary accent color
+        static var dynamicPrimaryAccent: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return mintMain
+            case .light20: return light20MintPrimary
+            case .modernDark: return modernAccent
+            }
+        }
+        
+        /// Dynamic text on accent color
+        static var dynamicTextOnAccent: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return textOnMint
+            case .light20: return light20TextOnMint
+            case .modernDark: return modernTextOnMint
+            }
+        }
+        
+        /// Dynamic border color
+        static var dynamicBorder: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return neutralBorder
+            case .light20: return light20BorderLight
+            case .modernDark: return modernGlassBorder
+            }
+        }
+        
+        /// Dynamic divider color
+        static var dynamicDivider: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return neutralDivider
+            case .light20: return light20Divider
+            case .modernDark: return modernDivider
+            }
+        }
+        
+        /// Dynamic icon color (inactive state)
+        static var dynamicIconInactive: Color {
+            switch ThemeManager.shared.currentTheme {
+            case .legacyLight: return iconDefault
+            case .light20: return light20IconInactive
+            case .modernDark: return modernIconInactive
+            }
+        }
     }
     
     enum Typography {

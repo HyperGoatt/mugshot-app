@@ -288,3 +288,6 @@ GET /users?or=(username.ilike.*Joe (Creator)*,display_name.ilike.*Joe (Creator)*
 **Date**: December 2024  
 **Priority**: Critical (broken UX)  
 **Breaking Changes**: None (backward compatible)
+
+
+

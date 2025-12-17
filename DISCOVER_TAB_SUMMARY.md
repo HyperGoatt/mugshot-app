@@ -320,3 +320,6 @@ Your Discover tab is now a **personalized exploration engine** that:
 All that's left is to **add the files to Xcode** and **test**! 
 
 Enjoy your newly transformed Discover tab! ☕️✨
+
+
+

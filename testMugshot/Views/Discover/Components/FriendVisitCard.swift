@@ -180,3 +180,6 @@ struct FriendVisitCard: View {
     }
     .background(DS.Colors.screenBackground)
 }
+
+
+

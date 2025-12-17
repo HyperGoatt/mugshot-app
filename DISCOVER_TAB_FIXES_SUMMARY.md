@@ -157,3 +157,6 @@ Build completed successfully with no errors.
 3. **Caching**: Cache Apple Maps results to reduce API calls
 4. **Error handling**: Better messaging if location is disabled
 5. **Empty state**: More informative if no cafes found in radius
+
+
+

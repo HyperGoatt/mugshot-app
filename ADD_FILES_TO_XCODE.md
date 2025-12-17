@@ -1,6 +1,25 @@
 # Adding New Files to Xcode Project
 
-## New Files Created
+## ⚠️ IMPORTANT: Phase 3 Modern Dark Mode Files
+
+The following NEW files from Phase 3 need to be added to Xcode:
+
+### Design Files
+- `testMugshot/Design/ModernTextFieldStyles.swift`
+
+### Modern View Components
+- `testMugshot/Views/Modern/Components/ModernMapLegend.swift`
+- `testMugshot/Views/Modern/Components/ModernCafeListCard.swift`
+- `testMugshot/Views/Modern/Components/ProfileCafesView.swift`
+- `testMugshot/Views/Modern/Components/ProfileJournalView.swift`
+
+### Modern Views
+- `testMugshot/Views/Modern/ModernNotificationsView.swift`
+- `testMugshot/Views/Modern/ModernSocialHubView.swift`
+
+---
+
+## Previous Files (Discover Tab)
 
 The following files have been created for the Discover tab redesign:
 
@@ -26,7 +45,21 @@ The following files have been created for the Discover tab redesign:
 - **Path**: `testMugshot/Services/DataManager.swift`
 - **Purpose**: Added helper methods for Discover tab data queries
 
-## Steps to Add Files to Xcode
+## 🔧 QUICK FIX FOR BUILD ERROR
+
+**If you're seeing "Multiple commands produce ProfileJournalView.stringsdata":**
+
+1. **Clean Build Folder** (⇧⌘K in Xcode)
+2. **Delete Derived Data**:
+   ```bash
+   rm -rf ~/Library/Developer/Xcode/DerivedData/testMugshot-*
+   ```
+3. **Add the missing files** (see instructions below)
+4. **Rebuild** (⌘B)
+
+---
+
+## Steps to Add Phase 3 Files to Xcode
 
 ### Option 1: Using Xcode (Recommended)
 
@@ -35,33 +68,58 @@ The following files have been created for the Discover tab redesign:
    open testMugshot.xcodeproj
    ```
 
-2. **Add the new files**:
+2. **Add Phase 3 Design Files**:
    - In Xcode, select the project navigator (⌘1)
-   - Navigate to `testMugshot/Views/Discover/`
+   - Navigate to `testMugshot/Design/`
+   - Right-click on the `Design` folder
+   - Select "Add Files to 'testMugshot'..."
+   - Navigate to `testMugshot/Design/` and select:
+     - `ModernTextFieldStyles.swift`
+   - **IMPORTANT**: Make sure "Copy items if needed" is UNCHECKED
+   - **IMPORTANT**: Make sure "testMugshot" target is CHECKED
+   - Click "Add"
+
+3. **Add Phase 3 Modern Components**:
+   - Navigate to `testMugshot/Views/Modern/Components/`
+   - Right-click on the `Components` folder
+   - Select "Add Files to 'testMugshot'..."
+   - Navigate to `testMugshot/Views/Modern/Components/` and select ALL of these:
+     - `ModernMapLegend.swift`
+     - `ModernCafeListCard.swift`
+     - `ProfileCafesView.swift`
+     - `ProfileJournalView.swift`
+   - **IMPORTANT**: Make sure "Copy items if needed" is UNCHECKED
+   - **IMPORTANT**: Make sure "testMugshot" target is CHECKED
+   - Click "Add"
+
+4. **Add Phase 3 Modern Views**:
+   - Navigate to `testMugshot/Views/Modern/`
+   - Right-click on the `Modern` folder
+   - Select "Add Files to 'testMugshot'..."
+   - Navigate to `testMugshot/Views/Modern/` and select:
+     - `ModernNotificationsView.swift`
+     - `ModernSocialHubView.swift`
+   - **IMPORTANT**: Make sure "Copy items if needed" is UNCHECKED
+   - **IMPORTANT**: Make sure "testMugshot" target is CHECKED
+   - Click "Add"
+
+5. **Add Discover Tab Files** (if not already added):
+   - Navigate to `testMugshot/Views/Discover/Components/`
    - Right-click on the `Components` folder
    - Select "Add Files to 'testMugshot'..."
    - Navigate to and select:
      - `FriendVisitCard.swift`
      - `NearbyCafeCard.swift`
-   - **IMPORTANT**: Make sure "Copy items if needed" is UNCHECKED
-   - **IMPORTANT**: Make sure "testMugshot" target is CHECKED
+   - Make sure "testMugshot" target is CHECKED
    - Click "Add"
 
-3. **Add the Helpers folder**:
+6. **Add the Discover Helpers folder** (if not already added):
    - Right-click on `testMugshot/Views/Discover/`
    - Select "Add Files to 'testMugshot'..."
    - Navigate to and select the `Helpers` folder
    - **IMPORTANT**: Check "Create groups"
    - **IMPORTANT**: Make sure "testMugshot" target is CHECKED
    - Click "Add"
-
-4. **Verify DiscoverContentView.swift is in the project**:
-   - Search for `DiscoverContentView.swift` in the project navigator
-   - If it's not there or shows as red/missing:
-     - Right-click on `testMugshot/Views/Discover/`
-     - Select "Add Files to 'testMugshot'..."
-     - Navigate to and select `DiscoverContentView.swift`
-     - Add it to the project
 
 ### Option 2: Using Terminal (Alternative)
 
@@ -185,3 +243,4 @@ Before committing:
 - Implementation details: `DISCOVER_TAB_IMPLEMENTATION.md`
 - Design system: `design-system.json`
 - Design tokens: `testMugshot/Design/DSTheme.swift`
+

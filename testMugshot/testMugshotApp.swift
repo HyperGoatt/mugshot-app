@@ -18,6 +18,7 @@ struct testMugshotApp: App {
     @StateObject private var profileNavigator = ProfileNavigator()
     // PERF: HapticsManager singleton provided as environment object to prevent wasteful recreation in every view
     @StateObject private var hapticsManager = HapticsManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     
@@ -50,6 +51,7 @@ struct testMugshotApp: App {
                 .environmentObject(tabCoordinator)
                 .environmentObject(profileNavigator)
                 .environmentObject(hapticsManager)
+                .environmentObject(themeManager)
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -202,13 +204,35 @@ struct testMugshotApp: App {
                 .preferredColorScheme(.light)
         } else {
             // Step 5: Fully authenticated and setup - show main app
-            MainTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .preferredColorScheme(.light)
-                .onAppear {
-                    // Sync widget data when main app becomes visible
-                    syncWidgetData()
-                }
+            // Render appropriate view based on theme
+            switch themeManager.currentTheme {
+            case .legacyLight:
+                // Legacy Light theme
+                MainTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .preferredColorScheme(.light)
+                    .onAppear {
+                        syncWidgetData()
+                    }
+                
+            case .light20:
+                // Light 2.0 theme
+                Light20RootView(dataManager: dataManager, tabCoordinator: tabCoordinator)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .preferredColorScheme(.light)
+                    .onAppear {
+                        syncWidgetData()
+                    }
+                
+            case .modernDark:
+                // Modern Dark theme
+                ModernRootView(dataManager: dataManager, tabCoordinator: tabCoordinator)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .preferredColorScheme(.dark)
+                    .onAppear {
+                        syncWidgetData()
+                    }
+            }
         }
     }
     

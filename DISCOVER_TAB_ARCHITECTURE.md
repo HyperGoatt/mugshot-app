@@ -400,3 +400,6 @@ TrendingCafesCarousel()
 **Maintainability**: Clear data flow and component hierarchy  
 
 The Discover tab is now a **personalized discovery engine** that scales with your user base! 🚀
+
+
+

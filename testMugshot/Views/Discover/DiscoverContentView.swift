@@ -12,6 +12,7 @@ import CoreLocation
 struct DiscoverContentView: View {
     @ObservedObject var dataManager: DataManager
     @StateObject private var locationManager = LocationManager()
+    @EnvironmentObject private var themeManager: ThemeManager
     
     // State for Spin feature
     @State private var showSpinResult = false
@@ -23,6 +24,22 @@ struct DiscoverContentView: View {
     // Callbacks
     var onCafeTap: ((Cafe) -> Void)?
     var onVisitTap: ((Visit) -> Void)?
+    
+    private var textPrimary: Color {
+        themeManager.isModernDark ? DS.Colors.modernTextPrimary : DS.Colors.textPrimary
+    }
+    
+    private var textSecondary: Color {
+        themeManager.isModernDark ? DS.Colors.modernTextSecondary : DS.Colors.textSecondary
+    }
+    
+    private var cardBackground: Color {
+        themeManager.isModernDark ? DS.Colors.modernSurface : DS.Colors.cardBackground
+    }
+    
+    private var accentColor: Color {
+        themeManager.isModernDark ? DS.Colors.modernAccent : DS.Colors.primaryAccent
+    }
     
     var body: some View {
         ScrollView {
@@ -68,11 +85,11 @@ struct DiscoverContentView: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(greeting)
                 .font(DS.Typography.title1())
-                .foregroundColor(DS.Colors.textPrimary)
+                .foregroundColor(textPrimary)
             
             Text(formattedDate)
                 .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
+                .foregroundColor(textSecondary)
         }
         .padding(.horizontal, DS.Spacing.pagePadding)
     }
@@ -106,12 +123,12 @@ struct DiscoverContentView: View {
                 Text("Spin for a Spot")
                     .font(DS.Typography.buttonLabel)
             }
-            .foregroundColor(DS.Colors.textOnMint)
+            .foregroundColor(themeManager.isModernDark ? .white : DS.Colors.textOnMint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, DS.Spacing.md)
-            .background(DS.Colors.primaryAccent)
+            .background(accentColor)
             .cornerRadius(DS.Radius.primaryButton)
-            .dsCardShadow()
+            .shadow(color: accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
         }
         .padding(.horizontal, DS.Spacing.pagePadding)
     }
@@ -123,7 +140,7 @@ struct DiscoverContentView: View {
             // Section Header
             Text("What your friends are sipping")
                 .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
+                .foregroundColor(textPrimary)
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Horizontal Scroll of Friend Visit Cards
@@ -157,17 +174,17 @@ struct DiscoverContentView: View {
             
             Text("Your Sip Squad is quiet")
                 .font(DS.Typography.subheadline(.semibold))
-                .foregroundColor(DS.Colors.textSecondary)
+                .foregroundColor(textSecondary)
             
             Text("Be the first to log a sip today!")
                 .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
+                .foregroundColor(textSecondary)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 160)
-        .background(DS.Colors.cardBackground)
+        .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .dsCardShadow()
+        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Cafes Near You (Top 5)
@@ -177,7 +194,7 @@ struct DiscoverContentView: View {
             // Section Header
             Text("Cafes near you")
                 .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
+                .foregroundColor(textPrimary)
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             if isLoadingCafes {
@@ -209,16 +226,16 @@ struct DiscoverContentView: View {
     private var loadingPlaceholder: some View {
         HStack(spacing: DS.Spacing.sm) {
             ProgressView()
-                .tint(DS.Colors.primaryAccent)
+                .tint(accentColor)
             Text("Finding cafes nearby...")
                 .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
+                .foregroundColor(textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DS.Spacing.xl)
-        .background(DS.Colors.cardBackground)
+        .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .dsCardShadow()
+        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
     }
     
     private var emptyNearbyCafesPlaceholder: some View {
@@ -229,17 +246,17 @@ struct DiscoverContentView: View {
             
             Text(locationManager.location == nil ? "Location unavailable" : "No cafes found nearby")
                 .font(DS.Typography.subheadline(.semibold))
-                .foregroundColor(DS.Colors.textSecondary)
+                .foregroundColor(textSecondary)
             
             Text(locationManager.location == nil ? "Check location permissions" : "Try again later")
                 .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
+                .foregroundColor(textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DS.Spacing.xl)
-        .background(DS.Colors.cardBackground)
+        .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .dsCardShadow()
+        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Nearby Cafes Data Structure
@@ -305,3 +322,4 @@ struct DiscoverContentView: View {
     }
     .background(DS.Colors.screenBackground)
 }
+

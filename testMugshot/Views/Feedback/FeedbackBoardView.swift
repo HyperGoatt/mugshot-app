@@ -11,6 +11,7 @@ struct FeedbackBoardView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var hapticsManager: HapticsManager
+    @EnvironmentObject private var themeManager: ThemeManager
     
     // State
     @State private var posts: [FeedbackPost] = []
@@ -27,10 +28,18 @@ struct FeedbackBoardView: View {
         dataManager.appData.supabaseUserId
     }
     
+    private var backgroundColor: Color {
+        themeManager.isModernDark ? DS.Colors.modernBackground : DS.Colors.screenBackground
+    }
+    
+    private var accentColor: Color {
+        themeManager.isModernDark ? DS.Colors.modernAccent : DS.Colors.primaryAccent
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                DS.Colors.screenBackground
+                backgroundColor
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -58,11 +67,11 @@ struct FeedbackBoardView: View {
                         }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(DS.Colors.textOnMint)
+                                .foregroundColor(themeManager.isModernDark ? .white : DS.Colors.textOnMint)
                                 .frame(width: 56, height: 56)
-                                .background(DS.Colors.primaryAccent)
+                                .background(accentColor)
                                 .clipShape(Circle())
-                                .dsLiftedShadow()
+                                .shadow(color: accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
                         }
                         .padding(.trailing, DS.Spacing.pagePadding)
                         .padding(.bottom, DS.Spacing.xxl)
@@ -76,7 +85,7 @@ struct FeedbackBoardView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .foregroundColor(DS.Colors.primaryAccent)
+                    .foregroundColor(accentColor)
                 }
             }
             .task {
@@ -343,3 +352,4 @@ private struct FilterPill: View {
         .buttonStyle(.plain)
     }
 }
+

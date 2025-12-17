@@ -162,3 +162,6 @@ struct NearbyCafeCard: View {
     .padding()
     .background(DS.Colors.screenBackground)
 }
+
+
+

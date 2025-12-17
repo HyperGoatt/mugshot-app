@@ -256,3 +256,6 @@ This implementation transforms the Discover tab into a personalized, engaging su
 - **Engage** with the Mugshot community through visual, data-rich cards
 
 The design follows Mugshot's mint-themed, card-based aesthetic while providing high-value, actionable information to users.
+
+
+

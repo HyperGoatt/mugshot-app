@@ -375,3 +375,6 @@ The implementation is **complete and ready for testing**. All database, backend,
 - **Collapse state**: Currently threads are expanded by default. Collapse state is stored in view state (not persisted across app restarts).
 - **Reply depth**: Currently limited to 1 level (replies to top-level only). This keeps the UI clean and is standard for social apps.
 
+
+
+

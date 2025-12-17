@@ -368,3 +368,6 @@ final class SupabaseFeedbackService {
 private struct InsertedFeedbackPost: Decodable {
     let id: UUID
 }
+
+
+
