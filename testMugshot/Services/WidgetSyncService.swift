@@ -275,7 +275,10 @@ final class WidgetSyncService {
         // 1. Match by local cafeId
         // 2. Match by supabaseCafeId -> cafe.supabaseId
         // 3. Match by supabaseCafeId -> cafe.id (in case IDs were synced)
-        var cafe: Cafe? = cafes.first { $0.id == visit.cafeId }
+        var cafe: Cafe? = nil
+        if let cafeId = visit.cafeId {
+            cafe = cafes.first { $0.id == cafeId }
+        }
         
         if cafe == nil, let supabaseCafeId = visit.supabaseCafeId {
             cafe = cafes.first { $0.supabaseId == supabaseCafeId }
@@ -286,15 +289,18 @@ final class WidgetSyncService {
         }
         
         #if DEBUG
-        if cafe == nil {
-            print("[WidgetSync] ⚠️ Could not find cafe for visit - cafeId: \(visit.cafeId), supabaseCafeId: \(visit.supabaseCafeId?.uuidString ?? "nil")")
+        if cafe == nil && !visit.isLocationless {
+            print("[WidgetSync] ⚠️ Could not find cafe for visit - cafeId: \(visit.cafeId?.uuidString ?? "nil"), supabaseCafeId: \(visit.supabaseCafeId?.uuidString ?? "nil")")
         }
         #endif
         
+        let displayCafeName = cafe?.name ?? visit.locationName ?? "Craft Sip"
+        let displayCafeId = visit.cafeId?.uuidString ?? visit.supabaseCafeId?.uuidString ?? "locationless"
+        
         return WidgetVisit(
             id: visit.id.uuidString,
-            cafeId: visit.cafeId.uuidString,
-            cafeName: cafe?.name ?? "Unknown Cafe",
+            cafeId: displayCafeId,
+            cafeName: displayCafeName,
             cafeCity: cafe?.city,
             drinkType: visit.drinkType.rawValue,
             customDrinkType: visit.customDrinkType,

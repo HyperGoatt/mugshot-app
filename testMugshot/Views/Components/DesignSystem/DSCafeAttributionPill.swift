@@ -9,33 +9,38 @@ import SwiftUI
 
 struct DSCafeAttributionPill: View {
     let cafeName: String
+    var icon: String = "location.fill"
+    var isTappable: Bool = true
     var onTap: (() -> Void)? = nil
     
     var body: some View {
-        Button(action: { onTap?() }) {
+        Button(action: { if isTappable { onTap?() } }) {
             HStack(spacing: 4) {
-                Image(systemName: "location.fill")
+                Image(systemName: icon)
                     .font(.system(size: 11, weight: .medium))
                 
                 Text(cafeName)
                     .font(DS.Typography.subheadline(.medium))
                     .lineLimit(1)
                 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .opacity(0.7)
+                if isTappable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .opacity(0.7)
+                }
             }
-            .foregroundColor(DS.Colors.textOnMint)
+            .foregroundColor(isTappable ? DS.Colors.textOnMint : DS.Colors.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(DS.Colors.mintSoftFill)
+            .background(isTappable ? DS.Colors.mintSoftFill : DS.Colors.cardBackgroundAlt)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(DS.Colors.primaryAccent.opacity(0.3), lineWidth: 0.5)
+                    .stroke(isTappable ? DS.Colors.primaryAccent.opacity(0.3) : DS.Colors.borderSubtle, lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
+        .disabled(!isTappable)
     }
 }
 

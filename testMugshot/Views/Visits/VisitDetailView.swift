@@ -49,7 +49,10 @@ struct VisitDetailView: View {
     }
     
     private var cafe: Cafe? {
-        dataManager.getCafe(id: visit.cafeId)
+        if let cafeId = visit.cafeId {
+            return dataManager.getCafe(id: cafeId)
+        }
+        return nil
     }
     
     private var authorProfileImage: UIImage? {
@@ -155,9 +158,16 @@ struct VisitDetailView: View {
                 .padding(.horizontal, DS.Spacing.pagePadding)
                 .padding(.top, DS.Spacing.md)
                 
-                // 2. Cafe Attribution Pill
-                if let cafeName = cafe?.name, !cafeName.isEmpty {
-                    DSCafeAttributionPill(cafeName: cafeName) {
+                // 2. Location/Context Pill
+                let displayLocation = visit.displayLocationName { id in
+                    dataManager.getCafe(id: id)
+                }
+                if !displayLocation.isEmpty {
+                    DSCafeAttributionPill(
+                        cafeName: displayLocation,
+                        icon: visit.contextType.icon,
+                        isTappable: visit.cafeId != nil
+                    ) {
                         if let cafe = cafe {
                             selectedCafe = cafe
                             showCafeDetail = true
@@ -221,6 +231,7 @@ struct VisitDetailView: View {
                         drinkType: visit.drinkType,
                         customDrinkType: visit.customDrinkType,
                         drinkSubtype: visit.drinkSubtype,
+                        brewMethod: visit.brewMethod,
                         ratings: visit.ratings
                     )
                     .padding(.horizontal, DS.Spacing.pagePadding)

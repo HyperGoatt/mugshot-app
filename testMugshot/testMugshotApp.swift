@@ -15,7 +15,7 @@ struct testMugshotApp: App {
     @StateObject private var dataManager = DataManager.shared
     @StateObject private var supabaseEnvironment = SupabaseEnvironment()
     @StateObject private var tabCoordinator = TabCoordinator()
-    @StateObject private var profileNavigator = ProfileNavigator()
+    @StateObject private var profileNavigator = ProfileNavigator(dataManager: DataManager.shared)
     // PERF: HapticsManager singleton provided as environment object to prevent wasteful recreation in every view
     @StateObject private var hapticsManager = HapticsManager.shared
     @StateObject private var themeManager = ThemeManager.shared
@@ -204,35 +204,13 @@ struct testMugshotApp: App {
                 .preferredColorScheme(.light)
         } else {
             // Step 5: Fully authenticated and setup - show main app
-            // Render appropriate view based on theme
-            switch themeManager.currentTheme {
-            case .legacyLight:
-                // Legacy Light theme
-                MainTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .preferredColorScheme(.light)
-                    .onAppear {
-                        syncWidgetData()
-                    }
-                
-            case .light20:
-                // Light 2.0 theme
-                Light20RootView(dataManager: dataManager, tabCoordinator: tabCoordinator)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .preferredColorScheme(.light)
-                    .onAppear {
-                        syncWidgetData()
-                    }
-                
-            case .modernDark:
-                // Modern Dark theme
-                ModernRootView(dataManager: dataManager, tabCoordinator: tabCoordinator)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .preferredColorScheme(.dark)
-                    .onAppear {
-                        syncWidgetData()
-                    }
-            }
+            // Always show Legacy Light theme
+            MainTabView(dataManager: dataManager, tabCoordinator: tabCoordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .preferredColorScheme(.light)
+                .onAppear {
+                    syncWidgetData()
+                }
         }
     }
     

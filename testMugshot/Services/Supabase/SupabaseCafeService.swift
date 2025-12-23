@@ -6,7 +6,7 @@
 import Foundation
 import CoreLocation
 
-final class SupabaseCafeService {
+final class SupabaseCafeService: @unchecked Sendable {
     static let shared = SupabaseCafeService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient

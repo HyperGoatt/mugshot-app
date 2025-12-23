@@ -21,6 +21,7 @@ struct User: Identifiable, Codable {
     var instagramURL: String? // Instagram profile URL
     var websiteURL: String? // Personal website URL
     var favoriteDrink: String? // User's self-declared favorite drink
+    var savedSetups: [String] = [] // User's saved brew setups/locations
     
     init(
         id: UUID = UUID(),
@@ -35,7 +36,8 @@ struct User: Identifiable, Codable {
         bio: String = "",
         instagramURL: String? = nil,
         websiteURL: String? = nil,
-        favoriteDrink: String? = nil
+        favoriteDrink: String? = nil,
+        savedSetups: [String] = []
     ) {
         self.id = id
         self.supabaseUserId = supabaseUserId
@@ -50,6 +52,7 @@ struct User: Identifiable, Codable {
         self.instagramURL = instagramURL
         self.websiteURL = websiteURL
         self.favoriteDrink = favoriteDrink
+        self.savedSetups = savedSetups
     }
     
     // Computed property for display

@@ -769,8 +769,8 @@ class DataManager: ObservableObject {
             #endif
             
             // PERF: Run friends list and notifications refresh in parallel
-            async let friendsTask = refreshFriendsList()
-            async let notificationsTask = refreshNotifications()
+            async let friendsTask: Void = refreshFriendsList()
+            async let notificationsTask: Void = refreshNotifications()
             
             await friendsTask
             await notificationsTask
@@ -954,6 +954,9 @@ class DataManager: ObservableObject {
         if let bannerURL = profile.bannerURL {
             appData.currentUserBannerURL = bannerURL
         }
+        if let savedSetups = profile.savedSetups {
+            appData.currentUserSavedSetups = savedSetups
+        }
 
         // When creating localUser, use the preserved appData values (which may be local signup values)
         let remoteUUID = UUID(uuidString: profile.id) ?? appData.currentUser?.id ?? UUID()
@@ -969,7 +972,8 @@ class DataManager: ObservableObject {
             bio: profile.bio ?? appData.currentUserBio ?? "",
             instagramURL: profile.instagramHandle,
             websiteURL: profile.websiteURL ?? appData.currentUser?.websiteURL,
-            favoriteDrink: profile.favoriteDrink ?? appData.currentUserFavoriteDrink
+            favoriteDrink: profile.favoriteDrink ?? appData.currentUserFavoriteDrink,
+            savedSetups: profile.savedSetups ?? appData.currentUserSavedSetups
         )
         localUser.supabaseUserId = profile.id
         appData.currentUser = localUser
@@ -996,6 +1000,7 @@ class DataManager: ObservableObject {
         favoriteDrink: String?,
         instagramHandle: String?,
         websiteURL: String?,
+        savedSetups: [String]?,
         avatarImage: UIImage?,
         bannerImage: UIImage?
     ) async throws {
@@ -1039,6 +1044,7 @@ class DataManager: ObservableObject {
         payload.favoriteDrink = favoriteDrink
         payload.instagramHandle = instagramHandle
         payload.websiteURL = websiteURL
+        payload.savedSetups = savedSetups
         if let avatarURL = avatarURL {
             payload.avatarURL = avatarURL
         }
@@ -1059,6 +1065,7 @@ class DataManager: ObservableObject {
             updatedUser.favoriteDrink = savedProfile.favoriteDrink
             updatedUser.instagramURL = savedProfile.instagramHandle
             updatedUser.websiteURL = websiteURL
+            updatedUser.savedSetups = savedProfile.savedSetups ?? []
             // Preserve id - never change identity
             appData.currentUser = updatedUser
         }
@@ -1073,6 +1080,7 @@ class DataManager: ObservableObject {
         appData.currentUserWebsite = websiteURL
         appData.currentUserAvatarURL = avatarURL
         appData.currentUserBannerURL = bannerURL
+        appData.currentUserSavedSetups = savedProfile.savedSetups ?? []
         
         save()
         print("[Identity] Profile updated successfully - userId=\(supabaseUserId) (unchanged), username=\(savedProfile.username), displayName=\(savedProfile.displayName)")
@@ -1125,6 +1133,67 @@ class DataManager: ObservableObject {
         // when the user logs in again or if they uninstall the app
         
         print("[Logout] ✅ Local state cleared successfully")
+    }
+    
+    // MARK: - Craft Sip Presets
+    
+    func addSavedSetup(_ setupName: String) {
+        let trimmed = setupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        if !appData.currentUserSavedSetups.contains(trimmed) {
+            appData.currentUserSavedSetups.append(trimmed)
+            if appData.currentUserSavedSetups.count > 10 {
+                appData.currentUserSavedSetups.removeFirst()
+            }
+            save()
+            
+            // Sync to remote if authenticated
+            if let supabaseUserId = appData.supabaseUserId {
+                Task {
+                    try? await updateCurrentUserProfile(
+                        displayName: appData.currentUserDisplayName,
+                        username: appData.currentUserUsername ?? "user",
+                        bio: appData.currentUserBio,
+                        location: appData.currentUserLocation,
+                        favoriteDrink: appData.currentUserFavoriteDrink,
+                        instagramHandle: appData.currentUserInstagramHandle,
+                        websiteURL: appData.currentUserWebsite,
+                        savedSetups: appData.currentUserSavedSetups,
+                        avatarImage: nil,
+                        bannerImage: nil
+                    )
+                }
+            }
+        }
+    }
+    
+    func removeSavedSetup(_ setupName: String) {
+        // ... (existing removeSavedSetup logic) ...
+    }
+    
+    // MARK: - Geocoding
+    
+    func getCityState(for location: CLLocation) async -> String? {
+        let geocoder = CLGeocoder()
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            guard let placemark = placemarks.first else { return nil }
+            
+            let city = placemark.locality ?? placemark.subLocality
+            let state = placemark.administrativeArea
+            
+            if let city = city, let state = state {
+                return "\(city), \(state)"
+            } else if let city = city {
+                return city
+            } else {
+                return state
+            }
+        } catch {
+            print("⚠️ [Geocoding] Reverse geocoding failed: \(error.localizedDescription)")
+            return nil
+        }
     }
     
     func deleteAccount() async throws {
@@ -1426,7 +1495,11 @@ class DataManager: ObservableObject {
     /// - User must exist in public.users (foreign key constraint)
     /// - RLS policy requires auth.uid() = user_id
     func createVisit(
-        cafe: Cafe,
+        cafe: Cafe?,
+        locationName: String? = nil,
+        brewMethod: String? = nil,
+        contextType: ContextType = .cafe,
+        cityState: String? = nil,
         drinkType: DrinkType,
         customDrinkType: String?,
         drinkSubtype: String?,
@@ -1461,26 +1534,31 @@ class DataManager: ObservableObject {
             throw SupabaseError.invalidSession
         }
         
-        // Log cafe details at start of visit creation
+        // Log details at start of visit creation
         print("📝 [CreateVisit] ===== STARTING VISIT CREATION =====")
-        print("📝 [CreateVisit] Cafe: '\(cafe.name)' (id: \(cafe.id), supabaseId: \(cafe.supabaseId?.uuidString ?? "nil"))")
-        print("📝 [CreateVisit] Cafe has location: \(cafe.location != nil ? "✅ (\(cafe.location!.latitude), \(cafe.location!.longitude))" : "❌ nil")")
+        if let cafe = cafe {
+            print("📝 [CreateVisit] Cafe: '\(cafe.name)' (id: \(cafe.id), supabaseId: \(cafe.supabaseId?.uuidString ?? "nil"))")
+            print("📝 [CreateVisit] Cafe has location: \(cafe.location != nil ? "✅ (\(cafe.location!.latitude), \(cafe.location!.longitude))" : "❌ nil")")
+        } else {
+            print("📝 [CreateVisit] Locationless Visit: \(locationName ?? "No name")")
+        }
         
-        // Verify user exists in public.users (required for foreign key constraint)
-        // This should already be true if user completed profile setup, but let's log it
-        print("📝 [CreateVisit] Verifying user exists in public.users...")
-        
-        // Find or create cafe in Supabase, preserving location from local cafe
-        let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
-        // Upsert the cafe, ensuring location is preserved if remote doesn't have it
-        let upsertedCafe = upsertCafe(from: remoteCafe)
-        
-        // If the remote cafe doesn't have a location but our local cafe does, preserve it
-        if upsertedCafe.location == nil && cafe.location != nil {
-            if let cafeIndex = appData.cafes.firstIndex(where: { ($0.supabaseId ?? $0.id) == upsertedCafe.id }) {
-                appData.cafes[cafeIndex].location = cafe.location
-                print("[Visit] Preserved cafe location from local cafe: \(cafe.location!)")
-                save()
+        // Handle cafe logic if present
+        var finalRemoteCafeId: UUID? = nil
+        if let cafe = cafe {
+            // Find or create cafe in Supabase, preserving location from local cafe
+            let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
+            // Upsert the cafe, ensuring location is preserved if remote doesn't have it
+            let upsertedCafe = upsertCafe(from: remoteCafe)
+            finalRemoteCafeId = remoteCafe.id
+            
+            // If the remote cafe doesn't have a location but our local cafe does, preserve it
+            if upsertedCafe.location == nil && cafe.location != nil {
+                if let cafeIndex = appData.cafes.firstIndex(where: { ($0.supabaseId ?? $0.id) == upsertedCafe.id }) {
+                    appData.cafes[cafeIndex].location = cafe.location
+                    print("[Visit] Preserved cafe location from local cafe: \(cafe.location!)")
+                    save()
+                }
             }
         }
         
@@ -1508,10 +1586,6 @@ class DataManager: ObservableObject {
         }
         
         // Validate and clean ratings
-        // 1. Remove any NaN or infinite values
-        // 2. Ensure value is between 0 and 5
-        // 3. Filter to only include categories currently in the user's template (to remove stale categories like "Value")
-        // 4. Only include ratings > 0 (0 means not rated)
         var validRatings: [String: Double] = [:]
         let templateCategories = Set(appData.ratingTemplate.categories.map { $0.name })
         
@@ -1558,9 +1632,9 @@ class DataManager: ObservableObject {
         let finalDrinkSubtype = drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanDrinkSubtype = finalDrinkSubtype?.isEmpty == true ? nil : finalDrinkSubtype
         
-        let payload = VisitInsertPayload(
+        var payload = VisitInsertPayload(
             userId: supabaseUserId,
-            cafeId: remoteCafe.id,
+            cafeId: finalRemoteCafeId,
             drinkType: finalDrinkType,
             drinkTypeCustom: finalDrinkTypeCustom,
             drinkSubtype: cleanDrinkSubtype,
@@ -1572,11 +1646,21 @@ class DataManager: ObservableObject {
             posterPhotoURL: posterURL
         )
         
+        // Set Craft Sip fields
+        payload.locationName = locationName
+        payload.brewMethod = brewMethod
+        payload.contextType = contextType.rawValue
+        payload.cityState = cityState
+        
         do {
             print("[Visit] ===== Creating Visit =====")
             print("[Visit] userId = \(supabaseUserId)")
-            print("[Visit] cafeId = \(remoteCafe.id)")
-            print("[Visit] cafeName = \(remoteCafe.name)")
+            print("[Visit] cafeId = \(payload.cafeId?.uuidString ?? "nil")")
+            if let cafe = cafe {
+                print("[Visit] cafeName = \(cafe.name)")
+            } else {
+                print("[Visit] locationName = \(locationName ?? "nil")")
+            }
             print("[Visit] drinkType = \(payload.drinkType ?? "nil")")
             print("[Visit] drinkTypeCustom = \(payload.drinkTypeCustom ?? "nil")")
             print("[Visit] caption = \(payload.caption.prefix(100))...")
@@ -1606,7 +1690,7 @@ class DataManager: ObservableObject {
             visit.mentions = mentions
             
             print("[Visit] ===== UPDATING CAFE STATS AFTER VISIT CREATION =====")
-            print("[Visit] Visit cafeId=\(visit.cafeId), supabaseCafeId=\(visit.supabaseCafeId?.uuidString ?? "nil")")
+            print("[Visit] Visit cafeId=\(visit.cafeId?.uuidString ?? "nil"), supabaseCafeId=\(visit.supabaseCafeId?.uuidString ?? "nil")")
             
             // CRITICAL: Update cafe's visitCount BEFORE merging visits
             // This ensures the map shows the pin immediately
@@ -1671,8 +1755,8 @@ class DataManager: ObservableObject {
         PhotoCache.shared.preloadImages(for: visit.photos)
         
         // Update cafe stats
-        if let cafeIndex = appData.cafes.firstIndex(where: { $0.id == visit.cafeId }) {
-            let cafeVisits = visits(for: visit.userId).filter { $0.cafeId == visit.cafeId }
+        if let cafeId = visit.cafeId, let cafeIndex = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
+            let cafeVisits = visits(for: visit.userId).filter { $0.cafeId == cafeId }
             appData.cafes[cafeIndex].visitCount = cafeVisits.count
             
             // Recalculate average rating for the cafe
@@ -1918,6 +2002,10 @@ class DataManager: ObservableObject {
             visibility: visit.visibility.supabaseValue,
             ratings: validRatings,
             overallScore: visit.overallScore,
+            locationName: visit.locationName,
+            brewMethod: visit.brewMethod,
+            contextType: visit.contextType.rawValue,
+            cityState: visit.generalLocation,
             posterPhotoURL: visit.posterPhotoURL
         )
         
@@ -1942,8 +2030,8 @@ class DataManager: ObservableObject {
             appData.visits.removeAll { $0.id == id }
             
             // Update cafe stats
-            if let cafeIndex = appData.cafes.firstIndex(where: { $0.id == visit.cafeId }) {
-                let cafeVisits = visits(for: visit.userId).filter { $0.cafeId == visit.cafeId }
+            if let cafeId = visit.cafeId, let cafeIndex = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
+                let cafeVisits = visits(for: visit.userId).filter { $0.cafeId == cafeId }
                 appData.cafes[cafeIndex].visitCount = cafeVisits.count
                 let totalRating = cafeVisits.reduce(0.0) { $0 + $1.overallScore }
                 appData.cafes[cafeIndex].averageRating = cafeVisits.isEmpty ? 0.0 : (totalRating / Double(cafeVisits.count))
@@ -1966,7 +2054,9 @@ class DataManager: ObservableObject {
     func currentUserVisitCountsByCafe() -> [UUID: Int] {
         var counts: [UUID: Int] = [:]
         for visit in visitsForCurrentUser() {
-            counts[visit.cafeId, default: 0] += 1
+            if let cafeId = visit.cafeId {
+                counts[cafeId, default: 0] += 1
+            }
         }
         return counts
     }
@@ -1997,7 +2087,7 @@ class DataManager: ObservableObject {
     
     /// Checks whether a visit belongs to any of the provided cafe identifiers
     private func visitMatchesCafeIdentifiers(visit: Visit, identifiers: Set<UUID>) -> Bool {
-        if identifiers.contains(visit.cafeId) {
+        if let cafeId = visit.cafeId, identifiers.contains(cafeId) {
             return true
         }
         if let supabaseCafeId = visit.supabaseCafeId,
@@ -2148,7 +2238,7 @@ class DataManager: ObservableObject {
                 for item in uniqueMapItems {
                     guard let itemLocation = item.placemark.location else { continue }
                     
-                    let distance = itemLocation.distance(from: location)
+                    _ = itemLocation.distance(from: location) // Distance calculated but not currently used for ranking
                     
                     // Check if cafe exists in database by Apple Place ID or name
                     var existingCafe: Cafe?
@@ -2980,7 +3070,7 @@ class DataManager: ObservableObject {
         guard
             let supabaseUserId = appData.supabaseUserId,
             let index = appData.visits.firstIndex(where: { $0.id == visitId }),
-            let commentIndex = appData.visits[index].comments.firstIndex(where: { $0.id == comment.id }),
+            let _ = appData.visits[index].comments.firstIndex(where: { $0.id == comment.id }),
             let remoteCommentId = comment.supabaseId
         else {
             return
@@ -3003,7 +3093,7 @@ class DataManager: ObservableObject {
                 }
             } else {
                 // Like
-                try await visitService.addCommentLike(commentId: remoteCommentId, userId: supabaseUserId)
+                _ = try await visitService.addCommentLike(commentId: remoteCommentId, userId: supabaseUserId)
                 
                 await MainActor.run {
                     if let safeIndex = appData.visits.firstIndex(where: { $0.id == visitId }),
@@ -3137,7 +3227,7 @@ class DataManager: ObservableObject {
     // MARK: - Statistics
     func getUserStats() -> (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?) {
         let visits = visitsForCurrentUser()
-        let cafes = Set(visits.map { $0.cafeId })
+        let cafes = Set(visits.compactMap { $0.cafeId })
         let totalScore = visits.reduce(0.0) { $0 + $1.overallScore }
         let averageScore = visits.isEmpty ? 0.0 : totalScore / Double(visits.count)
         
@@ -3156,7 +3246,8 @@ class DataManager: ObservableObject {
     
     // Get most visited cafe
     func getMostVisitedCafe() -> (cafe: Cafe, visitCount: Int)? {
-        let visitsByCafe = Dictionary(grouping: visitsForCurrentUser(), by: { $0.cafeId })
+        let cafeVisits = visitsForCurrentUser().filter { $0.cafeId != nil }
+        let visitsByCafe = Dictionary(grouping: cafeVisits, by: { $0.cafeId! })
         guard let (cafeId, visits) = visitsByCafe.max(by: { $0.value.count < $1.value.count }),
               let cafe = getCafe(id: cafeId) else {
             return nil
@@ -3166,7 +3257,8 @@ class DataManager: ObservableObject {
     
     // Get favorite cafe (highest average rating)
     func getFavoriteCafe() -> (cafe: Cafe, avgScore: Double)? {
-        let visitsByCafe = Dictionary(grouping: visitsForCurrentUser(), by: { $0.cafeId })
+        let cafeVisits = visitsForCurrentUser().filter { $0.cafeId != nil }
+        let visitsByCafe = Dictionary(grouping: cafeVisits, by: { $0.cafeId! })
         var cafeScores: [(cafeId: UUID, avgScore: Double)] = []
         
         for (cafeId, visits) in visitsByCafe {
@@ -3385,23 +3477,23 @@ class DataManager: ObservableObject {
     }
     
     private func mapRemoteVisit(_ remote: RemoteVisit) -> Visit {
-        print("🗺️ [MapVisit] Mapping RemoteVisit - id: \(remote.id), cafeId: \(remote.cafeId)")
+        print("🗺️ [MapVisit] Mapping RemoteVisit - id: \(remote.id), cafeId: \(remote.cafeId?.uuidString ?? "nil")")
         
-        let cafe: Cafe
+        let cafe: Cafe?
         if let embeddedCafe = remote.cafe {
             // Visit includes cafe data - upsert it
             print("🗺️ [MapVisit] Visit has embedded cafe: '\(embeddedCafe.name)' (id: \(embeddedCafe.id))")
             cafe = upsertCafe(from: embeddedCafe)
-        } else if let existing = appData.cafes.first(where: { ($0.supabaseId ?? $0.id) == remote.cafeId }) {
+        } else if let remoteCafeId = remote.cafeId, let existing = appData.cafes.first(where: { ($0.supabaseId ?? $0.id) == remoteCafeId }) {
             // Cafe already exists locally
             print("🗺️ [MapVisit] Found existing cafe: '\(existing.name)'")
             cafe = existing
-        } else {
-            // Shouldn't happen in production, but create placeholder
-            print("⚠️ [MapVisit] WARNING: No cafe data for visit - creating placeholder")
+        } else if let remoteCafeId = remote.cafeId {
+            // Cafe ID exists but not locally - create placeholder
+            print("⚠️ [MapVisit] WARNING: Cafe ID \(remoteCafeId) not found locally - creating placeholder")
             let placeholder = Cafe(
-                id: remote.cafeId,
-                supabaseId: remote.cafeId,
+                id: remoteCafeId,
+                supabaseId: remoteCafeId,
                 name: "Unknown Cafe",
                 address: "",
                 city: nil,
@@ -3409,6 +3501,10 @@ class DataManager: ObservableObject {
             )
             appData.cafes.append(placeholder)
             cafe = placeholder
+        } else {
+            // Locationless visit
+            print("🗺️ [MapVisit] Visit is locationless (no cafeId)")
+            cafe = nil
         }
         
         let sortedPhotos = (remote.photos ?? []).sorted { $0.sortOrder < $1.sortOrder }
@@ -3452,12 +3548,15 @@ class DataManager: ObservableObject {
             mappedDrinkType = .coffee
         }
         
+        // Map ContextType from string
+        let mappedContextType = ContextType(rawValue: remote.contextType ?? "Cafe") ?? .cafe
+        
         var visit = Visit(
             id: remote.id,
             supabaseId: remote.id,
             supabaseCafeId: remote.cafeId,
             supabaseUserId: remote.userId,
-            cafeId: cafe.id,
+            cafeId: cafe?.id,
             userId: UUID(uuidString: remote.userId) ?? UUID(),
             createdAt: remote.createdAt ?? Date(),
             drinkType: mappedDrinkType,
@@ -3475,7 +3574,11 @@ class DataManager: ObservableObject {
             likeCount: remote.likes?.count ?? 0,
             likedByUserIds: likeUsers,
             comments: comments,
-            mentions: MentionParser.parseMentions(from: remote.caption)
+            mentions: MentionParser.parseMentions(from: remote.caption),
+            locationName: remote.locationName,
+            brewMethod: remote.brewMethod,
+            contextType: mappedContextType,
+            generalLocation: remote.cityState
         )
         
         if let posterURL = remote.posterPhotoURL,
@@ -3590,20 +3693,6 @@ extension DataManager {
 // MARK: - Feature Flags
 
 extension DataManager {
-    /// Toggles between classic single-page post flow and new onboarding-style multi-step flow
-    func togglePostFlowStyle() {
-        appData.useOnboardingStylePostFlow.toggle()
-        save()
-        print("[FeatureFlag] Post flow style: \(appData.useOnboardingStylePostFlow ? "Onboarding-style" : "Classic")")
-    }
-    
-    /// Sets the post flow style directly
-    func setPostFlowStyle(useOnboardingStyle: Bool) {
-        appData.useOnboardingStylePostFlow = useOnboardingStyle
-        save()
-        print("[FeatureFlag] Post flow style set to: \(useOnboardingStyle ? "Onboarding-style" : "Classic")")
-    }
-    
     /// Resets onboarding state to force the full onboarding flow to start
     /// This does NOT affect authentication status or Supabase session
     /// Use this for testing onboarding scenarios without logging out
@@ -3806,7 +3895,10 @@ extension DataManager {
         var visitsByNormalizedCafeKey: [UUID: [Visit]] = [:]
         
         for visit in sipSquadVisits {
-            let cafeKey = visit.supabaseCafeId ?? visit.cafeId
+            guard let cafeKey = visit.supabaseCafeId ?? visit.cafeId else {
+                // Locationless / Craft Sip visits should not appear in Sip Squad cafe footprint
+                continue
+            }
             visitsByNormalizedCafeKey[cafeKey, default: []].append(visit)
         }
         
@@ -3831,8 +3923,8 @@ extension DataManager {
             }
             
             // Strategy 3: Match by visit's cafeId
-            if foundCafe == nil {
-                foundCafe = appData.cafes.first { $0.id == firstVisit.cafeId }
+            if foundCafe == nil, let visitCafeId = firstVisit.cafeId {
+                foundCafe = appData.cafes.first { $0.id == visitCafeId }
             }
             
             // Strategy 4: Match by supabaseCafeId -> cafe.supabaseId
@@ -3850,8 +3942,8 @@ extension DataManager {
                 // Merge visits for duplicate cafe entry
                 if let existingIndex = resultCafes.firstIndex(where: { $0.id == cafe.id }) {
                     // Recalculate rating with additional visits
-                    let allVisitsForCafe = visitsByNormalizedCafeKey.values.flatMap { $0 }.filter {
-                        ($0.supabaseCafeId ?? $0.cafeId) == cafeKey || $0.cafeId == cafe.id
+                    let allVisitsForCafe = visitsByNormalizedCafeKey.values.flatMap { $0 }.filter { v in
+                        v.supabaseCafeId == cafeKey || v.cafeId == cafeKey || v.cafeId == cafe.id
                     }
                     let newAvg = computeSipSquadAverageRating(from: allVisitsForCafe)
                     var updatedCafe = resultCafes[existingIndex]
@@ -4152,7 +4244,7 @@ extension DataManager {
                     do {
                         let remoteCafes = try await cafeService.fetchCafes(ids: [state.cafeId])
                         if let remoteCafe = remoteCafes.first {
-                            var localCafe = Cafe(
+                            let localCafe = Cafe(
                                 id: remoteCafe.id,
                                 supabaseId: remoteCafe.id,
                                 name: remoteCafe.name,

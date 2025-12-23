@@ -9,7 +9,7 @@ import Foundation
 import Network
 import SwiftUI
 
-class NetworkMonitor: ObservableObject {
+class NetworkMonitor: ObservableObject, @unchecked Sendable {
     static let shared = NetworkMonitor()
     
     private let monitor = NWPathMonitor()

@@ -65,6 +65,11 @@ struct BadgeEngine {
         let currentStreakDays: Int
         let longestStreakDays: Int
         let consecutiveWeekendsCount: Int
+        
+        // Craft Sip aggregates
+        let homeVisitsCount: Int
+        let uniqueCitiesNonCafeCount: Int
+        let distinctBrewMethodsCount: Int
     }
     
     private static func computeAggregates(
@@ -75,7 +80,7 @@ struct BadgeEngine {
         let totalVisits = visits.count
         
         // Unique cafes
-        let uniqueCafeIds = Set(visits.map { $0.cafeId })
+        let uniqueCafeIds = Set(visits.compactMap { $0.cafeId })
         let uniqueCafeCount = uniqueCafeIds.count
         
         // Visits with notes
@@ -100,6 +105,16 @@ struct BadgeEngine {
         // Consecutive weekends
         let consecutiveWeekendsCount = computeConsecutiveWeekends(visits: visits, calendar: calendar)
         
+        // Craft Sip Aggregates
+        let homeVisitsCount = visits.filter { $0.contextType == .home }.count
+        
+        let nonCafeVisits = visits.filter { $0.contextType != .cafe }
+        let uniqueCitiesNonCafe = Set(nonCafeVisits.compactMap { $0.generalLocation })
+        let uniqueCitiesNonCafeCount = uniqueCitiesNonCafe.count
+        
+        let brewMethods = Set(visits.compactMap { $0.brewMethod }.filter { !$0.isEmpty })
+        let distinctBrewMethodsCount = brewMethods.count
+        
         return Aggregates(
             totalVisits: totalVisits,
             uniqueCafeCount: uniqueCafeCount,
@@ -108,7 +123,10 @@ struct BadgeEngine {
             earlyMorningVisitsCount: earlyMorningVisitsCount,
             currentStreakDays: currentStreakDays,
             longestStreakDays: longestStreakDays,
-            consecutiveWeekendsCount: consecutiveWeekendsCount
+            consecutiveWeekendsCount: consecutiveWeekendsCount,
+            homeVisitsCount: homeVisitsCount,
+            uniqueCitiesNonCafeCount: uniqueCitiesNonCafeCount,
+            distinctBrewMethodsCount: distinctBrewMethodsCount
         )
     }
     
@@ -248,6 +266,18 @@ struct BadgeEngine {
             
         case "early_bird_brew":
             let value = aggregates.earlyMorningVisitsCount
+            return (value, value >= 5)
+            
+        case "homegrown":
+            let value = aggregates.homeVisitsCount
+            return (value, value >= 10)
+            
+        case "nomad":
+            let value = aggregates.uniqueCitiesNonCafeCount
+            return (value, value >= 5)
+            
+        case "brew_master":
+            let value = aggregates.distinctBrewMethodsCount
             return (value, value >= 5)
             
         default:

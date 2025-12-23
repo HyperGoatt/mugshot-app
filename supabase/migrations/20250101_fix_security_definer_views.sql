@@ -90,3 +90,5 @@ LEFT JOIN public.users u ON c.user_id = u.id;
 -- - users table allows public read (for profile data)
 -- - Indexes exist on foreign keys for performance
 
+
+

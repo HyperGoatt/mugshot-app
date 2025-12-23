@@ -71,7 +71,7 @@ enum SupabaseError: Error, LocalizedError {
 }
 
 /// Minimal HTTP-based Supabase client used by our services.
-final class SupabaseClient {
+final class SupabaseClient: @unchecked Sendable {
     let baseURL: URL
     let anonKey: String
 

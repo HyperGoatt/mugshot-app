@@ -5,7 +5,7 @@
 
 import Foundation
 
-final class SupabaseNotificationService {
+final class SupabaseNotificationService: @unchecked Sendable {
     static let shared = SupabaseNotificationService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient

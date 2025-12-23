@@ -5,7 +5,7 @@
 
 import Foundation
 
-final class SupabaseUserProfileService {
+final class SupabaseUserProfileService: @unchecked Sendable {
     static let shared = SupabaseUserProfileService(client: SupabaseClientProvider.shared)
 
     private let client: SupabaseClient

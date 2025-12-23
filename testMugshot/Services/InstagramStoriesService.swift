@@ -28,7 +28,7 @@ struct InstagramStoriesService {
     ///   - completion: Callback indicating success or failure with optional error message
     static func shareToStories(
         image: UIImage,
-        completion: @escaping (Result<Void, InstagramError>) -> Void
+        completion: @escaping @Sendable (Result<Void, InstagramError>) -> Void
     ) {
         guard isInstagramInstalled else {
             completion(.failure(.notInstalled))
@@ -81,7 +81,7 @@ struct InstagramStoriesService {
         stickerImage: UIImage?,
         topBackgroundColor: String? = nil,
         bottomBackgroundColor: String? = nil,
-        completion: @escaping (Result<Void, InstagramError>) -> Void
+        completion: @escaping @Sendable (Result<Void, InstagramError>) -> Void
     ) {
         guard isInstagramInstalled else {
             completion(.failure(.notInstalled))
@@ -135,7 +135,7 @@ struct InstagramStoriesService {
     
     // MARK: - Error Types
     
-    enum InstagramError: LocalizedError {
+    enum InstagramError: LocalizedError, Sendable {
         case notInstalled
         case imageEncodingFailed
         case urlCreationFailed

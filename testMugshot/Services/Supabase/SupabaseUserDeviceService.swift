@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class SupabaseUserDeviceService {
+final class SupabaseUserDeviceService: @unchecked Sendable {
     static let shared = SupabaseUserDeviceService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient

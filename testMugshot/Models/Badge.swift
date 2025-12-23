@@ -16,6 +16,7 @@ enum BadgeCategory: String, CaseIterable {
     case journal = "Journal"
     case variety = "Variety"
     case timeOfDay = "Time of Day"
+    case craft = "Craft"
     
     var displayName: String { rawValue }
     
@@ -27,6 +28,7 @@ enum BadgeCategory: String, CaseIterable {
         case .journal: return 3
         case .variety: return 4
         case .timeOfDay: return 5
+        case .craft: return 6
         }
     }
 }
@@ -66,6 +68,12 @@ struct BadgeDefinition {
             return "Try 3 different drink types."
         case "early_bird_brew":
             return "Log 5 visits before 9am."
+        case "homegrown":
+            return "Log 10 home-brewed sips."
+        case "nomad":
+            return "Log non-cafe sips in 5 different cities."
+        case "brew_master":
+            return "Log 5 different brew methods."
         default:
             return description
         }
@@ -205,6 +213,32 @@ extension BadgeDefinition {
             description: "Logged 5 visits before 9am.",
             category: .timeOfDay,
             iconName: "sunrise.fill",
+            targetValue: 5
+        ),
+        
+        // Craft / brewing
+        BadgeDefinition(
+            id: "homegrown",
+            name: "Homegrown",
+            description: "Logged 10 home sips.",
+            category: .craft,
+            iconName: "house.fill",
+            targetValue: 10
+        ),
+        BadgeDefinition(
+            id: "nomad",
+            name: "Nomad",
+            description: "Logged non-cafe sips in 5 different cities.",
+            category: .craft,
+            iconName: "airplane",
+            targetValue: 5
+        ),
+        BadgeDefinition(
+            id: "brew_master",
+            name: "Brew Master",
+            description: "Logged 5 different brew methods.",
+            category: .craft,
+            iconName: "flask.fill",
             targetValue: 5
         )
     ]

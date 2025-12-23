@@ -109,7 +109,7 @@ Core table storing user visits to cafes with ratings, photos, and metadata.
 |--------|------|-------------|-------------|
 | `id` | UUID | PRIMARY KEY, NOT NULL, DEFAULT gen_random_uuid() | Visit ID |
 | `user_id` | UUID | NOT NULL, REFERENCES `users(id)` | User who made the visit |
-| `cafe_id` | UUID | NOT NULL, REFERENCES `cafes(id)` | Cafe visited |
+| `cafe_id` | UUID | NULL, REFERENCES `cafes(id)` | Cafe visited (NULL for locationless) |
 | `drink_type` | TEXT | NULL | Drink type (Coffee, Matcha, Tea, etc.) |
 | `drink_type_custom` | TEXT | NULL | Custom drink type if "Other" selected |
 | `drink_subtype` | TEXT | NULL | Specific drink name (e.g., "Iced vanilla latte") |
@@ -119,6 +119,10 @@ Core table storing user visits to cafes with ratings, photos, and metadata.
 | `ratings` | JSONB | NOT NULL, DEFAULT '{}' | Rating categories → scores (e.g., {"Taste": 4.5, "Ambiance": 3.0}) |
 | `overall_score` | DOUBLE PRECISION | NOT NULL | Weighted average of ratings |
 | `poster_photo_url` | TEXT | NULL | URL of the main/poster photo |
+| `location_name` | TEXT | NULL | Location/event name for locationless visits |
+| `brew_method` | TEXT | NULL | Specific brew method used (V60, Espresso, etc.) |
+| `context_type` | TEXT | NOT NULL, DEFAULT 'Cafe' | Context: 'Cafe', 'Home', 'Event', 'Market', 'Travel', 'Other' |
+| `city_state` | TEXT | NULL | General location (City, State) for locationless visits |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Visit timestamp |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Last update timestamp |
 
@@ -813,4 +817,6 @@ friends: user_id ↔ friend_user_id (bidirectional, two rows)
 ---
 
 This schema supports Mugshot's core functionality: user profiles, cafe tracking, visit journaling, social interactions, notifications, and push notifications, all with proper security and performance optimizations.
+
+
 

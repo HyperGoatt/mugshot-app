@@ -41,6 +41,7 @@ struct AppData: Codable {
     var currentUserBannerImageId: String?
     var currentUserAvatarURL: String?
     var currentUserBannerURL: String?
+    var currentUserSavedSetups: [String] = []
     
     // Notifications
     var notifications: [MugshotNotification] = []
@@ -55,8 +56,6 @@ struct AppData: Codable {
     /// Maps source user ID -> request UUID for incoming pending friend requests  
     var incomingRequestsByUserId: [String: String] = [:]
     
-    // Feature flags
-    var useOnboardingStylePostFlow: Bool = false  // Toggle between classic and onboarding-style post flow
     
     // Map mode
     /// When true, the Map tab shows the combined coffee footprint of user + friends (Sip Squad Mode)
@@ -95,9 +94,9 @@ struct AppData: Codable {
         currentUserBannerImageId: String? = nil,
         currentUserAvatarURL: String? = nil,
         currentUserBannerURL: String? = nil,
+        currentUserSavedSetups: [String] = [],
         notifications: [MugshotNotification] = [],
         friendsSupabaseUserIds: Set<String> = [],
-        useOnboardingStylePostFlow: Bool = false,
         isSipSquadModeEnabled: Bool = false,
         useSipSquadSimplifiedStyle: Bool = false,
         mapSearchMode: MapSearchMode = .mugshot
@@ -127,9 +126,9 @@ struct AppData: Codable {
         self.currentUserBannerImageId = currentUserBannerImageId
         self.currentUserAvatarURL = currentUserAvatarURL
         self.currentUserBannerURL = currentUserBannerURL
+        self.currentUserSavedSetups = currentUserSavedSetups
         self.notifications = notifications
         self.friendsSupabaseUserIds = friendsSupabaseUserIds
-        self.useOnboardingStylePostFlow = useOnboardingStylePostFlow
         self.isSipSquadModeEnabled = isSipSquadModeEnabled
         self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
         self.notificationsClearedAt = nil

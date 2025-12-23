@@ -11,7 +11,6 @@ struct FeedbackBoardView: View {
     @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var hapticsManager: HapticsManager
-    @EnvironmentObject private var themeManager: ThemeManager
     
     // State
     @State private var posts: [FeedbackPost] = []
@@ -29,11 +28,11 @@ struct FeedbackBoardView: View {
     }
     
     private var backgroundColor: Color {
-        themeManager.isModernDark ? DS.Colors.modernBackground : DS.Colors.screenBackground
+        DS.Colors.screenBackground
     }
     
     private var accentColor: Color {
-        themeManager.isModernDark ? DS.Colors.modernAccent : DS.Colors.primaryAccent
+        DS.Colors.primaryAccent
     }
     
     var body: some View {
@@ -67,7 +66,7 @@ struct FeedbackBoardView: View {
                         }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(themeManager.isModernDark ? .white : DS.Colors.textOnMint)
+                                .foregroundColor(DS.Colors.textOnMint)
                                 .frame(width: 56, height: 56)
                                 .background(accentColor)
                                 .clipShape(Circle())
@@ -296,7 +295,7 @@ struct FeedbackBoardView: View {
         do {
             if currentVote == voteType {
                 // Remove vote if tapping the same vote type
-                try await feedbackService.removeVote(userId: userId, postId: post.id)
+                _ = try await feedbackService.removeVote(userId: userId, postId: post.id)
                 await MainActor.run {
                     userVotes.removeValue(forKey: post.id)
                 }

@@ -5,7 +5,7 @@
 
 import Foundation
 
-final class SupabaseSocialGraphService {
+final class SupabaseSocialGraphService: @unchecked Sendable {
     static let shared = SupabaseSocialGraphService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient

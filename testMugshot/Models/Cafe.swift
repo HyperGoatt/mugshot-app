@@ -99,7 +99,7 @@ struct Cafe: Identifiable, Codable {
 }
 
 // Custom Codable for CLLocationCoordinate2D
-extension CLLocationCoordinate2D: Codable {
+extension CLLocationCoordinate2D: @retroactive Codable {
     enum CodingKeys: String, CodingKey {
         case latitude
         case longitude

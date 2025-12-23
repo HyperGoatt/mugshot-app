@@ -40,12 +40,32 @@ extension VisitVisibility {
     }
 }
 
+enum ContextType: String, Codable, CaseIterable {
+    case cafe = "Cafe"
+    case home = "Home"
+    case event = "Event"
+    case market = "Market"
+    case travel = "Travel"
+    case other = "Other"
+    
+    var icon: String {
+        switch self {
+        case .cafe: return "cup.and.saucer.fill"
+        case .home: return "house.fill"
+        case .event: return "calendar"
+        case .market: return "tent.fill"
+        case .travel: return "airplane"
+        case .other: return "star.fill"
+        }
+    }
+}
+
 struct Visit: Identifiable {
     let id: UUID
     var supabaseId: UUID?
     var supabaseCafeId: UUID?
     var supabaseUserId: String?
-    var cafeId: UUID
+    var cafeId: UUID? // Optional for locationless visits
     var userId: UUID
     var createdAt: Date // Renamed from date for clarity
     var drinkType: DrinkType
@@ -68,12 +88,18 @@ struct Visit: Identifiable {
     var authorUsername: String?
     var authorAvatarURL: String?
     
+    // Craft Sip fields
+    var locationName: String? // e.g. "Home Espresso Bar"
+    var brewMethod: String? // e.g. "V60", "Aeropress"
+    var contextType: ContextType
+    var generalLocation: String? // e.g. "Seattle, WA"
+    
     init(
         id: UUID = UUID(),
         supabaseId: UUID? = nil,
         supabaseCafeId: UUID? = nil,
         supabaseUserId: String? = nil,
-        cafeId: UUID,
+        cafeId: UUID? = nil,
         userId: UUID,
         createdAt: Date = Date(),
         drinkType: DrinkType,
@@ -94,7 +120,11 @@ struct Visit: Identifiable {
         mentions: [Mention] = [],
         authorDisplayName: String? = nil,
         authorUsername: String? = nil,
-        authorAvatarURL: String? = nil
+        authorAvatarURL: String? = nil,
+        locationName: String? = nil,
+        brewMethod: String? = nil,
+        contextType: ContextType = .cafe,
+        generalLocation: String? = nil
     ) {
         self.id = id
         self.supabaseId = supabaseId
@@ -122,6 +152,15 @@ struct Visit: Identifiable {
         self.authorDisplayName = authorDisplayName
         self.authorUsername = authorUsername
         self.authorAvatarURL = authorAvatarURL
+        self.locationName = locationName
+        self.brewMethod = brewMethod
+        self.contextType = contextType
+        self.generalLocation = generalLocation
+    }
+    
+    // Computed property for locationless check
+    var isLocationless: Bool {
+        cafeId == nil && supabaseCafeId == nil
     }
     
     // Computed property for backward compatibility
@@ -204,6 +243,10 @@ extension Visit: Codable {
         case likeCount, likes // Support both for backward compatibility
         case likedByUserIds
         case authorDisplayName, authorUsername, authorAvatarURL
+        case locationName = "location_name"
+        case brewMethod = "brew_method"
+        case contextType = "context_type"
+        case generalLocation = "city_state"
     }
     
     init(from decoder: Decoder) throws {
@@ -212,7 +255,7 @@ extension Visit: Codable {
         supabaseId = try container.decodeIfPresent(UUID.self, forKey: .supabaseId)
         supabaseCafeId = try container.decodeIfPresent(UUID.self, forKey: .supabaseCafeId)
         supabaseUserId = try container.decodeIfPresent(String.self, forKey: .supabaseUserId)
-        cafeId = try container.decode(UUID.self, forKey: .cafeId)
+        cafeId = try container.decodeIfPresent(UUID.self, forKey: .cafeId)
         userId = try container.decode(UUID.self, forKey: .userId)
         
         // Support both createdAt and date for backward compatibility
@@ -252,6 +295,12 @@ extension Visit: Codable {
         authorDisplayName = try container.decodeIfPresent(String.self, forKey: .authorDisplayName)
         authorUsername = try container.decodeIfPresent(String.self, forKey: .authorUsername)
         authorAvatarURL = try container.decodeIfPresent(String.self, forKey: .authorAvatarURL)
+        
+        // Craft Sip fields
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        brewMethod = try container.decodeIfPresent(String.self, forKey: .brewMethod)
+        contextType = try container.decodeIfPresent(ContextType.self, forKey: .contextType) ?? .cafe
+        generalLocation = try container.decodeIfPresent(String.self, forKey: .generalLocation)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -260,7 +309,7 @@ extension Visit: Codable {
         try container.encodeIfPresent(supabaseId, forKey: .supabaseId)
         try container.encodeIfPresent(supabaseCafeId, forKey: .supabaseCafeId)
         try container.encodeIfPresent(supabaseUserId, forKey: .supabaseUserId)
-        try container.encode(cafeId, forKey: .cafeId)
+        try container.encodeIfPresent(cafeId, forKey: .cafeId)
         try container.encode(userId, forKey: .userId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(drinkType, forKey: .drinkType)
@@ -282,6 +331,12 @@ extension Visit: Codable {
         try container.encodeIfPresent(authorDisplayName, forKey: .authorDisplayName)
         try container.encodeIfPresent(authorUsername, forKey: .authorUsername)
         try container.encodeIfPresent(authorAvatarURL, forKey: .authorAvatarURL)
+        
+        // Craft Sip fields
+        try container.encodeIfPresent(locationName, forKey: .locationName)
+        try container.encodeIfPresent(brewMethod, forKey: .brewMethod)
+        try container.encode(contextType, forKey: .contextType)
+        try container.encodeIfPresent(generalLocation, forKey: .generalLocation)
     }
 }
 

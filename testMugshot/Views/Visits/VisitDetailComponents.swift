@@ -477,12 +477,30 @@ struct ReviewSummaryCard: View {
     let drinkType: DrinkType
     let customDrinkType: String?
     let drinkSubtype: String?
+    let brewMethod: String?
     let ratings: [String: Double]
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            // Drink pill
-            DrinkTypePill(drinkType: drinkType, customDrinkType: customDrinkType, drinkSubtype: drinkSubtype)
+            // Drink info + Brew Method
+            VStack(alignment: .leading, spacing: 8) {
+                DrinkTypePill(drinkType: drinkType, customDrinkType: customDrinkType, drinkSubtype: drinkSubtype)
+                
+                if let brewMethod = brewMethod, !brewMethod.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flask.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(DS.Colors.primaryAccent)
+                        Text(brewMethod)
+                            .font(DS.Typography.caption1(.medium))
+                            .foregroundColor(DS.Colors.textPrimary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(DS.Colors.primaryAccentSoftFill)
+                    .cornerRadius(DS.Radius.pill)
+                }
+            }
             
             // Ratings grid
             if !ratings.isEmpty {
@@ -618,7 +636,7 @@ struct InlineCommentsSection: View {
                     friends: filteredFriends,
                     onSelect: { profile in
                         // Use display name for mention display
-                        let displayName = profile.displayName ?? profile.username
+                        let displayName = profile.displayName ?? profile.username ?? ""
                         insertMention(username: profile.username, displayName: displayName)
                     }
                 )

@@ -55,7 +55,7 @@ import UIKit
 // - Map refresh of cafes completes
 // → Use: success() if new items arrive, or lightTap() if just UI update
 
-class HapticsManager: ObservableObject {
+class HapticsManager: ObservableObject, @unchecked Sendable {
     static let shared = HapticsManager()
     
     /// Global toggle for haptics. Set to false to disable all haptics (e.g., for Settings toggle in future).

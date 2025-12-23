@@ -158,7 +158,7 @@ struct PeopleSearchResultsPanel: View {
                 } catch {
                     print("[PeopleSearch] Error checking friendship status for \(profile.id): \(error.localizedDescription)")
                     await MainActor.run {
-                        friendshipStatuses[profile.id] = .none
+                        friendshipStatuses[profile.id] = FriendshipStatus.none
                     }
                 }
             }

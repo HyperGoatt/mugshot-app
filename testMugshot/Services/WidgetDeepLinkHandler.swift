@@ -10,7 +10,7 @@ import SwiftUI
 
 // MARK: - Widget Deep Link Handler
 
-final class WidgetDeepLinkHandler {
+final class WidgetDeepLinkHandler: @unchecked Sendable {
     static let shared = WidgetDeepLinkHandler()
     
     private init() {}

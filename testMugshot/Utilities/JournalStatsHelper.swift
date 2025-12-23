@@ -164,8 +164,11 @@ struct JournalStatsHelper {
         cafeLookup: (UUID) -> Cafe?,
         limit: Int = 3
     ) -> [(cafe: Cafe, visitCount: Int, avgRating: Double)] {
+        // Filter out locationless visits
+        let cafeVisits = visits.filter { $0.cafeId != nil }
+        
         // Group visits by cafe
-        let visitsByCafe = Dictionary(grouping: visits, by: { $0.cafeId })
+        let visitsByCafe = Dictionary(grouping: cafeVisits, by: { $0.cafeId! })
         
         var result: [(cafe: Cafe, visitCount: Int, avgRating: Double)] = []
         
@@ -245,7 +248,7 @@ struct JournalStatsHelper {
         cafeLookup: (UUID) -> Cafe?
     ) -> [Cafe] {
         let visitsWithNotes = allVisitsWithNotes(from: visits)
-        let cafeIds = Set(visitsWithNotes.map { $0.cafeId })
+        let cafeIds = Set(visitsWithNotes.compactMap { $0.cafeId })
         
         return cafeIds
             .compactMap { cafeLookup($0) }

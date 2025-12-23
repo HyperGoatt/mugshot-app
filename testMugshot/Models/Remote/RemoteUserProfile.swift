@@ -18,6 +18,7 @@ struct RemoteUserProfile: Codable {
     var websiteURL: String?
     var avatarURL: String?
     var bannerURL: String?
+    var savedSetups: [String]?
     var createdAt: Date?
     var updatedAt: Date?
 
@@ -32,6 +33,7 @@ struct RemoteUserProfile: Codable {
         case websiteURL = "website_url"
         case avatarURL = "avatar_url"
         case bannerURL = "banner_url"
+        case savedSetups = "saved_setups"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -68,7 +70,8 @@ extension RemoteUserProfile {
             bio: bio ?? "",
             instagramURL: instagramHandle,
             websiteURL: websiteURL ?? existing?.websiteURL,
-            favoriteDrink: favoriteDrink
+            favoriteDrink: favoriteDrink,
+            savedSetups: savedSetups ?? existing?.savedSetups ?? []
         )
     }
 }
@@ -86,6 +89,7 @@ extension RemoteUserProfile {
         var websiteURL: String?
         var avatarURL: String?
         var bannerURL: String?
+        var savedSetups: [String]?
         
         enum CodingKeys: String, CodingKey {
             case displayName = "display_name"
@@ -97,6 +101,7 @@ extension RemoteUserProfile {
             case websiteURL = "website_url"
             case avatarURL = "avatar_url"
             case bannerURL = "banner_url"
+            case savedSetups = "saved_setups"
         }
     }
 }

@@ -141,8 +141,12 @@ private struct TodaysMugshotCard: View {
                         }
                         
                         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            if let cafe = cafeLookup(visit.cafeId) {
+                            if let cafeId = visit.cafeId, let cafe = cafeLookup(cafeId) {
                                 Text("Today at \(cafe.name)")
+                                    .font(DS.Typography.headline())
+                                    .foregroundColor(DS.Colors.textPrimary)
+                            } else {
+                                Text("Today: \(visit.locationName ?? "Craft Sip")")
                                     .font(DS.Typography.headline())
                                     .foregroundColor(DS.Colors.textPrimary)
                             }
@@ -812,7 +816,9 @@ private struct NotesCard: View {
             if let visit = selectedVisitForEdit {
                 NoteDetailEditView(
                     visit: visit,
-                    cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Cafe",
+                    cafeName: visit.displayLocationName { id in
+                        dataManager.getCafe(id: id)
+                    },
                     dataManager: dataManager,
                     onDismiss: { showEditSheet = false }
                 )
@@ -973,9 +979,10 @@ private struct NotesCard: View {
                     
                     // Notes in this month
                     ForEach(group.visits) { visit in
+                        let cafe = visit.cafeId.flatMap { dataManager.getCafe(id: $0) }
                         NoteRowInteractive(
                             visit: visit,
-                            cafe: dataManager.getCafe(id: visit.cafeId),
+                            cafe: cafe,
                             onTap: {
                                 selectedVisitForEdit = visit
                                 showEditSheet = true

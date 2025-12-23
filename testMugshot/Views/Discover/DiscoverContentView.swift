@@ -12,7 +12,6 @@ import CoreLocation
 struct DiscoverContentView: View {
     @ObservedObject var dataManager: DataManager
     @StateObject private var locationManager = LocationManager()
-    @EnvironmentObject private var themeManager: ThemeManager
     
     // State for Spin feature
     @State private var showSpinResult = false
@@ -26,19 +25,19 @@ struct DiscoverContentView: View {
     var onVisitTap: ((Visit) -> Void)?
     
     private var textPrimary: Color {
-        themeManager.isModernDark ? DS.Colors.modernTextPrimary : DS.Colors.textPrimary
+        DS.Colors.textPrimary
     }
     
     private var textSecondary: Color {
-        themeManager.isModernDark ? DS.Colors.modernTextSecondary : DS.Colors.textSecondary
+        DS.Colors.textSecondary
     }
     
     private var cardBackground: Color {
-        themeManager.isModernDark ? DS.Colors.modernSurface : DS.Colors.cardBackground
+        DS.Colors.cardBackground
     }
     
     private var accentColor: Color {
-        themeManager.isModernDark ? DS.Colors.modernAccent : DS.Colors.primaryAccent
+        DS.Colors.primaryAccent
     }
     
     var body: some View {
@@ -123,7 +122,7 @@ struct DiscoverContentView: View {
                 Text("Spin for a Spot")
                     .font(DS.Typography.buttonLabel)
             }
-            .foregroundColor(themeManager.isModernDark ? .white : DS.Colors.textOnMint)
+            .foregroundColor(DS.Colors.textOnMint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, DS.Spacing.md)
             .background(accentColor)
@@ -144,18 +143,18 @@ struct DiscoverContentView: View {
                 .padding(.horizontal, DS.Spacing.pagePadding)
             
             // Horizontal Scroll of Friend Visit Cards
-            let recentFriendVisits = dataManager.getRecentFriendVisits(limit: 5)
-            
             if recentFriendVisits.isEmpty {
                 emptyFriendsPlaceholder
                     .padding(.horizontal, DS.Spacing.pagePadding)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DS.Spacing.md) {
-                        ForEach(recentFriendVisits, id: \.id) { visit in
+                        ForEach(recentFriendVisits) { visit in
                             FriendVisitCard(
                                 visit: visit,
-                                cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Cafe",
+                                cafeName: visit.displayLocationName { id in
+                                    dataManager.getCafe(id: id)
+                                },
                                 onTap: { onVisitTap?(visit) }
                             )
                         }
@@ -164,6 +163,10 @@ struct DiscoverContentView: View {
                 }
             }
         }
+    }
+
+    private var recentFriendVisits: [Visit] {
+        dataManager.getRecentFriendVisits(limit: 5)
     }
     
     private var emptyFriendsPlaceholder: some View {
@@ -184,7 +187,7 @@ struct DiscoverContentView: View {
         .frame(height: 160)
         .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Cafes Near You (Top 5)
@@ -235,7 +238,7 @@ struct DiscoverContentView: View {
         .padding(.vertical, DS.Spacing.xl)
         .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
     }
     
     private var emptyNearbyCafesPlaceholder: some View {
@@ -256,7 +259,7 @@ struct DiscoverContentView: View {
         .padding(.vertical, DS.Spacing.xl)
         .background(cardBackground)
         .cornerRadius(DS.Radius.lg)
-        .shadow(color: Color.black.opacity(themeManager.isModernDark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Nearby Cafes Data Structure

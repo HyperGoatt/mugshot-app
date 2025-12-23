@@ -213,27 +213,19 @@ class PushNotificationManager: NSObject, ObservableObject {
             return
         }
         
-        do {
-            // Step 1: Fetch latest friend visits from Supabase
-            print("[Push] Fetching latest friend visits...")
-            await dataManager.fetchSipSquadVisitsIfNeeded()
-            
-            // Step 2: Sync updated data to widget container
-            print("[Push] Syncing widget data...")
-            dataManager.syncWidgetData()
-            
-            // Step 3: Force reload widget timelines
-            print("[Push] Reloading widget timelines...")
-            WidgetSyncService.shared.reloadWidget(kind: "FriendsLatestSipsWidget")
-            
-            print("✅ [Push] Widget update complete - friend visits refreshed")
-            
-        } catch {
-            print("❌ [Push] Failed to update widget data: \(error.localizedDescription)")
-            
-            // Still try to sync whatever data we have
-            dataManager.syncWidgetData()
-        }
+        // Step 1: Fetch latest friend visits from Supabase
+        print("[Push] Fetching latest friend visits...")
+        await dataManager.fetchSipSquadVisitsIfNeeded()
+        
+        // Step 2: Sync updated data to widget container
+        print("[Push] Syncing widget data...")
+        dataManager.syncWidgetData()
+        
+        // Step 3: Force reload widget timelines
+        print("[Push] Reloading widget timelines...")
+        WidgetSyncService.shared.reloadWidget(kind: "FriendsLatestSipsWidget")
+        
+        print("✅ [Push] Widget update complete - friend visits refreshed")
     }
     
     // MARK: - Routing
@@ -332,10 +324,24 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
     ) {
+        // Extract userInfo and create a Sendable copy by converting to [String: String]
+        let userInfo = notification.request.content.userInfo
+        let sendableUserInfo: [String: String] = Dictionary(uniqueKeysWithValues: userInfo.compactMap { (key, value) -> (String, String)? in
+            guard let stringKey = key as? String else { return nil }
+            if let stringValue = value as? String {
+                return (stringKey, stringValue)
+            } else if let numberValue = value as? NSNumber {
+                return (stringKey, numberValue.stringValue)
+            }
+            return nil
+        })
+        
         Task { @MainActor in
-            handleNotificationInForeground(notification)
+            // Convert back to [AnyHashable: Any] for handleNotificationFromUserInfo
+            let convertedUserInfo: [AnyHashable: Any] = Dictionary(uniqueKeysWithValues: sendableUserInfo.map { ($0 as AnyHashable, $1 as Any) })
+            handleNotificationFromUserInfo(convertedUserInfo)
         }
         
         // For v1, don't show banner in foreground (just update badge)
@@ -347,10 +353,24 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
     ) {
+        // Extract userInfo and create a Sendable copy by converting to [String: String]
+        let userInfo = response.notification.request.content.userInfo
+        let sendableUserInfo: [String: String] = Dictionary(uniqueKeysWithValues: userInfo.compactMap { (key, value) -> (String, String)? in
+            guard let stringKey = key as? String else { return nil }
+            if let stringValue = value as? String {
+                return (stringKey, stringValue)
+            } else if let numberValue = value as? NSNumber {
+                return (stringKey, numberValue.stringValue)
+            }
+            return nil
+        })
+        
         Task { @MainActor in
-            handleNotificationTap(response.notification)
+            // Convert back to [AnyHashable: Any] for handleNotificationFromUserInfo
+            let convertedUserInfo: [AnyHashable: Any] = Dictionary(uniqueKeysWithValues: sendableUserInfo.map { ($0 as AnyHashable, $1 as Any) })
+            handleNotificationFromUserInfo(convertedUserInfo)
         }
         
         completionHandler()

@@ -6,7 +6,7 @@
 import Foundation
 import UIKit
 
-final class SupabaseStorageService {
+final class SupabaseStorageService: @unchecked Sendable {
     static let shared = SupabaseStorageService(client: SupabaseClientProvider.shared)
 
     private let client: SupabaseClient

@@ -10,7 +10,7 @@ import UserNotifications
 
 /// Standard payload format for Mugshot push notifications
 /// Mirrors the in-app MugshotNotification model structure
-struct PushNotificationPayload {
+struct PushNotificationPayload: Sendable {
     let type: NotificationType
     let actorUsername: String?
     let actorAvatarURL: String?

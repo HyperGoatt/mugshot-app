@@ -76,14 +76,15 @@ struct OtherUserProfileView: View {
     
     private var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double) {
         let visits = userVisits
-        let uniqueCafes = Set(visits.map { $0.cafeId })
+        let uniqueCafes = Set(visits.compactMap { $0.cafeId })
         let avgScore = visits.isEmpty ? 0.0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
         return (visits.count, uniqueCafes.count, avgScore)
     }
     
     private var topCafes: [(cafe: Cafe, visitCount: Int, avgScore: Double)] {
-        let visits = userVisits
-        let visitsByCafe = Dictionary(grouping: visits, by: { $0.cafeId })
+        // Only include cafe-backed visits (exclude locationless Craft Sips)
+        let visits = userVisits.filter { $0.cafeId != nil }
+        let visitsByCafe = Dictionary(grouping: visits, by: { $0.cafeId! })
         
         var cafeStats: [(cafe: Cafe, visitCount: Int, avgScore: Double)] = []
         for (cafeId, cafeVisits) in visitsByCafe {

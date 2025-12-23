@@ -490,3 +490,4 @@ Per-cafe statistics:
 
 Mugshot is a thoughtfully designed social journaling app that combines personal coffee documentation with community discovery. It stands out through its specific focus on cafe culture, detailed rating systems, privacy controls, and distinctive mint-green aesthetic. The app serves both introverted journalers (private notes, personal stats) and extroverted social users (feed, friends, sharing), making it appealing to a broad range of coffee enthusiasts who want to document, discover, and share their cafe experiences.
 
+

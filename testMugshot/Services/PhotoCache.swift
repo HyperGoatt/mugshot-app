@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-class PhotoCache {
+class PhotoCache: @unchecked Sendable {
     static let shared = PhotoCache()
     
     private var cache: [String: UIImage] = [:]

@@ -105,13 +105,17 @@ struct FeedTabView: View {
                                             selectedScope: selectedScope,
                                             onCafeTap: {
                                                 print("🔵 [FeedTabView] Cafe pill tapped for visit: \(visit.id)")
-                                                print("🔵 [FeedTabView] visit.cafeId: \(visit.cafeId)")
-                                                if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                                                    print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
-                                                    selectedCafe = cafe
-                                                    print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
+                                                if let cafeId = visit.cafeId {
+                                                    print("🔵 [FeedTabView] visit.cafeId: \(cafeId)")
+                                                    if let cafe = dataManager.getCafe(id: cafeId) {
+                                                        print("🔵 [FeedTabView] Found cafe: '\(cafe.name)' with id: \(cafe.id)")
+                                                        selectedCafe = cafe
+                                                        print("🔵 [FeedTabView] selectedCafe set to: \(selectedCafe?.name ?? "nil")")
+                                                    } else {
+                                                        print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(cafeId)")
+                                                    }
                                                 } else {
-                                                    print("🔴 [FeedTabView] getCafe returned nil for cafeId: \(visit.cafeId)")
+                                                    print("⚪️ [FeedTabView] Locationless visit - no cafe to show")
                                                 }
                                             },
                                             onAuthorTap: {
@@ -487,7 +491,10 @@ struct VisitCard: View {
     }
     
     private var cafe: Cafe? {
-        dataManager.getCafe(id: visit.cafeId)
+        if let cafeId = visit.cafeId {
+            return dataManager.getCafe(id: cafeId)
+        }
+        return nil
     }
     
     private var isBookmarked: Bool {
@@ -527,7 +534,15 @@ struct VisitCard: View {
     }
     
     private var cafeName: String? {
-        dataManager.getCafe(id: visit.cafeId)?.name
+        if let cafeId = visit.cafeId {
+            return dataManager.getCafe(id: cafeId)?.name
+        } else {
+            return visit.locationName
+        }
+    }
+    
+    private var locationIcon: String {
+        visit.contextType.icon
     }
     
     var body: some View {
@@ -536,22 +551,31 @@ struct VisitCard: View {
                 // Header: Avatar, Name, Time, Score
                 headerSection
                 
-                // Cafe attribution and drink info (stacked vertically for clarity)
+                // Location attribution and drink info
                 VStack(alignment: .leading, spacing: 4) {
-                    // Cafe pill - primary location context
+                    // Location/Context pill
                     if let name = cafeName, !name.isEmpty {
-                        DSCafeAttributionPill(cafeName: name) {
+                        DSCafeAttributionPill(
+                            cafeName: name,
+                            icon: locationIcon,
+                            isTappable: visit.cafeId != nil
+                        ) {
                             onCafeTap?()
                         }
                     }
                     
-                    // Drink info - secondary metadata with icon
+                    // Drink info + Brew Method
                     HStack(spacing: 4) {
                         Image(systemName: drinkIconForType(visit.drinkType))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(DS.Colors.textTertiary)
                         
-                        Text(visit.drinkDisplayText)
+                        let displayInfo = [
+                            visit.drinkDisplayText,
+                            visit.brewMethod
+                        ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                        
+                        Text(displayInfo)
                             .font(DS.Typography.caption1())
                             .foregroundColor(DS.Colors.textSecondary)
                             .lineLimit(1)
@@ -722,7 +746,7 @@ struct VisitCard: View {
 // MARK: - Scroll Offset Preference Key
 
 struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

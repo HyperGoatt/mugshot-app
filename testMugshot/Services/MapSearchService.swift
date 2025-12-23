@@ -10,6 +10,7 @@ import MapKit
 import Combine
 import CoreLocation
 
+@MainActor
 class MapSearchService: ObservableObject {
     @Published var searchResults: [MKMapItem] = []
     @Published var nearbySuggestions: [MKMapItem] = []

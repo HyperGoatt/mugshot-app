@@ -18,7 +18,7 @@ import CoreLocation
 // MARK: - Preference Key for Image Position
 
 struct ImagePositionPreferenceKey: PreferenceKey {
-    static var defaultValue: CGPoint = .zero
+    nonisolated(unsafe) static var defaultValue: CGPoint = .zero
     static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {
         value = nextValue()
     }

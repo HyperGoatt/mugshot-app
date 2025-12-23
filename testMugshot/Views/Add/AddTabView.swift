@@ -50,26 +50,9 @@ import CoreLocation
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
-    @State private var showOnboardingFlow = false
     
     var body: some View {
-        // Use feature flag to switch between classic and onboarding-style post flow
-        if dataManager.appData.useOnboardingStylePostFlow {
-            // Show placeholder that triggers full screen flow
-            Color.clear
-                .onAppear {
-                    showOnboardingFlow = true
-                }
-                .fullScreenCover(isPresented: $showOnboardingFlow) {
-                    OnboardingStylePostFlowView(
-                        dataManager: dataManager,
-                        preselectedCafe: preselectedCafe
-                    )
-                    .environmentObject(HapticsManager.shared)
-                }
-        } else {
-            LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
-        }
+        LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
     }
 }
 
@@ -99,10 +82,16 @@ struct LogVisitView: View {
     @State private var isSaving = false
     @State private var savedVisit: Visit?
     @State private var showVisitDetail = false
+    @State private var scrollToTop = false
+    
+    // Craft Sip fields
+    @State private var contextType: ContextType = .cafe
+    @State private var locationName: String = ""
+    @State private var brewMethod: String = ""
+    @State private var cityState: String? = nil
     
     @StateObject private var searchService = MapSearchService()
     @State private var searchText = ""
-    @State private var scrollToTop = false
     
     // Default fallback region (used when location not available)
     private let defaultSearchRegion = MKCoordinateRegion(
@@ -203,6 +192,20 @@ struct LogVisitView: View {
                         selectedCafe = cafe
                     }
                     initializeRatings()
+                    
+                    // Fetch city/state for potential craft sip
+                    Task {
+                        if let location = locationManager.location {
+                            cityState = await dataManager.getCityState(for: location)
+                        }
+                    }
+                }
+                .onChange(of: locationManager.location) { _, newLocation in
+                    if let location = newLocation, cityState == nil {
+                        Task {
+                            cityState = await dataManager.getCityState(for: location)
+                        }
+                    }
                 }
                 .fullScreenCover(isPresented: $showVisitDetail, onDismiss: {
                     // When visit detail is dismissed, switch to Feed tab and reset form
@@ -249,9 +252,13 @@ struct LogVisitView: View {
                 .frame(height: 1)
                 .id("top")
             
-            // SECTION 1: Cafe Location
-            CafeLocationSection(
+            // SECTION 1: Location & Context
+            CraftSipLocationSection(
+                contextType: $contextType,
                 selectedCafe: $selectedCafe,
+                locationName: $locationName,
+                brewMethod: $brewMethod,
+                cityState: $cityState,
                 searchText: $searchText,
                 isSearchActive: $isCafeSearchActive,
                 searchService: searchService,
@@ -475,7 +482,11 @@ struct LogVisitView: View {
         
         do {
             let visit = try await dataManager.createVisit(
-                cafe: cafe,
+                cafe: contextType == .cafe ? selectedCafe : nil,
+                locationName: contextType == .cafe ? nil : locationName,
+                brewMethod: contextType == .cafe ? nil : brewMethod,
+                contextType: contextType,
+                cityState: cityState,
                 drinkType: drinkType,
                 customDrinkType: drinkType == .other ? customDrinkType : nil,
                 drinkSubtype: drinkSubtype.isEmpty ? nil : drinkSubtype,
@@ -488,6 +499,12 @@ struct LogVisitView: View {
                 visibility: visibility,
                 mentions: mentions
             )
+            
+            // Add to saved setups if it's a craft sip and has a name
+            if contextType != .cafe && !locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                dataManager.addSavedSetup(locationName)
+            }
+            
             savedVisit = visit
             // Haptic: visit save success
             hapticsManager.playSuccess()
@@ -532,10 +549,14 @@ struct LogVisitView: View {
     }
 }
 
-// MARK: - Cafe Location Section
+// MARK: - Craft Sip Location Section
 
-struct CafeLocationSection: View {
+struct CraftSipLocationSection: View {
+    @Binding var contextType: ContextType
     @Binding var selectedCafe: Cafe?
+    @Binding var locationName: String
+    @Binding var brewMethod: String
+    @Binding var cityState: String?
     @Binding var searchText: String
     @Binding var isSearchActive: Bool
     @ObservedObject var searchService: MapSearchService
@@ -543,205 +564,190 @@ struct CafeLocationSection: View {
     let searchRegion: MKCoordinateRegion
     @FocusState private var isSearchFieldFocused: Bool
     
-    private var shouldShowRecentSearches: Bool {
-        isSearchFieldFocused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-    
     private var referenceLocation: CLLocation {
         CLLocation(latitude: searchRegion.center.latitude, longitude: searchRegion.center.longitude)
     }
     
     var body: some View {
         DSBaseCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Cafe Location")
-                    .font(DS.Typography.sectionTitle)
-                    .foregroundColor(DS.Colors.textPrimary)
+            VStack(alignment: .leading, spacing: 16) {
+                // Location Type Toggle
+                HStack {
+                    Text("Where are you sipping?")
+                        .font(DS.Typography.sectionTitle)
+                        .foregroundColor(DS.Colors.textPrimary)
+                    
+                    Spacer()
+                    
+                    Picker("Location Type", selection: $contextType) {
+                        Image(systemName: "shop.fill").tag(ContextType.cafe)
+                        Image(systemName: "house.fill").tag(ContextType.home)
+                        Image(systemName: "tent.fill").tag(ContextType.market)
+                        Image(systemName: "calendar").tag(ContextType.event)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                }
                 
-                if isSearchActive {
-                    // Inline search mode
-                    VStack(spacing: DS.Spacing.sm) {
-                        HStack(spacing: DS.Spacing.lg) {
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(DS.Colors.textSecondary)
-                                
-                                TextField("Search cafes...", text: $searchText)
-                                    .foregroundColor(DS.Colors.textPrimary)
-                                    .focused($isSearchFieldFocused)
-                                    .onChange(of: searchText) { _, newValue in
-                                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if !trimmed.isEmpty {
-                                            if !isSearchActive {
-                                                withAnimation {
-                                                    isSearchActive = true
-                                                }
-                                            }
-                                            searchService.search(
-                                                query: trimmed,
-                                                region: searchRegion,
-                                                mode: dataManager.appData.mapSearchMode
-                                            )
-                                        } else {
-                                            searchService.cancelSearch()
-                                            if !isSearchFieldFocused {
-                                                withAnimation {
-                                                    isSearchActive = false
-                                                }
-                                            }
-                                        }
-                                    }
-                                    .onChange(of: isSearchFieldFocused) { _, focused in
-                                        if focused {
-                                            withAnimation {
-                                                isSearchActive = true
-                                            }
-                                        } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            withAnimation {
-                                                isSearchActive = false
-                                            }
-                                        }
-                                    }
-                                
-                                if !searchText.isEmpty {
-                                    Button(action: {
-                                        searchText = ""
-                                        searchService.cancelSearch()
-                                        withAnimation {
-                                            isSearchActive = false
-                                        }
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(DS.Colors.iconSubtle)
-                                    }
-                                }
-                            }
-                            .padding(DS.Spacing.md)
-                            .background(DS.Colors.cardBackground)
-                            .cornerRadius(DS.Radius.md)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DS.Radius.md)
-                                    .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                            )
-                            
-                            Button("Cancel") {
-                                searchText = ""
-                                searchService.cancelSearch()
-                                withAnimation {
-                                    isSearchActive = false
-                                }
-                                isSearchFieldFocused = false
-                            }
-                            .foregroundColor(DS.Colors.textPrimary)
-                        }
-                        
-                        CafeSearchResultsPanel(
-                            searchText: $searchText,
-                            searchService: searchService,
-                            recentSearches: dataManager.appData.recentSearches,
-                            showRecentSearches: shouldShowRecentSearches,
-                            referenceLocation: referenceLocation,
-                            onMapItemSelected: { mapItem in
-                                handleMapItemSelection(mapItem)
-                            },
-                            onRecentSelected: { entry in
-                                handleRecentSelection(entry)
-                            },
-                            emptyRecentStateText: "Search for a cafe to start building your history."
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                if contextType == .cafe {
+                    cafeSelectionContent
                 } else {
-                    // Display selected cafe or search prompt
-                    Button(action: {
-                        withAnimation {
-                            isSearchActive = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            isSearchFieldFocused = true
-                        }
-                    }) {
-                        HStack {
-                            if let cafe = selectedCafe {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Image(systemName: "location.fill")
-                                            .foregroundColor(DS.Colors.primaryAccent)
-                                            .font(DS.Typography.caption1())
-                                        Text(cafe.name)
-                                            .font(DS.Typography.bodyText)
-                                            .foregroundColor(DS.Colors.textPrimary)
-                                    }
-                                    
-                                    if !cafe.address.isEmpty {
-                                        Text(cafe.address)
-                                            .font(DS.Typography.bodyText)
-                                            .foregroundColor(DS.Colors.textSecondary)
-                                    }
-                                }
-                            } else {
-                                HStack {
-                                    Image(systemName: "magnifyingglass")
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                    Text("Search for a Cafe…")
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(DS.Colors.iconSubtle)
-                        }
-                        .padding(DS.Spacing.md)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.md)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    craftSipContent
                 }
             }
         }
     }
     
-    private func handleMapItemSelection(_ mapItem: MKMapItem, recordRecent: Bool = true) {
-        HapticsManager.shared.lightTap()
-        
-        let cafe = dataManager.findOrCreateCafe(from: mapItem)
-        selectedCafe = cafe
-        isSearchFieldFocused = false
-        
-        let queryText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchText = ""
-        searchService.cancelSearch()
-        
-        withAnimation {
-            isSearchActive = false
-        }
-        
-        if recordRecent {
-            dataManager.addRecentSearch(from: mapItem, query: queryText.isEmpty ? (mapItem.name ?? "") : queryText)
+    @ViewBuilder
+    private var cafeSelectionContent: some View {
+        if isSearchActive {
+            VStack(spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.lg) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(DS.Colors.textSecondary)
+                        
+                        TextField("Search cafes...", text: $searchText)
+                            .foregroundColor(DS.Colors.textPrimary)
+                            .focused($isSearchFieldFocused)
+                            .onChange(of: searchText) { _, newValue in
+                                searchService.search(
+                                    query: newValue,
+                                    region: searchRegion,
+                                    mode: dataManager.appData.mapSearchMode
+                                )
+                            }
+                    }
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackground)
+                    .cornerRadius(DS.Radius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .stroke(DS.Colors.borderSubtle, lineWidth: 1)
+                    )
+                    
+                    Button("Cancel") {
+                        isSearchActive = false
+                        isSearchFieldFocused = false
+                    }
+                    .foregroundColor(DS.Colors.textPrimary)
+                }
+                
+                CafeSearchResultsPanel(
+                    searchText: $searchText,
+                    searchService: searchService,
+                    recentSearches: dataManager.appData.recentSearches,
+                    showRecentSearches: searchText.isEmpty,
+                    referenceLocation: referenceLocation,
+                    onMapItemSelected: { handleMapItemSelection($0) },
+                    onRecentSelected: { handleRecentSelection($0) },
+                    emptyRecentStateText: "Search for a cafe..."
+                )
+            }
+        } else {
+            Button(action: {
+                withAnimation { isSearchActive = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { isSearchFieldFocused = true }
+            }) {
+                HStack {
+                    if let cafe = selectedCafe {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "location.fill")
+                                    .foregroundColor(DS.Colors.primaryAccent)
+                                Text(cafe.name)
+                                    .font(DS.Typography.bodyText)
+                                    .foregroundColor(DS.Colors.textPrimary)
+                            }
+                            if !cafe.address.isEmpty {
+                                Text(cafe.address)
+                                    .font(DS.Typography.caption1())
+                                    .foregroundColor(DS.Colors.textSecondary)
+                            }
+                        }
+                    } else {
+                        Label("Search for a Cafe...", systemImage: "magnifyingglass")
+                            .foregroundColor(DS.Colors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundColor(DS.Colors.iconSubtle)
+                }
+                .padding(DS.Spacing.md)
+                .background(DS.Colors.cardBackgroundAlt)
+                .cornerRadius(DS.Radius.md)
+            }
+            .buttonStyle(.plain)
         }
     }
     
-    private func handleRecentSelection(_ entry: RecentSearchEntry) {
-        dataManager.promoteRecentSearch(entry)
-        if let mapItem = entry.asMapItem() {
-            handleMapItemSelection(mapItem, recordRecent: false)
-        } else {
-            searchText = entry.query
-            searchService.search(
-                query: entry.query,
-                region: searchRegion,
-                mode: dataManager.appData.mapSearchMode
-            )
-            isSearchFieldFocused = true
-            withAnimation {
-                isSearchActive = true
+    @ViewBuilder
+    private var craftSipContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Context name with presets
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Name your setup")
+                    .font(DS.Typography.caption1(.semibold))
+                    .foregroundColor(DS.Colors.textSecondary)
+                
+                TextField("e.g. Home Espresso Bar, Pop-up", text: $locationName)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackgroundAlt)
+                    .cornerRadius(DS.Radius.md)
+                
+                // Presets
+                if !dataManager.appData.currentUserSavedSetups.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(dataManager.appData.currentUserSavedSetups, id: \.self) { setup in
+                                Button(setup) {
+                                    locationName = setup
+                                }
+                                .font(DS.Typography.caption2())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(DS.Colors.primaryAccentSoftFill)
+                                .foregroundColor(DS.Colors.primaryAccent)
+                                .cornerRadius(DS.Radius.pill)
+                            }
+                        }
+                    }
+                }
             }
+            
+            // Brew Method
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Brew Method")
+                    .font(DS.Typography.caption1(.semibold))
+                    .foregroundColor(DS.Colors.textSecondary)
+                
+                TextField("e.g. V60, Espresso, Chemex", text: $brewMethod)
+                    .padding(DS.Spacing.md)
+                    .background(DS.Colors.cardBackgroundAlt)
+                    .cornerRadius(DS.Radius.md)
+            }
+            
+            // Geotag info
+            if let city = cityState {
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin.circle.fill")
+                    Text("Tagging general location: \(city)")
+                }
+                .font(DS.Typography.caption2())
+                .foregroundColor(DS.Colors.textTertiary)
+            }
+        }
+    }
+    
+    private func handleMapItemSelection(_ mapItem: MKMapItem) {
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        selectedCafe = cafe
+        isSearchActive = false
+        searchText = ""
+    }
+    
+    private func handleRecentSelection(_ entry: RecentSearchEntry) {
+        if let mapItem = entry.asMapItem() {
+            handleMapItemSelection(mapItem)
         }
     }
 }

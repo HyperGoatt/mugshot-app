@@ -36,7 +36,7 @@ private struct SupabaseSignUpUserResponse: Codable {
     let email: String?
 }
 
-final class SupabaseAuthService {
+final class SupabaseAuthService: @unchecked Sendable {
     static let shared = SupabaseAuthService(client: SupabaseClientProvider.shared)
 
     private let client: SupabaseClient

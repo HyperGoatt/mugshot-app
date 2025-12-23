@@ -43,7 +43,7 @@ struct UserCafeStateUpsertPayload: Encodable {
     }
 }
 
-final class SupabaseUserCafeStateService {
+final class SupabaseUserCafeStateService: @unchecked Sendable {
     static let shared = SupabaseUserCafeStateService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient

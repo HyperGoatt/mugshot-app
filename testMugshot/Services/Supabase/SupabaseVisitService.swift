@@ -5,7 +5,7 @@
 
 import Foundation
 
-final class SupabaseVisitService {
+final class SupabaseVisitService: @unchecked Sendable {
     static let shared = SupabaseVisitService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient
@@ -407,6 +407,10 @@ final class SupabaseVisitService {
         visibility: String,
         ratings: [String: Double],
         overallScore: Double,
+        locationName: String?,
+        brewMethod: String?,
+        contextType: String?,
+        cityState: String?,
         posterPhotoURL: String? = nil
     ) async throws {
         var payload: [String: Any] = [
@@ -434,6 +438,31 @@ final class SupabaseVisitService {
             payload["notes"] = notes
         } else {
             payload["notes"] = NSNull()
+        }
+        
+        // Add Craft Sip fields
+        if let locationName = locationName {
+            payload["location_name"] = locationName
+        } else {
+            payload["location_name"] = NSNull()
+        }
+        
+        if let brewMethod = brewMethod {
+            payload["brew_method"] = brewMethod
+        } else {
+            payload["brew_method"] = NSNull()
+        }
+        
+        if let contextType = contextType {
+            payload["context_type"] = contextType
+        } else {
+            payload["context_type"] = ContextType.cafe.rawValue
+        }
+        
+        if let cityState = cityState {
+            payload["city_state"] = cityState
+        } else {
+            payload["city_state"] = NSNull()
         }
         
         // Update poster photo URL if provided
@@ -637,7 +666,7 @@ final class SupabaseVisitService {
 
 struct VisitInsertPayload: Encodable {
     let userId: String
-    let cafeId: UUID
+    let cafeId: UUID? // Optional for locationless
     var drinkType: String?
     var drinkTypeCustom: String?
     var drinkSubtype: String?
@@ -647,6 +676,12 @@ struct VisitInsertPayload: Encodable {
     let ratings: [String: Double]
     let overallScore: Double
     let posterPhotoURL: String?
+    
+    // Craft Sip fields
+    var locationName: String?
+    var brewMethod: String?
+    var contextType: String?
+    var cityState: String?
     
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -660,6 +695,10 @@ struct VisitInsertPayload: Encodable {
         case ratings
         case overallScore = "overall_score"
         case posterPhotoURL = "poster_photo_url"
+        case locationName = "location_name"
+        case brewMethod = "brew_method"
+        case contextType = "context_type"
+        case cityState = "city_state"
     }
 }
 

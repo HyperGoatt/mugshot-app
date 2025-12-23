@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class SupabaseFeedbackService {
+final class SupabaseFeedbackService: @unchecked Sendable {
     static let shared = SupabaseFeedbackService(client: SupabaseClientProvider.shared)
     
     private let client: SupabaseClient
@@ -368,6 +368,8 @@ final class SupabaseFeedbackService {
 private struct InsertedFeedbackPost: Decodable {
     let id: UUID
 }
+
+
 
 
 

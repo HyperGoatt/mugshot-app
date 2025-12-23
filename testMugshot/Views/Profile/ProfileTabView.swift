@@ -389,34 +389,6 @@ struct ProfileTabView: View {
                     )
                 }
                 
-                Divider()
-                    .background(DS.Colors.dividerSubtle)
-                
-                // Post Flow Style Toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Post Flow Style")
-                            .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        Text(dataManager.appData.useOnboardingStylePostFlow ? "Onboarding-style (new)" : "Classic (current)")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                            Spacer()
-                    
-                                Button(action: {
-                        dataManager.togglePostFlowStyle()
-                    }) {
-                        Text("Toggle")
-                            .font(DS.Typography.buttonLabel)
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .padding(.horizontal, DS.Spacing.md)
-                            .padding(.vertical, DS.Spacing.sm)
-                            .background(DS.Colors.primaryAccent)
-                                        .cornerRadius(DS.Radius.lg)
-                    }
-                }
                 
                 Divider()
                     .background(DS.Colors.dividerSubtle)
@@ -500,8 +472,9 @@ struct ProfileCafesView: View {
     private var topCafes: [(cafe: Cafe, visitCount: Int, avgScore: Double)] {
         guard let currentUserId = dataManager.appData.currentUser?.id else { return [] }
         
-        let userVisits = dataManager.appData.visits.filter { $0.userId == currentUserId }
-        let visitsByCafe = Dictionary(grouping: userVisits, by: { $0.cafeId })
+        // Only include cafe-backed visits (exclude locationless Craft Sips)
+        let userVisits = dataManager.appData.visits.filter { $0.userId == currentUserId && $0.cafeId != nil }
+        let visitsByCafe = Dictionary(grouping: userVisits, by: { $0.cafeId! })
         
         var cafeStats: [(cafe: Cafe, visitCount: Int, avgScore: Double)] = []
         for (cafeId, visits) in visitsByCafe {
@@ -887,7 +860,6 @@ struct EditProfileView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var hapticsManager: HapticsManager
-    @EnvironmentObject private var themeManager: ThemeManager
     @State private var editableUser: User
     @State private var showingProfileImagePicker = false
     @State private var showingBannerImagePicker = false
@@ -967,9 +939,6 @@ struct EditProfileView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    
-                    // App Experience Section (Theme Toggle)
-                    appExperienceSection
                     
                     // Form Fields
                     formFieldsSection
@@ -1124,60 +1093,6 @@ struct EditProfileView: View {
                                             )
     }
     
-    private var appExperienceSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            DSSectionHeader("App Theme")
-            
-            Text("Choose your preferred visual experience")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-                .padding(.bottom, DS.Spacing.xs)
-            
-            DSDesignSegmentedControl(
-                options: ["Legacy Light", "Light 2.0", "Modern Dark"],
-                selectedIndex: Binding(
-                    get: {
-                        switch themeManager.currentTheme {
-                        case .legacyLight: return 0
-                        case .light20: return 1
-                        case .modernDark: return 2
-                        }
-                    },
-                    set: { newIndex in
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            hapticsManager.mediumTap()
-                            switch newIndex {
-                            case 0: themeManager.setTheme(.legacyLight)
-                            case 1: themeManager.setTheme(.light20)
-                            case 2: themeManager.setTheme(.modernDark)
-                            default: break
-                            }
-                        }
-                    }
-                )
-            )
-            
-            // Theme descriptions
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                switch themeManager.currentTheme {
-                case .legacyLight:
-                    Text("Classic mint-based design with soft, friendly aesthetics")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textTertiary)
-                case .light20:
-                    Text("Premium Light 2.0 with high-contrast, floating cards, and bold typography")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textTertiary)
-                case .modernDark:
-                    Text("Sleek dark theme with glassmorphism and elevated UI elements")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textTertiary)
-                }
-            }
-            .padding(.top, DS.Spacing.xs)
-        }
-    }
-    
     private var formFieldsSection: some View {
         VStack(spacing: DS.Spacing.sectionVerticalGap) {
             formField(title: "Display Name", text: Binding(
@@ -1291,6 +1206,7 @@ struct EditProfileView: View {
                                     favoriteDrink: editableUser.favoriteDrink,
                                     instagramHandle: editableUser.instagramURL,
                                     websiteURL: editableUser.websiteURL,
+                                    savedSetups: dataManager.appData.currentUserSavedSetups,
                                     avatarImage: avatarImage,
                                     bannerImage: bannerImage
                                 )

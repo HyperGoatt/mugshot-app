@@ -120,7 +120,7 @@ final class ProfileNavigator: ObservableObject {
     private var usernameCache: [String: RemoteUserProfile] = [:]
     private var resolveTask: Task<Void, Never>?
     
-    init(dataManager: DataManager = .shared) {
+    init(dataManager: DataManager) {
         self.dataManager = dataManager
     }
     

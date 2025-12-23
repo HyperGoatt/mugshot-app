@@ -212,7 +212,7 @@ enum WidgetDeepLink {
 // MARK: - Widget Data Store
 
 /// Handles reading/writing widget data from App Group container
-final class WidgetDataStore {
+final class WidgetDataStore: @unchecked Sendable {
     static let shared = WidgetDataStore()
     
     private let encoder = JSONEncoder()

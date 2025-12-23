@@ -77,7 +77,7 @@ extension RemoteCafe {
 struct RemoteVisit: Codable {
     let id: UUID
     let userId: String
-    let cafeId: UUID
+    let cafeId: UUID? // Optional for locationless
     var drinkType: String?
     var drinkTypeCustom: String?
     var drinkSubtype: String?
@@ -89,6 +89,12 @@ struct RemoteVisit: Codable {
     var posterPhotoURL: String?
     var createdAt: Date?
     var updatedAt: Date?
+    
+    // Craft Sip fields
+    var locationName: String?
+    var brewMethod: String?
+    var contextType: String?
+    var cityState: String?
     
     var cafe: RemoteCafe?
     var photos: [RemoteVisitPhoto]?
@@ -111,6 +117,10 @@ struct RemoteVisit: Codable {
         case posterPhotoURL = "poster_photo_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case locationName = "location_name"
+        case brewMethod = "brew_method"
+        case contextType = "context_type"
+        case cityState = "city_state"
         case cafe
         case photos = "visit_photos"
         case likes
@@ -132,7 +142,7 @@ struct RemoteVisit: Codable {
             throw DecodingError.keyNotFound(CodingKeys.userId, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "user_id is required"))
         }
         
-        cafeId = try container.decode(UUID.self, forKey: .cafeId)
+        cafeId = try container.decodeIfPresent(UUID.self, forKey: .cafeId)
         drinkType = try container.decodeIfPresent(String.self, forKey: .drinkType)
         drinkTypeCustom = try container.decodeIfPresent(String.self, forKey: .drinkTypeCustom)
         drinkSubtype = try container.decodeIfPresent(String.self, forKey: .drinkSubtype)
@@ -160,6 +170,12 @@ struct RemoteVisit: Codable {
         posterPhotoURL = try container.decodeIfPresent(String.self, forKey: .posterPhotoURL)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        
+        // Craft Sip fields
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        brewMethod = try container.decodeIfPresent(String.self, forKey: .brewMethod)
+        contextType = try container.decodeIfPresent(String.self, forKey: .contextType)
+        cityState = try container.decodeIfPresent(String.self, forKey: .cityState)
         
         cafe = try container.decodeIfPresent(RemoteCafe.self, forKey: .cafe)
         photos = try container.decodeIfPresent([RemoteVisitPhoto].self, forKey: .photos)
