@@ -159,8 +159,8 @@ struct ProfileBioSection: View {
             }
             
             // Meta row (favorite drink + location)
-            if (favoriteDrink != nil && !favoriteDrink!.isEmpty) ||
-               (location != nil && !location!.isEmpty) {
+            if favoriteDrink?.isEmpty == false ||
+               location?.isEmpty == false {
                 HStack(spacing: DS.Spacing.md) {
                     if let favoriteDrink = favoriteDrink, !favoriteDrink.isEmpty {
                         HStack(spacing: 4) {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Security
 
 struct SupabaseSession: Codable {
     let accessToken: String
@@ -492,17 +493,43 @@ final class SupabaseAuthService {
     }
 
     private func store(session: SupabaseSession) {
-        if let data = try? JSONEncoder().encode(session) {
-            UserDefaults.standard.set(data, forKey: sessionKey)
-        }
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: sessionKey,
+            kSecAttrAccount: sessionKey
+        ]
+        SecItemDelete(query as CFDictionary)
+        let attributes: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: sessionKey,
+            kSecAttrAccount: sessionKey,
+            kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemAdd(attributes as CFDictionary, nil)
     }
 
     private func loadSession() -> SupabaseSession? {
-        guard let data = UserDefaults.standard.data(forKey: sessionKey) else { return nil }
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: sessionKey,
+            kSecAttrAccount: sessionKey,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
         return try? JSONDecoder().decode(SupabaseSession.self, from: data)
     }
 
     private func clearSession() {
-        UserDefaults.standard.removeObject(forKey: sessionKey)
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: sessionKey,
+            kSecAttrAccount: sessionKey
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }

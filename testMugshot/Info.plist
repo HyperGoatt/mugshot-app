@@ -52,6 +52,12 @@
 		<key>UIImageRespectsSafeAreaInsets</key>
 		<false/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Mugshot uses your camera to capture photos of your sips to share with friends.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mugshot accesses your photo library so you can add photos to your sip posts.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Mugshot uses your location to find nearby cafes and tag where you sipped.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

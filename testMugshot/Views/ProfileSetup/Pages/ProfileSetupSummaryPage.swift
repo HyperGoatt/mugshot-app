@@ -77,11 +77,9 @@ struct ProfileSetupSummaryPage: View {
                     
                     VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                         // Use display name from onboarding, fallback to username, never email
-                        let displayName = user.currentUserDisplayName?.isEmpty == false 
-                            ? user.currentUserDisplayName! 
-                            : (user.currentUserUsername?.isEmpty == false 
-                                ? user.currentUserUsername!.capitalized 
-                                : "Your Name")
+                        let displayName = user.currentUserDisplayName.flatMap { $0.isEmpty ? nil : $0 }
+                            ?? user.currentUserUsername.flatMap { $0.isEmpty ? nil : $0.capitalized }
+                            ?? "Your Name"
                         Text(displayName)
                             .font(DS.Typography.sectionTitle)
                             .foregroundStyle(DS.Colors.textPrimary)

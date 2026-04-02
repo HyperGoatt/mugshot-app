@@ -9,9 +9,7 @@
 import Foundation
 
 enum AppConfig {
-    /// Placeholder Privacy Policy URL for Alpha/TestFlight.
-    /// Replace this with the real hosted policy before production launch.
-    static let privacyPolicyURLString: String = "https://example.com/privacy"
+    static let privacyPolicyURLString: String = "https://mugshotapp.co/privacy"
 }
 
 

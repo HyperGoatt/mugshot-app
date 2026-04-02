@@ -231,7 +231,10 @@ struct JournalStatsHelper {
         
         // Convert to sorted array of tuples
         return grouped
-            .map { (key: $0.key, displayString: formatter.string(from: $0.value.first!.createdAt), visits: $0.value.sorted { $0.createdAt > $1.createdAt }) }
+            .compactMap { group -> (key: String, displayString: String, visits: [Visit])? in
+                guard let first = group.value.first else { return nil }
+                return (key: group.key, displayString: formatter.string(from: first.createdAt), visits: group.value.sorted { $0.createdAt > $1.createdAt })
+            }
             .sorted { $0.key > $1.key } // Sort by key descending (newest first)
     }
     

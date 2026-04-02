@@ -124,9 +124,7 @@ struct FeedTabView: View {
                                                 }
                                                 if let supabaseUserId = visit.supabaseUserId {
                                                     // Extract plain username (strip @ if present)
-                                                    let plainUsername = visit.authorUsername?.hasPrefix("@") == true
-                                                        ? String(visit.authorUsername!.dropFirst())
-                                                        : visit.authorUsername
+                                                    let plainUsername = visit.authorUsername.map { $0.hasPrefix("@") ? String($0.dropFirst()) : $0 }
                                                     profileNavigator.openProfile(
                                                         handle: .supabase(
                                                             id: supabaseUserId,
