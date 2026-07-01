@@ -46,6 +46,14 @@ class DataManager: ObservableObject {
         save()
     }
     
+    func applyAuthenticatedProfile(_ profile: SupabaseUserProfile) {
+        appData.currentUser = profile.localUser
+        if !appData.hasCompletedOnboarding {
+            appData.hasCompletedOnboarding = true
+        }
+        save()
+    }
+    
     // MARK: - Cafe Operations
     func addCafe(_ cafe: Cafe) {
         appData.cafes.append(cafe)
@@ -314,4 +322,3 @@ class DataManager: ObservableObject {
         )
     }
 }
-

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedTab: ProfileContentTab = .recent
     
     enum ProfileContentTab: String, CaseIterable {
@@ -64,9 +65,25 @@ struct ProfileTabView: View {
                     VStack(spacing: 20) {
                         // User info
                         VStack(spacing: 8) {
+                            if let displayName = user?.displayName, !displayName.isEmpty {
+                                Text(displayName)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.espressoBrown.opacity(0.8))
+                            }
+                            
                             Text("@\(user?.username ?? "user")")
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(.espressoBrown)
+                            
+                            if authModel.profile != nil {
+                                Text("Supabase profile active")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.espressoBrown.opacity(0.65))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.mugshotMint.opacity(0.45))
+                                    .cornerRadius(DesignSystem.smallCornerRadius)
+                            }
                             
                             if let location = user?.location, !location.isEmpty {
                                 Text(location)
@@ -83,6 +100,17 @@ struct ProfileTabView: View {
                             }
                         }
                         .padding(.top, 50)
+                        
+                        Button {
+                            Task {
+                                await authModel.signOut()
+                            }
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .padding(.horizontal)
                         
                         // Stats section
                         VStack(spacing: 16) {
@@ -341,4 +369,3 @@ struct WishlistView: View {
         }
     }
 }
-

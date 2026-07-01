@@ -19,17 +19,7 @@ struct testMugshotApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if dataManager.appData.hasCompletedOnboarding {
-                MainTabView(dataManager: dataManager)
-                    .onAppear {
-                        // Seed sample data if needed
-                        SampleDataSeeder.seedSampleData(dataManager: dataManager)
-                    }
-                    .preferredColorScheme(.light) // Lock to light mode
-            } else {
-                OnboardingView(dataManager: dataManager)
-                    .preferredColorScheme(.light) // Lock to light mode
-            }
+            MugshotRootView(dataManager: dataManager)
         }
     }
     

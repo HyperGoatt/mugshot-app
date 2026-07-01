@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		70A000032F00000000000003 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70A000022F00000000000002 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		40E2768F2EC7997C005528D1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,8 @@
 		40E276812EC7997A005528D1 /* testMugshot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = testMugshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E276982EC7997C005528D1 /* testMugshotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/SupabaseConfig.xcconfig; sourceTree = "<group>"; };
+		70A000062F00000000000006 /* Config/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config/Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				70A000032F00000000000003 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +82,8 @@
 		40E276782EC7997A005528D1 = {
 			isa = PBXGroup;
 			children = (
+				70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */,
+				70A000062F00000000000006 /* Config/Info.plist */,
 				40E276832EC7997A005528D1 /* testMugshot */,
 				40E276912EC7997C005528D1 /* testMugshotTests */,
 				40E2769B2EC7997C005528D1 /* testMugshotUITests */,
@@ -112,6 +121,7 @@
 			);
 			name = testMugshot;
 			packageProductDependencies = (
+				70A000022F00000000000002 /* Supabase */,
 			);
 			productName = testMugshot;
 			productReference = 40E276812EC7997A005528D1 /* testMugshot.app */;
@@ -195,6 +205,9 @@
 			);
 			mainGroup = 40E276782EC7997A005528D1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 40E276822EC7997A005528D1 /* Products */;
 			projectDirPath = "";
@@ -392,20 +405,17 @@
 		};
 		40E276A32EC7997C005528D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show cafes near you on the map and help you discover new places.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -421,20 +431,17 @@
 		};
 		40E276A42EC7997C005528D1 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show cafes near you on the map and help you discover new places.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -560,6 +567,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		70A000022F00000000000002 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 40E276792EC7997A005528D1 /* Project object */;
 }
