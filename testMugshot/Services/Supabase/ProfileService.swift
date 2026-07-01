@@ -8,15 +8,15 @@ import Supabase
 
 final class ProfileService {
     private let client: SupabaseClient
-    
+
     private let profileColumns = """
     id, display_name, username, bio, location, favorite_drink, instagram_handle, avatar_url, banner_url, website_url
     """
-    
+
     init(client: SupabaseClient) {
         self.client = client
     }
-    
+
     func bootstrapProfile(
         for authUser: AuthenticatedUser,
         localUser: User?
@@ -24,7 +24,7 @@ final class ProfileService {
         if let profile = try await fetchProfile(userId: authUser.id) {
             return profile
         }
-        
+
         let fallback = SupabaseUserProfileUpsert(
             id: authUser.id,
             displayName: fallbackDisplayName(for: authUser, localUser: localUser),
@@ -32,7 +32,7 @@ final class ProfileService {
             bio: localUser?.bio.nilIfEmpty,
             location: localUser?.location.nilIfEmpty
         )
-        
+
         return try await client
             .from("users")
             .upsert(fallback, onConflict: "id")
@@ -41,7 +41,7 @@ final class ProfileService {
             .execute()
             .value
     }
-    
+
     func fetchProfile(userId: UUID) async throws -> SupabaseUserProfile? {
         let profiles: [SupabaseUserProfile] = try await client
             .from("users")
@@ -49,22 +49,36 @@ final class ProfileService {
             .eq("id", value: userId.uuidString)
             .execute()
             .value
-        
+
         return profiles.first
     }
-    
+
+    func updateProfile(
+        userId: UUID,
+        update: SupabaseUserProfileUpdate
+    ) async throws -> SupabaseUserProfile {
+        try await client
+            .from("users")
+            .update(update)
+            .eq("id", value: userId.uuidString)
+            .select(profileColumns)
+            .single()
+            .execute()
+            .value
+    }
+
     private func fallbackDisplayName(for authUser: AuthenticatedUser, localUser: User?) -> String {
         if let displayName = localUser?.displayName?.nilIfEmpty {
             return displayName
         }
-        
+
         if let username = localUser?.username.nilIfEmpty {
             return username
         }
-        
+
         return authUser.email?.split(separator: "@").first.map(String.init) ?? "Mugshot User"
     }
-    
+
     private func fallbackUsername(for authUser: AuthenticatedUser, localUser: User?) -> String {
         if let username = localUser?.username.nilIfEmpty {
             let sanitized = sanitizeUsername(username)
@@ -72,13 +86,13 @@ final class ProfileService {
                 return sanitized
             }
         }
-        
+
         let emailPrefix = authUser.email?.split(separator: "@").first.map(String.init) ?? "user"
         let base = sanitizeUsername(emailPrefix)
         let safeBase = base.count >= 3 ? base : "user"
         return "\(safeBase)_\(authUser.id.uuidString.prefix(4).lowercased())"
     }
-    
+
     private func sanitizeUsername(_ value: String) -> String {
         value
             .lowercased()
@@ -92,4 +106,3 @@ private extension String {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
-

@@ -18,6 +18,8 @@ Phase 2A status: native Supabase client setup, auth/session restore, and current
 
 Phase 2A.5 status: Phase 2A was checkpointed at commit `ff98451`. Read-only Supabase inspection confirmed the risky `public.visits` insert trigger still exists and would fire during real visit creation. Phase 2B visit inserts are blocked until the trigger is disabled, dropped, or rebuilt without embedded credentials.
 
+Profile edit status: profile edit basics are implemented and simulator-validated. See `docs/PHASE_2B_PROFILE_EDIT_BASICS.md`. Live Save validation still needs an approved remote profile-write pass with a test user.
+
 ## 1. Secure The Supabase Trigger Secret
 
 Outcome: no bearer/service-role token is embedded in a database trigger action.
@@ -99,8 +101,8 @@ Use small tests around repository/model mapping first. Add UI tests only after t
 ## First 3 Implementation Tasks I Would Do Next
 
 1. Resolve or quarantine the Supabase trigger/security findings and decide where backend migrations/functions live.
-2. Build Phase 2B profile setup/edit only if needed before visit writes, otherwise keep current bootstrap and move to the visit repository.
-3. Wire Add Visit to create one real Supabase visit, initially without photos, then add Storage upload immediately after.
+2. Run an approved backend-write smoke test for profile edit basics with a non-production test user.
+3. Wire Add Visit to create one real Supabase visit only after the visit trigger quarantine is applied and verified.
 
 ## Product Recommendations Separate From Implementation
 

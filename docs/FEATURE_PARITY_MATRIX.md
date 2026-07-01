@@ -26,7 +26,7 @@ Priority key:
 | Welcome | Marketing/welcome and auth entry | Local onboarding/welcome | Partial | P0 | Rework only as needed for auth handoff |
 | Auth | Supabase email/password sign up, sign in, sign out, session restore | Native email/password auth, sign-out service, session restore | Partial | P0 | Phase 2A implemented; polish auth/setup later |
 | Profile bootstrap | Creates/loads `public.users`; setup profile route | Loads/bootstraps current `public.users` and maps it to local `User` | Partial | P0 | Phase 2A implemented; edit/setup remains |
-| Edit profile | Display name, username, bio, favorite drink, location, social links, avatar/banner | No edit profile | Missing | P1 | Add after bootstrap |
+| Edit profile | Display name, username, bio, favorite drink, location, social links, avatar/banner | Basic remote edit sheet for text fields; no avatar/banner upload | Partial | P1 | Text fields implemented; media waits for storage safety |
 | Avatar upload | Supabase Storage `profile-media` | Local avatar initial/path only | Missing | P1 | Add after profile edit basics |
 | Banner upload | Supabase Storage `profile-media` | None | Missing | P2 | Defer unless easy with profile media |
 | Feed scopes | Friends, Everyone, Discover | Friends, Everyone | Partial | P0 for backend feed, P2 for Discover | Start with public/current-user feed, add friends later |

@@ -76,6 +76,8 @@ Decision:
 
 ## Phase 2B - Profile Setup And Edit Profile
 
+Status: profile edit basics implemented and simulator-validated on 2026-07-01. See `docs/PHASE_2B_PROFILE_EDIT_BASICS.md`.
+
 Goal:
 
 - Make profile identity real enough for beta.
@@ -99,9 +101,14 @@ Out of scope:
 
 Definition of done:
 
-- Profile state survives reinstall/relogin.
-- Username/display name validation errors are understandable.
-- Profile screen reflects remote data.
+- Profile state survives reinstall/relogin. Partially done through Phase 2A bootstrap and remote edit path; live save validation still needs an approved backend-write pass.
+- Username/display name validation errors are understandable. Basic local validation is implemented.
+- Profile screen reflects remote data. Done for session restore/bootstrap and after successful update response.
+
+Still out of scope:
+
+- Avatar/banner upload until storage policy findings are resolved.
+- Public profile browsing.
 
 ## Phase 2C - Real Add Visit Without Photos
 
@@ -373,7 +380,7 @@ Definition of done:
 
 1. Resolve or consciously quarantine the Supabase trigger/token security findings from Phase 1.
 2. Decide where Supabase migrations/functions live for the iOS project.
-3. Decide whether Phase 2B profile setup/edit is required before visit writes.
+3. Complete approved backend-write smoke testing for profile edit basics.
 4. Add a repository boundary beside `DataManager`.
 5. Create one real visit without photos.
 6. Add visit photo upload and `visit_photos`.
