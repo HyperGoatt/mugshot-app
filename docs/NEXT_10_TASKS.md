@@ -26,6 +26,8 @@ Why first: a sensitive bearer token was visible in the trigger definition for th
 
 Current Phase 2A.5 decision: this blocks real Add Visit writes. For a no-photo Phase 2B, the shortest safe quarantine is to remove or disable the `notify-friends-on-new-visit` trigger on `public.visits` before inserting visits from iOS.
 
+Prepared helper: `supabase/manual/phase_2a5_quarantine_visit_notify_trigger.sql`. Prefer dropping the trigger after rotating the credential, because disabling it would still leave the embedded credential in database metadata.
+
 ## 2. Pull Supabase Schema And Migrations Into The Repo
 
 Outcome: the repo contains the current Supabase migrations/functions or an agreed snapshot.

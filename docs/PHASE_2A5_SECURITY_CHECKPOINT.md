@@ -85,6 +85,12 @@ Do these in Supabase before allowing native visit inserts:
 
 Warning: Phase 2B should not proceed if the current trigger can still fire on `public.visits` inserts.
 
+Manual helper:
+
+- `supabase/manual/phase_2a5_quarantine_visit_notify_trigger.sql`
+
+This SQL was prepared as a non-executed runbook. Review it before use. It drops the unsafe trigger after credential rotation so the embedded credential is removed from trigger metadata. Disabling the trigger alone would stop the side effect, but it would leave the embedded credential in database metadata.
+
 ## Other Security Findings
 
 Must fix before Phase 2B:
@@ -118,4 +124,3 @@ Later hardening:
 Do not start Phase 2B real visit creation yet.
 
 The schema and RLS model are close enough for no-photo visit creation, but the insert side effect is not safe. Once the visit trigger is disabled, dropped, or rebuilt without embedded credentials, Phase 2B can proceed with real `visits` inserts and no photo upload.
-

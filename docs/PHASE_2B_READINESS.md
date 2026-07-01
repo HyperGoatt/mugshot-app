@@ -10,6 +10,12 @@ Not ready yet.
 
 Phase 2B should wait until the `public.visits` insert trigger is disabled, dropped, or rebuilt without an embedded credential. The trigger currently fires on every visit insert and calls the notification Edge Function with an embedded bearer credential.
 
+Prepared manual helper:
+
+- `supabase/manual/phase_2a5_quarantine_visit_notify_trigger.sql`
+
+The helper was not executed. It should be reviewed and applied only after rotating/revoking the embedded credential.
+
 ## Direct Answers
 
 Can Phase 2B safely insert into the `visits` table?
@@ -112,4 +118,3 @@ Explicitly avoid:
 
 After implementation, build and launch on iPhone 17 Pro iOS 26.2, verify auth/session restore still works, create one no-photo visit, confirm the row exists in Supabase without triggering notification/push behavior, and update docs.
 ```
-
