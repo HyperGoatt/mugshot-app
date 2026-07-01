@@ -57,7 +57,8 @@ Results:
 - Profile: passed; Profile still showed Supabase profile active.
 - Edit Profile sheet: passed; existing profile values rendered in editable fields.
 - Cancel path: passed; sheet dismissed back to Profile.
-- Tests: passed, 4 passed / 0 failed.
+- Tests: passed, 7 passed / 0 failed.
+- Focused unit tests added for safe Supabase config loading, secret-key rejection, Supabase profile mapping, and profile update encoding.
 
 The Save action was not live-smoke-tested because it writes to the remote `public.users` row. It should be tested in an approved backend-write validation pass with a non-production test user.
 
@@ -81,7 +82,7 @@ Runtime:
 /Users/joe.rosso/Library/Developer/XcodeBuildMCP/workspaces/testMugshot-8ff6cf9d4260/logs/co.mugshot.app.testMugshot_2026-07-01T03-36-42-943Z_helperpid26787_ownerpid79981_3e64539d.log
 
 Tests:
-/Users/joe.rosso/Library/Developer/XcodeBuildMCP/workspaces/testMugshot-8ff6cf9d4260/logs/test_sim_2026-07-01T03-41-18-795Z_pid79981_d9439ea7.log
+/Users/joe.rosso/Library/Developer/XcodeBuildMCP/workspaces/testMugshot-8ff6cf9d4260/logs/test_sim_2026-07-01T03-50-00-898Z_pid79981_79f64e78.log
 ```
 
 ## Remaining Gate
