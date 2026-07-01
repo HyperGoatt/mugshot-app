@@ -16,11 +16,15 @@ The main conclusion did not change: connect the existing native shell to durable
 
 Phase 2A status: native Supabase client setup, auth/session restore, and current-user `public.users` profile bootstrap are now implemented and simulator-smoke-tested. Map, Feed, Add, Saved, and stats remain local/demo after sign-in.
 
+Phase 2A.5 status: Phase 2A was checkpointed at commit `ff98451`. Read-only Supabase inspection confirmed the risky `public.visits` insert trigger still exists and would fire during real visit creation. Phase 2B visit inserts are blocked until the trigger is disabled, dropped, or rebuilt without embedded credentials.
+
 ## 1. Secure The Supabase Trigger Secret
 
 Outcome: no bearer/service-role token is embedded in a database trigger action.
 
 Why first: a sensitive bearer token was visible in the trigger definition for the visit insert Edge Function call. Do not copy it. Rotate/revoke it and replace the invocation pattern safely.
+
+Current Phase 2A.5 decision: this blocks real Add Visit writes. For a no-photo Phase 2B, the shortest safe quarantine is to remove or disable the `notify-friends-on-new-visit` trigger on `public.visits` before inserting visits from iOS.
 
 ## 2. Pull Supabase Schema And Migrations Into The Repo
 
@@ -69,6 +73,8 @@ Keep `DataManager` available for local/mock mode until the first remote journey 
 Outcome: Add Visit creates a real `visits` row for the signed-in user.
 
 Start without complex social behavior. Use existing UI. Save cafe, drink, caption, notes, visibility, ratings, and overall score.
+
+Gate: do not start until the visit insert trigger is confirmed safe or inactive.
 
 ## 8. Wire Photo Upload For Visits
 

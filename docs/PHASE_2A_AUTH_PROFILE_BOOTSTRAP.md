@@ -8,6 +8,12 @@ Purpose: record the native iOS Supabase auth/profile bootstrap work without star
 
 Phase 2A is implemented and simulator-smoke-tested.
 
+Checkpoint:
+
+- Local commit: `ff98451`
+- Commit message: `Phase 2A: add Supabase auth and profile bootstrap`
+- Commit was created after confirming the ignored local config was not staged and the staged diff did not contain token-shaped secrets.
+
 Completed:
 
 - Added the official Supabase Swift package to the app target.
@@ -130,3 +136,8 @@ Session restore Map:
 ## Next Phase
 
 Before Phase 2B/2C writes real visits, address or explicitly quarantine the backend security backlog, especially the visit trigger bearer-token issue.
+
+Phase 2A.5 read-only Supabase inspection confirmed that the risky trigger fires on `public.visits` inserts. Do not start real visit creation until that trigger is disabled, dropped, or rebuilt without an embedded credential. See:
+
+- `docs/PHASE_2A5_SECURITY_CHECKPOINT.md`
+- `docs/PHASE_2B_READINESS.md`

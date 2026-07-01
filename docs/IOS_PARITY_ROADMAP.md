@@ -50,6 +50,30 @@ Definition of done:
 - No secret keys are introduced into the repo. Done.
 - `docs/IOS_SIMULATOR_TESTING.md` remains accurate. Done.
 
+Checkpoint:
+
+- Phase 2A committed locally as `ff98451`.
+
+## Phase 2A.5 - Security Checkpoint And Visit Trigger Quarantine
+
+Status: read-only inspection completed on 2026-07-01. See `docs/PHASE_2A5_SECURITY_CHECKPOINT.md` and `docs/PHASE_2B_READINESS.md`.
+
+Goal:
+
+- Confirm Phase 2A is safe to preserve and decide whether real no-photo visit creation can begin.
+
+Result:
+
+- Phase 2A diff was scanned for secrets and committed.
+- `Config/SupabaseConfig.local.xcconfig` is ignored and was not committed.
+- Supabase read-only inspection confirmed a `public.visits` `AFTER INSERT` trigger still calls `notify-friends-on-new-visit` with an embedded bearer credential.
+- The trigger is not needed for Add Visit itself, but it would fire on every Phase 2B visit insert.
+
+Decision:
+
+- Real visit creation is blocked until the trigger is disabled, dropped, or rebuilt without embedded credentials.
+- No live Supabase changes were made in Phase 2A.5.
+
 ## Phase 2B - Profile Setup And Edit Profile
 
 Goal:
@@ -84,6 +108,10 @@ Definition of done:
 Goal:
 
 - Create the first durable Mugshot visit from iOS.
+
+Gate:
+
+- Do not start while the current `public.visits` insert trigger can fire with an embedded bearer credential.
 
 User result:
 
