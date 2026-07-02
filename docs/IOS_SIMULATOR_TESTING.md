@@ -10,6 +10,80 @@ Phase 2A update: this same loop now also validates native Supabase auth/session/
 
 Live Xcode/simulator testing is available through XcodeBuildMCP and was confirmed on a booted iPhone 17 Pro simulator.
 
+Phase 2B/2D update on 2026-07-02:
+
+- XcodeBuildMCP tests passed after the latest core-loop hardening pass: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on the iPhone 17 Pro simulator.
+- Add Visit showed the signed-in photo target near the top of the form after moving Photos above cafe/drink fields.
+- The app now includes `NSPhotoLibraryUsageDescription`.
+- XcodeBuildMCP tap and lower-level touch events on the visible PhotosPicker target did not transition into an inspectable system Photos picker, and no app/runtime log error appeared. Treat this as an automation limitation.
+- Computer Use coordinate-click validation on the visible Simulator did open the native Photos picker, selected a seeded simulator image, returned to Add Visit with a thumbnail, saved a real photo-backed Supabase visit, and verified the photo in remote Visit Detail after app relaunch.
+
+Add Visit polish validation on 2026-07-02:
+
+- XcodeBuildMCP build/run passed after the mockup-led Add Visit polish.
+- XcodeBuildMCP tests passed: 20 passed, 0 failed.
+- The polished Add Visit screen rendered the new "Log a Sip" header, photo-first library target, progress card, summary strip, drink chips, rating score panel, and bottom padding above the tab bar.
+- A no-photo smoke through the polished form created a real Supabase visit and opened remote Visit Detail.
+- During this run, XcodeBuildMCP still did not open the system Photos picker and Computer Use could not attach to the Simulator window, so photo-backed validation relies on the unchanged upload path and the earlier completed picker smoke.
+
+Visit Detail/Profile Recent polish validation on 2026-07-02:
+
+- XcodeBuildMCP tests passed: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on iPhone 17 Pro iOS 26.2.
+- Profile Recent loaded real signed-in Supabase visits and showed the richer remote cards for both `Codex Polish Cafe` and `Codex Photo Loop Cafe`.
+- Tapping the no-photo Profile Recent card opened remote Visit Detail with the new "Sip saved" confirmation, no-photo placeholder, cafe/drink/caption summary, and metadata.
+- Tapping the photo-backed Profile Recent card opened remote Visit Detail with the new "Sip saved" confirmation, large remote poster image, score badge, cafe/drink/caption summary, and private visibility.
+- Screenshots were captured outside the repo:
+  - No-photo detail: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_f3c179cc-2580-4dd5-b1df-a2e96da5f72c.jpg`
+  - Photo-backed detail: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_d6c6e217-7953-4d22-b7dd-190e28729814.jpg`
+
+Feed card polish validation on 2026-07-02:
+
+- XcodeBuildMCP tests passed after the final Feed polish: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on iPhone 17 Pro iOS 26.2.
+- Feed Friends loaded real signed-in Supabase visits and showed the polished no-photo `Codex Polish Cafe` remote card.
+- Tapping the Friends card opened the existing remote Visit Detail sheet.
+- Feed Everyone updated the subtitle to "Fresh public sips" and showed public remote cards.
+- Scrolling Everyone showed the photo-backed `Codex Photo Smoke Cafe` card with the large poster treatment; tapping it opened remote Visit Detail.
+- Screenshots were captured outside the repo:
+  - Friends no-photo card: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_abc33a26-d3f7-4cb3-8da8-5690ab6a30d5.jpg`
+  - Everyone photo-backed card: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_15c69ade-91ff-4b42-8f5b-5382dd63c71d.jpg`
+
+Saved/Cafe Detail polish validation on 2026-07-02:
+
+- XcodeBuildMCP tests passed after the final Saved/Cafe Detail polish: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on iPhone 17 Pro iOS 26.2.
+- Saved Favorites loaded signed-in synced cafe state and showed the polished `Ritual Coffee Roasters` card.
+- Cafe Detail opened from Saved, showed the padded identity card, stat cards, action grid, and recent visits section.
+- Tapping the recent visit row opened the existing visit detail flow. For `Ritual Coffee Roasters` this was the preserved local fallback row, matching the existing state-only cafe behavior.
+- Saved Want to Try showed the planning subtitle and synced Want-to-Try cards.
+- Screenshots were captured outside the repo:
+  - Saved Favorites: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_4a548b82-c9f6-4d7b-9929-72a54bd2ab80.jpg`
+  - Cafe Detail: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_95b0d022-2874-41fe-8359-63ae000a7fc8.jpg`
+  - Want to Try: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_096e7538-fc0c-40b3-9146-c3455583e863.jpg`
+
+Map bottom-sheet polish validation on 2026-07-02:
+
+- XcodeBuildMCP tests passed after the Map sheet polish: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on iPhone 17 Pro iOS 26.2.
+- Apple Maps search returned `Can't reach Apple Maps right now. Try again in a bit.` during this smoke, so the sheet was opened by tapping a visible map pin through Computer Use.
+- The polished Map sheet opened for `Ritual Coffee Roasters` with synced Favorite/Want-to-Try chips, stat cards, action grid, and recent visit row.
+- The Details action opened the existing full Cafe Detail sheet.
+- Screenshot was captured outside the repo:
+  - Map sheet: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/screenshot_optimized_f68675bb-0c20-4f51-9e15-525a8eaceb30.jpg`
+
+Beta-readiness audit validation on 2026-07-02:
+
+- XcodeBuildMCP tests passed after the audit fix: 20 passed, 0 failed.
+- XcodeBuildMCP build/run passed on iPhone 17 Pro iOS 26.2.
+- Fresh screenshots were saved in `docs/audits/beta-readiness-2026-07-02/screenshots/`.
+- Captured Map launch, Feed Friends, remote Visit Detail, Add Visit top/middle/lower/save states, Saved Favorites, Cafe Detail from Saved, Profile top, and Profile Recent.
+- The audit found one Add Visit issue: the incomplete save button looked available while the progress card still showed `0 of 4 ready`.
+- The Add Visit CTA now says `Complete Required Details` and is disabled until Cafe, Drink, Rating, and Caption are complete.
+- After the fix, XcodeBuildMCP's semantic snapshot no longer exposed the incomplete CTA as a tappable target.
+- The fresh Map bottom sheet capture was limited: Computer Use could read the Simulator window and map pins, but coordinate clicks returned a window error in this session. The immediately preceding Map polish pass had already validated the sheet and Details drill-in.
+
 Codex confirmed these simulator tools are available:
 
 - list simulators
@@ -34,7 +108,7 @@ Confirmed working:
 Partially blocked:
 
 - Bottom tab-bar automation can be intermittent at the simulator bottom edge. Some taps succeed on the second attempt; a few taps from Saved did not switch tabs even though the tool reported success.
-- Computer Use coordinate-click fallback is not currently granted in this session, so Codex cannot use Mac-level Simulator clicks as a backup.
+- Computer Use coordinate-click fallback was available for the Phase 2D picker smoke and worked as a backup for system Photos picker interaction.
 
 ## Project To Open
 
@@ -254,7 +328,7 @@ Visual state observed:
 
 - Auth screen is simple and readable.
 - Map, Feed, Add, Saved, and Profile were reachable.
-- Feed/Add/Saved remain local/demo surfaces after sign-in by design.
+- Feed now shows real Supabase-backed visit cards for signed-in Friends and Everyone scopes, and those cards open read-only remote detail sheets. Add Visit writes signed-in no-photo and photo-backed visits to Supabase, while signed-out mode remains local/demo. Saved now syncs signed-in Favorite/Want-to-Try cafe state.
 - Map shows a location-disabled banner because the simulator has not granted location access.
 - iOS showed a system "Save Password?" prompt immediately after first login.
 - Feed and Saved showed placeholder image blocks where no local photo exists.
@@ -267,9 +341,9 @@ Visual state observed:
 ## Known Blockers
 
 - Bottom tab-bar automation is still intermittent from some screens. In Phase 2A testing, Map, Feed, Add, Saved, and Profile were reachable, but a few later tab taps from Saved did not switch screens even though XcodeBuildMCP reported success.
-- Computer Use coordinate fallback is not granted in this session.
+- Computer Use coordinate fallback may be needed for system Photos picker interaction because XcodeBuildMCP semantic taps do not currently open that picker reliably.
 - The existing Xcode project file is already modified and sets the display name to `Mugshott`, which appears to be a typo. Do not fix this during Phase 1.5 unless launch depends on it.
-- The app is now Supabase-backed for auth/profile only. Visual smoke tests still show local/demo data for Map, Feed, Add, Saved, and stats.
+- The app is now Supabase-backed for auth/profile, Add Visit, Profile Recent, Feed, remote visit detail, visit photos, and signed-in Favorite/Want-to-Try cafe state. Some Map/Saved/stat presentation still uses the existing local shell while syncing selected remote state.
 - If onboarding has already been completed on the chosen simulator, the app may launch directly into the main tabs. If the simulator has no app data, it should launch into onboarding.
 
 ## What Codex Can See And Control
@@ -287,7 +361,7 @@ Codex cannot see:
 
 - Manual touches you make unless the UI state is inspected after.
 - Private Xcode UI state unless exposed through XcodeBuildMCP.
-- Supabase-backed behavior until the app is wired to Supabase in a later phase.
+- Supabase-backed write behavior until the relevant app surface is wired to Supabase in a later phase.
 - Mac-level coordinate clicks in Simulator unless Computer Use permissions are granted.
 
 ## Recommended Future Visual QA Loop

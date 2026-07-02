@@ -10,11 +10,22 @@ Not ready yet.
 
 Phase 2B should wait until the `public.visits` insert trigger is disabled, dropped, or rebuilt without an embedded credential. The trigger currently fires on every visit insert and calls the notification Edge Function with an embedded bearer credential.
 
+Continuation check on 2026-07-01 confirmed this is still true. The trigger `notify-friends-on-new-visit` remains enabled on `public.visits` and fires `AFTER INSERT FOR EACH ROW` through `http_request`.
+
 Prepared manual helper:
 
 - `supabase/manual/phase_2a5_quarantine_visit_notify_trigger.sql`
 
 The helper was not executed. It should be reviewed and applied only after rotating/revoking the embedded credential.
+
+Trigger scope from the 2026-07-01 continuation check:
+
+- `public.visits` insert: blocked by `notify-friends-on-new-visit`.
+- `public.cafes` insert: no risky insert trigger found.
+- `public.visit_photos` insert: no trigger found.
+- `public.likes` and `public.comments` insert: no trigger found.
+- `public.user_cafe_states` insert: no trigger found.
+- `public.notifications` insert: separate `on_notification_insert` push trigger exists and should stay out of Add Visit Phase 2B.
 
 ## Direct Answers
 
@@ -30,6 +41,7 @@ Does the risky trigger fire on visits?
 Does RLS allow authenticated users to create their own visits?
 
 - Yes. The `visits` insert policy checks that `auth.uid()` matches `user_id`.
+- Authenticated role grants for `visits`, `cafes`, `visit_photos`, `user_cafe_states`, `likes`, `comments`, and `users` were also confirmed. Current Supabase docs make clear that grants and RLS both matter for Data API access.
 
 Does the current schema support a no-photo visit?
 
@@ -60,6 +72,17 @@ Useful optional fields for Phase 2B:
 - `location_name`
 - `city_state`
 - `context_type`
+- `brew_method`
+- `brew_method_visible`
+- `equipment`
+- `equipment_visible`
+- `rating_template_id`
+- `rating_template_type`
+- `poster_photo_url`
+
+These fields are schema-supported, but the first native write should still avoid photo upload and defer Craft Sip/rating-template editing unless the fields are already represented cleanly in the native form.
+
+System rating templates are present for the current web drink set: coffee-specific templates, Matcha, Tea, Hojicha, Chai, and General/Other.
 
 Phase 2B should explicitly avoid:
 

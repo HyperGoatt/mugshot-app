@@ -21,6 +21,7 @@ struct Cafe: Identifiable, Codable {
     var mapItemURL: String? // URL to open this place in Maps app
     var websiteURL: String? // Website URL if available from Apple Maps
     var placeCategory: String? // Category like "Coffee Shop" from Apple Maps
+    var remoteCafeId: UUID? // Supabase cafe id once this local cafe is resolved remotely
     
     init(
         id: UUID = UUID(),
@@ -33,7 +34,8 @@ struct Cafe: Identifiable, Codable {
         visitCount: Int = 0,
         mapItemURL: String? = nil,
         websiteURL: String? = nil,
-        placeCategory: String? = nil
+        placeCategory: String? = nil,
+        remoteCafeId: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -46,6 +48,7 @@ struct Cafe: Identifiable, Codable {
         self.mapItemURL = mapItemURL
         self.websiteURL = websiteURL
         self.placeCategory = placeCategory
+        self.remoteCafeId = remoteCafeId
     }
 }
 
@@ -69,4 +72,3 @@ extension CLLocationCoordinate2D: Codable {
         self.init(latitude: latitude, longitude: longitude)
     }
 }
-

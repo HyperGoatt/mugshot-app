@@ -6,11 +6,13 @@ Phase: Phase 1 only. This audit documents what exists, what is real, what is dem
 
 Phase 2A update: native Supabase auth/session/profile bootstrap has now been implemented after this audit. Historical Phase 1 notes below that say "no Supabase client" or "auth missing" should be read as pre-Phase-2A findings. Current status is documented in `docs/PHASE_2A_AUTH_PROFILE_BOOTSTRAP.md`.
 
+Phase 2B read update: Profile Recent, Feed, and remote visit detail now read real Supabase data without writing rows. Historical notes below that say content surfaces do not use Supabase should be read as pre-read-slice findings for Map, Add, Saved, write paths, social actions, and stats. Current status is documented in `docs/PHASE_2B_REAL_VISITS.md` and `docs/REAL_DATA_FLOW_STATUS.md`.
+
 ## Founder Summary
 
 Mugshot currently has a polished native iOS SwiftUI prototype with real local-device behavior for onboarding, map search, logging visits, photos, ratings, favorites, want-to-try, feed cards, visit detail, cafe detail, comments, likes, edit/delete, and profile stats.
 
-The iOS app is now connected to Supabase for auth/session/profile bootstrap only. App content data is still stored in one local `UserDefaults` blob through `DataManager`, with photos saved as JPEG files in the app documents folder through `PhotoCache`. The social/content surfaces look more real than they are because visits, friendships, visibility, likes, comments, map state, and stats are still local/demo data.
+The iOS app is now connected to Supabase for auth/session/profile bootstrap plus read-only Profile Recent, Feed, and remote visit detail. Most write-heavy content data is still stored in one local `UserDefaults` blob through `DataManager`, with newly selected photos saved as JPEG files in the app documents folder through `PhotoCache`. The social/content surfaces still look more complete than they are because visit creation, friendships, visibility writes, like/comment mutations, map state, photo upload, and stats are still local/demo data.
 
 The connected Supabase project is real and significantly more advanced than the app code. It has auth-backed users, cafes, visits, visit photos, likes, comments, friends, friend requests, notifications, device tokens, storage buckets, Edge Functions, analytics, rating templates, and many migrations. The biggest restart task is not inventing a backend. It is safely reconnecting the existing iOS experience to the backend that already exists, while cleaning up security and schema drift first.
 
@@ -55,14 +57,14 @@ Current local git state:
 - Local visit detail with edit/delete.
 - Local cafe detail and recent visit history.
 - Local profile stats.
-- A connected Supabase backend exists, with real tables and policies. The iOS app now uses it for auth/profile only; content surfaces do not use it yet.
+- A connected Supabase backend exists, with real tables and policies. The iOS app now uses it for auth/profile plus read-only Profile Recent, Feed, and remote visit detail.
 
 ## What Looks Real But Is Not Wired Yet
 
 - Auth: sign in, sign up, sign out, session restore, and Supabase auth client now exist from Phase 2A.
-- Friends feed: the app only filters local visits by visibility and treats "Friends" as non-private local content.
-- Community feed: there are no fetched users or remote visits.
-- User profiles: only the current local user exists in the app.
+- Friends feed: signed-in Feed now reads remote visible visits, but full friend-graph semantics still need multi-account validation.
+- Community feed: Everyone now reads remote public visits and opens read-only remote detail, but social mutations and card-level counts are not wired.
+- User profiles: no public profile view exists yet; Feed author data is currently card-summary only.
 - Notifications: backend tables/functions exist, but no iOS notification surface or device registration is wired.
 - Push updates: Supabase has a push Edge Function, but the app has no device token registration and the function appears to reference stale friendship column names.
 - Privacy controls: visibility is local only, not enforced by RLS from the app.
@@ -76,11 +78,11 @@ Current local git state:
 | --- | --- | --- | --- |
 | Welcome / onboarding | Mostly working | `testMugshot/Views/Onboarding/OnboardingView.swift`, `testMugshot/testMugshotApp.swift` | Local only; no auth, no username uniqueness, no profile sync. |
 | Auth | Phase 2A implemented | `Views/Auth/AuthEntryView.swift`, `Services/Supabase/AuthService.swift`, `Services/Supabase/AppAuthModel.swift` | Email/password auth and session restore work; auth UI is intentionally minimal. |
-| Setup Profile | Partially built | `OnboardingView.swift`, `Models/User.swift`, `Views/Profile/ProfileTabView.swift`, `Services/Supabase/ProfileService.swift` | Current `public.users` row loads/bootstraps; no profile edit, avatar, display name edit flow, or handle validation UI yet. |
-| Feed | Partially built | `Views/Feed/FeedTabView.swift`, `Services/DataManager.swift` | Local visits only; friends/community framing is not backed by users or friendship graph. |
-| Map | Mostly working | `Views/Map/MapTabView.swift`, `Services/MapSearchService.swift`, `Services/LocationManager.swift` | Apple Maps search works locally, but backend cafe identity and cross-user discovery are not wired. |
-| Add Visit / Compose | Mostly working | `Views/Add/AddTabView.swift`, `Services/PhotoCache.swift`, `Models/Visit.swift` | Local save only; no Supabase visit insert, Storage upload, retry/error state, or schema mapping. |
-| Saved | Mostly working | `Views/Saved/SavedTabView.swift`, `Models/Cafe.swift` | Favorites/want-to-try are local cafe booleans, while Supabase uses `user_cafe_states`. |
+| Setup Profile | Partially built | `OnboardingView.swift`, `Models/User.swift`, `Views/Profile/ProfileTabView.swift`, `Services/Supabase/ProfileService.swift` | Current `public.users` row loads/bootstraps and basic profile edit exists; avatar/banner upload and stronger handle validation remain. |
+| Feed | Partially built | `Views/Feed/FeedTabView.swift`, `Views/Feed/RemoteVisitDetailView.swift`, `Services/DataManager.swift`, `Services/Supabase/VisitService.swift` | Signed-in cards read real Supabase visits/users/cafes and open read-only detail with photos/counts/comments; social mutations, card-level counts, and true friend-graph behavior remain unwired. |
+| Map | Partially backend-backed | `Views/Map/MapTabView.swift`, `Services/MapSearchService.swift`, `Services/LocationManager.swift` | Apple Maps search remains native; signed-in Favorite/Want-to-Try state now syncs and writes through Supabase. Cross-user discovery is not wired. |
+| Add Visit / Compose | Partially backend-backed | `Views/Add/AddTabView.swift`, `Services/PhotoCache.swift`, `Models/Visit.swift` | Signed-in Add Visit writes real visits and optional photos to Supabase; signed-out mode remains local. |
+| Saved | Partially backend-backed | `Views/Saved/SavedTabView.swift`, `Models/Cafe.swift` | Signed-in Favorite/Want-to-Try state syncs through `user_cafe_states`; signed-out mode remains local. |
 | Profile | Partially built | `Views/Profile/ProfileTabView.swift`, `Services/DataManager.swift` | Current-user stats are local only; no edit profile, avatar/banner, remote identity, or settings entry. |
 | User Profile | Missing | None | No public profile view for another user despite Supabase user/friend data. |
 | Visit Detail | Mostly working | `Views/Feed/FeedTabView.swift` | Local edit/delete/like/comment work, but no remote permissions, remote comments, or storage photos. |
@@ -92,9 +94,9 @@ Current local git state:
 
 ## Biggest Blockers To Private Beta
 
-1. The app has Supabase auth/profile bootstrap, but no backend repository layer for visits, cafes, feed, or storage.
-2. Local data model and Supabase schema have drifted. Example: app stores `Cafe.isFavorite` and `Cafe.wantToTry`, while Supabase stores per-user cafe state in `user_cafe_states`.
-3. Photo handling is local-only. Supabase has `visit-photos` storage and `visit_photos`, but iOS does not upload or reference those URLs.
+1. The app has Supabase auth/profile bootstrap and read-only visit/feed/detail services, but no backend write layer for visits, cafes, storage, saved state, or social actions.
+2. Local data model and Supabase schema still have some drift, but `Cafe.remoteCafeId` now bridges local cafes to Supabase cafes for saved state.
+3. Photo handling has a first signed-in Storage path, but still needs manual picker validation and cleanup for partial failures.
 4. RLS and function security need review before connecting real users. Supabase advisors show security-definer views/functions, public execution warnings, public bucket listing risk, and old `auth.role()` patterns.
 5. A database trigger appears to embed a bearer token for an Edge Function call. Do not copy it. It should be rotated and replaced with a safer pattern before beta.
 6. The silent push Edge Function appears to query `friends.friend_id`, but the actual table uses `friend_user_id`.
@@ -129,4 +131,4 @@ This should come before Friends, Notifications, public discovery, polished setti
   - `Cafe.swift`: custom `CLLocationCoordinate2D` conformance to `Codable` may conflict if Apple adds conformance in the future.
   - `DataManager.swift`: `currentUserId` is assigned but unused in `toggleVisitLike`.
 - Tests: passed using XcodeBuildMCP `test_sim`.
-- Test caveat: tests are default/skeleton launch tests and do not prove Mugshot product flows.
+- Test caveat: tests now include lightweight remote DTO mapping checks, but they still do not prove full Mugshot product flows.

@@ -4,6 +4,8 @@ Date: 2026-06-30
 
 Purpose: convert the web reference audit into an iOS implementation plan. This roadmap keeps the first native beta narrow: authenticate, create a real visit, upload photos, reload the feed, and persist cafe/profile state.
 
+Repo/branch checkpoint: continue this roadmap in `/Users/joe.rosso/Desktop/Projects/testMugshot`. The older native `Auth` lineage in `/Users/joe.rosso/Documents/mugshot-app` is more product-complete and should be used as a selective reference, not as the base branch. See `docs/REPO_BRANCH_RECONCILIATION.md`.
+
 ## Roadmap Principle
 
 The current iOS app already has the right shape. The next phase should connect the existing shape to durable Supabase behavior. Avoid redesigning screens until the first authenticated journey is real.
@@ -56,7 +58,7 @@ Checkpoint:
 
 ## Phase 2A.5 - Security Checkpoint And Visit Trigger Quarantine
 
-Status: read-only inspection completed on 2026-07-01. See `docs/PHASE_2A5_SECURITY_CHECKPOINT.md` and `docs/PHASE_2B_READINESS.md`.
+Status: inspection completed and trigger quarantine applied on 2026-07-01. See `docs/PHASE_2A5_SECURITY_CHECKPOINT.md`, `docs/PHASE_2B_READINESS.md`, and `docs/VISIT_WRITE_BLOCKER.md`.
 
 Goal:
 
@@ -66,13 +68,14 @@ Result:
 
 - Phase 2A diff was scanned for secrets and committed.
 - `Config/SupabaseConfig.local.xcconfig` is ignored and was not committed.
-- Supabase read-only inspection confirmed a `public.visits` `AFTER INSERT` trigger still calls `notify-friends-on-new-visit` with an embedded bearer credential.
-- The trigger is not needed for Add Visit itself, but it would fire on every Phase 2B visit insert.
+- Supabase inspection confirmed a `public.visits` `AFTER INSERT` trigger called `notify-friends-on-new-visit` with an embedded bearer credential.
+- After manual signing-key rotation, the quarantine SQL removed the trigger.
+- Post-quarantine verification showed no `public.visits` insert trigger path calling `supabase_functions.http_request`.
 
 Decision:
 
-- Real visit creation is blocked until the trigger is disabled, dropped, or rebuilt without embedded credentials.
-- No live Supabase changes were made in Phase 2A.5.
+- Real no-photo visit creation may proceed after one final preflight.
+- Notifications should remain out of scope until rebuilt without embedded credentials.
 
 ## Phase 2B - Profile Setup And Edit Profile
 
@@ -112,13 +115,15 @@ Still out of scope:
 
 ## Phase 2C - Real Add Visit Without Photos
 
+Status: implemented and simulator-validated on 2026-07-01 on branch `codex/phase-2b-real-add-visit`. Visit writes were unblocked at the trigger-path level after signing-key rotation and quarantine SQL. Safe read-backed slices were implemented first, then Add Visit created a real no-photo Supabase visit from iOS and showed it again after app relaunch. See `docs/PHASE_2B_REAL_VISITS.md`, `docs/REAL_DATA_FLOW_STATUS.md`, and `docs/REPO_BRANCH_RECONCILIATION.md`.
+
 Goal:
 
 - Create the first durable Mugshot visit from iOS.
 
 Gate:
 
-- Do not start while the current `public.visits` insert trigger can fire with an embedded bearer credential.
+- Before the first insert, run one final trigger preflight and confirm no `public.visits` insert trigger calls `supabase_functions.http_request`. Done.
 
 User result:
 
@@ -127,6 +132,7 @@ User result:
 Scope:
 
 - Add `VisitRepository`.
+- Reuse the read-only `VisitService` and `CafeService` added during the Phase 2B preflight.
 - Map current iOS Add Visit fields to Supabase `visits`.
 - Include cafe, drink, caption, notes, visibility, ratings JSON/category scores, and overall score.
 - Keep current UI unless a minimal auth-aware validation state is required.
@@ -141,10 +147,10 @@ Out of scope:
 
 Definition of done:
 
-- One visit insert succeeds.
-- Errors are visible and recoverable.
-- Relaunch does not lose the visit.
-- Backend row matches expected user id and visibility.
+- One visit insert succeeds. Done.
+- Errors are visible and recoverable. Done for validation and backend errors.
+- Relaunch does not lose the visit. Done.
+- Backend row matches expected user id and visibility. Done.
 
 ## Phase 2D - Visit Photo Upload
 
@@ -178,6 +184,8 @@ Definition of done:
 - Failed uploads do not create confusing partial visits.
 
 ## Phase 2E - Backend Feed
+
+Status: partially implemented on 2026-07-01. Signed-in Feed now reads real Supabase visits for Friends and Everyone scopes through `VisitService.fetchFeedVisits`. Feed and Profile Recent cards open read-only remote detail through `VisitService.fetchVisitDetail`, including existing remote photos, like count, comments, ratings, and owner-only notes. Remaining work is native Add Visit writes, card-level counts, social mutations, photo upload, and validated friend-graph semantics.
 
 Goal:
 
@@ -384,7 +392,7 @@ Definition of done:
 4. Add a repository boundary beside `DataManager`.
 5. Create one real visit without photos.
 6. Add visit photo upload and `visit_photos`.
-7. Replace Feed with backend data for current user plus public/everyone visits.
+7. Finish remote Feed card counts, social mutations, and media upload now that basic signed-in Feed/detail reads exist.
 8. Persist saved/favorite/want-to-try state through `user_cafe_states`.
 9. Add focused tests around auth/profile/visit mapping.
 10. Add lean settings/account/legal surfaces before external beta.

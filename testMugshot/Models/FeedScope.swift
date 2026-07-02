@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum FeedScope: CaseIterable {
+enum FeedScope: CaseIterable, Equatable {
     case friends
     case everyone
     
@@ -18,4 +18,3 @@ enum FeedScope: CaseIterable {
         }
     }
 }
-

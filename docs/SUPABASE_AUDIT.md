@@ -12,11 +12,17 @@ Database: Postgres 17.6.1, region `us-east-2`
 
 The Supabase project is real and much more complete than the current iOS app wiring. It has auth-linked users, cafes, visits, visit photos, likes, comments, notifications, friends, friend requests, device tokens, storage buckets, Edge Functions, analytics, and rating templates.
 
-The iOS app now uses this project only for Phase 2A auth/session/profile bootstrap. There is still no storage upload, visit repository, backend feed repository, device registration, or local migration source in the repo.
+The iOS app now uses this project for Phase 2A auth/session/profile bootstrap, real visit creation, read-only Profile Recent/Feed/remote visit detail, and the first native visit photo upload path. There is still no remote social mutation path, device registration, or local migration source in the repo.
 
 Before connecting private beta users, fix or formally accept the security findings below. The most urgent issue is that a database trigger action appears to contain an embedded bearer token for invoking an Edge Function. I did not copy the token into this file.
 
-Phase 2A update: the native iOS app now uses Supabase for auth/session restore and current-user `public.users` profile bootstrap only. It still does not insert visits, upload photos, read backend feed data, register devices, or call notification functions.
+Phase 2A update: the native iOS app first used Supabase for auth/session restore and current-user `public.users` profile bootstrap. Visit writes and photo uploads were added later in Phase 2B/2D; device registration and notification function calls remain unwired.
+
+Phase 2B continuation update on 2026-07-01: the unsafe `public.visits` trigger was quarantined, real no-photo visit writes were simulator-validated, and native Profile Recent, Feed, and remote detail now read real Supabase visits, users, cafes, photos, likes, and comments.
+
+Phase 2D photo update on 2026-07-01: Storage preflight verified the `visit-photos` bucket and narrowed its upload INSERT policy to authenticated owner folders with lowercase-safe folder comparison. Signed-in Add Visit now has the first native upload/attach path for selected visit photos, a retry/open recovery card for post-visit photo upload failures, focused tests for Storage path and photo attach contracts, and simulator smokes verified real Storage objects plus `visit_photos` rows. A 2026-07-02 manual picker pass selected a seeded simulator image, saved a private photo-backed visit, verified the Storage object and row, then confirmed Profile Recent and remote Visit Detail after relaunch.
+
+Personal loop state update on 2026-07-01: iOS now reads and writes `public.user_cafe_states` for signed-in Favorite and Want-to-Try behavior. The implementation resolves/creates the remote cafe before writing state, upserts on `(user_id, cafe_id)`, and mirrors remote cafe identity into the local shell via `Cafe.remoteCafeId`.
 
 See also:
 
@@ -152,12 +158,12 @@ Buckets:
 Storage policies:
 
 - `profile-media`: public select; users can upload/update/delete under their own auth uid folder.
-- `visit-photos`: authenticated users can upload; users can delete their own folder objects; select is based on visit visibility.
+- `visit-photos`: authenticated users can upload under their own top-level auth uid folder using lowercase-safe comparison; users can delete their own folder objects; select is based on visit visibility.
 
 Storage risks:
 
 - Advisor warns that `profile-media` public select allows listing public profile image objects. Public buckets can serve public URLs without granting broad object listing.
-- The iOS app currently does not upload to either bucket.
+- The iOS app currently uploads only visit photos; profile media upload remains unwired.
 
 ## Edge Functions
 

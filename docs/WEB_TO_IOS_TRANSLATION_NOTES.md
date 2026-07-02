@@ -116,6 +116,24 @@ Do not add settings/profile controls that cannot persist.
 
 Web Add Visit is broad. Native should start narrow:
 
+Phase 2B web-flow extraction on 2026-07-01 confirmed the current web sequence:
+
+1. Auth gate or login CTA.
+2. Location type: Cafe, Home, Travel, Other.
+3. Cafe path searches nearby/recent/results, upserts or reuses a cafe row, then selects it.
+4. Craft Sip paths collect location/setup name, brew method, equipment, and visibility toggles.
+5. Drink type: Coffee, Matcha, Hojicha, Tea, Chai, Other.
+6. Coffee can include brew method; Other requires custom drink type.
+7. Specific drink/subtype is required.
+8. Photos are optional, up to 10.
+9. Smart rating template chooses user preferred, then system match, then generic fallback.
+10. Category ratings calculate overall score; quick overall rating is also allowed.
+11. Caption and private notes are optional and capped at 200 characters.
+12. Visibility maps to `private`, `friends`, or `everyone`.
+13. Submit uploads photos first, inserts `visits`, inserts `visit_photos`, invalidates visit queries, shows success, and navigates to Feed.
+
+Read-only Supabase inspection also confirmed system templates for Coffee, Matcha, Hojicha, Tea, Chai, and Other/General, plus coffee brew-method templates such as espresso, latte, cappuccino, pour over, drip, french press, cold brew, and Aeropress.
+
 First native remote insert:
 
 - `user_id`
@@ -126,6 +144,17 @@ First native remote insert:
 - visibility
 - ratings/category scores
 - overall score
+
+Safe read slice already implemented:
+
+- Profile Recent reads signed-in user's real `visits` rows.
+- Profile Recent fetches related `cafes` rows for display.
+- Feed reads signed-in Friends and Everyone scopes from real `visits` rows.
+- Feed fetches related `users` and `cafes` rows for card display.
+- Feed and Profile Recent cards open read-only remote detail.
+- Remote detail fetches related `visit_photos`, `likes`, and `comments`, plus comment authors.
+- Remote detail renders existing Supabase photo URLs and owner-only private notes.
+- Later slices now write `visits`, `cafes`, `visit_photos`, Storage objects, and `user_cafe_states` for signed-in personal-loop behavior. Notification and social mutation rows remain unwired.
 
 After first insert:
 
@@ -149,9 +178,16 @@ Recommended first feed scopes:
 - My visits.
 - Everyone/public visits.
 
+Implemented first read slice:
+
+- Friends and Everyone tabs now query Supabase for signed-in users.
+- Cards show remote author, cafe or context, drink, score, caption, date, and visibility.
+- Cards are accessible buttons that open read-only remote detail.
+- Local feed data remains a signed-out fallback.
+
 Delay:
 
-- Friends feed until `friends` and visibility are tested.
+- Full Friends semantics until `friends` and visibility are tested with multiple accounts.
 - Discover until nearby search and friend activity are real.
 
 ## Map Translation
@@ -183,6 +219,12 @@ iOS needs:
 - Row insert rollback strategy if upload or visit create fails.
 
 Do not rely on local `PhotoCache` as the source of truth after a remote photo upload succeeds. It can remain as an optimization or preview cache.
+
+Current iOS status:
+
+- Signed-in Add Visit has the first Storage-backed `visit-photos` upload path.
+- Signed-in Favorite/Want-to-Try state now writes `user_cafe_states` after resolving the remote cafe id.
+- Local/demo mode still uses `PhotoCache` and local cafe booleans.
 
 ## Social Translation
 

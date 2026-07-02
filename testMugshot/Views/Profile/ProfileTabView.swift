@@ -203,6 +203,7 @@ struct ProfileTabView: View {
         switch selectedTab {
         case .recent:
             RecentVisitsView(dataManager: dataManager)
+                .environmentObject(authModel)
         case .topCafes:
             TopCafesView(dataManager: dataManager)
         case .favorites:
@@ -463,38 +464,341 @@ struct CoffeeJourneyView: View {
 
 struct RecentVisitsView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteVisits = false
+    @State private var remoteVisitError: String?
     @State private var selectedVisit: Visit?
     @State private var showVisitDetail = false
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
 
-    var visits: [Visit] {
+    private var localVisits: [Visit] {
         dataManager.appData.visits.sorted { $0.date > $1.date }.prefix(10).map { $0 }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if visits.isEmpty {
-                Text("No visits yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+            if authModel.authenticatedUser != nil {
+                remoteContent
             } else {
-                ForEach(visits) { visit in
-                    if dataManager.getCafe(id: visit.cafeId) != nil {
-                        VisitCard(visit: visit, dataManager: dataManager, selectedScope: .friends)
-                            .onTapGesture {
-                                selectedVisit = visit
-                                showVisitDetail = true
-                            }
-                    }
-                }
+                localContent
             }
+        }
+        .task(id: authModel.authenticatedUser?.id) {
+            await loadRemoteVisits()
         }
         .sheet(isPresented: $showVisitDetail) {
             if let visit = selectedVisit {
                 VisitDetailView(visit: visit, dataManager: dataManager)
             }
         }
+        .sheet(item: $selectedRemoteVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var remoteContent: some View {
+        if isLoadingRemoteVisits {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(.mugshotMint)
+
+                Text("Loading real visits...")
+                    .font(.system(size: 14))
+                    .foregroundColor(.espressoBrown.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding()
+        } else if let remoteVisitError {
+            VStack(spacing: 10) {
+                Text("Could not load real visits")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+
+                Text(remoteVisitError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown.opacity(0.65))
+                    .multilineTextAlignment(.center)
+
+                Button("Retry") {
+                    Task {
+                        await loadRemoteVisits()
+                    }
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.mugshotMint)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.sandBeige.opacity(0.45))
+            .cornerRadius(DesignSystem.cornerRadius)
+        } else if remoteVisits.isEmpty {
+            ProfileEmptyStateCard(
+                systemImage: "cup.and.saucer.fill",
+                title: "No visits yet",
+                message: "Save a real visit from Add. It will appear here, open in detail, and persist after relaunch."
+            )
+        } else {
+            ForEach(remoteVisits) { visit in
+                Button {
+                    selectedRemoteVisit = visit
+                } label: {
+                    RemoteVisitSummaryCard(visit: visit)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
+                .accessibilityHint("Opens visit details")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localContent: some View {
+        if localVisits.isEmpty {
+            ProfileEmptyStateCard(
+                systemImage: "cup.and.saucer.fill",
+                title: "No local visits yet",
+                message: "Log a visit to start filling your taste journal."
+            )
+        } else {
+            ForEach(localVisits) { visit in
+                if dataManager.getCafe(id: visit.cafeId) != nil {
+                    VisitCard(visit: visit, dataManager: dataManager, selectedScope: .friends)
+                        .onTapGesture {
+                            selectedVisit = visit
+                            showVisitDetail = true
+                        }
+                }
+            }
+        }
+    }
+
+    private func loadRemoteVisits() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteVisits = []
+            remoteVisitError = nil
+            isLoadingRemoteVisits = false
+            return
+        }
+
+        isLoadingRemoteVisits = true
+        remoteVisitError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            let visits = try await service.fetchRecentVisits(userId: userId)
+            remoteVisits = visits
+            isLoadingRemoteVisits = false
+        } catch {
+            remoteVisits = []
+            remoteVisitError = error.localizedDescription
+            isLoadingRemoteVisits = false
+        }
+    }
+}
+
+struct ProfileEmptyStateCard: View {
+    let systemImage: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.36))
+                .frame(width: 52, height: 52)
+                .background(Color.sandBeige.opacity(0.45))
+                .clipShape(Circle())
+
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundColor(.espressoBrown.opacity(0.64))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.creamWhite)
+        .cornerRadius(DesignSystem.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                .stroke(Color.sandBeige, lineWidth: 1)
+        )
+    }
+}
+
+struct RemoteVisitSummaryCard: View {
+    let visit: RemoteVisitSummary
+
+    private var hasPhoto: Bool {
+        visit.visit.posterPhotoURL != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if hasPhoto {
+                poster
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 170)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
+                    .overlay(alignment: .topTrailing) {
+                        scoreBadge
+                            .padding(10)
+                    }
+                    .padding([.top, .horizontal], 12)
+            }
+
+            HStack(alignment: .top, spacing: 12) {
+                if !hasPhoto {
+                    poster
+                        .frame(width: 76, height: 76)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(visit.locationTitle)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.espressoBrown)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if let subtitle = visit.locationSubtitle {
+                                Text(subtitle)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.espressoBrown.opacity(0.6))
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer(minLength: 8)
+
+                        if !hasPhoto {
+                            scoreBadge
+                        }
+                    }
+
+                    Text(visit.visit.drinkDisplayName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(2)
+
+                    if !visit.visit.caption.isEmpty {
+                        Text(visit.visit.caption)
+                            .font(.system(size: 13))
+                            .foregroundColor(.espressoBrown.opacity(0.68))
+                            .lineLimit(2)
+                    }
+
+                    metadataRow
+                }
+            }
+            .padding(12)
+        }
+        .background(Color.creamWhite)
+        .cornerRadius(DesignSystem.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                .stroke(Color.sandBeige, lineWidth: 1)
+        )
+        .shadow(
+            color: DesignSystem.cardShadow.color,
+            radius: DesignSystem.cardShadow.radius,
+            x: DesignSystem.cardShadow.x,
+            y: DesignSystem.cardShadow.y
+        )
+    }
+
+    private var poster: some View {
+        Group {
+            if visit.visit.posterPhotoURL != nil {
+                RemotePhotoImageView(
+                    urlString: visit.visit.posterPhotoURL,
+                    placeholderSystemName: "photo"
+                )
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+            } else {
+                RemoteVisitNoPhotoThumbnail()
+            }
+        }
+    }
+
+    private var scoreBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 11))
+            Text(String(format: "%.1f", visit.visit.overallScore))
+                .font(.system(size: 12, weight: .bold))
+        }
+        .foregroundColor(.espressoBrown)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.mugshotMint.opacity(0.45))
+        .cornerRadius(999)
+    }
+
+    private var metadataRow: some View {
+        HStack(spacing: 8) {
+            Label(formatDate(visit.visit.createdAtDate), systemImage: "clock.fill")
+            Text("•")
+            Label(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.35))
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundColor(.espressoBrown.opacity(0.55))
+        .lineLimit(1)
+    }
+
+    private var visibilityIcon: String {
+        switch visit.visit.backendVisibilityLabel.lowercased() {
+        case "private":
+            return "lock.fill"
+        case "friends":
+            return "person.2.fill"
+        default:
+            return "globe"
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+struct RemoteVisitNoPhotoThumbnail: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.4))
+
+            Text("No photo")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.55))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.sandBeige.opacity(0.68))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
     }
 }
 

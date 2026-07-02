@@ -12,6 +12,7 @@ import CoreLocation
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
     
@@ -23,6 +24,7 @@ struct MapTabView: View {
     @State private var hasRequestedLocation = false
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
+    @State private var remoteStateError: String?
     
     // Default fallback region (SF) - only used if location unavailable
     private let defaultRegion = MKCoordinateRegion(
@@ -229,6 +231,9 @@ struct MapTabView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .task(id: authModel.authenticatedUser?.id) {
+            await loadRemoteCafeStates()
+        }
     }
     
     private func initializeLocationIfNeeded() {
@@ -266,9 +271,27 @@ struct MapTabView: View {
     }
     
     private var cafesWithLocations: [Cafe] {
-        // Only show cafes with at least one visit and a location
+        // Show visited cafes and durable saved/wishlist cafes with locations.
         dataManager.appData.cafes.filter { cafe in
-            cafe.location != nil && cafe.visitCount > 0
+            cafe.location != nil && (cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry)
+        }
+    }
+
+    @MainActor
+    private func loadRemoteCafeStates() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteStateError = nil
+            return
+        }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            let states = try await service.fetchCafeStates(userId: userId)
+            dataManager.applyRemoteCafeStates(states)
+            remoteStateError = nil
+        } catch {
+            remoteStateError = "Could not sync saved cafes."
         }
     }
 }
@@ -683,11 +706,14 @@ struct MyLocationButton: View {
 struct CafeDetailSheet: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
     @Binding var isPresented: Bool
     var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
     @State private var showLogVisit = false
     @State private var showFullDetails = false
     @State private var selectedVisit: Visit?
+    @State private var isSyncingCafeState = false
+    @State private var cafeStateError: String?
     
     // Get current cafe state from dataManager to reflect real-time changes
     var currentCafe: Cafe? {
@@ -701,171 +727,57 @@ struct CafeDetailSheet: View {
     var visits: [Visit] {
         dataManager.getVisitsForCafe(cafe.id)
     }
+
+    private var displayedVisitCount: Int {
+        max(displayCafe.visitCount, visits.count)
+    }
+
+    private var displayedScore: Double {
+        displayCafe.averageRating > 0 ? displayCafe.averageRating : 0.0
+    }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header with close button
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    // Cafe name
-                    Text(displayCafe.name)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    // Address with location icon
-                    if !displayCafe.address.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.espressoBrown.opacity(0.6))
-                            Text(displayCafe.address)
-                                .font(.system(size: 14))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // Close button
-                Button(action: {
+            Capsule()
+                .fill(Color.espressoBrown.opacity(0.22))
+                .frame(width: 54, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+
+            HStack(alignment: .top, spacing: 12) {
+                cafeIdentityBlock
+
+                Button {
                     withAnimation {
                         isPresented = false
                     }
-                }) {
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 24))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
+                        .foregroundColor(.espressoBrown.opacity(0.48))
+                        .frame(width: 36, height: 36)
                 }
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Rating and meta
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.mugshotMint)
-                                .font(.system(size: 14))
-                            Text(String(format: "%.1f", displayCafe.averageRating > 0 ? displayCafe.averageRating : 0.0))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                        }
-                        
-                        Text("·")
-                            .foregroundColor(.espressoBrown.opacity(0.5))
-                        
-                        Text("\(displayCafe.visitCount) visit\(displayCafe.visitCount == 1 ? "" : "s")")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                    mapSheetStats
+                    
+                    mapSheetActions
+
+                    if let cafeStateError {
+                        Text(cafeStateError)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     
-                    Divider()
-                        .padding(.vertical, 4)
-                    
-                    // Primary action - Log a Visit
-                    Button(action: {
-                        if let onLogVisit = onLogVisitRequested {
-                            onLogVisit(displayCafe)
-                        } else {
-                            showLogVisit = true
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.system(size: 16))
-                            Text("Log a Visit")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(.espressoBrown)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.mugshotMint)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                    }
-                    
-                    // Secondary actions
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            dataManager.toggleCafeFavorite(cafe.id)
-                        }) {
-                            HStack {
-                                Image(systemName: displayCafe.isFavorite ? "heart.fill" : "heart")
-                                    .font(.system(size: 14))
-                                Text("Favorite")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(displayCafe.isFavorite ? .espressoBrown : .espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.sandBeige)
-                            .cornerRadius(DesignSystem.cornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                    .stroke(displayCafe.isFavorite ? Color.mugshotMint : Color.clear, lineWidth: 2)
-                            )
-                        }
-                        
-                        Button(action: {
-                            dataManager.toggleCafeWantToTry(cafe.id)
-                        }) {
-                            HStack {
-                                Image(systemName: displayCafe.wantToTry ? "bookmark.fill" : "bookmark")
-                                    .font(.system(size: 14))
-                                Text("Want to Try")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(displayCafe.wantToTry ? .espressoBrown : .espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.sandBeige)
-                            .cornerRadius(DesignSystem.cornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                    .stroke(displayCafe.wantToTry ? Color.mugshotMint : Color.clear, lineWidth: 2)
-                            )
-                        }
-                    }
-                    
-                    // Details button
-                    Button(action: {
-                        showFullDetails = true
-                    }) {
-                        Text("Details")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    // Entries section
-                    if visits.isEmpty {
-                        Text("No entries yet. Be the first to log a visit!")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.6))
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .padding(.vertical, 16)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Recent Visits")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            ForEach(visits.prefix(5)) { visit in
-                                VisitEntryRow(visit: visit)
-                                    .onTapGesture {
-                                        selectedVisit = visit
-                                    }
-                            }
-                        }
-                    }
+                    mapSheetRecentVisits
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 18)
             }
         }
         .background(Color.creamWhite)
@@ -881,6 +793,282 @@ struct CafeDetailSheet: View {
             VisitDetailView(visit: visit, dataManager: dataManager)
         }
     }
+
+    private var cafeIdentityBlock: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(displayCafe.name)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !displayCafe.address.isEmpty {
+                Label(displayCafe.address, systemImage: "mappin.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.espressoBrown.opacity(0.65))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                if displayCafe.isFavorite {
+                    mapSheetPill("Favorite", systemImage: "heart.fill")
+                }
+
+                if displayCafe.wantToTry {
+                    mapSheetPill("Want to Try", systemImage: "bookmark.fill")
+                }
+
+                if let category = displayCafe.placeCategory?.remoteTrimmedNonEmpty {
+                    mapSheetPill(category, systemImage: "tag.fill")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var mapSheetStats: some View {
+        HStack(spacing: 10) {
+            mapSheetStatCard(
+                title: "Average",
+                value: String(format: "%.1f", displayedScore),
+                systemImage: "star.fill"
+            )
+
+            mapSheetStatCard(
+                title: "Visits",
+                value: "\(displayedVisitCount)",
+                systemImage: "cup.and.saucer.fill"
+            )
+        }
+    }
+
+    private var mapSheetActions: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+
+        return VStack(spacing: 12) {
+            Button {
+                if let onLogVisit = onLogVisitRequested {
+                    onLogVisit(displayCafe)
+                } else {
+                    showLogVisit = true
+                }
+            } label: {
+                Label("Log Visit", systemImage: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                mapSheetActionButton(
+                    title: "Favorite",
+                    systemImage: displayCafe.isFavorite ? "heart.fill" : "heart",
+                    isSelected: displayCafe.isFavorite,
+                    action: toggleFavorite
+                )
+                .disabled(isSyncingCafeState)
+
+                mapSheetActionButton(
+                    title: "Want to Try",
+                    systemImage: displayCafe.wantToTry ? "bookmark.fill" : "bookmark",
+                    isSelected: displayCafe.wantToTry,
+                    action: toggleWantToTry
+                )
+                .disabled(isSyncingCafeState)
+
+                mapSheetActionButton(
+                    title: "Details",
+                    systemImage: "list.bullet.rectangle",
+                    isSelected: false
+                ) {
+                    showFullDetails = true
+                }
+
+                mapSheetActionButton(
+                    title: "Directions",
+                    systemImage: "location.north.circle",
+                    isSelected: false,
+                    action: openInMaps
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mapSheetRecentVisits: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recent Visits")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+
+            if visits.isEmpty {
+                VStack(spacing: 9) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.34))
+
+                    Text("No visits here yet")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+
+                    Text("Log this cafe to add it to your taste journal.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.espressoBrown.opacity(0.62))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .padding(.horizontal, 14)
+                .background(Color.sandBeige.opacity(0.34))
+                .cornerRadius(DesignSystem.cornerRadius)
+            } else {
+                ForEach(visits.prefix(5)) { visit in
+                    VisitEntryRow(visit: visit)
+                        .onTapGesture {
+                            selectedVisit = visit
+                        }
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func mapSheetPill(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundColor(.espressoBrown.opacity(0.66))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.sandBeige.opacity(0.45))
+        .clipShape(Capsule())
+    }
+
+    private func mapSheetStatCard(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.58))
+
+            Text(value)
+                .font(.system(size: 21, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(Color.sandBeige.opacity(0.34))
+        .cornerRadius(DesignSystem.cornerRadius)
+    }
+
+    private func mapSheetActionButton(
+        title: String,
+        systemImage: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(isSelected ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.55))
+                .cornerRadius(DesignSystem.cornerRadius)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                        .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleFavorite() {
+        let nextFavorite = !displayCafe.isFavorite
+        updateCafeState(isFavorite: nextFavorite, wantToTry: displayCafe.wantToTry)
+    }
+
+    private func toggleWantToTry() {
+        let nextWantToTry = !displayCafe.wantToTry
+        updateCafeState(isFavorite: displayCafe.isFavorite, wantToTry: nextWantToTry)
+    }
+
+    private func openInMaps() {
+        guard let location = displayCafe.location else { return }
+
+        if let mapURLString = displayCafe.mapItemURL, let url = URL(string: mapURLString) {
+            UIApplication.shared.open(url)
+        } else {
+            let encodedName = displayCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
+            if let url = URL(string: urlString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    private func updateCafeState(isFavorite: Bool, wantToTry: Bool) {
+        let previousCafe = displayCafe
+        dataManager.setCafeState(
+            cafeId: previousCafe.id,
+            isFavorite: isFavorite,
+            wantToTry: wantToTry
+        )
+
+        guard let userId = authModel.authenticatedUser?.id else {
+            return
+        }
+
+        Task {
+            await saveRemoteCafeState(
+                previousCafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                userId: userId
+            )
+        }
+    }
+
+    @MainActor
+    private func saveRemoteCafeState(
+        previousCafe: Cafe,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        userId: UUID
+    ) async {
+        isSyncingCafeState = true
+        cafeStateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            let summary = try await service.setCafeState(
+                userId: userId,
+                cafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry
+            )
+            dataManager.applyRemoteCafeState(summary)
+            isSyncingCafeState = false
+        } catch {
+            dataManager.setCafeState(
+                cafeId: previousCafe.id,
+                isFavorite: previousCafe.isFavorite,
+                wantToTry: previousCafe.wantToTry
+            )
+            cafeStateError = "Could not save cafe state."
+            isSyncingCafeState = false
+        }
+    }
 }
 
 // MARK: - Visit Entry Row
@@ -890,18 +1078,24 @@ struct VisitEntryRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Thumbnail
             PhotoThumbnailView(photoPath: visit.posterImagePath, size: 50)
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(visit.date, style: .date)
-                    .font(.system(size: 14, weight: .medium))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(visit.drinkType.rawValue)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+
+                Text(visit.date, style: .date)
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown.opacity(0.58))
                 
                 if !visit.caption.isEmpty {
                     Text(visit.caption)
                         .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .foregroundColor(.espressoBrown.opacity(0.68))
                         .lineLimit(1)
                 }
             }
@@ -910,16 +1104,23 @@ struct VisitEntryRow: View {
             
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
-                    .foregroundColor(.mugshotMint)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11, weight: .semibold))
                 Text(String(format: "%.1f", visit.overallScore))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(.system(size: 13, weight: .bold))
             }
+            .foregroundColor(.espressoBrown)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.mugshotMint.opacity(0.36))
+            .clipShape(Capsule())
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.5))
-        .cornerRadius(DesignSystem.smallCornerRadius)
+        .padding(12)
+        .background(Color.creamWhite)
+        .cornerRadius(DesignSystem.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                .stroke(Color.sandBeige, lineWidth: 1)
+        )
     }
 }
 

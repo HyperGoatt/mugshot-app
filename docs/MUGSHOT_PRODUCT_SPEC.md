@@ -18,6 +18,8 @@ The native iOS app already expresses the right core loop:
 
 The missing piece is durable identity and backend state.
 
+Phase 2B status update on 2026-07-01: durable identity is real for auth/profile, and Profile Recent, Feed, and remote visit detail can read real Supabase data. Durable visit writes are still blocked by the active `public.visits` insert notification trigger. No native visit writes should be enabled until that trigger is quarantined or rebuilt safely.
+
 ## Primary Beta User
 
 The first private-beta user is a coffee-curious person who:
@@ -152,4 +154,3 @@ Avoid:
 3. Should everyone/public visits be visible by default, or should beta default to private/current-user?
 4. Should friend-only visibility ship before the friend graph is fully testable?
 5. Should feedback live in-app, or should beta feedback be collected outside the app?
-

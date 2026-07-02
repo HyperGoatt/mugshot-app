@@ -8,9 +8,13 @@ This repository is a native iOS SwiftUI app.
 
 There is no web frontend stack here: no React, Next.js, Vite, TypeScript, Tailwind, package.json, or npm scripts.
 
-There is no local Supabase folder or migration source in this repo.
+There is no complete local Supabase migration source in this repo. The repo does include manual Supabase SQL/runbook files under `supabase/manual/`.
 
-Phase 2A added native Supabase client wiring for auth/session/profile bootstrap only. The rest of the app data surfaces are still local/demo.
+Phase 2A added native Supabase client wiring for auth/session/profile bootstrap. Later Phase 2B/2D work added real signed-in visit creation, visit photo upload/attach, Feed/Profile/Cafe read paths, and Favorite/Want-to-Try cafe-state persistence.
+
+Phase 2B real-visit preflight added documentation plus safe read-backed slices. The risky `public.visits` insert trigger was quarantined after signing-key rotation, and Profile Recent, Feed, and remote visit detail now read real Supabase data. See `docs/PHASE_2B_REAL_VISITS.md`, `docs/REAL_DATA_FLOW_STATUS.md`, and `docs/VISIT_WRITE_BLOCKER.md`.
+
+Repo reconciliation checkpoint: multiple local native Mugshot repos/branches exist. The active source of truth remains this Desktop repo, while `/Users/joe.rosso/Documents/mugshot-app` is the best selective-harvest reference for older native screens and Mugsy assets. See `docs/REPO_BRANCH_RECONCILIATION.md`.
 
 Phase 1.6 compared this native repo with the existing web reference app. The web app lives outside this repo and was inspected only as product/backend reference. See:
 
@@ -19,6 +23,10 @@ Phase 1.6 compared this native repo with the existing web reference app. The web
 - `docs/IOS_PARITY_ROADMAP.md`
 - `docs/MUGSHOT_PRODUCT_SPEC.md`
 - `docs/WEB_TO_IOS_TRANSLATION_NOTES.md`
+- `docs/PHASE_2B_REAL_VISITS.md`
+- `docs/REAL_DATA_FLOW_STATUS.md`
+- `docs/VISIT_WRITE_BLOCKER.md`
+- `docs/REPO_BRANCH_RECONCILIATION.md`
 
 ## Top-Level Structure
 
@@ -90,10 +98,18 @@ testMugshot/
 
 - `Models/FeedScope.swift`
   - Feed toggle enum: Friends and Everyone.
+  - Conforms to `Equatable` so SwiftUI can reload remote Feed scopes deliberately.
 
 - `Models/SupabaseUserProfile.swift`
   - DTO for `public.users`.
   - Maps remote profile fields back into the existing local `User` model.
+
+- `Models/SupabaseCafe.swift`
+  - DTO for lightweight `public.cafes` rows used by real visit summaries.
+
+- `Models/SupabaseVisit.swift`
+  - DTOs for lightweight `public.visits`, `visit_photos`, `likes`, and `comments` rows.
+  - Provides `RemoteVisitSummary`, `RemoteVisitDetail`, and `RemoteVisitComment` view models.
 
 ## Services
 
@@ -117,6 +133,23 @@ testMugshot/
 - `Services/Supabase/ProfileService.swift`
   - Fetches the signed-in user's `public.users` row.
   - Falls back to a safe upsert if the auth trigger did not create a profile row.
+
+- `Services/Supabase/CafeService.swift`
+  - Fetches, resolves, and creates lightweight cafe rows for remote visit summaries and new visit/state writes.
+
+- `Services/Supabase/VisitService.swift`
+  - Creates real signed-in visits after resolving/creating the remote cafe.
+  - Fetches the signed-in user's recent Supabase visits for Profile.
+  - Fetches signed-in Feed visits for Friends and Everyone scopes.
+  - Fetches read-only remote visit detail, photos, likes, and comments.
+  - Attaches uploaded photo URLs through `visit_photos` and `poster_photo_url`.
+  - Hydrates visit rows with related cafe and author summaries for display.
+
+- `Services/Supabase/CafeStateService.swift`
+  - Reads and writes `user_cafe_states` for Favorite and Want-to-Try behavior.
+
+- `Services/Supabase/VisitPhotoUploadService.swift`
+  - Compresses selected images and uploads signed-in visit photos to Supabase Storage.
 
 - `Services/Supabase/AppAuthModel.swift`
   - Main-actor app auth state model used by SwiftUI.
@@ -164,15 +197,22 @@ testMugshot/
 - `Views/Add/AddTabView.swift`
   - Visit compose flow.
   - Cafe search, drink type, photos picker, ratings, caption, notes, visibility, validation, save.
-  - Saves locally through `DataManager`.
-  - Opens `VisitDetailView` after save.
+  - Signed-in mode creates real Supabase visits and optionally uploads/attaches photos.
+  - Signed-out/local fallback saves through `DataManager`.
+  - Opens remote Visit Detail after successful signed-in save.
 
 - `Views/Feed/FeedTabView.swift`
   - Feed header with Friends/Everyone toggle.
-  - Visit cards with photo, cafe, drink, caption, like count, comment count.
-  - Visit detail full-screen view.
-  - Visit detail supports likes, comments, edit, and delete locally.
+  - Signed-in users see read-only remote visit cards from Supabase for Friends and Everyone scopes.
+  - Remote cards are tappable buttons that open the read-only Supabase detail sheet.
+  - Signed-out users still see local/demo feed cards with photo, cafe, drink, caption, like count, and comment count.
+  - Local visit detail full-screen view still supports likes, comments, edit, and delete locally.
+  - Remote like/comment/edit/delete mutations are not wired yet.
   - Search icon is visible but not implemented.
+
+- `Views/Feed/RemoteVisitDetailView.swift`
+  - Read-only remote visit detail sheet for Supabase visits.
+  - Displays existing remote photos, cafe/context, author, ratings, caption, owner-only notes, like count, and comments with authors.
 
 - `Views/Saved/SavedTabView.swift`
   - Saved/Favorites/Want-to-Try/All Cafes lists.
@@ -180,8 +220,10 @@ testMugshot/
   - Cafe detail view with hero photo, stats, actions, and recent visits.
 
 - `Views/Profile/ProfileTabView.swift`
-  - Current local profile with avatar initial, username, location, stats, journey indicator, recent visits, top cafes, favorites, wishlist.
-  - No edit profile or settings.
+  - Current profile with avatar initial, username, location, stats, journey indicator, recent visits, top cafes, favorites, wishlist.
+  - Profile identity and text edit are Supabase-backed.
+  - Recent tab reads real Supabase visits for the signed-in user and opens read-only remote detail; stats/top cafes/favorites/wishlist remain local/demo.
+  - No settings screen.
 
 - `Views/Components/PhotoImageView.swift`
   - Loads local cached/disk photos by photo path key.
@@ -206,7 +248,7 @@ testMugshot/
 ## Tests
 
 - `testMugshotTests/testMugshotTests.swift`
-  - Default Swift Testing placeholder.
+  - Swift Testing coverage for Supabase config hygiene, profile mapping/update encoding, visit/cafe/photo payload contracts, and remote summary/detail helpers.
 
 - `testMugshotUITests/testMugshotUITests.swift`
   - Default app launch test and launch performance test.
@@ -214,7 +256,7 @@ testMugshot/
 - `testMugshotUITests/testMugshotUITestsLaunchTests.swift`
   - Default launch screenshot test.
 
-Current tests do not validate core Mugshot journeys.
+Current tests include lightweight remote DTO and payload mapping checks, but they still do not fully validate signed-in end-to-end journeys.
 
 ## Dependencies And Risk
 
@@ -256,7 +298,8 @@ Validation performed:
 
 - Simulator build/run passed.
 - Simulator login and session restore passed.
-- Simulator tests passed: 4 passed, 0 failed.
+- Simulator tests passed.
+- Simulator Profile Recent and Feed Friends/Everyone showed real Supabase-backed visit cards and opened read-only remote detail sheets.
 
 There are no npm/yarn/pnpm commands.
 
@@ -265,20 +308,23 @@ There are no npm/yarn/pnpm commands.
 Today there are two service areas:
 
 - Local prototype/content state: `DataManager` plus `PhotoCache`.
-- Supabase auth/profile state: `AppAuthModel`, `AuthService`, `ProfileService`, and `SupabaseClientProvider`.
+- Supabase auth/profile/read state: `AppAuthModel`, `AuthService`, `ProfileService`, `CafeService`, `VisitService`, and `SupabaseClientProvider`.
 
 What now exists:
 
 - Supabase client setup.
 - Auth/session service.
 - Current-user profile bootstrap.
+- Profile edit basics.
+- Read-only cafe service for remote visit summaries.
+- Read-only visit service for Profile Recent, Feed, and remote detail.
 
 What is still missing:
 
-- Cafe repository.
-- Visit repository.
+- Cafe write/upsert repository.
+- Visit write repository.
 - Storage upload service.
-- Feed query service.
+- Remote social mutation services.
 - Friends service.
 - Notifications/device token service.
 - Analytics service.

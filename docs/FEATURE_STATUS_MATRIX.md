@@ -1,0 +1,35 @@
+# Mugshot Feature Status Matrix
+
+Date: 2026-07-02
+
+Status labels: Working with real Supabase data, Partially working with real Supabase data, Working but local/demo only, UI exists but not functional, Broken, Missing, Unknown, Blocked.
+
+| Feature | Status | Evidence/files | User impact | Risk | Priority | Recommended next step |
+| --- | --- | --- | --- | --- | --- | --- |
+| Auth/session restore | Working with real Supabase data | `AppAuthModel`, `AuthService`, `MugshotRootView` | Signed-in users can return without starting over | Medium | P0 private beta blocker | Add UI tests for signed-out, signed-in, failed, and missing-config states |
+| Profile bootstrap | Working with real Supabase data | `ProfileService.bootstrapProfile`, `SupabaseUserProfile` | User identity appears in app after auth | Medium | P0 private beta blocker | Keep as identity source; add username collision handling |
+| Profile text edit | Working with real Supabase data | `ProfileTabView`, `AppAuthModel.updateProfile` | Users can edit basic profile text | Medium | P1 core product | Add stronger validation and error copy |
+| Add Visit | Working with real Supabase data | `AddTabView`, `VisitService.createNoPhotoVisit`, `VisitPhotoUploadService` | Users can save durable visits | High | P0 private beta blocker | Run fresh no-photo and photo smokes before each beta cut |
+| Photo upload/storage | Working with real Supabase data | `VisitPhotoUploadService`, `VisitService.attachPhotoURLs`, storage policy SQL | Visit photos survive relaunch and render remotely | High | P0 private beta blocker | Add cleanup/retry hardening for partial upload failures |
+| Visit Detail | Partially working with real Supabase data | `RemoteVisitDetailView`, `VisitService.fetchVisitDetail` | Users can view saved visits; social/edit actions are read-only/missing | Medium | P1 core product | Add edit/delete for owner, then remote like/comment mutations |
+| Feed | Partially working with real Supabase data | `FeedTabView`, `VisitService.fetchFeedVisits` | Users see real remote cards but friend semantics/social actions are incomplete | Medium | P1 core product | Clarify Friends scope and hide/read-only social icons until mutations exist |
+| Map | Partially working with real Supabase data | `MapTabView`, `MapSearchService`, `CafeStateService` | Users can see pins/search/local state; remote discovery is limited | Medium | P1 core product | Improve search reliability and distinguish remote/local pins |
+| Saved/favorites/wishlist | Working with real Supabase data | `SavedTabView`, `CafeStateService`, `user_cafe_states` | Favorites/want-to-try survive relaunch | Medium | P1 core product | Add better state-only empty/copy and remote aggregate counts |
+| Cafe Detail | Partially working with real Supabase data | `SavedTabView` cafe detail, `VisitService.fetchCafeVisits` | Users can inspect saved cafes and their own remote recent visits | Medium | P1 core product | Add aggregate stats, popular drinks, and friend context later |
+| User Profile | Partially working with real Supabase data | `ProfileTabView` | Recent visits are real; stats/top cafes/favorites are mixed local/demo | Medium | P1 core product | Make stats and top cafes remote-backed or label them clearly |
+| Friends | Missing | No active native Friends surface | No social graph UI | Medium | P2 polish/retention | Build only after core loop/social mutations are safe |
+| Notifications | Blocked | Security docs, `VISIT_WRITE_BLOCKER.md`, no active UI | No notification center or push | High | P3 later enhancement | Rebuild backend notification path without embedded secrets first |
+| Settings | Missing | No Settings root | Users cannot manage account/logout/legal from a settings hub | Medium | P1 core product | Add lean Settings with sign out, support, privacy, terms, about |
+| Privacy/legal/about | Missing | No native legal/about screens | External beta distribution is not ready | High | P0 private beta blocker | Add Privacy, Terms, About links or native text screens before TestFlight |
+| Comments/likes/social actions | Partially working with real Supabase data | Remote detail reads `likes` and `comments`; local actions exist for local visits | Users can see counts/comments but cannot interact remotely | Medium | P2 polish/retention | Add like mutation first, then comment mutation, then notifications |
+| Search/discovery | Partially working with real Supabase data | `MKLocalSearch`; no remote discovery feed | Cafe search exists but discovery is thin and simulator can be flaky | Medium | P2 polish/retention | Decide Apple Maps-first vs Google/Edge search before expanding |
+| Empty states | Working but local/demo only | Mostly SwiftUI text/SF Symbols; no Mugsy assets in active repo | Empty moments lack brand warmth | Low | P2 polish/retention | Import Mugsy assets and create one reusable empty-state component |
+| Mugsy mascot usage/assets | Missing in active repo | Active `Assets.xcassets` lacks Mugsy; assets exist in older repos | Brand personality is underused | Low | P2 polish/retention | Copy image sets in a tiny asset-only slice |
+| Loading states | Partially working with real Supabase data | Auth loading, Feed/Profile/Saved remote loading, Add save/upload states | Most core waits are understandable | Medium | P1 core product | Audit all network flows for retry and disabled states |
+| Error states | Partially working with real Supabase data | Auth errors, Add validation/backend errors, Feed/Profile/Saved errors | Failures are visible, but not fully polished | Medium | P1 core product | Normalize error language and recovery actions |
+| Offline/local/demo data | Working but local/demo only | `DataManager`, `SampleDataSeeder`, `PhotoCache` | Helps prototype but can blur truth | Medium | P1 core product | Gate demo data clearly; avoid mixing it into beta truth |
+| Tests | Partially working | 20 tests pass; UI tests are mostly launch/default | Contracts are covered; journeys are not | Medium | P1 core product | Add journey tests around auth, Add Visit validation, remote DTOs |
+| Simulator validation | Working | XcodeBuildMCP build/run/test/screenshot on 2026-07-02 | Current branch is validated enough to back up | Low | P0 private beta blocker | Repeat before every push |
+| Supabase data layer | Partially working with real Supabase data | Auth/Profile/Visit/Cafe/CafeState/Photo services | Core loop has real data, social layer not yet | High | P0/P1 | Keep services narrow; avoid old broad `DataManager` remote orchestration |
+| Security/config hygiene | Partially working | Ignored local config, secret-key rejection, SQL warnings | Good client hygiene; backend notifications still sensitive | High | P0 private beta blocker | Do not add notification code until backend path is safe |
+| Git/repo cleanliness | Partially working | Dirty tree with useful validated work; remote main ahead | Backup is needed but direct main push is unsafe | High | P0 private beta blocker | Push a clean backup branch, no force push |

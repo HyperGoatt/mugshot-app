@@ -6,6 +6,8 @@ Purpose: track backend safety work discovered before and during Phase 2A. This f
 
 Phase 2A.5 update: read-only Supabase inspection confirmed the visit trigger risk. No live backend changes were made.
 
+Phase 2B continuation update on 2026-07-01: live inspection confirmed the same trigger is still enabled on `public.visits` and still blocks real native visit creation. No live backend changes were made.
+
 Related docs:
 
 - `docs/PHASE_2A5_SECURITY_CHECKPOINT.md`
@@ -26,7 +28,13 @@ Phase 2A.5 verification:
 - Target: `notify-friends-on-new-visit` Edge Function.
 - Function JWT setting: JWT verification is enabled.
 - Phase 2B impact: every real `visits` insert would fire this trigger.
+- Phase 2B continuation verification: still enabled on 2026-07-01.
 - Product dependency: not required for Add Visit, profile bootstrap, no-photo feed reads, or local shell navigation. It is notification/social infrastructure.
+
+Related trigger scope checked on 2026-07-01:
+
+- Cafe creation, visit photo row creation, likes, comments, and saved cafe state do not fire this risky trigger.
+- Notification inserts have a separate push trigger and remain out of scope for Add Visit Phase 2B.
 
 Classification: blocking Phase 2B until fixed or explicitly quarantined. The safest short-term quarantine for no-photo Add Visit is to remove or disable this visit insert trigger before any native visit writes. The safer long-term fix is to rebuild the invocation so database code does not store plaintext credentials.
 
@@ -60,11 +68,11 @@ Must fix before Phase 2B visit writes:
 
 - The `public.visits` insert trigger that calls `notify-friends-on-new-visit` with an embedded bearer credential.
 
-Must fix before photos/storage:
+Must fix before broader photos/storage:
 
 - Public object listing behavior on `profile-media`.
-- Re-check `visit-photos` upload/read policies before adding native upload.
-- Replace old `auth.role()` storage policy patterns with role-targeted policies where practical.
+- Re-check `visit-photos` upload/read policies before expanding native upload beyond the first Add Visit slice. Initial iOS upload preflight on 2026-07-01 narrowed the `visit-photos` INSERT policy to `TO authenticated` plus a lowercase-safe auth-user-folder check; see `supabase/manual/phase_2d_visit_photo_storage_policy.sql`.
+- Replace remaining old `auth.role()` storage policy patterns with role-targeted policies where practical.
 
 Must fix before social/notifications:
 

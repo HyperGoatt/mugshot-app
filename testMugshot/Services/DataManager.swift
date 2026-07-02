@@ -59,10 +59,101 @@ class DataManager: ObservableObject {
         appData.cafes.append(cafe)
         save()
     }
+
+    func findOrCreateCafe(named name: String) -> Cafe {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let existingCafe = appData.cafes.first(where: {
+            $0.name.compare(trimmedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            return existingCafe
+        }
+
+        let cafe = Cafe(name: trimmedName)
+        addCafe(cafe)
+        return cafe
+    }
     
     func updateCafe(_ cafe: Cafe) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafe.id }) {
             appData.cafes[index] = cafe
+            save()
+        }
+    }
+
+    @discardableResult
+    func applyRemoteCafeState(_ summary: RemoteCafeStateSummary) -> Cafe {
+        upsertRemoteCafe(
+            summary.cafe,
+            isFavorite: summary.state.isFavorite,
+            wantToTry: summary.state.wantToTry
+        )
+    }
+
+    func applyRemoteCafeStates(_ summaries: [RemoteCafeStateSummary]) {
+        for summary in summaries {
+            applyRemoteCafeState(summary)
+        }
+        save()
+    }
+
+    @discardableResult
+    func upsertRemoteCafe(
+        _ remoteCafe: SupabaseCafeSummary,
+        isFavorite: Bool? = nil,
+        wantToTry: Bool? = nil,
+        averageRating: Double? = nil,
+        visitCount: Int? = nil
+    ) -> Cafe {
+        let remoteLocalCafe = remoteCafe.localCafe(
+            isFavorite: isFavorite ?? false,
+            wantToTry: wantToTry ?? false,
+            averageRating: averageRating ?? 0,
+            visitCount: visitCount ?? 0
+        )
+
+        if let index = appData.cafes.firstIndex(where: { $0.remoteCafeId == remoteCafe.id || $0.id == remoteCafe.id }) {
+            appData.cafes[index] = mergedCafe(
+                existing: appData.cafes[index],
+                remote: remoteLocalCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                averageRating: averageRating,
+                visitCount: visitCount
+            )
+            save()
+            return appData.cafes[index]
+        }
+
+        if let index = appData.cafes.firstIndex(where: { localCafe in
+            localCafe.name.compare(remoteCafe.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame &&
+            localCafe.address.compare(remoteCafe.address ?? "", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            appData.cafes[index] = mergedCafe(
+                existing: appData.cafes[index],
+                remote: remoteLocalCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                averageRating: averageRating,
+                visitCount: visitCount
+            )
+            save()
+            return appData.cafes[index]
+        }
+
+        appData.cafes.append(remoteLocalCafe)
+        save()
+        return remoteLocalCafe
+    }
+
+    func setCafeState(
+        cafeId: UUID,
+        isFavorite: Bool,
+        wantToTry: Bool
+    ) {
+        if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
+            appData.cafes[index].isFavorite = isFavorite
+            appData.cafes[index].wantToTry = wantToTry
             save()
         }
     }
@@ -83,6 +174,30 @@ class DataManager: ObservableObject {
             appData.cafes[index].wantToTry.toggle()
             save()
         }
+    }
+
+    private func mergedCafe(
+        existing: Cafe,
+        remote: Cafe,
+        isFavorite: Bool?,
+        wantToTry: Bool?,
+        averageRating: Double?,
+        visitCount: Int?
+    ) -> Cafe {
+        Cafe(
+            id: existing.id,
+            name: remote.name,
+            location: remote.location ?? existing.location,
+            address: !remote.address.isEmpty ? remote.address : existing.address,
+            isFavorite: isFavorite ?? existing.isFavorite,
+            wantToTry: wantToTry ?? existing.wantToTry,
+            averageRating: averageRating ?? existing.averageRating,
+            visitCount: visitCount ?? existing.visitCount,
+            mapItemURL: existing.mapItemURL ?? remote.mapItemURL,
+            websiteURL: existing.websiteURL ?? remote.websiteURL,
+            placeCategory: existing.placeCategory,
+            remoteCafeId: remote.remoteCafeId ?? existing.remoteCafeId ?? remote.id
+        )
     }
     
     // Find existing Cafe by location (within ~50 meters) or create new one
@@ -225,8 +340,7 @@ class DataManager: ObservableObject {
     
     // MARK: - Like Operations
     func toggleVisitLike(_ visitId: UUID, userId: UUID) {
-        guard let index = appData.visits.firstIndex(where: { $0.id == visitId }),
-              let currentUserId = appData.currentUser?.id else {
+        guard let index = appData.visits.firstIndex(where: { $0.id == visitId }) else {
             return
         }
         

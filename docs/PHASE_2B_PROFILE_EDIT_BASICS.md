@@ -6,7 +6,7 @@ Purpose: make the authenticated Supabase profile editable without starting Add V
 
 ## Status
 
-Implemented and simulator-validated.
+Implemented, simulator-validated, and later live-smoked against the signed-in Supabase profile.
 
 This is the roadmap's profile/edit slice. It does not unblock no-photo visit creation by itself; `docs/PHASE_2B_READINESS.md` still gates real `visits` inserts on the Supabase trigger quarantine.
 
@@ -60,7 +60,12 @@ Results:
 - Tests: passed, 7 passed / 0 failed.
 - Focused unit tests added for safe Supabase config loading, secret-key rejection, Supabase profile mapping, and profile update encoding.
 
-The Save action was not live-smoke-tested because it writes to the remote `public.users` row. It should be tested in an approved backend-write validation pass with a non-production test user.
+Follow-up live validation on 2026-07-02:
+
+- Save action was live-smoked against the signed-in Supabase profile.
+- Location was temporarily changed to `CHS Smoke`, saved, and shown immediately on Profile.
+- The app was relaunched, session restore loaded the changed value, and the field was restored to `CHS`.
+- XcodeBuildMCP tests passed after the surrounding core-loop pass: 17 passed / 0 failed.
 
 Screenshot:
 
