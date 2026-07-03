@@ -2,9 +2,9 @@
 
 Date: 2026-07-03
 
-Update: 2026-07-02 Phase 2B/2D real-visit work quarantined the unsafe visit trigger path, wired signed-in no-photo and photo-backed Add Visit, and simulator-validated Profile Recent, Feed, Saved, Map, Cafe Detail, and remote Visit Detail after relaunch. Remaining gaps are hardening and later product surfaces, not the core personal journal loop.
+Update: 2026-07-02 Phase 2B/2D real-visit work quarantined the unsafe visit trigger path, initially wired signed-in no-photo and photo-backed Add Visit, and simulator-validated Profile Recent, Feed, Saved, Map, Cafe Detail, and remote Visit Detail after relaunch. The 2026-07-03 readiness pass now requires photos before any Add Visit save.
 
-Update: 2026-07-03 private-beta readiness pass made signed-in Add Visit photo-required, added real like/unlike/comment/save cafe controls, owner edit/delete for remote visits, remote-backed profile stats/top cafes, lean Settings/legal/about/support, and a tiny Mugsy empty-state asset slice. Push notifications, widgets, Discover, postcards, Friends, and broad social graph work remain deferred.
+Update: 2026-07-03 private-beta readiness pass made Add Visit photo-required, added real like/unlike/comment/save cafe controls, owner edit/delete for remote visits, remote-backed profile stats/top cafes, lean Settings/legal/about/support, and a tiny Mugsy empty-state asset slice. Push notifications, widgets, Discover, postcards, Friends, and broad social graph work remain deferred.
 
 Purpose: compare the existing web app reference against the current native iOS app so Phase 2 work can be staged deliberately. This matrix is evidence for planning only. It is not a request to implement everything.
 
@@ -40,7 +40,7 @@ Priority key:
 | Likes | Supabase likes, notifications | Remote like/unlike writes to Supabase; notifications intentionally absent | Partial | P1 | Add moderation/notifications later |
 | Comments | Supabase comments, replies, mentions, notifications | Remote top-level comments write to Supabase; replies/notifications absent | Partial | P1 | Add replies/moderation later |
 | Share/postcard | Share/postcard behavior on detail | None | Missing | P3 | Defer |
-| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, required signed-in photos, success toast, and Feed/Profile/detail reload | Signed-in Add Visit creates/reuses cafes, requires photos, inserts real visits, uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Add retry/progress polish for partial upload failures |
+| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, required photos, success toast, and Feed/Profile/detail reload | Add Visit requires photos before save; signed-in mode creates/reuses cafes, inserts real visits, uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Add retry/progress polish for partial upload failures |
 | Cafe search in Add | Web search/selected cafe, likely Google-backed | MapKit local search | Partial | P0 | Use simplest cafe identity path first |
 | Location types | Cafe, Home, Travel, Other | Cafe-oriented local flow | Partial | P2 | Defer non-cafe contexts unless needed |
 | Craft Sip | Setup, brew method, equipment, home/travel context | None | Missing | P3 | Defer from first beta unless product says otherwise |
@@ -48,7 +48,7 @@ Priority key:
 | Rating templates | System/user templates, smart matching, weighted scoring | Local customizable template | Partial | P1 | Start with existing ratings JSON, then templates |
 | Private notes | Supported | Supported locally | Partial | P0 | Include in first Supabase write if schema supports it |
 | Visibility | Private, Friends, Public/Everyone | Local visibility | Partial | P0 | Include in first Supabase write |
-| Visit photo upload | Supabase Storage `visit-photos` and `visit_photos` rows | Signed-in Add Visit uses a direct native `PhotosPicker`, uploads selected photos to Storage, and writes `visit_photos`; signed-out mode remains local | Partial | P0 | Picker selection and backend path were smoked with a real uploaded image; partial-failure cleanup can wait unless beta testing exposes it |
+| Visit photo upload | Supabase Storage `visit-photos` and `visit_photos` rows | Add Visit uses a direct native `PhotosPicker`; signed-in mode uploads selected photos to Storage and writes `visit_photos`, while signed-out mode keeps selected photos local | Partial | P0 | Picker selection and backend path were smoked with a real uploaded image; partial-failure cleanup can wait unless beta testing exposes it |
 | Map | Google map with Supabase cafe state and friend overlays | MapKit map syncs signed-in Favorite/Want-to-Try state and writes toggles through `user_cafe_states` | Partial | P1 | Keep MapKit; add remote cafe aggregates later |
 | Nearby/place search | Supabase Edge Functions for search/nearby | `MKLocalSearch` | Partial | P2 | Decide Apple-first vs Google-first before expanding |
 | Saved cafes | `user_cafe_states` favorites/wishlist/history | Signed-in Saved syncs `user_cafe_states`; Favorite/Want-to-Try writes persist after relaunch; local/demo mode remains for signed-out users | Partial | P1 | Add richer aggregates and cafe create/reuse tests |

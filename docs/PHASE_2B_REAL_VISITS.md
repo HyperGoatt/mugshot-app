@@ -14,7 +14,7 @@ Photo upload slice status: started on 2026-07-01 after Storage policy preflight.
 
 Private-beta readiness update on 2026-07-03:
 
-- Signed-in Add Visit now requires at least one selected photo before remote save. The no-photo signed-in save path and no-photo upload recovery card were removed from the active UI path.
+- Add Visit now requires at least one selected photo before any save. The no-photo signed-in save path and no-photo upload recovery card were removed from the active UI path.
 - If photo upload fails after the visit row is created, the app attempts to delete that just-created remote visit and returns the user to Add Visit with an error instead of opening a saved no-photo visit.
 - Remote Feed/Visit Detail now have real Supabase-backed like/unlike, comment, count refresh, and cafe save/favorite controls. Cafe save preserves existing Want-to-Try state when present.
 - Remote Visit Detail now supports owner edit of caption, private notes, and visibility, plus owner delete.
@@ -97,7 +97,7 @@ Native upload behavior:
 - Uploads use standard Supabase Storage upload, not resumable TUS, because this first slice compresses images under the bucket's 10 MB limit.
 - Storage object paths are lowercased before upload so Swift `UUID.uuidString` casing cannot fail the owner-folder policy.
 - The visit row is created first, then photos are uploaded under the visit id, then `visit_photos` rows and `poster_photo_url` are saved.
-- No-photo Add Visit no longer remains valid for signed-in posting. Signed-out local saves remain local/demo fallback behavior.
+- No-photo Add Visit no longer remains valid in signed-in or signed-out mode. Signed-out saves remain local/demo, but they still require a selected local photo.
 - If photo upload fails after the visit row is created, the app now attempts to delete that just-created visit and shows an error instead of offering to open a no-photo remote visit.
 - Added focused tests for lowercase Storage object paths, the 10-photo upload cap, `visit_photos` insert ordering/encoding, and poster photo fallback.
 
@@ -476,7 +476,7 @@ User flow:
 18. The submit button is disabled until required fields are present and disabled again while posting.
 19. Web upload order is photos first, then insert `visits`, then insert `visit_photos`.
 
-Native beta contrast as of 2026-07-03: web allowed optional photos in the inspected reference, but signed-in native Add Visit now requires at least one photo before posting.
+Native beta contrast as of 2026-07-03: web allowed optional photos in the inspected reference, but native Add Visit now requires at least one photo before posting or saving.
 20. On success, web invalidates visit queries, shows a success toast, and navigates to Feed.
 
 Backend payload:

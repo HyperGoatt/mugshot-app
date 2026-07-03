@@ -12,7 +12,7 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 - Relaunch and restore the session.
 - Load/bootstrap the matching profile row.
 - Edit basic profile text fields.
-- Create a signed-in visit with cafe, drink, caption, notes, ratings, visibility, and at least one photo.
+- Create a visit with cafe, drink, caption, notes, ratings, visibility, and at least one photo.
 - See saved visits in Profile Recent, Feed, and remote Visit Detail.
 - See uploaded visit photos after relaunch.
 - Like/unlike remote visits and add comments from remote Visit Detail.

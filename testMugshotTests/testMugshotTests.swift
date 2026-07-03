@@ -538,10 +538,9 @@ struct testMugshotTests {
         #expect(RemoteCafeVisitStats.calculate(from: []).averageScore == 0)
     }
 
-    @Test func addVisitValidationRequiresPhotoOnlyForSignedInPosting() {
-        #expect(AddVisitValidation.hasRequiredPhoto(isAuthenticated: false, photoCount: 0))
-        #expect(!AddVisitValidation.hasRequiredPhoto(isAuthenticated: true, photoCount: 0))
-        #expect(AddVisitValidation.hasRequiredPhoto(isAuthenticated: true, photoCount: 1))
+    @Test func addVisitValidationRequiresPhotoForEverySavePath() {
+        #expect(!AddVisitValidation.hasRequiredPhoto(photoCount: 0))
+        #expect(AddVisitValidation.hasRequiredPhoto(photoCount: 1))
         #expect(AddVisitValidation.photoRequiredMessage.contains("photo"))
     }
 

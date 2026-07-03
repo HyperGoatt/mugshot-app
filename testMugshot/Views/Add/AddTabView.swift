@@ -93,13 +93,11 @@ struct LogVisitView: View {
             )
         ]
 
-        if authModel.authenticatedUser != nil {
-            items.append(LogVisitProgressItem(
-                title: "Photo",
-                systemImage: "photo.fill",
-                isComplete: !photoImages.isEmpty
-            ))
-        }
+        items.append(LogVisitProgressItem(
+            title: "Photo",
+            systemImage: "photo.fill",
+            isComplete: !photoImages.isEmpty
+        ))
 
         return items
     }
@@ -401,16 +399,15 @@ struct LogVisitView: View {
             return
         }
 
-        if let authenticatedUser = authModel.authenticatedUser {
-            guard AddVisitValidation.hasRequiredPhoto(
-                isAuthenticated: true,
-                photoCount: photoImages.count
-            ) else {
-                validationErrors.append(AddVisitValidation.photoRequiredMessage)
-                scrollToTop = true
-                return
-            }
+        guard AddVisitValidation.hasRequiredPhoto(
+            photoCount: photoImages.count
+        ) else {
+            validationErrors.append(AddVisitValidation.photoRequiredMessage)
+            scrollToTop = true
+            return
+        }
 
+        if let authenticatedUser = authModel.authenticatedUser {
             Task {
                 await saveRemoteVisit(cafe: cafe, authenticatedUser: authenticatedUser)
             }
@@ -557,11 +554,8 @@ struct LogVisitView: View {
 enum AddVisitValidation {
     static let photoRequiredMessage = "Add at least one photo before posting your sip."
 
-    static func hasRequiredPhoto(
-        isAuthenticated: Bool,
-        photoCount: Int
-    ) -> Bool {
-        !isAuthenticated || photoCount > 0
+    static func hasRequiredPhoto(photoCount: Int) -> Bool {
+        photoCount > 0
     }
 }
 
