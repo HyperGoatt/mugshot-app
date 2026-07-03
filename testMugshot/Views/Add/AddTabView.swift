@@ -600,7 +600,7 @@ struct LogVisitHeroHeader: View {
 
             HStack(spacing: 8) {
                 LogVisitHeroPill(
-                    title: hasPhoto ? "Photo ready" : (isRemoteMode ? "Photo required" : "Photo optional"),
+                    title: hasPhoto ? "Photo ready" : "Photo required",
                     systemImage: hasPhoto ? "photo.fill" : "camera"
                 )
 
