@@ -25,7 +25,7 @@ Add Visit polish validation on 2026-07-02:
 - XcodeBuildMCP tests passed: 20 passed, 0 failed.
 - The polished Add Visit screen rendered the new "Log a Sip" header, photo-first library target, progress card, summary strip, drink chips, rating score panel, and bottom padding above the tab bar.
 - A no-photo smoke through the polished form created a real Supabase visit and opened remote Visit Detail.
-- During this run, XcodeBuildMCP still did not open the system Photos picker and Computer Use could not attach to the Simulator window, so photo-backed validation relies on the unchanged upload path and the earlier completed picker smoke.
+- During this run, XcodeBuildMCP still did not open the system Photos picker and Computer Use could not attach to the Simulator window, so that specific polish pass relied on the unchanged upload path and earlier picker smoke. This was superseded by the 2026-07-03 Computer Use picker fallback smoke below.
 
 Visit Detail/Profile Recent polish validation on 2026-07-02:
 
@@ -340,7 +340,7 @@ Visual state observed:
 
 ## Known Blockers
 
-- 2026-07-03 private-beta readiness pass: XcodeBuildMCP build/run and `xcodebuild test` passed on iPhone 17 Pro iOS 26.2, and Add Visit showed the signed-in photo-required state. A seeded simulator image was added with `xcrun simctl addmedia`, but semantic taps on the native `PhotosPicker` control did not present the system picker, and subsequent tab/cancel taps also did not navigate despite reported tap success. Treat the fresh photo-backed Add Visit creation smoke as still requiring manual interaction or picker-capable automation.
+- 2026-07-03 private-beta readiness pass: XcodeBuildMCP build/run and `xcodebuild test` passed on iPhone 17 Pro iOS 26.2, and Add Visit showed the signed-in photo-required state. XcodeBuildMCP semantic tap/touch still did not present the native `PhotosPicker`, but Computer Use coordinate-click fallback opened the picker, selected a seeded simulator image, saved visit `587f8423-a56f-46fe-b15a-452b2f024ebf`, and verified Profile Recent, Feed, and remote Visit Detail with the photo visible after relaunch.
 - Bottom tab-bar automation is still intermittent from some screens. In Phase 2A testing, Map, Feed, Add, Saved, and Profile were reachable, but a few later tab taps from Saved did not switch screens even though XcodeBuildMCP reported success.
 - Computer Use coordinate fallback may be needed for system Photos picker interaction because XcodeBuildMCP semantic taps do not currently open that picker reliably.
 - The existing Xcode project file is already modified and sets the display name to `Mugshott`, which appears to be a typo. Do not fix this during Phase 1.5 unless launch depends on it.

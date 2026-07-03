@@ -33,7 +33,7 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 
 ## What Breaks Or Dead-Ends
 
-- PhotosPicker could not be completed through XcodeBuildMCP tap automation on 2026-07-03, so the requested fresh photo-backed creation smoke was blocked at system picker automation even after seeding simulator media.
+- XcodeBuildMCP semantic tap/touch automation still does not reliably present the native Photos picker, but Computer Use coordinate-click fallback completed the 2026-07-03 photo-backed Add Visit smoke.
 - Friends has no active native surface.
 - Notifications have no active native surface and are intentionally blocked.
 - Profile avatar/banner upload is missing.
@@ -55,7 +55,7 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 - Reintroducing notifications from old code before backend secret handling is redesigned.
 - Pushing this branch directly to `main` while remote `main` has newer history.
 - Treating local/demo stats as remote truth.
-- Treating the automated picker-blocked smoke as proof that photo creation is broken; the verified blocker is automation around the system picker, not a compile/runtime crash.
+- Treating XcodeBuildMCP picker-tap failure as proof that photo creation is broken; the verified issue is semantic automation around the system picker, while visible Simulator interaction completed the upload path.
 - Copying old `Auth` branch code wholesale.
 - Committing ignored local config.
 

@@ -112,7 +112,7 @@ Outcome: selected visit photos upload to Supabase Storage and create `visit_phot
 
 Keep the first version boring: upload, show progress/error, clean up the just-created visit row on upload failure when possible, then tighten partial-failure cleanup.
 
-Status: first native upload path is wired after Storage policy preflight and simulator-smoked with uploaded photos, including a completed native picker selection pass on 2026-07-01. Lowercase Storage paths, upload caps, photo attach ordering, poster fallback, cafe insert payloads, and visit insert payloads now have focused tests. The 2026-07-03 readiness pass made photos required for signed-in posting and removed the open-saved-no-photo recovery path. Remaining work is clearer per-photo progress/errors, orphaned Storage cleanup, and a fresh manual/picker-capable photo-backed smoke after the photo-required change.
+Status: first native upload path is wired after Storage policy preflight and simulator-smoked with uploaded photos, including completed native picker selection passes on 2026-07-01 and 2026-07-03. Lowercase Storage paths, upload caps, photo attach ordering, poster fallback, cafe insert payloads, and visit insert payloads now have focused tests. The 2026-07-03 readiness pass made photos required for signed-in posting, removed the open-saved-no-photo recovery path, and then saved fresh smoke visit `587f8423-a56f-46fe-b15a-452b2f024ebf` with 1 uploaded photo. Remaining work is clearer per-photo progress/errors and orphaned Storage cleanup.
 
 ## 9. Replace Feed With Backend Data For Current User Plus Public Visits
 
@@ -130,9 +130,9 @@ Use small tests around repository/model mapping first. Add UI tests only after t
 
 ## First 3 Implementation Tasks I Would Do Next
 
-1. Complete one fresh end-to-end photo-backed Add Visit smoke manually or with picker-capable automation, confirming Profile Recent, Feed, and remote Visit Detail after relaunch.
-2. Smoke like/unlike/comment/save cafe plus owner edit/delete on throwaway remote data.
-3. Replace placeholder Settings legal copy with reviewed beta copy.
+1. Smoke like/unlike/comment/save cafe plus owner edit/delete on throwaway remote data.
+2. Replace placeholder Settings legal copy with reviewed beta copy.
+3. Do an accessibility pass on Add Visit, Feed cards, remote Visit Detail, Saved, Mugsy empty states, and Settings.
 
 ## Product Recommendations Separate From Implementation
 

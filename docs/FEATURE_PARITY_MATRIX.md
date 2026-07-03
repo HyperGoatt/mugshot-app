@@ -36,11 +36,11 @@ Priority key:
 | Feed scopes | Friends, Everyone, Discover | Friends, Everyone | Partial | P0 for backend feed, P2 for Discover | Start with public/current-user feed, add friends later |
 | Feed data | Supabase visits/users/cafes/photos/likes/comments | Signed-in Feed reads real Supabase visits/users/cafes for Friends and Everyone; cards show counts and quick like/save controls | Partial | P0 | Keep friend semantics narrow until graph exists |
 | Discover feed | Greeting, nearby cafes, friends recent, Spin for a Spot | None | Missing | P3 | Defer |
-| Visit card media | Photo carousel from `visit_photos` | Local photos render; remote Feed/Profile cards and detail render existing Supabase photo URLs when present | Partial | P0 | Needs native Storage upload for new visits |
+| Visit card media | Photo carousel from `visit_photos` | Local photos render; remote Feed/Profile cards and detail render existing and newly uploaded Supabase photo URLs when present | Partial | P0 | Add richer carousel behavior later |
 | Likes | Supabase likes, notifications | Remote like/unlike writes to Supabase; notifications intentionally absent | Partial | P1 | Add moderation/notifications later |
 | Comments | Supabase comments, replies, mentions, notifications | Remote top-level comments write to Supabase; replies/notifications absent | Partial | P1 | Add replies/moderation later |
 | Share/postcard | Share/postcard behavior on detail | None | Missing | P3 | Defer |
-| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, optional notes/photos, success toast, and Feed navigation | Signed-in Add Visit creates/reuses cafes, requires photos, inserts real visits, uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Complete fresh manual photo smoke after picker automation block |
+| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, required signed-in photos, success toast, and Feed/Profile/detail reload | Signed-in Add Visit creates/reuses cafes, requires photos, inserts real visits, uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Add retry/progress polish for partial upload failures |
 | Cafe search in Add | Web search/selected cafe, likely Google-backed | MapKit local search | Partial | P0 | Use simplest cafe identity path first |
 | Location types | Cafe, Home, Travel, Other | Cafe-oriented local flow | Partial | P2 | Defer non-cafe contexts unless needed |
 | Craft Sip | Setup, brew method, equipment, home/travel context | None | Missing | P3 | Defer from first beta unless product says otherwise |
@@ -68,9 +68,9 @@ Priority key:
 
 ## Top 10 Parity Gaps
 
-1. Fresh photo-backed Add Visit creation still needs manual/picker-capable smoke after the photo-required change.
-2. Photo upload is wired and previously picker-smoked; remaining photo hardening is cleanup for uploaded-but-unattached objects and finer per-photo progress/errors.
-3. Cafe detail still lacks popular drinks, friend context, and broader remote aggregate stats.
+1. Photo upload is wired and freshly picker-smoked after the photo-required change; remaining photo hardening is cleanup for uploaded-but-unattached objects and finer per-photo progress/errors.
+2. Cafe detail still lacks popular drinks, friend context, and broader remote aggregate stats.
+3. Full friend-graph semantics still need multi-account validation.
 4. Profile media is missing; profile text edit exists.
 5. Friends and notifications are absent in iOS.
 6. Legal/settings/account-management surfaces exist as lean placeholders but need final copy/review.

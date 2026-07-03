@@ -21,7 +21,8 @@ Private-beta readiness update on 2026-07-03:
 - Signed-in Profile stats and Top Cafes now derive from remote visit summaries instead of local/demo shell stats.
 - A lean Settings surface now includes Sign Out, About, Privacy, Terms, and support/contact.
 - A tiny Mugsy asset slice was imported from the older native asset catalog and is used through `MugsyEmptyStateView` in clear empty states only.
-- XcodeBuildMCP build/run passed and `xcodebuild test` passed. A fresh photo-backed creation smoke was attempted, but PhotosPicker did not present through runtime tap automation even after seeding simulator media; this remains a manual/picker-capable validation step before TestFlight.
+- XcodeBuildMCP build/run passed and `xcodebuild test` passed. A fresh photo-backed creation smoke completed on 2026-07-03 using Computer Use coordinate-click fallback for the native Photos picker after XcodeBuildMCP semantic tap/touch did not present it.
+- Fresh smoke visit `587f8423-a56f-46fe-b15a-452b2f024ebf` saved caption `Codex photo-required beta smoke 2026-07-03 0844`, visibility `everyone`, one `visit_photos` row, and a `poster_photo_url`; after relaunch it appeared in Profile Recent, Feed, and remote Visit Detail with the uploaded photo visible.
 
 Phase 2B write decision:
 

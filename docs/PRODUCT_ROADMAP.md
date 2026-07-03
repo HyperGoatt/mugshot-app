@@ -70,7 +70,7 @@ Date: 2026-07-03
 | Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
 | --- | --- | --- | --- | --- | --- |
 | Core smoke checklist | Prevents broken builds from shipping | Reliability | Low | Beta | Now |
-| Fresh photo-backed Add Visit smoke | Proves the beta posting loop after the photo-required change | Confidence that new visits appear in Profile, Feed, and detail after relaunch | Low | Beta | Still needed manually; XcodeBuildMCP picker tap was blocked |
+| Fresh photo-backed Add Visit smoke | Proves the beta posting loop after the photo-required change | Confidence that new visits appear in Profile, Feed, and detail after relaunch | Low | Beta | Done on 2026-07-03 with Computer Use picker fallback; keep in regression checklist |
 | Accessibility pass | Makes the app usable beyond ideal cases | Better UX for everyone | Medium | Beta | Now |
 | Demo/real-data separation | Avoids false confidence | Users understand what is theirs | Medium | Beta | Now |
 | TestFlight checklist | Reduces release scramble | Faster beta launch | Low | Beta | Now |
