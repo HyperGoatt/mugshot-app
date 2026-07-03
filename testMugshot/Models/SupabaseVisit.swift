@@ -120,6 +120,16 @@ struct SupabaseVisitLikeRow: Identifiable, Decodable, Equatable {
     }
 }
 
+struct SupabaseVisitLikeInsert: Encodable, Equatable {
+    let userId: UUID
+    let visitId: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case visitId = "visit_id"
+    }
+}
+
 struct SupabaseVisitCommentRow: Identifiable, Decodable, Equatable {
     let id: UUID
     let userId: UUID
@@ -142,6 +152,60 @@ struct SupabaseVisitCommentRow: Identifiable, Decodable, Equatable {
     }
 }
 
+struct SupabaseVisitCommentInsert: Encodable, Equatable {
+    let userId: UUID
+    let visitId: UUID
+    let text: String
+    let parentCommentId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case visitId = "visit_id"
+        case text
+        case parentCommentId = "parent_comment_id"
+    }
+
+    static func make(
+        userId: UUID,
+        visitId: UUID,
+        text: String,
+        parentCommentId: UUID? = nil
+    ) throws -> SupabaseVisitCommentInsert {
+        guard let trimmedText = text.remoteTrimmedNonEmpty else {
+            throw VisitServiceError.emptyComment
+        }
+
+        return SupabaseVisitCommentInsert(
+            userId: userId,
+            visitId: visitId,
+            text: trimmedText,
+            parentCommentId: parentCommentId
+        )
+    }
+}
+
+struct SupabaseVisitUpdate: Encodable, Equatable {
+    let caption: String
+    let notes: String?
+    let visibility: String
+
+    static func make(
+        caption: String,
+        notes: String?,
+        visibility: VisitVisibility
+    ) throws -> SupabaseVisitUpdate {
+        guard let trimmedCaption = caption.remoteTrimmedNonEmpty else {
+            throw VisitServiceError.emptyCaption
+        }
+
+        return SupabaseVisitUpdate(
+            caption: trimmedCaption,
+            notes: notes?.remoteTrimmedNonEmpty,
+            visibility: visibility.supabaseValue
+        )
+    }
+}
+
 struct RemoteVisitComment: Identifiable, Equatable {
     let comment: SupabaseVisitCommentRow
     let author: SupabaseUserProfile?
@@ -159,6 +223,12 @@ struct RemoteVisitComment: Identifiable, Equatable {
     var authorInitial: String {
         String(authorUsername.prefix(1)).uppercased()
     }
+}
+
+struct RemoteVisitSocialState: Equatable {
+    let likeCount: Int
+    let commentCount: Int
+    let currentUserHasLiked: Bool
 }
 
 struct RemoteVisitDetail: Identifiable, Equatable {
@@ -215,15 +285,22 @@ struct RemoteVisitSummary: Identifiable, Equatable {
     let visit: SupabaseVisitRow
     let cafe: SupabaseCafeSummary?
     let author: SupabaseUserProfile?
+    let socialState: RemoteVisitSocialState
 
     init(
         visit: SupabaseVisitRow,
         cafe: SupabaseCafeSummary?,
-        author: SupabaseUserProfile? = nil
+        author: SupabaseUserProfile? = nil,
+        socialState: RemoteVisitSocialState = RemoteVisitSocialState(
+            likeCount: 0,
+            commentCount: 0,
+            currentUserHasLiked: false
+        )
     ) {
         self.visit = visit
         self.cafe = cafe
         self.author = author
+        self.socialState = socialState
     }
 
     var id: UUID { visit.id }
@@ -256,6 +333,83 @@ struct RemoteVisitSummary: Identifiable, Equatable {
     var authorInitial: String {
         String(authorUsername.prefix(1)).uppercased()
     }
+}
+
+struct RemoteProfileStats: Equatable {
+    let totalVisits: Int
+    let totalCafes: Int
+    let averageScore: Double
+    let favoriteDrinkLabel: String?
+    let topCafes: [RemoteTopCafe]
+
+    static let empty = RemoteProfileStats(
+        totalVisits: 0,
+        totalCafes: 0,
+        averageScore: 0,
+        favoriteDrinkLabel: nil,
+        topCafes: []
+    )
+
+    static func calculate(from visits: [RemoteVisitSummary]) -> RemoteProfileStats {
+        guard !visits.isEmpty else {
+            return .empty
+        }
+
+        let totalScore = visits.reduce(0.0) { $0 + $1.visit.overallScore }
+        let cafesById = Dictionary(grouping: visits.compactMap { visit -> RemoteVisitSummary? in
+            visit.cafe == nil ? nil : visit
+        }) { $0.cafe!.id }
+
+        let topCafes = cafesById.values.compactMap { cafeVisits -> RemoteTopCafe? in
+            guard let first = cafeVisits.first, let cafe = first.cafe else {
+                return nil
+            }
+
+            let averageScore = cafeVisits.reduce(0.0) { $0 + $1.visit.overallScore } / Double(cafeVisits.count)
+            return RemoteTopCafe(
+                cafe: cafe,
+                visitCount: cafeVisits.count,
+                averageScore: averageScore,
+                posterPhotoURL: cafeVisits
+                    .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+                    .compactMap { $0.visit.posterPhotoURL?.remoteTrimmedNonEmpty }
+                    .first
+            )
+        }
+        .sorted {
+            if abs($0.averageScore - $1.averageScore) < 0.0001 {
+                return $0.visitCount > $1.visitCount
+            }
+            return $0.averageScore > $1.averageScore
+        }
+
+        let favoriteDrinkLabel = Dictionary(grouping: visits, by: { $0.visit.drinkDisplayName })
+            .mapValues(\.count)
+            .max {
+                if $0.value == $1.value {
+                    return $0.key > $1.key
+                }
+                return $0.value < $1.value
+            }?
+            .key
+
+        return RemoteProfileStats(
+            totalVisits: visits.count,
+            totalCafes: Set(visits.compactMap { $0.cafe?.id }).count,
+            averageScore: totalScore / Double(visits.count),
+            favoriteDrinkLabel: favoriteDrinkLabel,
+            topCafes: Array(topCafes.prefix(10))
+        )
+    }
+}
+
+struct RemoteTopCafe: Identifiable, Equatable {
+    let cafe: SupabaseCafeSummary
+    let visitCount: Int
+    let averageScore: Double
+    let posterPhotoURL: String?
+
+    var id: UUID { cafe.id }
 }
 
 struct RemoteCafeVisitStats: Equatable {

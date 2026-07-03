@@ -96,7 +96,7 @@ Suggested shape:
 
 Keep `DataManager` available for local/mock mode until the first remote journey is stable.
 
-Status: started. `CafeService`, `VisitService`, `VisitPhotoUploadService`, and `CafeStateService` now support Profile Recent, Feed, read-only remote detail, cafe create/reuse, no-photo visit creation, first visit photo upload/attach, and durable Favorite/Want-to-Try cafe state. Social mutations and a fuller repository split remain future work.
+Status: started. `CafeService`, `VisitService`, `VisitPhotoUploadService`, and `CafeStateService` now support Profile Recent, Feed, remote detail, cafe create/reuse, signed-in photo-backed visit creation, first visit photo upload/attach, durable Favorite/Want-to-Try cafe state, like/unlike, comments, owner edit/delete, and cafe save from visit surfaces. A fuller repository split remains future work.
 
 ## 7. Wire One Visit Create Journey To Supabase - Done In Phase 2B
 
@@ -110,9 +110,9 @@ Status: final trigger preflight passed, then the iOS simulator created a real no
 
 Outcome: selected visit photos upload to Supabase Storage and create `visit_photos` rows.
 
-Keep the first version boring: upload, show progress/error, retry or open the saved no-photo visit, then tighten partial-failure cleanup.
+Keep the first version boring: upload, show progress/error, clean up the just-created visit row on upload failure when possible, then tighten partial-failure cleanup.
 
-Status: first native upload path is wired after Storage policy preflight and simulator-smoked with uploaded photos, including a completed native picker selection pass. Lowercase Storage paths, upload caps, photo attach ordering, poster fallback, cafe insert payloads, and no-photo visit insert payloads now have focused tests. The app now exposes a retry/open recovery card if photos fail after the visit row is saved. Remaining work is clearer per-photo progress/errors and cleanup for partial attach failures if beta testing shows the need.
+Status: first native upload path is wired after Storage policy preflight and simulator-smoked with uploaded photos, including a completed native picker selection pass on 2026-07-01. Lowercase Storage paths, upload caps, photo attach ordering, poster fallback, cafe insert payloads, and visit insert payloads now have focused tests. The 2026-07-03 readiness pass made photos required for signed-in posting and removed the open-saved-no-photo recovery path. Remaining work is clearer per-photo progress/errors, orphaned Storage cleanup, and a fresh manual/picker-capable photo-backed smoke after the photo-required change.
 
 ## 9. Replace Feed With Backend Data For Current User Plus Public Visits
 
@@ -130,9 +130,9 @@ Use small tests around repository/model mapping first. Add UI tests only after t
 
 ## First 3 Implementation Tasks I Would Do Next
 
-1. Run one fresh end-to-end no-photo Add Visit smoke after the disabled CTA fix, confirming remote Visit Detail and Profile Recent still update.
-2. Do a device/manual Photos picker pass on the polished Add Visit screen when Computer Use or a human hand can reach the system picker again.
-3. Decide whether Feed Like/Comment/Save icons should be hidden or marked read-only until real social mutations exist.
+1. Complete one fresh end-to-end photo-backed Add Visit smoke manually or with picker-capable automation, confirming Profile Recent, Feed, and remote Visit Detail after relaunch.
+2. Smoke like/unlike/comment/save cafe plus owner edit/delete on throwaway remote data.
+3. Replace placeholder Settings legal copy with reviewed beta copy.
 
 ## Product Recommendations Separate From Implementation
 

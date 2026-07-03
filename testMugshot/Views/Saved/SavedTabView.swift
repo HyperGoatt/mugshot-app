@@ -108,7 +108,7 @@ struct SavedTabView: View {
                     LazyVStack(spacing: 12) {
                         if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
-                                systemImage: selectedTab == .wantToTry ? "bookmark.fill" : "heart.fill",
+                                asset: mugsyAsset(for: selectedTab),
                                 title: emptyTitle,
                                 message: emptyMessage
                             )
@@ -223,41 +223,26 @@ struct SavedTabView: View {
             return cafes.sorted { $0.name < $1.name }
         }
     }
+
+    private func mugsyAsset(for tab: SavedTab) -> MugsyEmptyStateAsset {
+        switch tab {
+        case .favorites:
+            return .noFavorites
+        case .wantToTry:
+            return .noWishlist
+        case .allCafes:
+            return .noCafes
+        }
+    }
 }
 
 struct SavedEmptyStateView: View {
-    let systemImage: String
+    let asset: MugsyEmptyStateAsset
     let title: String
     let message: String
 
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.36))
-                .frame(width: 56, height: 56)
-                .background(Color.sandBeige.opacity(0.5))
-                .clipShape(Circle())
-
-            Text(title)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundColor(.espressoBrown.opacity(0.64))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 18)
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
+        MugsyEmptyStateView(asset: asset, title: title, message: message)
     }
 }
 
@@ -603,7 +588,8 @@ struct CafeDetailView: View {
                 RemoteVisitDetailView(
                     visitId: visit.id,
                     initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
                 )
             }
             .task(id: remoteVisitTaskID) {

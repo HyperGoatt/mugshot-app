@@ -12,6 +12,10 @@ struct ProfileTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedTab: ProfileContentTab = .recent
     @State private var showEditProfile = false
+    @State private var showSettings = false
+    @State private var remoteProfileVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteProfileStats = false
+    @State private var remoteProfileStatsError: String?
 
     enum ProfileContentTab: String, CaseIterable {
         case recent = "Recent"
@@ -26,6 +30,19 @@ struct ProfileTabView: View {
 
     var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?) {
         dataManager.getUserStats()
+    }
+
+    private var displayedStats: ProfileStatsDisplay {
+        if authModel.authenticatedUser != nil {
+            return ProfileStatsDisplay(remote: RemoteProfileStats.calculate(from: remoteProfileVisits))
+        }
+
+        return ProfileStatsDisplay(
+            totalVisits: stats.totalVisits,
+            totalCafes: stats.totalCafes,
+            averageScore: stats.averageScore,
+            favoriteDrinkLabel: stats.favoriteDrinkType?.rawValue
+        )
     }
 
     var body: some View {
@@ -114,17 +131,6 @@ struct ProfileTabView: View {
                             .padding(.horizontal)
                         }
 
-                        Button {
-                            Task {
-                                await authModel.signOut()
-                            }
-                        } label: {
-                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                        .padding(.horizontal)
-
                         // Stats section
                         VStack(spacing: 16) {
                             Text("Stats")
@@ -134,25 +140,36 @@ struct ProfileTabView: View {
                             HStack(spacing: 20) {
                                 StatBox(
                                     title: "Visits",
-                                    value: "\(stats.totalVisits)"
+                                    value: "\(displayedStats.totalVisits)"
                                 )
 
                                 StatBox(
                                     title: "Cafés",
-                                    value: "\(stats.totalCafes)"
+                                    value: "\(displayedStats.totalCafes)"
                                 )
 
                                 StatBox(
                                     title: "Avg Score",
-                                    value: String(format: "%.1f", stats.averageScore)
+                                    value: String(format: "%.1f", displayedStats.averageScore)
                                 )
 
                                 StatBox(
                                     title: "Favorite",
-                                    value: stats.favoriteDrinkType?.rawValue ?? "-"
+                                    value: displayedStats.favoriteDrinkLabel ?? "-"
                                 )
                             }
                             .padding(.horizontal)
+
+                            if isLoadingRemoteProfileStats {
+                                Text("Refreshing remote stats...")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.espressoBrown.opacity(0.62))
+                            } else if let remoteProfileStatsError {
+                                Text(remoteProfileStatsError)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red.opacity(0.82))
+                                    .multilineTextAlignment(.center)
+                            }
                         }
                         .padding()
                         .background(Color.sandBeige)
@@ -165,7 +182,7 @@ struct ProfileTabView: View {
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(.espressoBrown)
 
-                            CoffeeJourneyView(stats: stats)
+                            CoffeeJourneyView(stats: displayedStats)
                         }
                         .padding()
                         .background(Color.sandBeige)
@@ -189,11 +206,29 @@ struct ProfileTabView: View {
             }
             .background(Color.creamWhite)
             .navigationTitle("Profile")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.espressoBrown)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
             .sheet(isPresented: $showEditProfile) {
                 if let profile = authModel.profile {
                     EditProfileView(profile: profile, dataManager: dataManager)
                         .environmentObject(authModel)
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(authModel)
+            }
+            .task(id: authModel.authenticatedUser?.id) {
+                await loadRemoteProfileStats()
             }
         }
     }
@@ -205,12 +240,70 @@ struct ProfileTabView: View {
             RecentVisitsView(dataManager: dataManager)
                 .environmentObject(authModel)
         case .topCafes:
-            TopCafesView(dataManager: dataManager)
+            TopCafesView(
+                dataManager: dataManager,
+                remoteStats: authModel.authenticatedUser == nil ? nil : RemoteProfileStats.calculate(from: remoteProfileVisits)
+            )
         case .favorites:
             FavoritesView(dataManager: dataManager)
         case .wishlist:
             WishlistView(dataManager: dataManager)
         }
+    }
+
+    @MainActor
+    private func loadRemoteProfileStats() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteProfileVisits = []
+            remoteProfileStatsError = nil
+            isLoadingRemoteProfileStats = false
+            return
+        }
+
+        isLoadingRemoteProfileStats = true
+        remoteProfileStatsError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            remoteProfileVisits = try await service.fetchRecentVisits(
+                userId: userId,
+                limit: 100,
+                includeSocialState: false
+            )
+            isLoadingRemoteProfileStats = false
+        } catch {
+            remoteProfileStatsError = "Could not load remote profile stats."
+            isLoadingRemoteProfileStats = false
+        }
+    }
+}
+
+struct ProfileStatsDisplay: Equatable {
+    let totalVisits: Int
+    let totalCafes: Int
+    let averageScore: Double
+    let favoriteDrinkLabel: String?
+
+    init(
+        totalVisits: Int,
+        totalCafes: Int,
+        averageScore: Double,
+        favoriteDrinkLabel: String?
+    ) {
+        self.totalVisits = totalVisits
+        self.totalCafes = totalCafes
+        self.averageScore = averageScore
+        self.favoriteDrinkLabel = favoriteDrinkLabel
+    }
+
+    init(remote: RemoteProfileStats) {
+        self.init(
+            totalVisits: remote.totalVisits,
+            totalCafes: remote.totalCafes,
+            averageScore: remote.averageScore,
+            favoriteDrinkLabel: remote.favoriteDrinkLabel
+        )
     }
 }
 
@@ -436,7 +529,7 @@ struct StatBox: View {
 }
 
 struct CoffeeJourneyView: View {
-    let stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?)
+    let stats: ProfileStatsDisplay
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -496,7 +589,8 @@ struct RecentVisitsView: View {
             RemoteVisitDetailView(
                 visitId: visit.id,
                 initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
             )
         }
     }
@@ -539,6 +633,7 @@ struct RecentVisitsView: View {
             .cornerRadius(DesignSystem.cornerRadius)
         } else if remoteVisits.isEmpty {
             ProfileEmptyStateCard(
+                asset: .noCafes,
                 systemImage: "cup.and.saucer.fill",
                 title: "No visits yet",
                 message: "Save a real visit from Add. It will appear here, open in detail, and persist after relaunch."
@@ -561,6 +656,7 @@ struct RecentVisitsView: View {
     private var localContent: some View {
         if localVisits.isEmpty {
             ProfileEmptyStateCard(
+                asset: .noCafes,
                 systemImage: "cup.and.saucer.fill",
                 title: "No local visits yet",
                 message: "Log a visit to start filling your taste journal."
@@ -604,11 +700,27 @@ struct RecentVisitsView: View {
 }
 
 struct ProfileEmptyStateCard: View {
+    let asset: MugsyEmptyStateAsset?
     let systemImage: String
     let title: String
     let message: String
 
+    init(
+        asset: MugsyEmptyStateAsset? = nil,
+        systemImage: String,
+        title: String,
+        message: String
+    ) {
+        self.asset = asset
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+    }
+
     var body: some View {
+        if let asset {
+            MugsyEmptyStateView(asset: asset, title: title, message: message)
+        } else {
         VStack(spacing: 10) {
             Image(systemName: systemImage)
                 .font(.system(size: 28, weight: .semibold))
@@ -635,6 +747,7 @@ struct ProfileEmptyStateCard: View {
             RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
                 .stroke(Color.sandBeige, lineWidth: 1)
         )
+        }
     }
 }
 
@@ -804,6 +917,7 @@ struct RemoteVisitNoPhotoThumbnail: View {
 
 struct TopCafesView: View {
     @ObservedObject var dataManager: DataManager
+    let remoteStats: RemoteProfileStats?
 
     var topCafes: [Cafe] {
         dataManager.appData.cafes
@@ -815,12 +929,26 @@ struct TopCafesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if topCafes.isEmpty {
-                Text("No cafés yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+            if let remoteStats {
+                if remoteStats.topCafes.isEmpty {
+                    ProfileEmptyStateCard(
+                        asset: .noCafes,
+                        systemImage: "cup.and.saucer.fill",
+                        title: "No top cafés yet",
+                        message: "Photo-backed remote visits will rank your cafés here."
+                    )
+                } else {
+                    ForEach(remoteStats.topCafes) { topCafe in
+                        RemoteTopCafeCard(topCafe: topCafe)
+                    }
+                }
+            } else if topCafes.isEmpty {
+                ProfileEmptyStateCard(
+                    asset: .noCafes,
+                    systemImage: "cup.and.saucer.fill",
+                    title: "No cafés yet",
+                    message: "Log visits to rank your cafés."
+                )
             } else {
                 ForEach(topCafes) { cafe in
                     CafeCard(
@@ -833,6 +961,51 @@ struct TopCafesView: View {
                 }
             }
         }
+    }
+}
+
+struct RemoteTopCafeCard: View {
+    let topCafe: RemoteTopCafe
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: topCafe.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill"
+            )
+            .frame(width: 72, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(topCafe.cafe.name)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(2)
+
+                if !topCafe.cafe.displayLocation.isEmpty {
+                    Text(topCafe.cafe.displayLocation)
+                        .font(.system(size: 12))
+                        .foregroundColor(.espressoBrown.opacity(0.62))
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 8) {
+                    Label(String(format: "%.1f", topCafe.averageScore), systemImage: "star.fill")
+                    Label("\(topCafe.visitCount)", systemImage: "cup.and.saucer.fill")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.68))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.creamWhite)
+        .cornerRadius(DesignSystem.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                .stroke(Color.sandBeige, lineWidth: 1)
+        )
     }
 }
 

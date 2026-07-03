@@ -340,6 +340,7 @@ Visual state observed:
 
 ## Known Blockers
 
+- 2026-07-03 private-beta readiness pass: XcodeBuildMCP build/run and `xcodebuild test` passed on iPhone 17 Pro iOS 26.2, and Add Visit showed the signed-in photo-required state. A seeded simulator image was added with `xcrun simctl addmedia`, but semantic taps on the native `PhotosPicker` control did not present the system picker, and subsequent tab/cancel taps also did not navigate despite reported tap success. Treat the fresh photo-backed Add Visit creation smoke as still requiring manual interaction or picker-capable automation.
 - Bottom tab-bar automation is still intermittent from some screens. In Phase 2A testing, Map, Feed, Add, Saved, and Profile were reachable, but a few later tab taps from Saved did not switch screens even though XcodeBuildMCP reported success.
 - Computer Use coordinate fallback may be needed for system Photos picker interaction because XcodeBuildMCP semantic taps do not currently open that picker reliably.
 - The existing Xcode project file is already modified and sets the display name to `Mugshott`, which appears to be a typo. Do not fix this during Phase 1.5 unless launch depends on it.

@@ -1,10 +1,20 @@
 # Mugsy Asset Status
 
-Date: 2026-07-02
+Date: 2026-07-03
 
 ## Current Active Repo
 
-The active repo at `/Users/joe.rosso/Desktop/Projects/testMugshot` does not currently include Mugsy image sets in `testMugshot/Assets.xcassets`. The asset catalog only has app icon/accent placeholders.
+The active repo at `/Users/joe.rosso/Desktop/Projects/testMugshot` now includes a tiny Mugsy empty-state slice in `testMugshot/Assets.xcassets`.
+
+Imported image sets:
+
+- `MugsyNoFriends.imageset`
+- `MugsyNoFavorites.imageset`
+- `MugsyNoWishlist.imageset`
+- `MugsyNoCafes.imageset`
+- `MugsyComingSoon.imageset`
+
+These were copied from `/Users/joe.rosso/Documents/mugshot-app/testMugshot/Assets.xcassets`.
 
 ## Assets Found Elsewhere
 
@@ -39,13 +49,11 @@ Older native asset catalogs also include image sets such as:
 - `MugsySpinCelebrate.imageset`
 - `Mugshot Launch Screen.imageset`
 
-## Recommendation
+## Implemented Slice
 
-Do not import Mugsy during this audit/backup pass. The next safe Mugsy slice should be small and asset-only first:
-
-1. Copy the image sets from the older native repo into the active `Assets.xcassets`.
-2. Add a reusable `MugsyEmptyStateView`.
-3. Use it in no favorites, no wishlist, no visits, no friends placeholder, and coming-soon states.
-4. Build/test after the asset import.
+1. Copied only the clear empty-state image sets from the older native repo into the active `Assets.xcassets`.
+2. Added reusable `MugsyEmptyStateView`.
+3. Used it in Saved empty states, Profile no-visit/top-cafe states, and empty remote Feed states.
+4. Added focused enum/presence tests and passed build/tests.
 
 Avoid copying old UI code wholesale just to get Mugsy. The active app's Supabase-safe core loop should remain the base.

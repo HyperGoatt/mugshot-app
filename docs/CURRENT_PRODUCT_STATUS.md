@@ -1,6 +1,6 @@
 # Current Product Status
 
-Date: 2026-07-02
+Date: 2026-07-03
 
 ## Founder-Level Read
 
@@ -12,15 +12,20 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 - Relaunch and restore the session.
 - Load/bootstrap the matching profile row.
 - Edit basic profile text fields.
-- Create a visit with cafe, drink, caption, notes, ratings, visibility, and optional photos.
+- Create a signed-in visit with cafe, drink, caption, notes, ratings, visibility, and at least one photo.
 - See saved visits in Profile Recent, Feed, and remote Visit Detail.
 - See uploaded visit photos after relaunch.
+- Like/unlike remote visits and add comments from remote Visit Detail.
 - Favorite or mark cafes Want-to-Try and see that state persist.
+- Save/favorite cafes from remote visit surfaces while preserving existing Want-to-Try state.
+- Edit caption/notes/visibility on their own remote visits.
+- Delete their own remote visits.
+- Open Settings for Sign Out, About, Privacy, Terms, and support/contact.
 - Search cafes through Apple Maps and use typed cafe fallback in Add Visit.
 
 ## What Looks Real But Is Local/Demo
 
-- Profile stats/top cafes/favorites/wishlist are partly local shell data.
+- Signed-out profile stats/top cafes/favorites/wishlist are local shell data.
 - Signed-out/local visits use `UserDefaults` and `PhotoCache`.
 - Sample San Francisco cafes/visits seed the app when local data is empty.
 - Local likes/comments/edit/delete exist for local visits only.
@@ -28,13 +33,11 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 
 ## What Breaks Or Dead-Ends
 
-- Feed/remote Visit Detail social actions do not mutate Supabase.
+- PhotosPicker could not be completed through XcodeBuildMCP tap automation on 2026-07-03, so the requested fresh photo-backed creation smoke was blocked at system picker automation even after seeding simulator media.
 - Friends has no active native surface.
 - Notifications have no active native surface and are intentionally blocked.
-- Settings/legal/privacy/about are missing.
 - Profile avatar/banner upload is missing.
 - Public user profiles are missing.
-- Remote visit edit/delete is missing.
 
 ## What Has Real Backend Data
 
@@ -44,7 +47,7 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 - `public.cafes` resolve/create/read.
 - `public.visit_photos` read/write.
 - `storage.objects` in `visit-photos` for uploaded images.
-- `public.likes` and `public.comments` reads in remote detail.
+- `public.likes` read/write and `public.comments` read/write for remote visit social controls.
 - `public.user_cafe_states` read/write.
 
 ## What Is Unsafe Or Risky
@@ -52,6 +55,7 @@ Mugshot's native iOS app has crossed from prototype into a credible private-beta
 - Reintroducing notifications from old code before backend secret handling is redesigned.
 - Pushing this branch directly to `main` while remote `main` has newer history.
 - Treating local/demo stats as remote truth.
+- Treating the automated picker-blocked smoke as proof that photo creation is broken; the verified blocker is automation around the system picker, not a compile/runtime crash.
 - Copying old `Auth` branch code wholesale.
 - Committing ignored local config.
 

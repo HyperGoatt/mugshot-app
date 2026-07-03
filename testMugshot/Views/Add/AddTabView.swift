@@ -45,8 +45,6 @@ struct LogVisitView: View {
     @State private var showVisitDetail = false
     @State private var savedRemoteVisit: RemoteVisitSummary?
     @State private var isSavingRemoteVisit = false
-    @State private var pendingPhotoUploadVisit: RemoteVisitSummary?
-    @State private var photoUploadFailureMessage: String?
     
     @StateObject private var searchService = MapSearchService()
     @State private var searchText = ""
@@ -63,10 +61,6 @@ struct LogVisitView: View {
     }
 
     private var saveButtonTitle: String {
-        if pendingPhotoUploadVisit != nil {
-            return "Visit Saved"
-        }
-
         if isSavingRemoteVisit {
             return photoImages.isEmpty ? "Saving..." : "Uploading..."
         }
@@ -75,7 +69,7 @@ struct LogVisitView: View {
     }
 
     private var progressItems: [LogVisitProgressItem] {
-        [
+        var items = [
             LogVisitProgressItem(
                 title: "Cafe",
                 systemImage: "mappin.and.ellipse",
@@ -98,6 +92,16 @@ struct LogVisitView: View {
                 isComplete: caption.remoteTrimmedNonEmpty != nil
             )
         ]
+
+        if authModel.authenticatedUser != nil {
+            items.append(LogVisitProgressItem(
+                title: "Photo",
+                systemImage: "photo.fill",
+                isComplete: !photoImages.isEmpty
+            ))
+        }
+
+        return items
     }
 
     private var completedProgressCount: Int {
@@ -109,7 +113,7 @@ struct LogVisitView: View {
     }
 
     private var isSaveButtonDisabled: Bool {
-        isSavingRemoteVisit || pendingPhotoUploadVisit != nil || !canSubmitVisit
+        isSavingRemoteVisit || !canSubmitVisit
     }
 
     private var drinkDisplayName: String {
@@ -181,7 +185,8 @@ struct LogVisitView: View {
                     RemoteVisitDetailView(
                         visitId: visit.id,
                         initialSummary: visit,
-                        currentUserId: authModel.authenticatedUser?.id
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager
                     )
                 }
         }
@@ -287,18 +292,6 @@ struct LogVisitView: View {
                 ValidationErrorCard(errors: validationErrors)
             }
 
-            if let pendingPhotoUploadVisit,
-               let photoUploadFailureMessage {
-                PhotoUploadRecoveryCard(
-                    message: photoUploadFailureMessage,
-                    isRetrying: isSavingRemoteVisit,
-                    retryAction: retryPhotoUpload,
-                    openSavedVisitAction: {
-                        openSavedRemoteVisit(pendingPhotoUploadVisit)
-                    }
-                )
-            }
-            
             // Save button
             Button {
                 saveVisit()
@@ -339,8 +332,6 @@ struct LogVisitView: View {
         savedRemoteVisit = nil
         showVisitDetail = false
         isSavingRemoteVisit = false
-        pendingPhotoUploadVisit = nil
-        photoUploadFailureMessage = nil
 
         // Re-initialize ratings
         initializeRatings()
@@ -411,6 +402,15 @@ struct LogVisitView: View {
         }
 
         if let authenticatedUser = authModel.authenticatedUser {
+            guard AddVisitValidation.hasRequiredPhoto(
+                isAuthenticated: true,
+                photoCount: photoImages.count
+            ) else {
+                validationErrors.append(AddVisitValidation.photoRequiredMessage)
+                scrollToTop = true
+                return
+            }
+
             Task {
                 await saveRemoteVisit(cafe: cafe, authenticatedUser: authenticatedUser)
             }
@@ -467,7 +467,7 @@ struct LogVisitView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            var remoteVisit = try await service.createNoPhotoVisit(
+            var remoteVisit = try await service.createVisit(
                 userId: authenticatedUser.id,
                 cafe: cafe,
                 drinkType: drinkType,
@@ -489,16 +489,18 @@ struct LogVisitView: View {
                         visitService: service
                     )
                 } catch {
+                    try? await service.deleteVisit(
+                        visitId: remoteVisit.id,
+                        userId: authenticatedUser.id
+                    )
                     isSavingRemoteVisit = false
-                    pendingPhotoUploadVisit = remoteVisit
-                    photoUploadFailureMessage = photoUploadMessage(for: error)
+                    validationErrors = [photoUploadMessage(for: error)]
+                    scrollToTop = true
                     return
                 }
             }
 
             isSavingRemoteVisit = false
-            pendingPhotoUploadVisit = nil
-            photoUploadFailureMessage = nil
             mirrorRemoteCafe(from: remoteVisit)
             savedRemoteVisit = remoteVisit
         } catch {
@@ -506,57 +508,6 @@ struct LogVisitView: View {
             validationErrors = [error.localizedDescription]
             scrollToTop = true
         }
-    }
-
-    private func retryPhotoUpload() {
-        guard let pendingPhotoUploadVisit,
-              let authenticatedUser = authModel.authenticatedUser,
-              !isSavingRemoteVisit else {
-            return
-        }
-
-        Task {
-            await retryPhotoUpload(
-                for: pendingPhotoUploadVisit,
-                authenticatedUser: authenticatedUser
-            )
-        }
-    }
-
-    @MainActor
-    private func retryPhotoUpload(
-        for remoteVisit: RemoteVisitSummary,
-        authenticatedUser: AuthenticatedUser
-    ) async {
-        isSavingRemoteVisit = true
-        validationErrors = []
-
-        do {
-            let client = try SupabaseClientProvider.shared.client()
-            let service = VisitService(client: client)
-            let updatedVisit = try await attachSelectedPhotos(
-                to: remoteVisit,
-                authenticatedUser: authenticatedUser,
-                client: client,
-                visitService: service
-            )
-
-            isSavingRemoteVisit = false
-            pendingPhotoUploadVisit = nil
-            photoUploadFailureMessage = nil
-            mirrorRemoteCafe(from: updatedVisit)
-            savedRemoteVisit = updatedVisit
-        } catch {
-            isSavingRemoteVisit = false
-            photoUploadFailureMessage = photoUploadMessage(for: error)
-        }
-    }
-
-    private func openSavedRemoteVisit(_ visit: RemoteVisitSummary) {
-        pendingPhotoUploadVisit = nil
-        photoUploadFailureMessage = nil
-        mirrorRemoteCafe(from: visit)
-        savedRemoteVisit = visit
     }
 
     private func mirrorRemoteCafe(from visit: RemoteVisitSummary) {
@@ -599,7 +550,18 @@ struct LogVisitView: View {
             return description
         }
 
-        return "Visit saved, but the photos did not upload."
+        return "Photos did not upload, so this visit was not posted. Try saving again."
+    }
+}
+
+enum AddVisitValidation {
+    static let photoRequiredMessage = "Add at least one photo before posting your sip."
+
+    static func hasRequiredPhoto(
+        isAuthenticated: Bool,
+        photoCount: Int
+    ) -> Bool {
+        !isAuthenticated || photoCount > 0
     }
 }
 
@@ -619,7 +581,7 @@ struct LogVisitHeroHeader: View {
                         .font(.system(size: 38, weight: .bold))
                         .foregroundColor(.espressoBrown)
 
-                    Text("Capture the drink, then add the essentials.")
+                    Text(isRemoteMode ? "Capture the sip with a photo, then add the essentials." : "Capture the drink, then add the essentials.")
                         .font(.system(size: 16))
                         .foregroundColor(.espressoBrown.opacity(0.68))
                         .fixedSize(horizontal: false, vertical: true)
@@ -644,7 +606,7 @@ struct LogVisitHeroHeader: View {
 
             HStack(spacing: 8) {
                 LogVisitHeroPill(
-                    title: hasPhoto ? "Photo ready" : "Photo optional",
+                    title: hasPhoto ? "Photo ready" : (isRemoteMode ? "Photo required" : "Photo optional"),
                     systemImage: hasPhoto ? "photo.fill" : "camera"
                 )
 
@@ -742,7 +704,7 @@ struct AddVisitSummaryStrip: View {
                 )
 
                 AddVisitSummaryPill(
-                    title: photoCount == 0 ? "No photo" : "\(photoCount) photo\(photoCount == 1 ? "" : "s")",
+                    title: photoCount == 0 ? "Photo required" : "\(photoCount) photo\(photoCount == 1 ? "" : "s")",
                     systemImage: photoCount == 0 ? "photo" : "photo.fill",
                     isComplete: photoCount > 0
                 )
@@ -883,7 +845,7 @@ struct LogVisitProgressCard: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(isRemoteMode ? "This saves to Supabase and appears in Profile Recent." : "This saves locally until you sign in.")
+                    Text(isRemoteMode ? "This posts to Supabase with a required photo." : "This saves locally until you sign in.")
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -949,11 +911,11 @@ struct RemotePhotoReadinessSection: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(photoCount > 0 ? "Ready to upload \(photoCount) photo\(photoCount == 1 ? "" : "s")" : "Photos are optional")
+                    Text(photoCount > 0 ? "Ready to upload \(photoCount) photo\(photoCount == 1 ? "" : "s")" : "Photo required")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(photoCount > 0 ? "Selected photos save with this visit and appear on the remote detail screen." : "No-photo visits still save normally. Add photos here when you want them on the remote visit.")
+                    Text(photoCount > 0 ? "Selected photos save with this visit and appear on the remote detail screen." : "Choose at least one sip photo before posting to the beta feed.")
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -961,74 +923,8 @@ struct RemotePhotoReadinessSection: View {
             }
 
             HStack(spacing: 8) {
-                ReadinessPill(title: "No-photo save live", systemImage: "checkmark.circle.fill")
+                ReadinessPill(title: "Photo required", systemImage: "checkmark.circle.fill")
                 ReadinessPill(title: "Storage ready", systemImage: "shippingbox.fill")
-            }
-        }
-        .padding(16)
-        .cardStyle()
-    }
-}
-
-struct PhotoUploadRecoveryCard: View {
-    let message: String
-    let isRetrying: Bool
-    let retryAction: () -> Void
-    let openSavedVisitAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.76))
-                    .frame(width: 34, height: 34)
-                    .background(Color.sandBeige.opacity(0.55))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Visit saved without photos")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-
-                    Text(message)
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.65))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    retryAction()
-                } label: {
-                    HStack(spacing: 6) {
-                        if isRetrying {
-                            ProgressView()
-                                .tint(.espressoBrown)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        Text(isRetrying ? "Trying..." : "Try Again")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(isRetrying)
-
-                Button {
-                    openSavedVisitAction()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Open Visit")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(isRetrying)
             }
         }
         .padding(16)
@@ -1493,7 +1389,7 @@ struct PhotosSection: View {
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(photoImages.isEmpty ? "Optional, but it makes the memory land." : "Choose the poster photo for this visit.")
+                    Text(photoImages.isEmpty ? "Required for beta posting." : "Choose the poster photo for this visit.")
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.64))
                 }
@@ -1637,7 +1533,7 @@ struct PhotosSection: View {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .semibold))
-                Text("Skip photo anytime; no-photo saves stay live.")
+                Text("At least one photo is required before posting.")
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundColor(.espressoBrown.opacity(0.68))

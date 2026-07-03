@@ -148,11 +148,16 @@ struct FeedTabView: View {
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
         }
-        .sheet(item: $selectedRemoteVisit) { visit in
+        .sheet(item: $selectedRemoteVisit, onDismiss: {
+            Task {
+                await loadRemoteFeedIfNeeded()
+            }
+        }) { visit in
             RemoteVisitDetailView(
                 visitId: visit.id,
                 initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
             )
         }
         .task(id: feedTaskID) {
@@ -213,28 +218,29 @@ struct FeedTabView: View {
             .background(Color.creamWhite)
             .cornerRadius(DesignSystem.cornerRadius)
         } else if remoteVisits.isEmpty {
-            VStack(spacing: 8) {
-                Text(selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Text(selectedScope == .friends ? "Friend-visible sips will appear here as the beta loop grows." : "Public sips will appear here as people log them.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.65))
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.creamWhite)
-            .cornerRadius(DesignSystem.cornerRadius)
+            MugsyEmptyStateView(
+                asset: selectedScope == .friends ? .noFriends : .comingSoon,
+                title: selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet",
+                message: selectedScope == .friends ? "Friend-visible sips will appear here as the beta loop grows." : "Public sips will appear here as people log them."
+            )
         } else {
             ForEach(remoteVisits) { visit in
-                Button {
-                    selectedRemoteVisit = visit
-                } label: {
-                    RemoteFeedVisitCard(visit: visit)
-                }
-                .buttonStyle(.plain)
+                RemoteFeedVisitCard(
+                    visit: visit,
+                    isCafeSaved: isCafeSaved(for: visit),
+                    onOpen: {
+                        selectedRemoteVisit = visit
+                    },
+                    onLike: {
+                        toggleRemoteLike(for: visit)
+                    },
+                    onSaveCafe: {
+                        saveCafe(from: visit)
+                    },
+                    onComment: {
+                        selectedRemoteVisit = visit
+                    }
+                )
                 .accessibilityLabel("\(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
                 .accessibilityHint("Opens visit details")
             }
@@ -277,7 +283,10 @@ struct FeedTabView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            let visits = try await service.fetchFeedVisits(scope: scope)
+            let visits = try await service.fetchFeedVisits(
+                scope: scope,
+                currentUserId: authModel.authenticatedUser?.id
+            )
             guard scope == selectedScope else { return }
             remoteVisits = visits
             isLoadingRemoteVisits = false
@@ -297,10 +306,112 @@ struct FeedTabView: View {
             return "globe"
         }
     }
+
+    private func isCafeSaved(for visit: RemoteVisitSummary) -> Bool {
+        guard let remoteCafeId = visit.cafe?.id else {
+            return false
+        }
+
+        return dataManager.appData.cafes.contains { cafe in
+            (cafe.remoteCafeId == remoteCafeId || cafe.id == remoteCafeId) && (cafe.isFavorite || cafe.wantToTry)
+        }
+    }
+
+    private func toggleRemoteLike(for visit: RemoteVisitSummary) {
+        guard let userId = authModel.authenticatedUser?.id else {
+            return
+        }
+
+        updateRemoteVisit(
+            id: visit.id,
+            socialState: RemoteVisitSocialState(
+                likeCount: max(0, visit.socialState.likeCount + (visit.socialState.currentUserHasLiked ? -1 : 1)),
+                commentCount: visit.socialState.commentCount,
+                currentUserHasLiked: !visit.socialState.currentUserHasLiked
+            )
+        )
+
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let service = VisitService(client: client)
+                let state = try await service.toggleLike(
+                    visitId: visit.id,
+                    userId: userId,
+                    currentlyLiked: visit.socialState.currentUserHasLiked
+                )
+                updateRemoteVisit(id: visit.id, socialState: state)
+            } catch {
+                updateRemoteVisit(id: visit.id, socialState: visit.socialState)
+            }
+        }
+    }
+
+    private func saveCafe(from visit: RemoteVisitSummary) {
+        guard let remoteCafe = visit.cafe else {
+            return
+        }
+
+        let localCafe = dataManager.upsertRemoteCafe(
+            remoteCafe,
+            isFavorite: true,
+            wantToTry: existingCafeState(for: remoteCafe.id).wantToTry
+        )
+
+        guard let userId = authModel.authenticatedUser?.id else {
+            return
+        }
+
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let service = CafeStateService(client: client)
+                let state = existingCafeState(for: remoteCafe.id)
+                let summary = try await service.setCafeState(
+                    userId: userId,
+                    cafe: localCafe,
+                    isFavorite: true,
+                    wantToTry: state.wantToTry
+                )
+                dataManager.applyRemoteCafeState(summary)
+            } catch {
+                // The optimistic local save is harmless and can be reconciled by Saved sync.
+            }
+        }
+    }
+
+    private func existingCafeState(for remoteCafeId: UUID) -> (isFavorite: Bool, wantToTry: Bool) {
+        guard let cafe = dataManager.appData.cafes.first(where: {
+            $0.remoteCafeId == remoteCafeId || $0.id == remoteCafeId
+        }) else {
+            return (false, false)
+        }
+
+        return (cafe.isFavorite, cafe.wantToTry)
+    }
+
+    private func updateRemoteVisit(id: UUID, socialState: RemoteVisitSocialState) {
+        guard let index = remoteVisits.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let visit = remoteVisits[index]
+        remoteVisits[index] = RemoteVisitSummary(
+            visit: visit.visit,
+            cafe: visit.cafe,
+            author: visit.author,
+            socialState: socialState
+        )
+    }
 }
 
 struct RemoteFeedVisitCard: View {
     let visit: RemoteVisitSummary
+    let isCafeSaved: Bool
+    let onOpen: () -> Void
+    let onLike: () -> Void
+    let onSaveCafe: () -> Void
+    let onComment: () -> Void
 
     private var hasPhoto: Bool {
         visit.visit.posterPhotoURL != nil
@@ -309,8 +420,13 @@ struct RemoteFeedVisitCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             authorHeader
-            poster
-            contentBlock
+            Button(action: onOpen) {
+                VStack(alignment: .leading, spacing: 0) {
+                    poster
+                    contentBlock
+                }
+            }
+            .buttonStyle(.plain)
             footer
         }
         .background(Color.creamWhite)
@@ -449,16 +565,32 @@ struct RemoteFeedVisitCard: View {
 
     private var footer: some View {
         HStack(spacing: 22) {
-            Image(systemName: "heart")
-            Image(systemName: "bubble.right")
-            Image(systemName: "bookmark")
+            Button(action: onLike) {
+                Label("\(visit.socialState.likeCount)", systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onComment) {
+                Label("\(visit.socialState.commentCount)", systemImage: "bubble.right")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onSaveCafe) {
+                Image(systemName: isCafeSaved ? "bookmark.fill" : "bookmark")
+            }
+            .buttonStyle(.plain)
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 6) {
+            Button(action: onOpen) {
+                HStack(spacing: 6) {
                 Text("Details")
                 Image(systemName: "chevron.right")
+                }
             }
+            .buttonStyle(.plain)
             .font(.system(size: 13, weight: .semibold))
         }
         .font(.system(size: 19, weight: .medium))

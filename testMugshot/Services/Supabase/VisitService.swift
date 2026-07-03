@@ -37,7 +37,11 @@ final class VisitService {
         self.profileService = profileService ?? ProfileService(client: client)
     }
 
-    func fetchRecentVisits(userId: UUID, limit: Int = 10) async throws -> [RemoteVisitSummary] {
+    func fetchRecentVisits(
+        userId: UUID,
+        limit: Int = 10,
+        includeSocialState: Bool = false
+    ) async throws -> [RemoteVisitSummary] {
         let rows: [SupabaseVisitRow] = try await client
             .from("visits")
             .select(visitColumns)
@@ -47,7 +51,12 @@ final class VisitService {
             .execute()
             .value
 
-        return try await hydrate(rows: rows, includeAuthors: false)
+        return try await hydrate(
+            rows: rows,
+            includeAuthors: false,
+            currentUserId: userId,
+            includeSocialState: includeSocialState
+        )
     }
 
     func fetchCafeVisits(
@@ -68,7 +77,11 @@ final class VisitService {
         return try await hydrate(rows: rows, includeAuthors: false)
     }
 
-    func fetchFeedVisits(scope: FeedScope, limit: Int = 25) async throws -> [RemoteVisitSummary] {
+    func fetchFeedVisits(
+        scope: FeedScope,
+        currentUserId: UUID?,
+        limit: Int = 25
+    ) async throws -> [RemoteVisitSummary] {
         var query = client
             .from("visits")
             .select(visitColumns)
@@ -86,7 +99,12 @@ final class VisitService {
             .execute()
             .value
 
-        return try await hydrate(rows: rows, includeAuthors: true)
+        return try await hydrate(
+            rows: rows,
+            includeAuthors: true,
+            currentUserId: currentUserId,
+            includeSocialState: true
+        )
     }
 
     func fetchVisitDetail(
@@ -145,7 +163,124 @@ final class VisitService {
         )
     }
 
-    func createNoPhotoVisit(
+    func fetchSocialState(
+        visitId: UUID,
+        currentUserId: UUID?
+    ) async throws -> RemoteVisitSocialState {
+        let likes: [SupabaseVisitLikeRow] = try await client
+            .from("likes")
+            .select(likeColumns)
+            .eq("visit_id", value: visitId.uuidString)
+            .execute()
+            .value
+
+        let comments: [SupabaseVisitCommentRow] = try await client
+            .from("comments")
+            .select(commentColumns)
+            .eq("visit_id", value: visitId.uuidString)
+            .execute()
+            .value
+
+        return RemoteVisitSocialState(
+            likeCount: likes.count,
+            commentCount: comments.count,
+            currentUserHasLiked: currentUserId.map { userId in
+                likes.contains { $0.userId == userId }
+            } ?? false
+        )
+    }
+
+    func toggleLike(
+        visitId: UUID,
+        userId: UUID,
+        currentlyLiked: Bool
+    ) async throws -> RemoteVisitSocialState {
+        if currentlyLiked {
+            try await client
+                .from("likes")
+                .delete()
+                .eq("visit_id", value: visitId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+        } else {
+            try await client
+                .from("likes")
+                .upsert(
+                    SupabaseVisitLikeInsert(userId: userId, visitId: visitId),
+                    onConflict: "user_id,visit_id"
+                )
+                .execute()
+        }
+
+        return try await fetchSocialState(
+            visitId: visitId,
+            currentUserId: userId
+        )
+    }
+
+    func addComment(
+        visitId: UUID,
+        userId: UUID,
+        text: String
+    ) async throws -> RemoteVisitSocialState {
+        let payload = try SupabaseVisitCommentInsert.make(
+            userId: userId,
+            visitId: visitId,
+            text: text
+        )
+
+        try await client
+            .from("comments")
+            .insert(payload)
+            .execute()
+
+        return try await fetchSocialState(
+            visitId: visitId,
+            currentUserId: userId
+        )
+    }
+
+    func updateVisit(
+        visitId: UUID,
+        userId: UUID,
+        update: SupabaseVisitUpdate
+    ) async throws -> RemoteVisitSummary {
+        let row: SupabaseVisitRow = try await client
+            .from("visits")
+            .update(update)
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .select(visitColumns)
+            .single()
+            .execute()
+            .value
+
+        let summaries = try await hydrate(
+            rows: [row],
+            includeAuthors: true,
+            currentUserId: userId,
+            includeSocialState: true
+        )
+        guard let summary = summaries.first else {
+            throw VisitServiceError.visitNotFound
+        }
+
+        return summary
+    }
+
+    func deleteVisit(
+        visitId: UUID,
+        userId: UUID
+    ) async throws {
+        try await client
+            .from("visits")
+            .delete()
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+    }
+
+    func createVisit(
         userId: UUID,
         cafe: Cafe,
         drinkType: DrinkType,
@@ -244,7 +379,9 @@ final class VisitService {
 
     private func hydrate(
         rows: [SupabaseVisitRow],
-        includeAuthors: Bool
+        includeAuthors: Bool,
+        currentUserId: UUID? = nil,
+        includeSocialState: Bool = false
     ) async throws -> [RemoteVisitSummary] {
         var cafeCache: [UUID: SupabaseCafeSummary] = [:]
         var profileCache: [UUID: SupabaseUserProfile] = [:]
@@ -271,7 +408,20 @@ final class VisitService {
                 }
             }
 
-            summaries.append(RemoteVisitSummary(visit: row, cafe: cafe, author: author))
+            let socialState = includeSocialState
+                ? try await fetchSocialState(visitId: row.id, currentUserId: currentUserId)
+                : RemoteVisitSocialState(
+                    likeCount: 0,
+                    commentCount: 0,
+                    currentUserHasLiked: false
+                )
+
+            summaries.append(RemoteVisitSummary(
+                visit: row,
+                cafe: cafe,
+                author: author,
+                socialState: socialState
+            ))
         }
 
         return summaries
@@ -305,6 +455,8 @@ final class VisitService {
 enum VisitServiceError: LocalizedError, Equatable {
     case visitNotFound
     case missingRating
+    case emptyCaption
+    case emptyComment
 
     var errorDescription: String? {
         switch self {
@@ -312,6 +464,10 @@ enum VisitServiceError: LocalizedError, Equatable {
             return "Visit not found."
         case .missingRating:
             return "Add at least one rating before saving your visit."
+        case .emptyCaption:
+            return "Add a caption before saving your visit."
+        case .emptyComment:
+            return "Write a comment before posting."
         }
     }
 }
@@ -478,7 +634,7 @@ struct SupabaseVisitCategoryScore: Encodable, Equatable {
     let weight: Double
 }
 
-private extension VisitVisibility {
+extension VisitVisibility {
     var supabaseValue: String {
         switch self {
         case .private:

@@ -9,11 +9,18 @@ struct RemoteVisitDetailView: View {
     let visitId: UUID
     let initialSummary: RemoteVisitSummary
     let currentUserId: UUID?
+    @ObservedObject var dataManager: DataManager
 
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
     @State private var isLoading = false
     @State private var loadError: String?
+    @State private var socialError: String?
+    @State private var isSavingSocialAction = false
+    @State private var commentText = ""
+    @State private var isShowingEditVisit = false
+    @State private var isDeletingVisit = false
+    @State private var showDeleteConfirmation = false
 
     private var displayedSummary: RemoteVisitSummary {
         detail?.summary ?? initialSummary
@@ -37,6 +44,29 @@ struct RemoteVisitDetailView: View {
             .navigationTitle("Visit Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if let detail,
+                   currentUserId == detail.summary.visit.userId {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Menu {
+                            Button {
+                                isShowingEditVisit = true
+                            } label: {
+                                Label("Edit Visit", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete Visit", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundColor(.espressoBrown)
+                        }
+                        .disabled(isDeletingVisit)
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -46,6 +76,30 @@ struct RemoteVisitDetailView: View {
             }
             .task(id: visitId) {
                 await loadDetail()
+            }
+            .sheet(isPresented: $isShowingEditVisit) {
+                if let detail,
+                   let currentUserId {
+                    EditRemoteVisitView(
+                        detail: detail,
+                        currentUserId: currentUserId,
+                        onSave: saveVisitEdits
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Delete this visit?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Visit", role: .destructive) {
+                    Task {
+                        await deleteVisit()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes the remote visit from Profile, Feed, and cafe history.")
             }
         }
     }
@@ -386,36 +440,43 @@ struct RemoteVisitDetailView: View {
     }
 
     private func socialSection(_ detail: RemoteVisitDetail) -> some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: detail.currentUserHasLiked ? "heart.fill" : "heart")
-                    .font(.system(size: 18))
-                    .foregroundColor(detail.currentUserHasLiked ? .mugshotMint : .espressoBrown.opacity(0.72))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Button {
+                    Task {
+                        await toggleLike()
+                    }
+                } label: {
+                    Label("\(detail.likeCount)", systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(detail.currentUserHasLiked ? .mugshotMint : .espressoBrown.opacity(0.78))
+                }
+                .buttonStyle(.plain)
+                .disabled(currentUserId == nil || isSavingSocialAction)
 
-                Text("\(detail.likeCount)")
+                Label("\(detail.commentCount)", systemImage: "bubble.right")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .foregroundColor(.espressoBrown.opacity(0.78))
+
+                Spacer(minLength: 0)
+
+                if detail.summary.cafe != nil {
+                    Button {
+                        saveCafeFromVisit(detail)
+                    } label: {
+                        Label(isCafeSaved(detail) ? "Saved" : "Save Cafe", systemImage: isCafeSaved(detail) ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
             }
 
-            HStack(spacing: 7) {
-                Image(systemName: "bubble.right")
-                    .font(.system(size: 18))
-                    .foregroundColor(.espressoBrown.opacity(0.72))
-
-                Text("\(detail.commentCount)")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+            if let socialError {
+                Text(socialError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 0)
-
-            Text("Read-only")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.55))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(Color.sandBeige.opacity(0.32))
-                .clipShape(Capsule())
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
@@ -436,6 +497,28 @@ struct RemoteVisitDetailView: View {
                 ForEach(detail.comments) { comment in
                     RemoteCommentRow(comment: comment)
                         .padding(.leading, comment.comment.parentCommentId == nil ? 0 : 18)
+                }
+            }
+
+            if currentUserId != nil {
+                HStack(alignment: .bottom, spacing: 10) {
+                    TextField("Add a comment", text: $commentText, axis: .vertical)
+                        .lineLimit(1...4)
+                        .padding(11)
+                        .background(Color.sandBeige.opacity(0.32))
+                        .cornerRadius(DesignSystem.smallCornerRadius)
+
+                    Button {
+                        Task {
+                            await postComment()
+                        }
+                    } label: {
+                        Image(systemName: isSavingSocialAction ? "hourglass" : "paperplane.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(width: 42, height: 42)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(commentText.remoteTrimmedNonEmpty == nil || isSavingSocialAction)
                 }
             }
         }
@@ -512,6 +595,187 @@ struct RemoteVisitDetailView: View {
             detail = nil
             loadError = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    @MainActor
+    private func toggleLike() async {
+        guard let currentUserId,
+              let detail else {
+            return
+        }
+
+        isSavingSocialAction = true
+        socialError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            let state = try await service.toggleLike(
+                visitId: visitId,
+                userId: currentUserId,
+                currentlyLiked: detail.currentUserHasLiked
+            )
+            applySocialState(state)
+            isSavingSocialAction = false
+        } catch {
+            socialError = "Could not update like."
+            isSavingSocialAction = false
+        }
+    }
+
+    @MainActor
+    private func postComment() async {
+        guard let currentUserId,
+              let detail,
+              commentText.remoteTrimmedNonEmpty != nil else {
+            return
+        }
+
+        let text = commentText
+        isSavingSocialAction = true
+        socialError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            _ = try await service.addComment(
+                visitId: visitId,
+                userId: currentUserId,
+                text: text
+            )
+            self.detail = try await service.fetchVisitDetail(
+                visitId: visitId,
+                currentUserId: currentUserId
+            )
+            commentText = ""
+            isSavingSocialAction = false
+        } catch {
+            self.detail = detail
+            socialError = "Could not post comment."
+            isSavingSocialAction = false
+        }
+    }
+
+    @MainActor
+    private func saveVisitEdits(
+        caption: String,
+        notes: String,
+        visibility: VisitVisibility
+    ) async -> Bool {
+        guard let currentUserId else {
+            return false
+        }
+
+        do {
+            let update = try SupabaseVisitUpdate.make(
+                caption: caption,
+                notes: notes,
+                visibility: visibility
+            )
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            let summary = try await service.updateVisit(
+                visitId: visitId,
+                userId: currentUserId,
+                update: update
+            )
+            self.detail = try await service.fetchVisitDetail(
+                visitId: summary.id,
+                currentUserId: currentUserId
+            )
+            return true
+        } catch {
+            socialError = error.localizedDescription
+            return false
+        }
+    }
+
+    @MainActor
+    private func deleteVisit() async {
+        guard let currentUserId else {
+            return
+        }
+
+        isDeletingVisit = true
+        socialError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            try await service.deleteVisit(
+                visitId: visitId,
+                userId: currentUserId
+            )
+            isDeletingVisit = false
+            dismiss()
+        } catch {
+            socialError = "Could not delete visit."
+            isDeletingVisit = false
+        }
+    }
+
+    private func applySocialState(_ state: RemoteVisitSocialState) {
+        guard let detail else {
+            return
+        }
+
+        self.detail = RemoteVisitDetail(
+            summary: RemoteVisitSummary(
+                visit: detail.summary.visit,
+                cafe: detail.summary.cafe,
+                author: detail.summary.author,
+                socialState: state
+            ),
+            photos: detail.photos,
+            comments: detail.comments,
+            likeCount: state.likeCount,
+            currentUserHasLiked: state.currentUserHasLiked
+        )
+    }
+
+    private func isCafeSaved(_ detail: RemoteVisitDetail) -> Bool {
+        guard let remoteCafeId = detail.summary.cafe?.id else {
+            return false
+        }
+
+        return dataManager.appData.cafes.contains { cafe in
+            (cafe.remoteCafeId == remoteCafeId || cafe.id == remoteCafeId) && (cafe.isFavorite || cafe.wantToTry)
+        }
+    }
+
+    private func saveCafeFromVisit(_ detail: RemoteVisitDetail) {
+        guard let remoteCafe = detail.summary.cafe else {
+            return
+        }
+
+        let existing = dataManager.appData.cafes.first {
+            $0.remoteCafeId == remoteCafe.id || $0.id == remoteCafe.id
+        }
+        let localCafe = dataManager.upsertRemoteCafe(
+            remoteCafe,
+            isFavorite: true,
+            wantToTry: existing?.wantToTry ?? false
+        )
+
+        guard let currentUserId else {
+            return
+        }
+
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let service = CafeStateService(client: client)
+                let summary = try await service.setCafeState(
+                    userId: currentUserId,
+                    cafe: localCafe,
+                    isFavorite: true,
+                    wantToTry: existing?.wantToTry ?? false
+                )
+                dataManager.applyRemoteCafeState(summary)
+            } catch {
+                socialError = "Could not save cafe."
+            }
         }
     }
 
@@ -615,5 +879,159 @@ struct RemoteCommentRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+struct EditRemoteVisitView: View {
+    let detail: RemoteVisitDetail
+    let currentUserId: UUID
+    let onSave: (String, String, VisitVisibility) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var caption: String
+    @State private var notes: String
+    @State private var visibility: VisitVisibility
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    init(
+        detail: RemoteVisitDetail,
+        currentUserId: UUID,
+        onSave: @escaping (String, String, VisitVisibility) async -> Bool
+    ) {
+        self.detail = detail
+        self.currentUserId = currentUserId
+        self.onSave = onSave
+        _caption = State(initialValue: detail.summary.visit.caption)
+        _notes = State(initialValue: detail.summary.visit.trimmedNotes ?? "")
+        _visibility = State(initialValue: VisitVisibility.supabaseValue(detail.summary.visit.visibility))
+    }
+
+    private var canSave: Bool {
+        caption.remoteTrimmedNonEmpty != nil && !isSaving
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Caption")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        TextField("Caption", text: $caption, axis: .vertical)
+                            .lineLimit(3...6)
+                            .remoteVisitEditField()
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Private Notes")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        TextField("Only visible to you", text: $notes, axis: .vertical)
+                            .lineLimit(3...6)
+                            .remoteVisitEditField()
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Visibility")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        Picker("Visibility", selection: $visibility) {
+                            Text("Private").tag(VisitVisibility.private)
+                            Text("Friends").tag(VisitVisibility.friends)
+                            Text("Everyone").tag(VisitVisibility.everyone)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 13))
+                            .foregroundColor(.red.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        Task {
+                            await save()
+                        }
+                    } label: {
+                        HStack {
+                            if isSaving {
+                                ProgressView()
+                                    .tint(.espressoBrown)
+                            }
+                            Text("Save Visit")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.62)
+                }
+                .padding(DesignSystem.largePadding)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Edit Visit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func save() async {
+        guard canSave else {
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+        let didSave = await onSave(caption, notes, visibility)
+        isSaving = false
+
+        if didSave {
+            dismiss()
+        } else {
+            errorMessage = "Could not save visit edits."
+        }
+    }
+}
+
+private extension View {
+    func remoteVisitEditField() -> some View {
+        padding(12)
+            .foregroundColor(.inputText)
+            .tint(.mugshotMint)
+            .background(Color.inputBackground)
+            .cornerRadius(DesignSystem.smallCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
+                    .stroke(Color.inputBorder, lineWidth: 1)
+            )
+    }
+}
+
+extension VisitVisibility {
+    static func supabaseValue(_ value: String) -> VisitVisibility {
+        switch value.lowercased() {
+        case "private":
+            return .private
+        case "friends":
+            return .friends
+        default:
+            return .everyone
+        }
     }
 }

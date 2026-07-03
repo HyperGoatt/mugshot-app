@@ -12,6 +12,17 @@ Signed-in users can now create no-photo and photo-backed visits, see them persis
 
 Photo upload slice status: started on 2026-07-01 after Storage policy preflight. The first native path now uploads selected Add Visit images to Supabase Storage after the visit row exists, stores public URLs in `visit_photos`, and sets `visits.poster_photo_url`.
 
+Private-beta readiness update on 2026-07-03:
+
+- Signed-in Add Visit now requires at least one selected photo before remote save. The no-photo signed-in save path and no-photo upload recovery card were removed from the active UI path.
+- If photo upload fails after the visit row is created, the app attempts to delete that just-created remote visit and returns the user to Add Visit with an error instead of opening a saved no-photo visit.
+- Remote Feed/Visit Detail now have real Supabase-backed like/unlike, comment, count refresh, and cafe save/favorite controls. Cafe save preserves existing Want-to-Try state when present.
+- Remote Visit Detail now supports owner edit of caption, private notes, and visibility, plus owner delete.
+- Signed-in Profile stats and Top Cafes now derive from remote visit summaries instead of local/demo shell stats.
+- A lean Settings surface now includes Sign Out, About, Privacy, Terms, and support/contact.
+- A tiny Mugsy asset slice was imported from the older native asset catalog and is used through `MugsyEmptyStateView` in clear empty states only.
+- XcodeBuildMCP build/run passed and `xcodebuild test` passed. A fresh photo-backed creation smoke was attempted, but PhotosPicker did not present through runtime tap automation even after seeding simulator media; this remains a manual/picker-capable validation step before TestFlight.
+
 Phase 2B write decision:
 
 - Go: no `public.visits` insert trigger path calls `supabase_functions.http_request`.
@@ -27,7 +38,7 @@ Completed read/write work:
 - Added `VisitService.fetchRecentVisits(userId:limit:)`.
 - Added `VisitService.fetchFeedVisits(scope:limit:)`.
 - Added `VisitService.fetchVisitDetail(visitId:currentUserId:)`.
-- Added `VisitService.createNoPhotoVisit(...)` to create a no-photo `public.visits` row for the authenticated user.
+- Added `VisitService.createVisit(...)` to create the remote `public.visits` row that the signed-in photo upload path attaches photos to.
 - Added `VisitPhotoUploadService` for the first signed-in visit photo upload path.
 - Added `VisitService.attachPhotoURLs(visitId:photoURLs:posterPhotoIndex:)` to create `visit_photos` rows and update `poster_photo_url`.
 - Added `CafeStateService` for signed-in Favorite/Want-to-Try persistence through `user_cafe_states`.
@@ -35,13 +46,13 @@ Completed read/write work:
 - Updated Feed to load signed-in Friends and Everyone scopes from real Supabase visits, including author, cafe/context, drink, caption, score, date, and visibility labels.
 - Added a read-only remote visit detail sheet reachable from Feed and Profile Recent.
 - Remote detail now reads visible `visit_photos`, `likes`, and `comments`, hydrates comment authors, renders existing remote photo URLs, and shows private notes only for the signed-in owner.
-- Updated signed-in Add Visit to save the selected or typed cafe, drink type, drink details, ratings/category scores, caption, notes, visibility, context, optional uploaded photos, and timestamp to Supabase.
+- Updated signed-in Add Visit to save the selected or typed cafe, drink type, drink details, ratings/category scores, caption, notes, visibility, context, required uploaded photos, and timestamp to Supabase.
 - Added loading/error/success behavior and duplicate-submission protection for the remote save.
 - Added a typed-cafe fallback when Apple Maps search is unavailable, then creates/reuses the cafe through the Supabase save path.
 - Updated signed-in Saved, Map, and Cafe Detail to sync and write Favorite/Want-to-Try cafe state through Supabase while preserving the existing local UI shell.
 - Successful remote Add Visit now mirrors the remote cafe identity into local state so Map/Saved can reflect newly logged cafes.
 - Preserved local Add Visit as fallback only when there is no authenticated Supabase user.
-- Left richer per-photo progress, partial-failure cleanup, like/comment mutations, full friend-graph semantics, and notification rebuilds for later slices.
+- Left richer per-photo progress, orphaned Storage cleanup, full friend-graph semantics, and notification rebuilds for later slices.
 
 ## Personal Cafe State Slice
 
@@ -85,8 +96,8 @@ Native upload behavior:
 - Uploads use standard Supabase Storage upload, not resumable TUS, because this first slice compresses images under the bucket's 10 MB limit.
 - Storage object paths are lowercased before upload so Swift `UUID.uuidString` casing cannot fail the owner-folder policy.
 - The visit row is created first, then photos are uploaded under the visit id, then `visit_photos` rows and `poster_photo_url` are saved.
-- No-photo Add Visit remains valid and uses the same visit creation path when no images are selected.
-- If photo upload fails after the visit row is created, the app now pauses on Add Visit with a recovery card. The user can retry the selected photo upload against the saved visit row or open the saved no-photo remote visit, and the primary Save button stays disabled to avoid duplicate visits.
+- No-photo Add Visit no longer remains valid for signed-in posting. Signed-out local saves remain local/demo fallback behavior.
+- If photo upload fails after the visit row is created, the app now attempts to delete that just-created visit and shows an error instead of offering to open a no-photo remote visit.
 - Added focused tests for lowercase Storage object paths, the 10-photo upload cap, `visit_photos` insert ordering/encoding, and poster photo fallback.
 
 Deferred from this slice:
@@ -463,6 +474,8 @@ User flow:
 17. Submit with `Post to Journal`.
 18. The submit button is disabled until required fields are present and disabled again while posting.
 19. Web upload order is photos first, then insert `visits`, then insert `visit_photos`.
+
+Native beta contrast as of 2026-07-03: web allowed optional photos in the inspected reference, but signed-in native Add Visit now requires at least one photo before posting.
 20. On success, web invalidates visit queries, shows a success toast, and navigates to Feed.
 
 Backend payload:

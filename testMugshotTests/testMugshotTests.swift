@@ -312,7 +312,7 @@ struct testMugshotTests {
         #expect(object["website_url"] as? String == "https://payload.example")
     }
 
-    @Test func visitInsertPayloadMapsNoPhotoSupabaseContract() throws {
+    @Test func visitInsertPayloadMapsSupabaseContract() throws {
         let userId = try #require(UUID(uuidString: "71500ca8-a989-4416-b716-c160325c79ba"))
         let cafeId = try #require(UUID(uuidString: "4b37b6e8-62c3-4016-8163-28cdb804e792"))
         let remoteCafe = SupabaseCafeSummary(
@@ -536,6 +536,173 @@ struct testMugshotTests {
         #expect(stats.averageScore == 4.5)
         #expect(RemoteCafeVisitStats.calculate(from: []).visitCount == 0)
         #expect(RemoteCafeVisitStats.calculate(from: []).averageScore == 0)
+    }
+
+    @Test func addVisitValidationRequiresPhotoOnlyForSignedInPosting() {
+        #expect(AddVisitValidation.hasRequiredPhoto(isAuthenticated: false, photoCount: 0))
+        #expect(!AddVisitValidation.hasRequiredPhoto(isAuthenticated: true, photoCount: 0))
+        #expect(AddVisitValidation.hasRequiredPhoto(isAuthenticated: true, photoCount: 1))
+        #expect(AddVisitValidation.photoRequiredMessage.contains("photo"))
+    }
+
+    @Test func supabaseSocialPayloadsTrimAndEncodeState() throws {
+        let userId = UUID()
+        let visitId = UUID()
+        let like = SupabaseVisitLikeInsert(userId: userId, visitId: visitId)
+        let comment = try SupabaseVisitCommentInsert.make(
+            userId: userId,
+            visitId: visitId,
+            text: "  Great sip  "
+        )
+
+        let likeObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(like)) as? [String: Any]
+        )
+        let commentObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(comment)) as? [String: Any]
+        )
+
+        #expect(likeObject["user_id"] as? String == userId.uuidString)
+        #expect(likeObject["visit_id"] as? String == visitId.uuidString)
+        #expect(commentObject["user_id"] as? String == userId.uuidString)
+        #expect(commentObject["visit_id"] as? String == visitId.uuidString)
+        #expect(commentObject["text"] as? String == "Great sip")
+        #expect(commentObject["parent_comment_id"] == nil)
+        #expect(throws: VisitServiceError.emptyComment) {
+            _ = try SupabaseVisitCommentInsert.make(userId: userId, visitId: visitId, text: "  ")
+        }
+    }
+
+    @Test func remoteVisitUpdatePayloadTrimsAndMapsVisibility() throws {
+        let update = try SupabaseVisitUpdate.make(
+            caption: "  Better caption  ",
+            notes: "  private note  ",
+            visibility: .friends
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(update)) as? [String: Any]
+        )
+
+        #expect(object["caption"] as? String == "Better caption")
+        #expect(object["notes"] as? String == "private note")
+        #expect(object["visibility"] as? String == "friends")
+        #expect(throws: VisitServiceError.emptyCaption) {
+            _ = try SupabaseVisitUpdate.make(caption: " ", notes: nil, visibility: .private)
+        }
+    }
+
+    @Test func remoteProfileStatsMapVisitsToRealStatsAndTopCafes() throws {
+        let cafeId = UUID()
+        let otherCafeId = UUID()
+        let userId = UUID()
+        let cafe = SupabaseCafeSummary(
+            id: cafeId,
+            name: "Top Cafe",
+            address: "123 Bean St",
+            city: "Charleston",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let otherCafe = SupabaseCafeSummary(
+            id: otherCafeId,
+            name: "Other Cafe",
+            address: nil,
+            city: nil,
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let visits = [
+            RemoteVisitSummary(
+                visit: SupabaseVisitRow(
+                    id: UUID(),
+                    userId: userId,
+                    cafeId: cafeId,
+                    drinkType: "Coffee",
+                    drinkTypeCustom: nil,
+                    drinkSubtype: "Latte",
+                    caption: "A",
+                    notes: nil,
+                    visibility: "everyone",
+                    ratings: [:],
+                    overallScore: 5,
+                    posterPhotoURL: "https://example.com/a.jpg",
+                    contextType: "Cafe",
+                    locationName: nil,
+                    cityState: nil,
+                    brewMethod: nil,
+                    createdAt: "2026-07-02T12:00:00Z"
+                ),
+                cafe: cafe
+            ),
+            RemoteVisitSummary(
+                visit: SupabaseVisitRow(
+                    id: UUID(),
+                    userId: userId,
+                    cafeId: cafeId,
+                    drinkType: "Coffee",
+                    drinkTypeCustom: nil,
+                    drinkSubtype: "Latte",
+                    caption: "B",
+                    notes: nil,
+                    visibility: "everyone",
+                    ratings: [:],
+                    overallScore: 4,
+                    posterPhotoURL: nil,
+                    contextType: "Cafe",
+                    locationName: nil,
+                    cityState: nil,
+                    brewMethod: nil,
+                    createdAt: "2026-07-01T12:00:00Z"
+                ),
+                cafe: cafe
+            ),
+            RemoteVisitSummary(
+                visit: SupabaseVisitRow(
+                    id: UUID(),
+                    userId: userId,
+                    cafeId: otherCafeId,
+                    drinkType: "Tea",
+                    drinkTypeCustom: nil,
+                    drinkSubtype: "Jasmine",
+                    caption: "C",
+                    notes: nil,
+                    visibility: "everyone",
+                    ratings: [:],
+                    overallScore: 3,
+                    posterPhotoURL: nil,
+                    contextType: "Cafe",
+                    locationName: nil,
+                    cityState: nil,
+                    brewMethod: nil,
+                    createdAt: "2026-06-30T12:00:00Z"
+                ),
+                cafe: otherCafe
+            )
+        ]
+
+        let stats = RemoteProfileStats.calculate(from: visits)
+
+        #expect(stats.totalVisits == 3)
+        #expect(stats.totalCafes == 2)
+        #expect(abs(stats.averageScore - 4.0) < 0.0001)
+        #expect(stats.favoriteDrinkLabel == "Latte")
+        #expect(stats.topCafes.first?.cafe.id == cafeId)
+        #expect(stats.topCafes.first?.visitCount == 2)
+        #expect(stats.topCafes.first?.posterPhotoURL == "https://example.com/a.jpg")
+    }
+
+    @Test func settingsLegalAndMugsyPresenceAreCovered() {
+        #expect(SettingsDestination.allCases == [.about, .privacy, .terms, .support])
+        #expect(SettingsDestination.privacy.detail.contains("Supabase"))
+        #expect(SettingsDestination.terms.detail.contains("respectfully"))
+        #expect(SettingsDestination.support.externalURL?.scheme == "mailto")
+        #expect(MugsyEmptyStateAsset.noFavorites.rawValue == "MugsyNoFavorites")
+        #expect(MugsyEmptyStateAsset.noWishlist.rawValue == "MugsyNoWishlist")
+        #expect(MugsyEmptyStateAsset.noCafes.rawValue == "MugsyNoCafes")
     }
 
 }

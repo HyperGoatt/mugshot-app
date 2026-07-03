@@ -1,8 +1,10 @@
 # Feature Parity Matrix
 
-Date: 2026-06-30
+Date: 2026-07-03
 
 Update: 2026-07-02 Phase 2B/2D real-visit work quarantined the unsafe visit trigger path, wired signed-in no-photo and photo-backed Add Visit, and simulator-validated Profile Recent, Feed, Saved, Map, Cafe Detail, and remote Visit Detail after relaunch. Remaining gaps are hardening and later product surfaces, not the core personal journal loop.
+
+Update: 2026-07-03 private-beta readiness pass made signed-in Add Visit photo-required, added real like/unlike/comment/save cafe controls, owner edit/delete for remote visits, remote-backed profile stats/top cafes, lean Settings/legal/about/support, and a tiny Mugsy empty-state asset slice. Push notifications, widgets, Discover, postcards, Friends, and broad social graph work remain deferred.
 
 Purpose: compare the existing web app reference against the current native iOS app so Phase 2 work can be staged deliberately. This matrix is evidence for planning only. It is not a request to implement everything.
 
@@ -32,13 +34,13 @@ Priority key:
 | Avatar upload | Supabase Storage `profile-media` | Local avatar initial/path only | Missing | P1 | Add after profile edit basics |
 | Banner upload | Supabase Storage `profile-media` | None | Missing | P2 | Defer unless easy with profile media |
 | Feed scopes | Friends, Everyone, Discover | Friends, Everyone | Partial | P0 for backend feed, P2 for Discover | Start with public/current-user feed, add friends later |
-| Feed data | Supabase visits/users/cafes/photos/likes/comments | Signed-in Feed reads real Supabase visits/users/cafes for Friends and Everyone; cards open read-only remote detail with photos, likes, and comments | Partial | P0 | Continue from read-only feed/detail to write-backed Add Visit and social actions |
+| Feed data | Supabase visits/users/cafes/photos/likes/comments | Signed-in Feed reads real Supabase visits/users/cafes for Friends and Everyone; cards show counts and quick like/save controls | Partial | P0 | Keep friend semantics narrow until graph exists |
 | Discover feed | Greeting, nearby cafes, friends recent, Spin for a Spot | None | Missing | P3 | Defer |
 | Visit card media | Photo carousel from `visit_photos` | Local photos render; remote Feed/Profile cards and detail render existing Supabase photo URLs when present | Partial | P0 | Needs native Storage upload for new visits |
-| Likes | Supabase likes, notifications | Local like state plus read-only remote detail like count/current-user state | Partial | P1 | Add remote like mutation after write safety |
-| Comments | Supabase comments, replies, mentions, notifications | Local comments plus read-only remote detail comments with authors | Partial | P1 | Add remote comment mutation after write safety |
+| Likes | Supabase likes, notifications | Remote like/unlike writes to Supabase; notifications intentionally absent | Partial | P1 | Add moderation/notifications later |
+| Comments | Supabase comments, replies, mentions, notifications | Remote top-level comments write to Supabase; replies/notifications absent | Partial | P1 | Add replies/moderation later |
 | Share/postcard | Share/postcard behavior on detail | None | Missing | P3 | Defer |
-| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, optional notes/photos, success toast, and Feed navigation | Signed-in Add Visit creates/reuses cafes, inserts real visits, optionally uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Core write journey is live; keep hardening personal-loop edges |
+| Add Visit base flow | Real Supabase insert with cafe upsert, drink subtype, ratings, visibility, optional notes/photos, success toast, and Feed navigation | Signed-in Add Visit creates/reuses cafes, requires photos, inserts real visits, uploads photos, and opens remote detail; signed-out mode remains local | Partial | P0 | Complete fresh manual photo smoke after picker automation block |
 | Cafe search in Add | Web search/selected cafe, likely Google-backed | MapKit local search | Partial | P0 | Use simplest cafe identity path first |
 | Location types | Cafe, Home, Travel, Other | Cafe-oriented local flow | Partial | P2 | Defer non-cafe contexts unless needed |
 | Craft Sip | Setup, brew method, equipment, home/travel context | None | Missing | P3 | Defer from first beta unless product says otherwise |
@@ -51,14 +53,14 @@ Priority key:
 | Nearby/place search | Supabase Edge Functions for search/nearby | `MKLocalSearch` | Partial | P2 | Decide Apple-first vs Google-first before expanding |
 | Saved cafes | `user_cafe_states` favorites/wishlist/history | Signed-in Saved syncs `user_cafe_states`; Favorite/Want-to-Try writes persist after relaunch; local/demo mode remains for signed-out users | Partial | P1 | Add richer aggregates and cafe create/reuse tests |
 | Cafe detail | Photos, aggregate stats, friends, popular drinks, activity | Favorite/Want-to-Try writes are remote-backed; signed-in remote cafes load the current user's remote recent visits and open remote Visit Detail | Partial | P1 | Add richer Supabase cafe aggregates after personal loop |
-| Visit detail | Remote visit, photos, likes, comments, replies, mentions | Local detail for local visits; remote Feed/Profile cards open read-only Supabase detail with photos, ratings, likes, comments, and owner-only notes | Partial | P1 | Add remote edit/delete and social mutations after writes are safe |
-| Profile recent visits | Recent visits from Supabase user/cafe/visit rows | Real Supabase recent visit cards for signed-in user; local stats remain local/demo | Partial | P0 | Implemented as first safe real-data surface while visit writes are blocked |
+| Visit detail | Remote visit, photos, likes, comments, replies, mentions | Remote detail supports photos, ratings, likes, comments, owner-only notes, owner edit/delete, and cafe save | Partial | P1 | Replies/mentions/postcards later |
+| Profile recent visits | Recent visits from Supabase user/cafe/visit rows | Real Supabase recent cards, stats, and top cafes for signed-in user | Partial | P0 | Add pagination and richer filters later |
 | User profile | Public profile by username/UUID | Current local profile only | Missing | P2 | Add after friends/feed are useful |
 | Friends | Friends list, requests, search, mutual friends | None | Missing | P2 | Defer until core social graph can be tested |
 | Notifications | In-app notifications for social actions | None | Missing | P2 | Defer until likes/comments/friends are remote |
 | Push notifications | Backend functions/device tokens exist in audit | None | Missing | P3 | Defer until security cleanup is done |
-| Settings | Settings index plus notification/privacy/about | None | Missing | P2 | Add a lean settings screen for account/logout first |
-| Legal pages | Company, Privacy, Terms | None | Missing | P1 | Add before external beta/TestFlight |
+| Settings | Settings index plus notification/privacy/about | Lean Settings sheet with Sign Out, About, Privacy, Terms, and support/contact | Partial | P2 | Final legal copy later |
+| Legal pages | Company, Privacy, Terms | Native placeholder Privacy/Terms/About text in Settings | Partial | P1 | Legal review before external beta/TestFlight |
 | Feedback board | Supabase-backed feedback board | None | Missing | P3 | Defer or keep web-only |
 | Analytics events | `analytics_events` usage in web flows | None | Missing | P3 | Defer until product events are finalized |
 | PWA/offline | Vite PWA service worker | Native app not PWA | Defer | P3 | Not directly relevant |
@@ -66,12 +68,12 @@ Priority key:
 
 ## Top 10 Parity Gaps
 
-1. iOS still lacks remote like/comment mutations and edit/delete permissions for remote visits.
-2. Photo upload is wired and manually picker-smoked; remaining photo hardening is cleanup for uploaded-but-unattached objects and finer per-photo progress/errors.
+1. Fresh photo-backed Add Visit creation still needs manual/picker-capable smoke after the photo-required change.
+2. Photo upload is wired and previously picker-smoked; remaining photo hardening is cleanup for uploaded-but-unattached objects and finer per-photo progress/errors.
 3. Cafe detail still lacks popular drinks, friend context, and broader remote aggregate stats.
 4. Profile media is missing; profile text edit exists.
 5. Friends and notifications are absent in iOS.
-6. Legal/settings/account-management surfaces are absent or not verified for iOS.
+6. Legal/settings/account-management surfaces exist as lean placeholders but need final copy/review.
 7. Full friend-graph semantics still need multi-account validation.
 8. Rating templates remain local/simple instead of system-template backed.
 9. Supabase security backlog remains before social/push expansion.
