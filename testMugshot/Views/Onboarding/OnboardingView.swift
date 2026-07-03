@@ -114,8 +114,8 @@ struct UserInfoStep: View {
                 
                 TextField("@username", text: $username)
                     .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
+                    .tint(.mugshotForest)
+                    .accentColor(.mugshotForest)
                     .padding(12)
                     .background(Color.inputBackground)
                     .cornerRadius(DesignSystem.cornerRadius)
@@ -131,8 +131,8 @@ struct UserInfoStep: View {
                 
                 TextField("City", text: $location)
                     .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
+                    .tint(.mugshotForest)
+                    .accentColor(.mugshotForest)
                     .padding(12)
                     .background(Color.inputBackground)
                     .cornerRadius(DesignSystem.cornerRadius)

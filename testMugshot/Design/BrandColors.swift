@@ -8,24 +8,42 @@
 import SwiftUI
 
 extension Color {
-    // Mugshot Brand Colors
-    static let mugshotMint = Color(hex: "B9D9C3")
-    static let creamWhite = Color(hex: "FAF8F6")
-    static let espressoBrown = Color(hex: "4A3B33")
-    static let sandBeige = Color(hex: "E6DED4")
-    static let sageGray = Color(hex: "C8CBC5")
-    
+    // Mugshot Brand Colors — tuned to the Mugshot design system
+    // (warm cream canvas, sage green accents, deep espresso ink).
+
+    /// Soft sage green — primary accent fills (buttons, selected chips).
+    static let mugshotMint = Color(hex: "B6CFB8")
+    /// Near-white warm cream — card and surface background.
+    static let creamWhite = Color(hex: "FBF8F2")
+    /// Deep espresso ink — primary text.
+    static let espressoBrown = Color(hex: "3D322A")
+    /// Warm sand — borders, dividers, secondary fills.
+    static let sandBeige = Color(hex: "E8E0D2")
+    /// Muted sage gray — tertiary surfaces.
+    static let sageGray = Color(hex: "C9CCC3")
+
+    /// Deep forest green — filled CTAs, star ratings, selected states.
+    static let mugshotForest = Color(hex: "4D6B54")
+    /// Very soft sage — tag chip backgrounds and tinted panels.
+    static let mugshotSageSoft = Color(hex: "DFE9DC")
+    /// Warm cream canvas — screen background behind cards.
+    static let mugshotCanvas = Color(hex: "F4EFE6")
+    /// Warm tan — mid-tier rating signal on the map.
+    static let mugshotTan = Color(hex: "C2A370")
+    /// Muted clay — low-tier rating signal on the map.
+    static let mugshotClay = Color(hex: "B87361")
+
     // Text colors (explicit, non-adaptive)
     static let primaryText = Color.espressoBrown
     static let secondaryText = Color.espressoBrown.opacity(0.7)
     static let tertiaryText = Color.espressoBrown.opacity(0.6)
-    
+
     // Input colors
     static let inputBackground = Color.creamWhite
     static let inputBorder = Color.sandBeige
     static let inputText = Color.espressoBrown
     static let inputPlaceholder = Color.espressoBrown.opacity(0.5)
-    
+
     // Helper initializer for hex colors
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -51,4 +69,3 @@ extension Color {
         )
     }
 }
-

@@ -26,6 +26,17 @@ struct SavedTabView: View {
         case score = "By Score"
         case date = "By Date"
         case name = "By Name"
+
+        var iconName: String {
+            switch self {
+            case .score:
+                return "star.fill"
+            case .date:
+                return "clock.fill"
+            case .name:
+                return "textformat.abc"
+            }
+        }
     }
 
     private var savedSubtitle: String {
@@ -65,47 +76,49 @@ struct SavedTabView: View {
         NavigationView {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Saved")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(.espressoBrown)
+                    MugScreenHeader("Saved", subtitle: savedSubtitle)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
 
-                    Text(savedSubtitle)
-                        .font(.system(size: 15))
-                        .foregroundColor(.espressoBrown.opacity(0.68))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
+                    MugSegmentedControl(
+                        options: SavedTab.allCases,
+                        selection: $selectedTab,
+                        label: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 20)
 
-                Picker("Tab", selection: $selectedTab) {
-                    ForEach(SavedTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                // Sort option (only for All Cafes)
-                if selectedTab == .allCafes {
-                    Picker("Sort", selection: $sortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
+                    // Sort option (only for All Cafes)
+                    if selectedTab == .allCafes {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(SortOption.allCases, id: \.self) { option in
+                                    MugFilterChip(
+                                        title: option.rawValue,
+                                        systemImage: option.iconName,
+                                        isSelected: sortOption == option
+                                    ) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            sortOption = option
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
                 }
+                .padding(.bottom, 12)
+                .background(Color.mugshotCanvas)
 
                 if authModel.authenticatedUser != nil {
                     remoteStateStatus
                         .padding(.horizontal)
                         .padding(.bottom, 4)
                 }
-                
+
                 // Cafe list
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 14) {
                         if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
                                 asset: mugsyAsset(for: selectedTab),
@@ -128,10 +141,11 @@ struct SavedTabView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(16)
+                    .padding(.bottom, 8)
                 }
             }
-            .background(Color.creamWhite)
+            .background(Color.mugshotCanvas)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
             .task(id: authModel.authenticatedUser?.id) {
@@ -153,7 +167,7 @@ struct SavedTabView: View {
         if isLoadingRemoteStates {
             HStack(spacing: 8) {
                 ProgressView()
-                    .tint(.mugshotMint)
+                    .tint(.mugshotForest)
                 Text("Syncing saved cafes...")
                     .font(.system(size: 12))
                     .foregroundColor(.espressoBrown.opacity(0.65))
@@ -286,14 +300,16 @@ struct CafeCard: View {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(alignment: .top, spacing: 8) {
                         Text(cafe.name)
-                            .font(.system(size: 20, weight: .bold))
+                            .font(.system(size: 20, weight: .bold, design: .serif))
                             .foregroundColor(.espressoBrown)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Spacer(minLength: 6)
 
-                        scoreBadge
+                        if cafe.averageRating > 0 {
+                            MugScoreBadge(score: cafe.averageRating, size: .compact)
+                        }
                     }
 
                     if !cafe.address.isEmpty {
@@ -389,20 +405,6 @@ struct CafeCard: View {
         }
     }
 
-    private var scoreBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 11, weight: .semibold))
-            Text(String(format: "%.1f", cafe.averageRating))
-                .font(.system(size: 13, weight: .bold))
-        }
-        .foregroundColor(.espressoBrown)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.mugshotMint.opacity(0.38))
-        .clipShape(Capsule())
-    }
-
     private var savedActionDivider: some View {
         Rectangle()
             .fill(Color.sandBeige.opacity(0.9))
@@ -410,18 +412,7 @@ struct CafeCard: View {
     }
 
     private func cafePill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.espressoBrown.opacity(0.68))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.sandBeige.opacity(0.42))
-        .clipShape(Capsule())
+        MugTagChip(title: title, systemImage: systemImage)
     }
 
     private func savedCardAction(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -608,7 +599,7 @@ struct CafeDetailView: View {
     private var cafeSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(currentCafe.name)
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 28, weight: .bold, design: .serif))
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -757,7 +748,7 @@ struct CafeDetailView: View {
                 .cornerRadius(DesignSystem.cornerRadius)
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 1.5)
+                        .stroke(isSelected ? Color.mugshotForest : Color.clear, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -799,7 +790,7 @@ struct CafeDetailView: View {
 
                 if isLoadingRemoteVisits {
                     ProgressView()
-                        .tint(.mugshotMint)
+                        .tint(.mugshotForest)
                 }
             }
             .padding(.horizontal)
@@ -1006,17 +997,7 @@ struct RemoteCafeVisitRow: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(String(format: "%.1f", visit.visit.overallScore))
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundColor(.espressoBrown)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Color.mugshotMint.opacity(0.36))
-                    .clipShape(Capsule())
+                    MugScoreBadge(score: visit.visit.overallScore, size: .compact)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
@@ -1062,7 +1043,7 @@ struct VisitRow: View {
                 
                 HStack(spacing: 4) {
                     Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotForest)
                         .font(.system(size: 12))
                     Text(String(format: "%.1f", visit.overallScore))
                         .font(.system(size: 14, weight: .semibold))

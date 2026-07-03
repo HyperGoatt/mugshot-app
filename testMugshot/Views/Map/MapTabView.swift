@@ -25,6 +25,27 @@ struct MapTabView: View {
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
     @State private var remoteStateError: String?
+    @State private var mapFilter: MapPinFilter = .all
+
+    enum MapPinFilter: String, CaseIterable {
+        case all = "All"
+        case favorites = "Favorites"
+        case wantToTry = "Want to Try"
+        case visited = "Visited"
+
+        var iconName: String {
+            switch self {
+            case .all:
+                return "map.fill"
+            case .favorites:
+                return "heart.fill"
+            case .wantToTry:
+                return "bookmark.fill"
+            case .visited:
+                return "cup.and.saucer.fill"
+            }
+        }
+    }
     
     // Default fallback region (SF) - only used if location unavailable
     private let defaultRegion = MKCoordinateRegion(
@@ -115,12 +136,12 @@ struct MapTabView: View {
                 HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
-                        
-                        TextField("Search cafes...", text: $searchText)
+                            .foregroundColor(.espressoBrown.opacity(0.55))
+
+                        TextField("Search cafes or neighborhoods...", text: $searchText)
                             .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .tint(.mugshotForest)
+                            .accentColor(.mugshotForest)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     isSearchActive = true
@@ -133,7 +154,7 @@ struct MapTabView: View {
                             .onTapGesture {
                                 isSearchActive = true
                             }
-                        
+
                         if !searchText.isEmpty {
                             Button(action: {
                                 searchText = ""
@@ -145,16 +166,18 @@ struct MapTabView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
                     .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.sandBeige.opacity(0.8), lineWidth: 1))
                     .shadow(
                         color: DesignSystem.cardShadow.color,
                         radius: DesignSystem.cardShadow.radius,
                         x: DesignSystem.cardShadow.x,
                         y: DesignSystem.cardShadow.y
                     )
-                    
+
                     if isSearchActive {
                         Button("Cancel") {
                             searchText = ""
@@ -165,9 +188,33 @@ struct MapTabView: View {
                         .transition(.opacity)
                     }
                 }
-                .padding()
-                .background(Color.sandBeige.opacity(isSearchActive ? 0.95 : 0))
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, isSearchActive ? 12 : 8)
+                .background(Color.mugshotCanvas.opacity(isSearchActive ? 0.97 : 0))
                 .animation(.easeInOut(duration: 0.2), value: isSearchActive)
+
+                // Pin filter chips
+                if !isSearchActive {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(MapPinFilter.allCases, id: \.self) { filter in
+                                MugFilterChip(
+                                    title: filter.rawValue,
+                                    systemImage: filter.iconName,
+                                    isSelected: mapFilter == filter
+                                ) {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        mapFilter = filter
+                                    }
+                                }
+                                .shadow(color: Color.espressoBrown.opacity(0.08), radius: 4, x: 0, y: 2)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 2)
+                    }
+                }
                 
                 // Search results list (inline below search bar)
                 if isSearchActive {
@@ -271,9 +318,24 @@ struct MapTabView: View {
     }
     
     private var cafesWithLocations: [Cafe] {
-        // Show visited cafes and durable saved/wishlist cafes with locations.
+        // Show visited cafes and durable saved/wishlist cafes with locations,
+        // narrowed by the active pin filter.
         dataManager.appData.cafes.filter { cafe in
-            cafe.location != nil && (cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry)
+            guard cafe.location != nil,
+                  cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry else {
+                return false
+            }
+
+            switch mapFilter {
+            case .all:
+                return true
+            case .favorites:
+                return cafe.isFavorite
+            case .wantToTry:
+                return cafe.wantToTry
+            case .visited:
+                return cafe.visitCount > 0
+            }
         }
     }
 
@@ -415,55 +477,51 @@ struct MapViewRepresentable: UIViewRepresentable {
             return annotationView
         }
         
+        private func ratingPinColor(for rating: Double) -> UIColor {
+            if rating >= 4.0 {
+                return MapPinPalette.forest
+            } else if rating >= 3.0 {
+                return MapPinPalette.tan
+            } else if rating > 0 {
+                return MapPinPalette.clay
+            } else {
+                return MapPinPalette.espresso
+            }
+        }
+
         private func createDefaultPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor: UIColor = {
-                if rating >= 4.0 {
-                    return .systemGreen
-                } else if rating >= 3.0 {
-                    return .systemYellow
-                } else {
-                    return .systemRed
-                }
-            }()
-            
             let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            pinView.backgroundColor = pinColor
+            pinView.backgroundColor = ratingPinColor(for: rating)
             pinView.layer.cornerRadius = size / 2
             pinView.layer.borderWidth = 2
-            pinView.layer.borderColor = UIColor.white.cgColor
-            
+            pinView.layer.borderColor = MapPinPalette.cream.cgColor
+            pinView.layer.shadowColor = UIColor.black.cgColor
+            pinView.layer.shadowOpacity = 0.18
+            pinView.layer.shadowRadius = 3
+            pinView.layer.shadowOffset = CGSize(width: 0, height: 2)
+
             let scoreLabel = UILabel()
-            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
+            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "☕︎"
             scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-            scoreLabel.textColor = .white
+            scoreLabel.textColor = MapPinPalette.cream
             scoreLabel.textAlignment = .center
             scoreLabel.frame = pinView.bounds
-            
+
             pinView.addSubview(scoreLabel)
             return pinView
         }
-        
+
         private func createHeartPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor: UIColor = {
-                if rating >= 4.0 {
-                    return .systemGreen
-                } else if rating >= 3.0 {
-                    return .systemYellow
-                } else {
-                    return .systemRed
-                }
-            }()
-            
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
-            
+
             // Heart shape using SF Symbol
             let heartImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             let heartImage = UIImage(systemName: "heart.fill")
             heartImageView.image = heartImage
-            heartImageView.tintColor = pinColor
+            heartImageView.tintColor = ratingPinColor(for: rating)
             heartImageView.contentMode = .scaleAspectFit
-            
+
             // Score label centered on heart
             let scoreLabel = UILabel()
             if rating > 0 {
@@ -472,40 +530,40 @@ struct MapViewRepresentable: UIViewRepresentable {
                 scoreLabel.text = "–"
             }
             scoreLabel.font = .systemFont(ofSize: 10, weight: .bold)
-            scoreLabel.textColor = .white
+            scoreLabel.textColor = MapPinPalette.cream
             scoreLabel.textAlignment = .center
             scoreLabel.frame = CGRect(x: 0, y: size * 0.3, width: size, height: size * 0.4)
-            
+
             containerView.addSubview(heartImageView)
             containerView.addSubview(scoreLabel)
-            
+
             return containerView
         }
-        
+
         private func createBookmarkPin(size: CGFloat, rating: Double) -> UIView {
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
-            
-            // Bookmark shape using SF Symbol (blue for Want to Try)
+
+            // Bookmark shape using SF Symbol (sage for Want to Try)
             let bookmarkImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             let bookmarkImage = UIImage(systemName: "bookmark.fill")
             bookmarkImageView.image = bookmarkImage
-            bookmarkImageView.tintColor = .systemBlue
+            bookmarkImageView.tintColor = MapPinPalette.sage
             bookmarkImageView.contentMode = .scaleAspectFit
-            
+
             // Score label if rating exists
             if rating > 0 {
                 let scoreLabel = UILabel()
                 scoreLabel.text = String(format: "%.1f", rating)
                 scoreLabel.font = .systemFont(ofSize: 10, weight: .bold)
-                scoreLabel.textColor = .white
+                scoreLabel.textColor = MapPinPalette.espresso
                 scoreLabel.textAlignment = .center
                 scoreLabel.frame = CGRect(x: 0, y: size * 0.25, width: size, height: size * 0.4)
                 containerView.addSubview(scoreLabel)
             }
-            
+
             containerView.addSubview(bookmarkImageView)
-            
+
             return containerView
         }
         
@@ -514,6 +572,18 @@ struct MapViewRepresentable: UIViewRepresentable {
             onCafeTap(cafeAnnotation.cafe)
         }
     }
+}
+
+// MARK: - Map Pin Palette
+
+/// UIKit-side mirror of the brand palette for MKAnnotation pins.
+enum MapPinPalette {
+    static let forest = UIColor(red: 77 / 255, green: 107 / 255, blue: 84 / 255, alpha: 1)   // mugshotForest
+    static let sage = UIColor(red: 130 / 255, green: 160 / 255, blue: 132 / 255, alpha: 1)   // deep sage
+    static let tan = UIColor(red: 194 / 255, green: 163 / 255, blue: 112 / 255, alpha: 1)    // mugshotTan
+    static let clay = UIColor(red: 184 / 255, green: 115 / 255, blue: 97 / 255, alpha: 1)    // mugshotClay
+    static let espresso = UIColor(red: 61 / 255, green: 50 / 255, blue: 42 / 255, alpha: 1)  // espressoBrown
+    static let cream = UIColor(red: 251 / 255, green: 248 / 255, blue: 242 / 255, alpha: 1)  // creamWhite
 }
 
 // MARK: - Cafe Annotation
@@ -542,10 +612,10 @@ struct RatingsLegend: View {
                 .tracking(0.5)
             
             HStack(spacing: 16) {
-                LegendItem(color: .green, text: "≥ 4.0")
-                LegendItem(color: .yellow, text: "3.0–3.9")
-                LegendItem(color: .red, text: "< 3.0")
-                LegendItem(icon: "bookmark.fill", color: .blue, text: "Want to try")
+                LegendItem(color: .mugshotForest, text: "≥ 4.0")
+                LegendItem(color: .mugshotTan, text: "3.0–3.9")
+                LegendItem(color: .mugshotClay, text: "< 3.0")
+                LegendItem(icon: "bookmark.fill", color: .mugshotForest, text: "Want to try")
             }
             
             Text("Tap pins for details.")
@@ -616,7 +686,7 @@ struct LocationBanner: View {
                 }
             }
             .font(.system(size: 12, weight: .medium))
-            .foregroundColor(.mugshotMint)
+            .foregroundColor(.mugshotForest)
         }
         .padding()
         .background(Color.sandBeige)
@@ -797,7 +867,7 @@ struct CafeDetailSheet: View {
     private var cafeIdentityBlock: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text(displayCafe.name)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 26, weight: .bold, design: .serif))
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -938,18 +1008,7 @@ struct CafeDetailSheet: View {
     }
 
     private func mapSheetPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.espressoBrown.opacity(0.66))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.sandBeige.opacity(0.45))
-        .clipShape(Capsule())
+        MugTagChip(title: title, systemImage: systemImage)
     }
 
     private func mapSheetStatCard(title: String, value: String, systemImage: String) -> some View {
@@ -986,7 +1045,7 @@ struct CafeDetailSheet: View {
                 .cornerRadius(DesignSystem.cornerRadius)
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 1.5)
+                        .stroke(isSelected ? Color.mugshotForest : Color.clear, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -1102,17 +1161,7 @@ struct VisitEntryRow: View {
             
             Spacer()
             
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(String(format: "%.1f", visit.overallScore))
-                    .font(.system(size: 13, weight: .bold))
-            }
-            .foregroundColor(.espressoBrown)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.mugshotMint.opacity(0.36))
-            .clipShape(Capsule())
+            MugScoreBadge(score: visit.overallScore, size: .compact)
         }
         .padding(12)
         .background(Color.creamWhite)
@@ -1322,7 +1371,7 @@ struct LocalCafeRow: View {
                 if cafe.averageRating > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "star.fill")
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotForest)
                             .font(.system(size: 12))
                         Text(String(format: "%.1f", cafe.averageRating))
                             .font(.system(size: 14))

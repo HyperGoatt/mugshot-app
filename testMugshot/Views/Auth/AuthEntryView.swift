@@ -33,19 +33,27 @@ struct AuthEntryView: View {
     
     var body: some View {
         ZStack {
-            Color.creamWhite.ignoresSafeArea()
-            
+            Color.mugshotCanvas.ignoresSafeArea()
+
             ScrollView {
                 VStack(spacing: 28) {
-                    Spacer(minLength: 56)
-                    
-                    VStack(spacing: 12) {
+                    Spacer(minLength: 48)
+
+                    VStack(spacing: 14) {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundColor(.mugshotForest)
+                            .frame(width: 72, height: 72)
+                            .background(Color.mugshotSageSoft)
+                            .clipShape(Circle())
+                            .accessibilityHidden(true)
+
                         Text("Mugshot")
-                            .font(.system(size: 46, weight: .bold))
+                            .font(.system(size: 46, weight: .bold, design: .serif))
                             .foregroundColor(.espressoBrown)
-                        
-                        Text("Sign in to start saving your coffee journey.")
-                            .font(.system(size: 17, weight: .medium))
+
+                        Text("Your sip journal for coffee, matcha,\nand the cafes worth remembering.")
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.espressoBrown.opacity(0.7))
                             .multilineTextAlignment(.center)
                     }
@@ -109,16 +117,15 @@ struct AuthEntryView: View {
                         .disabled(isBusy)
                     }
                     .padding(22)
-                    .background(Color.sandBeige.opacity(0.55))
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .cardStyle()
                     .padding(.horizontal, 24)
-                    
-                    Text("Map, Feed, Add, Saved, and Profile are still local prototype surfaces after sign-in in this phase.")
-                        .font(.system(size: 12))
+
+                    Text("Log what you drink. Remember what you loved.")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.espressoBrown.opacity(0.55))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 28)
-                    
+
                     Spacer(minLength: 40)
                 }
             }
@@ -185,7 +192,7 @@ struct AuthLoadingView: View {
             
             VStack(spacing: 16) {
                 ProgressView()
-                    .tint(.mugshotMint)
+                    .tint(.mugshotForest)
                 
                 Text("Checking session")
                     .font(.system(size: 16, weight: .medium))
@@ -199,7 +206,7 @@ private extension View {
     func authFieldStyle() -> some View {
         padding(12)
             .foregroundColor(.inputText)
-            .tint(.mugshotMint)
+            .tint(.mugshotForest)
             .background(Color.inputBackground)
             .cornerRadius(DesignSystem.smallCornerRadius)
             .overlay(

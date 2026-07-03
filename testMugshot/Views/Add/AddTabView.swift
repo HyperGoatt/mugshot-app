@@ -144,7 +144,7 @@ struct LogVisitView: View {
                         .foregroundColor(.espressoBrown)
                     }
                 }
-                .toolbarBackground(Color.mugshotMint, for: .navigationBar)
+                .toolbarBackground(Color.mugshotCanvas, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .sheet(isPresented: $showCustomizeRatings) {
                     CustomizeRatingsView(
@@ -192,8 +192,8 @@ struct LogVisitView: View {
     
     private var mainContent: some View {
         ZStack {
-            // Light background
-            Color.sandBeige.opacity(0.3)
+            // Warm canvas background
+            Color.mugshotCanvas
                 .ignoresSafeArea()
             
             ScrollViewReader { proxy in
@@ -831,7 +831,7 @@ struct LogVisitProgressCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: completedCount == items.count ? "checkmark.circle.fill" : "leaf.fill")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotForest)
                     .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -849,7 +849,7 @@ struct LogVisitProgressCard: View {
             }
 
             ProgressView(value: Double(completedCount), total: Double(max(items.count, 1)))
-                .tint(.mugshotMint)
+                .tint(.mugshotForest)
 
             LazyVGrid(
                 columns: [
@@ -875,7 +875,7 @@ struct LogVisitProgressChip: View {
         HStack(spacing: 7) {
             Image(systemName: item.isComplete ? "checkmark.circle.fill" : item.systemImage)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(item.isComplete ? .mugshotMint : .espressoBrown.opacity(0.55))
+                .foregroundColor(item.isComplete ? .mugshotForest : .espressoBrown.opacity(0.55))
 
             Text(item.title)
                 .font(.system(size: 12, weight: .semibold))
@@ -1061,7 +1061,7 @@ struct CafeLocationSection: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Image(systemName: "location.fill")
-                                        .foregroundColor(.mugshotMint)
+                                        .foregroundColor(.mugshotForest)
                                         .font(.system(size: 14))
                                     Text(cafe.name)
                                         .font(.system(size: 16))
@@ -1214,7 +1214,7 @@ struct CafeSearchResultsDropdown: View {
                 } label: {
                     HStack {
                         Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotForest)
                         Text("Use \(cafeName)")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.espressoBrown)
@@ -1280,8 +1280,8 @@ struct DrinkTypeSection: View {
             if drinkType == .other {
                 TextField("What are you drinking?", text: $customDrinkType)
                     .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
+                    .tint(.mugshotForest)
+                    .accentColor(.mugshotForest)
                     .padding()
                     .background(Color.inputBackground)
                     .cornerRadius(DesignSystem.cornerRadius)
@@ -1322,7 +1322,7 @@ struct DrinkTypeChip: View {
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.mugshotMint : Color.sandBeige.opacity(0.7), lineWidth: 1)
+                    .stroke(isSelected ? Color.mugshotForest : Color.sandBeige.opacity(0.7), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -1343,8 +1343,8 @@ struct DrinkDetailsSection: View {
 
             TextField("Latte, cortado, ceremonial matcha...", text: $drinkDetails)
                 .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
+                .tint(.mugshotForest)
+                .accentColor(.mugshotForest)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .padding()
@@ -1446,7 +1446,7 @@ struct PhotosSection: View {
                                     if index == safePosterIndex {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(.mugshotMint)
+                                            .foregroundColor(.mugshotForest)
                                             .background(Color.creamWhite)
                                             .clipShape(Circle())
                                             .padding(5)
@@ -1454,7 +1454,7 @@ struct PhotosSection: View {
                                 }
                                 .overlay(
                                     RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                        .stroke(index == safePosterIndex ? Color.mugshotMint : Color.clear, lineWidth: 2)
+                                        .stroke(index == safePosterIndex ? Color.mugshotForest : Color.clear, lineWidth: 2)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -1586,7 +1586,7 @@ struct RatingsSection: View {
                         Text("Customize")
                             .font(.system(size: 14))
                     }
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotForest)
                 }
             }
 
@@ -1663,7 +1663,7 @@ struct RatingScorePanel: View {
     }
 
     private func starColor(for index: Int) -> Color {
-        overallScore > Double(index) ? .mugshotMint : .espressoBrown.opacity(0.24)
+        overallScore > Double(index) ? .mugshotForest : .espressoBrown.opacity(0.24)
     }
 }
 
@@ -1683,7 +1683,7 @@ struct RatingCategoryRow: View {
                     if weightMultiplier != 1.0 {
                         Text("(\(formatWeight(weightMultiplier)) importance)")
                             .font(.system(size: 12))
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotForest)
                     }
                 }
                 
@@ -1698,8 +1698,9 @@ struct RatingCategoryRow: View {
                         rating = rating == newRating ? 0.0 : newRating
                     }) {
                         Image(systemName: rating > Double(index) ? "star.fill" : "star")
-                            .foregroundColor(rating > Double(index) ? .mugshotMint : .espressoBrown.opacity(0.3))
-                            .font(.system(size: 20))
+                            .foregroundColor(rating > Double(index) ? .mugshotForest : .espressoBrown.opacity(0.3))
+                            .font(.system(size: 22))
+                            .frame(width: 34, height: 34)
                     }
                 }
             }
@@ -1746,8 +1747,8 @@ struct CaptionSection: View {
             ), axis: .vertical)
                 .lineLimit(3...6)
                 .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
+                .tint(.mugshotForest)
+                .accentColor(.mugshotForest)
                 .padding()
                 .background(Color.inputBackground)
                 .cornerRadius(DesignSystem.cornerRadius)
@@ -1776,8 +1777,8 @@ struct NotesSection: View {
             TextField("Anything extra you'd like to remember?", text: $notes, axis: .vertical)
                 .lineLimit(3...8)
                 .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
+                .tint(.mugshotForest)
+                .accentColor(.mugshotForest)
                 .padding()
                 .background(Color.inputBackground)
                 .cornerRadius(DesignSystem.cornerRadius)
@@ -1862,7 +1863,7 @@ struct VisibilityButton: View {
             .cornerRadius(DesignSystem.cornerRadius)
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? Color.mugshotForest : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -1889,8 +1890,8 @@ struct CafeSearchSheet: View {
                         
                         TextField("Search cafes...", text: $searchText)
                             .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .tint(.mugshotForest)
+                            .accentColor(.mugshotForest)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .onChange(of: searchText) { oldValue, newValue in
@@ -2037,7 +2038,7 @@ struct CustomizeRatingsView: View {
                             Image(systemName: "plus.circle")
                             Text("Add New Category")
                         }
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotForest)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.sandBeige.opacity(0.3))
@@ -2086,8 +2087,8 @@ struct CustomizeRatingCategoryRow: View {
                 // Category name
                 TextField("Category name", text: $category.name)
                     .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
+                    .tint(.mugshotForest)
+                    .accentColor(.mugshotForest)
                     .padding(8)
                     .background(Color.inputBackground)
                     .cornerRadius(DesignSystem.smallCornerRadius)
@@ -2117,7 +2118,7 @@ struct CustomizeRatingCategoryRow: View {
                 
                 Text(formatWeight(weightMultiplier))
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotForest)
                     .frame(width: 40)
             }
         }

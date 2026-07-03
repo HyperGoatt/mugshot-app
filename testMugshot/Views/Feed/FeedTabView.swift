@@ -57,86 +57,34 @@ struct FeedTabView: View {
         NavigationView {
             VStack(spacing: 0) {
                 // Custom header
-                VStack(alignment: .leading, spacing: 0) {
-                    // Top spacing from safe area
-                    Spacer()
-                        .frame(height: 16)
-                    
-                    // Title and search icon row
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Feed")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                            
-                            Text(feedSubtitle)
-                                .font(.system(size: 15))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            // Search functionality - can be added later
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
-                                .foregroundColor(.espressoBrown)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    
-                    // Space between subtitle and toggle
-                    Spacer()
-                        .frame(height: 12)
-                    
-                    // Pill-style scope toggle container - centered
-                    HStack {
-                        Spacer()
-                        HStack(spacing: 0) {
-                            ForEach(FeedScope.allCases, id: \.self) { scope in
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        selectedScope = scope
-                                    }
-                                }) {
-                                    Label(scope.displayName, systemImage: scopeIcon(for: scope))
-                                        .font(.system(size: 14, weight: selectedScope == scope ? .semibold : .medium))
-                                        .foregroundColor(selectedScope == scope ? .espressoBrown : .espressoBrown.opacity(0.7))
-                                        .labelStyle(.titleAndIcon)
-                                        .frame(width: 142)
-                                        .frame(height: 42)
-                                        .background(
-                                            selectedScope == scope 
-                                                ? Color.creamWhite 
-                                                : Color.clear
-                                        )
-                                        .cornerRadius(18)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(4)
-                        .background(Color.sandBeige.opacity(0.4))
-                        .cornerRadius(23)
-                        Spacer()
-                    }
-                    .padding(.bottom, 16)
+                VStack(alignment: .leading, spacing: 14) {
+                    MugScreenHeader("Feed", subtitle: feedSubtitle)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+
+                    MugSegmentedControl(
+                        options: FeedScope.allCases,
+                        selection: $selectedScope,
+                        label: { $0.displayName },
+                        icon: { scopeIcon(for: $0) }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 14)
                 }
-                .background(Color.creamWhite)
-                
+                .background(Color.mugshotCanvas)
+
                 // Feed cards
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 14) {
                         feedContent
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 24)
                 }
-                .background(Color.sandBeige.opacity(0.3))
+                .background(Color.mugshotCanvas)
             }
-            .background(Color.creamWhite)
+            .background(Color.mugshotCanvas)
         }
         .fullScreenCover(isPresented: $showVisitDetail) {
             if let visit = selectedVisit {
@@ -184,39 +132,17 @@ struct FeedTabView: View {
     @ViewBuilder
     private var remoteFeedContent: some View {
         if isLoadingRemoteVisits {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(.mugshotMint)
-
-                    Text("Loading feed...")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
+            MugLoadingStateView(message: "Brewing your feed...")
         } else if let remoteVisitError {
-            VStack(spacing: 10) {
-                Text("Could not load feed")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Text(remoteVisitError)
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.65))
-                    .multilineTextAlignment(.center)
-
-                Button("Retry") {
+            MugErrorStateView(
+                title: "Could not load feed",
+                message: remoteVisitError,
+                onRetry: {
                     Task {
                         await loadRemoteFeedIfNeeded()
                     }
                 }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotMint)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.creamWhite)
-            .cornerRadius(DesignSystem.cornerRadius)
+            )
         } else if remoteVisits.isEmpty {
             MugsyEmptyStateView(
                 asset: selectedScope == .friends ? .noFriends : .comingSoon,
@@ -445,14 +371,7 @@ struct RemoteFeedVisitCard: View {
 
     private var authorHeader: some View {
         HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.mugshotMint)
-                .frame(width: 42, height: 42)
-                .overlay(
-                    Text(visit.authorInitial)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                )
+            MugAvatarView(name: visit.authorDisplayName, diameter: 42)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(visit.authorDisplayName)
@@ -568,8 +487,10 @@ struct RemoteFeedVisitCard: View {
             Button(action: onLike) {
                 Label("\(visit.socialState.likeCount)", systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart")
                     .labelStyle(.titleAndIcon)
+                    .foregroundColor(visit.socialState.currentUserHasLiked ? .mugshotForest : .espressoBrown.opacity(0.68))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(visit.socialState.currentUserHasLiked ? "Unlike" : "Like")
 
             Button(action: onComment) {
                 Label("\(visit.socialState.commentCount)", systemImage: "bubble.right")
@@ -606,17 +527,7 @@ struct RemoteFeedVisitCard: View {
     }
 
     private var scoreBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 12, weight: .semibold))
-            Text(String(format: "%.1f", visit.visit.overallScore))
-                .font(.system(size: 14, weight: .bold))
-        }
-        .foregroundColor(.espressoBrown)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.mugshotMint.opacity(0.38))
-        .clipShape(Capsule())
+        MugScoreBadge(score: visit.visit.overallScore)
     }
 
     private var visibilityIcon: String {
@@ -631,18 +542,7 @@ struct RemoteFeedVisitCard: View {
     }
 
     private func feedMetaPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.espressoBrown.opacity(0.68))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.sandBeige.opacity(0.42))
-        .clipShape(Capsule())
+        MugTagChip(title: title, systemImage: systemImage)
     }
 
     private func timeAgoString(from date: Date) -> String {
@@ -701,54 +601,34 @@ struct VisitCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Top author bar
             HStack(alignment: .top, spacing: 12) {
-                // Avatar - 32pt diameter
-                Circle()
-                    .fill(Color.mugshotMint)
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Text(user?.username.prefix(1).uppercased() ?? "U")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                    )
-                
+                MugAvatarView(name: user?.displayNameOrUsername ?? user?.username ?? "U", diameter: 36)
+
                 // Name and date
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(user?.displayNameOrUsername ?? user?.username ?? "user")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.espressoBrown)
-                        
+
                         if isCurrentUser {
                             Text("You")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.creamWhite)
+                                .padding(.horizontal, 7)
                                 .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(10)
+                                .background(Color.mugshotForest)
+                                .clipShape(Capsule())
                         }
                     }
-                    
+
                     Text(formatDate(visit.createdAt))
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.6))
                 }
-                
+
                 Spacer()
-                
-                // Rating badge
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.sandBeige.opacity(0.5))
-                .cornerRadius(12)
+
+                MugScoreBadge(score: visit.overallScore, size: .compact)
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -778,7 +658,7 @@ struct VisitCard: View {
                     HStack(spacing: 4) {
                         Image(systemName: "location.fill")
                             .font(.system(size: 11))
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotForest)
                         Button(action: {
                             onCafeTap?()
                         }) {
@@ -815,7 +695,7 @@ struct VisitCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: isLiked ? "heart.fill" : "heart")
                                 .font(.system(size: 15))
-                                .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
+                                .foregroundColor(isLiked ? .mugshotForest : .espressoBrown.opacity(0.7))
                             Text("\(visit.likeCount)")
                                 .font(.system(size: 14))
                                 .foregroundColor(.espressoBrown.opacity(0.7))
@@ -939,14 +819,7 @@ struct VisitDetailView: View {
                                 }
                                 
                                 HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color.mugshotMint)
-                                        .frame(width: 40, height: 40)
-                                        .overlay(
-                                            Text(user?.username.prefix(1).uppercased() ?? "U")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(.espressoBrown)
-                                        )
+                                    MugAvatarView(name: user?.username ?? "U", diameter: 40)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("@\(user?.username ?? "user")")
@@ -988,7 +861,7 @@ struct VisitDetailView: View {
                                 
                                 HStack(spacing: 4) {
                                     Image(systemName: "star.fill")
-                                        .foregroundColor(.mugshotMint)
+                                        .foregroundColor(.mugshotForest)
                                     Text(String(format: "%.1f", visit.overallScore))
                                         .font(.system(size: 20, weight: .bold))
                                         .foregroundColor(.espressoBrown)
@@ -1011,11 +884,11 @@ struct VisitDetailView: View {
                                                 Spacer()
                                                 Text(String(format: "%.1f", rating))
                                                     .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundColor(.mugshotMint)
+                                                    .foregroundColor(.mugshotForest)
                                             }
                                             
                                             ProgressView(value: rating, total: 5.0)
-                                                .tint(.mugshotMint)
+                                                .tint(.mugshotForest)
                                         }
                                     }
                                 }
@@ -1065,7 +938,7 @@ struct VisitDetailView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: isLiked ? "heart.fill" : "heart")
                                             .font(.system(size: 18))
-                                            .foregroundColor(isLiked ? .mugshotMint : .espressoBrown.opacity(0.7))
+                                            .foregroundColor(isLiked ? .mugshotForest : .espressoBrown.opacity(0.7))
                                         Text("\(visit.likeCount)")
                                             .font(.system(size: 16, weight: .semibold))
                                             .foregroundColor(.espressoBrown)
@@ -1112,8 +985,8 @@ struct VisitDetailView: View {
                     HStack(spacing: 12) {
                         TextField("Add a comment…", text: $commentText, axis: .vertical)
                             .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .tint(.mugshotForest)
+                            .accentColor(.mugshotForest)
                             .padding(8)
                             .background(Color.inputBackground)
                             .cornerRadius(DesignSystem.smallCornerRadius)
@@ -1129,7 +1002,7 @@ struct VisitDetailView: View {
                         }) {
                             Text("Send")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.mugshotMint)
+                                .foregroundColor(.mugshotForest)
                         }
                         .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -1228,7 +1101,7 @@ struct VisitDetailView: View {
                             TextField("Caption", text: $editableVisit.caption, axis: .vertical)
                                 .lineLimit(3...6)
                                 .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
+                                .tint(.mugshotForest)
                                 .padding()
                                 .background(Color.inputBackground)
                                 .cornerRadius(DesignSystem.cornerRadius)
@@ -1246,7 +1119,7 @@ struct VisitDetailView: View {
                             TextField("Notes", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
                                 .lineLimit(3...8)
                                 .foregroundColor(.inputText)
-                                .tint(.mugshotMint)
+                                .tint(.mugshotForest)
                                 .padding()
                                 .background(Color.inputBackground)
                                 .cornerRadius(DesignSystem.cornerRadius)
@@ -1285,7 +1158,7 @@ struct VisitDetailView: View {
                             onSave(editableVisit)
                             dismiss()
                         }
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotForest)
                     }
                 }
             }
@@ -1324,20 +1197,13 @@ struct CommentRow: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.mugshotMint)
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Text(user?.username.prefix(1).uppercased() ?? "U")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                )
-            
+            MugAvatarView(name: user?.username ?? "U", diameter: 40)
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("@\(user?.username ?? "user")")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.espressoBrown)
-                
+
                 MentionText(text: comment.text, mentions: comment.mentions)
                     .font(.system(size: 14))
                 

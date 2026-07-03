@@ -265,14 +265,7 @@ struct RemoteVisitDetailView: View {
             }
 
             HStack(spacing: 10) {
-                Circle()
-                    .fill(Color.mugshotMint)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Text(detail.summary.authorInitial)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                    )
+                MugAvatarView(name: detail.summary.authorDisplayName, diameter: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(detail.summary.authorDisplayName)
@@ -304,18 +297,7 @@ struct RemoteVisitDetailView: View {
     }
 
     private func visitMetaPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.espressoBrown.opacity(0.72))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.sandBeige.opacity(0.34))
-        .clipShape(Capsule())
+        MugTagChip(title: title, systemImage: systemImage)
     }
 
     private func visibilityIcon(for label: String) -> String {
@@ -330,17 +312,7 @@ struct RemoteVisitDetailView: View {
     }
 
     private func scoreBadge(score: Double) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 12, weight: .semibold))
-            Text(String(format: "%.1f", score))
-                .font(.system(size: 14, weight: .bold))
-        }
-        .foregroundColor(.espressoBrown)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.mugshotMint.opacity(0.35))
-        .cornerRadius(999)
+        MugScoreBadge(score: score)
     }
 
     private func drinkSection(_ detail: RemoteVisitDetail) -> some View {
@@ -377,7 +349,7 @@ struct RemoteVisitDetailView: View {
 
                 HStack(spacing: 5) {
                     Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotForest)
                     Text(String(format: "%.1f", detail.summary.visit.overallScore))
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.espressoBrown)
@@ -403,7 +375,7 @@ struct RemoteVisitDetailView: View {
                             }
 
                             ProgressView(value: rating, total: 5)
-                                .tint(.mugshotMint)
+                                .tint(.mugshotForest)
                         }
                     }
                 }
@@ -449,7 +421,7 @@ struct RemoteVisitDetailView: View {
                 } label: {
                     Label("\(detail.likeCount)", systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(detail.currentUserHasLiked ? .mugshotMint : .espressoBrown.opacity(0.78))
+                        .foregroundColor(detail.currentUserHasLiked ? .mugshotForest : .espressoBrown.opacity(0.78))
                 }
                 .buttonStyle(.plain)
                 .disabled(currentUserId == nil || isSavingSocialAction)
@@ -528,7 +500,7 @@ struct RemoteVisitDetailView: View {
     private var loadingContent: some View {
         VStack(spacing: 14) {
             ProgressView()
-                .tint(.mugshotMint)
+                .tint(.mugshotForest)
 
             Text(displayedSummary.locationTitle)
                 .font(.system(size: 15, weight: .semibold))
@@ -559,7 +531,7 @@ struct RemoteVisitDetailView: View {
                 }
             }
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.mugshotMint)
+            .foregroundColor(.mugshotForest)
         }
         .padding()
     }
@@ -800,7 +772,7 @@ struct RemotePhotoImageView: View {
                         placeholder
                             .overlay(
                                 ProgressView()
-                                    .tint(.mugshotMint)
+                                    .tint(.mugshotForest)
                             )
                     case .success(let image):
                         image
@@ -836,14 +808,7 @@ struct RemoteCommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.mugshotMint)
-                .frame(width: 38, height: 38)
-                .overlay(
-                    Text(comment.authorInitial)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                )
+            MugAvatarView(name: comment.authorDisplayName, diameter: 38)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -1013,7 +978,7 @@ private extension View {
     func remoteVisitEditField() -> some View {
         padding(12)
             .foregroundColor(.inputText)
-            .tint(.mugshotMint)
+            .tint(.mugshotForest)
             .background(Color.inputBackground)
             .cornerRadius(DesignSystem.smallCornerRadius)
             .overlay(

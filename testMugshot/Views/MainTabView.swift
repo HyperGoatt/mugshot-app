@@ -56,12 +56,29 @@ struct MainTabView: View {
                 .tag(4)
         }
         .environmentObject(tabCoordinator)
-        .accentColor(.mugshotMint)
+        .accentColor(.mugshotForest)
         .onAppear {
-            // Ensure tab bar has consistent appearance
+            // Warm cream tab bar with forest selection, per the design system.
             let appearance = UITabBarAppearance()
             appearance.configureWithOpaqueBackground()
             appearance.backgroundColor = UIColor(Color.creamWhite)
+            appearance.shadowColor = UIColor(Color.sandBeige)
+
+            let itemAppearance = UITabBarItemAppearance()
+            itemAppearance.selected.iconColor = UIColor(Color.mugshotForest)
+            itemAppearance.selected.titleTextAttributes = [
+                .foregroundColor: UIColor(Color.mugshotForest),
+                .font: UIFont.systemFont(ofSize: 11, weight: .semibold)
+            ]
+            itemAppearance.normal.iconColor = UIColor(Color.espressoBrown.opacity(0.55))
+            itemAppearance.normal.titleTextAttributes = [
+                .foregroundColor: UIColor(Color.espressoBrown.opacity(0.55)),
+                .font: UIFont.systemFont(ofSize: 11, weight: .medium)
+            ]
+            appearance.stackedLayoutAppearance = itemAppearance
+            appearance.inlineLayoutAppearance = itemAppearance
+            appearance.compactInlineLayoutAppearance = itemAppearance
+
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }

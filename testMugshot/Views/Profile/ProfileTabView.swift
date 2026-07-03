@@ -45,6 +45,20 @@ struct ProfileTabView: View {
         )
     }
 
+    /// Drink category distribution powering the taste identity card.
+    private var tasteCategories: [TasteCategoryShare] {
+        let labels: [String]
+        if authModel.authenticatedUser != nil {
+            labels = remoteProfileVisits.map { summary in
+                summary.visit.drinkCategoryDisplayName ?? summary.visit.drinkDisplayName
+            }
+        } else {
+            labels = dataManager.appData.visits.map { $0.drinkType.rawValue }
+        }
+
+        return TasteCategoryShare.calculate(from: labels)
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -53,7 +67,7 @@ struct ProfileTabView: View {
                     Rectangle()
                         .fill(
                             LinearGradient(
-                                colors: [Color.mugshotMint, Color.sageGray],
+                                colors: [Color.mugshotSageSoft, Color.mugshotMint],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -66,58 +80,50 @@ struct ProfileTabView: View {
                                 // Avatar
                                 Circle()
                                     .fill(Color.creamWhite)
-                                    .frame(width: 80, height: 80)
+                                    .frame(width: 84, height: 84)
                                     .overlay(
                                         Text(user?.username.prefix(1).uppercased() ?? "U")
-                                            .font(.system(size: 32, weight: .bold))
-                                            .foregroundColor(.espressoBrown)
+                                            .font(.system(size: 34, weight: .bold, design: .serif))
+                                            .foregroundColor(.mugshotForest)
                                     )
                                     .overlay(
                                         Circle()
                                             .stroke(Color.creamWhite, lineWidth: 4)
                                     )
-                                    .offset(y: 40)
+                                    .shadow(color: Color.espressoBrown.opacity(0.12), radius: 8, x: 0, y: 3)
+                                    .offset(y: 42)
                             }
                         )
 
                     VStack(spacing: 20) {
                         // User info
-                        VStack(spacing: 8) {
+                        VStack(spacing: 6) {
                             if let displayName = user?.displayName, !displayName.isEmpty {
                                 Text(displayName)
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown.opacity(0.8))
+                                    .font(.system(size: 26, weight: .bold, design: .serif))
+                                    .foregroundColor(.espressoBrown)
                             }
 
                             Text("@\(user?.username ?? "user")")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-
-                            if authModel.profile != nil {
-                                Text("Supabase profile active")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.espressoBrown.opacity(0.65))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.mugshotMint.opacity(0.45))
-                                    .cornerRadius(DesignSystem.smallCornerRadius)
-                            }
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.espressoBrown.opacity(0.62))
 
                             if let location = user?.location, !location.isEmpty {
-                                Text(location)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
+                                Label(location, systemImage: "mappin.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.espressoBrown.opacity(0.66))
                             }
 
                             if let bio = user?.bio, !bio.isEmpty {
                                 Text(bio)
                                     .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
+                                    .foregroundColor(.espressoBrown.opacity(0.72))
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
+                                    .padding(.top, 2)
                             }
                         }
-                        .padding(.top, 50)
+                        .padding(.top, 52)
 
                         if authModel.profile != nil {
                             Button {
@@ -126,42 +132,40 @@ struct ProfileTabView: View {
                             } label: {
                                 Label("Edit Profile", systemImage: "pencil")
                                     .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.espressoBrown)
+                                    .padding(.horizontal, 20)
+                                    .frame(height: 40)
+                                    .background(Color.creamWhite)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(Color.sandBeige, lineWidth: 1))
                             }
-                            .buttonStyle(PrimaryButtonStyle())
-                            .padding(.horizontal)
+                            .buttonStyle(.plain)
                         }
 
-                        // Stats section
-                        VStack(spacing: 16) {
-                            Text("Stats")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-
-                            HStack(spacing: 20) {
-                                StatBox(
-                                    title: "Visits",
-                                    value: "\(displayedStats.totalVisits)"
+                        // Stats row
+                        VStack(spacing: 10) {
+                            HStack(spacing: 10) {
+                                MugStatTile(
+                                    value: "\(displayedStats.totalVisits)",
+                                    title: "Sips",
+                                    systemImage: "cup.and.saucer.fill"
                                 )
 
-                                StatBox(
-                                    title: "Cafés",
-                                    value: "\(displayedStats.totalCafes)"
+                                MugStatTile(
+                                    value: "\(displayedStats.totalCafes)",
+                                    title: "Cafes",
+                                    systemImage: "mappin.and.ellipse"
                                 )
 
-                                StatBox(
+                                MugStatTile(
+                                    value: displayedStats.totalVisits > 0 ? String(format: "%.1f", displayedStats.averageScore) : "–",
                                     title: "Avg Score",
-                                    value: String(format: "%.1f", displayedStats.averageScore)
-                                )
-
-                                StatBox(
-                                    title: "Favorite",
-                                    value: displayedStats.favoriteDrinkLabel ?? "-"
+                                    systemImage: "star.fill"
                                 )
                             }
-                            .padding(.horizontal)
 
                             if isLoadingRemoteProfileStats {
-                                Text("Refreshing remote stats...")
+                                Text("Refreshing stats...")
                                     .font(.system(size: 12))
                                     .foregroundColor(.espressoBrown.opacity(0.62))
                             } else if let remoteProfileStatsError {
@@ -171,31 +175,23 @@ struct ProfileTabView: View {
                                     .multilineTextAlignment(.center)
                             }
                         }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
                         .padding(.horizontal)
 
-                        // Coffee Journey
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Coffee Journey")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-
-                            CoffeeJourneyView(stats: displayedStats)
-                        }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
+                        // Taste identity
+                        TasteIdentityCard(
+                            categories: tasteCategories,
+                            favoriteDrinkLabel: displayedStats.favoriteDrinkLabel,
+                            totalVisits: displayedStats.totalVisits,
+                            totalCafes: displayedStats.totalCafes
+                        )
                         .padding(.horizontal)
 
                         // Content tabs
-                        Picker("Content", selection: $selectedTab) {
-                            ForEach(ProfileContentTab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                        MugSegmentedControl(
+                            options: ProfileContentTab.allCases,
+                            selection: $selectedTab,
+                            label: { $0.rawValue }
+                        )
                         .padding(.horizontal)
 
                         // Content based on selected tab
@@ -204,7 +200,7 @@ struct ProfileTabView: View {
                     }
                 }
             }
-            .background(Color.creamWhite)
+            .background(Color.mugshotCanvas)
             .navigationTitle("Profile")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -500,7 +496,7 @@ private extension View {
     func profileEditorField() -> some View {
         padding(12)
             .foregroundColor(.inputText)
-            .tint(.mugshotMint)
+            .tint(.mugshotForest)
             .background(Color.inputBackground)
             .cornerRadius(DesignSystem.smallCornerRadius)
             .overlay(
@@ -510,48 +506,105 @@ private extension View {
     }
 }
 
-struct StatBox: View {
-    let title: String
-    let value: String
+/// One drink category's share of the user's logged sips.
+struct TasteCategoryShare: Identifiable, Equatable {
+    let name: String
+    let count: Int
+    let fraction: Double
 
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.espressoBrown)
+    var id: String { name }
 
-            Text(title)
-                .font(.system(size: 12))
-                .foregroundColor(.espressoBrown.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity)
+    var iconName: String {
+        let lowered = name.lowercased()
+        if lowered.contains("matcha") { return "leaf.fill" }
+        if lowered.contains("hojicha") { return "flame.fill" }
+        if lowered.contains("tea") || lowered.contains("chai") { return "mug.fill" }
+        if lowered.contains("chocolate") { return "takeoutbag.and.cup.and.straw.fill" }
+        if lowered.contains("coffee") || lowered.contains("latte") || lowered.contains("espresso") { return "cup.and.saucer.fill" }
+        return "sparkles"
+    }
+
+    /// Groups raw drink labels into ranked category shares (top 4).
+    static func calculate(from labels: [String]) -> [TasteCategoryShare] {
+        let cleaned = labels
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !cleaned.isEmpty else { return [] }
+
+        let counts = Dictionary(grouping: cleaned) { $0.capitalized }
+            .mapValues { $0.count }
+
+        let total = Double(cleaned.count)
+
+        return counts
+            .sorted { lhs, rhs in
+                lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value
+            }
+            .prefix(4)
+            .map { name, count in
+                TasteCategoryShare(name: name, count: count, fraction: Double(count) / total)
+            }
     }
 }
 
-struct CoffeeJourneyView: View {
-    let stats: ProfileStatsDisplay
+/// "My Taste Identity" card: category breakdown bars plus favorite-drink
+/// summary, per the Mugshot design system.
+struct TasteIdentityCard: View {
+    let categories: [TasteCategoryShare]
+    let favoriteDrinkLabel: String?
+    let totalVisits: Int
+    let totalCafes: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Simple progress representation
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                ForEach(0..<min(stats.totalCafes, 10), id: \.self) { _ in
-                    Circle()
-                        .fill(Color.mugshotMint)
-                        .frame(width: 12, height: 12)
-                }
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.mugshotForest)
 
-                if stats.totalCafes > 10 {
-                    Text("+\(stats.totalCafes - 10)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
+                Text("My Taste Identity")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.espressoBrown)
             }
 
-            Text("\(stats.totalVisits) visits across \(stats.totalCafes) cafés")
-                .font(.system(size: 14))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+            if categories.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.32))
+
+                    Text("Log a few sips to reveal your taste profile.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.espressoBrown.opacity(0.62))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(categories) { category in
+                        MugTasteCategoryRow(
+                            name: category.name,
+                            systemImage: category.iconName,
+                            fraction: category.fraction
+                        )
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    if let favoriteDrinkLabel, !favoriteDrinkLabel.isEmpty {
+                        MugTagChip(title: "Go-to: \(favoriteDrinkLabel)", systemImage: "heart.fill")
+                    }
+
+                    MugTagChip(title: "\(totalVisits) sips", systemImage: "cup.and.saucer.fill")
+                    MugTagChip(title: "\(totalCafes) cafes", systemImage: "mappin.and.ellipse")
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .cardStyle()
     }
 }
 
@@ -598,39 +651,17 @@ struct RecentVisitsView: View {
     @ViewBuilder
     private var remoteContent: some View {
         if isLoadingRemoteVisits {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(.mugshotMint)
-
-                Text("Loading real visits...")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding()
+            MugLoadingStateView(message: "Loading your sips...")
         } else if let remoteVisitError {
-            VStack(spacing: 10) {
-                Text("Could not load real visits")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Text(remoteVisitError)
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.65))
-                    .multilineTextAlignment(.center)
-
-                Button("Retry") {
+            MugErrorStateView(
+                title: "Could not load your sips",
+                message: remoteVisitError,
+                onRetry: {
                     Task {
                         await loadRemoteVisits()
                     }
                 }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotMint)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.sandBeige.opacity(0.45))
-            .cornerRadius(DesignSystem.cornerRadius)
+            )
         } else if remoteVisits.isEmpty {
             ProfileEmptyStateCard(
                 asset: .noCafes,
@@ -848,17 +879,7 @@ struct RemoteVisitSummaryCard: View {
     }
 
     private var scoreBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 11))
-            Text(String(format: "%.1f", visit.visit.overallScore))
-                .font(.system(size: 12, weight: .bold))
-        }
-        .foregroundColor(.espressoBrown)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.mugshotMint.opacity(0.45))
-        .cornerRadius(999)
+        MugScoreBadge(score: visit.visit.overallScore, size: .compact)
     }
 
     private var metadataRow: some View {
@@ -1019,11 +1040,11 @@ struct FavoritesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if favorites.isEmpty {
-                Text("No favorites yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    asset: .noFavorites,
+                    title: "No favorites yet",
+                    message: "Heart the cafes you love and they will live here."
+                )
             } else {
                 ForEach(favorites) { cafe in
                     CafeCard(
@@ -1049,11 +1070,11 @@ struct WishlistView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if wishlist.isEmpty {
-                Text("No wishlist items yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    asset: .noWishlist,
+                    title: "Nothing on the wishlist yet",
+                    message: "Mark cafes as Want to Try to plan your next sip."
+                )
             } else {
                 ForEach(wishlist) { cafe in
                     CafeCard(
