@@ -19,31 +19,39 @@ struct MugsyEmptyStateView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             Image(asset.rawValue)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 108, height: 108)
+                .frame(width: 118, height: 118)
                 .accessibilityHidden(true)
+                .shadow(color: Color.espressoBrown.opacity(0.08), radius: 10, x: 0, y: 5)
 
             Text(title)
-                .font(.system(size: 17, weight: .semibold))
+                .mugshotDisplay(size: 22)
                 .foregroundColor(.espressoBrown)
+                .multilineTextAlignment(.center)
 
             Text(message)
                 .font(.system(size: 13))
-                .foregroundColor(.espressoBrown.opacity(0.64))
+                .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 18)
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
+        .padding(.vertical, 30)
+        .padding(.horizontal, 20)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .shadow(
+            color: DesignSystem.cardShadow.color,
+            radius: DesignSystem.cardShadow.radius,
+            x: DesignSystem.cardShadow.x,
+            y: DesignSystem.cardShadow.y
         )
     }
 }

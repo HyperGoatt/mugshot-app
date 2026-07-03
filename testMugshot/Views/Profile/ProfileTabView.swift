@@ -46,177 +46,59 @@ struct ProfileTabView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 0) {
-                    // Banner
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.mugshotMint, Color.sageGray],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(height: 120)
-                        .overlay(
-                            VStack {
-                                Spacer()
-
-                                // Avatar
-                                Circle()
-                                    .fill(Color.creamWhite)
-                                    .frame(width: 80, height: 80)
-                                    .overlay(
-                                        Text(user?.username.prefix(1).uppercased() ?? "U")
-                                            .font(.system(size: 32, weight: .bold))
-                                            .foregroundColor(.espressoBrown)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.creamWhite, lineWidth: 4)
-                                    )
-                                    .offset(y: 40)
-                            }
-                        )
-
-                    VStack(spacing: 20) {
-                        // User info
-                        VStack(spacing: 8) {
-                            if let displayName = user?.displayName, !displayName.isEmpty {
-                                Text(displayName)
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown.opacity(0.8))
-                            }
-
-                            Text("@\(user?.username ?? "user")")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-
-                            if authModel.profile != nil {
-                                Text("Supabase profile active")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.espressoBrown.opacity(0.65))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.mugshotMint.opacity(0.45))
-                                    .cornerRadius(DesignSystem.smallCornerRadius)
-                            }
-
-                            if let location = user?.location, !location.isEmpty {
-                                Text(location)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
-                            }
-
-                            if let bio = user?.bio, !bio.isEmpty {
-                                Text(bio)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown.opacity(0.7))
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
+                VStack(spacing: 18) {
+                    MugshotScreenHeader("Profile") {
+                        MugshotIconButton(systemName: "gearshape", size: 36) {
+                            showSettings = true
                         }
-                        .padding(.top, 50)
-
-                        if authModel.profile != nil {
-                            Button {
-                                authModel.clearProfileUpdateError()
-                                showEditProfile = true
-                            } label: {
-                                Label("Edit Profile", systemImage: "pencil")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
-                            .padding(.horizontal)
-                        }
-
-                        // Stats section
-                        VStack(spacing: 16) {
-                            Text("Stats")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-
-                            HStack(spacing: 20) {
-                                StatBox(
-                                    title: "Visits",
-                                    value: "\(displayedStats.totalVisits)"
-                                )
-
-                                StatBox(
-                                    title: "Cafés",
-                                    value: "\(displayedStats.totalCafes)"
-                                )
-
-                                StatBox(
-                                    title: "Avg Score",
-                                    value: String(format: "%.1f", displayedStats.averageScore)
-                                )
-
-                                StatBox(
-                                    title: "Favorite",
-                                    value: displayedStats.favoriteDrinkLabel ?? "-"
-                                )
-                            }
-                            .padding(.horizontal)
-
-                            if isLoadingRemoteProfileStats {
-                                Text("Refreshing remote stats...")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.espressoBrown.opacity(0.62))
-                            } else if let remoteProfileStatsError {
-                                Text(remoteProfileStatsError)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.red.opacity(0.82))
-                                    .multilineTextAlignment(.center)
-                            }
-                        }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .padding(.horizontal)
-
-                        // Coffee Journey
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Coffee Journey")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-
-                            CoffeeJourneyView(stats: displayedStats)
-                        }
-                        .padding()
-                        .background(Color.sandBeige)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .padding(.horizontal)
-
-                        // Content tabs
-                        Picker("Content", selection: $selectedTab) {
-                            ForEach(ProfileContentTab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-
-                        // Content based on selected tab
-                        contentView
-                            .padding()
+                        .accessibilityLabel("Settings")
                     }
+
+                    profileIdentity
+
+                    statsStrip
+
+                    if isLoadingRemoteProfileStats {
+                        Text("Refreshing remote stats...")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                    } else if let remoteProfileStatsError {
+                        Text(remoteProfileStatsError)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red.opacity(0.82))
+                            .multilineTextAlignment(.center)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Taste identity")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        CoffeeJourneyView(stats: displayedStats)
+                    }
+                    .padding(16)
+                    .cardStyle()
+                    .padding(.horizontal, 16)
+
+                    MugshotSegmentedControl(
+                        options: ProfileContentTab.allCases,
+                        selection: $selectedTab,
+                        title: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 16)
+
+                    contentView
+                        .padding(.horizontal, 16)
+
+                    Text("Sip. Save. Share.")
+                        .mugshotDisplay(size: 15)
+                        .foregroundColor(.mugshotLatte)
+                        .padding(.bottom, 32)
                 }
             }
             .background(Color.creamWhite)
-            .navigationTitle("Profile")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundColor(.espressoBrown)
-                    }
-                    .accessibilityLabel("Settings")
-                }
-            }
             .sheet(isPresented: $showEditProfile) {
                 if let profile = authModel.profile {
                     EditProfileView(profile: profile, dataManager: dataManager)
@@ -231,6 +113,57 @@ struct ProfileTabView: View {
                 await loadRemoteProfileStats()
             }
         }
+    }
+
+    private var profileIdentity: some View {
+        VStack(spacing: 10) {
+            MugshotAvatar(name: user?.username ?? "user", size: 76)
+
+            VStack(spacing: 3) {
+                Text(user?.displayName?.isEmpty == false ? user?.displayName ?? "" : user?.username ?? "user")
+                    .mugshotDisplay(size: 24)
+                    .foregroundColor(.espressoBrown)
+
+                Text("@\(user?.username ?? "user")\(user?.location.isEmpty == false ? " · \(user?.location ?? "")" : "")")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.tertiaryText)
+            }
+
+            if let bio = user?.bio, !bio.isEmpty {
+                Text(bio)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+
+            HStack(spacing: 6) {
+                MugshotTagChip(title: displayedStats.favoriteDrinkLabel?.lowercased() ?? "daily ritual", icon: "leaf.fill")
+                MugshotTagChip(title: "hidden gem hunter", icon: "sparkles")
+            }
+
+            if authModel.profile != nil {
+                Button {
+                    authModel.clearProfileUpdateError()
+                    showEditProfile = true
+                } label: {
+                    Label("Edit profile", systemImage: "pencil")
+                        .frame(maxWidth: 150)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statsStrip: some View {
+        HStack(spacing: 8) {
+            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
+            MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
+            MugshotStatPill(icon: "star.fill", value: String(format: "%.1f", displayedStats.averageScore), label: "Avg")
+        }
+        .padding(.horizontal, 16)
     }
 
     @ViewBuilder
@@ -353,9 +286,14 @@ struct EditProfileView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    MugshotSectionTitle(
+                        title: "Profile details",
+                        subtitle: "Keep this warm and useful. It appears alongside your sips."
+                    )
+
                     profileField(
                         title: "Display Name",
                         text: $displayName,
@@ -377,7 +315,7 @@ struct EditProfileView: View {
                     } else if normalizedUsername != username.trimmingCharacters(in: .whitespacesAndNewlines) {
                         Text("Will save as @\(normalizedUsername).")
                             .font(.system(size: 12))
-                            .foregroundColor(.espressoBrown.opacity(0.6))
+                            .foregroundColor(.tertiaryText)
                     }
 
                     profileField(
@@ -429,10 +367,10 @@ struct EditProfileView: View {
                         HStack {
                             if authModel.isUpdatingProfile {
                                 ProgressView()
-                                    .tint(.espressoBrown)
+                                    .tint(.foamWhite)
                             }
 
-                            Text("Save Profile")
+                            Text("Save profile")
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity)
@@ -444,7 +382,7 @@ struct EditProfileView: View {
                 .padding(DesignSystem.largePadding)
             }
             .background(Color.creamWhite)
-            .navigationTitle("Edit Profile")
+            .navigationTitle("Edit profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -498,15 +436,7 @@ struct EditProfileView: View {
 
 private extension View {
     func profileEditorField() -> some View {
-        padding(12)
-            .foregroundColor(.inputText)
-            .tint(.mugshotMint)
-            .background(Color.inputBackground)
-            .cornerRadius(DesignSystem.smallCornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .stroke(Color.inputBorder, lineWidth: 1)
-            )
+        mugshotFormField()
     }
 }
 
@@ -537,7 +467,7 @@ struct CoffeeJourneyView: View {
             HStack(spacing: 8) {
                 ForEach(0..<min(stats.totalCafes, 10), id: \.self) { _ in
                     Circle()
-                        .fill(Color.mugshotMint)
+                        .fill(Color.mugshotSage)
                         .frame(width: 12, height: 12)
                 }
 
@@ -600,7 +530,7 @@ struct RecentVisitsView: View {
         if isLoadingRemoteVisits {
             HStack(spacing: 10) {
                 ProgressView()
-                    .tint(.mugshotMint)
+                    .tint(.mugshotSage)
 
                 Text("Loading real visits...")
                     .font(.system(size: 14))
@@ -625,12 +555,16 @@ struct RecentVisitsView: View {
                     }
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotMint)
+                .foregroundColor(.mugshotSage)
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.sandBeige.opacity(0.45))
-            .cornerRadius(DesignSystem.cornerRadius)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
         } else if remoteVisits.isEmpty {
             ProfileEmptyStateCard(
                 asset: .noCafes,
@@ -730,22 +664,22 @@ struct ProfileEmptyStateCard: View {
                 .clipShape(Circle())
 
             Text(title)
-                .font(.system(size: 15, weight: .semibold))
+                .mugshotDisplay(size: 20)
                 .foregroundColor(.espressoBrown)
 
             Text(message)
                 .font(.system(size: 12))
-                .foregroundColor(.espressoBrown.opacity(0.64))
+                .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
         )
         }
     }
@@ -764,7 +698,7 @@ struct RemoteVisitSummaryCard: View {
                 poster
                     .frame(maxWidth: .infinity)
                     .frame(height: 170)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         scoreBadge
                             .padding(10)
@@ -819,18 +753,7 @@ struct RemoteVisitSummaryCard: View {
             }
             .padding(12)
         }
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
-        .shadow(
-            color: DesignSystem.cardShadow.color,
-            radius: DesignSystem.cardShadow.radius,
-            x: DesignSystem.cardShadow.x,
-            y: DesignSystem.cardShadow.y
-        )
+        .cardStyle()
     }
 
     private var poster: some View {
@@ -840,7 +763,7 @@ struct RemoteVisitSummaryCard: View {
                     urlString: visit.visit.posterPhotoURL,
                     placeholderSystemName: "photo"
                 )
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
             } else {
                 RemoteVisitNoPhotoThumbnail()
             }
@@ -857,7 +780,7 @@ struct RemoteVisitSummaryCard: View {
         .foregroundColor(.espressoBrown)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.mugshotMint.opacity(0.45))
+        .background(Color.mugshotSage.opacity(0.45))
         .cornerRadius(999)
     }
 
@@ -1000,12 +923,7 @@ struct RemoteTopCafeCard: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
+        .cardStyle()
     }
 }
 

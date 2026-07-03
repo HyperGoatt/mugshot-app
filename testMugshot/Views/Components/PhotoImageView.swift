@@ -19,13 +19,16 @@ struct PhotoImageView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                // Fallback placeholder
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .fill(Color.sandBeige)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .fill(Color.sandBeige.opacity(0.72))
                     .overlay(
-                        Image(systemName: "photo")
-                            .font(.system(size: 48))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 34, weight: .semibold))
+                            Text("Photo loading")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.roastBrown.opacity(0.46))
                     )
             }
         }
@@ -60,17 +63,17 @@ struct PhotoThumbnailView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .fill(Color.sandBeige)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                    .fill(Color.sandBeige.opacity(0.72))
                     .overlay(
                         Image(systemName: "photo")
                             .font(.system(size: 20))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
+                            .foregroundColor(.roastBrown.opacity(0.42))
                     )
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         .onAppear {
             loadImage()
         }
@@ -83,4 +86,3 @@ struct PhotoThumbnailView: View {
         }
     }
 }
-

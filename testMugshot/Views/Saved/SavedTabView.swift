@@ -62,44 +62,33 @@ struct SavedTabView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Saved")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-
-                    Text(savedSubtitle)
-                        .font(.system(size: 15))
-                        .foregroundColor(.espressoBrown.opacity(0.68))
+                MugshotScreenHeader("Saved", subtitle: savedSubtitle) {
+                    MugshotIconButton(systemName: "slider.horizontal.3", size: 36) {}
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
 
-                Picker("Tab", selection: $selectedTab) {
-                    ForEach(SavedTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                // Sort option (only for All Cafes)
+                MugshotSegmentedControl(
+                    options: SavedTab.allCases,
+                    selection: $selectedTab,
+                    title: { $0.rawValue }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+
                 if selectedTab == .allCafes {
-                    Picker("Sort", selection: $sortOption) {
-                        ForEach(SortOption.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
+                    MugshotSegmentedControl(
+                        options: SortOption.allCases,
+                        selection: $sortOption,
+                        title: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
 
                 if authModel.authenticatedUser != nil {
                     remoteStateStatus
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 4)
                 }
                 
@@ -128,7 +117,9 @@ struct SavedTabView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
             }
             .background(Color.creamWhite)
@@ -153,7 +144,7 @@ struct SavedTabView: View {
         if isLoadingRemoteStates {
             HStack(spacing: 8) {
                 ProgressView()
-                    .tint(.mugshotMint)
+                    .tint(.mugshotSage)
                 Text("Syncing saved cafes...")
                     .font(.system(size: 12))
                     .foregroundColor(.espressoBrown.opacity(0.65))
@@ -353,18 +344,7 @@ struct CafeCard: View {
             }
             .padding(.vertical, 10)
         }
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
-        .shadow(
-            color: DesignSystem.cardShadow.color,
-            radius: DesignSystem.cardShadow.radius,
-            x: DesignSystem.cardShadow.x,
-            y: DesignSystem.cardShadow.y
-        )
+        .cardStyle(radius: DesignSystem.Radius.card)
     }
 
     @ViewBuilder
@@ -372,7 +352,7 @@ struct CafeCard: View {
         if let imagePath = cafeImagePath {
             PhotoThumbnailView(photoPath: imagePath, size: 112)
                 .frame(width: 112, height: 132)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         } else {
             VStack(spacing: 8) {
                 Image(systemName: "cup.and.saucer.fill")
@@ -385,7 +365,7 @@ struct CafeCard: View {
             }
             .frame(width: 112, height: 132)
             .background(Color.sandBeige.opacity(0.66))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         }
     }
 
@@ -399,7 +379,7 @@ struct CafeCard: View {
         .foregroundColor(.espressoBrown)
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color.mugshotMint.opacity(0.38))
+        .background(Color.mugshotSage.opacity(0.38))
         .clipShape(Capsule())
     }
 
@@ -417,10 +397,10 @@ struct CafeCard: View {
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
         }
-        .foregroundColor(.espressoBrown.opacity(0.68))
+        .foregroundColor(.roastBrown.opacity(0.78))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color.sandBeige.opacity(0.42))
+        .background(Color.sandBeige.opacity(0.55))
         .clipShape(Capsule())
     }
 
@@ -523,7 +503,7 @@ struct CafeDetailView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Hero image - user photos > placeholder
@@ -545,13 +525,17 @@ struct CafeDetailView: View {
                                 .clipped()
                         }
                     } else {
-                        RoundedRectangle(cornerRadius: 0)
-                            .fill(Color.sandBeige)
+                        Rectangle()
+                            .fill(Color.sandBeige.opacity(0.7))
                             .frame(height: 250)
                             .overlay(
-                                Image(systemName: "photo")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.espressoBrown.opacity(0.3))
+                                VStack(spacing: 10) {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.system(size: 44, weight: .semibold))
+                                    Text("No cafe photo yet")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundColor(.roastBrown.opacity(0.46))
                             )
                     }
                     
@@ -572,7 +556,7 @@ struct CafeDetailView: View {
                 }
             }
             .background(Color.creamWhite)
-            .navigationTitle("Café Details")
+            .navigationTitle("Cafe details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -608,7 +592,7 @@ struct CafeDetailView: View {
     private var cafeSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(currentCafe.name)
-                .font(.system(size: 26, weight: .bold))
+                .mugshotDisplay(size: 27)
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -616,7 +600,7 @@ struct CafeDetailView: View {
             if !currentCafe.address.isEmpty {
                 Label(currentCafe.address, systemImage: "mappin.circle.fill")
                     .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.68))
+                    .foregroundColor(.tertiaryText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -629,21 +613,16 @@ struct CafeDetailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                 }
-                .foregroundColor(.espressoBrown.opacity(0.62))
+                .foregroundColor(.roastBrown.opacity(0.78))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
-                .background(Color.sandBeige.opacity(0.42))
+                .background(Color.sandBeige.opacity(0.58))
                 .clipShape(Capsule())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
+        .cardStyle(radius: DesignSystem.Radius.heroCard)
     }
 
     private var detailStatsSection: some View {
@@ -735,8 +714,8 @@ struct CafeDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.sandBeige.opacity(0.34))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .background(Color.sandBeige.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
     }
 
     private func detailActionButton(
@@ -753,11 +732,11 @@ struct CafeDetailView: View {
                 .minimumScaleFactor(0.84)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
-                .background(isSelected ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.55))
-                .cornerRadius(DesignSystem.cornerRadius)
+                .background(isSelected ? Color.mugshotSage.opacity(0.34) : Color.sandBeige.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                        .stroke(isSelected ? Color.mugshotSage : Color.clear, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -799,7 +778,7 @@ struct CafeDetailView: View {
 
                 if isLoadingRemoteVisits {
                     ProgressView()
-                        .tint(.mugshotMint)
+                    .tint(.mugshotSage)
                 }
             }
             .padding(.horizontal)
@@ -820,7 +799,7 @@ struct CafeDetailView: View {
                 } else {
                     Text("No remote visits here yet.")
                         .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.62))
+                        .foregroundColor(.secondaryText)
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
@@ -992,13 +971,13 @@ struct RemoteCafeVisitRow: View {
 
                     Text(visit.visit.createdAtDate, style: .date)
                         .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.58))
+                        .foregroundColor(.tertiaryText)
                         .lineLimit(1)
 
                     if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
                         Text(caption)
                             .font(.system(size: 12))
-                            .foregroundColor(.espressoBrown.opacity(0.68))
+                            .foregroundColor(.secondaryText)
                             .lineLimit(2)
                     }
                 }
@@ -1015,21 +994,16 @@ struct RemoteCafeVisitRow: View {
                     .foregroundColor(.espressoBrown)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(Color.mugshotMint.opacity(0.36))
+                    .background(Color.mugshotSage.opacity(0.38))
                     .clipShape(Capsule())
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.espressoBrown.opacity(0.35))
+                        .foregroundColor(.tertiaryText)
                 }
             }
             .padding(12)
-            .background(Color.creamWhite)
-            .cornerRadius(DesignSystem.cornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(Color.sandBeige, lineWidth: 1)
-            )
+            .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
         }
         .buttonStyle(.plain)
     }
@@ -1055,23 +1029,27 @@ struct VisitRow: View {
                     
                     Text(visit.drinkType.rawValue)
                         .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .foregroundColor(.secondaryText)
                 }
                 
                 Spacer()
                 
                 HStack(spacing: 4) {
                     Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotSage)
                         .font(.system(size: 12))
                     Text(String(format: "%.1f", visit.overallScore))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                 }
             }
-            .padding()
-            .background(Color.sandBeige)
-            .cornerRadius(DesignSystem.smallCornerRadius)
+            .padding(12)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .fullScreenCover(isPresented: $showVisitDetail) {

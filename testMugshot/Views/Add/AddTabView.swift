@@ -65,7 +65,7 @@ struct LogVisitView: View {
             return photoImages.isEmpty ? "Saving..." : "Uploading..."
         }
 
-        return canSubmitVisit ? "Save Visit" : "Complete Required Details"
+        return canSubmitVisit ? "Log it" : "Complete required details"
     }
 
     private var progressItems: [LogVisitProgressItem] {
@@ -144,7 +144,7 @@ struct LogVisitView: View {
                         .foregroundColor(.espressoBrown)
                     }
                 }
-                .toolbarBackground(Color.mugshotMint, for: .navigationBar)
+                .toolbarBackground(Color.creamWhite, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .sheet(isPresented: $showCustomizeRatings) {
                     CustomizeRatingsView(
@@ -193,14 +193,14 @@ struct LogVisitView: View {
     private var mainContent: some View {
         ZStack {
             // Light background
-            Color.sandBeige.opacity(0.3)
+            Color.creamWhite
                 .ignoresSafeArea()
             
             ScrollViewReader { proxy in
                 ScrollView {
                     formContent
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 110)
+                        .padding(.bottom, 32)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: scrollToTop) { _, shouldScroll in
@@ -571,13 +571,13 @@ struct LogVisitHeroHeader: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Log a Sip")
-                        .font(.system(size: 38, weight: .bold))
+                    Text("Log a sip")
+                        .mugshotDisplay(size: 34)
                         .foregroundColor(.espressoBrown)
 
                     Text(isRemoteMode ? "Capture the sip with a photo, then add the essentials." : "Capture the drink, then add the essentials.")
-                        .font(.system(size: 16))
-                        .foregroundColor(.espressoBrown.opacity(0.68))
+                        .font(.system(size: 15))
+                        .foregroundColor(.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -586,9 +586,9 @@ struct LogVisitHeroHeader: View {
                 VStack(spacing: 5) {
                     Text("\(min(completedCount + 1, max(totalCount, 1)))")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.espressoBrown)
+                        .foregroundColor(.foamWhite)
                         .frame(width: 42, height: 42)
-                        .background(Color.mugshotMint.opacity(0.55))
+                        .background(Color.mugshotSage)
                         .clipShape(Circle())
 
                     Text("of \(max(totalCount, 1))")
@@ -611,6 +611,9 @@ struct LogVisitHeroHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color.sandBeige.opacity(0.48))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
     }
 }
 
@@ -626,13 +629,13 @@ struct SectionTitle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.espressoBrown)
 
             if let subtitle {
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.58))
+                    .foregroundColor(.tertiaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -725,11 +728,11 @@ struct AddVisitSummaryPill: View {
         .foregroundColor(isComplete ? .espressoBrown : .espressoBrown.opacity(0.62))
         .padding(.horizontal, 11)
         .padding(.vertical, 8)
-        .background(isComplete ? Color.mugshotMint.opacity(0.22) : Color.creamWhite.opacity(0.88))
+        .background(isComplete ? Color.mugshotSage.opacity(0.22) : Color.creamWhite.opacity(0.88))
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(isComplete ? Color.mugshotMint.opacity(0.55) : Color.sandBeige.opacity(0.82), lineWidth: 1)
+                .stroke(isComplete ? Color.mugshotSage.opacity(0.55) : Color.sandBeige.opacity(0.82), lineWidth: 1)
         )
     }
 }
@@ -744,7 +747,7 @@ struct SaveVisitButtonLabel: View {
             HStack(spacing: 9) {
                 if isSaving {
                     ProgressView()
-                        .tint(.espressoBrown)
+                        .tint(.foamWhite)
                 } else {
                     Image(systemName: photoCount > 0 ? "photo.on.rectangle.angled" : "cup.and.saucer.fill")
                         .font(.system(size: 15, weight: .semibold))
@@ -831,7 +834,7 @@ struct LogVisitProgressCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: completedCount == items.count ? "checkmark.circle.fill" : "leaf.fill")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotSage)
                     .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -849,7 +852,7 @@ struct LogVisitProgressCard: View {
             }
 
             ProgressView(value: Double(completedCount), total: Double(max(items.count, 1)))
-                .tint(.mugshotMint)
+                .tint(.mugshotSage)
 
             LazyVGrid(
                 columns: [
@@ -886,7 +889,7 @@ struct LogVisitProgressChip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(item.isComplete ? Color.mugshotMint.opacity(0.18) : Color.sandBeige.opacity(0.32))
+        .background(item.isComplete ? Color.mugshotSage.opacity(0.18) : Color.sandBeige.opacity(0.32))
         .cornerRadius(999)
     }
 }
@@ -940,7 +943,7 @@ struct ReadinessPill: View {
         .foregroundColor(.espressoBrown.opacity(0.78))
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color.mugshotMint.opacity(0.18))
+        .background(Color.mugshotSage.opacity(0.18))
         .cornerRadius(999)
     }
 }
@@ -969,9 +972,9 @@ struct ValidationErrorCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color.red.opacity(0.08))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
                 .stroke(Color.red.opacity(0.16), lineWidth: 1)
         )
     }
@@ -1024,13 +1027,7 @@ struct CafeLocationSection: View {
                                 }
                             }
                         }
-                        .padding()
-                        .background(Color.creamWhite)
-                        .cornerRadius(DesignSystem.cornerRadius)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                                .stroke(Color.sandBeige, lineWidth: 1)
-                        )
+                        .mugshotFormField()
                         
                         Button("Cancel") {
                             searchText = ""
@@ -1061,7 +1058,7 @@ struct CafeLocationSection: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Image(systemName: "location.fill")
-                                        .foregroundColor(.mugshotMint)
+                                        .foregroundColor(.mugshotSage)
                                         .font(.system(size: 14))
                                     Text(cafe.name)
                                         .font(.system(size: 16))
@@ -1088,9 +1085,7 @@ struct CafeLocationSection: View {
                         Image(systemName: "chevron.right")
                             .foregroundColor(.espressoBrown.opacity(0.4))
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .mugshotFormField()
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
                             .stroke(Color.sandBeige, lineWidth: 1)
@@ -1187,10 +1182,10 @@ struct CafeSearchResultsDropdown: View {
                 .background(Color.creamWhite)
             }
         }
-        .cornerRadius(DesignSystem.cornerRadius)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
         )
         .shadow(
             color: DesignSystem.cardShadow.color,
@@ -1214,7 +1209,7 @@ struct CafeSearchResultsDropdown: View {
                 } label: {
                     HStack {
                         Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotSage)
                         Text("Use \(cafeName)")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.espressoBrown)
@@ -1222,10 +1217,10 @@ struct CafeSearchResultsDropdown: View {
                     }
                     .padding()
                     .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                            .stroke(Color.mugshotLine, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -1279,16 +1274,7 @@ struct DrinkTypeSection: View {
             
             if drinkType == .other {
                 TextField("What are you drinking?", text: $customDrinkType)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding()
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.sandBeige, lineWidth: 1)
-                    )
+                    .mugshotFormField()
                     .padding(.top, 8)
             }
         }
@@ -1318,11 +1304,11 @@ struct DrinkTypeChip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(isSelected ? Color.mugshotMint.opacity(0.28) : Color.sandBeige.opacity(0.24))
+            .background(isSelected ? Color.mugshotSage.opacity(0.28) : Color.sandBeige.opacity(0.24))
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.mugshotMint : Color.sandBeige.opacity(0.7), lineWidth: 1)
+                    .stroke(isSelected ? Color.mugshotSage : Color.sandBeige.opacity(0.7), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -1342,18 +1328,9 @@ struct DrinkDetailsSection: View {
             )
 
             TextField("Latte, cortado, ceremonial matcha...", text: $drinkDetails)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.sandBeige, lineWidth: 1)
-                )
+                .mugshotFormField()
         }
         .padding(16)
         .cardStyle()
@@ -1380,22 +1357,22 @@ struct PhotosSection: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Add a photo of your sip")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
                     Text(photoImages.isEmpty ? "Required for beta posting." : "Choose the poster photo for this visit.")
                         .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.64))
+                        .foregroundColor(.secondaryText)
                 }
 
                 Spacer(minLength: 12)
 
                 Text("\(photoImages.count)/10")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.espressoBrown.opacity(0.72))
+                    .foregroundColor(.roastBrown)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.sandBeige.opacity(0.5))
+                    .background(Color.sandBeige.opacity(0.68))
                     .clipShape(Capsule())
             }
             
@@ -1414,7 +1391,7 @@ struct PhotosSection: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.largeCornerRadius))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         HStack(spacing: 6) {
                             Image(systemName: "star.fill")
@@ -1422,10 +1399,10 @@ struct PhotosSection: View {
                             Text("Poster photo")
                                 .font(.system(size: 12, weight: .bold))
                         }
-                        .foregroundColor(.espressoBrown)
+                        .foregroundColor(.creamWhite)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(.ultraThinMaterial)
+                        .background(Color.espressoBrown.opacity(0.72))
                         .clipShape(Capsule())
                         .padding(12)
                     }
@@ -1446,15 +1423,15 @@ struct PhotosSection: View {
                                     if index == safePosterIndex {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(.mugshotMint)
-                                            .background(Color.creamWhite)
+                                            .foregroundColor(.mugshotSage)
+                                            .background(Color.foamWhite)
                                             .clipShape(Circle())
                                             .padding(5)
                                     }
                                 }
                                 .overlay(
                                     RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                        .stroke(index == safePosterIndex ? Color.mugshotMint : Color.clear, lineWidth: 2)
+                                        .stroke(index == safePosterIndex ? Color.mugshotSage : Color.clear, lineWidth: 2)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -1479,7 +1456,7 @@ struct PhotosSection: View {
                                 matching: .images
                             ) {
                                 RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                                    .fill(Color.sandBeige.opacity(0.3))
+                                    .fill(Color.sandBeige.opacity(0.62))
                                     .frame(width: 86, height: 86)
                                     .overlay(
                                         VStack(spacing: 5) {
@@ -1488,7 +1465,7 @@ struct PhotosSection: View {
                                             Text("Add")
                                                 .font(.system(size: 11, weight: .semibold))
                                         }
-                                        .foregroundColor(.espressoBrown.opacity(0.62))
+                                        .foregroundColor(.roastBrown.opacity(0.72))
                                     )
                             }
                             .buttonStyle(.plain)
@@ -1506,21 +1483,21 @@ struct PhotosSection: View {
         VStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: DesignSystem.largeCornerRadius)
-                    .fill(Color.sandBeige.opacity(0.28))
+                    .fill(Color.sandBeige.opacity(0.62))
                     .frame(height: 150)
 
                 VStack(spacing: 10) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 36, weight: .semibold))
-                        .foregroundColor(.espressoBrown.opacity(0.5))
+                        .foregroundColor(.roastBrown.opacity(0.58))
 
-                    Text("Choose from Library")
+                    Text("Choose from library")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.espressoBrown)
 
                     Text("Photos compress automatically before upload.")
                         .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.58))
+                        .foregroundColor(.tertiaryText)
                 }
             }
 
@@ -1530,16 +1507,16 @@ struct PhotosSection: View {
                 Text("At least one photo is required before posting.")
                     .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundColor(.espressoBrown.opacity(0.68))
+            .foregroundColor(.roastBrown.opacity(0.78))
         }
         .frame(maxWidth: .infinity)
         .padding(14)
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.largeCornerRadius)
+        .background(Color.foamWhite)
+        .cornerRadius(DesignSystem.Radius.heroCard)
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.largeCornerRadius)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard)
                 .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                .foregroundColor(.sandBeige.opacity(0.95))
+                .foregroundColor(.mugshotLine)
         )
     }
 
@@ -1586,7 +1563,7 @@ struct RatingsSection: View {
                         Text("Customize")
                             .font(.system(size: 14))
                     }
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotSage)
                 }
             }
 
@@ -1631,7 +1608,7 @@ struct RatingScorePanel: View {
                     .foregroundColor(.espressoBrown.opacity(0.72))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background(Color.mugshotMint.opacity(0.24))
+                    .background(Color.mugshotSage.opacity(0.24))
                     .clipShape(Capsule())
             }
         }
@@ -1683,7 +1660,7 @@ struct RatingCategoryRow: View {
                     if weightMultiplier != 1.0 {
                         Text("(\(formatWeight(weightMultiplier)) importance)")
                             .font(.system(size: 12))
-                            .foregroundColor(.mugshotMint)
+                            .foregroundColor(.mugshotSage)
                     }
                 }
                 
@@ -1745,16 +1722,7 @@ struct CaptionSection: View {
                 }
             ), axis: .vertical)
                 .lineLimit(3...6)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
-                )
+                .mugshotFormField()
         }
         .padding(16)
         .cardStyle()
@@ -1775,16 +1743,7 @@ struct NotesSection: View {
             
             TextField("Anything extra you'd like to remember?", text: $notes, axis: .vertical)
                 .lineLimit(3...8)
-                .foregroundColor(.inputText)
-                .tint(.mugshotMint)
-                .accentColor(.mugshotMint)
-                .padding()
-                .background(Color.inputBackground)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                        .stroke(Color.inputBorder, lineWidth: 1)
-                )
+                .mugshotFormField()
         }
         .padding(16)
         .cardStyle()
@@ -1858,11 +1817,11 @@ struct VisibilityButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(isSelected ? Color.mugshotMint.opacity(0.2) : Color.sandBeige.opacity(0.3))
-            .cornerRadius(DesignSystem.cornerRadius)
+            .background(isSelected ? Color.mugshotSage.opacity(0.2) : Color.sandBeige.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(isSelected ? Color.mugshotMint : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                    .stroke(isSelected ? Color.mugshotSage : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -1879,7 +1838,7 @@ struct CafeSearchSheet: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Search bar
                 HStack {
@@ -1889,8 +1848,8 @@ struct CafeSearchSheet: View {
                         
                         TextField("Search cafes...", text: $searchText)
                             .foregroundColor(.inputText)
-                            .tint(.mugshotMint)
-                            .accentColor(.mugshotMint)
+                            .tint(.mugshotSage)
+                            .accentColor(.mugshotSage)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .onChange(of: searchText) { oldValue, newValue in
@@ -1911,9 +1870,7 @@ struct CafeSearchSheet: View {
                             }
                         }
                     }
-                    .padding()
-                    .background(Color.creamWhite)
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .mugshotFormField()
                 }
                 .padding()
                 
@@ -1924,17 +1881,18 @@ struct CafeSearchSheet: View {
                 } else if let error = searchService.searchError {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.espressoBrown.opacity(0.5))
+                            .foregroundColor(.roastBrown.opacity(0.5))
                         Text(error)
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                            .foregroundColor(.secondaryText)
                     }
                     .padding()
                 } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
                     Text("No results found")
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .foregroundColor(.secondaryText)
                         .padding()
                 } else {
-                    List {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
                         ForEach(searchService.searchResults, id: \.self) { mapItem in
                             Button(action: {
                                 let cafe = dataManager.findOrCreateCafe(from: mapItem)
@@ -1948,18 +1906,28 @@ struct CafeSearchSheet: View {
                                         if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
                                             Text(address)
                                                 .font(.caption)
-                                                .foregroundColor(.espressoBrown.opacity(0.6))
+                                                .foregroundColor(.tertiaryText)
                                         }
                                     }
                                     Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.tertiaryText)
                                 }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 13)
+                                .background(Color.foamWhite)
                             }
+                            .buttonStyle(.plain)
+                            Divider()
+                                .padding(.leading, 16)
+                        }
                         }
                     }
                 }
             }
             .background(Color.creamWhite)
-            .navigationTitle("Search Cafes")
+            .navigationTitle("Search cafes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -2010,12 +1978,12 @@ struct CustomizeRatingsView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("Define what matters most in your coffee journey and how much each criterion should count.")
+                    Text("Define what matters most in your sip journal and how much each criterion should count.")
                         .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                        .foregroundColor(.secondaryText)
                         .padding(.top)
                     
                     ForEach(editingCategories.indices, id: \.self) { index in
@@ -2037,11 +2005,11 @@ struct CustomizeRatingsView: View {
                             Image(systemName: "plus.circle")
                             Text("Add New Category")
                         }
-                        .foregroundColor(.mugshotMint)
+                        .foregroundColor(.mugshotSage)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.sandBeige.opacity(0.3))
-                        .cornerRadius(DesignSystem.cornerRadius)
+                        .background(Color.sandBeige.opacity(0.58))
+                        .clipShape(Capsule())
                     }
                 }
                 .padding()
@@ -2085,16 +2053,7 @@ struct CustomizeRatingCategoryRow: View {
                 
                 // Category name
                 TextField("Category name", text: $category.name)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding(8)
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.smallCornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                            .stroke(Color.inputBorder, lineWidth: 1)
-                    )
+                    .mugshotFormField()
                 
                 // Delete button
                 Button(action: onDelete) {
@@ -2117,13 +2076,12 @@ struct CustomizeRatingCategoryRow: View {
                 
                 Text(formatWeight(weightMultiplier))
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotMint)
+                    .foregroundColor(.mugshotSage)
                     .frame(width: 40)
             }
         }
         .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
         .onAppear {
             // Weights are stored as multipliers, so use directly
             weightMultiplier = category.weight > 0 ? category.weight : 1.0

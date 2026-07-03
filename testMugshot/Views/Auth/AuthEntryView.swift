@@ -36,21 +36,33 @@ struct AuthEntryView: View {
             Color.creamWhite.ignoresSafeArea()
             
             ScrollView {
-                VStack(spacing: 28) {
-                    Spacer(minLength: 56)
+                VStack(spacing: 24) {
+                    Spacer(minLength: 42)
                     
-                    VStack(spacing: 12) {
+                    VStack(spacing: 10) {
+                        Image("MugshotAppIcon")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 5)
+
                         Text("Mugshot")
-                            .font(.system(size: 46, weight: .bold))
+                            .mugshotDisplay(size: 42)
                             .foregroundColor(.espressoBrown)
                         
-                        Text("Sign in to start saving your coffee journey.")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
+                        Text(isCreatingAccount ? "Start your sip journal." : "Savor more. Share better.")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     
                     VStack(alignment: .leading, spacing: 16) {
+                        MugshotSectionTitle(
+                            title: isCreatingAccount ? "Create your account" : "Welcome back",
+                            subtitle: "Your photo-backed sips, saved cafes, notes, and ratings stay with your beta account."
+                        )
+
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Email")
                                 .font(.system(size: 14, weight: .semibold))
@@ -85,10 +97,10 @@ struct AuthEntryView: View {
                             HStack {
                                 if isBusy {
                                     ProgressView()
-                                        .tint(.espressoBrown)
+                                        .tint(.foamWhite)
                                 }
                                 
-                                Text(isCreatingAccount ? "Create Account" : "Sign In")
+                                Text(isCreatingAccount ? "Create account" : "Sign in")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .frame(maxWidth: .infinity)
@@ -103,21 +115,20 @@ struct AuthEntryView: View {
                         } label: {
                             Text(isCreatingAccount ? "Already have an account? Sign in" : "Need an account? Create one")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.espressoBrown.opacity(0.75))
+                                .foregroundColor(.roastBrown)
                                 .frame(maxWidth: .infinity)
                         }
                         .disabled(isBusy)
                     }
                     .padding(22)
-                    .background(Color.sandBeige.opacity(0.55))
-                    .cornerRadius(DesignSystem.cornerRadius)
+                    .cardStyle(radius: DesignSystem.Radius.heroCard)
                     .padding(.horizontal, 24)
                     
-                    Text("Map, Feed, Add, Saved, and Profile are still local prototype surfaces after sign-in in this phase.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.55))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 28)
+                    HStack(spacing: 6) {
+                        MugshotTagChip(title: "Photo sips", icon: "camera.fill")
+                        MugshotTagChip(title: "Private notes", icon: "lock.fill")
+                        MugshotTagChip(title: "Cafe saves", icon: "bookmark.fill")
+                    }
                     
                     Spacer(minLength: 40)
                 }
@@ -156,7 +167,7 @@ struct SupabaseConfigurationRequiredView: View {
             
             VStack(spacing: 18) {
                 Text("Mugshot")
-                    .font(.system(size: 44, weight: .bold))
+                    .mugshotDisplay(size: 40)
                     .foregroundColor(.espressoBrown)
                 
                 Text("Supabase config needed")
@@ -185,11 +196,11 @@ struct AuthLoadingView: View {
             
             VStack(spacing: 16) {
                 ProgressView()
-                    .tint(.mugshotMint)
+                    .tint(.mugshotSage)
                 
                 Text("Checking session")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.espressoBrown.opacity(0.75))
+                    .foregroundColor(.secondaryText)
             }
         }
     }
@@ -197,14 +208,6 @@ struct AuthLoadingView: View {
 
 private extension View {
     func authFieldStyle() -> some View {
-        padding(12)
-            .foregroundColor(.inputText)
-            .tint(.mugshotMint)
-            .background(Color.inputBackground)
-            .cornerRadius(DesignSystem.smallCornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .stroke(Color.inputBorder, lineWidth: 1)
-            )
+        mugshotFormField()
     }
 }

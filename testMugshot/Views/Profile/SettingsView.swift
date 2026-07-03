@@ -55,8 +55,20 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Settings")
+                            .mugshotDisplay(size: 30)
+                            .foregroundColor(.espressoBrown)
+
+                        Text("Private beta essentials.")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                    }
+                    .padding(.top, 8)
+
+                    VStack(spacing: 0) {
                     ForEach(SettingsDestination.allCases) { destination in
                         if let url = destination.externalURL {
                             Link(destination: url) {
@@ -70,9 +82,9 @@ struct SettingsView: View {
                             }
                         }
                     }
-                }
+                    }
+                    .cardStyle()
 
-                Section {
                     Button(role: .destructive) {
                         Task {
                             await authModel.signOut()
@@ -80,12 +92,15 @@ struct SettingsView: View {
                         }
                     } label: {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .tint(.red)
                 }
+                .padding(20)
             }
-            .scrollContentBackground(.hidden)
             .background(Color.creamWhite)
-            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -98,8 +113,26 @@ struct SettingsView: View {
     }
 
     private func settingsRow(_ destination: SettingsDestination) -> some View {
-        Label(destination.rawValue, systemImage: destination.systemImage)
-            .foregroundColor(.espressoBrown)
+        HStack(spacing: 12) {
+            Image(systemName: destination.systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 34, height: 34)
+                .background(Color.mugshotSage.opacity(0.16))
+                .clipShape(Circle())
+
+            Text(destination.rawValue)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.tertiaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 }
 
@@ -110,23 +143,25 @@ struct SettingsDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Image(systemName: destination.systemImage)
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
                     .frame(width: 58, height: 58)
-                    .background(Color.mugshotMint.opacity(0.35))
+                    .background(Color.mugshotSage.opacity(0.16))
                     .clipShape(Circle())
 
                 Text(destination.rawValue)
-                    .font(.system(size: 28, weight: .bold))
+                    .mugshotDisplay(size: 30)
                     .foregroundColor(.espressoBrown)
 
                 Text(destination.detail)
                     .font(.system(size: 15))
-                    .foregroundColor(.espressoBrown.opacity(0.72))
+                    .foregroundColor(.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DesignSystem.largePadding)
+            .cardStyle(radius: DesignSystem.Radius.heroCard)
+            .padding()
         }
         .background(Color.creamWhite)
         .navigationTitle(destination.rawValue)

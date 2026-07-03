@@ -41,7 +41,7 @@ struct RemoteVisitDetailView: View {
                     loadingContent
                 }
             }
-            .navigationTitle("Visit Details")
+            .navigationTitle("Visit details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if let detail,
@@ -133,7 +133,7 @@ struct RemoteVisitDetailView: View {
                     )
                     .frame(maxWidth: .infinity)
                     .frame(height: 310)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.largeCornerRadius))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         scoreBadge(score: detail.summary.visit.overallScore)
                             .padding(12)
@@ -148,7 +148,7 @@ struct RemoteVisitDetailView: View {
                                         placeholderSystemName: "photo"
                                     )
                                     .frame(width: 74, height: 74)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                                 }
                             }
                         }
@@ -166,7 +166,7 @@ struct RemoteVisitDetailView: View {
             VStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(Color.mugshotMint.opacity(0.32))
+                        .fill(Color.mugshotSage.opacity(0.32))
                         .frame(width: 64, height: 64)
 
                     Image(systemName: "checkmark")
@@ -176,7 +176,7 @@ struct RemoteVisitDetailView: View {
 
                 VStack(spacing: 4) {
                     Text("Sip saved")
-                        .font(.system(size: 30, weight: .bold))
+                        .mugshotDisplay(size: 30)
                         .foregroundColor(.espressoBrown)
 
                     Text("Added to your taste journal and Profile Recent.")
@@ -203,7 +203,7 @@ struct RemoteVisitDetailView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.espressoBrown)
 
-                Text(currentUserId == detail.summary.visit.userId ? "This sip is safely saved without a photo." : "This visit was saved without a photo.")
+                Text("Older beta visits may not include photos. New sips need a photo before posting.")
                     .font(.system(size: 13))
                     .foregroundColor(.espressoBrown.opacity(0.64))
                     .multilineTextAlignment(.center)
@@ -212,11 +212,11 @@ struct RemoteVisitDetailView: View {
         }
             .frame(maxWidth: .infinity)
             .frame(height: 220)
-            .background(Color.sandBeige.opacity(0.48))
-            .cornerRadius(DesignSystem.cornerRadius)
+            .background(Color.sandBeige.opacity(0.62))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .stroke(Color.sandBeige, lineWidth: 1)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
             )
             .padding(.horizontal)
     }
@@ -233,7 +233,7 @@ struct RemoteVisitDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(detail.summary.locationTitle)
-                        .font(.system(size: 24, weight: .bold))
+                        .mugshotDisplay(size: 27)
                         .foregroundColor(.espressoBrown)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -266,7 +266,7 @@ struct RemoteVisitDetailView: View {
 
             HStack(spacing: 10) {
                 Circle()
-                    .fill(Color.mugshotMint)
+                    .fill(Color.mugshotSage)
                     .frame(width: 40, height: 40)
                     .overlay(
                         Text(detail.summary.authorInitial)
@@ -294,12 +294,7 @@ struct RemoteVisitDetailView: View {
             }
         }
         .padding()
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
+        .cardStyle()
         .padding(.horizontal)
     }
 
@@ -330,24 +325,12 @@ struct RemoteVisitDetailView: View {
     }
 
     private func scoreBadge(score: Double) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 12, weight: .semibold))
-            Text(String(format: "%.1f", score))
-                .font(.system(size: 14, weight: .bold))
-        }
-        .foregroundColor(.espressoBrown)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.mugshotMint.opacity(0.35))
-        .cornerRadius(999)
+        MugshotRatingBadge(score: score)
     }
 
     private func drinkSection(_ detail: RemoteVisitDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Visit Details")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+            MugshotSectionTitle(title: "Visit Details")
 
             detailRow(title: "Drink", value: detail.summary.visit.drinkDisplayName)
 
@@ -361,27 +344,18 @@ struct RemoteVisitDetailView: View {
             }
         }
         .padding()
-        .background(Color.sandBeige.opacity(0.28))
-        .cornerRadius(DesignSystem.cornerRadius)
+        .mugshotSunkenPanel()
         .padding(.horizontal)
     }
 
     private func ratingSection(_ detail: RemoteVisitDetail) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Overall Score")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+                MugshotSectionTitle(title: "Overall Score")
 
                 Spacer()
 
-                HStack(spacing: 5) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotMint)
-                    Text(String(format: "%.1f", detail.summary.visit.overallScore))
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                }
+                MugshotRatingBadge(score: detail.summary.visit.overallScore)
             }
 
             if !detail.summary.visit.ratings.isEmpty {
@@ -403,19 +377,14 @@ struct RemoteVisitDetailView: View {
                             }
 
                             ProgressView(value: rating, total: 5)
-                                .tint(.mugshotMint)
+                                .tint(.mugshotSage)
                         }
                     }
                 }
             }
         }
         .padding()
-        .background(Color.creamWhite)
-        .cornerRadius(DesignSystem.cornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .stroke(Color.sandBeige, lineWidth: 1)
-        )
+        .cardStyle()
         .padding(.horizontal)
     }
 
@@ -425,9 +394,7 @@ struct RemoteVisitDetailView: View {
            let notes = detail.summary.visit.trimmedNotes {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Private Notes")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
+                    MugshotSectionTitle(title: "Private Notes")
 
                     Text(notes)
                         .font(.system(size: 15))
@@ -484,9 +451,7 @@ struct RemoteVisitDetailView: View {
 
     private func commentsSection(_ detail: RemoteVisitDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Comments")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+            MugshotSectionTitle(title: "Comments")
 
             if detail.comments.isEmpty {
                 Text("No comments yet")
@@ -504,9 +469,7 @@ struct RemoteVisitDetailView: View {
                 HStack(alignment: .bottom, spacing: 10) {
                     TextField("Add a comment", text: $commentText, axis: .vertical)
                         .lineLimit(1...4)
-                        .padding(11)
-                        .background(Color.sandBeige.opacity(0.32))
-                        .cornerRadius(DesignSystem.smallCornerRadius)
+                        .mugshotFormField()
 
                     Button {
                         Task {
@@ -528,7 +491,7 @@ struct RemoteVisitDetailView: View {
     private var loadingContent: some View {
         VStack(spacing: 14) {
             ProgressView()
-                .tint(.mugshotMint)
+                .tint(.mugshotSage)
 
             Text(displayedSummary.locationTitle)
                 .font(.system(size: 15, weight: .semibold))
@@ -559,7 +522,7 @@ struct RemoteVisitDetailView: View {
                 }
             }
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.mugshotMint)
+            .foregroundColor(.mugshotSage)
         }
         .padding()
     }
@@ -800,7 +763,7 @@ struct RemotePhotoImageView: View {
                         placeholder
                             .overlay(
                                 ProgressView()
-                                    .tint(.mugshotMint)
+                                    .tint(.mugshotSage)
                             )
                     case .success(let image):
                         image
@@ -816,17 +779,17 @@ struct RemotePhotoImageView: View {
                 placeholder
             }
         }
-        .background(Color.sandBeige)
+        .background(Color.sandBeige.opacity(0.72))
         .clipped()
     }
 
     private var placeholder: some View {
         Rectangle()
-            .fill(Color.sandBeige)
+            .fill(Color.sandBeige.opacity(0.72))
             .overlay(
                 Image(systemName: placeholderSystemName)
-                    .font(.system(size: 44))
-                    .foregroundColor(.espressoBrown.opacity(0.32))
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundColor(.roastBrown.opacity(0.42))
             )
     }
 }
@@ -836,14 +799,7 @@ struct RemoteCommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.mugshotMint)
-                .frame(width: 38, height: 38)
-                .overlay(
-                    Text(comment.authorInitial)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                )
+            MugshotAvatar(name: comment.authorDisplayName, size: 38)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -871,8 +827,8 @@ struct RemoteCommentRow: View {
             Spacer(minLength: 0)
         }
         .padding()
-        .background(Color.sandBeige.opacity(0.3))
-        .cornerRadius(DesignSystem.smallCornerRadius)
+        .background(Color.sandBeige.opacity(0.46))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
     }
 
     private func timeAgoString(from date: Date) -> String {
@@ -915,10 +871,13 @@ struct EditRemoteVisitView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    MugshotSectionTitle(
+                        title: "Edit sip",
+                        subtitle: "Update the public caption, private notes, and visibility."
+                    )
+
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Caption")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
+                        MugshotSectionTitle(title: "Caption")
 
                         TextField("Caption", text: $caption, axis: .vertical)
                             .lineLimit(3...6)
@@ -926,9 +885,7 @@ struct EditRemoteVisitView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Private Notes")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
+                        MugshotSectionTitle(title: "Private Notes")
 
                         TextField("Only visible to you", text: $notes, axis: .vertical)
                             .lineLimit(3...6)
@@ -936,16 +893,14 @@ struct EditRemoteVisitView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Visibility")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
+                        MugshotSectionTitle(title: "Visibility")
 
-                        Picker("Visibility", selection: $visibility) {
-                            Text("Private").tag(VisitVisibility.private)
-                            Text("Friends").tag(VisitVisibility.friends)
-                            Text("Everyone").tag(VisitVisibility.everyone)
-                        }
-                        .pickerStyle(.segmented)
+                        MugshotSegmentedControl(
+                            options: [VisitVisibility.private, .friends, .everyone],
+                            selection: $visibility,
+                            title: { $0.rawValue },
+                            icon: { visibilityIcon(for: $0.rawValue) }
+                        )
                     }
 
                     if let errorMessage {
@@ -963,9 +918,9 @@ struct EditRemoteVisitView: View {
                         HStack {
                             if isSaving {
                                 ProgressView()
-                                    .tint(.espressoBrown)
+                                    .tint(.foamWhite)
                             }
-                            Text("Save Visit")
+                            Text("Save visit")
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity)
@@ -975,9 +930,11 @@ struct EditRemoteVisitView: View {
                     .opacity(canSave ? 1 : 0.62)
                 }
                 .padding(DesignSystem.largePadding)
+                .cardStyle(radius: DesignSystem.Radius.heroCard)
+                .padding()
             }
             .background(Color.creamWhite)
-            .navigationTitle("Edit Visit")
+            .navigationTitle("Edit visit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1007,19 +964,22 @@ struct EditRemoteVisitView: View {
             errorMessage = "Could not save visit edits."
         }
     }
+
+    private func visibilityIcon(for label: String) -> String {
+        switch label.lowercased() {
+        case "private":
+            return "lock.fill"
+        case "friends":
+            return "person.2.fill"
+        default:
+            return "globe"
+        }
+    }
 }
 
 private extension View {
     func remoteVisitEditField() -> some View {
-        padding(12)
-            .foregroundColor(.inputText)
-            .tint(.mugshotMint)
-            .background(Color.inputBackground)
-            .cornerRadius(DesignSystem.smallCornerRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .stroke(Color.inputBorder, lineWidth: 1)
-            )
+        mugshotFormField()
     }
 }
 

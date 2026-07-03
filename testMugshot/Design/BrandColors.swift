@@ -8,21 +8,28 @@
 import SwiftUI
 
 extension Color {
-    // Mugshot Brand Colors
-    static let mugshotMint = Color(hex: "B9D9C3")
-    static let creamWhite = Color(hex: "FAF8F6")
-    static let espressoBrown = Color(hex: "4A3B33")
-    static let sandBeige = Color(hex: "E6DED4")
-    static let sageGray = Color(hex: "C8CBC5")
+    // Mugshot Design handoff palette.
+    static let mugshotMint = Color(hex: "A8CDB8")
+    static let mugshotSage = Color(hex: "6E8F7C")
+    static let mugshotMatcha = Color(hex: "8FAF6A")
+    static let mugshotLatte = Color(hex: "DCC8A6")
+    static let creamWhite = Color(hex: "FAF6F0")
+    static let foamWhite = Color(hex: "FFFFFF")
+    static let espressoBrown = Color(hex: "1F1712")
+    static let roastBrown = Color(hex: "5B4636")
+    static let darkRoast = Color(hex: "2B1F17")
+    static let sandBeige = Color(hex: "EEE6D8")
+    static let mugshotLine = Color(hex: "E3DED4")
+    static let sageGray = Color(hex: "A8CDB8")
     
     // Text colors (explicit, non-adaptive)
     static let primaryText = Color.espressoBrown
-    static let secondaryText = Color.espressoBrown.opacity(0.7)
-    static let tertiaryText = Color.espressoBrown.opacity(0.6)
+    static let secondaryText = Color.roastBrown
+    static let tertiaryText = Color.roastBrown.opacity(0.62)
     
     // Input colors
-    static let inputBackground = Color.creamWhite
-    static let inputBorder = Color.sandBeige
+    static let inputBackground = Color.foamWhite
+    static let inputBorder = Color.mugshotLine
     static let inputText = Color.espressoBrown
     static let inputPlaceholder = Color.espressoBrown.opacity(0.5)
     
@@ -51,4 +58,3 @@ extension Color {
         )
     }
 }
-
