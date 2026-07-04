@@ -60,7 +60,7 @@ struct AuthEntryView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         MugshotSectionTitle(
                             title: isCreatingAccount ? "Create your account" : "Welcome back",
-                            subtitle: "Your photo-backed sips, saved cafes, notes, and ratings stay with your beta account."
+                            subtitle: "Your photo-backed sips, saved cafes, notes, and ratings stay with you."
                         )
 
                         VStack(alignment: .leading, spacing: 8) {
@@ -170,7 +170,7 @@ struct SupabaseConfigurationRequiredView: View {
                     .mugshotDisplay(size: 40)
                     .foregroundColor(.espressoBrown)
                 
-                Text("Supabase config needed")
+                Text("Sign-in is unavailable")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 
@@ -179,7 +179,7 @@ struct SupabaseConfigurationRequiredView: View {
                     .foregroundColor(.espressoBrown.opacity(0.7))
                     .multilineTextAlignment(.center)
                 
-                Text("Create Config/SupabaseConfig.local.xcconfig from the example file, then rebuild.")
+                Text("Please try again after account access is set up.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.espressoBrown.opacity(0.65))
                     .multilineTextAlignment(.center)

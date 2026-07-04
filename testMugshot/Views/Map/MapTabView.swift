@@ -25,6 +25,27 @@ struct MapTabView: View {
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
     @State private var remoteStateError: String?
+    @State private var mapFilter: MapPinFilter = .all
+
+    enum MapPinFilter: String, CaseIterable {
+        case all = "All"
+        case favorites = "Favorites"
+        case wantToTry = "Want to Try"
+        case visited = "Visited"
+
+        var iconName: String {
+            switch self {
+            case .all:
+                return "map.fill"
+            case .favorites:
+                return "heart.fill"
+            case .wantToTry:
+                return "bookmark.fill"
+            case .visited:
+                return "cup.and.saucer.fill"
+            }
+        }
+    }
     
     // Default fallback region (SF) - only used if location unavailable
     private let defaultRegion = MKCoordinateRegion(
@@ -111,13 +132,12 @@ struct MapTabView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
-                // Inline search bar
                 HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.espressoBrown.opacity(0.6))
                         
-                        TextField("Search cafes...", text: $searchText)
+                        TextField("Search cafes or neighborhoods...", text: $searchText)
                             .foregroundColor(.inputText)
                             .tint(.mugshotSage)
                             .accentColor(.mugshotSage)
@@ -145,18 +165,14 @@ struct MapTabView: View {
                             }
                         }
                     }
-                    .padding(14)
-                    .background(Color.foamWhite)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                            .stroke(Color.mugshotLine, lineWidth: 1)
-                    )
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .mugshotGlassSurface(
+                        radius: 26,
+                        tint: .foamWhite,
+                        stroke: Color.foamWhite.opacity(0.62),
+                        shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
+                        interactive: true
                     )
                     
                     if isSearchActive {
@@ -170,9 +186,32 @@ struct MapTabView: View {
                         .transition(.opacity)
                     }
                 }
-                .padding()
-                .background(Color.creamWhite.opacity(isSearchActive ? 0.96 : 0))
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, isSearchActive ? 12 : 8)
+                .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
                 .animation(DesignSystem.Motion.base, value: isSearchActive)
+
+                if !isSearchActive {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(MapPinFilter.allCases, id: \.self) { filter in
+                                MugshotFilterChip(
+                                    title: filter.rawValue,
+                                    icon: filter.iconName,
+                                    isSelected: mapFilter == filter
+                                ) {
+                                    withAnimation(DesignSystem.Motion.base) {
+                                        mapFilter = filter
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 2)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 
                 // Search results list (inline below search bar)
                 if isSearchActive {
@@ -206,7 +245,7 @@ struct MapTabView: View {
                             )
                         )
                         .padding(.trailing)
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 104)
                     }
                 }
             }
@@ -217,7 +256,7 @@ struct MapTabView: View {
                 if !showCafeDetail {
                     RatingsLegend()
                         .padding(.horizontal)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 100)
                         .transition(.opacity)
                 }
             }
@@ -278,7 +317,21 @@ struct MapTabView: View {
     private var cafesWithLocations: [Cafe] {
         // Show visited cafes and durable saved/wishlist cafes with locations.
         dataManager.appData.cafes.filter { cafe in
-            cafe.location != nil && (cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry)
+            guard cafe.location != nil,
+                  cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry else {
+                return false
+            }
+
+            switch mapFilter {
+            case .all:
+                return true
+            case .favorites:
+                return cafe.isFavorite
+            case .wantToTry:
+                return cafe.wantToTry
+            case .visited:
+                return cafe.visitCount > 0
+            }
         }
     }
 
@@ -553,13 +606,12 @@ struct RatingsLegend: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color.foamWhite.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
+        .mugshotGlassSurface(
+            radius: DesignSystem.Radius.card,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.58),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6)
         )
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
 }
 
@@ -685,13 +737,11 @@ struct MyLocationButton: View {
                     .font(.system(size: 18))
                     .foregroundColor(.espressoBrown)
                     .frame(width: 44, height: 44)
-                    .background(Color.foamWhite)
-                    .clipShape(Circle())
-                    .shadow(
-                        color: DesignSystem.cardShadow.color,
-                        radius: DesignSystem.cardShadow.radius,
-                        x: DesignSystem.cardShadow.x,
-                        y: DesignSystem.cardShadow.y
+                    .mugshotGlassCircle(
+                        tint: .foamWhite,
+                        stroke: Color.foamWhite.opacity(0.62),
+                        shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: 6),
+                        interactive: true
                     )
             }
         }

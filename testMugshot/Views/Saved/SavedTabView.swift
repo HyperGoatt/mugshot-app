@@ -26,6 +26,17 @@ struct SavedTabView: View {
         case score = "By Score"
         case date = "By Date"
         case name = "By Name"
+
+        var iconName: String {
+            switch self {
+            case .score:
+                return "star.fill"
+            case .date:
+                return "clock.fill"
+            case .name:
+                return "textformat.abc"
+            }
+        }
     }
 
     private var savedSubtitle: String {
@@ -65,7 +76,30 @@ struct SavedTabView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 MugshotScreenHeader("Saved", subtitle: savedSubtitle) {
-                    MugshotIconButton(systemName: "slider.horizontal.3", size: 36) {}
+                    Menu {
+                        Picker("View", selection: $selectedTab) {
+                            ForEach(SavedTab.allCases, id: \.self) { tab in
+                                Text(tab.rawValue).tag(tab)
+                            }
+                        }
+
+                        if selectedTab == .allCafes {
+                            Picker("Sort All Cafes", selection: $sortOption) {
+                                ForEach(SortOption.allCases, id: \.self) { option in
+                                    Label(option.rawValue, systemImage: option.iconName).tag(option)
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                            .frame(width: 36, height: 36)
+                            .background(Color.foamWhite)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
+                    }
+                    .accessibilityLabel("Saved filters")
                 }
 
                 MugshotSegmentedControl(
@@ -77,13 +111,23 @@ struct SavedTabView: View {
                 .padding(.bottom, 10)
 
                 if selectedTab == .allCafes {
-                    MugshotSegmentedControl(
-                        options: SortOption.allCases,
-                        selection: $sortOption,
-                        title: { $0.rawValue }
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                MugshotFilterChip(
+                                    title: option.rawValue,
+                                    icon: option.iconName,
+                                    isSelected: sortOption == option
+                                ) {
+                                    withAnimation(DesignSystem.Motion.base) {
+                                        sortOption = option
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
                 }
 
                 if authModel.authenticatedUser != nil {
@@ -119,7 +163,7 @@ struct SavedTabView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 116)
                 }
             }
             .background(Color.creamWhite)
@@ -142,14 +186,7 @@ struct SavedTabView: View {
     @ViewBuilder
     private var remoteStateStatus: some View {
         if isLoadingRemoteStates {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .tint(.mugshotSage)
-                Text("Syncing saved cafes...")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.65))
-                Spacer()
-            }
+            EmptyView()
         } else if let remoteStateError {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -284,7 +321,9 @@ struct CafeCard: View {
 
                         Spacer(minLength: 6)
 
-                        scoreBadge
+                        if cafe.averageRating > 0 {
+                            scoreBadge
+                        }
                     }
 
                     if !cafe.address.isEmpty {
@@ -797,7 +836,7 @@ struct CafeDetailView: View {
                             .padding(.horizontal)
                     }
                 } else {
-                    Text("No remote visits here yet.")
+                    Text("No visits here yet.")
                         .font(.system(size: 14))
                         .foregroundColor(.secondaryText)
                         .frame(maxWidth: .infinity)
@@ -875,7 +914,7 @@ struct CafeDetailView: View {
             )
             isLoadingRemoteVisits = false
         } catch {
-            remoteVisitError = "Could not load remote visits for this cafe."
+            remoteVisitError = "Could not load visits for this cafe."
             isLoadingRemoteVisits = false
         }
     }

@@ -65,7 +65,7 @@ struct LogVisitView: View {
             return photoImages.isEmpty ? "Saving..." : "Uploading..."
         }
 
-        return canSubmitVisit ? "Log it" : "Complete required details"
+        return canSubmitVisit ? "Log it" : "Finish your sip"
     }
 
     private var progressItems: [LogVisitProgressItem] {
@@ -237,10 +237,6 @@ struct LogVisitView: View {
                 photoImages: $photoImages,
                 posterPhotoIndex: $posterPhotoIndex
             )
-
-            if authModel.authenticatedUser != nil {
-                RemotePhotoReadinessSection(photoCount: photoImages.count)
-            }
 
             AddVisitSummaryStrip(
                 cafeName: selectedCafe?.name,
@@ -552,7 +548,7 @@ struct LogVisitView: View {
 }
 
 enum AddVisitValidation {
-    static let photoRequiredMessage = "Add at least one photo before posting your sip."
+    static let photoRequiredMessage = "Add a sip photo so this memory has a cover."
 
     static func hasRequiredPhoto(photoCount: Int) -> Bool {
         photoCount > 0
@@ -575,7 +571,7 @@ struct LogVisitHeroHeader: View {
                         .mugshotDisplay(size: 34)
                         .foregroundColor(.espressoBrown)
 
-                    Text(isRemoteMode ? "Capture the sip with a photo, then add the essentials." : "Capture the drink, then add the essentials.")
+                    Text("Capture the sip, rate the moment, and save what you want to remember.")
                         .font(.system(size: 15))
                         .foregroundColor(.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -584,29 +580,29 @@ struct LogVisitHeroHeader: View {
                 Spacer(minLength: 12)
 
                 VStack(spacing: 5) {
-                    Text("\(min(completedCount + 1, max(totalCount, 1)))")
-                        .font(.system(size: 18, weight: .bold))
+                    Image(systemName: completedCount == totalCount ? "checkmark" : "sparkles")
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.foamWhite)
                         .frame(width: 42, height: 42)
                         .background(Color.mugshotSage)
                         .clipShape(Circle())
 
-                    Text("of \(max(totalCount, 1))")
+                    Text(completedCount == totalCount ? "Ready" : "Draft")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.espressoBrown.opacity(0.6))
                 }
-                .accessibilityLabel("\(completedCount) of \(totalCount) visit details complete")
+                .accessibilityLabel(completedCount == totalCount ? "Sip ready to save" : "Sip draft")
             }
 
             HStack(spacing: 8) {
                 LogVisitHeroPill(
-                    title: hasPhoto ? "Photo ready" : "Photo required",
+                    title: hasPhoto ? "Cover chosen" : "Add a cover",
                     systemImage: hasPhoto ? "photo.fill" : "camera"
                 )
 
                 LogVisitHeroPill(
-                    title: isRemoteMode ? "Supabase live" : "Local draft",
-                    systemImage: isRemoteMode ? "checkmark.circle.fill" : "tray.fill"
+                    title: isRemoteMode ? "Shareable sip" : "Taste journal",
+                    systemImage: isRemoteMode ? "sparkles" : "book.closed.fill"
                 )
             }
         }
@@ -701,7 +697,7 @@ struct AddVisitSummaryStrip: View {
                 )
 
                 AddVisitSummaryPill(
-                    title: photoCount == 0 ? "Photo required" : "\(photoCount) photo\(photoCount == 1 ? "" : "s")",
+                    title: photoCount == 0 ? "Add cover" : "\(photoCount) photo\(photoCount == 1 ? "" : "s")",
                     systemImage: photoCount == 0 ? "photo" : "photo.fill",
                     isComplete: photoCount > 0
                 )
@@ -838,11 +834,11 @@ struct LogVisitProgressCard: View {
                     .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isSaving ? "Saving your visit" : "\(completedCount) of \(items.count) ready")
+                    Text(isSaving ? "Saving your sip" : (completedCount == items.count ? "Ready to log" : "Build your sip"))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(isRemoteMode ? "This posts to Supabase with a required photo." : "This saves locally until you sign in.")
+                    Text(isRemoteMode ? "This will appear in your Mugshot journal and feed." : "This saves to your taste journal on this device.")
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -890,60 +886,6 @@ struct LogVisitProgressChip: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(item.isComplete ? Color.mugshotSage.opacity(0.18) : Color.sandBeige.opacity(0.32))
-        .cornerRadius(999)
-    }
-}
-
-struct RemotePhotoReadinessSection: View {
-    let photoCount: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: photoCount > 0 ? "icloud.and.arrow.up.fill" : "camera.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.72))
-                    .frame(width: 34, height: 34)
-                    .background(Color.sandBeige.opacity(0.55))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(photoCount > 0 ? "Ready to upload \(photoCount) photo\(photoCount == 1 ? "" : "s")" : "Photo required")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-
-                    Text(photoCount > 0 ? "Selected photos save with this visit and appear on the remote detail screen." : "Choose at least one sip photo before posting to the beta feed.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.65))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            HStack(spacing: 8) {
-                ReadinessPill(title: "Photo required", systemImage: "checkmark.circle.fill")
-                ReadinessPill(title: "Storage ready", systemImage: "shippingbox.fill")
-            }
-        }
-        .padding(16)
-        .cardStyle()
-    }
-}
-
-struct ReadinessPill: View {
-    let title: String
-    let systemImage: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundColor(.espressoBrown.opacity(0.78))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.mugshotSage.opacity(0.18))
         .cornerRadius(999)
     }
 }
@@ -1360,7 +1302,7 @@ struct PhotosSection: View {
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(photoImages.isEmpty ? "Required for beta posting." : "Choose the poster photo for this visit.")
+                    Text(photoImages.isEmpty ? "Pick a cover that brings the sip back." : "Choose the poster photo for this visit.")
                         .font(.system(size: 13))
                         .foregroundColor(.secondaryText)
                 }
@@ -1495,7 +1437,7 @@ struct PhotosSection: View {
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.espressoBrown)
 
-                    Text("Photos compress automatically before upload.")
+                    Text("A clear cover makes your journal easier to scan.")
                         .font(.system(size: 12))
                         .foregroundColor(.tertiaryText)
                 }
@@ -1504,7 +1446,7 @@ struct PhotosSection: View {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12, weight: .semibold))
-                Text("At least one photo is required before posting.")
+                Text("Add a photo to give this sip a cover.")
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundColor(.roastBrown.opacity(0.78))
@@ -1980,11 +1922,18 @@ struct CustomizeRatingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text("Define what matters most in your sip journal and how much each criterion should count.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondaryText)
-                        .padding(.top)
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Tune your taste score")
+                            .mugshotDisplay(size: 28)
+                            .foregroundColor(.espressoBrown)
+
+                        Text("Give more weight to what matters most in your sip memories.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 8)
                     
                     ForEach(editingCategories.indices, id: \.self) { index in
                         CustomizeRatingCategoryRow(
@@ -2003,19 +1952,21 @@ struct CustomizeRatingsView: View {
                     }) {
                         HStack {
                             Image(systemName: "plus.circle")
-                            Text("Add New Category")
+                            Text("Add taste note")
                         }
-                        .foregroundColor(.mugshotSage)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.sandBeige.opacity(0.58))
+                        .frame(height: 48)
+                        .background(Color.mugshotSage.opacity(0.22))
                         .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.mugshotSage.opacity(0.38), lineWidth: 1))
                     }
                 }
                 .padding()
             }
             .background(Color.creamWhite)
-            .navigationTitle("Customize Ratings")
+            .navigationTitle("Taste Weights")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -2025,7 +1976,7 @@ struct CustomizeRatingsView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save Changes") {
+                    Button("Save") {
                         // Create template with multipliers (no normalization needed)
                         let updatedTemplate = RatingTemplate(categories: editingCategories)
                         dataManager.updateRatingTemplate(updatedTemplate)
@@ -2046,41 +1997,53 @@ struct CustomizeRatingCategoryRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                // Drag handle
-                Image(systemName: "line.3.horizontal")
-                    .foregroundColor(.espressoBrown.opacity(0.4))
-                
-                // Category name
+            HStack(spacing: 10) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 34, height: 34)
+                    .background(Color.mugshotSage.opacity(0.16))
+                    .clipShape(Circle())
+
                 TextField("Category name", text: $category.name)
                     .mugshotFormField()
-                
-                // Delete button
+
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.red.opacity(0.82))
+                        .frame(width: 36, height: 36)
+                        .background(Color.red.opacity(0.08))
+                        .clipShape(Circle())
                 }
             }
             
-            // Weight slider
-            HStack {
-                Text("Weight")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Influence")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.72))
+
+                    Spacer()
+
+                    Text(formatWeight(weightMultiplier))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.mugshotSage.opacity(0.22))
+                        .clipShape(Capsule())
+                }
                 
                 Slider(value: $weightMultiplier, in: 0.5...3.0, step: 0.5)
+                    .tint(.mugshotSage)
                     .onChange(of: weightMultiplier) { oldValue, newValue in
                         // Store as multiplier (will be normalized when template is saved)
                         category.weight = newValue
                     }
-                
-                Text(formatWeight(weightMultiplier))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                    .frame(width: 40)
             }
         }
-        .padding()
+        .padding(14)
         .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
         .onAppear {
             // Weights are stored as multipliers, so use directly

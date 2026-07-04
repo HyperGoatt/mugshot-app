@@ -99,7 +99,7 @@ struct WelcomeStep: View {
             VStack(spacing: 10) {
                 OnboardingValueRow(icon: "camera.fill", title: "Photo-backed logs", detail: "Remember what you drank and where it was worth returning.")
                 OnboardingValueRow(icon: "bookmark.fill", title: "Saved cafes", detail: "Build a calm list of favorites and places to try.")
-                OnboardingValueRow(icon: "person.2.fill", title: "Social without noise", detail: "See friend-powered recommendations when the beta loop is ready.")
+                OnboardingValueRow(icon: "person.2.fill", title: "Social without noise", detail: "See friend-powered recommendations from people whose taste you trust.")
             }
             .padding(16)
             .cardStyle(radius: DesignSystem.Radius.heroCard)

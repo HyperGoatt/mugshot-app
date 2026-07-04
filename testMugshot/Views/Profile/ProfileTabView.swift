@@ -45,6 +45,66 @@ struct ProfileTabView: View {
         )
     }
 
+    private var topCafeName: String? {
+        if authModel.authenticatedUser != nil {
+            return consumerProfileLabel(RemoteProfileStats.calculate(from: remoteProfileVisits).topCafes.first?.cafe.name)
+        }
+
+        let topLocalCafe = dataManager.appData.cafes
+            .filter { $0.averageRating > 0 || $0.visitCount > 0 }
+            .sorted {
+                if abs($0.averageRating - $1.averageRating) < 0.0001 {
+                    return $0.visitCount > $1.visitCount
+                }
+                return $0.averageRating > $1.averageRating
+            }
+            .first?.name
+
+        return consumerProfileLabel(topLocalCafe)
+    }
+
+    private var tasteMix: [TastePattern] {
+        let names: [String]
+        if authModel.authenticatedUser != nil {
+            names = remoteProfileVisits.map {
+                $0.visit.drinkCategoryDisplayName ?? $0.visit.drinkDisplayName
+            }
+        } else {
+            names = dataManager.appData.visits.map { $0.drinkType.rawValue }
+        }
+
+        guard !names.isEmpty else {
+            return [
+                TastePattern(name: "Coffee", icon: "cup.and.saucer.fill", fraction: 0.34),
+                TastePattern(name: "Matcha", icon: "leaf.fill", fraction: 0.33),
+                TastePattern(name: "Tea", icon: "mug.fill", fraction: 0.33)
+            ]
+        }
+
+        let counts = Dictionary(grouping: names, by: { $0 }).mapValues(\.count)
+        return counts
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .prefix(3)
+            .map { name, count in
+                TastePattern(
+                    name: name,
+                    icon: tasteIcon(for: name),
+                    fraction: Double(count) / Double(names.count)
+                )
+            }
+    }
+
+    private var streakDays: Int {
+        let dates: [Date]
+        if authModel.authenticatedUser != nil {
+            dates = remoteProfileVisits.map { $0.visit.createdAtDate }
+        } else {
+            dates = dataManager.appData.visits.map(\.createdAt)
+        }
+
+        return Self.currentStreak(from: dates)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -60,23 +120,17 @@ struct ProfileTabView: View {
 
                     statsStrip
 
-                    if isLoadingRemoteProfileStats {
-                        Text("Refreshing remote stats...")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.tertiaryText)
-                    } else if let remoteProfileStatsError {
-                        Text(remoteProfileStatsError)
-                            .font(.system(size: 12))
-                            .foregroundColor(.red.opacity(0.82))
-                            .multilineTextAlignment(.center)
-                    }
-
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Taste identity")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.espressoBrown)
 
-                        CoffeeJourneyView(stats: displayedStats)
+                        CoffeeJourneyView(
+                            stats: displayedStats,
+                            tasteMix: tasteMix,
+                            topCafeName: topCafeName,
+                            streakDays: streakDays
+                        )
                     }
                     .padding(16)
                     .cardStyle()
@@ -95,7 +149,7 @@ struct ProfileTabView: View {
                     Text("Sip. Save. Share.")
                         .mugshotDisplay(size: 15)
                         .foregroundColor(.mugshotLatte)
-                        .padding(.bottom, 32)
+                        .padding(.bottom, 120)
                 }
             }
             .background(Color.creamWhite)
@@ -116,45 +170,66 @@ struct ProfileTabView: View {
     }
 
     private var profileIdentity: some View {
-        VStack(spacing: 10) {
-            MugshotAvatar(name: user?.username ?? "user", size: 76)
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 138)
 
-            VStack(spacing: 3) {
-                Text(user?.displayName?.isEmpty == false ? user?.displayName ?? "" : user?.username ?? "user")
-                    .mugshotDisplay(size: 24)
-                    .foregroundColor(.espressoBrown)
-
-                Text("@\(user?.username ?? "user")\(user?.location.isEmpty == false ? " · \(user?.location ?? "")" : "")")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.tertiaryText)
+                MugshotAvatar(
+                    name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                    size: 88,
+                    imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                )
+                .offset(y: 44)
             }
 
-            if let bio = user?.bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
+            VStack(spacing: 10) {
+                VStack(spacing: 3) {
+                    Text(user?.displayName?.isEmpty == false ? user?.displayName ?? "" : user?.username ?? "user")
+                        .mugshotDisplay(size: 24)
+                        .foregroundColor(.espressoBrown)
 
-            HStack(spacing: 6) {
-                MugshotTagChip(title: displayedStats.favoriteDrinkLabel?.lowercased() ?? "daily ritual", icon: "leaf.fill")
-                MugshotTagChip(title: "hidden gem hunter", icon: "sparkles")
-            }
-
-            if authModel.profile != nil {
-                Button {
-                    authModel.clearProfileUpdateError()
-                    showEditProfile = true
-                } label: {
-                    Label("Edit profile", systemImage: "pencil")
-                        .frame(maxWidth: 150)
+                    Text("@\(user?.username ?? "user")\(user?.location.isEmpty == false ? " · \(user?.location ?? "")" : "")")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.tertiaryText)
                 }
-                .buttonStyle(SecondaryButtonStyle())
-                .padding(.top, 2)
+
+                if let bio = user?.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+
+                HStack(spacing: 6) {
+                    MugshotTagChip(title: displayedStats.favoriteDrinkLabel?.lowercased() ?? "daily ritual", icon: "leaf.fill")
+                    MugshotTagChip(title: topCafeName ?? "taste explorer", icon: "sparkles")
+                }
+
+                if authModel.profile != nil {
+                    Button {
+                        authModel.clearProfileUpdateError()
+                        showEditProfile = true
+                    } label: {
+                        Label("Edit profile", systemImage: "pencil")
+                            .frame(maxWidth: 150)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .padding(.top, 2)
+                }
             }
+            .padding(.top, 52)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.07), radius: 16, x: 0, y: 8)
+        .padding(.horizontal, 16)
     }
 
     private var statsStrip: some View {
@@ -162,6 +237,7 @@ struct ProfileTabView: View {
             MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
             MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
             MugshotStatPill(icon: "star.fill", value: String(format: "%.1f", displayedStats.averageScore), label: "Avg")
+            MugshotStatPill(icon: "flame.fill", value: "\(streakDays)", label: "Streak")
         }
         .padding(.horizontal, 16)
     }
@@ -206,10 +282,69 @@ struct ProfileTabView: View {
             )
             isLoadingRemoteProfileStats = false
         } catch {
-            remoteProfileStatsError = "Could not load remote profile stats."
+            remoteProfileStatsError = "Could not load profile stats."
             isLoadingRemoteProfileStats = false
         }
     }
+
+    private func tasteIcon(for name: String) -> String {
+        let lowercased = name.lowercased()
+        if lowercased.contains("matcha") || lowercased.contains("tea") {
+            return "leaf.fill"
+        }
+        if lowercased.contains("chai") {
+            return "sparkles"
+        }
+        if lowercased.contains("chocolate") {
+            return "takeoutbag.and.cup.and.straw.fill"
+        }
+        return "cup.and.saucer.fill"
+    }
+
+    private func consumerProfileLabel(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        let lowercased = trimmed.lowercased()
+        guard !lowercased.contains("smoke"),
+              !lowercased.contains("codex") else {
+            return nil
+        }
+
+        return trimmed
+    }
+
+    private static func currentStreak(from dates: [Date]) -> Int {
+        let calendar = Calendar.current
+        let days = Set(dates.map { calendar.startOfDay(for: $0) })
+        guard !days.isEmpty else { return 0 }
+
+        var cursor = calendar.startOfDay(for: Date())
+        if !days.contains(cursor),
+           let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor),
+           days.contains(yesterday) {
+            cursor = yesterday
+        }
+
+        var count = 0
+        while days.contains(cursor) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else {
+                break
+            }
+            cursor = previous
+        }
+
+        return count
+    }
+}
+
+struct TastePattern: Equatable {
+    let name: String
+    let icon: String
+    let fraction: Double
 }
 
 struct ProfileStatsDisplay: Equatable {
@@ -460,27 +595,87 @@ struct StatBox: View {
 
 struct CoffeeJourneyView: View {
     let stats: ProfileStatsDisplay
+    let tasteMix: [TastePattern]
+    let topCafeName: String?
+    let streakDays: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Simple progress representation
-            HStack(spacing: 8) {
-                ForEach(0..<min(stats.totalCafes, 10), id: \.self) { _ in
-                    Circle()
-                        .fill(Color.mugshotSage)
-                        .frame(width: 12, height: 12)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                identityTile(
+                    title: "Favorite drink",
+                    value: stats.favoriteDrinkLabel ?? "Keep sipping",
+                    icon: "leaf.fill"
+                )
 
-                if stats.totalCafes > 10 {
-                    Text("+\(stats.totalCafes - 10)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
+                identityTile(
+                    title: "Favorite cafe",
+                    value: topCafeName ?? "Discovering",
+                    icon: "mappin.circle.fill"
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(tasteMix, id: \.name) { pattern in
+                    MugshotTastePatternRow(pattern: pattern)
                 }
             }
 
-            Text("\(stats.totalVisits) visits across \(stats.totalCafes) cafés")
-                .font(.system(size: 14))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+            Text(streakDays > 0 ? "\(streakDays)-day streak. Your taste memory is alive." : "\(stats.totalVisits) logs across \(stats.totalCafes) cafes. Patterns will sharpen as you sip.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.secondaryText)
+        }
+    }
+
+    private func identityTile(title: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.roastBrown.opacity(0.64))
+                .lineLimit(1)
+
+            Text(value)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.sandBeige.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+    }
+}
+
+struct MugshotTastePatternRow: View {
+    let pattern: TastePattern
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(pattern.name, systemImage: pattern.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("\(Int((pattern.fraction * 100).rounded()))%")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.roastBrown.opacity(0.72))
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.sandBeige.opacity(0.58))
+
+                    Capsule()
+                        .fill(Color.mugshotSage.opacity(0.72))
+                        .frame(width: max(8, proxy.size.width * min(max(pattern.fraction, 0), 1)))
+                }
+            }
+            .frame(height: 7)
         }
     }
 }
@@ -532,7 +727,7 @@ struct RecentVisitsView: View {
                 ProgressView()
                     .tint(.mugshotSage)
 
-                Text("Loading real visits...")
+                Text("Loading visits...")
                     .font(.system(size: 14))
                     .foregroundColor(.espressoBrown.opacity(0.7))
             }
@@ -540,7 +735,7 @@ struct RecentVisitsView: View {
             .padding()
         } else if let remoteVisitError {
             VStack(spacing: 10) {
-                Text("Could not load real visits")
+                Text("Could not load visits")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.espressoBrown)
 
@@ -847,7 +1042,7 @@ struct TopCafesView: View {
                         asset: .noCafes,
                         systemImage: "cup.and.saucer.fill",
                         title: "No top cafés yet",
-                        message: "Photo-backed remote visits will rank your cafés here."
+                        message: "Your highest-rated visits will rank your cafes here."
                     )
                 } else {
                     ForEach(remoteStats.topCafes) { topCafe in

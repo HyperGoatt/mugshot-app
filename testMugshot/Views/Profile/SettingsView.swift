@@ -29,13 +29,13 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Equatable {
     var detail: String {
         switch self {
         case .about:
-            return "Private beta build for logging photo-backed cafe visits."
+            return "A social sip journal for coffee, matcha, tea, cafes, and taste memory."
         case .privacy:
-            return "Mugshot stores your profile, saved cafes, visit photos, likes, and comments in Supabase for signed-in beta accounts."
+            return "Mugshot keeps your profile, saved cafes, visit photos, likes, and comments connected to your account."
         case .terms:
             return "Use Mugshot respectfully. Only post photos and comments you have the right to share."
         case .support:
-            return "Contact support@mugshot.app for beta support, privacy questions, or account help."
+            return "Contact support@mugshot.app for support, privacy questions, or account help."
         }
     }
 
@@ -62,7 +62,7 @@ struct SettingsView: View {
                             .mugshotDisplay(size: 30)
                             .foregroundColor(.espressoBrown)
 
-                        Text("Private beta essentials.")
+                        Text("Account, privacy, and support.")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.tertiaryText)
                     }

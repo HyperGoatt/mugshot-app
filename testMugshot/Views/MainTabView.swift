@@ -13,7 +13,7 @@ struct MainTabView: View {
     @State private var preselectedCafeForLogVisit: Cafe?
     
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             activeTab
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
@@ -89,9 +89,7 @@ private struct MugshotBottomNav: View {
             interactive: false
         )
         .padding(.horizontal, 10)
-        .padding(.top, 6)
-        .padding(.bottom, 8)
-        .background(Color.creamWhite.opacity(0.94).ignoresSafeArea(edges: .bottom))
+        .padding(.bottom, 6)
     }
 
     private var navItems: some View {

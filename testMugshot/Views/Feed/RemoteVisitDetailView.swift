@@ -5,6 +5,25 @@
 
 import SwiftUI
 
+private func consumerDetailCaption(_ caption: String) -> String? {
+    let trimmed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    let lowercased = trimmed.lowercased()
+    let internalMarkers = [
+        "smoke",
+        "photo-required",
+        "ui pass",
+        "polish pass"
+    ]
+
+    guard !internalMarkers.contains(where: lowercased.contains) else {
+        return nil
+    }
+
+    return trimmed
+}
+
 struct RemoteVisitDetailView: View {
     let visitId: UUID
     let initialSummary: RemoteVisitSummary
@@ -236,8 +255,8 @@ struct RemoteVisitDetailView: View {
                     Spacer(minLength: 8)
                 }
 
-                if !detail.summary.visit.caption.isEmpty {
-                    Text(detail.summary.visit.caption)
+                if let caption = consumerDetailCaption(detail.summary.visit.caption) {
+                    Text(caption)
                         .font(.system(size: 17))
                         .foregroundColor(.espressoBrown.opacity(0.82))
                         .lineSpacing(3)

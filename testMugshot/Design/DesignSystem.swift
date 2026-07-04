@@ -398,6 +398,46 @@ struct MugshotTagChip: View {
     }
 }
 
+struct MugshotFilterChip: View {
+    let title: String
+    var icon: String?
+    var isSelected = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.84)
+            }
+            .foregroundColor(isSelected ? .foamWhite : .roastBrown.opacity(0.86))
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(isSelected ? Color.mugshotSage : Color.foamWhite.opacity(0.92))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.clear : Color.mugshotLine, lineWidth: 1)
+            )
+            .shadow(
+                color: Color.black.opacity(isSelected ? 0.10 : 0.05),
+                radius: isSelected ? 8 : 4,
+                x: 0,
+                y: isSelected ? 4 : 2
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
 struct MugshotRatingBadge: View {
     let score: Double
     var onPhoto = false
@@ -414,26 +454,85 @@ struct MugshotRatingBadge: View {
         .padding(.vertical, 6)
         .background(onPhoto ? Color.espressoBrown.opacity(0.72) : Color.mugshotMint.opacity(0.38))
         .clipShape(Capsule())
+        .accessibilityLabel(String(format: "Rated %.1f out of 5", score))
     }
 }
 
 struct MugshotAvatar: View {
     let name: String
     var size: CGFloat = 36
+    var imageURL: String? = nil
 
     private var initial: String {
         String(name.trimmingCharacters(in: .whitespacesAndNewlines).first ?? "U").uppercased()
     }
 
     var body: some View {
-        Circle()
-            .fill(Color.mugshotMint)
-            .frame(width: size, height: size)
-            .overlay(
-                Text(initial)
-                    .font(.system(size: max(12, size * 0.42), weight: .semibold))
-                    .foregroundColor(.espressoBrown)
+        ZStack {
+            Circle()
+                .fill(Color.mugshotMint)
+
+            if let imageURL,
+               let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        avatarInitial
+                    }
+                }
+            } else {
+                avatarInitial
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.foamWhite.opacity(0.72), lineWidth: 1))
+    }
+
+    private var avatarInitial: some View {
+        Text(initial)
+            .font(.system(size: max(12, size * 0.42), weight: .semibold))
+            .foregroundColor(.espressoBrown)
+    }
+}
+
+struct MugshotProfileBanner: View {
+    let imageURL: String?
+    var height: CGFloat = 150
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.mugshotMint.opacity(0.56),
+                    Color.mugshotLatte.opacity(0.62),
+                    Color.sandBeige.opacity(0.72)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
+
+            if let imageURL,
+               let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipped()
     }
 }
 

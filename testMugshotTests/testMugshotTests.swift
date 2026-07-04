@@ -696,7 +696,8 @@ struct testMugshotTests {
 
     @Test func settingsLegalAndMugsyPresenceAreCovered() {
         #expect(SettingsDestination.allCases == [.about, .privacy, .terms, .support])
-        #expect(SettingsDestination.privacy.detail.contains("Supabase"))
+        #expect(SettingsDestination.privacy.detail.contains("connected to your account"))
+        #expect(!SettingsDestination.privacy.detail.contains("Supabase"))
         #expect(SettingsDestination.terms.detail.contains("respectfully"))
         #expect(SettingsDestination.support.externalURL?.scheme == "mailto")
         #expect(MugsyEmptyStateAsset.noFavorites.rawValue == "MugsyNoFavorites")

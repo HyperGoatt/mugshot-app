@@ -82,7 +82,7 @@ struct FeedTabView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 116)
                 }
                 .background(Color.creamWhite)
             }
@@ -175,7 +175,7 @@ struct FeedTabView: View {
             MugsyEmptyStateView(
                 asset: selectedScope == .friends ? .noFriends : .comingSoon,
                 title: selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet",
-                message: selectedScope == .friends ? "Friend-visible sips will appear here as the beta loop grows." : "Public sips will appear here as people log them."
+                message: selectedScope == .friends ? "Sips from friends will appear here as your circle grows." : "Public sips will appear here as people log them."
             )
         } else {
             ForEach(remoteVisits) { visit in
@@ -412,7 +412,7 @@ struct RemoteFeedVisitCard: View {
 
             Spacer(minLength: 8)
 
-            if !hasPhoto {
+            if !hasPhoto, visit.visit.overallScore > 0 {
                 scoreBadge
             }
         }
@@ -439,7 +439,7 @@ struct RemoteFeedVisitCard: View {
 
             locationOverlay
 
-            if hasPhoto {
+            if hasPhoto, visit.visit.overallScore > 0 {
                 VStack {
                     HStack {
                         Spacer()
@@ -496,24 +496,18 @@ struct RemoteFeedVisitCard: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !visit.visit.caption.isEmpty {
-                Text(visit.visit.caption)
+            if let caption = consumerPreviewCaption(visit.visit.caption) {
+                Text(caption)
                     .font(.system(size: 15))
                     .foregroundColor(.espressoBrown.opacity(0.74))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 8) {
-                if let category = visit.visit.drinkCategoryDisplayName,
-                   category != visit.visit.drinkDisplayName {
-                    feedMetaPill(category, systemImage: "tag.fill")
-                }
-
-                feedMetaPill(visit.visit.contextDisplayName, systemImage: "cup.and.saucer.fill")
-                feedMetaPill(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
-            }
-            .lineLimit(1)
+            Text("\(visit.visit.contextDisplayName) · \(timeAgoString(from: visit.visit.createdAtDate))")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.roastBrown.opacity(0.58))
+                .lineLimit(1)
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
@@ -596,32 +590,6 @@ struct RemoteFeedVisitCard: View {
         .clipShape(Capsule())
     }
 
-    private var visibilityIcon: String {
-        switch visit.visit.backendVisibilityLabel.lowercased() {
-        case "private":
-            return "lock.fill"
-        case "friends":
-            return "person.2.fill"
-        default:
-            return "globe"
-        }
-    }
-
-    private func feedMetaPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.roastBrown.opacity(0.78))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.sandBeige.opacity(0.55))
-        .clipShape(Capsule())
-    }
-
     private func timeAgoString(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
@@ -638,7 +606,7 @@ struct RemoteFeedNoPhotoPoster: View {
                 .font(.system(size: 38, weight: .semibold))
                 .foregroundColor(.roastBrown.opacity(0.42))
 
-            Text("No photo yet")
+            Text("Taste memory")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondaryText)
 
@@ -647,6 +615,25 @@ struct RemoteFeedNoPhotoPoster: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.sandBeige.opacity(0.72))
     }
+}
+
+private func consumerPreviewCaption(_ caption: String) -> String? {
+    let trimmed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    let lowercased = trimmed.lowercased()
+    let internalMarkers = [
+        "smoke",
+        "photo-required",
+        "ui pass",
+        "polish pass"
+    ]
+
+    guard !internalMarkers.contains(where: lowercased.contains) else {
+        return nil
+    }
+
+    return trimmed
 }
 
 struct VisitCard: View {
@@ -719,7 +706,7 @@ struct VisitCard: View {
 
             Spacer(minLength: 8)
 
-            if visit.photos.isEmpty {
+            if visit.photos.isEmpty, visit.overallScore > 0 {
                 MugshotRatingBadge(score: visit.overallScore)
             }
         }
@@ -773,7 +760,7 @@ struct VisitCard: View {
             )
             .padding(12)
 
-            if !visit.photos.isEmpty {
+            if !visit.photos.isEmpty, visit.overallScore > 0 {
                 VStack {
                     HStack {
                         Spacer()
@@ -795,17 +782,17 @@ struct VisitCard: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !visit.caption.isEmpty {
-                MentionText(text: visit.caption, mentions: visit.mentions)
+            if let caption = consumerPreviewCaption(visit.caption) {
+                MentionText(text: caption, mentions: visit.mentions)
                     .font(.system(size: 15))
                     .foregroundColor(.espressoBrown.opacity(0.74))
                     .lineLimit(3)
             }
 
-            HStack(spacing: 8) {
-                localMetaPill(visit.drinkType.rawValue, systemImage: "tag.fill")
-                localMetaPill(visit.visibility.rawValue, systemImage: visibilityIcon(for: visit.visibility))
-            }
+            Text("\(visit.drinkType.rawValue) · \(formatDate(visit.createdAt))")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.roastBrown.opacity(0.58))
+                .lineLimit(1)
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
@@ -849,21 +836,6 @@ struct VisitCard: View {
         visit.customDrinkType ?? visit.drinkType.rawValue
     }
 
-    private func localMetaPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.roastBrown.opacity(0.78))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.sandBeige.opacity(0.55))
-        .clipShape(Capsule())
-    }
-
     private func localSocialLabel(value: Int, systemImage: String, isActive: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: systemImage)
@@ -878,17 +850,6 @@ struct VisitCard: View {
         .clipShape(Capsule())
     }
 
-    private func visibilityIcon(for visibility: VisitVisibility) -> String {
-        switch visibility {
-        case .private:
-            return "lock.fill"
-        case .friends:
-            return "person.2.fill"
-        case .everyone:
-            return "globe"
-        }
-    }
-    
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
@@ -1131,8 +1092,8 @@ struct VisitDetailView: View {
                     Spacer(minLength: 8)
                 }
 
-                if !visit.caption.isEmpty {
-                    MentionText(text: visit.caption, mentions: visit.mentions)
+                if let caption = consumerPreviewCaption(visit.caption) {
+                    MentionText(text: caption, mentions: visit.mentions)
                         .font(.system(size: 17))
                         .foregroundColor(.espressoBrown.opacity(0.82))
                         .lineSpacing(3)
