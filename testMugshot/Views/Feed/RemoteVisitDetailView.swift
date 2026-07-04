@@ -13,6 +13,7 @@ struct RemoteVisitDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
+    @State private var selectedPhotoIndex = 0
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var socialError: String?
@@ -21,59 +22,24 @@ struct RemoteVisitDetailView: View {
     @State private var isShowingEditVisit = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
+    @FocusState private var isCommentFocused: Bool
 
     private var displayedSummary: RemoteVisitSummary {
         detail?.summary ?? initialSummary
     }
 
+    private var heroHeight: CGFloat { 500 }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.creamWhite.ignoresSafeArea()
+            ZStack(alignment: .top) {
+                SipDetailBackground()
 
-                if let detail {
-                    detailContent(detail)
-                } else if isLoading {
-                    loadingContent
-                } else if let loadError {
-                    errorContent(loadError)
-                } else {
-                    loadingContent
-                }
+                content
+
+                topControls
             }
-            .navigationTitle("Visit details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if let detail,
-                   currentUserId == detail.summary.visit.userId {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Menu {
-                            Button {
-                                isShowingEditVisit = true
-                            } label: {
-                                Label("Edit Visit", systemImage: "pencil")
-                            }
-
-                            Button(role: .destructive) {
-                                showDeleteConfirmation = true
-                            } label: {
-                                Label("Delete Visit", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .foregroundColor(.espressoBrown)
-                        }
-                        .disabled(isDeletingVisit)
-                    }
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(.espressoBrown)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .task(id: visitId) {
                 await loadDetail()
             }
@@ -88,432 +54,392 @@ struct RemoteVisitDetailView: View {
                 }
             }
             .confirmationDialog(
-                "Delete this visit?",
+                "Delete this sip?",
                 isPresented: $showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Delete Visit", role: .destructive) {
+                Button("Delete Sip", role: .destructive) {
                     Task {
                         await deleteVisit()
                     }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This removes the remote visit from Profile, Feed, and cafe history.")
+                Text("This removes the sip from Profile, Feed, and cafe history.")
             }
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let detail {
+            detailContent(detail)
+        } else if isLoading {
+            loadingContent
+        } else if let loadError {
+            errorContent(loadError)
+        } else {
+            loadingContent
+        }
+    }
+
+    private var topControls: some View {
+        HStack(spacing: 12) {
+            SipTopBarButton(systemImage: "xmark") {
+                dismiss()
+            }
+            .accessibilityLabel("Close sip")
+
+            Spacer()
+
+            if let detail,
+               isOwnVisit(detail) {
+                Menu {
+                    Button {
+                        isShowingEditVisit = true
+                    } label: {
+                        Label("Edit Sip", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Sip", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 42, height: 42)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.foamWhite.opacity(0.72), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+                }
+                .disabled(isDeletingVisit)
+                .accessibilityLabel("Sip actions")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 
     private func detailContent(_ detail: RemoteVisitDetail) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                savedStatusSection(detail)
-                photoSection(detail)
-                headerSection(detail)
-                drinkSection(detail)
-                ratingSection(detail)
-                captionSection(detail)
-                socialSection(detail)
-                commentsSection(detail)
+            VStack(spacing: 0) {
+                heroSection(detail)
+
+                VStack(alignment: .leading, spacing: 18) {
+                    memoryPanel(detail)
+                    actionShelf(detail)
+                    SipRatingBreakdownPanel(
+                        score: detail.summary.visit.overallScore,
+                        ratings: detail.summary.visit.ratings,
+                        title: "Flavor map",
+                        subtitle: isOwnVisit(detail) ? "Your saved taste breakdown" : "\(detail.summary.authorDisplayName)'s taste breakdown"
+                    )
+                    ownerNotesSection(detail)
+                    commentsSection(detail)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 18)
+                .padding(.bottom, 34)
             }
-            .padding(.bottom, 24)
         }
-        .background(Color.creamWhite)
+        .background(Color.clear)
     }
 
-    private func photoSection(_ detail: RemoteVisitDetail) -> some View {
-        Group {
-            if detail.photoURLs.isEmpty {
-                noPhotoHero(detail)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    RemotePhotoImageView(
-                        urlString: detail.photoURLs.first,
-                        placeholderSystemName: "photo.on.rectangle"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 310)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
-                    .overlay(alignment: .topTrailing) {
-                        scoreBadge(score: detail.summary.visit.overallScore)
-                            .padding(12)
-                    }
+    private func heroSection(_ detail: RemoteVisitDetail) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            remotePhotoPager(detail)
 
-                    if detail.photoURLs.count > 1 {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(detail.photoURLs.dropFirst().enumerated()), id: \.offset) { _, urlString in
-                                    RemotePhotoImageView(
-                                        urlString: urlString,
-                                        placeholderSystemName: "photo"
-                                    )
-                                    .frame(width: 74, height: 74)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
-            }
+            LinearGradient(
+                colors: [
+                    .black.opacity(0.02),
+                    .black.opacity(0.18),
+                    .black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            SipMemoryHeroOverlay(
+                authorTitle: isOwnVisit(detail) ? "Your sip" : detail.summary.authorDisplayName,
+                avatarName: detail.summary.authorDisplayName,
+                username: "@\(detail.summary.authorUsername)",
+                timestamp: SipDetailFormat.relative(detail.summary.visit.createdAtDate),
+                drinkName: detail.summary.visit.drinkDisplayName,
+                locationTitle: detail.summary.locationTitle,
+                locationSubtitle: detail.summary.locationSubtitle,
+                score: detail.summary.visit.overallScore,
+                visibilityLabel: audienceLabel(for: detail),
+                isOwnSip: isOwnVisit(detail)
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
         }
-        .padding(.top, currentUserId == detail.summary.visit.userId ? 0 : 16)
+        .frame(maxWidth: .infinity)
+        .frame(height: heroHeight)
+        .clipped()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(detail.summary.visit.drinkDisplayName) at \(detail.summary.locationTitle), rated \(String(format: "%.1f", detail.summary.visit.overallScore))")
     }
 
     @ViewBuilder
-    private func savedStatusSection(_ detail: RemoteVisitDetail) -> some View {
-        if currentUserId == detail.summary.visit.userId {
-            VStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color.mugshotSage.opacity(0.32))
-                        .frame(width: 64, height: 64)
-
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 29, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                }
-
-                VStack(spacing: 4) {
-                    Text("Sip saved")
-                        .mugshotDisplay(size: 30)
-                        .foregroundColor(.espressoBrown)
-
-                    Text("Added to your taste journal and Profile Recent.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.66))
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.top, 28)
-            .padding(.bottom, 4)
-        }
-    }
-
-    private func noPhotoHero(_ detail: RemoteVisitDetail) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 46))
-                .foregroundColor(.espressoBrown.opacity(0.34))
-
-            VStack(spacing: 4) {
-                Text("No photo yet")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Text("Older beta visits may not include photos. New sips need a photo before posting.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.espressoBrown.opacity(0.64))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-            .frame(maxWidth: .infinity)
-            .frame(height: 220)
-            .background(Color.sandBeige.opacity(0.62))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                    .stroke(Color.mugshotLine, lineWidth: 1)
+    private func remotePhotoPager(_ detail: RemoteVisitDetail) -> some View {
+        if detail.photoURLs.isEmpty {
+            SipEmptyPhotoBackdrop(
+                title: "No photo saved",
+                message: "This sip still has its taste memory, notes, and social thread."
             )
-            .padding(.horizontal)
-    }
-
-    private func headerSection(_ detail: RemoteVisitDetail) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.system(size: 23, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.78))
-                    .frame(width: 46, height: 46)
-                    .background(Color.sandBeige.opacity(0.45))
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(detail.summary.locationTitle)
-                        .mugshotDisplay(size: 27)
-                        .foregroundColor(.espressoBrown)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let subtitle = detail.summary.locationSubtitle {
-                        Text(subtitle)
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.68))
-                            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            TabView(selection: $selectedPhotoIndex) {
+                ForEach(Array(detail.photoURLs.enumerated()), id: \.offset) { index, urlString in
+                    RemotePhotoImageView(
+                        urlString: urlString,
+                        placeholderSystemName: "photo.on.rectangle"
+                    )
+                    .tag(index)
+                    .overlay(alignment: .topTrailing) {
+                        if detail.photoURLs.count > 1 {
+                            SipPhotoCountBadge(
+                                current: selectedPhotoIndex + 1,
+                                total: detail.photoURLs.count
+                            )
+                            .padding(.top, 64)
+                            .padding(.trailing, 18)
+                        }
                     }
                 }
-
-                Spacer(minLength: 8)
-
-                scoreBadge(score: detail.summary.visit.overallScore)
             }
+            .tabViewStyle(.page(indexDisplayMode: detail.photoURLs.count > 1 ? .automatic : .never))
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(detail.summary.visit.drinkDisplayName)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.espressoBrown)
-                    .fixedSize(horizontal: false, vertical: true)
+    private func memoryPanel(_ detail: RemoteVisitDetail) -> some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 12) {
+                    MugshotAvatar(name: detail.summary.authorDisplayName, size: 44)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(isOwnVisit(detail) ? "Saved to your journal" : "Posted by \(detail.summary.authorDisplayName)")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(2)
+
+                        Text(SipDetailFormat.timestamp(detail.summary.visit.createdAtDate))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+                }
 
                 if !detail.summary.visit.caption.isEmpty {
                     Text(detail.summary.visit.caption)
+                        .font(.system(size: 17))
+                        .foregroundColor(.espressoBrown.opacity(0.82))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(isOwnVisit(detail) ? "No public tasting note yet." : "No tasting note was shared with this sip.")
                         .font(.system(size: 15))
-                        .foregroundColor(.espressoBrown.opacity(0.76))
+                        .foregroundColor(.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(Color.mugshotSage)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Text(detail.summary.authorInitial)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(detail.summary.authorDisplayName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-
-                    Text("@\(detail.summary.authorUsername) · \(timeAgoString(from: detail.summary.visit.createdAtDate))")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
-                }
-
-                Spacer()
-            }
-
-            HStack(spacing: 8) {
-                visitMetaPill(detail.summary.visit.backendVisibilityLabel, systemImage: visibilityIcon(for: detail.summary.visit.backendVisibilityLabel))
-                visitMetaPill(detail.summary.visit.contextDisplayName, systemImage: "cup.and.saucer.fill")
-                visitMetaPill(timeAgoString(from: detail.summary.visit.createdAtDate), systemImage: "clock.fill")
+                SipTagGrid(tags: tags(for: detail))
             }
         }
-        .padding()
-        .cardStyle()
-        .padding(.horizontal)
-    }
-
-    private func visitMetaPill(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(.espressoBrown.opacity(0.72))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.sandBeige.opacity(0.34))
-        .clipShape(Capsule())
-    }
-
-    private func visibilityIcon(for label: String) -> String {
-        switch label.lowercased() {
-        case "private":
-            return "lock.fill"
-        case "friends":
-            return "person.2.fill"
-        default:
-            return "globe"
-        }
-    }
-
-    private func scoreBadge(score: Double) -> some View {
-        MugshotRatingBadge(score: score)
-    }
-
-    private func drinkSection(_ detail: RemoteVisitDetail) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            MugshotSectionTitle(title: "Visit Details")
-
-            detailRow(title: "Drink", value: detail.summary.visit.drinkDisplayName)
-
-            if let category = detail.summary.visit.drinkCategoryDisplayName,
-               category != detail.summary.visit.drinkDisplayName {
-                detailRow(title: "Category", value: category)
-            }
-
-            if let brewMethod = detail.summary.visit.brewMethod?.remoteTrimmedNonEmpty {
-                detailRow(title: "Brew Method", value: brewMethod)
-            }
-        }
-        .padding()
-        .mugshotSunkenPanel()
-        .padding(.horizontal)
-    }
-
-    private func ratingSection(_ detail: RemoteVisitDetail) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                MugshotSectionTitle(title: "Overall Score")
-
-                Spacer()
-
-                MugshotRatingBadge(score: detail.summary.visit.overallScore)
-            }
-
-            if !detail.summary.visit.ratings.isEmpty {
-                Divider()
-
-                ForEach(detail.summary.visit.ratings.keys.sorted(), id: \.self) { category in
-                    if let rating = detail.summary.visit.ratings[category] {
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Text(category)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.espressoBrown)
-
-                                Spacer()
-
-                                Text(String(format: "%.1f", rating))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                            }
-
-                            ProgressView(value: rating, total: 5)
-                                .tint(.mugshotSage)
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .cardStyle()
-        .padding(.horizontal)
     }
 
     @ViewBuilder
-    private func captionSection(_ detail: RemoteVisitDetail) -> some View {
-        if currentUserId == detail.summary.visit.userId,
+    private func ownerNotesSection(_ detail: RemoteVisitDetail) -> some View {
+        if isOwnVisit(detail),
            let notes = detail.summary.visit.trimmedNotes {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    MugshotSectionTitle(title: "Private Notes")
+            SipPrivateNotePanel(text: notes)
+        }
+    }
 
-                    Text(notes)
-                        .font(.system(size: 15))
-                        .foregroundColor(.espressoBrown.opacity(0.72))
+    private func actionShelf(_ detail: RemoteVisitDetail) -> some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Sip actions")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+
+                    Spacer()
+                }
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 94), spacing: 10)],
+                    alignment: .leading,
+                    spacing: 10
+                ) {
+                    SipActionButton(
+                        title: detail.currentUserHasLiked ? "Liked" : "Like",
+                        value: "\(detail.likeCount)",
+                        systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart",
+                        isActive: detail.currentUserHasLiked,
+                        isEnabled: currentUserId != nil && !isSavingSocialAction
+                    ) {
+                        Task {
+                            await toggleLike()
+                        }
+                    }
+
+                    SipActionButton(
+                        title: "Comment",
+                        value: "\(detail.commentCount)",
+                        systemImage: "bubble.right",
+                        isActive: isCommentFocused,
+                        isEnabled: currentUserId != nil
+                    ) {
+                        isCommentFocused = true
+                    }
+
+                    if detail.summary.cafe != nil {
+                        SipActionButton(
+                            title: isCafeFavorite(detail) ? "Saved" : "Save",
+                            value: nil,
+                            systemImage: isCafeFavorite(detail) ? "bookmark.fill" : "bookmark",
+                            isActive: isCafeFavorite(detail),
+                            isEnabled: currentUserId != nil
+                        ) {
+                            setCafeStateFromVisit(
+                                detail,
+                                isFavorite: !isCafeFavorite(detail),
+                                wantToTry: nil
+                            )
+                        }
+
+                        if !isOwnVisit(detail) {
+                            SipActionButton(
+                                title: isCafeWantToTry(detail) ? "Wanting" : "Want",
+                                value: nil,
+                                systemImage: isCafeWantToTry(detail) ? "pin.fill" : "pin",
+                                isActive: isCafeWantToTry(detail),
+                                isEnabled: currentUserId != nil
+                            ) {
+                                setCafeStateFromVisit(
+                                    detail,
+                                    isFavorite: nil,
+                                    wantToTry: !isCafeWantToTry(detail)
+                                )
+                            }
+                        }
+                    }
+
+                    SipShareButton(text: shareText(for: detail))
+                }
+
+                if let socialError {
+                    Text(socialError)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal)
         }
-    }
-
-    private func socialSection(_ detail: RemoteVisitDetail) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Button {
-                    Task {
-                        await toggleLike()
-                    }
-                } label: {
-                    Label("\(detail.likeCount)", systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(detail.currentUserHasLiked ? .mugshotMint : .espressoBrown.opacity(0.78))
-                }
-                .buttonStyle(.plain)
-                .disabled(currentUserId == nil || isSavingSocialAction)
-
-                Label("\(detail.commentCount)", systemImage: "bubble.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.78))
-
-                Spacer(minLength: 0)
-
-                if detail.summary.cafe != nil {
-                    Button {
-                        saveCafeFromVisit(detail)
-                    } label: {
-                        Label(isCafeSaved(detail) ? "Saved" : "Save Cafe", systemImage: isCafeSaved(detail) ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-            }
-
-            if let socialError {
-                Text(socialError)
-                    .font(.system(size: 12))
-                    .foregroundColor(.red.opacity(0.82))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
     }
 
     private func commentsSection(_ detail: RemoteVisitDetail) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            MugshotSectionTitle(title: "Comments")
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Conversation")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.espressoBrown)
 
-            if detail.comments.isEmpty {
-                Text("No comments yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .padding(.vertical, 8)
-            } else {
-                ForEach(detail.comments) { comment in
-                    RemoteCommentRow(comment: comment)
-                        .padding(.leading, comment.comment.parentCommentId == nil ? 0 : 18)
+                    Spacer()
+
+                    Text("\(detail.commentCount)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.espressoBrown.opacity(0.66))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.sandBeige.opacity(0.50))
+                        .clipShape(Capsule())
                 }
-            }
 
-            if currentUserId != nil {
-                HStack(alignment: .bottom, spacing: 10) {
-                    TextField("Add a comment", text: $commentText, axis: .vertical)
-                        .lineLimit(1...4)
-                        .mugshotFormField()
-
-                    Button {
-                        Task {
-                            await postComment()
+                if detail.comments.isEmpty {
+                    Text("No comments yet.")
+                        .font(.system(size: 14))
+                        .foregroundColor(.tertiaryText)
+                        .padding(.vertical, 2)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(detail.comments) { comment in
+                            RemoteCommentRow(comment: comment)
+                                .padding(.leading, comment.comment.parentCommentId == nil ? 0 : 18)
                         }
-                    } label: {
-                        Image(systemName: isSavingSocialAction ? "hourglass" : "paperplane.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .frame(width: 42, height: 42)
                     }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .disabled(commentText.remoteTrimmedNonEmpty == nil || isSavingSocialAction)
+                }
+
+                if currentUserId != nil {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        TextField("Add a thought", text: $commentText, axis: .vertical)
+                            .lineLimit(1...4)
+                            .mugshotFormField()
+                            .focused($isCommentFocused)
+                            .submitLabel(.send)
+
+                        Button {
+                            Task {
+                                await postComment()
+                            }
+                        } label: {
+                            Image(systemName: isSavingSocialAction ? "hourglass" : "paperplane.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 42, height: 42)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(commentText.remoteTrimmedNonEmpty == nil || isSavingSocialAction)
+                        .accessibilityLabel("Post comment")
+                    }
                 }
             }
         }
-        .padding(.horizontal)
     }
 
     private var loadingContent: some View {
-        VStack(spacing: 14) {
-            ProgressView()
-                .tint(.mugshotSage)
+        VStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.sandBeige.opacity(0.62))
+                .frame(height: 360)
+                .overlay {
+                    ProgressView()
+                        .tint(.mugshotSage)
+                }
 
             Text(displayedSummary.locationTitle)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.espressoBrown)
                 .multilineTextAlignment(.center)
 
-            Text("Loading visit...")
+            Text("Loading this sip...")
                 .font(.system(size: 13))
-                .foregroundColor(.espressoBrown.opacity(0.65))
+                .foregroundColor(.tertiaryText)
         }
-        .padding()
+        .padding(20)
+        .padding(.top, 58)
     }
 
     private func errorContent(_ message: String) -> some View {
         VStack(spacing: 12) {
-            Text("Could not load visit")
-                .font(.system(size: 16, weight: .semibold))
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+
+            Text("Could not load this sip")
+                .font(.system(size: 17, weight: .bold))
                 .foregroundColor(.espressoBrown)
 
             Text(message)
                 .font(.system(size: 13))
-                .foregroundColor(.espressoBrown.opacity(0.65))
+                .foregroundColor(.tertiaryText)
                 .multilineTextAlignment(.center)
 
             Button("Retry") {
@@ -524,22 +450,129 @@ struct RemoteVisitDetailView: View {
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(.mugshotSage)
         }
-        .padding()
+        .padding(22)
+        .mugshotGlassSurface(
+            radius: 22,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.62),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 6),
+            interactive: false
+        )
+        .padding(24)
+        .padding(.top, 90)
     }
 
-    private func detailRow(title: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.espressoBrown)
+    private func isOwnVisit(_ detail: RemoteVisitDetail) -> Bool {
+        currentUserId == detail.summary.visit.userId
+    }
 
-            Spacer(minLength: 12)
-
-            Text(value)
-                .font(.system(size: 14))
-                .foregroundColor(.espressoBrown.opacity(0.72))
-                .multilineTextAlignment(.trailing)
+    private func audienceLabel(for detail: RemoteVisitDetail) -> String {
+        if isOwnVisit(detail) {
+            return detail.summary.visit.backendVisibilityLabel
         }
+
+        switch detail.summary.visit.backendVisibilityLabel.lowercased() {
+        case "friends":
+            return "Friend sip"
+        case "public":
+            return "Public sip"
+        default:
+            return detail.summary.visit.backendVisibilityLabel
+        }
+    }
+
+    private func tags(for detail: RemoteVisitDetail) -> [SipTag] {
+        var tags: [SipTag] = [
+            SipTag(title: detail.summary.visit.backendVisibilityLabel, systemImage: visibilityIcon(for: detail.summary.visit.backendVisibilityLabel), isActive: true),
+            SipTag(title: detail.summary.visit.contextDisplayName, systemImage: "cup.and.saucer.fill", isActive: false)
+        ]
+
+        if let category = detail.summary.visit.drinkCategoryDisplayName,
+           category != detail.summary.visit.drinkDisplayName {
+            tags.append(SipTag(title: category, systemImage: "tag.fill", isActive: false))
+        }
+
+        if let brewMethod = detail.summary.visit.brewMethod?.remoteTrimmedNonEmpty {
+            tags.append(SipTag(title: brewMethod, systemImage: "drop.fill", isActive: false))
+        }
+
+        tags.append(SipTag(title: SipDetailFormat.relative(detail.summary.visit.createdAtDate), systemImage: "clock.fill", isActive: false))
+
+        return tags
+    }
+
+    private func visibilityIcon(for label: String) -> String {
+        switch label.lowercased() {
+        case "private":
+            return "lock.fill"
+        case "friends", "friend sip":
+            return "person.2.fill"
+        default:
+            return "globe"
+        }
+    }
+
+    private func cafeState(_ detail: RemoteVisitDetail) -> (isFavorite: Bool, wantToTry: Bool) {
+        guard let remoteCafeId = detail.summary.cafe?.id,
+              let cafe = dataManager.appData.cafes.first(where: {
+                  $0.remoteCafeId == remoteCafeId || $0.id == remoteCafeId
+              }) else {
+            return (false, false)
+        }
+
+        return (cafe.isFavorite, cafe.wantToTry)
+    }
+
+    private func isCafeFavorite(_ detail: RemoteVisitDetail) -> Bool {
+        cafeState(detail).isFavorite
+    }
+
+    private func isCafeWantToTry(_ detail: RemoteVisitDetail) -> Bool {
+        cafeState(detail).wantToTry
+    }
+
+    private func setCafeStateFromVisit(
+        _ detail: RemoteVisitDetail,
+        isFavorite: Bool?,
+        wantToTry: Bool?
+    ) {
+        guard let currentUserId else {
+            socialError = "Sign in to save cafes."
+            return
+        }
+
+        guard let remoteCafe = detail.summary.cafe else {
+            return
+        }
+
+        let existing = cafeState(detail)
+        let nextFavorite = isFavorite ?? existing.isFavorite
+        let nextWantToTry = wantToTry ?? existing.wantToTry
+        let localCafe = dataManager.upsertRemoteCafe(
+            remoteCafe,
+            isFavorite: nextFavorite,
+            wantToTry: nextWantToTry
+        )
+
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let service = CafeStateService(client: client)
+                let summary = try await service.setCafeState(
+                    userId: currentUserId,
+                    cafe: localCafe,
+                    isFavorite: nextFavorite,
+                    wantToTry: nextWantToTry
+                )
+                dataManager.applyRemoteCafeState(summary)
+            } catch {
+                socialError = "Could not update this cafe."
+            }
+        }
+    }
+
+    private func shareText(for detail: RemoteVisitDetail) -> String {
+        "\(detail.summary.authorDisplayName) rated \(detail.summary.visit.drinkDisplayName) \(String(format: "%.1f", detail.summary.visit.overallScore)) at \(detail.summary.locationTitle) on Mugshot."
     }
 
     private func loadDetail() async {
@@ -553,6 +586,7 @@ struct RemoteVisitDetailView: View {
                 visitId: visitId,
                 currentUserId: currentUserId
             )
+            selectedPhotoIndex = 0
             isLoading = false
         } catch {
             detail = nil
@@ -612,6 +646,7 @@ struct RemoteVisitDetailView: View {
                 currentUserId: currentUserId
             )
             commentText = ""
+            isCommentFocused = false
             isSavingSocialAction = false
         } catch {
             self.detail = detail
@@ -673,7 +708,7 @@ struct RemoteVisitDetailView: View {
             isDeletingVisit = false
             dismiss()
         } catch {
-            socialError = "Could not delete visit."
+            socialError = "Could not delete sip."
             isDeletingVisit = false
         }
     }
@@ -695,57 +730,6 @@ struct RemoteVisitDetailView: View {
             likeCount: state.likeCount,
             currentUserHasLiked: state.currentUserHasLiked
         )
-    }
-
-    private func isCafeSaved(_ detail: RemoteVisitDetail) -> Bool {
-        guard let remoteCafeId = detail.summary.cafe?.id else {
-            return false
-        }
-
-        return dataManager.appData.cafes.contains { cafe in
-            (cafe.remoteCafeId == remoteCafeId || cafe.id == remoteCafeId) && (cafe.isFavorite || cafe.wantToTry)
-        }
-    }
-
-    private func saveCafeFromVisit(_ detail: RemoteVisitDetail) {
-        guard let remoteCafe = detail.summary.cafe else {
-            return
-        }
-
-        let existing = dataManager.appData.cafes.first {
-            $0.remoteCafeId == remoteCafe.id || $0.id == remoteCafe.id
-        }
-        let localCafe = dataManager.upsertRemoteCafe(
-            remoteCafe,
-            isFavorite: true,
-            wantToTry: existing?.wantToTry ?? false
-        )
-
-        guard let currentUserId else {
-            return
-        }
-
-        Task {
-            do {
-                let client = try SupabaseClientProvider.shared.client()
-                let service = CafeStateService(client: client)
-                let summary = try await service.setCafeState(
-                    userId: currentUserId,
-                    cafe: localCafe,
-                    isFavorite: true,
-                    wantToTry: existing?.wantToTry ?? false
-                )
-                dataManager.applyRemoteCafeState(summary)
-            } catch {
-                socialError = "Could not save cafe."
-            }
-        }
-    }
-
-    private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
@@ -819,22 +803,16 @@ struct RemoteCommentRow: View {
                     .foregroundColor(.espressoBrown.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(timeAgoString(from: comment.comment.createdAtDate))
+                Text(SipDetailFormat.relative(comment.comment.createdAtDate))
                     .font(.system(size: 12))
                     .foregroundColor(.espressoBrown.opacity(0.55))
             }
 
             Spacer(minLength: 0)
         }
-        .padding()
-        .background(Color.sandBeige.opacity(0.46))
+        .padding(14)
+        .background(Color.sandBeige.opacity(0.42))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-    }
-
-    private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
@@ -873,19 +851,19 @@ struct EditRemoteVisitView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     MugshotSectionTitle(
                         title: "Edit sip",
-                        subtitle: "Update the public caption, private notes, and visibility."
+                        subtitle: "Update the public note, private note, and audience."
                     )
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Caption")
+                        MugshotSectionTitle(title: "Public note")
 
-                        TextField("Caption", text: $caption, axis: .vertical)
+                        TextField("What should people remember?", text: $caption, axis: .vertical)
                             .lineLimit(3...6)
                             .remoteVisitEditField()
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Private Notes")
+                        MugshotSectionTitle(title: "Private note")
 
                         TextField("Only visible to you", text: $notes, axis: .vertical)
                             .lineLimit(3...6)
@@ -893,7 +871,7 @@ struct EditRemoteVisitView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Visibility")
+                        MugshotSectionTitle(title: "Audience")
 
                         MugshotSegmentedControl(
                             options: [VisitVisibility.private, .friends, .everyone],
@@ -920,7 +898,7 @@ struct EditRemoteVisitView: View {
                                 ProgressView()
                                     .tint(.foamWhite)
                             }
-                            Text("Save visit")
+                            Text("Save sip")
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity)
@@ -934,7 +912,7 @@ struct EditRemoteVisitView: View {
                 .padding()
             }
             .background(Color.creamWhite)
-            .navigationTitle("Edit visit")
+            .navigationTitle("Edit sip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -961,7 +939,7 @@ struct EditRemoteVisitView: View {
         if didSave {
             dismiss()
         } else {
-            errorMessage = "Could not save visit edits."
+            errorMessage = "Could not save sip edits."
         }
     }
 
@@ -974,6 +952,462 @@ struct EditRemoteVisitView: View {
         default:
             return "globe"
         }
+    }
+}
+
+struct SipDetailBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color.creamWhite,
+                Color.sandBeige.opacity(0.52),
+                Color.mugshotMint.opacity(0.18)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+}
+
+struct SipTopBarButton: View {
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .frame(width: 42, height: 42)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().stroke(Color.foamWhite.opacity(0.72), lineWidth: 1))
+                .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct SipMemoryHeroOverlay: View {
+    let authorTitle: String
+    let avatarName: String
+    let username: String
+    let timestamp: String
+    let drinkName: String
+    let locationTitle: String
+    let locationSubtitle: String?
+    let score: Double
+    let visibilityLabel: String
+    let isOwnSip: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 10) {
+                MugshotAvatar(name: avatarName, size: 38)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(authorTitle)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.creamWhite)
+                        .lineLimit(1)
+
+                    Text("\(username) · \(timestamp)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.creamWhite.opacity(0.76))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                MugshotRatingBadge(score: score, onPhoto: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(drinkName)
+                    .mugshotDisplay(size: 42)
+                    .foregroundColor(.creamWhite)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.82)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(locationTitle, systemImage: "mappin.circle.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.creamWhite)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let locationSubtitle {
+                        Text(locationSubtitle)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.creamWhite.opacity(0.74))
+                            .lineLimit(2)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                SipMetaChip(
+                    title: visibilityLabel,
+                    systemImage: isOwnSip ? "person.crop.circle.fill" : "sparkles",
+                    isActive: true,
+                    onPhoto: true
+                )
+            }
+        }
+        .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 6)
+    }
+}
+
+struct SipEmptyPhotoBackdrop: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.darkRoast,
+                    Color.roastBrown,
+                    Color.mugshotSage.opacity(0.84)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            VStack(spacing: 12) {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundColor(.creamWhite.opacity(0.54))
+
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.creamWhite)
+
+                Text(message)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.creamWhite.opacity(0.70))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 34)
+            }
+            .padding(.bottom, 80)
+        }
+    }
+}
+
+struct SipPhotoCountBadge: View {
+    let current: Int
+    let total: Int
+
+    var body: some View {
+        Text("\(current)/\(total)")
+            .font(.system(size: 12, weight: .bold))
+            .foregroundColor(.creamWhite)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.espressoBrown.opacity(0.64))
+            .clipShape(Capsule())
+            .accessibilityLabel("Photo \(current) of \(total)")
+    }
+}
+
+struct SipDetailPanel<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(16)
+            .background(Color.foamWhite.opacity(0.96))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.foamWhite.opacity(0.82), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 18, x: 0, y: 8)
+    }
+}
+
+struct SipTag: Identifiable {
+    let title: String
+    let systemImage: String
+    var isActive = false
+
+    var id: String { "\(title)-\(systemImage)" }
+}
+
+struct SipTagGrid: View {
+    let tags: [SipTag]
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 96), spacing: 8, alignment: .leading)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(tags) { tag in
+                SipMetaChip(
+                    title: tag.title,
+                    systemImage: tag.systemImage,
+                    isActive: tag.isActive
+                )
+            }
+        }
+    }
+}
+
+struct SipMetaChip: View {
+    let title: String
+    let systemImage: String
+    var isActive = false
+    var onPhoto = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .foregroundColor(onPhoto ? .creamWhite : .espressoBrown.opacity(0.82))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(background)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(stroke, lineWidth: 1))
+    }
+
+    private var background: Color {
+        if onPhoto {
+            return Color.creamWhite.opacity(0.16)
+        }
+        return isActive ? Color.mugshotMint.opacity(0.38) : Color.sandBeige.opacity(0.52)
+    }
+
+    private var stroke: Color {
+        if onPhoto {
+            return Color.creamWhite.opacity(0.22)
+        }
+        return isActive ? Color.mugshotSage.opacity(0.38) : Color.clear
+    }
+}
+
+struct SipRatingBreakdownPanel: View {
+    let score: Double
+    let ratings: [String: Double]
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.tertiaryText)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    VStack(spacing: 2) {
+                        Text(String(format: "%.1f", score))
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Text("overall")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.espressoBrown.opacity(0.56))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.mugshotMint.opacity(0.34))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Overall rating \(String(format: "%.1f", score)) out of 5")
+                }
+
+                if ratings.isEmpty {
+                    Text("No category scores were saved with this sip.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(ratings.keys.sorted(), id: \.self) { category in
+                            if let rating = ratings[category] {
+                                SipRatingRow(title: category, value: rating)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SipRatingRow: View {
+    let title: String
+    let value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+
+                Spacer()
+
+                Text(String(format: "%.1f", value))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+            }
+
+            ProgressView(value: value, total: 5)
+                .tint(.mugshotSage)
+                .accessibilityLabel("\(title) rating \(String(format: "%.1f", value)) out of 5")
+        }
+    }
+}
+
+struct SipPrivateNotePanel: View {
+    let text: String
+
+    var body: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Private note", systemImage: "lock.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+
+                Text(text)
+                    .font(.system(size: 15))
+                    .foregroundColor(.espressoBrown.opacity(0.76))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct SipActionButton: View {
+    let title: String
+    let value: String?
+    let systemImage: String
+    var isActive = false
+    var isEnabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            SipActionLabel(
+                title: title,
+                value: value,
+                systemImage: systemImage,
+                isActive: isActive,
+                isEnabled: isEnabled
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        if let value {
+            return "\(title), \(value)"
+        }
+        return title
+    }
+}
+
+struct SipShareButton: View {
+    let text: String
+
+    var body: some View {
+        ShareLink(item: text) {
+            SipActionLabel(
+                title: "Share",
+                value: nil,
+                systemImage: "square.and.arrow.up",
+                isActive: false,
+                isEnabled: true
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Share sip")
+    }
+}
+
+struct SipActionLabel: View {
+    let title: String
+    let value: String?
+    let systemImage: String
+    var isActive = false
+    var isEnabled = true
+
+    var body: some View {
+        VStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                if let value {
+                    Text(value)
+                        .font(.system(size: 12, weight: .bold))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .foregroundColor(foreground)
+        .frame(maxWidth: .infinity)
+        .frame(height: 56)
+        .background(background)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                .stroke(isActive ? Color.mugshotSage.opacity(0.58) : Color.clear, lineWidth: 1.3)
+        )
+        .opacity(isEnabled ? 1 : 0.48)
+    }
+
+    private var foreground: Color {
+        isActive ? .espressoBrown : .roastBrown.opacity(0.82)
+    }
+
+    private var background: Color {
+        isActive ? Color.mugshotMint.opacity(0.38) : Color.sandBeige.opacity(0.48)
+    }
+}
+
+enum SipDetailFormat {
+    static func relative(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    static func timestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

@@ -175,7 +175,7 @@ struct LogVisitView: View {
                         VisitDetailView(visit: visit, dataManager: dataManager)
                     }
                 }
-                .sheet(item: $savedRemoteVisit, onDismiss: {
+                .fullScreenCover(item: $savedRemoteVisit, onDismiss: {
                     resetForm()
                     tabCoordinator.selectedTab = 4
                     dismiss()

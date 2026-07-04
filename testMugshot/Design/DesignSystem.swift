@@ -86,6 +86,73 @@ struct CardStyle: ViewModifier {
     }
 }
 
+struct MugshotGlassSurfaceStyle: ViewModifier {
+    var radius: CGFloat = DesignSystem.Radius.card
+    var tint: Color = .foamWhite
+    var stroke: Color = Color.foamWhite.opacity(0.42)
+    var shadow: DesignSystem.Shadow = DesignSystem.cardShadow
+    var interactive = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+
+        if #available(iOS 26.0, *) {
+            if interactive {
+                content
+                    .background(tint.opacity(0.24), in: shape)
+                    .glassEffect(.regular.tint(tint.opacity(0.18)).interactive(), in: .rect(cornerRadius: radius))
+                    .overlay(shape.stroke(stroke, lineWidth: 1))
+                    .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+            } else {
+                content
+                    .background(tint.opacity(0.24), in: shape)
+                    .glassEffect(.regular.tint(tint.opacity(0.18)), in: .rect(cornerRadius: radius))
+                    .overlay(shape.stroke(stroke, lineWidth: 1))
+                    .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+            }
+        } else {
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .background(tint.opacity(0.18), in: shape)
+                .overlay(shape.stroke(Color.mugshotLine.opacity(0.82), lineWidth: 1))
+                .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+        }
+    }
+}
+
+struct MugshotGlassCircleStyle: ViewModifier {
+    var tint: Color = .mugshotSage
+    var stroke: Color = Color.foamWhite.opacity(0.54)
+    var shadow: DesignSystem.Shadow = DesignSystem.cardShadow
+    var interactive = true
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            if interactive {
+                content
+                    .background(tint.opacity(0.34), in: Circle())
+                    .glassEffect(.regular.tint(tint.opacity(0.34)).interactive(), in: .circle)
+                    .overlay(Circle().stroke(stroke, lineWidth: 1))
+                    .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+            } else {
+                content
+                    .background(tint.opacity(0.34), in: Circle())
+                    .glassEffect(.regular.tint(tint.opacity(0.34)), in: .circle)
+                    .overlay(Circle().stroke(stroke, lineWidth: 1))
+                    .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+            }
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Circle())
+                .background(tint.opacity(0.82), in: Circle())
+                .overlay(Circle().stroke(stroke, lineWidth: 1))
+                .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+        }
+    }
+}
+
 extension View {
     func mugshotDisplay(size: CGFloat) -> some View {
         modifier(MugshotDisplayText(size: size))
@@ -96,6 +163,36 @@ extension View {
         shadow: DesignSystem.Shadow = DesignSystem.cardShadow
     ) -> some View {
         modifier(CardStyle(radius: radius, shadow: shadow))
+    }
+
+    func mugshotGlassSurface(
+        radius: CGFloat = DesignSystem.Radius.card,
+        tint: Color = .foamWhite,
+        stroke: Color = Color.foamWhite.opacity(0.42),
+        shadow: DesignSystem.Shadow = DesignSystem.cardShadow,
+        interactive: Bool = false
+    ) -> some View {
+        modifier(MugshotGlassSurfaceStyle(
+            radius: radius,
+            tint: tint,
+            stroke: stroke,
+            shadow: shadow,
+            interactive: interactive
+        ))
+    }
+
+    func mugshotGlassCircle(
+        tint: Color = .mugshotSage,
+        stroke: Color = Color.foamWhite.opacity(0.54),
+        shadow: DesignSystem.Shadow = DesignSystem.cardShadow,
+        interactive: Bool = true
+    ) -> some View {
+        modifier(MugshotGlassCircleStyle(
+            tint: tint,
+            stroke: stroke,
+            shadow: shadow,
+            interactive: interactive
+        ))
     }
 }
 

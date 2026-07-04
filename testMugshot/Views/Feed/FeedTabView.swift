@@ -98,7 +98,7 @@ struct FeedTabView: View {
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
         }
-        .sheet(item: $selectedRemoteVisit, onDismiss: {
+        .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
             Task {
                 await loadRemoteFeedIfNeeded()
             }
@@ -374,6 +374,7 @@ struct RemoteFeedVisitCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             authorHeader
+
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 0) {
                     poster
@@ -381,34 +382,43 @@ struct RemoteFeedVisitCard: View {
                 }
             }
             .buttonStyle(.plain)
+
             footer
         }
-        .cardStyle(radius: DesignSystem.Radius.heroCard)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
     }
 
     private var authorHeader: some View {
-        HStack(alignment: .top, spacing: 12) {
-            MugshotAvatar(name: visit.authorDisplayName, size: 42)
+        HStack(alignment: .center, spacing: 12) {
+            MugshotAvatar(name: visit.authorDisplayName, size: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(visit.authorDisplayName)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.espressoBrown)
                     .lineLimit(1)
 
                 Text("@\(visit.authorUsername) · \(timeAgoString(from: visit.visit.createdAtDate))")
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundColor(.espressoBrown.opacity(0.6))
                     .lineLimit(1)
             }
 
             Spacer(minLength: 8)
 
-            scoreBadge
+            if !hasPhoto {
+                scoreBadge
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
     }
 
     private var poster: some View {
@@ -424,10 +434,21 @@ struct RemoteFeedVisitCard: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: hasPhoto ? 290 : 220)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .frame(height: hasPhoto ? 270 : 178)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             locationOverlay
+
+            if hasPhoto {
+                VStack {
+                    HStack {
+                        Spacer()
+                        MugshotRatingBadge(score: visit.visit.overallScore, onPhoto: true)
+                            .padding(12)
+                    }
+                    Spacer()
+                }
+            }
         }
         .padding(.horizontal, 12)
     }
@@ -457,15 +478,20 @@ struct RemoteFeedVisitCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.espressoBrown.opacity(0.72))
-        .clipShape(Capsule())
+        .mugshotGlassSurface(
+            radius: 19,
+            tint: .espressoBrown,
+            stroke: Color.creamWhite.opacity(0.20),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
+            interactive: true
+        )
         .padding(12)
     }
 
     private var contentBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             Text(visit.visit.drinkDisplayName)
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 21, weight: .bold))
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -487,28 +513,39 @@ struct RemoteFeedVisitCard: View {
                 feedMetaPill(visit.visit.contextDisplayName, systemImage: "cup.and.saucer.fill")
                 feedMetaPill(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
             }
+            .lineLimit(1)
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.bottom, 14)
     }
 
     private var footer: some View {
-        HStack(spacing: 22) {
+        HStack(spacing: 14) {
             Button(action: onLike) {
-                Label("\(visit.socialState.likeCount)", systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart")
-                    .labelStyle(.titleAndIcon)
+                socialActionLabel(
+                    value: visit.socialState.likeCount,
+                    systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart",
+                    isActive: visit.socialState.currentUserHasLiked
+                )
             }
             .buttonStyle(.plain)
 
             Button(action: onComment) {
-                Label("\(visit.socialState.commentCount)", systemImage: "bubble.right")
-                    .labelStyle(.titleAndIcon)
+                socialActionLabel(
+                    value: visit.socialState.commentCount,
+                    systemImage: "bubble.right",
+                    isActive: false
+                )
             }
             .buttonStyle(.plain)
 
             Button(action: onSaveCafe) {
-                Image(systemName: isCafeSaved ? "bookmark.fill" : "bookmark")
+                socialActionLabel(
+                    value: nil,
+                    systemImage: isCafeSaved ? "bookmark.fill" : "bookmark",
+                    isActive: isCafeSaved
+                )
             }
             .buttonStyle(.plain)
 
@@ -516,17 +553,20 @@ struct RemoteFeedVisitCard: View {
 
             Button(action: onOpen) {
                 HStack(spacing: 6) {
-                Text("Details")
-                Image(systemName: "chevron.right")
+                    Text("Open")
+                    Image(systemName: "chevron.right")
                 }
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.sandBeige.opacity(0.44))
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .semibold))
         }
-        .font(.system(size: 19, weight: .medium))
-        .foregroundColor(.roastBrown.opacity(0.82))
         .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.mugshotLine)
@@ -537,6 +577,23 @@ struct RemoteFeedVisitCard: View {
 
     private var scoreBadge: some View {
         MugshotRatingBadge(score: visit.visit.overallScore)
+    }
+
+    private func socialActionLabel(value: Int?, systemImage: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+
+            if let value {
+                Text("\(value)")
+                    .font(.system(size: 13, weight: .bold))
+            }
+        }
+        .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
+        .padding(.horizontal, value == nil ? 9 : 10)
+        .padding(.vertical, 8)
+        .background(isActive ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.34))
+        .clipShape(Capsule())
     }
 
     private var visibilityIcon: String {
@@ -619,128 +676,217 @@ struct VisitCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Top author bar
-            HStack(alignment: .top, spacing: 12) {
-                // Avatar - 32pt diameter
-                MugshotAvatar(name: user?.username ?? "User", size: 32)
-                
-                // Name and date
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(user?.displayNameOrUsername ?? user?.username ?? "user")
-                            .font(.system(size: 15, weight: .medium))
+            localAuthorHeader
+            localPoster
+            localContent
+            localFooter
+        }
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
+    }
+
+    private var localAuthorHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            MugshotAvatar(name: user?.username ?? "User", size: 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(user?.displayNameOrUsername ?? user?.username ?? "Mugshot User")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(1)
+
+                    if isCurrentUser {
+                        Text("You")
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.espressoBrown)
-                        
-                        if isCurrentUser {
-                            Text("You")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                    .background(Color.mugshotSage)
-                                .cornerRadius(10)
-                        }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.mugshotMint.opacity(0.5))
+                            .clipShape(Capsule())
                     }
-                    
-                    Text(formatDate(visit.createdAt))
-                        .font(.system(size: 13))
-                        .foregroundColor(.espressoBrown.opacity(0.6))
                 }
-                
-                Spacer()
-                
-                // Rating badge
+
+                Text(formatDate(visit.createdAt))
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown.opacity(0.6))
+            }
+
+            Spacer(minLength: 8)
+
+            if visit.photos.isEmpty {
                 MugshotRatingBadge(score: visit.overallScore)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
-            
-            // Main hero image - fixed 4:3 aspect ratio
-            if !visit.photos.isEmpty {
-                PosterImageView(visit: visit)
-                    .aspectRatio(4/3, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-            } else {
-                // Placeholder when no photo
-                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                    .fill(Color.sandBeige.opacity(0.72))
-                    .aspectRatio(4/3, contentMode: .fit)
-                    .overlay(
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundColor(.roastBrown.opacity(0.42))
-                    )
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
+    }
+
+    private var localPoster: some View {
+        ZStack(alignment: .bottom) {
+            Group {
+                if !visit.photos.isEmpty {
+                    PosterImageView(visit: visit)
+                } else {
+                    RemoteFeedNoPhotoPoster()
+                }
             }
-            
-            VStack(alignment: .leading, spacing: 10) {
-                // Cafe + drink info row
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 11))
-                    .foregroundColor(.mugshotSage)
-                        Button(action: {
-                            onCafeTap?()
-                        }) {
-                            Text(cafe?.name ?? "Unknown Café")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.espressoBrown)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    Text(visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? ""))
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown.opacity(0.7))
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                
-                // Caption
-                if !visit.caption.isEmpty {
-                    MentionText(text: visit.caption, mentions: visit.mentions)
-                        .font(.system(size: 14))
-                        .foregroundColor(.espressoBrown)
+            .frame(maxWidth: .infinity)
+            .frame(height: visit.photos.isEmpty ? 178 : 260)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(cafe?.name ?? "Unknown Cafe", systemImage: "mappin.circle.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.creamWhite)
                         .lineLimit(2)
-                        .padding(.horizontal, 16)
+
+                    if let address = cafe?.address, !address.isEmpty {
+                        Text(address)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.creamWhite.opacity(0.75))
+                            .lineLimit(1)
+                    }
                 }
-                
-                // Social row
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if let userId = dataManager.appData.currentUser?.id {
-                            dataManager.toggleVisitLike(visit.id, userId: userId)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isLiked ? "heart.fill" : "heart")
-                                .font(.system(size: 15))
-                            .foregroundColor(isLiked ? .mugshotSage : .roastBrown.opacity(0.7))
-                            Text("\(visit.likeCount)")
-                                .font(.system(size: 14))
-                                .foregroundColor(.espressoBrown.opacity(0.7))
-                        }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.creamWhite.opacity(0.78))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .mugshotGlassSurface(
+                radius: 19,
+                tint: .espressoBrown,
+                stroke: Color.creamWhite.opacity(0.20),
+                shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
+                interactive: true
+            )
+            .padding(12)
+
+            if !visit.photos.isEmpty {
+                VStack {
+                    HStack {
+                        Spacer()
+                        MugshotRatingBadge(score: visit.overallScore, onPhoto: true)
+                            .padding(12)
                     }
-                    .buttonStyle(.plain)
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "bubble.right")
-                            .font(.system(size: 15))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                        Text("\(visit.commentCount)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.espressoBrown.opacity(0.7))
-                    }
-                    
                     Spacer()
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
             }
         }
-        .cardStyle(radius: DesignSystem.Radius.heroCard)
+        .padding(.horizontal, 12)
+    }
+
+    private var localContent: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text(localDrinkDisplayName)
+                .font(.system(size: 21, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !visit.caption.isEmpty {
+                MentionText(text: visit.caption, mentions: visit.mentions)
+                    .font(.system(size: 15))
+                    .foregroundColor(.espressoBrown.opacity(0.74))
+                    .lineLimit(3)
+            }
+
+            HStack(spacing: 8) {
+                localMetaPill(visit.drinkType.rawValue, systemImage: "tag.fill")
+                localMetaPill(visit.visibility.rawValue, systemImage: visibilityIcon(for: visit.visibility))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 14)
+    }
+
+    private var localFooter: some View {
+        HStack(spacing: 14) {
+            Button(action: {
+                if let userId = dataManager.appData.currentUser?.id {
+                    dataManager.toggleVisitLike(visit.id, userId: userId)
+                }
+            }) {
+                localSocialLabel(value: visit.likeCount, systemImage: isLiked ? "heart.fill" : "heart", isActive: isLiked)
+            }
+            .buttonStyle(.plain)
+
+            localSocialLabel(value: visit.commentCount, systemImage: "bubble.right", isActive: false)
+
+            Spacer(minLength: 0)
+
+            Text("Open")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.sandBeige.opacity(0.44))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.mugshotLine)
+                .frame(height: 1)
+                .padding(.horizontal, 16)
+        }
+    }
+
+    private var localDrinkDisplayName: String {
+        visit.customDrinkType ?? visit.drinkType.rawValue
+    }
+
+    private func localMetaPill(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundColor(.roastBrown.opacity(0.78))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(Color.sandBeige.opacity(0.55))
+        .clipShape(Capsule())
+    }
+
+    private func localSocialLabel(value: Int, systemImage: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+            Text("\(value)")
+                .font(.system(size: 13, weight: .bold))
+        }
+        .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(isActive ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.34))
+        .clipShape(Capsule())
+    }
+
+    private func visibilityIcon(for visibility: VisitVisibility) -> String {
+        switch visibility {
+        case .private:
+            return "lock.fill"
+        case .friends:
+            return "person.2.fill"
+        case .everyone:
+            return "globe"
+        }
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -762,9 +908,10 @@ struct VisitDetailView: View {
     @State private var visit: Visit
     @Environment(\.dismiss) var dismiss
     @State private var commentText = ""
+    @State private var selectedPhotoIndex = 0
     @FocusState private var isCommentFocused: Bool
-        @State private var showEdit = false
-        @State private var showDeleteAlert = false
+    @State private var showEdit = false
+    @State private var showDeleteAlert = false
     
     init(visit: Visit, dataManager: DataManager) {
         self._visit = State(initialValue: visit)
@@ -790,255 +937,425 @@ struct VisitDetailView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                SipDetailBackground()
+
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        // Photo carousel
-                        if !visit.photos.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    // Show poster image first, then rest
-                                    let orderedPhotos = getOrderedPhotos(for: visit)
-                                    ForEach(orderedPhotos, id: \.self) { photoPath in
-                                        PhotoImageView(photoPath: photoPath)
-                                            .frame(width: 310, height: 310)
-                                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
-                                    }
-                                }
-                                .padding()
-                            }
-                        } else {
-                            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
-                                .fill(Color.sandBeige.opacity(0.72))
-                                .frame(height: 200)
-                                .overlay(
-                                    Image(systemName: "photo.on.rectangle.angled")
-                                        .font(.system(size: 34, weight: .semibold))
-                                        .foregroundColor(.roastBrown.opacity(0.42))
-                                )
-                                .padding(.horizontal)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 16) {
-                            // Header: Cafe + Author
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(cafe?.name ?? "Unknown Café")
-                                    .mugshotDisplay(size: 29)
-                                    .foregroundColor(.espressoBrown)
-                                
-                                if let address = cafe?.address, !address.isEmpty {
-                                    Text(address)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.tertiaryText)
-                                }
-                                
-                                HStack(spacing: 8) {
-                                    MugshotAvatar(name: user?.username ?? "User", size: 40)
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("@\(user?.username ?? "user")")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
-                                        
-                                        Text(timeAgoString(from: visit.createdAt))
-                                            .font(.system(size: 12))
-                                            .foregroundColor(.espressoBrown.opacity(0.6))
-                                    }
-                                    
-                                    Spacer()
-                                }
-                                .padding(.top, 8)
-                            }
-                            
-                            // Drink type
-                            detailLine(
-                                title: "Drink",
-                                value: visit.drinkType.rawValue + (visit.customDrinkType.map { " • \($0)" } ?? "")
+                    VStack(spacing: 0) {
+                        localHeroSection
+
+                        VStack(alignment: .leading, spacing: 18) {
+                            localMemoryPanel
+                            localActionShelf
+                            SipRatingBreakdownPanel(
+                                score: visit.overallScore,
+                                ratings: visit.ratings,
+                                title: "Flavor map",
+                                subtitle: isOwnVisit ? "Your saved taste breakdown" : "\(user?.displayNameOrUsername ?? "Mugshot User")'s taste breakdown"
                             )
-                            
-                            // Overall score
-                            HStack {
-                                MugshotSectionTitle(title: "Overall Score")
-                                
-                                Spacer()
-                                
-                                MugshotRatingBadge(score: visit.overallScore)
-                            }
-                            
-                            // Rating breakdown
-                            VStack(alignment: .leading, spacing: 12) {
-                                MugshotSectionTitle(title: "Rating Breakdown")
-                                
-                                ForEach(Array(visit.ratings.keys.sorted()), id: \.self) { category in
-                                    if let rating = visit.ratings[category] {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            HStack {
-                                                Text(category)
-                                                    .font(.system(size: 14))
-                                                    .foregroundColor(.espressoBrown)
-                                                Spacer()
-                                                Text(String(format: "%.1f", rating))
-                                                    .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundColor(.mugshotSage)
-                                            }
-                                            
-                                            ProgressView(value: rating, total: 5.0)
-                                                .tint(.mugshotSage)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .mugshotSunkenPanel()
-                            
-                            // Caption with mentions
-                            if !visit.caption.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    MugshotSectionTitle(title: "Caption")
-                                    
-                                    MentionText(text: visit.caption, mentions: visit.mentions)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondaryText)
-                                }
-                            }
-                            
-                            // Notes (private)
-                            if let notes = visit.notes, !notes.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    MugshotSectionTitle(title: "Private Notes")
-                                    
-                                    Text(notes)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondaryText)
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            // Social actions
-                            HStack(spacing: 32) {
-                                Button(action: {
-                                    if let userId = dataManager.appData.currentUser?.id {
-                                        dataManager.toggleVisitLike(visit.id, userId: userId)
-                                        // Update local visit state
-                                        if let updatedVisit = dataManager.getVisit(id: visit.id) {
-                                            visit = updatedVisit
-                                        }
-                                    }
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: isLiked ? "heart.fill" : "heart")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(isLiked ? .mugshotSage : .roastBrown.opacity(0.7))
-                                        Text("\(visit.likeCount)")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.espressoBrown)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                
-                                HStack(spacing: 6) {
-                                    Image(systemName: "bubble.right")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.espressoBrown.opacity(0.7))
-                                    Text("\(visit.commentCount)")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.espressoBrown)
-                                }
-                            }
-                            .padding(.vertical, 8)
-                            
-                            // Comments section
-                            VStack(alignment: .leading, spacing: 12) {
-                                MugshotSectionTitle(title: "Comments")
-                                
-                                if comments.isEmpty {
-                                    Text("No comments yet")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.tertiaryText)
-                                        .padding(.vertical, 8)
-                                } else {
-                                    ForEach(comments) { comment in
-                                        CommentRow(comment: comment, dataManager: dataManager)
-                                    }
-                                }
-                            }
+                            localPrivateNote
+                            localCommentsSection
                         }
-                        .padding()
-                        .cardStyle(radius: DesignSystem.Radius.heroCard)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 18)
+                        .padding(.bottom, 34)
                     }
                 }
-                
-                // Comment composer
-                VStack(spacing: 0) {
-                    Divider()
-                    HStack(spacing: 12) {
-                        TextField("Add a comment…", text: $commentText, axis: .vertical)
+
+                localTopControls
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                refreshVisit()
+            }
+            .sheet(isPresented: $showEdit) {
+                EditVisitView(visit: visit, dataManager: dataManager) { updated in
+                    visit = updated
+                }
+            }
+            .alert("Delete this sip?", isPresented: $showDeleteAlert) {
+                Button("Delete", role: .destructive) {
+                    dataManager.deleteVisit(id: visit.id)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes it from your map, feed, and saved lists.")
+            }
+        }
+    }
+
+    private var isOwnVisit: Bool {
+        dataManager.appData.currentUser?.id == visit.userId
+    }
+
+    private var localDrinkDisplayName: String {
+        if let custom = visit.customDrinkType?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !custom.isEmpty {
+            return custom
+        }
+
+        return visit.drinkType.rawValue
+    }
+
+    private var localAuthorName: String {
+        isOwnVisit ? "Your sip" : (user?.displayNameOrUsername ?? "Mugshot User")
+    }
+
+    private var localUsername: String {
+        "@\(user?.username ?? "user")"
+    }
+
+    private var localTopControls: some View {
+        HStack(spacing: 12) {
+            SipTopBarButton(systemImage: "xmark") {
+                dismiss()
+            }
+            .accessibilityLabel("Close sip")
+
+            Spacer()
+
+            if isOwnVisit {
+                Menu {
+                    Button {
+                        showEdit = true
+                    } label: {
+                        Label("Edit Sip", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteAlert = true
+                    } label: {
+                        Label("Delete Sip", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 42, height: 42)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.foamWhite.opacity(0.72), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+                }
+                .accessibilityLabel("Sip actions")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+    }
+
+    private var localHeroSection: some View {
+        ZStack(alignment: .bottomLeading) {
+            localPhotoPager
+
+            LinearGradient(
+                colors: [
+                    .black.opacity(0.02),
+                    .black.opacity(0.18),
+                    .black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            SipMemoryHeroOverlay(
+                authorTitle: localAuthorName,
+                avatarName: user?.displayNameOrUsername ?? "User",
+                username: localUsername,
+                timestamp: SipDetailFormat.relative(visit.createdAt),
+                drinkName: localDrinkDisplayName,
+                locationTitle: cafe?.name ?? "Unknown Cafe",
+                locationSubtitle: cafe?.address.isEmpty == false ? cafe?.address : nil,
+                score: visit.overallScore,
+                visibilityLabel: localAudienceLabel,
+                isOwnSip: isOwnVisit
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 500)
+        .clipped()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(localDrinkDisplayName) at \(cafe?.name ?? "Unknown Cafe"), rated \(String(format: "%.1f", visit.overallScore))")
+    }
+
+    @ViewBuilder
+    private var localPhotoPager: some View {
+        let orderedPhotos = getOrderedPhotos(for: visit)
+
+        if orderedPhotos.isEmpty {
+            SipEmptyPhotoBackdrop(
+                title: "No photo saved",
+                message: "This sip still has its taste memory, notes, and social thread."
+            )
+        } else {
+            TabView(selection: $selectedPhotoIndex) {
+                ForEach(Array(orderedPhotos.enumerated()), id: \.offset) { index, photoPath in
+                    PhotoImageView(photoPath: photoPath)
+                        .tag(index)
+                        .overlay(alignment: .topTrailing) {
+                            if orderedPhotos.count > 1 {
+                                SipPhotoCountBadge(
+                                    current: selectedPhotoIndex + 1,
+                                    total: orderedPhotos.count
+                                )
+                                .padding(.top, 64)
+                                .padding(.trailing, 18)
+                            }
+                        }
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: orderedPhotos.count > 1 ? .automatic : .never))
+        }
+    }
+
+    private var localMemoryPanel: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 12) {
+                    MugshotAvatar(name: user?.displayNameOrUsername ?? "User", size: 44)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(isOwnVisit ? "Saved to your journal" : "Posted by \(user?.displayNameOrUsername ?? "Mugshot User")")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(2)
+
+                        Text(SipDetailFormat.timestamp(visit.createdAt))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+                }
+
+                if !visit.caption.isEmpty {
+                    MentionText(text: visit.caption, mentions: visit.mentions)
+                        .font(.system(size: 17))
+                        .foregroundColor(.espressoBrown.opacity(0.82))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(isOwnVisit ? "No public tasting note yet." : "No tasting note was shared with this sip.")
+                        .font(.system(size: 15))
+                        .foregroundColor(.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                SipTagGrid(tags: localTags)
+            }
+        }
+    }
+
+    private var localActionShelf: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Sip actions")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 94), spacing: 10)],
+                    alignment: .leading,
+                    spacing: 10
+                ) {
+                    SipActionButton(
+                        title: isLiked ? "Liked" : "Like",
+                        value: "\(visit.likeCount)",
+                        systemImage: isLiked ? "heart.fill" : "heart",
+                        isActive: isLiked,
+                        isEnabled: dataManager.appData.currentUser != nil
+                    ) {
+                        toggleLocalLike()
+                    }
+
+                    SipActionButton(
+                        title: "Comment",
+                        value: "\(visit.commentCount)",
+                        systemImage: "bubble.right",
+                        isActive: isCommentFocused,
+                        isEnabled: dataManager.appData.currentUser != nil
+                    ) {
+                        isCommentFocused = true
+                    }
+
+                    if cafe != nil {
+                        SipActionButton(
+                            title: cafe?.isFavorite == true ? "Saved" : "Save",
+                            value: nil,
+                            systemImage: cafe?.isFavorite == true ? "bookmark.fill" : "bookmark",
+                            isActive: cafe?.isFavorite == true,
+                            isEnabled: true
+                        ) {
+                            toggleLocalCafeFavorite()
+                        }
+
+                        if !isOwnVisit {
+                            SipActionButton(
+                                title: cafe?.wantToTry == true ? "Wanting" : "Want",
+                                value: nil,
+                                systemImage: cafe?.wantToTry == true ? "pin.fill" : "pin",
+                                isActive: cafe?.wantToTry == true,
+                                isEnabled: true
+                            ) {
+                                toggleLocalCafeWantToTry()
+                            }
+                        }
+                    }
+
+                    SipShareButton(text: localShareText)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localPrivateNote: some View {
+        if isOwnVisit,
+           let notes = visit.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !notes.isEmpty {
+            SipPrivateNotePanel(text: notes)
+        }
+    }
+
+    private var localCommentsSection: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Conversation")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+
+                    Spacer()
+
+                    Text("\(visit.commentCount)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.espressoBrown.opacity(0.66))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.sandBeige.opacity(0.50))
+                        .clipShape(Capsule())
+                }
+
+                if comments.isEmpty {
+                    Text("No comments yet.")
+                        .font(.system(size: 14))
+                        .foregroundColor(.tertiaryText)
+                        .padding(.vertical, 2)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(comments) { comment in
+                            CommentRow(comment: comment, dataManager: dataManager)
+                        }
+                    }
+                }
+
+                if dataManager.appData.currentUser != nil {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        TextField("Add a thought", text: $commentText, axis: .vertical)
                             .mugshotFormField()
                             .focused($isCommentFocused)
                             .lineLimit(1...4)
-                        
-                        Button(action: {
-                            addComment()
-                        }) {
-                            Text("Send")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.mugshotSage)
+                            .submitLabel(.send)
+
+                        Button(action: addComment) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 42, height: 42)
                         }
+                        .buttonStyle(SecondaryButtonStyle())
                         .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    .padding()
-                    .background(Color.creamWhite)
-                }
-            }
-            .background(Color.creamWhite)
-            .navigationTitle("Visit Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                    // Menu for edit/delete if this is the current user's visit
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        if let currentUserId = dataManager.appData.currentUser?.id, currentUserId == visit.userId {
-                            Menu {
-                                Button("Edit") { showEdit = true }
-                                Button(role: .destructive) {
-                                    showDeleteAlert = true
-                                } label: {
-                                    Text("Delete")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                            }
-                        }
-                    }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                        .accessibilityLabel("Post comment")
                     }
                 }
             }
-            .onAppear {
-                // Refresh visit data
-                if let updatedVisit = dataManager.getVisit(id: visit.id) {
-                    visit = updatedVisit
-                }
-            }
-                .sheet(isPresented: $showEdit) {
-                    EditVisitView(visit: visit, dataManager: dataManager) { updated in
-                        visit = updated
-                    }
-                }
-                .alert("Delete this visit?", isPresented: $showDeleteAlert) {
-                    Button("Delete", role: .destructive) {
-                        dataManager.deleteVisit(id: visit.id)
-                        dismiss()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This will remove it from your map, feed, and saved lists.")
-                }
+        }
+    }
+
+    private var localTags: [SipTag] {
+        var tags = [
+            SipTag(title: visit.visibility.rawValue, systemImage: visibilityIcon(for: visit.visibility), isActive: true),
+            SipTag(title: visit.drinkType.rawValue, systemImage: "tag.fill", isActive: false)
+        ]
+
+        if localDrinkDisplayName != visit.drinkType.rawValue {
+            tags.append(SipTag(title: localDrinkDisplayName, systemImage: "sparkles", isActive: false))
+        }
+
+        tags.append(SipTag(title: SipDetailFormat.relative(visit.createdAt), systemImage: "clock.fill", isActive: false))
+
+        return tags
+    }
+
+    private var localAudienceLabel: String {
+        if isOwnVisit {
+            return visit.visibility.rawValue
+        }
+
+        switch visit.visibility {
+        case .private:
+            return "Private sip"
+        case .friends:
+            return "Friend sip"
+        case .everyone:
+            return "Public sip"
+        }
+    }
+
+    private var localShareText: String {
+        "\(user?.displayNameOrUsername ?? "A Mugshot user") rated \(localDrinkDisplayName) \(String(format: "%.1f", visit.overallScore)) at \(cafe?.name ?? "a cafe") on Mugshot."
+    }
+
+    private func refreshVisit() {
+        if let updatedVisit = dataManager.getVisit(id: visit.id) {
+            visit = updatedVisit
+            selectedPhotoIndex = min(selectedPhotoIndex, max(0, getOrderedPhotos(for: updatedVisit).count - 1))
+        }
+    }
+
+    private func toggleLocalLike() {
+        guard let userId = dataManager.appData.currentUser?.id else {
+            return
+        }
+
+        dataManager.toggleVisitLike(visit.id, userId: userId)
+        refreshVisit()
+    }
+
+    private func toggleLocalCafeFavorite() {
+        guard let cafe else {
+            return
+        }
+
+        dataManager.setCafeState(
+            cafeId: cafe.id,
+            isFavorite: !cafe.isFavorite,
+            wantToTry: cafe.wantToTry
+        )
+    }
+
+    private func toggleLocalCafeWantToTry() {
+        guard let cafe else {
+            return
+        }
+
+        dataManager.setCafeState(
+            cafeId: cafe.id,
+            isFavorite: cafe.isFavorite,
+            wantToTry: !cafe.wantToTry
+        )
+    }
+
+    private func visibilityIcon(for visibility: VisitVisibility) -> String {
+        switch visibility {
+        case .private:
+            return "lock.fill"
+        case .friends:
+            return "person.2.fill"
+        case .everyone:
+            return "globe"
         }
     }
     
@@ -1073,7 +1390,7 @@ struct VisitDetailView: View {
         }
     }
     
-    // Simple edit screen for a visit (caption, notes, ratings, visibility)
+    // Simple edit screen for a sip (caption, notes, ratings, visibility)
     struct EditVisitView: View {
         @Environment(\.dismiss) var dismiss
         @ObservedObject var dataManager: DataManager
@@ -1092,23 +1409,23 @@ struct VisitDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         // Caption
                         VStack(alignment: .leading, spacing: 8) {
-                            MugshotSectionTitle(title: "Caption")
-                            TextField("Caption", text: $editableVisit.caption, axis: .vertical)
+                            MugshotSectionTitle(title: "Public note")
+                            TextField("What should people remember?", text: $editableVisit.caption, axis: .vertical)
                                 .lineLimit(3...6)
                                 .mugshotFormField()
                         }
                         
                         // Notes
                         VStack(alignment: .leading, spacing: 8) {
-                            MugshotSectionTitle(title: "Notes")
-                            TextField("Notes", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
+                            MugshotSectionTitle(title: "Private note")
+                            TextField("Only visible to you", text: Binding(get: { editableVisit.notes ?? "" }, set: { editableVisit.notes = $0 }), axis: .vertical)
                                 .lineLimit(3...8)
                                 .mugshotFormField()
                         }
                         
                         // Visibility
                         VStack(alignment: .leading, spacing: 8) {
-                            MugshotSectionTitle(title: "Visibility")
+                            MugshotSectionTitle(title: "Audience")
                             MugshotSegmentedControl(
                                 options: [VisitVisibility.private, .friends, .everyone],
                                 selection: $editableVisit.visibility,
@@ -1122,7 +1439,7 @@ struct VisitDetailView: View {
                     .padding()
                 }
                 .background(Color.creamWhite)
-                .navigationTitle("Edit Visit")
+                .navigationTitle("Edit sip")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {

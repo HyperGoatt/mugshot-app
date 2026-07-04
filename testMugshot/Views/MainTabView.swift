@@ -70,6 +70,31 @@ private struct MugshotBottomNav: View {
     ]
 
     var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 18) {
+                    navItems
+                }
+            } else {
+                navItems
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .mugshotGlassSurface(
+            radius: 30,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.58),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.09), radius: 18, x: 0, y: -3),
+            interactive: false
+        )
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
+        .background(Color.creamWhite.opacity(0.94).ignoresSafeArea(edges: .bottom))
+    }
+
+    private var navItems: some View {
         HStack(alignment: .center, spacing: 0) {
             ForEach(items) { item in
                 Button {
@@ -85,20 +110,10 @@ private struct MugshotBottomNav: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
                 .accessibilityLabel(item.title)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 9)
-        .padding(.bottom, 24)
-        .background(Color.foamWhite)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.mugshotLine)
-                .frame(height: 1)
-        }
-        .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: -4)
-        .ignoresSafeArea(edges: .bottom)
     }
 
     private func standardItem(_ item: MugshotTabItem, isSelected: Bool) -> some View {
@@ -109,25 +124,35 @@ private struct MugshotBottomNav: View {
                 .font(.system(size: 10, weight: .semibold))
         }
         .foregroundColor(isSelected ? .mugshotSage : .tertiaryText)
-        .frame(height: 48)
+        .frame(height: 58)
     }
 
     private func addButton(isSelected: Bool) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.foamWhite)
-                .frame(width: 54, height: 54)
-                .background(isSelected ? Color.mugshotMatcha : Color.mugshotSage)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.14), radius: 12, x: 0, y: 5)
+        let fill = isSelected ? Color.mugshotMatcha : Color.mugshotSage
+
+        return VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(fill.opacity(isSelected ? 0.94 : 0.88))
+
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.foamWhite)
+            }
+            .frame(width: 50, height: 50)
+            .mugshotGlassCircle(
+                tint: fill,
+                stroke: Color.foamWhite.opacity(0.62),
+                shadow: DesignSystem.Shadow(color: fill.opacity(0.32), radius: 14, x: 0, y: 5),
+                interactive: true
+            )
+            .scaleEffect(isSelected ? 1.04 : 1.0)
 
             Text("Add")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(isSelected ? .mugshotSage : .tertiaryText)
         }
-        .offset(y: -15)
-        .frame(height: 54)
+        .frame(height: 58)
     }
 
     private func selectedIcon(for icon: String) -> String {

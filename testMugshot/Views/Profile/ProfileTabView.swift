@@ -515,7 +515,7 @@ struct RecentVisitsView: View {
                 VisitDetailView(visit: visit, dataManager: dataManager)
             }
         }
-        .sheet(item: $selectedRemoteVisit) { visit in
+        .fullScreenCover(item: $selectedRemoteVisit) { visit in
             RemoteVisitDetailView(
                 visitId: visit.id,
                 initialSummary: visit,
@@ -693,67 +693,62 @@ struct RemoteVisitSummaryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if hasPhoto {
-                poster
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 170)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-                    .overlay(alignment: .topTrailing) {
-                        scoreBadge
-                            .padding(10)
-                    }
-                    .padding([.top, .horizontal], 12)
-            }
-
-            HStack(alignment: .top, spacing: 12) {
-                if !hasPhoto {
-                    poster
-                        .frame(width: 76, height: 76)
+        HStack(alignment: .top, spacing: 12) {
+            poster
+                .frame(width: 86, height: 98)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                .overlay(alignment: .bottomLeading) {
+                    scoreBadge
+                        .padding(7)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(visit.locationTitle)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if let subtitle = visit.locationSubtitle {
-                                Text(subtitle)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.espressoBrown.opacity(0.6))
-                                    .lineLimit(1)
-                            }
-                        }
-
-                        Spacer(minLength: 8)
-
-                        if !hasPhoto {
-                            scoreBadge
-                        }
-                    }
-
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(visit.visit.drinkDisplayName)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.espressoBrown)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    if !visit.visit.caption.isEmpty {
-                        Text(visit.visit.caption)
-                            .font(.system(size: 13))
-                            .foregroundColor(.espressoBrown.opacity(0.68))
-                            .lineLimit(2)
-                    }
+                    Spacer(minLength: 0)
 
-                    metadataRow
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.35))
                 }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(visit.locationTitle)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.78))
+                        .lineLimit(1)
+
+                    if let subtitle = visit.locationSubtitle {
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.espressoBrown.opacity(0.58))
+                            .lineLimit(1)
+                    }
+                }
+
+                if !visit.visit.caption.isEmpty {
+                    Text(visit.visit.caption)
+                        .font(.system(size: 13))
+                        .foregroundColor(.espressoBrown.opacity(0.68))
+                        .lineLimit(2)
+                }
+
+                metadataRow
             }
-            .padding(12)
         }
-        .cardStyle()
+        .padding(12)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 5)
     }
 
     private var poster: some View {
@@ -777,24 +772,18 @@ struct RemoteVisitSummaryCard: View {
             Text(String(format: "%.1f", visit.visit.overallScore))
                 .font(.system(size: 12, weight: .bold))
         }
-        .foregroundColor(.espressoBrown)
+        .foregroundColor(hasPhoto ? .creamWhite : .espressoBrown)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.mugshotSage.opacity(0.45))
+        .background(hasPhoto ? Color.espressoBrown.opacity(0.70) : Color.mugshotSage.opacity(0.45))
         .cornerRadius(999)
     }
 
     private var metadataRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Label(formatDate(visit.visit.createdAtDate), systemImage: "clock.fill")
             Text("•")
             Label(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.35))
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundColor(.espressoBrown.opacity(0.55))

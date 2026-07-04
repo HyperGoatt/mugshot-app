@@ -568,7 +568,7 @@ struct CafeDetailView: View {
             .sheet(isPresented: $showLogVisit) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
             }
-            .sheet(item: $selectedRemoteVisit) { visit in
+            .fullScreenCover(item: $selectedRemoteVisit) { visit in
                 RemoteVisitDetailView(
                     visitId: visit.id,
                     initialSummary: visit,
