@@ -12,6 +12,14 @@ import Testing
 
 struct testMugshotTests {
 
+    @Test func mapKitCategoriesNeverSurfaceRawDeveloperValues() {
+        let cafe = Cafe(name: "Nook", placeCategory: "MKPOICategoryCafe")
+
+        #expect(cafe.consumerPlaceCategory == "Cafe")
+        #expect(MugshotCafeCategory.display("MKPOICategoryBakery") == "Bakery")
+        #expect(MugshotCafeCategory.display(nil) == nil)
+    }
+
     @Test func supabaseConfigurationLoadsClientSafeValues() throws {
         let configuration = try SupabaseConfiguration.load(
             environment: [
@@ -542,6 +550,63 @@ struct testMugshotTests {
         #expect(!AddVisitValidation.hasRequiredPhoto(photoCount: 0))
         #expect(AddVisitValidation.hasRequiredPhoto(photoCount: 1))
         #expect(AddVisitValidation.photoRequiredMessage.contains("photo"))
+    }
+
+    @Test func addVisitRequirementSequenceMatchesTheGuidedJournalFlow() {
+        #expect(AddVisitRequirement.allCases == [.photo, .cafe, .drink, .rating, .caption])
+        #expect(AddVisitRequirement.photo.actionTitle == "Add a photo")
+        #expect(AddVisitRequirement.caption.guidance.contains("tasting note"))
+    }
+
+    @Test func userFacingErrorsNeverExposeTransportCopy() {
+        let offline = MugshotUserFacingError.message(
+            for: URLError(.notConnectedToInternet),
+            context: .photoUpload
+        )
+        #expect(offline.contains("offline"))
+
+        let upload = MugshotUserFacingError.message(
+            for: NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "raw endpoint failure"]),
+            context: .photoUpload
+        )
+        #expect(!upload.contains("endpoint"))
+        #expect(upload.contains("sip"))
+    }
+
+    @Test func presentationNormalizesCafeNamesAndUnratedScores() {
+        let cafe = Cafe(name: "  BLUE   BOTTLE COFFEE ", averageRating: 0)
+        #expect(cafe.consumerDisplayName == "Blue Bottle Coffee")
+        #expect(cafe.consumerScoreLabel == "Unrated")
+
+        let remoteCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "the DAILY grind",
+            address: nil,
+            city: nil,
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        #expect(remoteCafe.consumerDisplayName == "the Daily Grind")
+    }
+
+    @Test func visitInsertDefaultsToCompleteAndSupportsUploadDrafts() throws {
+        let cafe = SupabaseCafeSummary(
+            id: UUID(), name: "Cafe", address: nil, city: nil,
+            latitude: nil, longitude: nil, applePlaceId: nil, websiteURL: nil
+        )
+        let template = RatingTemplate(categories: [RatingCategory(name: "Taste", weight: 1)])
+        let draft = try SupabaseVisitInsert.make(
+            userId: UUID(), remoteCafe: cafe, drinkType: .coffee,
+            customDrinkType: nil, drinkSubtype: "Latte", caption: "Morning",
+            notes: nil, visibility: .private, ratings: ["Taste": 4],
+            ratingTemplate: template, uploadState: .uploading
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any]
+        )
+        #expect(object["upload_state"] as? String == "uploading")
     }
 
     @Test func supabaseSocialPayloadsTrimAndEncodeState() throws {

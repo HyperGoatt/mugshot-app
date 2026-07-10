@@ -186,16 +186,19 @@ struct SavedTabView: View {
     @ViewBuilder
     private var remoteStateStatus: some View {
         if isLoadingRemoteStates {
-            EmptyView()
-        } else if let remoteStateError {
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.red.opacity(0.75))
-                Text(remoteStateError)
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-                    .lineLimit(2)
-                Spacer()
+                ProgressView().tint(.mugshotSage)
+                Text("Refreshing saved cafes…")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+        } else if let remoteStateError {
+            MugshotRecoveryCard(
+                title: "Couldn’t refresh saved cafes",
+                message: remoteStateError,
+                actionTitle: "Retry"
+            ) {
+                Task { await loadRemoteCafeStates() }
             }
         }
     }
@@ -217,7 +220,8 @@ struct SavedTabView: View {
             dataManager.applyRemoteCafeStates(states)
             isLoadingRemoteStates = false
         } catch {
-            remoteStateError = "Could not sync saved cafes."
+            guard !Task.isCancelled else { return }
+            remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoadingRemoteStates = false
         }
     }
@@ -313,7 +317,7 @@ struct CafeCard: View {
 
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(alignment: .top, spacing: 8) {
-                        Text(cafe.name)
+                        Text(cafe.consumerDisplayName)
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.espressoBrown)
                             .lineLimit(2)
@@ -321,9 +325,7 @@ struct CafeCard: View {
 
                         Spacer(minLength: 6)
 
-                        if cafe.averageRating > 0 {
-                            scoreBadge
-                        }
+                        scoreBadge
                     }
 
                     if !cafe.address.isEmpty {
@@ -346,41 +348,29 @@ struct CafeCard: View {
                     HStack(spacing: 8) {
                         cafePill("\(displayedVisitCount) visits", systemImage: "cup.and.saucer.fill")
 
-                        if let category = cafe.placeCategory?.remoteTrimmedNonEmpty {
+                        if let category = cafe.consumerPlaceCategory {
                             cafePill(category, systemImage: "tag.fill")
                         }
                     }
                 }
             }
             .padding(12)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onShowDetails)
 
             Divider()
                 .padding(.horizontal, 12)
 
-            HStack(spacing: 0) {
-                savedCardAction("Directions", systemImage: "location.north.circle") {
-                    openInMaps()
-                }
-
-                savedActionDivider
-
-                savedCardAction("Log Visit", systemImage: "plus.circle") {
-                    onLogVisit()
-                }
-
-                savedActionDivider
-
-                if let websiteURL = cafe.websiteURL, !websiteURL.isEmpty {
-                    savedCardAction("Website", systemImage: "safari") {
-                        openWebsite(urlString: websiteURL)
-                    }
-                    savedActionDivider
-                }
-
-                savedCardAction("Details", systemImage: "chevron.right") {
-                    onShowDetails()
-                }
+            Button(action: onLogVisit) {
+                Label("Log a visit", systemImage: "plus.circle.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
             }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityHint("Opens a new visit with this cafe selected")
             .padding(.vertical, 10)
         }
         .cardStyle(radius: DesignSystem.Radius.card)
@@ -412,7 +402,7 @@ struct CafeCard: View {
         HStack(spacing: 4) {
             Image(systemName: "star.fill")
                 .font(.system(size: 11, weight: .semibold))
-            Text(String(format: "%.1f", cafe.averageRating))
+            Text(cafe.consumerScoreLabel)
                 .font(.system(size: 13, weight: .bold))
         }
         .foregroundColor(.espressoBrown)
@@ -644,7 +634,7 @@ struct CafeDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let category = currentCafe.placeCategory?.remoteTrimmedNonEmpty {
+            if let category = currentCafe.consumerPlaceCategory {
                 HStack(spacing: 5) {
                     Image(systemName: "tag.fill")
                         .font(.system(size: 10, weight: .semibold))
@@ -914,7 +904,8 @@ struct CafeDetailView: View {
             )
             isLoadingRemoteVisits = false
         } catch {
-            remoteVisitError = "Could not load visits for this cafe."
+            guard !Task.isCancelled else { return }
+            remoteVisitError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoadingRemoteVisits = false
         }
     }
@@ -1027,7 +1018,7 @@ struct RemoteCafeVisitRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "star.fill")
                             .font(.system(size: 11, weight: .semibold))
-                        Text(String(format: "%.1f", visit.visit.overallScore))
+                        Text(visit.visit.overallScore > 0 ? String(format: "%.1f", visit.visit.overallScore) : "Unrated")
                             .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundColor(.espressoBrown)

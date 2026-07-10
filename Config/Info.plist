@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mugshott</string>
+	<string>Mugshot</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -32,6 +32,8 @@
 	<string>Mugshot uses your location to show cafes near you on the map and help you discover new places.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Mugshot lets you choose photos from your library to attach to coffee visits.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Mugshot uses your camera so you can capture a coffee visit as it happens.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

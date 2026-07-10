@@ -67,6 +67,20 @@ final class ProfileService {
             .value
     }
 
+    func updateAvatar(
+        userId: UUID,
+        avatarURL: String
+    ) async throws -> SupabaseUserProfile {
+        try await client
+            .from("users")
+            .update(ProfileAvatarUpdate(avatarURL: avatarURL))
+            .eq("id", value: userId.uuidString)
+            .select(profileColumns)
+            .single()
+            .execute()
+            .value
+    }
+
     private func fallbackDisplayName(for authUser: AuthenticatedUser, localUser: User?) -> String {
         if let displayName = localUser?.displayName?.nilIfEmpty {
             return displayName
@@ -97,6 +111,14 @@ final class ProfileService {
         value
             .lowercased()
             .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+    }
+}
+
+private struct ProfileAvatarUpdate: Encodable {
+    let avatarURL: String
+
+    enum CodingKeys: String, CodingKey {
+        case avatarURL = "avatar_url"
     }
 }
 

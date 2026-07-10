@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import UIKit
 
 @MainActor
 final class AppAuthModel: ObservableObject {
@@ -24,15 +25,18 @@ final class AppAuthModel: ObservableObject {
 
     private let authService: AuthService?
     private let profileService: ProfileService?
+    private let accountDeletionService: AccountDeletionService?
 
     init(provider: SupabaseClientProvider = .shared) {
         do {
             let client = try provider.client()
             self.authService = AuthService(client: client)
             self.profileService = ProfileService(client: client)
+            self.accountDeletionService = AccountDeletionService(client: client)
         } catch {
             self.authService = nil
             self.profileService = nil
+            self.accountDeletionService = nil
             self.status = .configurationRequired(error.localizedDescription)
         }
     }
@@ -167,6 +171,50 @@ final class AppAuthModel: ObservableObject {
         profileUpdateError = nil
     }
 
+    func updateAvatar(_ image: UIImage, dataManager: DataManager) async -> Bool {
+        guard let authenticatedUser, let profileService else { return false }
+        isUpdatingProfile = true
+        profileUpdateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let mediaService = ProfileMediaService(client: client)
+            let previousAvatarURL = profile?.avatarURL
+            let avatarURL = try await mediaService.uploadAvatar(userId: authenticatedUser.id, image: image)
+            let updatedProfile = try await profileService.updateAvatar(
+                userId: authenticatedUser.id,
+                avatarURL: avatarURL
+            )
+            profile = updatedProfile
+            dataManager.applyAuthenticatedProfile(updatedProfile)
+            isUpdatingProfile = false
+            await mediaService.removeAvatar(at: previousAvatarURL)
+            return true
+        } catch {
+            profileUpdateError = MugshotUserFacingError.message(for: error, context: .account)
+            isUpdatingProfile = false
+            return false
+        }
+    }
+
+    func deleteAccount(dataManager: DataManager) async -> Bool {
+        guard let accountDeletionService else { return false }
+        status = .working
+
+        do {
+            try await accountDeletionService.deleteCurrentAccount()
+            authenticatedUser = nil
+            profile = nil
+            dataManager.clearLocalReleaseState()
+            status = .signedOut(message: "Your account and Mugshot data have been deleted.")
+            return true
+        } catch {
+            status = .signedIn
+            profileUpdateError = MugshotUserFacingError.message(for: error, context: .account)
+            return false
+        }
+    }
+
     private func finishAuthentication(
         user: AuthenticatedUser,
         profileService: ProfileService,
@@ -180,16 +228,11 @@ final class AppAuthModel: ObservableObject {
         authenticatedUser = user
         profile = bootstrappedProfile
         dataManager.applyAuthenticatedProfile(bootstrappedProfile)
-        SampleDataSeeder.seedSampleData(dataManager: dataManager)
         status = .signedIn
     }
 
     private func safeMessage(for error: Error) -> String {
-        let message = error.localizedDescription
-        if message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Something went wrong. Please try again."
-        }
-        return message
+        MugshotUserFacingError.message(for: error, context: .account)
     }
 }
 

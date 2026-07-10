@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ProfileTabView: View {
     @ObservedObject var dataManager: DataManager
@@ -73,13 +74,7 @@ struct ProfileTabView: View {
             names = dataManager.appData.visits.map { $0.drinkType.rawValue }
         }
 
-        guard !names.isEmpty else {
-            return [
-                TastePattern(name: "Coffee", icon: "cup.and.saucer.fill", fraction: 0.34),
-                TastePattern(name: "Matcha", icon: "leaf.fill", fraction: 0.33),
-                TastePattern(name: "Tea", icon: "mug.fill", fraction: 0.33)
-            ]
-        }
+        guard !names.isEmpty else { return [] }
 
         let counts = Dictionary(grouping: names, by: { $0 }).mapValues(\.count)
         return counts
@@ -160,7 +155,7 @@ struct ProfileTabView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(dataManager: dataManager)
                     .environmentObject(authModel)
             }
             .task(id: authModel.authenticatedUser?.id) {
@@ -236,7 +231,11 @@ struct ProfileTabView: View {
         HStack(spacing: 8) {
             MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
             MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
-            MugshotStatPill(icon: "star.fill", value: String(format: "%.1f", displayedStats.averageScore), label: "Avg")
+            MugshotStatPill(
+                icon: "star.fill",
+                value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
+                label: "Avg"
+            )
             MugshotStatPill(icon: "flame.fill", value: "\(streakDays)", label: "Streak")
         }
         .padding(.horizontal, 16)
@@ -282,7 +281,8 @@ struct ProfileTabView: View {
             )
             isLoadingRemoteProfileStats = false
         } catch {
-            remoteProfileStatsError = "Could not load profile stats."
+            guard !Task.isCancelled else { return }
+            remoteProfileStatsError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoadingRemoteProfileStats = false
         }
     }
@@ -388,6 +388,7 @@ struct EditProfileView: View {
     @State private var favoriteDrink: String
     @State private var instagramHandle: String
     @State private var websiteURL: String
+    @State private var selectedAvatarItem: PhotosPickerItem?
 
     init(profile: SupabaseUserProfile, dataManager: DataManager) {
         self.profile = profile
@@ -421,13 +422,47 @@ struct EditProfileView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let currentAvatarURL = authModel.profile?.avatarURL ?? profile.avatarURL
+        let isUpdatingAvatar = authModel.isUpdatingProfile
+
+        return NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     MugshotSectionTitle(
                         title: "Profile details",
                         subtitle: "Keep this warm and useful. It appears alongside your sips."
                     )
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Profile photo")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                            HStack(spacing: 12) {
+                                MugshotAvatar(
+                                    name: displayName,
+                                    size: 54,
+                                    imageURL: currentAvatarURL
+                                )
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(isUpdatingAvatar ? "Updating photo…" : "Change profile photo")
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Text("A square crop keeps your identity clear everywhere.")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.tertiaryText)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.tertiaryText)
+                            }
+                            .padding(12)
+                            .background(Color.sandBeige.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(authModel.isUpdatingProfile)
+                    }
 
                     profileField(
                         title: "Display Name",
@@ -517,6 +552,17 @@ struct EditProfileView: View {
                 .padding(DesignSystem.largePadding)
             }
             .background(Color.creamWhite)
+            .onChange(of: selectedAvatarItem) { _, item in
+                guard let item else { return }
+                Task {
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else {
+                        return
+                    }
+                    _ = await authModel.updateAvatar(image, dataManager: dataManager)
+                    selectedAvatarItem = nil
+                }
+            }
             .navigationTitle("Edit profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -601,29 +647,37 @@ struct CoffeeJourneyView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                identityTile(
-                    title: "Favorite drink",
-                    value: stats.favoriteDrinkLabel ?? "Keep sipping",
-                    icon: "leaf.fill"
-                )
-
-                identityTile(
-                    title: "Favorite cafe",
-                    value: topCafeName ?? "Discovering",
-                    icon: "mappin.circle.fill"
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(tasteMix, id: \.name) { pattern in
-                    MugshotTastePatternRow(pattern: pattern)
+            if stats.totalVisits == 0 {
+                ContentUnavailableView {
+                    Label("Your taste profile starts with a sip", systemImage: "leaf.fill")
+                } description: {
+                    Text("Log a few visits and Mugshot will surface your favorite drinks, cafes, and taste patterns.")
                 }
-            }
+            } else {
+                HStack(spacing: 10) {
+                    identityTile(
+                        title: "Favorite drink",
+                        value: stats.favoriteDrinkLabel ?? "Still emerging",
+                        icon: "leaf.fill"
+                    )
 
-            Text(streakDays > 0 ? "\(streakDays)-day streak. Your taste memory is alive." : "\(stats.totalVisits) logs across \(stats.totalCafes) cafes. Patterns will sharpen as you sip.")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.secondaryText)
+                    identityTile(
+                        title: "Favorite cafe",
+                        value: topCafeName ?? "Still exploring",
+                        icon: "mappin.circle.fill"
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(tasteMix, id: \.name) { pattern in
+                        MugshotTastePatternRow(pattern: pattern)
+                    }
+                }
+
+                Text(streakDays > 0 ? "\(streakDays)-day streak. Your taste memory is alive." : "\(stats.totalVisits) logs across \(stats.totalCafes) cafes. Patterns will sharpen as you sip.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
         }
     }
 

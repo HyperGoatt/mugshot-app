@@ -9,6 +9,7 @@ import UIKit
 
 struct UploadedVisitPhotos: Equatable {
     let publicURLs: [String]
+    let objectPaths: [String]
     let posterPhotoIndex: Int
 
     var posterPhotoURL: String? {
@@ -64,38 +65,53 @@ final class VisitPhotoUploadService {
         posterPhotoIndex: Int
     ) async throws -> UploadedVisitPhotos {
         guard !images.isEmpty else {
-            return UploadedVisitPhotos(publicURLs: [], posterPhotoIndex: 0)
+            return UploadedVisitPhotos(publicURLs: [], objectPaths: [], posterPhotoIndex: 0)
         }
 
         let storage = client.storage.from(bucketName)
         var publicURLs: [String] = []
+        var objectPaths: [String] = []
 
-        for image in images.prefix(VisitPhotoUploadPlan.maxPhotoCount) {
-            let data = try jpegData(for: image)
-            let path = VisitPhotoUploadPlan.objectPath(
-                userId: userId,
-                visitId: visitId,
-                objectId: UUID()
-            )
-
-            try await storage.upload(
-                path,
-                data: data,
-                options: FileOptions(
-                    cacheControl: "31536000",
-                    contentType: "image/jpeg",
-                    upsert: false
+        do {
+            for image in images.prefix(VisitPhotoUploadPlan.maxPhotoCount) {
+                let data = try jpegData(for: image)
+                let path = VisitPhotoUploadPlan.objectPath(
+                    userId: userId,
+                    visitId: visitId,
+                    objectId: UUID()
                 )
-            )
 
-            publicURLs.append(try storage.getPublicURL(path: path).absoluteString)
+                try await storage.upload(
+                    path,
+                    data: data,
+                    options: FileOptions(
+                        cacheControl: "31536000",
+                        contentType: "image/jpeg",
+                        upsert: false
+                    )
+                )
+
+                objectPaths.append(path)
+                publicURLs.append(try storage.getPublicURL(path: path).absoluteString)
+            }
+        } catch {
+            if !objectPaths.isEmpty {
+                _ = try? await storage.remove(paths: objectPaths)
+            }
+            throw error
         }
 
         let safePosterIndex = publicURLs.indices.contains(posterPhotoIndex) ? posterPhotoIndex : 0
         return UploadedVisitPhotos(
             publicURLs: publicURLs,
+            objectPaths: objectPaths,
             posterPhotoIndex: safePosterIndex
         )
+    }
+
+    func deletePhotos(at objectPaths: [String]) async throws {
+        guard !objectPaths.isEmpty else { return }
+        try await client.storage.from(bucketName).remove(paths: objectPaths)
     }
 
     private func jpegData(for image: UIImage) throws -> Data {

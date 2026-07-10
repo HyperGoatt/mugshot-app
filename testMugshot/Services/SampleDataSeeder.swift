@@ -5,6 +5,7 @@
 //  Created by Joseph Rosso on 11/14/25.
 //
 
+#if DEBUG
 import Foundation
 import CoreLocation
 
@@ -164,4 +165,4 @@ class SampleDataSeeder {
         }
     }
 }
-
+#endif

@@ -12,7 +12,7 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, notes, visibility, ratings, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, notes, visibility, upload_state, ratings, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, created_at
     """
 
     private let photoColumns = """
@@ -46,6 +46,7 @@ final class VisitService {
             .from("visits")
             .select(visitColumns)
             .eq("user_id", value: userId.uuidString)
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
             .order("created_at", ascending: false)
             .limit(limit)
             .execute()
@@ -69,6 +70,7 @@ final class VisitService {
             .select(visitColumns)
             .eq("cafe_id", value: cafeId.uuidString)
             .eq("user_id", value: userId.uuidString)
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
             .order("created_at", ascending: false)
             .limit(limit)
             .execute()
@@ -92,6 +94,8 @@ final class VisitService {
         case .everyone:
             query = query.eq("visibility", value: "everyone")
         }
+
+        query = query.eq("upload_state", value: VisitUploadState.complete.rawValue)
 
         let rows: [SupabaseVisitRow] = try await query
             .order("created_at", ascending: false)
@@ -290,7 +294,8 @@ final class VisitService {
         notes: String?,
         visibility: VisitVisibility,
         ratings: [String: Double],
-        ratingTemplate: RatingTemplate
+        ratingTemplate: RatingTemplate,
+        uploadState: VisitUploadState = .complete
     ) async throws -> RemoteVisitSummary {
         let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
         let payload = try SupabaseVisitInsert.make(
@@ -303,7 +308,8 @@ final class VisitService {
             notes: notes,
             visibility: visibility,
             ratings: ratings,
-            ratingTemplate: ratingTemplate
+            ratingTemplate: ratingTemplate,
+            uploadState: uploadState
         )
 
         let row: SupabaseVisitRow = try await client
@@ -325,6 +331,14 @@ final class VisitService {
         guard !photoURLs.isEmpty else {
             return try await fetchSavedVisitSummary(visitId: visitId)
         }
+
+        // Retrying a failed submission must replace its partial attachment rather
+        // than append duplicate photo rows.
+        try await client
+            .from("visit_photos")
+            .delete()
+            .eq("visit_id", value: visitId.uuidString)
+            .execute()
 
         let photoRows = SupabaseVisitPhotoInsert.rows(
             visitId: visitId,
@@ -358,6 +372,42 @@ final class VisitService {
         }
 
         return summary
+    }
+
+    func finalizeVisit(
+        visitId: UUID,
+        userId: UUID,
+        visibility: VisitVisibility
+    ) async throws -> RemoteVisitSummary {
+        let update = SupabaseVisitPublicationUpdate(
+            visibility: visibility.supabaseValue,
+            uploadState: VisitUploadState.complete.rawValue
+        )
+        let row: SupabaseVisitRow = try await client
+            .from("visits")
+            .update(update)
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .select(visitColumns)
+            .single()
+            .execute()
+            .value
+
+        let summaries = try await hydrate(rows: [row], includeAuthors: false)
+        guard let summary = summaries.first else {
+            throw VisitServiceError.visitNotFound
+        }
+        return summary
+    }
+
+    func markVisitUploadFailed(visitId: UUID, userId: UUID) async throws {
+        let update = SupabaseVisitUploadStateUpdate(uploadState: VisitUploadState.failed.rawValue)
+        try await client
+            .from("visits")
+            .update(update)
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
     }
 
     private func fetchSavedVisitSummary(visitId: UUID) async throws -> RemoteVisitSummary {
@@ -481,6 +531,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     let caption: String
     let notes: String?
     let visibility: String
+    let uploadState: String
     let ratings: [String: Double]
     let overallScore: Double
     let contextType: String
@@ -497,6 +548,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         case caption
         case notes
         case visibility
+        case uploadState = "upload_state"
         case ratings
         case overallScore = "overall_score"
         case contextType = "context_type"
@@ -515,7 +567,8 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         notes: String?,
         visibility: VisitVisibility,
         ratings: [String: Double],
-        ratingTemplate: RatingTemplate
+        ratingTemplate: RatingTemplate,
+        uploadState: VisitUploadState = .complete
     ) throws -> SupabaseVisitInsert {
         let cleanRatings = clean(ratings: ratings, ratingTemplate: ratingTemplate)
         let overallScore = ratingTemplate.calculateOverallScore(ratings: cleanRatings)
@@ -533,6 +586,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: notes?.remoteTrimmedNonEmpty,
             visibility: visibility.supabaseValue,
+            uploadState: uploadState.rawValue,
             ratings: cleanRatings,
             overallScore: overallScore,
             contextType: "Cafe",
@@ -577,6 +631,24 @@ struct SupabaseVisitInsert: Encodable, Equatable {
                 weight: category.weight
             )
         }
+    }
+}
+
+private struct SupabaseVisitPublicationUpdate: Encodable {
+    let visibility: String
+    let uploadState: String
+
+    enum CodingKeys: String, CodingKey {
+        case visibility
+        case uploadState = "upload_state"
+    }
+}
+
+private struct SupabaseVisitUploadStateUpdate: Encodable {
+    let uploadState: String
+
+    enum CodingKeys: String, CodingKey {
+        case uploadState = "upload_state"
     }
 }
 

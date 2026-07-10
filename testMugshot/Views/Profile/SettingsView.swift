@@ -4,99 +4,116 @@
 //
 
 import SwiftUI
+import UIKit
 
-enum SettingsDestination: String, CaseIterable, Identifiable, Equatable {
-    case about = "About Mugshot"
-    case privacy = "Privacy"
-    case terms = "Terms"
-    case support = "Support"
-
-    var id: String { rawValue }
-
-    var systemImage: String {
-        switch self {
-        case .about:
-            return "info.circle"
-        case .privacy:
-            return "hand.raised.fill"
-        case .terms:
-            return "doc.text.fill"
-        case .support:
-            return "envelope.fill"
-        }
-    }
+enum SettingsDestination: CaseIterable {
+    case about
+    case privacy
+    case terms
+    case support
 
     var detail: String {
         switch self {
         case .about:
-            return "A social sip journal for coffee, matcha, tea, cafes, and taste memory."
+            return "Your personal coffee memory book."
         case .privacy:
-            return "Mugshot keeps your profile, saved cafes, visit photos, likes, and comments connected to your account."
+            return "Your journal content is connected to your account so it can stay with you across devices."
         case .terms:
-            return "Use Mugshot respectfully. Only post photos and comments you have the right to share."
+            return "Use Mugshot respectfully and only share content you have the right to use."
         case .support:
-            return "Contact support@mugshot.app for support, privacy questions, or account help."
+            return "Get help with your account, privacy, or the app."
         }
     }
 
     var externalURL: URL? {
         switch self {
+        case .privacy:
+            return URL(string: "https://mugshotapp.co/privacy")
+        case .terms:
+            return URL(string: "https://mugshotapp.co/terms")
         case .support:
             return URL(string: "mailto:support@mugshot.app")
-        default:
+        case .about:
             return nil
         }
     }
 }
 
 struct SettingsView: View {
+    @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authModel: AppAuthModel
+    @State private var showDeleteConfirmation = false
+    @State private var copiedSupportEmail = false
+
+    private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
+    private let termsURL = URL(string: "https://mugshotapp.co/terms")!
+    private let supportEmail = "support@mugshot.app"
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Settings")
-                            .mugshotDisplay(size: 30)
-                            .foregroundColor(.espressoBrown)
-
-                        Text("Account, privacy, and support.")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.tertiaryText)
-                    }
-                    .padding(.top, 8)
+                    header
 
                     VStack(spacing: 0) {
-                    ForEach(SettingsDestination.allCases) { destination in
-                        if let url = destination.externalURL {
-                            Link(destination: url) {
-                                settingsRow(destination)
-                            }
-                        } else {
-                            NavigationLink {
-                                SettingsDetailView(destination: destination)
-                            } label: {
-                                settingsRow(destination)
-                            }
+                        NavigationLink {
+                            AboutMugshotView()
+                        } label: {
+                            settingsRow("About Mugshot", systemImage: "info.circle")
                         }
-                    }
+
+                        Divider().padding(.leading, 60)
+
+                        NavigationLink {
+                            PolicyDocumentView(
+                                title: "Privacy",
+                                subtitle: "How Mugshot handles your journal.",
+                                url: privacyURL,
+                                sections: PrivacyDocument.sections
+                            )
+                        } label: {
+                            settingsRow("Privacy", systemImage: "hand.raised.fill")
+                        }
+
+                        Divider().padding(.leading, 60)
+
+                        NavigationLink {
+                            PolicyDocumentView(
+                                title: "Terms",
+                                subtitle: "The ground rules for Mugshot.",
+                                url: termsURL,
+                                sections: TermsDocument.sections
+                            )
+                        } label: {
+                            settingsRow("Terms", systemImage: "doc.text.fill")
+                        }
+
+                        Divider().padding(.leading, 60)
+
+                        NavigationLink {
+                            SupportView(
+                                supportEmail: supportEmail,
+                                didCopy: $copiedSupportEmail
+                            )
+                        } label: {
+                            settingsRow("Support", systemImage: "envelope.fill")
+                        }
                     }
                     .cardStyle()
 
-                    Button(role: .destructive) {
-                        Task {
-                            await authModel.signOut()
-                            dismiss()
-                        }
-                    } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 15, weight: .semibold))
-                            .frame(maxWidth: .infinity)
+                    if copiedSupportEmail {
+                        Text("Support email copied")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.mugshotSage)
                     }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .tint(.red)
+
+                    accountSection
+
+                    Text(versionText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .padding(20)
             }
@@ -104,67 +121,226 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+                    Button("Done") { dismiss() }
+                }
+            }
+            .alert("Delete your account?", isPresented: $showDeleteConfirmation) {
+                Button("Delete Account", role: .destructive) {
+                    Task {
+                        let deleted = await authModel.deleteAccount(dataManager: dataManager)
+                        if deleted {
+                            dismiss()
+                        }
                     }
                 }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes your profile, photos, visits, saved cafes, comments, and account data. This can’t be undone.")
             }
         }
     }
 
-    private func settingsRow(_ destination: SettingsDestination) -> some View {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Settings")
+                .mugshotDisplay(size: 30)
+                .foregroundColor(.espressoBrown)
+            Text("Your account, privacy, and support.")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.tertiaryText)
+        }
+        .padding(.top, 8)
+    }
+
+    private var accountSection: some View {
+        VStack(spacing: 12) {
+            if let error = authModel.profileUpdateError {
+                Text(error)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.espressoBrown)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.sandBeige.opacity(0.58))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Button {
+                Task {
+                    await authModel.signOut()
+                    dismiss()
+                }
+            } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(authModel.status == .working)
+
+            Button(role: .destructive) {
+                authModel.clearProfileUpdateError()
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete Account", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .tint(.red)
+            .disabled(authModel.status == .working)
+        }
+    }
+
+    private func settingsRow(_ title: String, systemImage: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: destination.systemImage)
+            Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.mugshotSage)
                 .frame(width: 34, height: 34)
                 .background(Color.mugshotSage.opacity(0.16))
                 .clipShape(Circle())
 
-            Text(destination.rawValue)
+            Text(title)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.espressoBrown)
 
             Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.tertiaryText)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .contentShape(Rectangle())
+    }
+
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "Mugshot \(version) (\(build))"
     }
 }
 
-struct SettingsDetailView: View {
-    let destination: SettingsDestination
+private struct AboutMugshotView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Image("MugshotAppIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Text("Mugshot")
+                    .mugshotDisplay(size: 34)
+                    .foregroundColor(.espressoBrown)
+
+                Text("Mugshot is a personal coffee memory book. Save the drinks you loved, the cafes worth returning to, and the details that make each sip yours.")
+                    .font(.system(size: 16))
+                    .foregroundColor(.secondaryText)
+
+                Text("Photo-backed visits, private notes, and saved cafes are tied to your Mugshot account so they stay with you across devices.")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background(Color.creamWhite)
+        .navigationTitle("About Mugshot")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SupportView: View {
+    let supportEmail: String
+    @Binding var didCopy: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Need a hand?")
+                .mugshotDisplay(size: 30)
+                .foregroundColor(.espressoBrown)
+
+            Text("Email us for account, privacy, or beta support. If Mail is not set up on this device, copy the address and use the email app you prefer.")
+                .font(.system(size: 15))
+                .foregroundColor(.secondaryText)
+
+            Text(supportEmail)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .textSelection(.enabled)
+
+            Link(destination: URL(string: "mailto:\(supportEmail)")!) {
+                Label("Email Support", systemImage: "envelope.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            Button {
+                UIPasteboard.general.string = supportEmail
+                didCopy = true
+            } label: {
+                Label("Copy Email Address", systemImage: "doc.on.doc")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Color.creamWhite)
+        .navigationTitle("Support")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PolicyDocumentView: View {
+    let title: String
+    let subtitle: String
+    let url: URL
+    let sections: [(String, String)]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: destination.systemImage)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                    .frame(width: 58, height: 58)
-                    .background(Color.mugshotSage.opacity(0.16))
-                    .clipShape(Circle())
-
-                Text(destination.rawValue)
-                    .mugshotDisplay(size: 30)
-                    .foregroundColor(.espressoBrown)
-
-                Text(destination.detail)
-                    .font(.system(size: 15))
+            VStack(alignment: .leading, spacing: 20) {
+                Text(subtitle)
+                    .font(.system(size: 16))
                     .foregroundColor(.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(sections, id: \.0) { section in
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(section.0)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Text(section.1)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                    }
+                }
+
+                Link(destination: url) {
+                    Label("Read the full \(title.lowercased()) policy", systemImage: "safari")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(DesignSystem.largePadding)
-            .cardStyle(radius: DesignSystem.Radius.heroCard)
-            .padding()
+            .padding(20)
         }
         .background(Color.creamWhite)
-        .navigationTitle(destination.rawValue)
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+private enum PrivacyDocument {
+    static let sections = [
+        ("Effective date", "This summary applies to the current Mugshot app release. The full, current policy is always available from the link below."),
+        ("What Mugshot stores", "Your account profile, saved cafes, visit photos, captions, private notes, ratings, likes, and comments are stored to provide your journal."),
+        ("How it is used", "Your information is used to save your Mugshot, display only the visits you choose to share, and keep your profile and cafe library in sync."),
+        ("Your choices", "You can edit your profile, choose each visit’s audience, sign out, contact support, or permanently delete your account from Settings.")
+    ]
+}
+
+private enum TermsDocument {
+    static let sections = [
+        ("Effective date", "This summary applies to the current Mugshot app release. The full, current terms are available from the link below."),
+        ("Your content", "Only share photos, notes, and comments you have the right to use. Keep the coffee community respectful."),
+        ("Your account", "You are responsible for keeping your account credentials private and for the audience you choose for each visit."),
+        ("Questions", "Contact Mugshot support if you have questions about these terms or your account.")
+    ]
 }

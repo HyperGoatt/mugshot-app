@@ -25,7 +25,7 @@ struct PhotoImageView: View {
                         VStack(spacing: 8) {
                             Image(systemName: "photo.on.rectangle.angled")
                                 .font(.system(size: 34, weight: .semibold))
-                            Text("Photo loading")
+                            Text("Legacy sip")
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(.roastBrown.opacity(0.46))

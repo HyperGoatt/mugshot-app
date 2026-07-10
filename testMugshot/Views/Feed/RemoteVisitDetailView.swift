@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 private func consumerDetailCaption(_ caption: String) -> String? {
     let trimmed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -29,6 +30,21 @@ struct RemoteVisitDetailView: View {
     let initialSummary: RemoteVisitSummary
     let currentUserId: UUID?
     @ObservedObject var dataManager: DataManager
+    let justPosted: Bool
+
+    init(
+        visitId: UUID,
+        initialSummary: RemoteVisitSummary,
+        currentUserId: UUID?,
+        dataManager: DataManager,
+        justPosted: Bool = false
+    ) {
+        self.visitId = visitId
+        self.initialSummary = initialSummary
+        self.currentUserId = currentUserId
+        self.dataManager = dataManager
+        self.justPosted = justPosted
+    }
 
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
@@ -206,10 +222,15 @@ struct RemoteVisitDetailView: View {
     @ViewBuilder
     private func remotePhotoPager(_ detail: RemoteVisitDetail) -> some View {
         if detail.photoURLs.isEmpty {
-            SipEmptyPhotoBackdrop(
-                title: "No photo saved",
-                message: "This sip still has its taste memory, notes, and social thread."
-            )
+            Color.sandBeige.opacity(0.64)
+                .overlay {
+                    MugshotLegacySipHero(
+                        title: detail.summary.visit.drinkDisplayName,
+                        subtitle: detail.summary.locationTitle,
+                        score: detail.summary.visit.overallScore
+                    )
+                    .padding(20)
+                }
         } else {
             TabView(selection: $selectedPhotoIndex) {
                 ForEach(Array(detail.photoURLs.enumerated()), id: \.offset) { index, urlString in
@@ -241,7 +262,11 @@ struct RemoteVisitDetailView: View {
                     MugshotAvatar(name: detail.summary.authorDisplayName, size: 44)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(isOwnVisit(detail) ? "Saved to your journal" : "Posted by \(detail.summary.authorDisplayName)")
+                        Text(
+                            isOwnVisit(detail)
+                                ? (justPosted ? "Saved to your journal" : "Your journal entry")
+                                : "Posted by \(detail.summary.authorDisplayName)"
+                        )
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.espressoBrown)
                             .lineLimit(2)
@@ -609,7 +634,7 @@ struct RemoteVisitDetailView: View {
             isLoading = false
         } catch {
             detail = nil
-            loadError = error.localizedDescription
+            loadError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoading = false
         }
     }
@@ -621,6 +646,14 @@ struct RemoteVisitDetailView: View {
             return
         }
 
+        let previousDetail = detail
+        let optimisticState = RemoteVisitSocialState(
+            likeCount: max(0, detail.likeCount + (detail.currentUserHasLiked ? -1 : 1)),
+            commentCount: detail.commentCount,
+            currentUserHasLiked: !detail.currentUserHasLiked
+        )
+        applySocialState(optimisticState)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         isSavingSocialAction = true
         socialError = nil
 
@@ -633,9 +666,12 @@ struct RemoteVisitDetailView: View {
                 currentlyLiked: detail.currentUserHasLiked
             )
             applySocialState(state)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
-            socialError = "Could not update like."
+            self.detail = previousDetail
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             isSavingSocialAction = false
         }
     }
@@ -669,7 +705,7 @@ struct RemoteVisitDetailView: View {
             isSavingSocialAction = false
         } catch {
             self.detail = detail
-            socialError = "Could not post comment."
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
             isSavingSocialAction = false
         }
     }

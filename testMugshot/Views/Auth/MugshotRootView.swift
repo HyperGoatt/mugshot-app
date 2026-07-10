@@ -20,9 +20,6 @@ struct MugshotRootView: View {
                 AuthEntryView(dataManager: dataManager)
             case .signedIn:
                 MainTabView(dataManager: dataManager)
-                    .onAppear {
-                        SampleDataSeeder.seedSampleData(dataManager: dataManager)
-                    }
             }
         }
         .environmentObject(authModel)
@@ -32,4 +29,3 @@ struct MugshotRootView: View {
         }
     }
 }
-

@@ -83,15 +83,15 @@ extension LocationManager: CLLocationManagerDelegate {
         if let clError = error as? CLError {
             switch clError.code {
             case .denied:
-                locationError = "Location access denied"
+                locationError = "Location is off. You can still search for a cafe."
             case .locationUnknown:
                 // Location unknown is not necessarily an error, just keep trying
                 break
             default:
-                locationError = clError.localizedDescription
+                locationError = "We couldn’t find your location. You can still search for a cafe."
             }
         } else {
-            locationError = error.localizedDescription
+            locationError = "We couldn’t find your location. You can still search for a cafe."
         }
     }
     
@@ -105,7 +105,7 @@ extension LocationManager: CLLocationManagerDelegate {
             startUpdatingLocation()
             locationError = nil
         case .denied, .restricted:
-            locationError = "Location access denied"
+            locationError = "Location is off. You can still search for a cafe."
             stopUpdatingLocation()
         case .notDetermined:
             // Will request permission when needed
@@ -115,4 +115,3 @@ extension LocationManager: CLLocationManagerDelegate {
         }
     }
 }
-

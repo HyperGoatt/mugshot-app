@@ -50,25 +50,66 @@ struct Cafe: Identifiable, Codable {
         self.placeCategory = placeCategory
         self.remoteCafeId = remoteCafeId
     }
-}
 
-// Custom Codable for CLLocationCoordinate2D
-extension CLLocationCoordinate2D: Codable {
-    enum CodingKeys: String, CodingKey {
-        case latitude
-        case longitude
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case location
+        case address
+        case isFavorite
+        case wantToTry
+        case averageRating
+        case visitCount
+        case mapItemURL
+        case websiteURL
+        case placeCategory
+        case remoteCafeId
     }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(latitude, forKey: .latitude)
-        try container.encode(longitude, forKey: .longitude)
+
+    private struct StoredCoordinate: Codable {
+        let latitude: CLLocationDegrees
+        let longitude: CLLocationDegrees
     }
-    
-    public init(from decoder: Decoder) throws {
+
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let latitude = try container.decode(Double.self, forKey: .latitude)
-        let longitude = try container.decode(Double.self, forKey: .longitude)
-        self.init(latitude: latitude, longitude: longitude)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        if let coordinate = try container.decodeIfPresent(StoredCoordinate.self, forKey: .location) {
+            location = CLLocationCoordinate2D(
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude
+            )
+        } else {
+            location = nil
+        }
+        address = try container.decode(String.self, forKey: .address)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        wantToTry = try container.decode(Bool.self, forKey: .wantToTry)
+        averageRating = try container.decode(Double.self, forKey: .averageRating)
+        visitCount = try container.decode(Int.self, forKey: .visitCount)
+        mapItemURL = try container.decodeIfPresent(String.self, forKey: .mapItemURL)
+        websiteURL = try container.decodeIfPresent(String.self, forKey: .websiteURL)
+        placeCategory = try container.decodeIfPresent(String.self, forKey: .placeCategory)
+        remoteCafeId = try container.decodeIfPresent(UUID.self, forKey: .remoteCafeId)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(
+            location.map { StoredCoordinate(latitude: $0.latitude, longitude: $0.longitude) },
+            forKey: .location
+        )
+        try container.encode(address, forKey: .address)
+        try container.encode(isFavorite, forKey: .isFavorite)
+        try container.encode(wantToTry, forKey: .wantToTry)
+        try container.encode(averageRating, forKey: .averageRating)
+        try container.encode(visitCount, forKey: .visitCount)
+        try container.encodeIfPresent(mapItemURL, forKey: .mapItemURL)
+        try container.encodeIfPresent(websiteURL, forKey: .websiteURL)
+        try container.encodeIfPresent(placeCategory, forKey: .placeCategory)
+        try container.encodeIfPresent(remoteCafeId, forKey: .remoteCafeId)
     }
 }

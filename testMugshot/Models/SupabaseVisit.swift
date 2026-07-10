@@ -5,6 +5,12 @@
 
 import Foundation
 
+enum VisitUploadState: String, Codable, CaseIterable {
+    case uploading
+    case complete
+    case failed
+}
+
 struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let id: UUID
     let userId: UUID
@@ -15,6 +21,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let caption: String
     let notes: String?
     let visibility: String
+    let uploadState: String
     let ratings: [String: Double]
     let overallScore: Double
     let posterPhotoURL: String?
@@ -34,6 +41,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case caption
         case notes
         case visibility
+        case uploadState = "upload_state"
         case ratings
         case overallScore = "overall_score"
         case posterPhotoURL = "poster_photo_url"
@@ -42,6 +50,46 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case cityState = "city_state"
         case brewMethod = "brew_method"
         case createdAt = "created_at"
+    }
+
+    init(
+        id: UUID,
+        userId: UUID,
+        cafeId: UUID?,
+        drinkType: String?,
+        drinkTypeCustom: String?,
+        drinkSubtype: String?,
+        caption: String,
+        notes: String?,
+        visibility: String,
+        uploadState: String = VisitUploadState.complete.rawValue,
+        ratings: [String: Double],
+        overallScore: Double,
+        posterPhotoURL: String?,
+        contextType: String?,
+        locationName: String?,
+        cityState: String?,
+        brewMethod: String?,
+        createdAt: String
+    ) {
+        self.id = id
+        self.userId = userId
+        self.cafeId = cafeId
+        self.drinkType = drinkType
+        self.drinkTypeCustom = drinkTypeCustom
+        self.drinkSubtype = drinkSubtype
+        self.caption = caption
+        self.notes = notes
+        self.visibility = visibility
+        self.uploadState = uploadState
+        self.ratings = ratings
+        self.overallScore = overallScore
+        self.posterPhotoURL = posterPhotoURL
+        self.contextType = contextType
+        self.locationName = locationName
+        self.cityState = cityState
+        self.brewMethod = brewMethod
+        self.createdAt = createdAt
     }
 
     var createdAtDate: Date {
@@ -307,7 +355,7 @@ struct RemoteVisitSummary: Identifiable, Equatable {
 
     var locationTitle: String {
         if let cafe {
-            return cafe.name
+            return cafe.consumerDisplayName
         }
         if let locationName = visit.locationName?.remoteTrimmedNonEmpty {
             return locationName

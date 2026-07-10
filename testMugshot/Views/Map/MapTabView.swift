@@ -59,9 +59,20 @@ struct MapTabView: View {
             MapViewRepresentable(
                 region: Binding(
                     get: { region ?? defaultRegion },
-                    set: { region = $0 }
+                    set: { updatedRegion in
+                        region = updatedRegion
+
+                        // A MapKit search should follow the portion of the map
+                        // the person is actually looking at, not the last
+                        // location that happened to initialize the screen.
+                        if isSearchActive,
+                           !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            searchService.search(query: searchText, region: updatedRegion)
+                        }
+                    }
                 ),
                 cafes: cafesWithLocations,
+                highlightedCafe: selectedCafe,
                 onCafeTap: { cafe in
                     selectedCafe = cafe
                     showCafeDetail = true
@@ -137,7 +148,7 @@ struct MapTabView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.espressoBrown.opacity(0.6))
                         
-                        TextField("Search cafes or neighborhoods...", text: $searchText)
+                        TextField("Search cafes", text: $searchText)
                             .foregroundColor(.inputText)
                             .tint(.mugshotSage)
                             .accentColor(.mugshotSage)
@@ -349,7 +360,8 @@ struct MapTabView: View {
             dataManager.applyRemoteCafeStates(states)
             remoteStateError = nil
         } catch {
-            remoteStateError = "Could not sync saved cafes."
+            guard !Task.isCancelled else { return }
+            remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
         }
     }
 }
@@ -359,6 +371,7 @@ struct MapTabView: View {
 struct MapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let cafes: [Cafe]
+    let highlightedCafe: Cafe?
     let onCafeTap: (Cafe) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -381,6 +394,8 @@ struct MapViewRepresentable: UIViewRepresentable {
     }
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.parent = self
+
         // Update region if needed
         if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
            abs(mapView.region.center.longitude - region.center.longitude) > 0.001 {
@@ -388,9 +403,14 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         // Update annotations - refresh all to handle Favorite/Want to Try state changes
+        let displayedCafes = (cafes + [highlightedCafe].compactMap { $0 }).reduce(into: [Cafe]()) { cafes, cafe in
+            if !cafes.contains(where: { $0.id == cafe.id }) {
+                cafes.append(cafe)
+            }
+        }
         let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
         let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
-        let currentCafeIds = Set(cafes.map { $0.id })
+        let currentCafeIds = Set(displayedCafes.map { $0.id })
         
         // Remove annotations for cafes that no longer exist
         let toRemove = existingAnnotations.filter { !currentCafeIds.contains($0.cafe.id) }
@@ -398,7 +418,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         
         // Update existing annotations if cafe state changed (Favorite/Want to Try)
         for existingAnnotation in existingAnnotations {
-            if let updatedCafe = cafes.first(where: { $0.id == existingAnnotation.cafe.id }) {
+            if let updatedCafe = displayedCafes.first(where: { $0.id == existingAnnotation.cafe.id }) {
                 // Check if Favorite/Want to Try state changed
                 if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
                    existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
@@ -412,20 +432,20 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         // Add new annotations
-        let toAdd = cafes.filter { !existingCafeIds.contains($0.id) }
+        let toAdd = displayedCafes.filter { !existingCafeIds.contains($0.id) }
         let newAnnotations = toAdd.map { CafeAnnotation(cafe: $0) }
         mapView.addAnnotations(newAnnotations)
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(onCafeTap: onCafeTap)
+        Coordinator(parent: self)
     }
     
     class Coordinator: NSObject, MKMapViewDelegate {
-        let onCafeTap: (Cafe) -> Void
-        
-        init(onCafeTap: @escaping (Cafe) -> Void) {
-            self.onCafeTap = onCafeTap
+        var parent: MapViewRepresentable
+
+        init(parent: MapViewRepresentable) {
+            self.parent = parent
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -564,7 +584,12 @@ struct MapViewRepresentable: UIViewRepresentable {
         
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             guard let cafeAnnotation = view.annotation as? CafeAnnotation else { return }
-            onCafeTap(cafeAnnotation.cafe)
+            parent.onCafeTap(cafeAnnotation.cafe)
+            mapView.deselectAnnotation(cafeAnnotation, animated: false)
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.region = mapView.region
         }
     }
 }
@@ -844,7 +869,7 @@ struct CafeDetailSheet: View {
 
     private var cafeIdentityBlock: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(displayCafe.name)
+            Text(displayCafe.consumerDisplayName)
                 .mugshotDisplay(size: 25)
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
@@ -867,7 +892,7 @@ struct CafeDetailSheet: View {
                     mapSheetPill("Want to Try", systemImage: "bookmark.fill")
                 }
 
-                if let category = displayCafe.placeCategory?.remoteTrimmedNonEmpty {
+                if let category = displayCafe.consumerPlaceCategory {
                     mapSheetPill(category, systemImage: "tag.fill")
                 }
             }
@@ -879,7 +904,7 @@ struct CafeDetailSheet: View {
         HStack(spacing: 10) {
             mapSheetStatCard(
                 title: "Average",
-                value: String(format: "%.1f", displayedScore),
+                value: displayedScore > 0 ? String(format: "%.1f", displayedScore) : "Unrated",
                 systemImage: "star.fill"
             )
 
@@ -1153,7 +1178,7 @@ struct VisitEntryRow: View {
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 11, weight: .semibold))
-                Text(String(format: "%.1f", visit.overallScore))
+                Text(visit.overallScore > 0 ? String(format: "%.1f", visit.overallScore) : "Unrated")
                     .font(.system(size: 13, weight: .bold))
             }
             .foregroundColor(.espressoBrown)
@@ -1196,6 +1221,8 @@ struct SearchResultsList: View {
                         .foregroundColor(.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
+
+                    typedCafeButton
                 }
                 .padding()
             } else if searchService.searchResults.isEmpty && !searchService.isSearching && !searchText.isEmpty {
@@ -1203,6 +1230,8 @@ struct SearchResultsList: View {
                     Text("No results found")
                         .font(.system(size: 14))
                         .foregroundColor(.secondaryText)
+
+                    typedCafeButton
                 }
                 .padding()
             } else if !searchText.isEmpty {
@@ -1276,6 +1305,20 @@ struct SearchResultsList: View {
         searchText = ""
         searchService.cancelSearch()
     }
+
+    private var typedCafeButton: some View {
+        Button("Use \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\" as a cafe") {
+            let name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return }
+            selectedCafe = dataManager.findOrCreateCafe(named: name)
+            showCafeDetail = true
+            isSearchActive = false
+            searchText = ""
+            searchService.cancelSearch()
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundColor(.mugshotSage)
+    }
 }
 
 // MARK: - Search Result Row
@@ -1312,7 +1355,7 @@ struct SearchResultRow: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(mapItem.name ?? "Unknown")
+                    Text(mapItem.name ?? "Cafe")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                     
@@ -1355,7 +1398,7 @@ struct LocalCafeRow: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(cafe.name)
+                    Text(cafe.consumerDisplayName)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                     
@@ -1368,15 +1411,13 @@ struct LocalCafeRow: View {
                 
                 Spacer()
                 
-                if cafe.averageRating > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.mugshotSage)
-                            .font(.system(size: 12))
-                        Text(String(format: "%.1f", cafe.averageRating))
-                            .font(.system(size: 14))
-                            .foregroundColor(.roastBrown)
-                    }
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.mugshotSage)
+                        .font(.system(size: 12))
+                    Text(cafe.consumerScoreLabel)
+                        .font(.system(size: 14))
+                        .foregroundColor(.roastBrown)
                 }
                 
                 Image(systemName: "chevron.right")

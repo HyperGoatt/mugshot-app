@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // Helper view to display the poster image for a visit
 struct PosterImageView: View {
@@ -38,6 +39,8 @@ struct FeedTabView: View {
     @State private var isLoadingRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var pendingSocialVisitIDs: Set<UUID> = []
+    @State private var socialRecoveryMessage: String?
 
     private var feedTaskID: String {
         "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(selectedScope.displayName)"
@@ -134,43 +137,15 @@ struct FeedTabView: View {
     @ViewBuilder
     private var remoteFeedContent: some View {
         if isLoadingRemoteVisits {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(.mugshotSage)
-
-                    Text("Loading feed...")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
+            MugshotLoadingCards(count: 4, cardHeight: 228)
         } else if let remoteVisitError {
-            VStack(spacing: 10) {
-                Text("Could not load feed")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Text(remoteVisitError)
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.65))
-                    .multilineTextAlignment(.center)
-
-                Button("Retry") {
-                    Task {
-                        await loadRemoteFeedIfNeeded()
-                    }
-                }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotSage)
+            MugshotRecoveryCard(
+                title: "Couldn’t load your feed",
+                message: remoteVisitError,
+                actionTitle: "Retry"
+            ) {
+                Task { await loadRemoteFeedIfNeeded() }
             }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.foamWhite)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                    .stroke(Color.mugshotLine, lineWidth: 1)
-            )
         } else if remoteVisits.isEmpty {
             MugsyEmptyStateView(
                 asset: selectedScope == .friends ? .noFriends : .comingSoon,
@@ -182,6 +157,7 @@ struct FeedTabView: View {
                 RemoteFeedVisitCard(
                     visit: visit,
                     isCafeSaved: isCafeSaved(for: visit),
+                    isSocialActionInFlight: pendingSocialVisitIDs.contains(visit.id),
                     onOpen: {
                         selectedRemoteVisit = visit
                     },
@@ -197,6 +173,16 @@ struct FeedTabView: View {
                 )
                 .accessibilityLabel("\(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
                 .accessibilityHint("Opens visit details")
+            }
+
+            if let socialRecoveryMessage {
+                Text(socialRecoveryMessage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.espressoBrown)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.sandBeige.opacity(0.58))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
     }
@@ -246,8 +232,9 @@ struct FeedTabView: View {
             isLoadingRemoteVisits = false
         } catch {
             guard scope == selectedScope else { return }
+            guard !Task.isCancelled else { return }
             remoteVisits = []
-            remoteVisitError = error.localizedDescription
+            remoteVisitError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoadingRemoteVisits = false
         }
     }
@@ -276,6 +263,10 @@ struct FeedTabView: View {
             return
         }
 
+        guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
+        socialRecoveryMessage = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
         updateRemoteVisit(
             id: visit.id,
             socialState: RemoteVisitSocialState(
@@ -295,9 +286,13 @@ struct FeedTabView: View {
                     currentlyLiked: visit.socialState.currentUserHasLiked
                 )
                 updateRemoteVisit(id: visit.id, socialState: state)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
+                socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
+            pendingSocialVisitIDs.remove(visit.id)
         }
     }
 
@@ -306,15 +301,20 @@ struct FeedTabView: View {
             return
         }
 
+        let existingState = existingCafeState(for: remoteCafe.id)
         let localCafe = dataManager.upsertRemoteCafe(
             remoteCafe,
             isFavorite: true,
-            wantToTry: existingCafeState(for: remoteCafe.id).wantToTry
+            wantToTry: existingState.wantToTry
         )
 
         guard let userId = authModel.authenticatedUser?.id else {
             return
         }
+
+        guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
+        socialRecoveryMessage = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         Task {
             do {
@@ -328,9 +328,17 @@ struct FeedTabView: View {
                     wantToTry: state.wantToTry
                 )
                 dataManager.applyRemoteCafeState(summary)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
-                // The optimistic local save is harmless and can be reconciled by Saved sync.
+                dataManager.setCafeState(
+                    cafeId: localCafe.id,
+                    isFavorite: existingState.isFavorite,
+                    wantToTry: existingState.wantToTry
+                )
+                socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
+            pendingSocialVisitIDs.remove(visit.id)
         }
     }
 
@@ -362,6 +370,7 @@ struct FeedTabView: View {
 struct RemoteFeedVisitCard: View {
     let visit: RemoteVisitSummary
     let isCafeSaved: Bool
+    let isSocialActionInFlight: Bool
     let onOpen: () -> Void
     let onLike: () -> Void
     let onSaveCafe: () -> Void
@@ -382,6 +391,7 @@ struct RemoteFeedVisitCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .disabled(isSocialActionInFlight)
 
             footer
         }
@@ -524,6 +534,7 @@ struct RemoteFeedVisitCard: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(isSocialActionInFlight)
 
             Button(action: onComment) {
                 socialActionLabel(
@@ -533,6 +544,7 @@ struct RemoteFeedVisitCard: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(isSocialActionInFlight)
 
             Button(action: onSaveCafe) {
                 socialActionLabel(
@@ -542,6 +554,7 @@ struct RemoteFeedVisitCard: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(isSocialActionInFlight)
 
             Spacer(minLength: 0)
 
@@ -585,7 +598,7 @@ struct RemoteFeedVisitCard: View {
         }
         .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
         .padding(.horizontal, value == nil ? 9 : 10)
-        .padding(.vertical, 8)
+        .frame(minHeight: 44)
         .background(isActive ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.34))
         .clipShape(Capsule())
     }
@@ -730,7 +743,7 @@ struct VisitCard: View {
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Label(cafe?.name ?? "Unknown Cafe", systemImage: "mappin.circle.fill")
+                    Label(cafe?.consumerDisplayName ?? "Cafe", systemImage: "mappin.circle.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.creamWhite)
                         .lineLimit(2)
@@ -1025,7 +1038,7 @@ struct VisitDetailView: View {
                 username: localUsername,
                 timestamp: SipDetailFormat.relative(visit.createdAt),
                 drinkName: localDrinkDisplayName,
-                locationTitle: cafe?.name ?? "Unknown Cafe",
+                locationTitle: cafe?.consumerDisplayName ?? "Cafe",
                 locationSubtitle: cafe?.address.isEmpty == false ? cafe?.address : nil,
                 score: visit.overallScore,
                 visibilityLabel: localAudienceLabel,
@@ -1038,7 +1051,7 @@ struct VisitDetailView: View {
         .frame(height: 500)
         .clipped()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(localDrinkDisplayName) at \(cafe?.name ?? "Unknown Cafe"), rated \(String(format: "%.1f", visit.overallScore))")
+        .accessibilityLabel("\(localDrinkDisplayName) at \(cafe?.consumerDisplayName ?? "Cafe"), rated \(visit.overallScore > 0 ? String(format: "%.1f", visit.overallScore) : "Unrated")")
     }
 
     @ViewBuilder

@@ -56,6 +56,8 @@ struct AuthEntryView: View {
                             .foregroundColor(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
+
+                    SignedOutJournalPreview()
                     
                     VStack(alignment: .leading, spacing: 16) {
                         MugshotSectionTitle(
@@ -174,18 +176,26 @@ struct SupabaseConfigurationRequiredView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 
-                Text(message)
+                Text(releaseMessage)
                     .font(.system(size: 14))
                     .foregroundColor(.espressoBrown.opacity(0.7))
                     .multilineTextAlignment(.center)
                 
-                Text("Please try again after account access is set up.")
+                Text("Try again in a moment, or contact support@mugshot.app.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.espressoBrown.opacity(0.65))
                     .multilineTextAlignment(.center)
             }
             .padding(28)
         }
+    }
+
+    private var releaseMessage: String {
+        #if DEBUG
+        return message
+        #else
+        return "Mugshot is temporarily unavailable."
+        #endif
     }
 }
 
@@ -198,11 +208,52 @@ struct AuthLoadingView: View {
                 ProgressView()
                     .tint(.mugshotSage)
                 
-                Text("Checking session")
+                Text("Opening your journal")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.secondaryText)
             }
         }
+    }
+}
+
+private struct SignedOutJournalPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Your first sip, saved with care", systemImage: "book.closed.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+
+            HStack(spacing: 10) {
+                previewStep(icon: "camera.fill", title: "Photograph", detail: "Add a cover")
+                previewStep(icon: "star.fill", title: "Rate", detail: "Remember the taste")
+                previewStep(icon: "lock.fill", title: "Keep", detail: "Private notes stay yours")
+            }
+
+            Text("Create an account to keep your photo-backed sips, saved cafes, and personal tasting notes together.")
+                .font(.system(size: 12))
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .background(Color.sandBeige.opacity(0.56))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .padding(.horizontal, 24)
+    }
+
+    private func previewStep(icon: String, title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            Text(detail)
+                .font(.system(size: 10))
+                .foregroundColor(.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

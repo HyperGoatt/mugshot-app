@@ -53,6 +53,11 @@ class DataManager: ObservableObject {
         }
         save()
     }
+
+    func clearLocalReleaseState() {
+        appData = AppData()
+        UserDefaults.standard.removeObject(forKey: dataKey)
+    }
     
     // MARK: - Cafe Operations
     func addCafe(_ cafe: Cafe) {
@@ -205,7 +210,7 @@ class DataManager: ObservableObject {
         guard let location = mapItem.placemark.location?.coordinate else {
             // If no location, just create a new cafe
             let cafe = Cafe(
-                name: mapItem.name ?? "Unknown Cafe",
+                name: mapItem.name ?? "Cafe",
                 address: formatAddress(from: mapItem.placemark),
                 mapItemURL: mapItem.url?.absoluteString,
                 websiteURL: mapItem.url?.absoluteString, // For now, use mapItem URL as fallback
@@ -250,7 +255,7 @@ class DataManager: ObservableObject {
         
         // Create new cafe with Apple Maps data
         let cafe = Cafe(
-            name: mapItem.name ?? "Unknown Cafe",
+            name: mapItem.name ?? "Cafe",
             location: location,
             address: formatAddress(from: mapItem.placemark),
             mapItemURL: mapItem.url?.absoluteString,

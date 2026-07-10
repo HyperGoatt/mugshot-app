@@ -6,10 +6,10 @@
 //
 
 import SwiftUI
-import PhotosUI
 import MapKit
 import CoreLocation
 import Supabase
+import AVFoundation
 
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
@@ -34,7 +34,6 @@ struct LogVisitView: View {
     @State private var drinkDetails: String = ""
     @State private var caption: String = ""
     @State private var notes: String = ""
-    @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var photoImages: [UIImage] = []
     @State private var posterPhotoIndex: Int = 0
     @State private var ratings: [String: Double] = [:]
@@ -45,13 +44,21 @@ struct LogVisitView: View {
     @State private var showVisitDetail = false
     @State private var savedRemoteVisit: RemoteVisitSummary?
     @State private var isSavingRemoteVisit = false
+    @State private var pendingRemoteSubmission: PendingRemoteSubmission?
+    @State private var uploadRecoveryMessage: String?
+    @State private var showPhotoSourceDialog = false
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var showCameraPermissionRecovery = false
+    @State private var requestedRequirement: AddVisitRequirement?
     
     @StateObject private var searchService = MapSearchService()
+    @StateObject private var cafeLocationManager = LocationManager()
     @State private var searchText = ""
+    @State private var cafeSearchRegion = LogVisitView.defaultSearchRegion
     @State private var scrollToTop = false
     
-    // Default region for search (can be improved with location manager later)
-    private let defaultSearchRegion = MKCoordinateRegion(
+    private static let defaultSearchRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
@@ -65,41 +72,51 @@ struct LogVisitView: View {
             return photoImages.isEmpty ? "Saving..." : "Uploading..."
         }
 
-        return canSubmitVisit ? "Log it" : "Finish your sip"
+        if pendingRemoteSubmission != nil {
+            return "Retry saving"
+        }
+
+        if canSubmitVisit {
+            return "Save to journal"
+        }
+
+        return firstIncompleteRequirement?.actionTitle ?? "Save to journal"
     }
 
     private var progressItems: [LogVisitProgressItem] {
-        var items = [
+        [
             LogVisitProgressItem(
+                requirement: .photo,
+                title: "Photo",
+                systemImage: "photo.fill",
+                isComplete: !photoImages.isEmpty
+            ),
+            LogVisitProgressItem(
+                requirement: .cafe,
                 title: "Cafe",
                 systemImage: "mappin.and.ellipse",
                 isComplete: selectedCafe != nil
             ),
             LogVisitProgressItem(
+                requirement: .drink,
                 title: "Drink",
                 systemImage: "cup.and.saucer.fill",
                 isComplete: drinkDetails.remoteTrimmedNonEmpty != nil &&
                     (drinkType != .other || customDrinkType.remoteTrimmedNonEmpty != nil)
             ),
             LogVisitProgressItem(
+                requirement: .rating,
                 title: "Rating",
                 systemImage: "star.fill",
                 isComplete: overallScore > 0
             ),
             LogVisitProgressItem(
+                requirement: .caption,
                 title: "Caption",
                 systemImage: "text.bubble.fill",
                 isComplete: caption.remoteTrimmedNonEmpty != nil
             )
         ]
-
-        items.append(LogVisitProgressItem(
-            title: "Photo",
-            systemImage: "photo.fill",
-            isComplete: !photoImages.isEmpty
-        ))
-
-        return items
     }
 
     private var completedProgressCount: Int {
@@ -111,7 +128,11 @@ struct LogVisitView: View {
     }
 
     private var isSaveButtonDisabled: Bool {
-        isSavingRemoteVisit || !canSubmitVisit
+        isSavingRemoteVisit
+    }
+
+    private var firstIncompleteRequirement: AddVisitRequirement? {
+        progressItems.first(where: { !$0.isComplete })?.requirement
     }
 
     private var drinkDisplayName: String {
@@ -146,20 +167,71 @@ struct LogVisitView: View {
                 }
                 .toolbarBackground(Color.creamWhite, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    stickySaveFooter
+                }
                 .sheet(isPresented: $showCustomizeRatings) {
                     CustomizeRatingsView(
                         dataManager: dataManager,
                         isPresented: $showCustomizeRatings
                     )
                 }
-                .onChange(of: selectedPhotos) { oldValue, newValue in
-                    loadPhotos(from: newValue)
+                .confirmationDialog(
+                    "Add a photo",
+                    isPresented: $showPhotoSourceDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("Take Photo") {
+                        requestCamera()
+                    }
+                    Button("Choose from Library") {
+                        showPhotoLibrary = true
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("A photo gives this sip its cover. You can add up to ten.")
+                }
+                .sheet(isPresented: $showCamera) {
+                    CameraCaptureView(image: Binding(
+                        get: { nil },
+                        set: { image in
+                            guard let image else { return }
+                            appendPhotos([image])
+                        }
+                    ), isPresented: $showCamera)
+                }
+                .sheet(isPresented: $showPhotoLibrary) {
+                    PhotoLibraryPickerView(
+                        images: Binding(
+                            get: { [] },
+                            set: { images in appendPhotos(images) }
+                        ),
+                        isPresented: $showPhotoLibrary,
+                        maximumSelectionCount: max(1, 10 - photoImages.count)
+                    )
+                }
+                .alert("Camera access is off", isPresented: $showCameraPermissionRecovery) {
+                    Button("Choose from Library") {
+                        showPhotoLibrary = true
+                    }
+                    Button("Open Settings") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Allow Camera access in Settings to take a new sip photo, or choose one from your library.")
                 }
                 .onAppear {
                     if let cafe = preselectedCafe {
                         selectedCafe = cafe
                     }
                     initializeRatings()
+                    initializeCafeSearchLocationIfAvailable()
+                }
+                .onChange(of: cafeLocationManager.location) { _, location in
+                    guard let location else { return }
+                    updateCafeSearchRegion(for: location)
                 }
                 .fullScreenCover(isPresented: $showVisitDetail, onDismiss: {
                     // When visit detail is dismissed, switch to Feed tab and reset form
@@ -184,7 +256,8 @@ struct LogVisitView: View {
                         visitId: visit.id,
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
-                        dataManager: dataManager
+                        dataManager: dataManager,
+                        justPosted: true
                     )
                 }
         }
@@ -211,6 +284,13 @@ struct LogVisitView: View {
                         scrollToTop = false
                     }
                 }
+                .onChange(of: requestedRequirement) { _, requirement in
+                    guard let requirement else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(requirement.rawValue, anchor: .top)
+                    }
+                    requestedRequirement = nil
+                }
             }
         }
     }
@@ -229,14 +309,16 @@ struct LogVisitView: View {
             LogVisitProgressCard(
                 items: progressItems,
                 isSaving: isSavingRemoteVisit,
-                isRemoteMode: authModel.authenticatedUser != nil
+                isRemoteMode: authModel.authenticatedUser != nil,
+                onSelect: { requestedRequirement = $0 }
             )
 
             PhotosSection(
-                selectedPhotos: $selectedPhotos,
                 photoImages: $photoImages,
-                posterPhotoIndex: $posterPhotoIndex
+                posterPhotoIndex: $posterPhotoIndex,
+                onAddPhoto: { showPhotoSourceDialog = true }
             )
+            .id(AddVisitRequirement.photo.rawValue)
 
             AddVisitSummaryStrip(
                 cafeName: selectedCafe?.name,
@@ -253,8 +335,12 @@ struct LogVisitView: View {
                 isSearchActive: $isCafeSearchActive,
                 searchService: searchService,
                 dataManager: dataManager,
-                searchRegion: defaultSearchRegion
+                searchRegion: cafeSearchRegion,
+                searchAreaDescription: cafeSearchAreaDescription,
+                locationActionTitle: cafeLocationActionTitle,
+                onLocationAction: useCurrentLocationForCafeSearch
             )
+            .id(AddVisitRequirement.cafe.rawValue)
             
             // Drink Type
             DrinkTypeSection(
@@ -263,6 +349,7 @@ struct LogVisitView: View {
             )
 
             DrinkDetailsSection(drinkDetails: $drinkDetails)
+                .id(AddVisitRequirement.drink.rawValue)
 
             // Ratings
             RatingsSection(
@@ -271,9 +358,11 @@ struct LogVisitView: View {
                 overallScore: overallScore,
                 showCustomize: $showCustomizeRatings
             )
+            .id(AddVisitRequirement.rating.rawValue)
             
             // Caption
             CaptionSection(caption: $caption)
+                .id(AddVisitRequirement.caption.rawValue)
             
             // Notes
             NotesSection(notes: $notes)
@@ -285,23 +374,6 @@ struct LogVisitView: View {
             if !validationErrors.isEmpty {
                 ValidationErrorCard(errors: validationErrors)
             }
-
-            // Save button
-            Button {
-                saveVisit()
-            } label: {
-                SaveVisitButtonLabel(
-                    title: saveButtonTitle,
-                    isSaving: isSavingRemoteVisit,
-                    photoCount: photoImages.count
-                )
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
-            .disabled(isSaveButtonDisabled)
-            .opacity(isSaveButtonDisabled ? 0.62 : 1.0)
         }
     }
     
@@ -314,7 +386,6 @@ struct LogVisitView: View {
         drinkDetails = ""
         caption = ""
         notes = ""
-        selectedPhotos = []
         photoImages = []
         posterPhotoIndex = 0
         ratings = [:]
@@ -326,6 +397,8 @@ struct LogVisitView: View {
         savedRemoteVisit = nil
         showVisitDetail = false
         isSavingRemoteVisit = false
+        pendingRemoteSubmission = nil
+        uploadRecoveryMessage = nil
 
         // Re-initialize ratings
         initializeRatings()
@@ -344,21 +417,97 @@ struct LogVisitView: View {
         }
     }
     
-    private func loadPhotos(from items: [PhotosPickerItem]) {
-        Task {
-            var loadedImages: [UIImage] = []
-            for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    loadedImages.append(image)
+    private func appendPhotos(_ images: [UIImage]) {
+        let remaining = max(0, 10 - photoImages.count)
+        photoImages.append(contentsOf: images.prefix(remaining))
+        if !photoImages.isEmpty && posterPhotoIndex >= photoImages.count {
+            posterPhotoIndex = 0
+        }
+    }
+
+    private var cafeSearchAreaDescription: String {
+        if cafeLocationManager.location != nil {
+            return "Searching around your current location"
+        }
+
+        switch cafeLocationManager.authorizationStatus {
+        case .denied, .restricted:
+            return "Location is off — search by cafe or neighborhood"
+        case .notDetermined:
+            return "Search nearby or type a cafe name"
+        default:
+            return "Finding your current location…"
+        }
+    }
+
+    private var cafeLocationActionTitle: String {
+        switch cafeLocationManager.authorizationStatus {
+        case .denied, .restricted:
+            return "Settings"
+        case .authorizedAlways, .authorizedWhenInUse:
+            return cafeLocationManager.location == nil ? "Find me" : "Near me"
+        case .notDetermined:
+            return "Near me"
+        @unknown default:
+            return "Near me"
+        }
+    }
+
+    private func initializeCafeSearchLocationIfAvailable() {
+        let status = cafeLocationManager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        cafeLocationManager.startUpdatingLocation()
+        if let location = cafeLocationManager.location {
+            updateCafeSearchRegion(for: location)
+        }
+    }
+
+    private func useCurrentLocationForCafeSearch() {
+        switch cafeLocationManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            cafeLocationManager.requestCurrentLocation()
+            if let location = cafeLocationManager.location {
+                updateCafeSearchRegion(for: location)
+            }
+        case .notDetermined:
+            cafeLocationManager.requestLocationPermission()
+        case .denied, .restricted:
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(url)
+        @unknown default:
+            break
+        }
+    }
+
+    private func updateCafeSearchRegion(for location: CLLocation) {
+        cafeSearchRegion = MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+        )
+
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            searchService.search(query: searchText, region: cafeSearchRegion)
+        }
+    }
+
+    private func requestCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        showCameraPermissionRecovery = true
+                    }
                 }
             }
-            await MainActor.run {
-                photoImages = loadedImages
-                if !photoImages.isEmpty && posterPhotoIndex >= photoImages.count {
-                    posterPhotoIndex = 0
-                }
-            }
+        case .denied, .restricted:
+            showCameraPermissionRecovery = true
+        @unknown default:
+            showCameraPermissionRecovery = true
         }
     }
 
@@ -449,6 +598,83 @@ struct LogVisitView: View {
         showVisitDetail = true
     }
 
+    private var stickySaveFooter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let uploadRecoveryMessage {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .foregroundColor(.mugshotSage)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Your draft is safe")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Text(uploadRecoveryMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Button("Discard", role: .destructive) {
+                        Task { await discardPendingSubmission() }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .disabled(isSavingRemoteVisit)
+                }
+                .padding(12)
+                .background(Color.sandBeige.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            if let requirement = firstIncompleteRequirement,
+               pendingRemoteSubmission == nil {
+                Text("Next: \(requirement.guidance)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+
+            Button {
+                handleStickySaveAction()
+            } label: {
+                SaveVisitButtonLabel(
+                    title: saveButtonTitle,
+                    isSaving: isSavingRemoteVisit,
+                    photoCount: photoImages.count
+                )
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .frame(maxWidth: .infinity)
+            .disabled(isSaveButtonDisabled)
+            .accessibilityHint(
+                canSubmitVisit || pendingRemoteSubmission != nil
+                    ? "Saves this sip to your journal"
+                    : "Takes you to the next required detail"
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Divider().overlay(Color.sandBeige)
+        }
+    }
+
+    private func handleStickySaveAction() {
+        guard !isSavingRemoteVisit else { return }
+
+        if pendingRemoteSubmission != nil || canSubmitVisit {
+            saveVisit()
+            return
+        }
+
+        guard let requirement = firstIncompleteRequirement else { return }
+        if requirement == .photo {
+            showPhotoSourceDialog = true
+        } else {
+            requestedRequirement = requirement
+        }
+    }
+
     @MainActor
     private func saveRemoteVisit(
         cafe: Cafe,
@@ -460,46 +686,72 @@ struct LogVisitView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            var remoteVisit = try await service.createVisit(
-                userId: authenticatedUser.id,
-                cafe: cafe,
-                drinkType: drinkType,
-                customDrinkType: customDrinkType,
-                drinkSubtype: drinkDetails,
-                caption: caption,
-                notes: notes,
-                visibility: visibility,
-                ratings: ratings,
-                ratingTemplate: dataManager.appData.ratingTemplate
-            )
-
-            if !photoImages.isEmpty {
-                do {
-                    remoteVisit = try await attachSelectedPhotos(
-                        to: remoteVisit,
-                        authenticatedUser: authenticatedUser,
-                        client: client,
-                        visitService: service
-                    )
-                } catch {
-                    try? await service.deleteVisit(
-                        visitId: remoteVisit.id,
-                        userId: authenticatedUser.id
-                    )
-                    isSavingRemoteVisit = false
-                    validationErrors = [photoUploadMessage(for: error)]
-                    scrollToTop = true
-                    return
-                }
+            var attempt = pendingRemoteSubmission
+            if attempt == nil {
+                let remoteVisit = try await service.createVisit(
+                    userId: authenticatedUser.id,
+                    cafe: cafe,
+                    drinkType: drinkType,
+                    customDrinkType: customDrinkType,
+                    drinkSubtype: drinkDetails,
+                    caption: caption,
+                    notes: notes,
+                    // An upload draft is intentionally private until its media and
+                    // publication state are both complete.
+                    visibility: .private,
+                    ratings: ratings,
+                    ratingTemplate: dataManager.appData.ratingTemplate,
+                    uploadState: .uploading
+                )
+                attempt = PendingRemoteSubmission(visit: remoteVisit, uploadedPhotos: nil)
+                pendingRemoteSubmission = attempt
             }
 
+            guard var submission = attempt else { return }
+            if submission.uploadedPhotos == nil {
+                let uploadService = VisitPhotoUploadService(client: client)
+                let photos = try await uploadService.uploadPhotos(
+                    userId: authenticatedUser.id,
+                    visitId: submission.visit.id,
+                    images: photoImages,
+                    posterPhotoIndex: posterPhotoIndex
+                )
+                submission.uploadedPhotos = photos
+                pendingRemoteSubmission = submission
+            }
+
+            guard let uploadedPhotos = submission.uploadedPhotos else { return }
+            _ = try await service.attachPhotoURLs(
+                visitId: submission.visit.id,
+                photoURLs: uploadedPhotos.publicURLs,
+                posterPhotoIndex: uploadedPhotos.posterPhotoIndex
+            )
+            let remoteVisit = try await service.finalizeVisit(
+                visitId: submission.visit.id,
+                userId: authenticatedUser.id,
+                visibility: visibility
+            )
+
             isSavingRemoteVisit = false
+            pendingRemoteSubmission = nil
+            uploadRecoveryMessage = nil
             mirrorRemoteCafe(from: remoteVisit)
             savedRemoteVisit = remoteVisit
         } catch {
             isSavingRemoteVisit = false
-            validationErrors = [error.localizedDescription]
-            scrollToTop = true
+            if let attempt = pendingRemoteSubmission {
+                let client = try? SupabaseClientProvider.shared.client()
+                if let client {
+                    try? await VisitService(client: client).markVisitUploadFailed(
+                        visitId: attempt.visit.id,
+                        userId: authenticatedUser.id
+                    )
+                }
+                uploadRecoveryMessage = MugshotUserFacingError.message(for: error, context: .photoUpload)
+            } else {
+                validationErrors = [MugshotUserFacingError.message(for: error, context: .loading)]
+                scrollToTop = true
+            }
         }
     }
 
@@ -515,36 +767,64 @@ struct LogVisitView: View {
         )
     }
 
-    private func attachSelectedPhotos(
-        to remoteVisit: RemoteVisitSummary,
-        authenticatedUser: AuthenticatedUser,
-        client: SupabaseClient,
-        visitService: VisitService
-    ) async throws -> RemoteVisitSummary {
-        let uploadService = VisitPhotoUploadService(client: client)
-        let uploadedPhotos = try await uploadService.uploadPhotos(
-            userId: authenticatedUser.id,
-            visitId: remoteVisit.id,
-            images: photoImages,
-            posterPhotoIndex: posterPhotoIndex
-        )
-
-        return try await visitService.attachPhotoURLs(
-            visitId: remoteVisit.id,
-            photoURLs: uploadedPhotos.publicURLs,
-            posterPhotoIndex: uploadedPhotos.posterPhotoIndex
-        )
-    }
-
-    private func photoUploadMessage(for error: Error) -> String {
-        if let localizedError = error as? LocalizedError,
-           let description = localizedError.errorDescription,
-           !description.isEmpty {
-            return description
+    @MainActor
+    private func discardPendingSubmission() async {
+        guard let submission = pendingRemoteSubmission,
+              let authenticatedUser = authModel.authenticatedUser else {
+            return
         }
 
-        return "Photos did not upload, so this visit was not posted. Try saving again."
+        isSavingRemoteVisit = true
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            if let photos = submission.uploadedPhotos {
+                try await VisitPhotoUploadService(client: client).deletePhotos(at: photos.objectPaths)
+            }
+            try await VisitService(client: client).deleteVisit(
+                visitId: submission.visit.id,
+                userId: authenticatedUser.id
+            )
+            resetForm()
+        } catch {
+            isSavingRemoteVisit = false
+            uploadRecoveryMessage = MugshotUserFacingError.message(for: error, context: .photoUpload)
+        }
     }
+}
+
+enum AddVisitRequirement: String, CaseIterable, Identifiable {
+    case photo
+    case cafe
+    case drink
+    case rating
+    case caption
+
+    var id: String { rawValue }
+
+    var actionTitle: String {
+        switch self {
+        case .photo: return "Add a photo"
+        case .cafe: return "Choose a cafe"
+        case .drink: return "Add drink details"
+        case .rating: return "Rate this sip"
+        case .caption: return "Write a caption"
+        }
+    }
+
+    var guidance: String {
+        switch self {
+        case .photo: return "add a sip photo"
+        case .cafe: return "choose where it was from"
+        case .drink: return "name the drink"
+        case .rating: return "add a taste rating"
+        case .caption: return "write a tasting note"
+        }
+    }
+}
+
+private struct PendingRemoteSubmission {
+    let visit: RemoteVisitSummary
+    var uploadedPhotos: UploadedVisitPhotos?
 }
 
 enum AddVisitValidation {
@@ -809,6 +1089,7 @@ private extension VisitVisibility {
 // MARK: - Log Visit Progress
 
 struct LogVisitProgressItem: Identifiable {
+    let requirement: AddVisitRequirement
     let title: String
     let systemImage: String
     let isComplete: Bool
@@ -820,6 +1101,7 @@ struct LogVisitProgressCard: View {
     let items: [LogVisitProgressItem]
     let isSaving: Bool
     let isRemoteMode: Bool
+    let onSelect: (AddVisitRequirement) -> Void
 
     private var completedCount: Int {
         items.filter(\.isComplete).count
@@ -838,7 +1120,7 @@ struct LogVisitProgressCard: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text(isRemoteMode ? "This will appear in your Mugshot journal and feed." : "This saves to your taste journal on this device.")
+                    Text(isRemoteMode ? "Your sip stays private until its photo is safely saved, then appears in your journal." : "This saves to your taste journal on this device.")
                         .font(.system(size: 13))
                         .foregroundColor(.espressoBrown.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -858,7 +1140,12 @@ struct LogVisitProgressCard: View {
                 spacing: 8
             ) {
                 ForEach(items) { item in
-                    LogVisitProgressChip(item: item)
+                    Button {
+                        onSelect(item.requirement)
+                    } label: {
+                        LogVisitProgressChip(item: item)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -931,6 +1218,9 @@ struct CafeLocationSection: View {
     @ObservedObject var searchService: MapSearchService
     @ObservedObject var dataManager: DataManager
     let searchRegion: MKCoordinateRegion
+    let searchAreaDescription: String
+    let locationActionTitle: String
+    let onLocationAction: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -978,6 +1268,24 @@ struct CafeLocationSection: View {
                         }
                         .foregroundColor(.espressoBrown)
                     }
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.mugshotSage)
+
+                        Text(searchAreaDescription)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+
+                        Spacer(minLength: 8)
+
+                        Button(locationActionTitle, action: onLocationAction)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                            .accessibilityHint("Updates cafe search to use your current location")
+                    }
+                    .padding(.horizontal, 4)
                     
                     // Search results dropdown
                     if !searchText.isEmpty {
@@ -1096,7 +1404,7 @@ struct CafeSearchResultsDropdown: View {
                             }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(mapItem.name ?? "Unknown")
+                                        Text(mapItem.name ?? "Cafe")
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundColor(.espressoBrown)
                                         
@@ -1282,9 +1590,9 @@ struct DrinkDetailsSection: View {
 // MARK: - Photos Section
 
 struct PhotosSection: View {
-    @Binding var selectedPhotos: [PhotosPickerItem]
     @Binding var photoImages: [UIImage]
     @Binding var posterPhotoIndex: Int
+    let onAddPhoto: () -> Void
 
     private var safePosterIndex: Int {
         guard !photoImages.isEmpty else {
@@ -1319,11 +1627,7 @@ struct PhotosSection: View {
             }
             
             if photoImages.isEmpty {
-                PhotosPicker(
-                    selection: $selectedPhotos,
-                    maxSelectionCount: 10,
-                    matching: .images
-                ) {
+                Button(action: onAddPhoto) {
                     photoPickerLabel
                 }
                 .buttonStyle(.plain)
@@ -1392,11 +1696,7 @@ struct PhotosSection: View {
                         }
                         
                         if photoImages.count < 10 {
-                            PhotosPicker(
-                                selection: $selectedPhotos,
-                                maxSelectionCount: 10,
-                                matching: .images
-                            ) {
+                            Button(action: onAddPhoto) {
                                 RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
                                     .fill(Color.sandBeige.opacity(0.62))
                                     .frame(width: 86, height: 86)
@@ -1433,7 +1733,7 @@ struct PhotosSection: View {
                         .font(.system(size: 36, weight: .semibold))
                         .foregroundColor(.roastBrown.opacity(0.58))
 
-                    Text("Choose from library")
+                    Text("Add a photo")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.espressoBrown)
 
@@ -1468,7 +1768,6 @@ struct PhotosSection: View {
         }
 
         photoImages.remove(at: index)
-        selectedPhotos = Array(selectedPhotos.prefix(photoImages.count))
 
         if photoImages.isEmpty {
             posterPhotoIndex = 0
@@ -1843,7 +2142,7 @@ struct CafeSearchSheet: View {
                             }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(mapItem.name ?? "Unknown")
+                                        Text(mapItem.name ?? "Cafe")
                                             .foregroundColor(.espressoBrown)
                                         if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
                                             Text(address)
