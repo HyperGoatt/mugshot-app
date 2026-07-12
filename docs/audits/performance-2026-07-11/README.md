@@ -76,4 +76,3 @@ All RLS predicates and visibility/ownership rules were preserved. Verification f
 5. Consolidate the three permissive visit SELECT policies only after exhaustive multi-account RLS tests; the advisor still flags their evaluation overhead.
 6. Address remaining advisor findings outside this sprint's hot paths: unindexed foreign keys, non-init-plan write policies, security-definer views/functions, mutable function search paths, and leaked-password protection. These require a separate security migration because their authorization contracts extend beyond Home/Feed.
 7. Validate under an actual network conditioner (150–300 ms RTT, 1–3 Mbps, packet loss) and on the oldest supported device before App Store submission. This audit modeled slower-network RTT from measured request topology but did not have a system network conditioner available.
-
