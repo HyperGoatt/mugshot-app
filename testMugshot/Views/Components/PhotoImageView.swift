@@ -10,6 +10,7 @@ import SwiftUI
 // Reusable view for displaying photos from Visit photo paths
 struct PhotoImageView: View {
     let photoPath: String
+    var contentMode: ContentMode = .fill
     @State private var image: UIImage?
     
     var body: some View {
@@ -17,7 +18,7 @@ struct PhotoImageView: View {
             if let image = image {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: contentMode)
             } else {
                 RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
                     .fill(Color.sandBeige.opacity(0.72))
@@ -32,14 +33,8 @@ struct PhotoImageView: View {
                     )
             }
         }
-        .onAppear {
-            loadImage()
-        }
-    }
-    
-    private func loadImage() {
-        if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
-            image = cachedImage
+        .task(id: photoPath) {
+            image = await PhotoCache.shared.image(forKey: photoPath)
         }
     }
 }
@@ -74,15 +69,9 @@ struct PhotoThumbnailView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-        .onAppear {
-            loadImage()
-        }
-    }
-    
-    private func loadImage() {
-        guard let photoPath = photoPath else { return }
-        if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
-            image = cachedImage
+        .task(id: photoPath) {
+            guard let photoPath else { return }
+            image = await PhotoCache.shared.image(forKey: photoPath)
         }
     }
 }

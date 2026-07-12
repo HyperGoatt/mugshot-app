@@ -348,9 +348,13 @@ struct MugshotStatPill: View {
                 .font(.system(size: 12, weight: .semibold))
             Text(value)
                 .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(accent ? .foamWhite.opacity(0.86) : .tertiaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .foregroundColor(accent ? .foamWhite : .espressoBrown)
         .padding(.horizontal, 10)

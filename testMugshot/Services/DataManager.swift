@@ -13,31 +13,35 @@ class DataManager: ObservableObject {
     static let shared = DataManager()
     
     @Published var appData: AppData
+    @Published private(set) var journalRevision = 0
     
     private let dataKey = "MugshotAppData"
     
     private init() {
+        PerformanceMonitor.mark("Local data load start")
+        defer { PerformanceMonitor.mark("Local data load end") }
         // Try to load existing data, otherwise start fresh
         if let data = UserDefaults.standard.data(forKey: dataKey),
            let decoded = try? JSONDecoder().decode(AppData.self, from: data) {
-            self.appData = decoded
-            // Preload images for all visits
-            preloadVisitImages()
+            let reconciliation = CafeIdentityReconciler.reconcile(decoded)
+            self.appData = reconciliation.appData
+            if reconciliation.mergedCafeCount > 0,
+               let encoded = try? JSONEncoder().encode(reconciliation.appData) {
+                UserDefaults.standard.set(encoded, forKey: dataKey)
+            }
         } else {
             self.appData = AppData()
         }
-    }
-    
-    // Preload images for all visits when app starts
-    private func preloadVisitImages() {
-        let allPhotoPaths = appData.visits.flatMap { $0.photos }
-        PhotoCache.shared.preloadImages(for: allPhotoPaths)
     }
     
     func save() {
         if let encoded = try? JSONEncoder().encode(appData) {
             UserDefaults.standard.set(encoded, forKey: dataKey)
         }
+    }
+
+    func noteJournalMutation() {
+        journalRevision &+= 1
     }
     
     // MARK: - User Operations
@@ -96,8 +100,19 @@ class DataManager: ObservableObject {
     }
 
     func applyRemoteCafeStates(_ summaries: [RemoteCafeStateSummary]) {
+        // A fetched snapshot is authoritative for the signed-in account.
+        // Reset first so remotely removed states cannot survive locally.
+        for index in appData.cafes.indices {
+            appData.cafes[index].isFavorite = false
+            appData.cafes[index].wantToTry = false
+        }
         for summary in summaries {
-            applyRemoteCafeState(summary)
+            upsertRemoteCafe(
+                summary.cafe,
+                isFavorite: summary.state.isFavorite,
+                wantToTry: summary.state.wantToTry,
+                persist: false
+            )
         }
         save()
     }
@@ -108,7 +123,8 @@ class DataManager: ObservableObject {
         isFavorite: Bool? = nil,
         wantToTry: Bool? = nil,
         averageRating: Double? = nil,
-        visitCount: Int? = nil
+        visitCount: Int? = nil,
+        persist: Bool = true
     ) -> Cafe {
         let remoteLocalCafe = remoteCafe.localCafe(
             isFavorite: isFavorite ?? false,
@@ -126,14 +142,17 @@ class DataManager: ObservableObject {
                 averageRating: averageRating,
                 visitCount: visitCount
             )
-            save()
+            if persist { save() }
             return appData.cafes[index]
         }
 
-        if let index = appData.cafes.firstIndex(where: { localCafe in
-            localCafe.name.compare(remoteCafe.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame &&
-            localCafe.address.compare(remoteCafe.address ?? "", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }) {
+        let remoteIdentity = CafeIdentity.key(
+            name: remoteCafe.name,
+            address: remoteCafe.address,
+            location: remoteLocalCafe.location,
+            applePlaceId: remoteCafe.applePlaceId
+        )
+        if let index = appData.cafes.firstIndex(where: { CafeIdentity.key(for: $0) == remoteIdentity }) {
             appData.cafes[index] = mergedCafe(
                 existing: appData.cafes[index],
                 remote: remoteLocalCafe,
@@ -142,12 +161,12 @@ class DataManager: ObservableObject {
                 averageRating: averageRating,
                 visitCount: visitCount
             )
-            save()
+            if persist { save() }
             return appData.cafes[index]
         }
 
         appData.cafes.append(remoteLocalCafe)
-        save()
+        if persist { save() }
         return remoteLocalCafe
     }
 
@@ -208,7 +227,6 @@ class DataManager: ObservableObject {
     // Find existing Cafe by location (within ~50 meters) or create new one
     func findOrCreateCafe(from mapItem: MKMapItem) -> Cafe {
         guard let location = mapItem.placemark.location?.coordinate else {
-            // If no location, just create a new cafe
             let cafe = Cafe(
                 name: mapItem.name ?? "Cafe",
                 address: formatAddress(from: mapItem.placemark),
@@ -216,22 +234,42 @@ class DataManager: ObservableObject {
                 websiteURL: mapItem.url?.absoluteString, // For now, use mapItem URL as fallback
                 placeCategory: mapItem.pointOfInterestCategory?.rawValue
             )
+            if let existing = appData.cafes.first(where: {
+                CafeIdentity.key(for: $0) == CafeIdentity.key(for: cafe)
+            }) {
+                return existing
+            }
             addCafe(cafe)
             return cafe
         }
         
-        // Check if a cafe exists at this location (within ~50 meters)
-        let threshold: Double = 0.0005 // approximately 50 meters
+        let candidate = Cafe(
+            name: mapItem.name ?? "Cafe",
+            location: location,
+            address: formatAddress(from: mapItem.placemark),
+            mapItemURL: mapItem.url?.absoluteString
+        )
+        let candidateIdentity = CafeIdentity.key(for: candidate)
+        let threshold: Double = 0.00025
         
         if let existingCafe = appData.cafes.first(where: { cafe in
+            if CafeIdentity.key(for: cafe) == candidateIdentity { return true }
             guard let cafeLocation = cafe.location else { return false }
             let latDiff = abs(cafeLocation.latitude - location.latitude)
             let lonDiff = abs(cafeLocation.longitude - location.longitude)
-            return latDiff < threshold && lonDiff < threshold
+            let sameName = cafe.name.compare(
+                mapItem.name ?? "Cafe",
+                options: [.caseInsensitive, .diacriticInsensitive]
+            ) == .orderedSame
+            return sameName && latDiff < threshold && lonDiff < threshold
         }) {
             // Update existing cafe with mapItem data if missing
             if let index = appData.cafes.firstIndex(where: { $0.id == existingCafe.id }) {
                 var updatedCafe = appData.cafes[index]
+                let currentAddress = formatAddress(from: mapItem.placemark)
+                if !currentAddress.isEmpty {
+                    updatedCafe.address = currentAddress
+                }
                 if updatedCafe.mapItemURL == nil {
                     updatedCafe.mapItemURL = mapItem.url?.absoluteString
                 }
@@ -243,6 +281,7 @@ class DataManager: ObservableObject {
                 }
                 appData.cafes[index] = updatedCafe
                 save()
+                return updatedCafe
             }
             return existingCafe
         }
@@ -268,12 +307,12 @@ class DataManager: ObservableObject {
     
     private func formatAddress(from placemark: MKPlacemark) -> String {
         var components: [String] = []
-        
-        if let street = placemark.thoroughfare {
-            components.append(street)
-        }
-        if let subThoroughfare = placemark.subThoroughfare {
-            components.append(subThoroughfare)
+
+        let streetAddress = [placemark.subThoroughfare, placemark.thoroughfare]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        if !streetAddress.isEmpty {
+            components.append(streetAddress)
         }
         if let locality = placemark.locality {
             components.append(locality)
@@ -288,9 +327,6 @@ class DataManager: ObservableObject {
     // MARK: - Visit Operations
     func addVisit(_ visit: Visit) {
         appData.visits.append(visit)
-        
-        // Preload images for the new visit
-        PhotoCache.shared.preloadImages(for: visit.photos)
         
         // Update cafe stats
         if let cafeIndex = appData.cafes.firstIndex(where: { $0.id == visit.cafeId }) {

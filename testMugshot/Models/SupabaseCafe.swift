@@ -15,6 +15,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
     let longitude: Double?
     let applePlaceId: String?
     let websiteURL: String?
+    let identityKey: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -25,6 +26,29 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
         case longitude
         case applePlaceId = "apple_place_id"
         case websiteURL = "website_url"
+        case identityKey = "identity_key"
+    }
+
+    init(
+        id: UUID,
+        name: String,
+        address: String?,
+        city: String?,
+        latitude: Double?,
+        longitude: Double?,
+        applePlaceId: String?,
+        websiteURL: String?,
+        identityKey: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.address = address
+        self.city = city
+        self.latitude = latitude
+        self.longitude = longitude
+        self.applePlaceId = applePlaceId
+        self.websiteURL = websiteURL
+        self.identityKey = identityKey
     }
 
     var displayLocation: String {

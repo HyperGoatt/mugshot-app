@@ -10,7 +10,7 @@ final class CafeService {
     private let client: SupabaseClient
 
     private let cafeColumns = """
-    id, name, address, city, latitude, longitude, apple_place_id, website_url
+    id, name, address, city, latitude, longitude, apple_place_id, website_url, identity_key
     """
 
     init(client: SupabaseClient) {
@@ -28,9 +28,26 @@ final class CafeService {
         return cafes.first
     }
 
+    func fetchCafes(ids: some Collection<UUID>) async throws -> [SupabaseCafeSummary] {
+        let identifiers = Array(Set(ids))
+        guard !identifiers.isEmpty else { return [] }
+
+        return try await client
+            .from("cafes")
+            .select(cafeColumns)
+            .in("id", values: identifiers.map(\.uuidString))
+            .execute()
+            .value
+    }
+
     func findOrCreateCafe(from cafe: Cafe) async throws -> SupabaseCafeSummary {
         if let remoteCafeId = cafe.remoteCafeId,
            let existingCafe = try await fetchCafe(id: remoteCafeId) {
+            return existingCafe
+        }
+
+        let identityKey = CafeIdentity.key(for: cafe)
+        if let existingCafe = try await fetchCafe(identityKey: identityKey) {
             return existingCafe
         }
 
@@ -45,13 +62,38 @@ final class CafeService {
 
         let payload = SupabaseCafeInsert.from(cafe: cafe)
 
-        return try await client
+        do {
+            return try await client
+                .from("cafes")
+                .insert(payload)
+                .select(cafeColumns)
+                .single()
+                .execute()
+                .value
+        } catch {
+            // A concurrent visit/state mutation may have inserted the same
+            // identity after our lookup. Resolve that unique-key race without
+            // creating a second cafe or masking unrelated failures.
+            do {
+                if let racedCafe = try await fetchCafe(identityKey: identityKey) {
+                    return racedCafe
+                }
+            } catch {
+                // Preserve the original insert failure below.
+            }
+            throw error
+        }
+    }
+
+    private func fetchCafe(identityKey: String) async throws -> SupabaseCafeSummary? {
+        let cafes: [SupabaseCafeSummary] = try await client
             .from("cafes")
-            .insert(payload)
             .select(cafeColumns)
-            .single()
+            .eq("identity_key", value: identityKey)
+            .limit(1)
             .execute()
             .value
+        return cafes.first
     }
 
     private func fetchCafe(applePlaceId: String) async throws -> SupabaseCafeSummary? {
@@ -98,6 +140,7 @@ struct SupabaseCafeInsert: Encodable, Equatable {
     let longitude: Double?
     let applePlaceId: String?
     let websiteURL: String?
+    let identityKey: String
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -106,6 +149,7 @@ struct SupabaseCafeInsert: Encodable, Equatable {
         case longitude
         case applePlaceId = "apple_place_id"
         case websiteURL = "website_url"
+        case identityKey = "identity_key"
     }
 
     static func from(cafe: Cafe) -> SupabaseCafeInsert {
@@ -115,7 +159,8 @@ struct SupabaseCafeInsert: Encodable, Equatable {
             latitude: cafe.location?.latitude,
             longitude: cafe.location?.longitude,
             applePlaceId: cafe.mapItemURL?.remoteTrimmedNonEmpty,
-            websiteURL: cafe.websiteURL?.remoteTrimmedNonEmpty
+            websiteURL: cafe.websiteURL?.remoteTrimmedNonEmpty,
+            identityKey: CafeIdentity.key(for: cafe)
         )
     }
 }

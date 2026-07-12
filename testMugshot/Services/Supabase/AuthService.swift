@@ -33,8 +33,7 @@ final class AuthService {
     }
     
     func signIn(email: String, password: String) async throws -> AuthenticatedUser {
-        try await client.auth.signIn(email: email, password: password)
-        let session = try await client.auth.session
+        let session = try await client.auth.signIn(email: email, password: password)
         return authenticatedUser(from: session.user)
     }
     

@@ -8,10 +8,10 @@
 import Foundation
 import UIKit
 
-class PhotoCache {
+final class PhotoCache: @unchecked Sendable {
     static let shared = PhotoCache()
     
-    private var cache: [String: UIImage] = [:]
+    private let cache = NSCache<NSString, UIImage>()
     private let queue = DispatchQueue(label: "com.mugshot.photocache", attributes: .concurrent)
     
     // Directory for storing photos
@@ -27,13 +27,16 @@ class PhotoCache {
         return photosPath
     }
     
-    private init() {}
+    private init() {
+        cache.totalCostLimit = 32 * 1_024 * 1_024
+        cache.countLimit = 40
+    }
     
     // Store image both in memory and on disk
     func store(_ image: UIImage, forKey key: String) {
         queue.async(flags: .barrier) {
             // Store in memory cache
-            self.cache[key] = image
+            self.cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
             
             // Store on disk
             let fileURL = self.photosDirectory.appendingPathComponent("\(key).jpg")
@@ -49,7 +52,7 @@ class PhotoCache {
     func retrieve(forKey key: String) -> UIImage? {
         return queue.sync {
             // First check memory cache
-            if let cachedImage = cache[key] {
+            if let cachedImage = cache.object(forKey: key as NSString) {
                 return cachedImage
             }
             
@@ -60,18 +63,28 @@ class PhotoCache {
                let imageData = try? Data(contentsOf: fileURL),
                let image = UIImage(data: imageData) {
                 // Store in memory cache for future access
-                cache[key] = image
+                cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
                 return image
             }
             
             return nil
         }
     }
+
+    func image(forKey key: String) async -> UIImage? {
+        if let cached = cache.object(forKey: key as NSString) { return cached }
+        let fileURL = photosDirectory.appendingPathComponent("\(key).jpg")
+        guard let image = await Task.detached(priority: .utility, operation: {
+            UIImage(contentsOfFile: fileURL.path)
+        }).value else { return nil }
+        cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
+        return image
+    }
     
     // Clear memory cache (disk files remain)
     func clear() {
         queue.async(flags: .barrier) {
-            self.cache.removeAll()
+            self.cache.removeAllObjects()
         }
     }
     
@@ -86,10 +99,15 @@ class PhotoCache {
                    let imageData = try? Data(contentsOf: fileURL),
                    let image = UIImage(data: imageData) {
                     // Store in memory cache
-                    self.cache[path] = image
+                    self.cache.setObject(image, forKey: path as NSString, cost: image.memoryCost)
                 }
             }
         }
     }
 }
 
+private extension UIImage {
+    var memoryCost: Int {
+        cgImage.map { $0.bytesPerRow * $0.height } ?? Int(size.width * size.height * 4)
+    }
+}

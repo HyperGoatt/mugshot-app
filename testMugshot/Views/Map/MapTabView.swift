@@ -21,10 +21,15 @@ struct MapTabView: View {
     @State private var showCafeDetail = false
     @State private var isSearchActive = false
     @State private var searchText = ""
+    @FocusState private var isSearchFieldFocused: Bool
+    @State private var searchPreviewCafes: [Cafe] = []
     @State private var hasRequestedLocation = false
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
     @State private var remoteStateError: String?
+    @State private var remoteMapPins: [Cafe] = []
+    @State private var hasLoadedRemoteMapPins = false
+    @State private var remoteMapPinUserId: UUID?
     @State private var mapFilter: MapPinFilter = .all
 
     enum MapPinFilter: String, CaseIterable {
@@ -71,8 +76,8 @@ struct MapTabView: View {
                         }
                     }
                 ),
-                cafes: cafesWithLocations,
-                highlightedCafe: selectedCafe,
+                cafes: displayedMapCafes,
+                highlightedCafe: showCafeDetail ? selectedCafe : nil,
                 onCafeTap: { cafe in
                     selectedCafe = cafe
                     showCafeDetail = true
@@ -142,34 +147,75 @@ struct MapTabView: View {
                         .padding(.top, 8)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
+
+                if authModel.authenticatedUser != nil && !hasLoadedRemoteMapPins {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Updating your journal map…")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.top, 8)
+                    .accessibilityLabel("Updating your journal map")
+                }
+
+                if let remoteStateError {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.roastBrown)
+                        Text(remoteStateError)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                        Button("Retry") {
+                            Task { await loadRemoteMapPins() }
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.mugshotSage)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                }
                 
                 HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.espressoBrown.opacity(0.6))
                         
-                        TextField("Search cafes", text: $searchText)
+                        TextField("Search places", text: $searchText)
                             .foregroundColor(.inputText)
                             .tint(.mugshotSage)
                             .accentColor(.mugshotSage)
+                            .focused($isSearchFieldFocused)
+                            .submitLabel(.search)
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     isSearchActive = true
                                     searchService.search(query: newValue, region: region ?? defaultRegion)
                                 } else {
                                     searchService.cancelSearch()
-                                    isSearchActive = false
+                                    isSearchActive = isSearchFieldFocused
                                 }
                             }
                             .onTapGesture {
                                 isSearchActive = true
+                            }
+                            .onSubmit {
+                                searchService.search(
+                                    query: searchText,
+                                    region: region ?? defaultRegion,
+                                    immediately: true
+                                )
+                                isSearchFieldFocused = false
                             }
                         
                         if !searchText.isEmpty {
                             Button(action: {
                                 searchText = ""
                                 searchService.cancelSearch()
-                                isSearchActive = false
+                                isSearchActive = true
                             }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.espressoBrown.opacity(0.4))
@@ -191,6 +237,7 @@ struct MapTabView: View {
                             searchText = ""
                             searchService.cancelSearch()
                             isSearchActive = false
+                            isSearchFieldFocused = false
                         }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
@@ -202,6 +249,9 @@ struct MapTabView: View {
                 .padding(.bottom, isSearchActive ? 12 : 8)
                 .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
                 .animation(DesignSystem.Motion.base, value: isSearchActive)
+                .onChange(of: isSearchFieldFocused) { _, isFocused in
+                    if isFocused { isSearchActive = true }
+                }
 
                 if !isSearchActive {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -236,7 +286,8 @@ struct MapTabView: View {
                         ),
                         selectedCafe: $selectedCafe,
                         showCafeDetail: $showCafeDetail,
-                        isSearchActive: $isSearchActive
+                        isSearchActive: $isSearchActive,
+                        isSearchFieldFocused: $isSearchFieldFocused
                     )
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -264,7 +315,7 @@ struct MapTabView: View {
             // Ratings Legend - sticky at bottom above tab bar
             VStack {
                 Spacer()
-                if !showCafeDetail {
+                if !showCafeDetail && !isSearchActive {
                     RatingsLegend()
                         .padding(.horizontal)
                         .padding(.bottom, 100)
@@ -286,8 +337,17 @@ struct MapTabView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .task(id: authModel.authenticatedUser?.id) {
-            await loadRemoteCafeStates()
+        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+            await loadRemoteMapPins()
+        }
+        .onChange(of: showCafeDetail) { _, isPresented in
+            guard !isPresented, authModel.authenticatedUser != nil else { return }
+            Task {
+                await loadRemoteMapPins()
+            }
+        }
+        .onReceive(searchService.$searchResults) { items in
+            searchPreviewCafes = items.compactMap(Self.searchPreviewCafe(from:))
         }
     }
     
@@ -326,8 +386,14 @@ struct MapTabView: View {
     }
     
     private var cafesWithLocations: [Cafe] {
-        // Show visited cafes and durable saved/wishlist cafes with locations.
-        dataManager.appData.cafes.filter { cafe in
+        // Signed-in maps are deliberately private journal maps. Their source
+        // of truth is the current user's completed Supabase logs plus active
+        // saved-cafe states, never the public feed or stale local cache.
+        let source = authModel.authenticatedUser == nil
+            ? dataManager.appData.cafes
+            : remoteMapPins
+
+        return source.filter { cafe in
             guard cafe.location != nil,
                   cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry else {
                 return false
@@ -346,22 +412,67 @@ struct MapTabView: View {
         }
     }
 
+    private var displayedMapCafes: [Cafe] {
+        guard isSearchActive, !searchText.isEmpty else { return cafesWithLocations }
+        return (cafesWithLocations + searchPreviewCafes).reduce(into: [Cafe]()) { result, cafe in
+            let isDuplicate = result.contains { existing in
+                guard let lhs = existing.location, let rhs = cafe.location else {
+                    return existing.id == cafe.id
+                }
+                return abs(lhs.latitude - rhs.latitude) < 0.0001 &&
+                    abs(lhs.longitude - rhs.longitude) < 0.0001
+            }
+            if !isDuplicate { result.append(cafe) }
+        }
+    }
+
+    private static func searchPreviewCafe(from mapItem: MKMapItem) -> Cafe? {
+        guard let location = mapItem.placemark.location?.coordinate else { return nil }
+        return Cafe(
+            name: mapItem.name ?? "Place",
+            location: location,
+            address: MapSearchService.subtitle(for: mapItem),
+            mapItemURL: mapItem.url?.absoluteString,
+            websiteURL: mapItem.url?.absoluteString,
+            placeCategory: mapItem.pointOfInterestCategory?.rawValue
+        )
+    }
+
     @MainActor
-    private func loadRemoteCafeStates() async {
+    private func loadRemoteMapPins() async {
         guard let userId = authModel.authenticatedUser?.id else {
             remoteStateError = nil
+            remoteMapPins = []
+            hasLoadedRemoteMapPins = false
+            remoteMapPinUserId = nil
             return
+        }
+
+        if remoteMapPinUserId != userId {
+            remoteMapPins = []
+            hasLoadedRemoteMapPins = false
         }
 
         do {
             let client = try SupabaseClientProvider.shared.client()
-            let service = CafeStateService(client: client)
-            let states = try await service.fetchCafeStates(userId: userId)
-            dataManager.applyRemoteCafeStates(states)
+            let snapshot = try await PerformanceMonitor.measure("Map initial data") {
+                try await MapPinService(
+                    visitService: VisitService(client: client),
+                    cafeStateService: CafeStateService(client: client)
+                ).fetchSnapshot(userId: userId)
+            }
+
+            remoteMapPins = snapshot.pins.map(\.localCafe)
+            // Keep the rest of the personal library in sync without using it
+            // as the map's source of truth.
+            dataManager.applyRemoteCafeStates(snapshot.cafeStates)
+            hasLoadedRemoteMapPins = true
+            remoteMapPinUserId = userId
             remoteStateError = nil
         } catch {
             guard !Task.isCancelled else { return }
             remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
+            hasLoadedRemoteMapPins = false
         }
     }
 }
@@ -379,8 +490,10 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.region = region
         
-        // Show current user location (blue dot)
-        mapView.showsUserLocation = true
+        // Recentring remains available from MyLocationButton. Hiding the
+        // separate MapKit dot avoids an unlabeled sage circle that can look
+        // like a second cafe or a Want to Try pin.
+        mapView.showsUserLocation = false
         mapView.userTrackingMode = .none
         
         // Hide points of interest
@@ -494,7 +607,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         private func createDefaultPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor = ratingColor(rating)
+            let pinColor = rating > 0 ? ratingColor(rating) : UIColor(Color.mugshotSage)
             
             let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             pinView.backgroundColor = pinColor
@@ -502,14 +615,21 @@ struct MapViewRepresentable: UIViewRepresentable {
             pinView.layer.borderWidth = 2
             pinView.layer.borderColor = UIColor.white.cgColor
             
-            let scoreLabel = UILabel()
-            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
-            scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-            scoreLabel.textColor = .white
-            scoreLabel.textAlignment = .center
-            scoreLabel.frame = pinView.bounds
-            
-            pinView.addSubview(scoreLabel)
+            if rating > 0 {
+                let scoreLabel = UILabel()
+                scoreLabel.text = String(format: "%.1f", rating)
+                scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
+                scoreLabel.textColor = .white
+                scoreLabel.textAlignment = .center
+                scoreLabel.frame = pinView.bounds
+                pinView.addSubview(scoreLabel)
+            } else {
+                let imageView = UIImageView(image: UIImage(systemName: "cup.and.saucer.fill"))
+                imageView.tintColor = .white
+                imageView.contentMode = .scaleAspectFit
+                imageView.frame = pinView.bounds.insetBy(dx: 9, dy: 9)
+                pinView.addSubview(imageView)
+            }
             return pinView
         }
         
@@ -1202,85 +1322,275 @@ struct SearchResultsList: View {
     @Binding var selectedCafe: Cafe?
     @Binding var showCafeDetail: Bool
     @Binding var isSearchActive: Bool
+    var isSearchFieldFocused: FocusState<Bool>.Binding
     
     var body: some View {
         ZStack {
             Color.creamWhite
-            
-            if searchService.isSearching {
-                ProgressView()
-                    .padding()
+
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                discoveryLanding
             } else if let error = searchService.searchError {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.roastBrown.opacity(0.5))
-                    
-                    Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-
-                    typedCafeButton
-                }
-                .padding()
-            } else if searchService.searchResults.isEmpty && !searchService.isSearching && !searchText.isEmpty {
-                VStack(spacing: 12) {
-                    Text("No results found")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondaryText)
-
-                    typedCafeButton
-                }
-                .padding()
-            } else if !searchText.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(searchService.searchResults, id: \.self) { mapItem in
-                            SearchResultRow(
-                                mapItem: mapItem,
-                                region: region,
-                                onTap: {
-                                    handleSearchResult(mapItem)
-                                }
-                            )
-                        }
-                    }
-                }
+                searchErrorState(error)
             } else {
-                // Show local cafes when search is empty
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(dataManager.appData.cafes) { cafe in
-                            LocalCafeRow(
-                                cafe: cafe,
-                                onTap: {
-                                    selectedCafe = cafe
-                                    showCafeDetail = true
-                                    isSearchActive = false
-                                    
-                                    if let location = cafe.location {
-                                        withAnimation {
-                                            region = MKCoordinateRegion(
-                                                center: location,
-                                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                            )
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
+                activeSearchResults
             }
         }
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.6)
+        .frame(maxHeight: UIScreen.main.bounds.height * 0.64)
         .clipShape(RoundedCorner(radius: DesignSystem.Radius.sheet, corners: [.bottomLeft, .bottomRight]))
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color.mugshotLine)
                 .frame(height: 1)
+        }
+    }
+
+    private var discoveryLanding: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                if !searchService.recents.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            SearchSectionTitle(title: "Recent", subtitle: "Pick up where you left off")
+                            Spacer()
+                            Button("Clear") { searchService.removeAllRecents() }
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.mugshotSage)
+                                .accessibilityLabel("Clear recent searches")
+                        }
+
+                        ForEach(searchService.recents) { recent in
+                            Button {
+                                searchText = recent.query
+                                searchService.search(query: recent.query, region: region, immediately: true)
+                            } label: {
+                                SearchLandingRow(
+                                    icon: "clock.arrow.circlepath",
+                                    title: recent.title,
+                                    subtitle: recent.subtitle
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SearchSectionTitle(
+                        title: "Explore nearby",
+                        subtitle: "Coffee-first suggestions for this map area"
+                    )
+
+                    LazyVGrid(
+                        columns: [GridItem(.flexible()), GridItem(.flexible())],
+                        spacing: 10
+                    ) {
+                        discoveryButton("Coffee", icon: "cup.and.saucer.fill", query: "coffee")
+                        discoveryButton("Roasters", icon: "flame.fill", query: "coffee roaster")
+                        discoveryButton("Bakeries", icon: "birthday.cake.fill", query: "bakery")
+                        discoveryButton("Brunch", icon: "fork.knife", query: "brunch")
+                    }
+                }
+
+                let mapCenter = CLLocation(
+                    latitude: region.center.latitude,
+                    longitude: region.center.longitude
+                )
+                let savedPlaces = Array(dataManager.appData.cafes
+                    .filter { cafe in
+                        guard cafe.isFavorite || cafe.wantToTry || cafe.visitCount > 0,
+                              let location = cafe.location else { return false }
+                        return CLLocation(
+                            latitude: location.latitude,
+                            longitude: location.longitude
+                        ).distance(from: mapCenter) < 100_000
+                    }
+                    .prefix(4))
+                if !savedPlaces.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        SearchSectionTitle(title: "Your places", subtitle: "From your Mugshot journal")
+                        ForEach(savedPlaces) { cafe in
+                            LocalCafeRow(cafe: cafe) { selectLocalCafe(cafe) }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 22)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var activeSearchResults: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let corrected = searchService.correctedQuery {
+                    Label("Searching for “\(corrected)”", systemImage: "wand.and.stars")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .accessibilityLabel("Typo corrected. Searching for \(corrected)")
+                }
+
+                if !searchService.completions.isEmpty && searchService.searchResults.isEmpty {
+                    SearchSectionTitle(title: "Suggestions", subtitle: nil)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+
+                    ForEach(searchService.completions.prefix(4), id: \.self) { completion in
+                        SearchCompletionRow(completion: completion) {
+                            searchText = completion.title
+                            searchService.search(completion: completion, region: region)
+                        }
+                    }
+                }
+
+                if searchService.isUpdatingSuggestions {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Updating suggestions…")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .accessibilityLabel("Updating suggestions")
+                }
+
+                if searchService.isSearching {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(searchService.searchResults.isEmpty ? "Finding the best matches…" : "Updating results…")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .accessibilityLabel("Searching")
+                }
+
+                if !searchService.searchResults.isEmpty {
+                    HStack {
+                        SearchSectionTitle(
+                            title: "Places",
+                            subtitle: searchService.searchedExpandedArea ? "Including a wider area" : "Best matches first"
+                        )
+                        Spacer()
+                        Text("\(searchService.searchResults.count)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondaryText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.sandBeige, in: Capsule())
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+
+                    ForEach(searchService.searchResults, id: \.self) { mapItem in
+                        SearchResultRow(mapItem: mapItem, region: region) {
+                            handleSearchResult(mapItem)
+                        }
+                    }
+                } else if !searchService.isSearching &&
+                    !searchService.isUpdatingSuggestions &&
+                    searchService.completions.isEmpty {
+                    zeroResultsState
+                }
+            }
+            .padding(.bottom, 18)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var zeroResultsState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "map.circle")
+                .font(.system(size: 36, weight: .light))
+                .foregroundColor(.mugshotSage)
+            Text("No places matched “\(searchText)”")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .multilineTextAlignment(.center)
+            Text("Try a place name, street address, neighborhood, or category.")
+                .font(.system(size: 14))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            typedCafeButton
+            Button("Browse coffee nearby") {
+                runDiscoverySearch("coffee")
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+    }
+
+    private func searchErrorState(_ error: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 34, weight: .light))
+                .foregroundColor(.roastBrown)
+            Text("We couldn’t finish that search")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+            Text(error)
+                .font(.system(size: 14))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            Button("Try again") { searchService.retry() }
+                .buttonStyle(PrimaryButtonStyle())
+            typedCafeButton
+        }
+        .padding(28)
+    }
+
+    private func discoveryButton(_ title: String, icon: String, query: String) -> some View {
+        Button { runDiscoverySearch(query) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 30, height: 30)
+                    .background(Color.mugshotMint.opacity(0.22), in: Circle())
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Explore nearby \(title)")
+    }
+
+    private func runDiscoverySearch(_ query: String) {
+        searchText = query
+        isSearchFieldFocused.wrappedValue = true
+        searchService.search(query: query, region: region, immediately: true)
+    }
+
+    private func selectLocalCafe(_ cafe: Cafe) {
+        selectedCafe = cafe
+        showCafeDetail = true
+        isSearchActive = false
+        isSearchFieldFocused.wrappedValue = false
+        if let location = cafe.location {
+            withAnimation {
+                region = MKCoordinateRegion(
+                    center: location,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            }
         }
     }
     
@@ -1297,11 +1607,13 @@ struct SearchResultsList: View {
         
         // Find or create cafe
         let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        searchService.recordRecent(mapItem)
         
         // Show pin card
         selectedCafe = cafe
         showCafeDetail = true
         isSearchActive = false
+        isSearchFieldFocused.wrappedValue = false
         searchText = ""
         searchService.cancelSearch()
     }
@@ -1318,6 +1630,76 @@ struct SearchResultsList: View {
         }
         .font(.system(size: 14, weight: .semibold))
         .foregroundColor(.mugshotSage)
+    }
+}
+
+private struct SearchSectionTitle: View {
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+            }
+        }
+    }
+}
+
+private struct SearchLandingRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 34, height: 34)
+                .background(Color.mugshotMint.opacity(0.18), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            Image(systemName: "arrow.up.left")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.tertiaryText)
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SearchCompletionRow: View {
+    let completion: MKLocalSearchCompletion
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            SearchLandingRow(
+                icon: completion.subtitle.isEmpty ? "magnifyingglass" : "mappin.and.ellipse",
+                title: completion.title,
+                subtitle: completion.subtitle
+            )
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel([completion.title, completion.subtitle].filter { !$0.isEmpty }.joined(separator: ", "))
     }
 }
 
@@ -1341,28 +1723,52 @@ struct SearchResultRow: View {
     }
     
     var subtitle: String {
-        var components: [String] = []
-        if let thoroughfare = mapItem.placemark.thoroughfare {
-            components.append(thoroughfare)
+        MapSearchService.subtitle(for: mapItem)
+    }
+
+    private var categoryLabel: String? {
+        MugshotCafeCategory.display(mapItem.pointOfInterestCategory?.rawValue)
+    }
+
+    private var iconName: String {
+        switch mapItem.pointOfInterestCategory {
+        case .cafe:
+            return "cup.and.saucer.fill"
+        case .bakery:
+            return "birthday.cake.fill"
+        case .restaurant:
+            return "fork.knife"
+        default:
+            return "mappin"
         }
-        if let locality = mapItem.placemark.locality {
-            components.append(locality)
-        }
-        return components.joined(separator: ", ")
     }
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 36, height: 36)
+                    .background(Color.mugshotMint.opacity(0.18), in: Circle())
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(mapItem.name ?? "Cafe")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.espressoBrown)
+                        .lineLimit(1)
                     
                     if !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(.system(size: 14))
+                            .font(.system(size: 12))
                             .foregroundColor(.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    if let categoryLabel {
+                        Text(categoryLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.mugshotSage)
                     }
                 }
                 
@@ -1370,7 +1776,7 @@ struct SearchResultRow: View {
                 
                 if !distance.isEmpty {
                     Text(distance)
-                        .font(.system(size: 14))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.tertiaryText)
                 }
                 
@@ -1379,12 +1785,19 @@ struct SearchResultRow: View {
                     .foregroundColor(.tertiaryText)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 13)
+            .padding(.vertical, 11)
             .background(Color.foamWhite)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel([
+            mapItem.name ?? "Place",
+            categoryLabel,
+            subtitle,
+            distance,
+            "Show details"
+        ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "))
         Divider()
-            .padding(.leading)
+            .padding(.leading, 64)
     }
 }
 

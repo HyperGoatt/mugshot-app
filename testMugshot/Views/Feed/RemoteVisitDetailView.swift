@@ -49,6 +49,7 @@ struct RemoteVisitDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
     @State private var selectedPhotoIndex = 0
+    @State private var photoViewerPresentation: RemotePhotoViewerPresentation?
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var socialError: String?
@@ -87,6 +88,12 @@ struct RemoteVisitDetailView: View {
                         onSave: saveVisitEdits
                     )
                 }
+            }
+            .fullScreenCover(item: $photoViewerPresentation) { presentation in
+                RemotePhotoViewer(
+                    photoURLs: presentation.photoURLs,
+                    initialIndex: presentation.initialIndex
+                )
             }
             .confirmationDialog(
                 "Delete this sip?",
@@ -196,6 +203,7 @@ struct RemoteVisitDetailView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .allowsHitTesting(false)
 
             SipMemoryHeroOverlay(
                 authorTitle: isOwnVisit(detail) ? "Your sip" : detail.summary.authorDisplayName,
@@ -211,6 +219,7 @@ struct RemoteVisitDetailView: View {
             )
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
+            .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
         .frame(height: heroHeight)
@@ -252,6 +261,21 @@ struct RemoteVisitDetailView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: detail.photoURLs.count > 1 ? .automatic : .never))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    photoViewerPresentation = RemotePhotoViewerPresentation(
+                        photoURLs: detail.photoURLs,
+                        initialIndex: selectedPhotoIndex
+                    )
+                }
+            )
+            .accessibilityAction(named: "Open photo full screen") {
+                photoViewerPresentation = RemotePhotoViewerPresentation(
+                    photoURLs: detail.photoURLs,
+                    initialIndex: selectedPhotoIndex
+                )
+            }
         }
     }
 
@@ -737,6 +761,7 @@ struct RemoteVisitDetailView: View {
                 visitId: summary.id,
                 currentUserId: currentUserId
             )
+            dataManager.noteJournalMutation()
             return true
         } catch {
             socialError = error.localizedDescription
@@ -755,11 +780,11 @@ struct RemoteVisitDetailView: View {
 
         do {
             let client = try SupabaseClientProvider.shared.client()
-            let service = VisitService(client: client)
-            try await service.deleteVisit(
+            try await VisitDeletionService(client: client).deleteVisit(
                 visitId: visitId,
                 userId: currentUserId
             )
+            dataManager.noteJournalMutation()
             isDeletingVisit = false
             dismiss()
         } catch {
@@ -788,38 +813,112 @@ struct RemoteVisitDetailView: View {
     }
 }
 
+private struct RemotePhotoViewerPresentation: Identifiable {
+    let id = UUID()
+    let photoURLs: [String]
+    let initialIndex: Int
+}
+
+private struct RemotePhotoViewer: View {
+    let photoURLs: [String]
+    @State private var selectedIndex: Int
+    @Environment(\.dismiss) private var dismiss
+
+    init(photoURLs: [String], initialIndex: Int) {
+        self.photoURLs = photoURLs
+        _selectedIndex = State(initialValue: min(max(initialIndex, 0), max(photoURLs.count - 1, 0)))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            TabView(selection: $selectedIndex) {
+                ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, urlString in
+                    RemotePhotoImageView(
+                        urlString: urlString,
+                        placeholderSystemName: "photo.on.rectangle",
+                        contentMode: .fit
+                    )
+                    .tag(index)
+                    .padding(.vertical, 56)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: photoURLs.count > 1 ? .automatic : .never))
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.52), in: Circle())
+                    }
+                    .accessibilityLabel("Close photo viewer")
+                }
+                Spacer()
+                if photoURLs.count > 1 {
+                    Text("\(selectedIndex + 1) of \(photoURLs.count)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.56), in: Capsule())
+                        .accessibilityLabel("Photo \(selectedIndex + 1) of \(photoURLs.count)")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .statusBarHidden(true)
+    }
+}
+
 struct RemotePhotoImageView: View {
     let urlString: String?
     let placeholderSystemName: String
+    var contentMode: ContentMode = .fill
+    @State private var image: UIImage?
+    @State private var didFail = false
 
     var body: some View {
         Group {
-            if let urlString,
-               let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        placeholder
-                            .overlay(
-                                ProgressView()
-                                    .tint(.mugshotSage)
-                            )
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        placeholder
-                    @unknown default:
-                        placeholder
-                    }
-                }
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
             } else {
                 placeholder
+                    .overlay {
+                        if !didFail, url != nil {
+                            ProgressView()
+                                .tint(.mugshotSage)
+                        }
+                    }
             }
         }
         .background(Color.sandBeige.opacity(0.72))
         .clipped()
+        .task(id: urlString) {
+            image = nil
+            didFail = false
+            guard let url else { return }
+            do {
+                image = try await RemoteImagePipeline.shared.image(for: url)
+            } catch is CancellationError {
+                return
+            } catch {
+                didFail = true
+            }
+        }
+    }
+
+    private var url: URL? {
+        urlString.flatMap(URL.init(string:))
     }
 
     private var placeholder: some View {

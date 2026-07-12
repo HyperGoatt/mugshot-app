@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var tabCoordinator = TabCoordinator()
     @State private var preselectedCafeForLogVisit: Cafe?
     
@@ -31,6 +32,16 @@ struct MainTabView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .onAppear {
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
+        }
+        .task(id: authModel.authenticatedUser?.id) {
+            guard let userId = authModel.authenticatedUser?.id,
+                  let client = try? SupabaseClientProvider.shared.client() else { return }
+            if let clearedCount = try? await CafeStateService(client: client)
+                .reconcileVisitedWantToTry(userId: userId),
+               clearedCount > 0 {
+                dataManager.noteJournalMutation()
+            }
+            await VisitDeletionService(client: client).retryPendingMediaCleanup(userId: userId)
         }
     }
 

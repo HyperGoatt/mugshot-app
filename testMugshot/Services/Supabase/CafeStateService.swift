@@ -27,6 +27,7 @@ final class CafeStateService {
             .from("user_cafe_states")
             .select(stateColumns)
             .eq("user_id", value: userId.uuidString)
+            .or("is_favorite.eq.true,want_to_try.eq.true")
             .execute()
             .value
 
@@ -37,7 +38,7 @@ final class CafeStateService {
         let cafeIds = rows.map { $0.cafeId.uuidString }
         let cafes: [SupabaseCafeSummary] = try await client
             .from("cafes")
-            .select("id, name, address, city, latitude, longitude, apple_place_id, website_url")
+            .select("id, name, address, city, latitude, longitude, apple_place_id, website_url, identity_key")
             .in("id", values: cafeIds)
             .execute()
             .value
@@ -59,6 +60,26 @@ final class CafeStateService {
         wantToTry: Bool
     ) async throws -> RemoteCafeStateSummary {
         let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
+        if !isFavorite && !wantToTry {
+            try await client
+                .from("user_cafe_states")
+                .delete()
+                .eq("user_id", value: userId.uuidString)
+                .eq("cafe_id", value: remoteCafe.id.uuidString)
+                .execute()
+            return RemoteCafeStateSummary(
+                state: SupabaseCafeStateRow(
+                    id: UUID(),
+                    userId: userId,
+                    cafeId: remoteCafe.id,
+                    isFavorite: false,
+                    wantToTry: false,
+                    createdAt: nil,
+                    updatedAt: nil
+                ),
+                cafe: remoteCafe
+            )
+        }
         let payload = SupabaseCafeStateUpsert(
             userId: userId,
             cafeId: remoteCafe.id,
@@ -75,6 +96,80 @@ final class CafeStateService {
             .value
 
         return RemoteCafeStateSummary(state: row, cafe: remoteCafe)
+    }
+
+    func clearWantToTryAfterVisit(userId: UUID, cafeId: UUID) async throws {
+        try await client
+            .from("user_cafe_states")
+            .update(SupabaseCafeWantToTryUpdate(wantToTry: false))
+            .eq("user_id", value: userId.uuidString)
+            .eq("cafe_id", value: cafeId.uuidString)
+            .execute()
+        try await client
+            .from("user_cafe_states")
+            .delete()
+            .eq("user_id", value: userId.uuidString)
+            .eq("cafe_id", value: cafeId.uuidString)
+            .eq("is_favorite", value: false)
+            .eq("want_to_try", value: false)
+            .execute()
+    }
+
+    @discardableResult
+    func reconcileVisitedWantToTry(userId: UUID) async throws -> Int {
+        let states: [SupabaseCafeStateRow] = try await client
+            .from("user_cafe_states")
+            .select(stateColumns)
+            .eq("user_id", value: userId.uuidString)
+            .eq("want_to_try", value: true)
+            .execute()
+            .value
+        guard !states.isEmpty else { return 0 }
+
+        let cafeIds = states.map(\.cafeId)
+        let visits: [VisitedCafeRow] = try await client
+            .from("visits")
+            .select("cafe_id")
+            .eq("user_id", value: userId.uuidString)
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
+            .in("cafe_id", values: cafeIds.map(\.uuidString))
+            .execute()
+            .value
+        let visitedCafeIds = Array(Set(visits.compactMap(\.cafeId)))
+        guard !visitedCafeIds.isEmpty else { return 0 }
+
+        let identifiers = visitedCafeIds.map(\.uuidString)
+        try await client
+            .from("user_cafe_states")
+            .update(SupabaseCafeWantToTryUpdate(wantToTry: false))
+            .eq("user_id", value: userId.uuidString)
+            .in("cafe_id", values: identifiers)
+            .execute()
+        try await client
+            .from("user_cafe_states")
+            .delete()
+            .eq("user_id", value: userId.uuidString)
+            .eq("is_favorite", value: false)
+            .eq("want_to_try", value: false)
+            .in("cafe_id", values: identifiers)
+            .execute()
+        return visitedCafeIds.count
+    }
+}
+
+private struct VisitedCafeRow: Decodable {
+    let cafeId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case cafeId = "cafe_id"
+    }
+}
+
+private struct SupabaseCafeWantToTryUpdate: Encodable {
+    let wantToTry: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case wantToTry = "want_to_try"
     }
 }
 

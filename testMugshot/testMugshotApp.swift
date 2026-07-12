@@ -13,7 +13,9 @@ struct testMugshotApp: App {
     @StateObject private var dataManager = DataManager.shared
     
     init() {
-        // Configure UITextField and UITextView to use light mode colors
+        PerformanceMonitor.mark("App init")
+        // Keep input text legible without painting an inner UIKit background
+        // inside SwiftUI's own field surfaces.
         configureTextInputAppearance()
     }
     
@@ -27,11 +29,9 @@ struct testMugshotApp: App {
         // Configure UITextField appearance for light mode
         let textFieldAppearance = UITextField.appearance()
         textFieldAppearance.textColor = UIColor(Color.espressoBrown)
-        textFieldAppearance.backgroundColor = UIColor(Color.creamWhite)
         
         // Configure UITextView appearance for light mode
         let textViewAppearance = UITextView.appearance()
         textViewAppearance.textColor = UIColor(Color.espressoBrown)
-        textViewAppearance.backgroundColor = UIColor(Color.creamWhite)
     }
 }

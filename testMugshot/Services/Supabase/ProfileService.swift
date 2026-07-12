@@ -53,6 +53,18 @@ final class ProfileService {
         return profiles.first
     }
 
+    func fetchProfiles(ids: some Collection<UUID>) async throws -> [SupabaseUserProfile] {
+        let identifiers = Array(Set(ids))
+        guard !identifiers.isEmpty else { return [] }
+
+        return try await client
+            .from("users")
+            .select(profileColumns)
+            .in("id", values: identifiers.map(\.uuidString))
+            .execute()
+            .value
+    }
+
     func updateProfile(
         userId: UUID,
         update: SupabaseUserProfileUpdate

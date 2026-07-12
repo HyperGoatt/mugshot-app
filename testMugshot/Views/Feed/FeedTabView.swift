@@ -27,6 +27,26 @@ struct PosterImageView: View {
     }
 }
 
+@MainActor
+private final class RemoteFeedMemoryCache {
+    struct Entry {
+        let visits: [RemoteVisitSummary]
+        let hasMore: Bool
+        let updatedAt: Date
+
+        var isFresh: Bool { Date().timeIntervalSince(updatedAt) < 30 }
+    }
+
+    static let shared = RemoteFeedMemoryCache()
+    private var entries: [String: Entry] = [:]
+
+    func entry(for key: String) -> Entry? { entries[key] }
+
+    func store(_ visits: [RemoteVisitSummary], hasMore: Bool, for key: String) {
+        entries[key] = Entry(visits: visits, hasMore: hasMore, updatedAt: Date())
+    }
+}
+
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
@@ -37,13 +57,21 @@ struct FeedTabView: View {
     @State private var showCafeDetail = false
     @State private var remoteVisits: [RemoteVisitSummary] = []
     @State private var isLoadingRemoteVisits = false
+    @State private var isLoadingMoreRemoteVisits = false
+    @State private var hasMoreRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var pendingSocialVisitIDs: Set<UUID> = []
     @State private var socialRecoveryMessage: String?
+    @State private var activeFeedRequestID: UUID?
+    @State private var feedSearchQuery = ""
+    @State private var isFeedSearchPresented = false
+    @FocusState private var isFeedSearchFocused: Bool
+
+    private let feedPageSize = 12
 
     private var feedTaskID: String {
-        "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(selectedScope.displayName)"
+        "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(selectedScope.displayName)-\(dataManager.journalRevision)"
     }
 
     private var feedSubtitle: String {
@@ -66,8 +94,30 @@ struct FeedTabView: View {
                             label: "sips",
                             accent: true
                         )
-                        MugshotIconButton(systemName: "magnifyingglass", size: 36) {}
+                        MugshotIconButton(
+                            systemName: "magnifyingglass",
+                            size: 36,
+                            isActive: isFeedSearchPresented
+                        ) {
+                            withAnimation(DesignSystem.Motion.fast) {
+                                isFeedSearchPresented.toggle()
+                            }
+                            if isFeedSearchPresented {
+                                Task { @MainActor in
+                                    await Task.yield()
+                                    isFeedSearchFocused = true
+                                }
+                            } else {
+                                feedSearchQuery = ""
+                            }
+                        }
+                        .accessibilityLabel("Search feed")
                     }
+                }
+
+                if isFeedSearchPresented {
+                    feedSearchBar
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 MugshotSegmentedControl(
@@ -88,6 +138,9 @@ struct FeedTabView: View {
                     .padding(.bottom, 116)
                 }
                 .background(Color.creamWhite)
+                .refreshable {
+                    await loadRemoteFeedIfNeeded(forceRefresh: true)
+                }
             }
             .background(Color.creamWhite)
         }
@@ -103,7 +156,7 @@ struct FeedTabView: View {
         }
         .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
             Task {
-                await loadRemoteFeedIfNeeded()
+                await loadRemoteFeedIfNeeded(forceRefresh: true)
             }
         }) { visit in
             RemoteVisitDetailView(
@@ -123,6 +176,51 @@ struct FeedTabView: View {
             return []
         }
         return dataManager.getFeedVisits(scope: selectedScope, currentUserId: currentUserId)
+    }
+
+    private var feedSearchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondaryText)
+
+            TextField("Search drinks, cafes, captions, or people", text: $feedSearchQuery)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($isFeedSearchFocused)
+                .accessibilityLabel("Search sips")
+
+            if !feedSearchQuery.isEmpty {
+                Button {
+                    feedSearchQuery = ""
+                    isFeedSearchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear feed search")
+            }
+
+            Button("Cancel") {
+                feedSearchQuery = ""
+                isFeedSearchFocused = false
+                withAnimation(DesignSystem.Motion.fast) {
+                    isFeedSearchPresented = false
+                }
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.espressoBrown)
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder
@@ -152,8 +250,14 @@ struct FeedTabView: View {
                 title: selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet",
                 message: selectedScope == .friends ? "Sips from friends will appear here as your circle grows." : "Public sips will appear here as people log them."
             )
+        } else if filteredRemoteVisits.isEmpty {
+            MugsyEmptyStateView(
+                asset: .comingSoon,
+                title: "No matching sips",
+                message: "Try another drink, cafe, caption, or username."
+            )
         } else {
-            ForEach(remoteVisits) { visit in
+            ForEach(filteredRemoteVisits) { visit in
                 RemoteFeedVisitCard(
                     visit: visit,
                     isCafeSaved: isCafeSaved(for: visit),
@@ -171,8 +275,20 @@ struct FeedTabView: View {
                         selectedRemoteVisit = visit
                     }
                 )
-                .accessibilityLabel("\(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
-                .accessibilityHint("Opens visit details")
+            }
+
+            if hasMoreRemoteVisits && feedSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading more sips…")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .task(id: remoteVisits.last?.id) {
+                    await loadNextRemoteFeedPage()
+                }
             }
 
             if let socialRecoveryMessage {
@@ -189,7 +305,7 @@ struct FeedTabView: View {
 
     @ViewBuilder
     private var localFeedContent: some View {
-        ForEach(visits) { visit in
+        ForEach(filteredLocalVisits) { visit in
             VisitCard(
                 visit: visit,
                 dataManager: dataManager,
@@ -208,8 +324,33 @@ struct FeedTabView: View {
         }
     }
 
-    private func loadRemoteFeedIfNeeded() async {
-        guard authModel.authenticatedUser != nil else {
+    private var filteredRemoteVisits: [RemoteVisitSummary] {
+        remoteVisits.filter { $0.matchesFeedSearch(feedSearchQuery) }
+    }
+
+    private var filteredLocalVisits: [Visit] {
+        let query = feedSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return visits }
+
+        return visits.filter { visit in
+            let cafeName = dataManager.getCafe(id: visit.cafeId)?.name ?? ""
+            let customDrinkName = visit.customDrinkType?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let drinkName = customDrinkName?.isEmpty == false
+                ? customDrinkName ?? visit.drinkType.rawValue
+                : visit.drinkType.rawValue
+            let searchableText = [drinkName, visit.caption, cafeName]
+                .joined(separator: " ")
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            let tokens = query
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .split(whereSeparator: \.isWhitespace)
+            return tokens.allSatisfy { searchableText.contains(String($0)) }
+        }
+    }
+
+    private func loadRemoteFeedIfNeeded(forceRefresh: Bool = false) async {
+        guard let userId = authModel.authenticatedUser?.id else {
             remoteVisits = []
             remoteVisitError = nil
             isLoadingRemoteVisits = false
@@ -217,25 +358,84 @@ struct FeedTabView: View {
         }
 
         let scope = selectedScope
-        isLoadingRemoteVisits = true
+        let cacheKey = feedTaskID
+        if !forceRefresh, let cached = RemoteFeedMemoryCache.shared.entry(for: cacheKey) {
+            remoteVisits = cached.visits
+            hasMoreRemoteVisits = cached.hasMore
+            isLoadingRemoteVisits = false
+            if cached.isFresh { return }
+        }
+
+        let requestID = UUID()
+        activeFeedRequestID = requestID
+        isLoadingRemoteVisits = remoteVisits.isEmpty
         remoteVisitError = nil
 
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            let visits = try await service.fetchFeedVisits(
-                scope: scope,
-                currentUserId: authModel.authenticatedUser?.id
-            )
-            guard scope == selectedScope else { return }
+            let visits = try await PerformanceMonitor.measure("Feed initial page") {
+                try await service.fetchFeedVisits(
+                    scope: scope,
+                    currentUserId: userId,
+                    limit: feedPageSize
+                )
+            }
+            guard scope == selectedScope, activeFeedRequestID == requestID else { return }
             remoteVisits = visits
+            hasMoreRemoteVisits = visits.count == feedPageSize
+            RemoteFeedMemoryCache.shared.store(visits, hasMore: hasMoreRemoteVisits, for: cacheKey)
             isLoadingRemoteVisits = false
         } catch {
-            guard scope == selectedScope else { return }
+            guard scope == selectedScope, activeFeedRequestID == requestID else { return }
             guard !Task.isCancelled else { return }
-            remoteVisits = []
-            remoteVisitError = MugshotUserFacingError.message(for: error, context: .loading)
+            let message = MugshotUserFacingError.message(for: error, context: .loading)
+            if remoteVisits.isEmpty {
+                remoteVisitError = message
+            } else {
+                socialRecoveryMessage = "Couldn’t refresh just now. Your recent feed is still here."
+            }
             isLoadingRemoteVisits = false
+        }
+    }
+
+    private func loadNextRemoteFeedPage() async {
+        guard !isLoadingMoreRemoteVisits,
+              hasMoreRemoteVisits,
+              let userId = authModel.authenticatedUser?.id,
+              let lastVisit = remoteVisits.last else {
+            return
+        }
+
+        let scope = selectedScope
+        let cacheKey = feedTaskID
+        isLoadingMoreRemoteVisits = true
+        defer { isLoadingMoreRemoteVisits = false }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let nextPage = try await PerformanceMonitor.measure("Feed next page") {
+                try await VisitService(client: client).fetchFeedVisits(
+                    scope: scope,
+                    currentUserId: userId,
+                    limit: feedPageSize,
+                    before: RemoteFeedCursor(lastVisit)
+                )
+            }
+            guard scope == selectedScope, !Task.isCancelled else { return }
+
+            let existingIDs = Set(remoteVisits.map(\.id))
+            let uniquePage = nextPage.filter { !existingIDs.contains($0.id) }
+            remoteVisits.append(contentsOf: uniquePage)
+            hasMoreRemoteVisits = nextPage.count == feedPageSize && !uniquePage.isEmpty
+            RemoteFeedMemoryCache.shared.store(
+                remoteVisits,
+                hasMore: hasMoreRemoteVisits,
+                for: cacheKey
+            )
+        } catch {
+            guard !Task.isCancelled else { return }
+            socialRecoveryMessage = "Couldn’t load more sips. Pull to refresh and try again."
         }
     }
 
@@ -376,6 +576,12 @@ struct RemoteFeedVisitCard: View {
     let onSaveCafe: () -> Void
     let onComment: () -> Void
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
     private var hasPhoto: Bool {
         visit.visit.posterPhotoURL != nil
     }
@@ -392,6 +598,8 @@ struct RemoteFeedVisitCard: View {
             }
             .buttonStyle(.plain)
             .disabled(isSocialActionInFlight)
+            .accessibilityLabel("Open \(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
+            .accessibilityHint("Opens visit details")
 
             footer
         }
@@ -535,6 +743,11 @@ struct RemoteFeedVisitCard: View {
             }
             .buttonStyle(.plain)
             .disabled(isSocialActionInFlight)
+            .accessibilityLabel(
+                visit.socialState.currentUserHasLiked
+                    ? "Unlike, \(visit.socialState.likeCount) likes"
+                    : "Like, \(visit.socialState.likeCount) likes"
+            )
 
             Button(action: onComment) {
                 socialActionLabel(
@@ -545,6 +758,8 @@ struct RemoteFeedVisitCard: View {
             }
             .buttonStyle(.plain)
             .disabled(isSocialActionInFlight)
+            .accessibilityLabel("Comment, \(visit.socialState.commentCount) comments")
+            .accessibilityHint("Opens visit details and the comment field")
 
             Button(action: onSaveCafe) {
                 socialActionLabel(
@@ -555,6 +770,8 @@ struct RemoteFeedVisitCard: View {
             }
             .buttonStyle(.plain)
             .disabled(isSocialActionInFlight)
+            .accessibilityLabel(isCafeSaved ? "Cafe saved" : "Save cafe")
+            .accessibilityHint(isCafeSaved ? "This cafe is in Saved" : "Adds this cafe to Saved")
 
             Spacer(minLength: 0)
 
@@ -571,6 +788,8 @@ struct RemoteFeedVisitCard: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Open \(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
+            .accessibilityHint("Opens visit details")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -604,9 +823,32 @@ struct RemoteFeedVisitCard: View {
     }
 
     private func timeAgoString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+extension RemoteVisitSummary {
+    func matchesFeedSearch(_ rawQuery: String) -> Bool {
+        let normalizedQuery = rawQuery
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        guard !normalizedQuery.isEmpty else { return true }
+
+        let searchableText = [
+            authorDisplayName,
+            authorUsername,
+            visit.drinkDisplayName,
+            visit.caption,
+            locationTitle,
+            locationSubtitle ?? "",
+            visit.contextDisplayName
+        ]
+        .joined(separator: " ")
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+        return normalizedQuery
+            .split(whereSeparator: \.isWhitespace)
+            .allSatisfy { searchableText.contains(String($0)) }
     }
 }
 

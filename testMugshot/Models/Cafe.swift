@@ -8,7 +8,7 @@
 import Foundation
 import CoreLocation
 
-struct Cafe: Identifiable, Codable {
+struct Cafe: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
     var location: CLLocationCoordinate2D?
@@ -111,5 +111,66 @@ struct Cafe: Identifiable, Codable {
         try container.encodeIfPresent(websiteURL, forKey: .websiteURL)
         try container.encodeIfPresent(placeCategory, forKey: .placeCategory)
         try container.encodeIfPresent(remoteCafeId, forKey: .remoteCafeId)
+    }
+
+    static func == (lhs: Cafe, rhs: Cafe) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.name == rhs.name &&
+        lhs.location?.latitude == rhs.location?.latitude &&
+        lhs.location?.longitude == rhs.location?.longitude &&
+        lhs.address == rhs.address &&
+        lhs.isFavorite == rhs.isFavorite &&
+        lhs.wantToTry == rhs.wantToTry &&
+        lhs.averageRating == rhs.averageRating &&
+        lhs.visitCount == rhs.visitCount &&
+        lhs.mapItemURL == rhs.mapItemURL &&
+        lhs.websiteURL == rhs.websiteURL &&
+        lhs.placeCategory == rhs.placeCategory &&
+        lhs.remoteCafeId == rhs.remoteCafeId
+    }
+}
+
+enum CafeIdentity {
+    static func key(for cafe: Cafe) -> String {
+        key(
+            name: cafe.name,
+            address: cafe.address,
+            location: cafe.location,
+            applePlaceId: cafe.mapItemURL
+        )
+    }
+
+    static func key(
+        name: String,
+        address: String?,
+        location: CLLocationCoordinate2D?,
+        applePlaceId: String?
+    ) -> String {
+        if let applePlaceId = normalized(applePlaceId), !applePlaceId.isEmpty {
+            return "apple:\(applePlaceId)"
+        }
+
+        let normalizedName = normalized(name) ?? "cafe"
+        if let location {
+            return String(
+                format: "geo:%@|%.5f|%.5f",
+                locale: Locale(identifier: "en_US_POSIX"),
+                normalizedName,
+                location.latitude,
+                location.longitude
+            )
+        }
+
+        return "text:\(normalizedName)|\(normalized(address) ?? "")"
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let collapsed = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .lowercased()
+        return collapsed.isEmpty ? nil : collapsed
     }
 }

@@ -7,10 +7,321 @@
 
 import Foundation
 import CoreLocation
+import MapKit
+import UIKit
 import Testing
 @testable import testMugshot
 
 struct testMugshotTests {
+
+    @Test func cafeIdentityIsStableAcrossAddressFormattingAndSeparatesNeighbors() {
+        let location = CLLocationCoordinate2D(latitude: 32.791641, longitude: -79.941289)
+        let first = Cafe(name: "Babas on Cannon", location: location, address: "11 Cannon St")
+        let reformatted = Cafe(name: "  BABAS   ON CANNON ", location: location, address: "Cannon St, 11")
+        let neighbor = Cafe(name: "Another Cafe", location: location, address: "11 Cannon St")
+
+        #expect(CafeIdentity.key(for: first) == CafeIdentity.key(for: reformatted))
+        #expect(CafeIdentity.key(for: first) != CafeIdentity.key(for: neighbor))
+    }
+
+    @Test func localCafeReconciliationMergesStateAndReassignsVisits() {
+        let remoteId = UUID()
+        let first = Cafe(
+            name: "Needle & Bean",
+            location: CLLocationCoordinate2D(latitude: 40.37590, longitude: -80.03693),
+            address: "320 Castle Shannon Blvd",
+            isFavorite: true
+        )
+        let duplicate = Cafe(
+            name: "Needle & Bean",
+            location: CLLocationCoordinate2D(latitude: 40.37590, longitude: -80.03693),
+            address: "Castle Shannon Blvd, 320",
+            wantToTry: true,
+            remoteCafeId: remoteId
+        )
+        let visit = Visit(
+            cafeId: first.id,
+            userId: UUID(),
+            drinkType: .coffee,
+            overallScore: 4.5
+        )
+
+        let result = CafeIdentityReconciler.reconcile(
+            AppData(cafes: [first, duplicate], visits: [visit])
+        )
+
+        #expect(result.mergedCafeCount == 1)
+        #expect(result.appData.cafes.count == 1)
+        #expect(result.appData.cafes[0].isFavorite)
+        #expect(result.appData.cafes[0].wantToTry)
+        #expect(result.appData.cafes[0].remoteCafeId == remoteId)
+        #expect(result.appData.visits[0].cafeId == result.appData.cafes[0].id)
+        #expect(result.appData.cafes[0].averageRating == 4.5)
+    }
+
+    @Test func pendingVisitSubmissionPersistsPhotosAndAccountScope() throws {
+        let suite = "PendingVisitSubmissionTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PendingVisitSubmissionStore(defaults: defaults, baseDirectory: directory)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            UIColor.brown.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let userId = UUID()
+        let record = try store.prepare(
+            userId: userId,
+            cafe: Cafe(name: "Durable Cafe"),
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Latte",
+            caption: "Durable draft",
+            notes: nil,
+            visibility: .friends,
+            ratings: ["Taste": 4],
+            ratingTemplate: RatingTemplate(),
+            images: [image],
+            posterPhotoIndex: 0
+        )
+
+        let restoredStore = PendingVisitSubmissionStore(defaults: defaults, baseDirectory: directory)
+        let restored = try #require(restoredStore.load(userId: userId))
+        #expect(restored.id == record.id)
+        #expect(restoredStore.load(userId: UUID()) == nil)
+        #expect(try restoredStore.loadImages(for: restored).count == 1)
+        #expect(restored.objectPaths.count == 1)
+
+        restoredStore.remove(restored)
+        #expect(restoredStore.load(userId: userId) == nil)
+    }
+
+    @Test func visitPhotoObjectPathAndCleanupQueueAreDeterministic() throws {
+        let path = "abc/visit/photo one.jpg"
+        let url = "https://example.supabase.co/storage/v1/object/public/visit-photos/abc/visit/photo%20one.jpg"
+        #expect(VisitPhotoObjectPath.path(fromPublicURL: url) == path)
+
+        let suite = "VisitMediaCleanupTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = VisitMediaCleanupStore(defaults: defaults)
+        let userId = UUID()
+        store.enqueue([path, path, "second.jpg"], userId: userId)
+        #expect(store.pendingPaths(userId: userId) == [path, "second.jpg"])
+        store.remove([path], userId: userId)
+        #expect(store.pendingPaths(userId: userId) == ["second.jpg"])
+        #expect(store.pendingPaths(userId: UUID()).isEmpty)
+    }
+
+    @MainActor
+    @Test func mapSearchCorrectsCommonPlaceTyposWithoutChangingGoodQueries() {
+        #expect(MapSearchService.correctedSearchQuery("cofee shop") == "coffee shop")
+        #expect(MapSearchService.correctedSearchQuery("expresso bar") == "espresso bar")
+        #expect(MapSearchService.correctedSearchQuery("Huriyali Gardens") == "Huriyali Gardens")
+    }
+
+    @MainActor
+    @Test func mapSearchRankingKeepsTextRelevanceAheadOfRawDistance() {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        let exactMatch = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 32.81, longitude: -79.93)
+        ))
+        exactMatch.name = "The Daily"
+        let nearbyWeakMatch = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 32.7801, longitude: -79.9301)
+        ))
+        nearbyWeakMatch.name = "Daily Dose Supplements"
+
+        let ranked = MapSearchService.ranked(
+            [nearbyWeakMatch, exactMatch],
+            query: "The Daily",
+            region: region
+        )
+
+        #expect(ranked.first?.name == "The Daily")
+    }
+
+    @MainActor
+    @Test func mapSearchRejectsUnrelatedAndImplausiblyDistantFallbacks() {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        let nearbyMatch = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93)
+        ))
+        nearbyMatch.name = "Babas on Cannon"
+        let nearbyUnrelated = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 32.781, longitude: -79.931)
+        ))
+        nearbyUnrelated.name = "Poke Tea House"
+        let distantPartial = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 44.54, longitude: 18.67)
+        ))
+        distantPartial.name = "Bab"
+
+        let filtered = MapSearchService.credibleResults(
+            [nearbyUnrelated, distantPartial, nearbyMatch],
+            query: "Baba",
+            region: region
+        )
+
+        #expect(filtered.map(\.name) == ["Babas on Cannon"])
+    }
+
+    @MainActor
+    @Test func mapSearchKeepsNearbyCategoryDiscoveryResults() {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        let cafe = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 32.79, longitude: -79.94)
+        ))
+        cafe.name = "The Daily"
+
+        let filtered = MapSearchService.credibleResults([cafe], query: "coffee", region: region)
+
+        #expect(filtered.first?.name == "The Daily")
+    }
+
+    @Test func mapPinsMergeCompletedLogsWithActiveSavedCafes() {
+        let userId = UUID()
+        let loggedCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Logged Cafe",
+            address: "1 Bean St",
+            city: "Charleston",
+            latitude: 32.78,
+            longitude: -79.93,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let savedCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Saved Cafe",
+            address: "2 Bean St",
+            city: "Charleston",
+            latitude: 32.79,
+            longitude: -79.94,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let loggedVisits = [4.0, 5.0].map { score in
+            RemoteVisitSummary(
+                visit: SupabaseVisitRow(
+                    id: UUID(),
+                    userId: userId,
+                    cafeId: loggedCafe.id,
+                    drinkType: "Coffee",
+                    drinkTypeCustom: nil,
+                    drinkSubtype: "Latte",
+                    caption: "",
+                    notes: nil,
+                    visibility: "private",
+                    ratings: [:],
+                    overallScore: score,
+                    posterPhotoURL: nil,
+                    contextType: "cafe",
+                    locationName: nil,
+                    cityState: nil,
+                    brewMethod: nil,
+                    createdAt: "2026-07-01T12:34:56Z"
+                ),
+                cafe: loggedCafe
+            )
+        }
+        let savedState = RemoteCafeStateSummary(
+            state: SupabaseCafeStateRow(
+                id: UUID(),
+                userId: userId,
+                cafeId: savedCafe.id,
+                isFavorite: true,
+                wantToTry: false,
+                createdAt: nil,
+                updatedAt: nil
+            ),
+            cafe: savedCafe
+        )
+        let inactiveCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Inactive Cafe",
+            address: "3 Bean St",
+            city: "Charleston",
+            latitude: 32.80,
+            longitude: -79.95,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let inactiveState = RemoteCafeStateSummary(
+            state: SupabaseCafeStateRow(
+                id: UUID(),
+                userId: userId,
+                cafeId: inactiveCafe.id,
+                isFavorite: false,
+                wantToTry: false,
+                createdAt: nil,
+                updatedAt: nil
+            ),
+            cafe: inactiveCafe
+        )
+
+        let snapshot = RemoteMapPinSnapshot.make(
+            visits: loggedVisits,
+            cafeStates: [savedState, inactiveState]
+        )
+
+        #expect(snapshot.pins.count == 2)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.visitCount == 2)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.averageScore == 4.5)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.isFavorite == true)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.visitCount == 0)
+        #expect(snapshot.pins.contains(where: { $0.cafe.id == inactiveCafe.id }) == false)
+    }
+
+    @Test func mapPinsDoNotRenderUnratedLegacyVisitsAsCafeMarkers() {
+        let userId = UUID()
+        let cafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Unrated Legacy Cafe",
+            address: "4 Bean St",
+            city: "Charleston",
+            latitude: 32.78,
+            longitude: -79.93,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let visit = RemoteVisitSummary(
+            visit: SupabaseVisitRow(
+                id: UUID(),
+                userId: userId,
+                cafeId: cafe.id,
+                drinkType: "Coffee",
+                drinkTypeCustom: nil,
+                drinkSubtype: nil,
+                caption: "",
+                notes: nil,
+                visibility: "private",
+                ratings: [:],
+                overallScore: 0,
+                posterPhotoURL: nil,
+                contextType: "cafe",
+                locationName: nil,
+                cityState: nil,
+                brewMethod: nil,
+                createdAt: "2026-07-01T12:34:56Z"
+            ),
+            cafe: cafe
+        )
+
+        let snapshot = RemoteMapPinSnapshot.make(visits: [visit], cafeStates: [])
+
+        #expect(snapshot.pins.isEmpty)
+    }
 
     @Test func mapKitCategoriesNeverSurfaceRawDeveloperValues() {
         let cafe = Cafe(name: "Nook", placeCategory: "MKPOICategoryCafe")
@@ -318,6 +629,7 @@ struct testMugshotTests {
         #expect(object["longitude"] as? Double == -79.93)
         #expect(object["apple_place_id"] as? String == "maps://payload-cafe")
         #expect(object["website_url"] as? String == "https://payload.example")
+        #expect(object["identity_key"] as? String == "apple:maps://payload-cafe")
     }
 
     @Test func visitInsertPayloadMapsSupabaseContract() throws {
@@ -337,8 +649,10 @@ struct testMugshotTests {
             RatingCategory(name: "Taste", weight: 2),
             RatingCategory(name: "Vibe", weight: 1)
         ])
+        let visitId = UUID()
 
         let insert = try SupabaseVisitInsert.make(
+            visitId: visitId,
             userId: userId,
             remoteCafe: remoteCafe,
             drinkType: .coffee,
@@ -364,6 +678,7 @@ struct testMugshotTests {
         let categoryScores = try #require(object["category_scores"] as? [[String: Any]])
 
         #expect(object["user_id"] as? String == userId.uuidString)
+        #expect(object["id"] as? String == visitId.uuidString)
         #expect(object["cafe_id"] as? String == cafeId.uuidString)
         #expect(object["drink_type"] as? String == "Coffee")
         #expect(object["drink_type_custom"] == nil)
@@ -768,6 +1083,61 @@ struct testMugshotTests {
         #expect(MugsyEmptyStateAsset.noFavorites.rawValue == "MugsyNoFavorites")
         #expect(MugsyEmptyStateAsset.noWishlist.rawValue == "MugsyNoWishlist")
         #expect(MugsyEmptyStateAsset.noCafes.rawValue == "MugsyNoCafes")
+    }
+
+    @Test func feedSearchMatchesAcrossVisibleVisitMetadata() {
+        let cafeId = UUID()
+        let userId = UUID()
+        let summary = RemoteVisitSummary(
+            visit: SupabaseVisitRow(
+                id: UUID(),
+                userId: userId,
+                cafeId: cafeId,
+                drinkType: "Coffee",
+                drinkTypeCustom: nil,
+                drinkSubtype: "Café Latte",
+                caption: "Sunny patio and orange blossom",
+                notes: nil,
+                visibility: "everyone",
+                ratings: [:],
+                overallScore: 4.5,
+                posterPhotoURL: nil,
+                contextType: "Cafe",
+                locationName: nil,
+                cityState: nil,
+                brewMethod: nil,
+                createdAt: "2026-07-11T12:00:00Z"
+            ),
+            cafe: SupabaseCafeSummary(
+                id: cafeId,
+                name: "Ritual Coffee Roasters",
+                address: "1026 Valencia St",
+                city: "San Francisco, CA",
+                latitude: nil,
+                longitude: nil,
+                applePlaceId: nil,
+                websiteURL: nil
+            ),
+            author: SupabaseUserProfile(
+                id: userId,
+                displayName: "Amélie Bean",
+                username: "amelie_coffee",
+                bio: nil,
+                location: nil,
+                favoriteDrink: nil,
+                instagramHandle: nil,
+                avatarURL: nil,
+                bannerURL: nil,
+                websiteURL: nil
+            )
+        )
+
+        #expect(summary.matchesFeedSearch(""))
+        #expect(summary.matchesFeedSearch("  AMELIE ritual "))
+        #expect(summary.matchesFeedSearch("cafe latte"))
+        #expect(summary.matchesFeedSearch("orange blossom"))
+        #expect(summary.matchesFeedSearch("San Francisco"))
+        #expect(!summary.matchesFeedSearch("matcha"))
     }
 
 }

@@ -169,7 +169,7 @@ struct SavedTabView: View {
             .background(Color.creamWhite)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
-            .task(id: authModel.authenticatedUser?.id) {
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
                 await loadRemoteCafeStates()
             }
         }
@@ -312,51 +312,57 @@ struct CafeCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 14) {
-                cafeImage
+            Button(action: onShowDetails) {
+                HStack(alignment: .top, spacing: 14) {
+                    cafeImage
 
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Text(cafe.consumerDisplayName)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.espressoBrown)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(cafe.consumerDisplayName)
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.espressoBrown)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        Spacer(minLength: 6)
+                            Spacer(minLength: 6)
 
-                        scoreBadge
-                    }
-
-                    if !cafe.address.isEmpty {
-                        Label(cafe.address, systemImage: "mappin.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundColor(.espressoBrown.opacity(0.62))
-                            .lineLimit(2)
-                    }
-
-                    HStack(spacing: 8) {
-                        if cafe.isFavorite {
-                            cafePill("Favorite", systemImage: "heart.fill")
+                            scoreBadge
                         }
 
-                        if cafe.wantToTry || showWantToTryTag {
-                            cafePill("Want to Try", systemImage: "bookmark.fill")
+                        if !cafe.address.isEmpty {
+                            Label(cafe.address, systemImage: "mappin.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(.espressoBrown.opacity(0.62))
+                                .lineLimit(2)
                         }
-                    }
 
-                    HStack(spacing: 8) {
-                        cafePill("\(displayedVisitCount) visits", systemImage: "cup.and.saucer.fill")
+                        HStack(spacing: 8) {
+                            if cafe.isFavorite {
+                                cafePill("Favorite", systemImage: "heart.fill")
+                            }
 
-                        if let category = cafe.consumerPlaceCategory {
-                            cafePill(category, systemImage: "tag.fill")
+                            if cafe.wantToTry || showWantToTryTag {
+                                cafePill("Want to Try", systemImage: "bookmark.fill")
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            cafePill("\(displayedVisitCount) visits", systemImage: "cup.and.saucer.fill")
+
+                            if let category = cafe.consumerPlaceCategory {
+                                cafePill(category, systemImage: "tag.fill")
+                            }
                         }
                     }
                 }
+                .padding(12)
+                .contentShape(Rectangle())
             }
-            .padding(12)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onShowDetails)
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                "\(cafe.consumerDisplayName), \(cafe.consumerScoreLabel), \(displayedVisitCount) visits"
+            )
+            .accessibilityHint("Opens cafe details")
 
             Divider()
                 .padding(.horizontal, 12)
@@ -540,17 +546,18 @@ struct CafeDetailView: View {
                         if imagePath.hasPrefix("http") {
                             RemotePhotoImageView(
                                 urlString: imagePath,
-                                placeholderSystemName: "photo"
+                                placeholderSystemName: "photo",
+                                contentMode: .fit
                             )
-                                .aspectRatio(16/9, contentMode: .fill)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 250)
+                                .background(Color.sandBeige.opacity(0.7))
                                 .clipped()
                         } else {
-                            PhotoImageView(photoPath: imagePath)
-                                .aspectRatio(16/9, contentMode: .fill)
+                            PhotoImageView(photoPath: imagePath, contentMode: .fit)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 250)
+                                .background(Color.sandBeige.opacity(0.7))
                                 .clipped()
                         }
                     } else {
@@ -597,7 +604,9 @@ struct CafeDetailView: View {
             .sheet(isPresented: $showLogVisit) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
             }
-            .fullScreenCover(item: $selectedRemoteVisit) { visit in
+            .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
+                Task { await loadRemoteVisits() }
+            }) { visit in
                 RemoteVisitDetailView(
                     visitId: visit.id,
                     initialSummary: visit,

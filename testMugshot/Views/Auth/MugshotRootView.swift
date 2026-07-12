@@ -12,11 +12,11 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
             switch authModel.status {
-            case .checking, .working:
+            case .checking:
                 AuthLoadingView()
             case .configurationRequired(let message):
                 SupabaseConfigurationRequiredView(message: message)
-            case .signedOut, .failed:
+            case .working, .signedOut, .failed:
                 AuthEntryView(dataManager: dataManager)
             case .signedIn:
                 MainTabView(dataManager: dataManager)
@@ -25,7 +25,9 @@ struct MugshotRootView: View {
         .environmentObject(authModel)
         .preferredColorScheme(.light)
         .task {
-            await authModel.restoreSession(dataManager: dataManager)
+            await PerformanceMonitor.measure("Session restore") {
+                await authModel.restoreSession(dataManager: dataManager)
+            }
         }
     }
 }

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct RatingCategory: Identifiable, Codable {
+struct RatingCategory: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
     var weight: Double // 0.0 to 1.0, should sum to 1.0 across all categories
@@ -19,7 +19,7 @@ struct RatingCategory: Identifiable, Codable {
     }
 }
 
-struct RatingTemplate: Codable {
+struct RatingTemplate: Codable, Equatable {
     var categories: [RatingCategory]
     
     init(categories: [RatingCategory] = RatingTemplate.defaultCategories()) {
@@ -76,4 +76,3 @@ struct RatingTemplate: Codable {
         // This method is kept for compatibility but doesn't modify weights
     }
 }
-

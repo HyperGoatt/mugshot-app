@@ -44,7 +44,7 @@ struct LogVisitView: View {
     @State private var showVisitDetail = false
     @State private var savedRemoteVisit: RemoteVisitSummary?
     @State private var isSavingRemoteVisit = false
-    @State private var pendingRemoteSubmission: PendingRemoteSubmission?
+    @State private var pendingRemoteSubmission: PendingVisitSubmissionRecord?
     @State private var uploadRecoveryMessage: String?
     @State private var showPhotoSourceDialog = false
     @State private var showCamera = false
@@ -228,6 +228,7 @@ struct LogVisitView: View {
                     }
                     initializeRatings()
                     initializeCafeSearchLocationIfAvailable()
+                    restorePendingSubmissionIfNeeded()
                 }
                 .onChange(of: cafeLocationManager.location) { _, location in
                     guard let location else { return }
@@ -516,6 +517,17 @@ struct LogVisitView: View {
             return
         }
 
+        if let pendingRemoteSubmission,
+           let authenticatedUser = authModel.authenticatedUser {
+            Task {
+                await saveRemoteVisit(
+                    cafe: pendingRemoteSubmission.cafe,
+                    authenticatedUser: authenticatedUser
+                )
+            }
+            return
+        }
+
         validationErrors = []
         
         // Validate
@@ -596,6 +608,16 @@ struct LogVisitView: View {
         dataManager.addVisit(visit)
         savedVisit = visit
         showVisitDetail = true
+    }
+
+    private func restorePendingSubmissionIfNeeded() {
+        guard pendingRemoteSubmission == nil,
+              let userId = authModel.authenticatedUser?.id,
+              let record = PendingVisitSubmissionStore.shared.load(userId: userId) else {
+            return
+        }
+        pendingRemoteSubmission = record
+        uploadRecoveryMessage = "A previous upload was interrupted. Retry to continue the same sip without creating a duplicate."
     }
 
     private var stickySaveFooter: some View {
@@ -686,65 +708,104 @@ struct LogVisitView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            var attempt = pendingRemoteSubmission
-            if attempt == nil {
-                let remoteVisit = try await service.createVisit(
+            let store = PendingVisitSubmissionStore.shared
+            var submission: PendingVisitSubmissionRecord
+
+            if let pendingRemoteSubmission {
+                submission = pendingRemoteSubmission
+            } else {
+                submission = try store.prepare(
                     userId: authenticatedUser.id,
                     cafe: cafe,
                     drinkType: drinkType,
                     customDrinkType: customDrinkType,
                     drinkSubtype: drinkDetails,
                     caption: caption,
-                    notes: notes,
-                    // An upload draft is intentionally private until its media and
-                    // publication state are both complete.
-                    visibility: .private,
+                    notes: notes.remoteTrimmedNonEmpty,
+                    visibility: visibility,
                     ratings: ratings,
                     ratingTemplate: dataManager.appData.ratingTemplate,
-                    uploadState: .uploading
-                )
-                attempt = PendingRemoteSubmission(visit: remoteVisit, uploadedPhotos: nil)
-                pendingRemoteSubmission = attempt
-            }
-
-            guard var submission = attempt else { return }
-            if submission.uploadedPhotos == nil {
-                let uploadService = VisitPhotoUploadService(client: client)
-                let photos = try await uploadService.uploadPhotos(
-                    userId: authenticatedUser.id,
-                    visitId: submission.visit.id,
                     images: photoImages,
                     posterPhotoIndex: posterPhotoIndex
                 )
-                submission.uploadedPhotos = photos
                 pendingRemoteSubmission = submission
             }
 
-            guard let uploadedPhotos = submission.uploadedPhotos else { return }
-            _ = try await service.attachPhotoURLs(
-                visitId: submission.visit.id,
-                photoURLs: uploadedPhotos.publicURLs,
-                posterPhotoIndex: uploadedPhotos.posterPhotoIndex
+            if submission.phase == .prepared {
+                _ = try await service.createVisit(
+                    visitId: submission.id,
+                    userId: submission.userId,
+                    cafe: submission.cafe,
+                    drinkType: submission.drinkType,
+                    customDrinkType: submission.customDrinkType,
+                    drinkSubtype: submission.drinkSubtype,
+                    caption: submission.caption,
+                    notes: submission.notes,
+                    visibility: .private,
+                    ratings: submission.ratings,
+                    ratingTemplate: submission.ratingTemplate,
+                    uploadState: .uploading
+                )
+                submission.phase = .visitCreated
+                try store.save(submission)
+                pendingRemoteSubmission = submission
+            }
+
+            if submission.phase < .photosUploaded {
+                let savedImages = try store.loadImages(for: submission)
+                let uploadService = VisitPhotoUploadService(client: client)
+                let photos = try await uploadService.uploadPhotos(
+                    userId: submission.userId,
+                    visitId: submission.id,
+                    images: savedImages,
+                    posterPhotoIndex: submission.posterPhotoIndex,
+                    plannedObjectPaths: submission.objectPaths,
+                    replacingExisting: true
+                )
+                submission.uploadedPhotoURLs = photos.publicURLs
+                submission.phase = .photosUploaded
+                try store.save(submission)
+                pendingRemoteSubmission = submission
+            }
+
+            guard let uploadedPhotoURLs = submission.uploadedPhotoURLs else {
+                throw PendingVisitSubmissionStoreError.missingLocalPhoto
+            }
+            let attachedVisit = try await service.attachPhotoURLs(
+                visitId: submission.id,
+                photoURLs: uploadedPhotoURLs,
+                posterPhotoIndex: submission.posterPhotoIndex
             )
             let remoteVisit = try await service.finalizeVisit(
-                visitId: submission.visit.id,
-                userId: authenticatedUser.id,
-                visibility: visibility
+                visitId: submission.id,
+                userId: submission.userId,
+                visibility: submission.visibility
             )
+            if let remoteCafeId = attachedVisit.cafe?.id {
+                // Publication is the primary transaction. A failed state
+                // cleanup must never turn a completed sip back into a failed
+                // upload; launch reconciliation retries it durably.
+                try? await CafeStateService(client: client).clearWantToTryAfterVisit(
+                    userId: submission.userId,
+                    cafeId: remoteCafeId
+                )
+            }
 
+            store.remove(submission)
             isSavingRemoteVisit = false
             pendingRemoteSubmission = nil
             uploadRecoveryMessage = nil
             mirrorRemoteCafe(from: remoteVisit)
+            dataManager.noteJournalMutation()
             savedRemoteVisit = remoteVisit
         } catch {
             isSavingRemoteVisit = false
             if let attempt = pendingRemoteSubmission {
                 let client = try? SupabaseClientProvider.shared.client()
-                if let client {
+                if let client, attempt.phase >= .visitCreated {
                     try? await VisitService(client: client).markVisitUploadFailed(
-                        visitId: attempt.visit.id,
-                        userId: authenticatedUser.id
+                        visitId: attempt.id,
+                        userId: attempt.userId
                     )
                 }
                 uploadRecoveryMessage = MugshotUserFacingError.message(for: error, context: .photoUpload)
@@ -762,6 +823,7 @@ struct LogVisitView: View {
 
         dataManager.upsertRemoteCafe(
             cafe,
+            wantToTry: false,
             averageRating: visit.visit.overallScore,
             visitCount: 1
         )
@@ -775,15 +837,21 @@ struct LogVisitView: View {
         }
 
         isSavingRemoteVisit = true
+        if submission.phase == .prepared {
+            PendingVisitSubmissionStore.shared.remove(submission)
+            resetForm()
+            return
+        }
         do {
             let client = try SupabaseClientProvider.shared.client()
-            if let photos = submission.uploadedPhotos {
-                try await VisitPhotoUploadService(client: client).deletePhotos(at: photos.objectPaths)
+            try await VisitPhotoUploadService(client: client).deletePhotos(at: submission.objectPaths)
+            if submission.phase >= .visitCreated {
+                try await VisitService(client: client).deleteVisit(
+                    visitId: submission.id,
+                    userId: authenticatedUser.id
+                )
             }
-            try await VisitService(client: client).deleteVisit(
-                visitId: submission.visit.id,
-                userId: authenticatedUser.id
-            )
+            PendingVisitSubmissionStore.shared.remove(submission)
             resetForm()
         } catch {
             isSavingRemoteVisit = false
@@ -820,11 +888,6 @@ enum AddVisitRequirement: String, CaseIterable, Identifiable {
         case .caption: return "write a tasting note"
         }
     }
-}
-
-private struct PendingRemoteSubmission {
-    let visit: RemoteVisitSummary
-    var uploadedPhotos: UploadedVisitPhotos?
 }
 
 enum AddVisitValidation {
@@ -1919,6 +1982,13 @@ struct RatingCategoryRow: View {
                             .foregroundColor(rating > Double(index) ? .mugshotMint : .espressoBrown.opacity(0.3))
                             .font(.system(size: 20))
                     }
+                    .accessibilityLabel("\(category.name), \(index + 1) out of 5")
+                    .accessibilityValue("Current rating \(Int(rating)) out of 5")
+                    .accessibilityHint(
+                        rating == Double(index + 1)
+                            ? "Double tap to clear the \(category.name) rating"
+                            : "Double tap to rate \(category.name) \(index + 1) out of 5"
+                    )
                 }
             }
         }

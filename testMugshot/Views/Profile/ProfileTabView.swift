@@ -158,7 +158,7 @@ struct ProfileTabView: View {
                 SettingsView(dataManager: dataManager)
                     .environmentObject(authModel)
             }
-            .task(id: authModel.authenticatedUser?.id) {
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
                 await loadRemoteProfileStats()
             }
         }
@@ -756,7 +756,7 @@ struct RecentVisitsView: View {
                 localContent
             }
         }
-        .task(id: authModel.authenticatedUser?.id) {
+        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
             await loadRemoteVisits()
         }
         .sheet(isPresented: $showVisitDetail) {

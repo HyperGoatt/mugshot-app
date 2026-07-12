@@ -62,7 +62,9 @@ final class VisitPhotoUploadService {
         userId: UUID,
         visitId: UUID,
         images: [UIImage],
-        posterPhotoIndex: Int
+        posterPhotoIndex: Int,
+        plannedObjectPaths: [String]? = nil,
+        replacingExisting: Bool = false
     ) async throws -> UploadedVisitPhotos {
         guard !images.isEmpty else {
             return UploadedVisitPhotos(publicURLs: [], objectPaths: [], posterPhotoIndex: 0)
@@ -71,15 +73,23 @@ final class VisitPhotoUploadService {
         let storage = client.storage.from(bucketName)
         var publicURLs: [String] = []
         var objectPaths: [String] = []
+        let uploadImages = Array(images.prefix(VisitPhotoUploadPlan.maxPhotoCount))
+        let paths = plannedObjectPaths ?? VisitPhotoUploadPlan.objectPaths(
+            userId: userId,
+            visitId: visitId,
+            objectIds: uploadImages.map { _ in UUID() }
+        )
+        guard paths.count == uploadImages.count else {
+            throw VisitPhotoUploadError.invalidUploadPlan
+        }
 
         do {
-            for image in images.prefix(VisitPhotoUploadPlan.maxPhotoCount) {
+            if replacingExisting {
+                _ = try? await storage.remove(paths: paths)
+            }
+
+            for (image, path) in zip(uploadImages, paths) {
                 let data = try jpegData(for: image)
-                let path = VisitPhotoUploadPlan.objectPath(
-                    userId: userId,
-                    visitId: visitId,
-                    objectId: UUID()
-                )
 
                 try await storage.upload(
                     path,
@@ -134,16 +144,19 @@ final class VisitPhotoUploadService {
 
 enum VisitPhotoUploadError: LocalizedError, Equatable {
     case imageTooLarge
+    case invalidUploadPlan
 
     var errorDescription: String? {
         switch self {
         case .imageTooLarge:
             return "One photo is too large to upload. Try a smaller image."
+        case .invalidUploadPlan:
+            return "The saved upload plan no longer matches its photos. Discard the draft and try again."
         }
     }
 }
 
-private extension UIImage {
+extension UIImage {
     func resizedForVisitUpload(maxDimension: CGFloat) -> UIImage {
         let longestSide = max(size.width, size.height)
         guard longestSide > maxDimension else {
