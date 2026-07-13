@@ -31,6 +31,15 @@ struct MapTabView: View {
     @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
     @State private var mapFilter: MapPinFilter = .all
+    @State private var discoveryMode: DiscoveryMode = .map
+    @State private var discoveryMapCafes: [Cafe] = []
+
+    enum DiscoveryMode: String, CaseIterable {
+        case map = "Map"
+        case list = "List"
+
+        var icon: String { self == .map ? "map.fill" : "list.bullet" }
+    }
 
     enum MapPinFilter: String, CaseIterable {
         case all = "All"
@@ -59,6 +68,26 @@ struct MapTabView: View {
     )
     
     var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if discoveryMode == .map {
+                mapBody
+            } else {
+                DiscoveryListView(dataManager: dataManager, locationManager: locationManager)
+            }
+
+            MugshotSegmentedControl(
+                options: DiscoveryMode.allCases,
+                selection: $discoveryMode,
+                title: { $0.rawValue },
+                icon: { $0.icon }
+            )
+            .frame(width: 190)
+            .padding(.trailing, 16)
+            .padding(.bottom, 104)
+        }
+    }
+
+    private var mapBody: some View {
         ZStack {
             // Map with POIs hidden
             MapViewRepresentable(
@@ -391,11 +420,10 @@ struct MapTabView: View {
         // saved-cafe states, never the public feed or stale local cache.
         let source = authModel.authenticatedUser == nil
             ? dataManager.appData.cafes
-            : remoteMapPins
+            : remoteMapPins + discoveryMapCafes
 
         return source.filter { cafe in
-            guard cafe.location != nil,
-                  cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry else {
+            guard cafe.location != nil else {
                 return false
             }
 
@@ -462,7 +490,15 @@ struct MapTabView: View {
                 ).fetchSnapshot(userId: userId)
             }
 
+            let discovery = try await SocialDiscoveryService(client: client).discovery(
+                section: .nearby,
+                location: locationManager.location,
+                radiusKM: 25,
+                limit: 50
+            )
+
             remoteMapPins = snapshot.pins.map(\.localCafe)
+            discoveryMapCafes = discovery.map(\.localCafe)
             // Keep the rest of the personal library in sync without using it
             // as the map's source of truth.
             dataManager.applyRemoteCafeStates(snapshot.cafeStates)

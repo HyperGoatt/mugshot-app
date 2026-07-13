@@ -3,6 +3,7 @@
 //  testMugshot
 //
 
+import CoreLocation
 import Foundation
 import Supabase
 
@@ -79,6 +80,30 @@ final class VisitService {
         return try await hydrate(rows: rows, includeAuthors: false)
     }
 
+    func fetchVisibleCafeVisits(
+        cafeId: UUID,
+        currentUserId: UUID?,
+        limit: Int = 20
+    ) async throws -> [RemoteVisitSummary] {
+        let rows: [SupabaseVisitRow] = try await client
+            .from("visits")
+            .select(visitColumns)
+            .eq("cafe_id", value: cafeId.uuidString)
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
+            .order("created_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+
+        return try await hydrate(
+            rows: rows,
+            includeAuthors: true,
+            currentUserId: currentUserId,
+            includeSocialState: true
+        )
+    }
+
     func fetchMapVisitSeeds(userId: UUID) async throws -> [RemoteMapVisitSeed] {
         let rows: [MapVisitRow] = try await client
             .from("visits")
@@ -100,40 +125,62 @@ final class VisitService {
         scope: FeedScope,
         currentUserId: UUID?,
         limit: Int = 12,
-        before cursor: RemoteFeedCursor? = nil
+        before cursor: RemoteFeedCursor? = nil,
+        location: CLLocation? = nil
     ) async throws -> [RemoteVisitSummary] {
-        var query = client
+        return try await fetchRankedFeedVisits(
+            scope: scope,
+            currentUserId: currentUserId,
+            limit: limit,
+            before: cursor,
+            location: location
+        )
+    }
+
+    private func fetchRankedFeedVisits(
+        scope: FeedScope,
+        currentUserId: UUID?,
+        limit: Int,
+        before cursor: RemoteFeedCursor?,
+        location: CLLocation?
+    ) async throws -> [RemoteVisitSummary] {
+        let references: [RankedFeedReference] = try await client.rpc(
+            "ranked_feed",
+            params: RankedFeedParameters(
+                pScope: scope.rpcValue,
+                pLatitude: location?.coordinate.latitude,
+                pLongitude: location?.coordinate.longitude,
+                pLimit: limit,
+                pAfterScore: cursor?.rankingScore,
+                pAfterCreatedAt: cursor?.createdAt,
+                pAfterID: cursor?.id
+            )
+        ).execute().value
+        guard !references.isEmpty else { return [] }
+
+        let rows: [SupabaseVisitRow] = try await client
             .from("visits")
             .select(visitColumns)
-
-        switch scope {
-        case .friends:
-            query = query.in("visibility", values: ["friends", "everyone"])
-        case .everyone:
-            query = query.eq("visibility", value: "everyone")
-        }
-
-        query = query.eq("upload_state", value: VisitUploadState.complete.rawValue)
-
-        if let cursor {
-            query = query.or(
-                "created_at.lt.\(cursor.createdAt),and(created_at.eq.\(cursor.createdAt),id.lt.\(cursor.id.uuidString))"
-            )
-        }
-
-        let rows: [SupabaseVisitRow] = try await query
-            .order("created_at", ascending: false)
-            .order("id", ascending: false)
-            .limit(limit)
+            .in("id", values: references.map { $0.visitID.uuidString })
             .execute()
             .value
-
-        return try await hydrate(
+        let summaries = try await hydrate(
             rows: rows,
             includeAuthors: true,
             currentUserId: currentUserId,
             includeSocialState: true
         )
+        let summariesByID = Dictionary(uniqueKeysWithValues: summaries.map { ($0.id, $0) })
+        return references.compactMap { reference in
+            guard let summary = summariesByID[reference.visitID] else { return nil }
+            return RemoteVisitSummary(
+                visit: summary.visit,
+                cafe: summary.cafe,
+                author: summary.author,
+                socialState: summary.socialState,
+                rankingScore: reference.feedScore
+            )
+        }
     }
 
     func fetchVisitDetail(
@@ -254,17 +301,24 @@ final class VisitService {
     func addComment(
         visitId: UUID,
         userId: UUID,
-        text: String
+        text: String,
+        parentCommentId: UUID? = nil,
+        mentionedUserIds: [UUID] = []
     ) async throws -> RemoteVisitSocialState {
-        let payload = try SupabaseVisitCommentInsert.make(
-            userId: userId,
-            visitId: visitId,
-            text: text
-        )
+        guard let trimmedText = text.remoteTrimmedNonEmpty else {
+            throw VisitServiceError.emptyComment
+        }
 
         try await client
-            .from("comments")
-            .insert(payload)
+            .rpc(
+                "create_comment",
+                params: CreateCommentParameters(
+                    pVisitId: visitId,
+                    pText: trimmedText,
+                    pParentCommentId: parentCommentId,
+                    pMentionedUserIds: mentionedUserIds
+                )
+            )
             .execute()
 
         return try await fetchSocialState(
@@ -587,13 +641,49 @@ final class VisitService {
 
 }
 
+private struct CreateCommentParameters: Encodable {
+    let pVisitId: UUID
+    let pText: String
+    let pParentCommentId: UUID?
+    let pMentionedUserIds: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case pVisitId = "p_visit_id"
+        case pText = "p_text"
+        case pParentCommentId = "p_parent_comment_id"
+        case pMentionedUserIds = "p_mentioned_user_ids"
+    }
+}
+
 struct RemoteFeedCursor: Equatable {
     let createdAt: String
     let id: UUID
+    let rankingScore: Double?
 
     init(_ summary: RemoteVisitSummary) {
         createdAt = summary.visit.createdAt
         id = summary.id
+        rankingScore = summary.rankingScore
+    }
+}
+
+private struct RankedFeedParameters: Encodable {
+    let pScope: String
+    let pLatitude: Double?
+    let pLongitude: Double?
+    let pLimit: Int
+    let pAfterScore: Double?
+    let pAfterCreatedAt: String?
+    let pAfterID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case pScope = "p_scope"
+        case pLatitude = "p_latitude"
+        case pLongitude = "p_longitude"
+        case pLimit = "p_limit"
+        case pAfterScore = "p_after_score"
+        case pAfterCreatedAt = "p_after_created_at"
+        case pAfterID = "p_after_id"
     }
 }
 

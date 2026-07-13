@@ -55,6 +55,10 @@ struct RemoteVisitDetailView: View {
     @State private var socialError: String?
     @State private var isSavingSocialAction = false
     @State private var commentText = ""
+    @State private var replyingTo: RemoteVisitComment?
+    @State private var mentionSuggestions: [PeopleSearchResult] = []
+    @State private var mentionedUserIDs: Set<UUID> = []
+    @State private var reportTarget: SocialReportTarget?
     @State private var isShowingEditVisit = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
@@ -109,6 +113,23 @@ struct RemoteVisitDetailView: View {
             } message: {
                 Text("This removes the sip from Profile, Feed, and cafe history.")
             }
+            .confirmationDialog(
+                "Why are you reporting this?",
+                isPresented: Binding(
+                    get: { reportTarget != nil },
+                    set: { if !$0 { reportTarget = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                ForEach(ReportReason.allCases) { reason in
+                    Button(reason.title, role: .destructive) {
+                        Task { await submitReport(reason: reason) }
+                    }
+                }
+                Button("Cancel", role: .cancel) { reportTarget = nil }
+            } message: {
+                Text("Reports are reviewed and do not automatically remove content.")
+            }
         }
     }
 
@@ -159,6 +180,26 @@ struct RemoteVisitDetailView: View {
                 }
                 .disabled(isDeletingVisit)
                 .accessibilityLabel("Sip actions")
+            } else if detail != nil {
+                Menu {
+                    Button(role: .destructive) {
+                        reportTarget = .visit(visitId)
+                    } label: {
+                        Label("Report Sip", systemImage: "exclamationmark.bubble")
+                    }
+                    Button(role: .destructive) {
+                        Task { await blockVisitAuthor() }
+                    } label: {
+                        Label("Block User", systemImage: "hand.raised")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 42, height: 42)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Safety actions")
             }
         }
         .padding(.horizontal, 16)
@@ -400,7 +441,10 @@ struct RemoteVisitDetailView: View {
                         }
                     }
 
-                    SipShareButton(text: shareText(for: detail))
+                    SipShareButton(
+                        text: shareText(for: detail),
+                        photoURL: detail.summary.visit.posterPhotoURL
+                    )
                 }
 
                 if let socialError {
@@ -440,36 +484,67 @@ struct RemoteVisitDetailView: View {
                 } else {
                     VStack(spacing: 10) {
                         ForEach(detail.comments) { comment in
-                            RemoteCommentRow(comment: comment)
+                            RemoteCommentRow(
+                                comment: comment,
+                                onReply: comment.comment.parentCommentId == nil ? {
+                                    replyingTo = comment
+                                    isCommentFocused = true
+                                } : nil,
+                                onReport: { reportTarget = .comment(comment.id) }
+                            )
                                 .padding(.leading, comment.comment.parentCommentId == nil ? 0 : 18)
                         }
                     }
                 }
 
                 if currentUserId != nil {
-                    HStack(alignment: .bottom, spacing: 10) {
-                        TextField("Add a thought", text: $commentText, axis: .vertical)
-                            .lineLimit(1...4)
-                            .mugshotFormField()
-                            .focused($isCommentFocused)
-                            .submitLabel(.send)
-
-                        Button {
-                            Task {
-                                await postComment()
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let replyingTo {
+                            HStack {
+                                Text("Replying to @\(replyingTo.authorUsername)")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.mugshotSage)
+                                Spacer()
+                                Button("Cancel") { self.replyingTo = nil }
+                                    .font(.system(size: 12, weight: .semibold))
                             }
-                        } label: {
-                            Image(systemName: isSavingSocialAction ? "hourglass" : "paperplane.fill")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(width: 42, height: 42)
                         }
-                        .buttonStyle(SecondaryButtonStyle())
-                        .disabled(commentText.remoteTrimmedNonEmpty == nil || isSavingSocialAction)
-                        .accessibilityLabel("Post comment")
+
+                        if !mentionSuggestions.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(mentionSuggestions) { person in
+                                        Button("@\(person.username)") { selectMention(person) }
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .buttonStyle(.bordered)
+                                    }
+                                }
+                            }
+                        }
+
+                        HStack(alignment: .bottom, spacing: 10) {
+                            TextField("Add a thought", text: $commentText, axis: .vertical)
+                                .lineLimit(1...4)
+                                .mugshotFormField()
+                                .focused($isCommentFocused)
+                                .submitLabel(.send)
+
+                            Button {
+                                Task { await postComment() }
+                            } label: {
+                                Image(systemName: isSavingSocialAction ? "hourglass" : "paperplane.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(width: 42, height: 42)
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(commentText.remoteTrimmedNonEmpty == nil || isSavingSocialAction)
+                            .accessibilityLabel("Post comment")
+                        }
                     }
                 }
             }
         }
+        .task(id: commentText) { await updateMentionSuggestions() }
     }
 
     private var loadingContent: some View {
@@ -718,19 +793,82 @@ struct RemoteVisitDetailView: View {
             _ = try await service.addComment(
                 visitId: visitId,
                 userId: currentUserId,
-                text: text
+                text: text,
+                parentCommentId: replyingTo?.id,
+                mentionedUserIds: Array(mentionedUserIDs)
             )
             self.detail = try await service.fetchVisitDetail(
                 visitId: visitId,
                 currentUserId: currentUserId
             )
             commentText = ""
+            replyingTo = nil
+            mentionedUserIDs = []
+            mentionSuggestions = []
             isCommentFocused = false
             isSavingSocialAction = false
         } catch {
             self.detail = detail
             socialError = MugshotUserFacingError.message(for: error, context: .social)
             isSavingSocialAction = false
+        }
+    }
+
+    @MainActor
+    private func updateMentionSuggestions() async {
+        guard let token = commentText.split(whereSeparator: \.isWhitespace).last,
+              token.hasPrefix("@"), token.count > 1 else {
+            mentionSuggestions = []
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(220))
+        guard !Task.isCancelled else { return }
+        do {
+            mentionSuggestions = try await SocialDiscoveryService(
+                client: try SupabaseClientProvider.shared.client()
+            ).searchPeople(query: String(token.dropFirst()), limit: 6)
+        } catch is CancellationError {
+        } catch {
+            mentionSuggestions = []
+        }
+    }
+
+    private func selectMention(_ person: PeopleSearchResult) {
+        var tokens = commentText.split(whereSeparator: \.isWhitespace).map(String.init)
+        if tokens.last?.hasPrefix("@") == true { tokens.removeLast() }
+        tokens.append("@\(person.username)")
+        commentText = tokens.joined(separator: " ") + " "
+        mentionedUserIDs.insert(person.id)
+        mentionSuggestions = []
+        isCommentFocused = true
+    }
+
+    @MainActor
+    private func submitReport(reason: ReportReason) async {
+        guard let target = reportTarget else { return }
+        defer { reportTarget = nil }
+        do {
+            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+            switch target {
+            case .visit(let id):
+                try await service.report(reason: reason, details: nil, visitID: id)
+            case .comment(let id):
+                try await service.report(reason: reason, details: nil, commentID: id)
+            }
+        } catch {
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
+        }
+    }
+
+    @MainActor
+    private func blockVisitAuthor() async {
+        guard initialSummary.visit.userId != currentUserId else { return }
+        do {
+            try await SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+                .block(userID: initialSummary.visit.userId)
+            dismiss()
+        } catch {
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
         }
     }
 
@@ -932,8 +1070,15 @@ struct RemotePhotoImageView: View {
     }
 }
 
+private enum SocialReportTarget: Equatable {
+    case visit(UUID)
+    case comment(UUID)
+}
+
 struct RemoteCommentRow: View {
     let comment: RemoteVisitComment
+    var onReply: (() -> Void)? = nil
+    var onReport: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -960,6 +1105,16 @@ struct RemoteCommentRow: View {
                 Text(SipDetailFormat.relative(comment.comment.createdAtDate))
                     .font(.system(size: 12))
                     .foregroundColor(.espressoBrown.opacity(0.55))
+
+                HStack(spacing: 14) {
+                    if let onReply {
+                        Button("Reply", action: onReply)
+                    }
+                    if let onReport {
+                        Button("Report", role: .destructive, action: onReport)
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
             }
 
             Spacer(minLength: 0)
@@ -1488,20 +1643,57 @@ struct SipActionButton: View {
 
 struct SipShareButton: View {
     let text: String
+    let photoURL: String?
+    @State private var presentation: RichSharePresentation?
+    @State private var isPreparing = false
 
     var body: some View {
-        ShareLink(item: text) {
+        Button {
+            Task { await prepareShare() }
+        } label: {
             SipActionLabel(
                 title: "Share",
                 value: nil,
-                systemImage: "square.and.arrow.up",
+                systemImage: isPreparing ? "hourglass" : "square.and.arrow.up",
                 isActive: false,
-                isEnabled: true
+                isEnabled: !isPreparing
             )
         }
         .buttonStyle(.plain)
+        .disabled(isPreparing)
         .accessibilityLabel("Share sip")
+        .sheet(item: $presentation) { presentation in
+            ActivityShareView(items: presentation.items)
+        }
     }
+
+    @MainActor
+    private func prepareShare() async {
+        isPreparing = true
+        defer { isPreparing = false }
+        var items: [Any] = [text]
+        if let photoURL, let url = URL(string: photoURL),
+           let (data, _) = try? await URLSession.shared.data(from: url),
+           let image = UIImage(data: data) {
+            items.insert(image, at: 0)
+        }
+        presentation = RichSharePresentation(items: items)
+    }
+}
+
+private struct RichSharePresentation: Identifiable {
+    let id = UUID()
+    let items: [Any]
+}
+
+private struct ActivityShareView: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct SipActionLabel: View {

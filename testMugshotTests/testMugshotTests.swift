@@ -1140,4 +1140,57 @@ struct testMugshotTests {
         #expect(!summary.matchesFeedSearch("matcha"))
     }
 
+    @Test func discoveryPayloadDecodesRankingAndCanonicalCafeIdentity() throws {
+        let cafeID = UUID()
+        let json = """
+        [{
+          "cafe_id":"\(cafeID.uuidString)","name":"Needle & Bean","address":"1 Main St","city":"Pittsburgh",
+          "latitude":40.4,"longitude":-80.0,"identity_key":"apple:needle","section":"nearby",
+          "ranking_score":0.82,"ranking_reason":"Great match nearby","distance_km":2.4,
+          "average_rating":4.6,"visible_visit_count":12,"friend_count":3,
+          "top_drinks":[{"name":"Latte","count":6}],"recent_cover":null,
+          "is_saved":true,"is_visited":false
+        }]
+        """
+
+        let cafes = try JSONDecoder().decode([DiscoveryCafe].self, from: Data(json.utf8))
+        #expect(cafes.first?.id == cafeID)
+        #expect(cafes.first?.identityKey == "apple:needle")
+        #expect(cafes.first?.topDrinks.first?.name == "Latte")
+        #expect(cafes.first?.localCafe.remoteCafeId == cafeID)
+    }
+
+    @Test func peopleSearchPayloadPreservesFriendshipAndCursorFields() throws {
+        let userID = UUID()
+        let json = """
+        [{
+          "id":"\(userID.uuidString)","display_name":"Alice","username":"alice",
+          "bio":null,"location":"Charleston","favorite_drink":"Cortado","avatar_url":null,"banner_url":null,
+          "friendship_state":"incoming","mutual_friend_count":2,"rank_bucket":0,"match_score":1.0
+        }]
+        """
+        let people = try JSONDecoder().decode([PeopleSearchResult].self, from: Data(json.utf8))
+        #expect(people.first?.friendshipState == .incoming)
+        #expect(people.first?.mutualFriendCount == 2)
+        #expect(people.first?.rankBucket == 0)
+    }
+
+    @Test func rankedFeedIsTheDefaultFirstScopeAndCursorKeepsScore() {
+        #expect(FeedScope.allCases.first == .ranked)
+        #expect(FeedScope.ranked.rpcValue == "ranked")
+        #expect(FeedScope.friends.rpcValue == "friends")
+        #expect(FeedScope.everyone.rpcValue == "everyone")
+        let summary = RemoteVisitSummary(
+            visit: SupabaseVisitRow(
+                id: UUID(), userId: UUID(), cafeId: nil, drinkType: "Coffee", drinkTypeCustom: nil,
+                drinkSubtype: nil, caption: "Test", notes: nil, visibility: "everyone", ratings: [:],
+                overallScore: 4, posterPhotoURL: nil, contextType: "Cafe", locationName: nil,
+                cityState: nil, brewMethod: nil, createdAt: "2026-07-12T12:00:00Z"
+            ),
+            cafe: nil,
+            rankingScore: 0.73
+        )
+        #expect(RemoteFeedCursor(summary).rankingScore == 0.73)
+    }
+
 }

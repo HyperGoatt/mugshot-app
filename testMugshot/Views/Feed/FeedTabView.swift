@@ -50,7 +50,8 @@ private final class RemoteFeedMemoryCache {
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
-    @State private var selectedScope: FeedScope = .friends
+    @StateObject private var locationManager = LocationManager()
+    @State private var selectedScope: FeedScope = .ranked
     @State private var selectedVisit: Visit?
     @State private var showVisitDetail = false
     @State private var selectedCafe: Cafe?
@@ -66,6 +67,7 @@ struct FeedTabView: View {
     @State private var activeFeedRequestID: UUID?
     @State private var feedSearchQuery = ""
     @State private var isFeedSearchPresented = false
+    @State private var isPeopleHubPresented = false
     @FocusState private var isFeedSearchFocused: Bool
 
     private let feedPageSize = 12
@@ -76,6 +78,8 @@ struct FeedTabView: View {
 
     private var feedSubtitle: String {
         switch selectedScope {
+        case .ranked:
+            return "Coffee picked for you"
         case .friends:
             return "Sips from friends"
         case .everyone:
@@ -88,6 +92,10 @@ struct FeedTabView: View {
             VStack(spacing: 0) {
                 MugshotScreenHeader("Feed", subtitle: feedSubtitle) {
                     HStack(spacing: 8) {
+                        MugshotIconButton(systemName: "person.2.fill", size: 36) {
+                            isPeopleHubPresented = true
+                        }
+                        .accessibilityLabel("People, requests, and friends")
                         MugshotStatPill(
                             icon: "flame.fill",
                             value: "\(remoteVisits.count)",
@@ -153,6 +161,9 @@ struct FeedTabView: View {
             if let cafe = selectedCafe {
                 CafeDetailView(cafe: cafe, dataManager: dataManager)
             }
+        }
+        .sheet(isPresented: $isPeopleHubPresented) {
+            PeopleHubView()
         }
         .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
             Task {
@@ -378,7 +389,8 @@ struct FeedTabView: View {
                 try await service.fetchFeedVisits(
                     scope: scope,
                     currentUserId: userId,
-                    limit: feedPageSize
+                    limit: feedPageSize,
+                    location: locationManager.location
                 )
             }
             guard scope == selectedScope, activeFeedRequestID == requestID else { return }
@@ -419,7 +431,8 @@ struct FeedTabView: View {
                     scope: scope,
                     currentUserId: userId,
                     limit: feedPageSize,
-                    before: RemoteFeedCursor(lastVisit)
+                    before: RemoteFeedCursor(lastVisit),
+                    location: locationManager.location
                 )
             }
             guard scope == selectedScope, !Task.isCancelled else { return }
@@ -441,6 +454,8 @@ struct FeedTabView: View {
 
     private func scopeIcon(for scope: FeedScope) -> String {
         switch scope {
+        case .ranked:
+            return "sparkles"
         case .friends:
             return "person.2.fill"
         case .everyone:
@@ -562,7 +577,8 @@ struct FeedTabView: View {
             visit: visit.visit,
             cafe: visit.cafe,
             author: visit.author,
-            socialState: socialState
+            socialState: socialState,
+            rankingScore: visit.rankingScore
         )
     }
 }
@@ -1421,7 +1437,7 @@ struct VisitDetailView: View {
                         }
                     }
 
-                    SipShareButton(text: localShareText)
+                    SipShareButton(text: localShareText, photoURL: nil)
                 }
             }
         }

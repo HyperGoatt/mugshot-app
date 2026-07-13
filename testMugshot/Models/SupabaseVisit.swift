@@ -346,6 +346,7 @@ struct RemoteVisitSummary: Identifiable, Equatable {
     let cafe: SupabaseCafeSummary?
     let author: SupabaseUserProfile?
     let socialState: RemoteVisitSocialState
+    let rankingScore: Double?
 
     init(
         visit: SupabaseVisitRow,
@@ -355,12 +356,14 @@ struct RemoteVisitSummary: Identifiable, Equatable {
             likeCount: 0,
             commentCount: 0,
             currentUserHasLiked: false
-        )
+        ),
+        rankingScore: Double? = nil
     ) {
         self.visit = visit
         self.cafe = cafe
         self.author = author
         self.socialState = socialState
+        self.rankingScore = rankingScore
     }
 
     var id: UUID { visit.id }

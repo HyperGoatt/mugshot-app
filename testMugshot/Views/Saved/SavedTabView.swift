@@ -475,6 +475,12 @@ struct CafeCard: View {
     }
 }
 
+private struct CommunityDrinkCount: Identifiable {
+    let name: String
+    let count: Int
+    var id: String { name }
+}
+
 struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
@@ -487,6 +493,7 @@ struct CafeDetailView: View {
     @State private var isLoadingRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var friendUserIDs: Set<UUID> = []
 
     var currentCafe: Cafe {
         dataManager.getCafe(id: cafe.id) ?? cafe
@@ -582,6 +589,11 @@ struct CafeDetailView: View {
                         
                         detailStatsSection
                             .padding(.horizontal)
+
+                        if shouldShowRemoteVisits && !remoteVisits.isEmpty {
+                            communityHighlightsSection
+                                .padding(.horizontal)
+                        }
 
                         detailActionsSection
                             .padding(.horizontal)
@@ -740,6 +752,36 @@ struct CafeDetailView: View {
         }
     }
 
+    private var communityHighlightsSection: some View {
+        let friendVisits = Set(remoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
+
+        return VStack(alignment: .leading, spacing: 10) {
+            MugshotSectionTitle(
+                title: "Community favorites",
+                subtitle: friendVisits == 0 ? "Top drinks from visible sips" : "\(friendVisits) friends have shared sips here"
+            )
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(communityDrinkCounts.prefix(5)) { drink in
+                        MugshotTagChip(title: "\(drink.name) · \(drink.count)")
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .cardStyle()
+    }
+
+    private var communityDrinkCounts: [CommunityDrinkCount] {
+        var counts: [String: Int] = [:]
+        for visit in remoteVisits {
+            counts[visit.visit.drinkDisplayName, default: 0] += 1
+        }
+        return counts
+            .map { CommunityDrinkCount(name: $0.key, count: $0.value) }
+            .sorted { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count }
+    }
+
     private func detailStatCard(title: String, value: String, systemImage: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
@@ -880,6 +922,7 @@ struct CafeDetailView: View {
         guard let remoteCafeId = signedInRemoteCafeId,
               let userId = authModel.authenticatedUser?.id else {
             remoteVisits = []
+            friendUserIDs = []
             remoteVisitError = nil
             isLoadingRemoteVisits = false
             return
@@ -891,12 +934,15 @@ struct CafeDetailView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            let visits = try await service.fetchCafeVisits(
+            async let visitsRequest = service.fetchVisibleCafeVisits(
                 cafeId: remoteCafeId,
-                userId: userId,
-                limit: 10
+                currentUserId: userId,
+                limit: 20
             )
+            async let friendsRequest = SocialDiscoveryService(client: client).connections(kind: "friends")
+            let (visits, friends) = try await (visitsRequest, friendsRequest)
             remoteVisits = visits
+            friendUserIDs = Set(friends.map(\.userID))
             dataManager.upsertRemoteCafe(
                 SupabaseCafeSummary(
                     id: remoteCafeId,

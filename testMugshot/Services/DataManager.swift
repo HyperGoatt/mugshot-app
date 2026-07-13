@@ -406,6 +406,8 @@ class DataManager: ObservableObject {
         let allVisits = appData.visits.sorted { $0.createdAt > $1.createdAt }
         
         switch scope {
+        case .ranked:
+            return allVisits.filter { $0.visibility != .private }
         case .everyone:
             // Show visits with visibility == .everyone
             return allVisits.filter { $0.visibility == .everyone }
