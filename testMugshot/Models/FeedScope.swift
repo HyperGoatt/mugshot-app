@@ -14,7 +14,7 @@ enum FeedScope: CaseIterable, Equatable {
     
     var displayName: String {
         switch self {
-        case .ranked: return "For You"
+        case .ranked: return "Your Mix"
         case .friends: return "Friends"
         case .everyone: return "Everyone"
         }

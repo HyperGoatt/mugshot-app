@@ -45,6 +45,7 @@ struct SettingsView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var showDeleteConfirmation = false
     @State private var copiedSupportEmail = false
+    @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
 
     private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
     private let termsURL = URL(string: "https://mugshotapp.co/terms")!
@@ -55,6 +56,8 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+
+                    preferencesSection
 
                     VStack(spacing: 0) {
                         NavigationLink {
@@ -145,11 +148,53 @@ struct SettingsView: View {
             Text("Settings")
                 .mugshotDisplay(size: 30)
                 .foregroundColor(.espressoBrown)
-            Text("Your account, privacy, and support.")
+            Text("Your preferences, account, privacy, and support.")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.tertiaryText)
         }
         .padding(.top, 8)
+    }
+
+    private var preferencesSection: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "ruler")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 34, height: 34)
+                    .background(Color.mugshotSage.opacity(0.16))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Distance Units")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("Used across Map and Discover")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                }
+
+                Spacer(minLength: 8)
+
+                Picker("Distance Units", selection: distanceUnitPreferenceBinding) {
+                    ForEach(DistanceUnitPreference.allCases) { preference in
+                        Text(preference.menuTitle()).tag(preference)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.mugshotSage)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+        }
+        .cardStyle()
+    }
+
+    private var distanceUnitPreferenceBinding: Binding<DistanceUnitPreference> {
+        Binding(
+            get: { DistanceUnitPreference.stored(distanceUnitPreferenceRaw) },
+            set: { distanceUnitPreferenceRaw = $0.rawValue }
+        )
     }
 
     private var accountSection: some View {

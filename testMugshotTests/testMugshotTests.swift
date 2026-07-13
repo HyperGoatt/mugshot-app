@@ -1095,7 +1095,7 @@ struct testMugshotTests {
                 cafeId: cafeId,
                 drinkType: "Coffee",
                 drinkTypeCustom: nil,
-                drinkSubtype: "Café Latte",
+                drinkSubtype: "Cafe Latte",
                 caption: "Sunny patio and orange blossom",
                 notes: nil,
                 visibility: "everyone",
@@ -1177,6 +1177,7 @@ struct testMugshotTests {
 
     @Test func rankedFeedIsTheDefaultFirstScopeAndCursorKeepsScore() {
         #expect(FeedScope.allCases.first == .ranked)
+        #expect(FeedScope.ranked.displayName == "Your Mix")
         #expect(FeedScope.ranked.rpcValue == "ranked")
         #expect(FeedScope.friends.rpcValue == "friends")
         #expect(FeedScope.everyone.rpcValue == "everyone")
@@ -1191,6 +1192,100 @@ struct testMugshotTests {
             rankingScore: 0.73
         )
         #expect(RemoteFeedCursor(summary).rankingScore == 0.73)
+    }
+
+    @Test func distanceUnitsRespectExplicitAndAutomaticPreferences() {
+        let usLocale = Locale(identifier: "en_US")
+        let frenchLocale = Locale(identifier: "fr_FR")
+
+        #expect(DistanceUnitPreference.automatic.resolvedUnit(locale: usLocale) == .miles)
+        #expect(DistanceUnitPreference.automatic.resolvedUnit(locale: frenchLocale) == .kilometers)
+        #expect(
+            MugshotDistanceFormatter.discoveryRadius(
+                kilometers: 25,
+                preference: .miles,
+                locale: usLocale
+            ) == "16 mi"
+        )
+        #expect(
+            MugshotDistanceFormatter.distance(
+                kilometers: 0.8,
+                preference: .miles,
+                locale: usLocale
+            ) == "0.5 mi"
+        )
+        #expect(
+            MugshotDistanceFormatter.distance(
+                kilometers: 0.8,
+                preference: .kilometers,
+                locale: usLocale
+            ) == "0.8 km"
+        )
+    }
+
+    @Test func cafeCardImageSourceUsesDurableFallbackOrder() {
+        #expect(
+            CafeCardImageSource.preferred(
+                personalJournalPath: "/journal/cover.jpg",
+                placePhotoURL: "https://places.example/cafe.jpg",
+                communityPhotoURL: "https://mugshot.example/community.jpg"
+            ) == .personalJournal(path: "/journal/cover.jpg")
+        )
+        #expect(
+            CafeCardImageSource.preferred(
+                personalJournalPath: nil,
+                placePhotoURL: "https://places.example/cafe.jpg",
+                communityPhotoURL: "https://mugshot.example/community.jpg"
+            ) == .place(url: "https://places.example/cafe.jpg")
+        )
+        #expect(
+            CafeCardImageSource.preferred(
+                personalJournalPath: nil,
+                placePhotoURL: nil,
+                communityPhotoURL: "https://mugshot.example/community.jpg"
+            ) == .community(url: "https://mugshot.example/community.jpg")
+        )
+        #expect(
+            CafeCardImageSource.preferred(
+                personalJournalPath: nil,
+                placePhotoURL: nil,
+                communityPhotoURL: nil
+            ) == .placeholder
+        )
+    }
+
+    @Test func productCopyUsesAsciiCafeSpelling() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let roots = [
+            repositoryRoot.appendingPathComponent("testMugshot"),
+            repositoryRoot.appendingPathComponent("docs")
+        ]
+        let accentedE = String(UnicodeScalar(0x00E9)!)
+        let forbidden = ["caf\(accentedE)", "caf\(accentedE)s"]
+        let scannedExtensions = Set(["swift", "strings", "xcstrings", "md"])
+        var violations: [String] = []
+
+        for root in roots {
+            guard let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+
+            for case let fileURL as URL in enumerator {
+                guard scannedExtensions.contains(fileURL.pathExtension.lowercased()) else { continue }
+                let contents = try String(contentsOf: fileURL, encoding: .utf8).lowercased()
+                if forbidden.contains(where: contents.contains) {
+                    violations.append(fileURL.path)
+                }
+            }
+        }
+
+        #expect(violations.isEmpty)
     }
 
 }

@@ -5,6 +5,8 @@ import SwiftUI
 struct DiscoveryListView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var locationManager: LocationManager
+    @Binding var discoveryMode: MapDiscoveryMode
+    @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
     @State private var radiusKM = 25.0
     @State private var cafesBySection: [DiscoverySection: [DiscoveryCafe]] = [:]
     @State private var isLoading = false
@@ -15,6 +17,12 @@ struct DiscoveryListView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
+                    HStack {
+                        Spacer()
+                        MapDiscoveryModeControl(selection: $discoveryMode)
+                            .frame(width: 166)
+                    }
+
                     discoveryContext
 
                     if isLoading && cafesBySection.isEmpty {
@@ -42,7 +50,7 @@ struct DiscoveryListView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 70)
+                .padding(.top, 18)
                 .padding(.bottom, 116)
             }
             .background(Color.creamWhite)
@@ -68,12 +76,24 @@ struct DiscoveryListView: View {
             }
             Spacer()
             Picker("Radius", selection: $radiusKM) {
-                Text("25 km").tag(25.0)
-                Text("100 km").tag(100.0)
+                Text(radiusLabel(25)).tag(25.0)
+                Text(radiusLabel(100)).tag(100.0)
             }
             .pickerStyle(.menu)
             .tint(.mugshotSage)
+            .accessibilityLabel("Discovery radius, \(radiusLabel(radiusKM))")
         }
+    }
+
+    private var distanceUnitPreference: DistanceUnitPreference {
+        DistanceUnitPreference.stored(distanceUnitPreferenceRaw)
+    }
+
+    private func radiusLabel(_ kilometers: Double) -> String {
+        MugshotDistanceFormatter.discoveryRadius(
+            kilometers: kilometers,
+            preference: distanceUnitPreference
+        )
     }
 
     @MainActor
@@ -163,12 +183,24 @@ private struct DiscoveryCafeRow: View {
                     .lineLimit(1)
                 HStack(spacing: 8) {
                     if let distance = cafe.distanceKM {
-                        Label(String(format: "%.1f km", distance), systemImage: "location.fill")
+                        Label(
+                            MugshotDistanceFormatter.distance(
+                                kilometers: distance,
+                                preference: DistanceUnitPreference.stored(distanceUnitPreferenceRaw)
+                            ),
+                            systemImage: "location.fill"
+                        )
                     }
                     if cafe.friendCount > 0 {
-                        Label("\(cafe.friendCount) friends", systemImage: "person.2.fill")
+                        Label(
+                            "\(cafe.friendCount) \(cafe.friendCount == 1 ? "friend" : "friends")",
+                            systemImage: "person.2.fill"
+                        )
                     }
-                    Label("\(cafe.visibleVisitCount) sips", systemImage: "cup.and.saucer")
+                    Label(
+                        "\(cafe.visibleVisitCount) \(cafe.visibleVisitCount == 1 ? "sip" : "sips")",
+                        systemImage: "cup.and.saucer"
+                    )
                 }
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.secondaryText)
@@ -187,4 +219,6 @@ private struct DiscoveryCafeRow: View {
         .padding(12)
         .cardStyle()
     }
+
+    @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
 }

@@ -9,6 +9,13 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
+enum MapDiscoveryMode: String, CaseIterable {
+    case map = "Map"
+    case list = "List"
+
+    var icon: String { self == .map ? "map.fill" : "list.bullet" }
+}
+
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
@@ -31,15 +38,9 @@ struct MapTabView: View {
     @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
     @State private var mapFilter: MapPinFilter = .all
-    @State private var discoveryMode: DiscoveryMode = .map
+    @State private var discoveryMode: MapDiscoveryMode = .map
     @State private var discoveryMapCafes: [Cafe] = []
-
-    enum DiscoveryMode: String, CaseIterable {
-        case map = "Map"
-        case list = "List"
-
-        var icon: String { self == .map ? "map.fill" : "list.bullet" }
-    }
+    @State private var userTrackingMode: MKUserTrackingMode = .none
 
     enum MapPinFilter: String, CaseIterable {
         case all = "All"
@@ -68,22 +69,14 @@ struct MapTabView: View {
     )
     
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            if discoveryMode == .map {
-                mapBody
-            } else {
-                DiscoveryListView(dataManager: dataManager, locationManager: locationManager)
-            }
-
-            MugshotSegmentedControl(
-                options: DiscoveryMode.allCases,
-                selection: $discoveryMode,
-                title: { $0.rawValue },
-                icon: { $0.icon }
+        if discoveryMode == .map {
+            mapBody
+        } else {
+            DiscoveryListView(
+                dataManager: dataManager,
+                locationManager: locationManager,
+                discoveryMode: $discoveryMode
             )
-            .frame(width: 190)
-            .padding(.trailing, 16)
-            .padding(.bottom, 104)
         }
     }
 
@@ -107,6 +100,8 @@ struct MapTabView: View {
                 ),
                 cafes: displayedMapCafes,
                 highlightedCafe: showCafeDetail ? selectedCafe : nil,
+                showsUserLocation: true,
+                trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
                     selectedCafe = cafe
                     showCafeDetail = true
@@ -301,6 +296,15 @@ struct MapTabView: View {
                         .padding(.vertical, 2)
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
+
+                    HStack {
+                        Spacer()
+                        MapDiscoveryModeControl(selection: $discoveryMode)
+                            .frame(width: 166)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 // Search results list (inline below search bar)
@@ -333,10 +337,11 @@ struct MapTabView: View {
                             region: Binding(
                                 get: { region ?? defaultRegion },
                                 set: { region = $0 }
-                            )
+                            ),
+                            trackingMode: $userTrackingMode
                         )
                         .padding(.trailing)
-                        .padding(.bottom, 104)
+                        .padding(.bottom, 188)
                     }
                 }
             }
@@ -519,6 +524,8 @@ struct MapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let cafes: [Cafe]
     let highlightedCafe: Cafe?
+    let showsUserLocation: Bool
+    @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -526,11 +533,10 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.region = region
         
-        // Recentring remains available from MyLocationButton. Hiding the
-        // separate MapKit dot avoids an unlabeled sage circle that can look
-        // like a second cafe or a Want to Try pin.
-        mapView.showsUserLocation = false
-        mapView.userTrackingMode = .none
+        // Keep the standard MapKit blue puck so the map has the same
+        // orientation anchor people expect from Apple Maps.
+        mapView.showsUserLocation = showsUserLocation
+        mapView.userTrackingMode = trackingMode
         
         // Hide points of interest
         mapView.pointOfInterestFilter = .excludingAll
@@ -544,6 +550,14 @@ struct MapViewRepresentable: UIViewRepresentable {
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.parent = self
+
+        if mapView.showsUserLocation != showsUserLocation {
+            mapView.showsUserLocation = showsUserLocation
+        }
+
+        if mapView.userTrackingMode != trackingMode {
+            mapView.setUserTrackingMode(trackingMode, animated: true)
+        }
 
         // Update region if needed
         if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
@@ -598,6 +612,19 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if annotation is MKUserLocation, parent.showsUserLocation {
+                let identifier = "MugshotUserLocation"
+                let userLocationView = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: identifier
+                ) as? MKUserLocationView ?? MKUserLocationView(
+                    annotation: annotation,
+                    reuseIdentifier: identifier
+                )
+                userLocationView.annotation = annotation
+                userLocationView.tintColor = .systemBlue
+                return userLocationView
+            }
+
             guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
             
             let cafe = cafeAnnotation.cafe
@@ -747,6 +774,17 @@ struct MapViewRepresentable: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             parent.region = mapView.region
         }
+
+        func mapView(
+            _ mapView: MKMapView,
+            didChange mode: MKUserTrackingMode,
+            animated: Bool
+        ) {
+            guard parent.trackingMode != mode else { return }
+            DispatchQueue.main.async {
+                self.parent.trackingMode = mode
+            }
+        }
     }
 }
 
@@ -864,6 +902,7 @@ struct LocationBanner: View {
 struct MyLocationButton: View {
     @ObservedObject var locationManager: LocationManager
     @Binding var region: MKCoordinateRegion
+    @Binding var trackingMode: MKUserTrackingMode
     @State private var showMessage = false
     
     var body: some View {
@@ -893,6 +932,7 @@ struct MyLocationButton: View {
                                 center: location.coordinate,
                                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                             )
+                            trackingMode = .follow
                         }
                         showMessage = false
                     } else {
@@ -905,7 +945,9 @@ struct MyLocationButton: View {
                         }
                     }
                 } else {
-                    // No permission - show message
+                    if status == .notDetermined {
+                        locationManager.requestLocationPermission()
+                    }
                     showMessage = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
@@ -914,9 +956,9 @@ struct MyLocationButton: View {
                     }
                 }
             }) {
-                Image(systemName: "location.fill")
+                Image(systemName: trackingMode == .none ? "location.fill" : "location.north.line.fill")
                     .font(.system(size: 18))
-                    .foregroundColor(.espressoBrown)
+                    .foregroundColor(trackingMode == .none ? .espressoBrown : .mugshotSage)
                     .frame(width: 44, height: 44)
                     .mugshotGlassCircle(
                         tint: .foamWhite,
@@ -925,7 +967,21 @@ struct MyLocationButton: View {
                         interactive: true
                     )
             }
+            .accessibilityLabel(trackingMode == .none ? "Center on my location" : "Following my location")
         }
+    }
+}
+
+struct MapDiscoveryModeControl: View {
+    @Binding var selection: MapDiscoveryMode
+
+    var body: some View {
+        MugshotSegmentedControl(
+            options: MapDiscoveryMode.allCases,
+            selection: $selection,
+            title: { $0.rawValue },
+            icon: { $0.icon }
+        )
     }
 }
 

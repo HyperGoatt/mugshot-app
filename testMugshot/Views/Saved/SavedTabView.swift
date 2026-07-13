@@ -15,6 +15,7 @@ struct SavedTabView: View {
     @State private var activeSheet: SavedSheet?
     @State private var isLoadingRemoteStates = false
     @State private var remoteStateError: String?
+    @State private var remoteCafeCoverURLs: [UUID: String] = [:]
     
     enum SavedTab: String, CaseIterable {
         case favorites = "Favorites"
@@ -151,6 +152,7 @@ struct SavedTabView: View {
                                     cafe: cafe,
                                     dataManager: dataManager,
                                     showWantToTryTag: selectedTab == .wantToTry,
+                                    communityImageURL: remoteCafeCoverURLs[cafe.remoteCafeId ?? cafe.id],
                                     onLogVisit: {
                                         activeSheet = .logVisit(cafe)
                                     },
@@ -207,6 +209,7 @@ struct SavedTabView: View {
     private func loadRemoteCafeStates() async {
         guard let userId = authModel.authenticatedUser?.id else {
             remoteStateError = nil
+            remoteCafeCoverURLs = [:]
             return
         }
 
@@ -218,6 +221,19 @@ struct SavedTabView: View {
             let service = CafeStateService(client: client)
             let states = try await service.fetchCafeStates(userId: userId)
             dataManager.applyRemoteCafeStates(states)
+
+            let discoveredCafes = (try? await SocialDiscoveryService(client: client).discovery(
+                section: .saved,
+                location: nil,
+                radiusKM: 100,
+                limit: 50
+            )) ?? []
+            remoteCafeCoverURLs = Dictionary(
+                uniqueKeysWithValues: discoveredCafes.compactMap { cafe in
+                    guard let cover = cafe.recentCover?.remoteTrimmedNonEmpty else { return nil }
+                    return (cafe.id, cover)
+                }
+            )
             isLoadingRemoteStates = false
         } catch {
             guard !Task.isCancelled else { return }
@@ -296,8 +312,28 @@ struct CafeCard: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
     let showWantToTryTag: Bool
+    let communityImageURL: String?
+    let placeImageURL: String?
     let onLogVisit: () -> Void
     let onShowDetails: () -> Void
+
+    init(
+        cafe: Cafe,
+        dataManager: DataManager,
+        showWantToTryTag: Bool,
+        communityImageURL: String? = nil,
+        placeImageURL: String? = nil,
+        onLogVisit: @escaping () -> Void,
+        onShowDetails: @escaping () -> Void
+    ) {
+        self.cafe = cafe
+        self.dataManager = dataManager
+        self.showWantToTryTag = showWantToTryTag
+        self.communityImageURL = communityImageURL
+        self.placeImageURL = placeImageURL
+        self.onLogVisit = onLogVisit
+        self.onShowDetails = onShowDetails
+    }
     
     // Get cafe image from most recent visit, or nil if no visits/photos
     var cafeImagePath: String? {
@@ -310,6 +346,14 @@ struct CafeCard: View {
         max(cafe.visitCount, dataManager.getVisitsForCafe(cafe.id).count)
     }
 
+    private var cafeImageSource: CafeCardImageSource {
+        CafeCardImageSource.preferred(
+            personalJournalPath: cafeImagePath,
+            placePhotoURL: placeImageURL,
+            communityPhotoURL: communityImageURL
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Button(action: onShowDetails) {
@@ -317,17 +361,12 @@ struct CafeCard: View {
                     cafeImage
 
                     VStack(alignment: .leading, spacing: 9) {
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(cafe.consumerDisplayName)
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Spacer(minLength: 6)
-
-                            scoreBadge
-                        }
+                        Text(cafe.consumerDisplayName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
 
                         if !cafe.address.isEmpty {
                             Label(cafe.address, systemImage: "mappin.circle.fill")
@@ -384,23 +423,36 @@ struct CafeCard: View {
 
     @ViewBuilder
     private var cafeImage: some View {
-        if let imagePath = cafeImagePath {
+        Group {
+            switch cafeImageSource {
+            case .personalJournal(let imagePath):
             PhotoThumbnailView(photoPath: imagePath, size: 112)
-                .frame(width: 112, height: 132)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.34))
+            case .place(let url), .community(let url):
+                RemotePhotoImageView(
+                    urlString: url,
+                    placeholderSystemName: "cup.and.saucer.fill",
+                    contentMode: .fill
+                )
+            case .placeholder:
+                VStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.34))
 
-                Text("Cafe")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.52))
+                    Text("Cafe")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.52))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.sandBeige.opacity(0.66))
             }
-            .frame(width: 112, height: 132)
-            .background(Color.sandBeige.opacity(0.66))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        }
+        .frame(width: 112, height: 142)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            scoreBadge
+                .padding(6)
         }
     }
 

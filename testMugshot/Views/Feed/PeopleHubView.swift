@@ -374,6 +374,8 @@ private struct PublicProfileView: View {
             region: .constant(profileRegion(visits)),
             cafes: Array(Dictionary(grouping: visits.map(\.cafe), by: \.id).values.compactMap { $0.first }),
             highlightedCafe: nil,
+            showsUserLocation: false,
+            trackingMode: .constant(.none),
             onCafeTap: { _ in }
         )
         .frame(height: 230)

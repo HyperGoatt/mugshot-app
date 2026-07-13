@@ -1095,7 +1095,7 @@ struct TopCafesView: View {
                     ProfileEmptyStateCard(
                         asset: .noCafes,
                         systemImage: "cup.and.saucer.fill",
-                        title: "No top cafés yet",
+                        title: "No top cafes yet",
                         message: "Your highest-rated visits will rank your cafes here."
                     )
                 } else {
@@ -1107,8 +1107,8 @@ struct TopCafesView: View {
                 ProfileEmptyStateCard(
                     asset: .noCafes,
                     systemImage: "cup.and.saucer.fill",
-                    title: "No cafés yet",
-                    message: "Log visits to rank your cafés."
+                    title: "No cafes yet",
+                    message: "Log visits to rank your cafes."
                 )
             } else {
                 ForEach(topCafes) { cafe in

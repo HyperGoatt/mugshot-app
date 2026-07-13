@@ -79,7 +79,7 @@ struct FeedTabView: View {
     private var feedSubtitle: String {
         switch selectedScope {
         case .ranked:
-            return "Coffee picked for you"
+            return "Friends, flavors, and cafes matched to you"
         case .friends:
             return "Sips from friends"
         case .everyone:
@@ -136,6 +136,28 @@ struct FeedTabView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
+
+                if selectedScope == .ranked {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.mugshotSage)
+                            .padding(.top, 1)
+
+                        Text("Your Mix blends friend activity, recent sips, your taste, and nearby cafes.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.mugshotMint.opacity(0.24))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .accessibilityElement(children: .combine)
+                }
 
                 ScrollView {
                     LazyVStack(spacing: 12) {
