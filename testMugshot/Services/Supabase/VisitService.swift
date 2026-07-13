@@ -13,7 +13,7 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, notes, visibility, upload_state, ratings, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, created_at
     """
 
     private let photoColumns = """
@@ -232,6 +232,13 @@ final class VisitService {
             throw VisitServiceError.visitNotFound
         }
 
+        let privateNote: String?
+        if currentUserId == row.userId {
+            privateNote = try await fetchPrivateNote(visitId: visitId, userId: row.userId)
+        } else {
+            privateNote = nil
+        }
+
         return RemoteVisitDetail(
             summary: summary,
             photos: photos,
@@ -239,8 +246,41 @@ final class VisitService {
             likeCount: likes.count,
             currentUserHasLiked: currentUserId.map { userId in
                 likes.contains { $0.userId == userId }
-            } ?? false
+            } ?? false,
+            privateNote: privateNote
         )
+    }
+
+    func fetchPrivateNote(visitId: UUID, userId: UUID) async throws -> String? {
+        let rows: [SupabaseVisitPrivateNoteRow] = try await client
+            .from("visit_private_notes")
+            .select("visit_id, user_id, note")
+            .eq("visit_id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.note.remoteTrimmedNonEmpty
+    }
+
+    func updatePrivateNote(visitId: UUID, userId: UUID, note: String?) async throws {
+        guard let note = note?.remoteTrimmedNonEmpty else {
+            try await client
+                .from("visit_private_notes")
+                .delete()
+                .eq("visit_id", value: visitId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            return
+        }
+
+        try await client
+            .from("visit_private_notes")
+            .upsert(
+                SupabaseVisitPrivateNoteUpsert(visitId: visitId, userId: userId, note: note),
+                onConflict: "visit_id"
+            )
+            .execute()
     }
 
     func fetchSocialState(
@@ -393,6 +433,7 @@ final class VisitService {
         notes: String?,
         visibility: VisitVisibility,
         ratings: [String: Double],
+        overallScore: Double? = nil,
         ratingTemplate: RatingTemplate,
         uploadState: VisitUploadState = .complete
     ) async throws -> RemoteVisitSummary {
@@ -421,6 +462,7 @@ final class VisitService {
             notes: notes,
             visibility: visibility,
             ratings: ratings,
+            overallScore: overallScore,
             ratingTemplate: ratingTemplate,
             uploadState: uploadState
         )
@@ -442,10 +484,13 @@ final class VisitService {
                 visitId: visitId,
                 userId: userId
             ) {
+                try await updatePrivateNote(visitId: visitId, userId: userId, note: notes)
                 return existing
             }
             throw error
         }
+
+        try await updatePrivateNote(visitId: visitId, userId: userId, note: notes)
 
         return RemoteVisitSummary(visit: row, cafe: remoteCafe)
     }
@@ -764,7 +809,6 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     let drinkTypeCustom: String?
     let drinkSubtype: String?
     let caption: String
-    let notes: String?
     let visibility: String
     let uploadState: String
     let ratings: [String: Double]
@@ -785,7 +829,6 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         case drinkTypeCustom = "drink_type_custom"
         case drinkSubtype = "drink_subtype"
         case caption
-        case notes
         case visibility
         case uploadState = "upload_state"
         case ratings
@@ -812,14 +855,27 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         equipment: String? = nil,
         brewDetails: BrewDetails = .empty,
         caption: String,
-        notes: String?,
+        notes _: String?,
         visibility: VisitVisibility,
         ratings: [String: Double],
+        overallScore explicitOverallScore: Double? = nil,
         ratingTemplate: RatingTemplate,
         uploadState: VisitUploadState = .complete
     ) throws -> SupabaseVisitInsert {
         let cleanRatings = clean(ratings: ratings, ratingTemplate: ratingTemplate)
-        let overallScore = ratingTemplate.calculateOverallScore(ratings: cleanRatings)
+        let overallScore: Double
+        if let explicitOverallScore {
+            guard explicitOverallScore >= 0.5,
+                  explicitOverallScore <= 5,
+                  explicitOverallScore.isFinite else {
+                throw VisitServiceError.missingRating
+            }
+            overallScore = explicitOverallScore
+        } else {
+            // Backward compatibility for older pending records and callers.
+            // The redesigned composer always supplies the authored quick score.
+            overallScore = ratingTemplate.calculateOverallScore(ratings: cleanRatings)
+        }
 
         guard overallScore > 0 else {
             throw VisitServiceError.missingRating
@@ -833,7 +889,6 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             drinkTypeCustom: drinkType == .other ? customDrinkType?.remoteTrimmedNonEmpty : nil,
             drinkSubtype: drinkSubtype?.remoteTrimmedNonEmpty,
             caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: notes?.remoteTrimmedNonEmpty,
             visibility: visibility.supabaseValue,
             uploadState: uploadState.rawValue,
             ratings: cleanRatings,
@@ -952,10 +1007,12 @@ private struct SupabaseVisitPosterPhotoUpdate: Encodable {
     }
 }
 
-struct SupabaseVisitCategoryScore: Encodable, Equatable {
+struct SupabaseVisitCategoryScore: Codable, Equatable, Identifiable {
     let name: String
     let score: Double
     let weight: Double
+
+    var id: String { name }
 }
 
 extension VisitVisibility {

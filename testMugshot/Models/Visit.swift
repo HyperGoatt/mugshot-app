@@ -32,9 +32,16 @@ struct Visit: Identifiable {
     var customDrinkType: String? // For "Other" option
     var caption: String
     var notes: String? // Private notes (optional)
+    var context: JournalEntryContext
+    var locationName: String?
+    var brewMethod: String?
+    var equipment: String?
+    var brewDetails: BrewDetails
+    var drinkAnalysis: DrinkAnalysis?
     var photos: [String] // Store image names/paths
     var posterPhotoIndex: Int // Index of the photo to use as poster
     var ratings: [String: Double] // Category name -> rating value
+    var ratingCriteria: [SipRatingCriterionSnapshot]
     var overallScore: Double // Weighted average
     var visibility: VisitVisibility
     var likeCount: Int // Renamed from likes
@@ -51,9 +58,16 @@ struct Visit: Identifiable {
         customDrinkType: String? = nil,
         caption: String = "",
         notes: String? = nil,
+        context: JournalEntryContext = .cafe,
+        locationName: String? = nil,
+        brewMethod: String? = nil,
+        equipment: String? = nil,
+        brewDetails: BrewDetails = .empty,
+        drinkAnalysis: DrinkAnalysis? = nil,
         photos: [String] = [],
         posterPhotoIndex: Int = 0,
         ratings: [String: Double] = [:],
+        ratingCriteria: [SipRatingCriterionSnapshot] = [],
         overallScore: Double = 0.0,
         visibility: VisitVisibility = .everyone,
         likeCount: Int = 0,
@@ -69,9 +83,16 @@ struct Visit: Identifiable {
         self.customDrinkType = customDrinkType
         self.caption = caption
         self.notes = notes
+        self.context = context
+        self.locationName = locationName
+        self.brewMethod = brewMethod
+        self.equipment = equipment
+        self.brewDetails = brewDetails
+        self.drinkAnalysis = drinkAnalysis
         self.photos = photos
         self.posterPhotoIndex = posterPhotoIndex
         self.ratings = ratings
+        self.ratingCriteria = ratingCriteria
         self.overallScore = overallScore
         self.visibility = visibility
         self.likeCount = likeCount
@@ -110,7 +131,8 @@ struct Visit: Identifiable {
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {
         case id, cafeId, userId, drinkType, customDrinkType, caption, notes, photos
-        case posterPhotoIndex, ratings, overallScore, visibility, comments, mentions
+        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis
+        case posterPhotoIndex, ratings, ratingCriteria, overallScore, visibility, comments, mentions
         case createdAt, date // Support both for backward compatibility
         case likeCount, likes // Support both for backward compatibility
         case likedByUserIds
@@ -135,9 +157,16 @@ extension Visit: Codable {
         customDrinkType = try container.decodeIfPresent(String.self, forKey: .customDrinkType)
         caption = try container.decode(String.self, forKey: .caption)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        context = try container.decodeIfPresent(JournalEntryContext.self, forKey: .context) ?? .cafe
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        brewMethod = try container.decodeIfPresent(String.self, forKey: .brewMethod)
+        equipment = try container.decodeIfPresent(String.self, forKey: .equipment)
+        brewDetails = try container.decodeIfPresent(BrewDetails.self, forKey: .brewDetails) ?? .empty
+        drinkAnalysis = try container.decodeIfPresent(DrinkAnalysis.self, forKey: .drinkAnalysis)
         photos = try container.decode([String].self, forKey: .photos)
         posterPhotoIndex = try container.decode(Int.self, forKey: .posterPhotoIndex)
         ratings = try container.decode([String: Double].self, forKey: .ratings)
+        ratingCriteria = try container.decodeIfPresent([SipRatingCriterionSnapshot].self, forKey: .ratingCriteria) ?? []
         overallScore = try container.decode(Double.self, forKey: .overallScore)
         visibility = try container.decode(VisitVisibility.self, forKey: .visibility)
         
@@ -165,9 +194,16 @@ extension Visit: Codable {
         try container.encodeIfPresent(customDrinkType, forKey: .customDrinkType)
         try container.encode(caption, forKey: .caption)
         try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encode(context, forKey: .context)
+        try container.encodeIfPresent(locationName, forKey: .locationName)
+        try container.encodeIfPresent(brewMethod, forKey: .brewMethod)
+        try container.encodeIfPresent(equipment, forKey: .equipment)
+        try container.encode(brewDetails, forKey: .brewDetails)
+        try container.encodeIfPresent(drinkAnalysis, forKey: .drinkAnalysis)
         try container.encode(photos, forKey: .photos)
         try container.encode(posterPhotoIndex, forKey: .posterPhotoIndex)
         try container.encode(ratings, forKey: .ratings)
+        try container.encode(ratingCriteria, forKey: .ratingCriteria)
         try container.encode(overallScore, forKey: .overallScore)
         try container.encode(visibility, forKey: .visibility)
         try container.encode(likeCount, forKey: .likeCount)
@@ -251,4 +287,3 @@ struct Mention: Identifiable, Codable {
         self.username = username
     }
 }
-

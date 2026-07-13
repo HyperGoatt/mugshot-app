@@ -668,6 +668,7 @@ struct testMugshotTests {
                 "TooHigh": 7,
                 "Zero": 0
             ],
+            overallScore: 3.5,
             ratingTemplate: template
         )
         let data = try JSONEncoder().encode(insert)
@@ -684,13 +685,13 @@ struct testMugshotTests {
         #expect(object["drink_type_custom"] == nil)
         #expect(object["drink_subtype"] as? String == "Cortado")
         #expect(object["caption"] as? String == "Tiny cup, huge day.")
-        #expect(object["notes"] as? String == "owner note")
+        #expect(object["notes"] == nil)
         #expect(object["visibility"] as? String == "private")
         #expect(object["context_type"] as? String == "Cafe")
         #expect(object["location_name"] as? String == "Payload Cafe")
         #expect(object["city_state"] as? String == "Charleston, SC")
         let overallScore = try #require(object["overall_score"] as? Double)
-        #expect(abs(overallScore - (((5.0 * 2.0) + 4.0) / 3.0)) < 0.0001)
+        #expect(overallScore == 3.5)
         #expect(ratings == ["Taste": 5, "Vibe": 4])
         #expect(categoryScores.count == 2)
         #expect(categoryScores[0]["name"] as? String == "Taste")
@@ -952,10 +953,9 @@ struct testMugshotTests {
         }
     }
 
-    @Test func remoteVisitUpdatePayloadTrimsAndMapsVisibility() throws {
+    @Test func remoteVisitUpdateExcludesPrivateNotesAndMapsVisibility() throws {
         let update = try SupabaseVisitUpdate.make(
             caption: "  Better caption  ",
-            notes: "  private note  ",
             visibility: .friends
         )
         let object = try #require(
@@ -963,11 +963,339 @@ struct testMugshotTests {
         )
 
         #expect(object["caption"] as? String == "Better caption")
-        #expect(object["notes"] as? String == "private note")
+        #expect(object["notes"] == nil)
         #expect(object["visibility"] as? String == "friends")
-        #expect(throws: VisitServiceError.emptyCaption) {
-            _ = try SupabaseVisitUpdate.make(caption: " ", notes: nil, visibility: .private)
+        let noCaption = try SupabaseVisitUpdate.make(caption: " ", visibility: .private)
+        let noCaptionObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(noCaption)) as? [String: Any]
+        )
+        #expect(noCaptionObject["caption"] as? String == "")
+    }
+
+    @Test func privateNotePayloadUsesOwnerOnlyContract() throws {
+        let visitID = UUID()
+        let userID = UUID()
+        let payload = SupabaseVisitPrivateNoteUpsert(
+            visitId: visitID,
+            userId: userID,
+            note: "Dial the grind finer"
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any]
+        )
+
+        #expect(object["visit_id"] as? String == visitID.uuidString)
+        #expect(object["user_id"] as? String == userID.uuidString)
+        #expect(object["note"] as? String == "Dial the grind finer")
+        #expect(object["caption"] == nil)
+    }
+
+    @Test func quickSipRequiresOnlyContextDrinkAndOverallRating() {
+        var draft = SipDraft(
+            context: .cafe,
+            cafe: Cafe(name: "Quick Sip Cafe"),
+            drinkName: "Cortado",
+            overallScore: 4.5,
+            socialCaption: "",
+            privateNotes: "",
+            visibility: .private
+        )
+
+        #expect(draft.hasRequiredCore)
+        #expect(draft.localPhotoNames.isEmpty)
+        #expect(draft.socialCaption.isEmpty)
+
+        draft.overallScore = 0
+        #expect(!draft.hasRequiredCore)
+    }
+
+    @Test func naturalLanguageDrinkAnalysisDefaultsToHotAndKeepsOrderEvidenceSeparate() {
+        let analysis = DrinkAnalysisParser.analyze("Strawberry matcha with oat milk")
+        let hotLatteWithColdFoam = DrinkAnalysisParser.analyze("Vanilla latte with cold foam")
+
+        #expect(analysis.rawDrinkName == "Strawberry matcha with oat milk")
+        #expect(analysis.family == .matcha)
+        #expect(analysis.preparation == .matcha)
+        #expect(analysis.temperature == .hot)
+        #expect(analysis.milk == "oat milk")
+        #expect(analysis.flavors.contains("strawberry"))
+        #expect(analysis.orderPreferenceSignals.contains("chooses_fruit_flavors"))
+        #expect(analysis.orderPreferenceSignals.contains("chooses_sweet_flavors"))
+        #expect(!analysis.orderPreferenceSignals.contains("tastes_sweet"))
+        #expect(hotLatteWithColdFoam.temperature == .hot)
+    }
+
+    @Test func naturalLanguageDrinkAnalysisRecognizesIcedEspressoAndDefaultsToTwoShots() {
+        let analysis = DrinkAnalysisParser.analyze("Iced cinnamon and orange cortado")
+
+        #expect(analysis.family == .espresso)
+        #expect(analysis.preparation == .cortado)
+        #expect(analysis.temperature == .iced)
+        #expect(analysis.espressoShotCount == 2)
+        #expect(analysis.flavors == ["orange", "cinnamon"])
+        #expect(analysis.estimatedCaffeineMilligrams == 126)
+    }
+
+    @Test func caffeineEstimatesUsePreparationAveragesWithoutUserEnteredMilligrams() {
+        let largeLatte = DrinkAnalysisParser.analyze(
+            "Vanilla latte",
+            servingVolumeMilliliters: 473
+        )
+        let largeChemex = DrinkAnalysisParser.analyze(
+            "Washed Ethiopian Chemex",
+            servingVolumeMilliliters: 600
+        )
+        let decafSingle = DrinkAnalysisParser.analyze("Decaf vanilla latte, single shot")
+        let unknown = DrinkAnalysisParser.analyze("House seasonal special")
+
+        #expect(largeLatte.estimatedCaffeineMilligrams == 126)
+        #expect(largeChemex.estimatedCaffeineMilligrams == 240)
+        #expect(decafSingle.estimatedCaffeineMilligrams == 6)
+        #expect(unknown.coverage == .excluded)
+        #expect(unknown.estimatedCaffeineMilligrams == nil)
+    }
+
+    @Test func tastingLensReplacesQuickScoreAndExcludesIrrelevantCriteria() {
+        var draft = SipDraft(
+            captureMode: .addDetails,
+            context: .cafe,
+            cafe: Cafe(name: "Lens Cafe"),
+            drinkName: "Cortado",
+            overallScore: 1,
+            visibility: .friends,
+            ratingCriteria: [
+                SipRatingCriterionSnapshot(name: "Aroma", score: 4, weight: 1, sortOrder: 0),
+                SipRatingCriterionSnapshot(name: "Mouthfeel", score: 5, weight: 2, sortOrder: 1),
+                SipRatingCriterionSnapshot(
+                    name: "Value",
+                    score: 1,
+                    weight: 1,
+                    sortOrder: 2,
+                    relevanceOverride: false
+                )
+            ]
+        )
+
+        #expect(abs(draft.resolvedOverallScore - (14.0 / 3.0)) < 0.000_001)
+        #expect(draft.ratingsDictionary["Value"] == nil)
+        #expect(draft.hasRequiredCore)
+
+        draft.ratingCriteria[0].score = 0
+        draft.ratingCriteria[1].score = 0
+        #expect(!draft.hasRequiredCore)
+    }
+
+    @Test func halfStepRatingMapsTheTrailingHalfOfTheFifthStarToFive() {
+        #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 10, starWidth: 40) == 4.5)
+        #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 30, starWidth: 40) == 5)
+        #expect(HalfStepStarRating.ratingValue(starIndex: 1, tapX: 30, starWidth: 40) == 1)
+    }
+
+    @Test func servingVolumeIsSeparateFromExtractionYieldAndSurvivesDraftEncoding() throws {
+        var draft = SipDraft(
+            context: .home,
+            locationName: "Kitchen bar",
+            drinkName: "Double espresso",
+            overallScore: 4,
+            brewDetails: BrewDetails(
+                doseGrams: 18,
+                yieldGrams: 36,
+                servingVolumeMilliliters: 120,
+                espressoShotCount: 2
+            ),
+            composerExperience: .guided,
+            guidedStep: .memory,
+            memoryDetailsExpanded: true
+        )
+        draft.refreshDrinkAnalysis()
+
+        let restored = try JSONDecoder().decode(SipDraft.self, from: JSONEncoder().encode(draft))
+        #expect(restored.brewDetails.yieldGrams == 36)
+        #expect(restored.brewDetails.servingVolumeMilliliters == 120)
+        #expect(restored.brewDetails.espressoShotCount == 2)
+        #expect(restored.guidedStep == .memory)
+        #expect(restored.composerExperience == .guided)
+        #expect(restored.drinkAnalysis?.estimatedCaffeineMilligrams == 126)
+    }
+
+    @Test func drinkAnalysisRetriesAreDurableIdempotentAndAccountScoped() {
+        let suiteName = "DrinkAnalysisRetryStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = DrinkAnalysisRetryStore(defaults: defaults)
+        let owner = UUID()
+        let otherUser = UUID()
+        let visit = UUID()
+
+        store.enqueue(visitId: visit, userId: owner)
+        store.enqueue(visitId: visit, userId: owner)
+
+        #expect(store.pendingVisitIDs(userId: owner) == [visit])
+        #expect(store.pendingVisitIDs(userId: otherUser).isEmpty)
+
+        store.remove(visitId: visit, userId: owner)
+        #expect(store.pendingVisitIDs(userId: owner).isEmpty)
+    }
+
+    @Test func contextualVisibilityDefaultsAreRememberedOnlyForCafe() throws {
+        let suiteName = "CafeVisibilityPreferenceStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = CafeVisibilityPreferenceStore(defaults: defaults)
+
+        #expect(preferences.defaultCafeVisibility == .friends)
+        preferences.rememberCafeVisibility(.everyone)
+        #expect(preferences.defaultCafeVisibility == .everyone)
+
+        var home = SipDraft(context: .home, visibility: .everyone)
+        home.applyContextDefaults(using: preferences)
+        #expect(home.visibility == .private)
+
+        var recipe = SipDraft(context: .recipe, visibility: .friends)
+        recipe.applyContextDefaults(using: preferences)
+        #expect(recipe.visibility == .private)
+    }
+
+    @Test func everyonePublicationRequiresMediaOrIntentionalTextOnlyConfirmation() {
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .private,
+                photoCount: 0,
+                socialCaption: "",
+                confirmedTextOnlyEveryone: false
+            ) == .ready
+        )
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .friends,
+                photoCount: 0,
+                socialCaption: "",
+                confirmedTextOnlyEveryone: false
+            ) == .ready
+        )
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .everyone,
+                photoCount: 0,
+                socialCaption: "",
+                confirmedTextOnlyEveryone: false
+            ) == .needsTextOrPhoto
+        )
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .everyone,
+                photoCount: 0,
+                socialCaption: "Bright and floral",
+                confirmedTextOnlyEveryone: false
+            ) == .needsTextOnlyConfirmation
+        )
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .everyone,
+                photoCount: 0,
+                socialCaption: "Bright and floral",
+                confirmedTextOnlyEveryone: true
+            ) == .ready
+        )
+        #expect(
+            SipPublicationPolicy.requirement(
+                visibility: .everyone,
+                photoCount: 1,
+                socialCaption: "",
+                confirmedTextOnlyEveryone: false
+            ) == .ready
+        )
+    }
+
+    @Test func brewAgainCreatesIndependentHomeAttemptFromRecipeVersion() {
+        let recipeID = UUID()
+        let originalDate = Date(timeIntervalSince1970: 100)
+        let repeatDate = Date(timeIntervalSince1970: 200)
+        let recipe = SipDraft(
+            createdAt: originalDate,
+            context: .recipe,
+            drinkName: "Washed Ethiopia V60",
+            overallScore: 4.5,
+            visibility: .private,
+            ratingCriteria: [
+                SipRatingCriterionSnapshot(name: "Clarity", score: 5, weight: 1.5, sortOrder: 0)
+            ],
+            brewMethod: "V60",
+            equipment: "Kettle and scale",
+            brewDetails: BrewDetails(
+                beans: "Ethiopia Hambela",
+                doseGrams: 15,
+                yieldGrams: 250,
+                recipeName: "Bright V60",
+                recipeVersion: "v3",
+                recipeIdentityID: recipeID,
+                steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
+            )
+        )
+
+        let attempt = SipDraft.brewAgain(from: recipe, ownerUserID: UUID(), now: repeatDate)
+
+        #expect(attempt.id != recipe.id)
+        #expect(attempt.createdAt == repeatDate)
+        #expect(attempt.context == .home)
+        #expect(attempt.visibility == .private)
+        #expect(attempt.overallScore == 0)
+        #expect(attempt.ratingCriteria.first?.score == 0)
+        #expect(attempt.brewDetails.sourceRecipeIdentityID == recipeID)
+        #expect(attempt.brewDetails.sourceRecipeVersion == "v3")
+        #expect(attempt.brewDetails.recipeName == nil)
+        #expect(attempt.brewDetails.steps?.first?.instruction == "Bloom for 45 seconds")
+    }
+
+    @Test func sipDraftStoreRestoresFieldsAndMediaAcrossRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SipDraftStoreTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SipDraftStore(baseDirectory: directory)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { context in
+            UIColor.brown.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
         }
+        let draft = SipDraft(
+            context: .home,
+            locationName: "Kitchen bar",
+            drinkName: "Espresso",
+            overallScore: 4,
+            privateNotes: "Try a finer grind",
+            visibility: .private
+        )
+
+        let stored = try store.save(draft, images: [image])
+        let restored = try #require(store.load())
+
+        #expect(stored.localPhotoNames.count == 1)
+        #expect(restored.draft.id == draft.id)
+        #expect(restored.draft.privateNotes == "Try a finer grind")
+        #expect(restored.images.count == 1)
+    }
+
+    @Test func sipDraftStoreParksEarlierDraftsForNewEntryPoints() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SipDraftStoreMultiTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SipDraftStore(baseDirectory: directory)
+        let recipe = SipDraft(context: .recipe, drinkName: "Recipe draft", overallScore: 4, visibility: .private)
+        let cafe = SipDraft(
+            launchContext: SipComposerLaunchContext(source: .cafeDetail),
+            cafe: Cafe(name: "Preselected Cafe"),
+            drinkName: "Cafe draft",
+            overallScore: 4.5,
+            visibility: .friends
+        )
+
+        _ = try store.save(recipe, images: [])
+        _ = try store.save(cafe, images: [])
+
+        #expect(store.allDrafts().count == 2)
+        #expect(store.load()?.draft.id == cafe.id)
+
+        store.remove(cafe)
+        #expect(store.load()?.draft.id == recipe.id)
     }
 
     @Test func remoteProfileStatsMapVisitsToRealStatsAndTopCafes() throws {

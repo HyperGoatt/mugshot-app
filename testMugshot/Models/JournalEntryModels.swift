@@ -33,6 +33,7 @@ enum JournalEntryContext: String, Codable, CaseIterable, Identifiable {
 }
 
 struct BrewDetails: Codable, Equatable {
+    var beans: String?
     var doseGrams: Double?
     var yieldGrams: Double?
     var brewTimeSeconds: Int?
@@ -40,18 +41,34 @@ struct BrewDetails: Codable, Equatable {
     var roastLevel: String?
     var grindSetting: String?
     var waterTemperatureCelsius: Double?
+    var waterNotes: String?
     var recipeName: String?
     var recipeVersion: String?
+    var recipeIdentityID: UUID?
+    var sourceRecipeIdentityID: UUID?
+    var sourceRecipeVersion: String?
+    var steps: [BrewRecipeStep]?
+    var orderNotes: String?
+    var tags: [String]?
+    var companions: [String]?
     var additions: String?
+    var servingVolumeMilliliters: Double?
+    var espressoShotCount: Int?
 
     static let empty = BrewDetails()
 
     var hasStructuredData: Bool {
-        doseGrams != nil || yieldGrams != nil || brewTimeSeconds != nil ||
+        beans?.remoteTrimmedNonEmpty != nil || doseGrams != nil || yieldGrams != nil || brewTimeSeconds != nil ||
             beanOrigin?.remoteTrimmedNonEmpty != nil || roastLevel?.remoteTrimmedNonEmpty != nil ||
             grindSetting?.remoteTrimmedNonEmpty != nil || waterTemperatureCelsius != nil ||
+            waterNotes?.remoteTrimmedNonEmpty != nil ||
             recipeName?.remoteTrimmedNonEmpty != nil || recipeVersion?.remoteTrimmedNonEmpty != nil ||
-            additions?.remoteTrimmedNonEmpty != nil
+            recipeIdentityID != nil || sourceRecipeIdentityID != nil ||
+            sourceRecipeVersion?.remoteTrimmedNonEmpty != nil || !(steps ?? []).isEmpty ||
+            orderNotes?.remoteTrimmedNonEmpty != nil || !(tags ?? []).isEmpty ||
+            !(companions ?? []).isEmpty ||
+            additions?.remoteTrimmedNonEmpty != nil || servingVolumeMilliliters != nil ||
+            espressoShotCount != nil
     }
 
     var recipeDisplayName: String? {
@@ -73,6 +90,22 @@ struct BrewDetails: Codable, Equatable {
             ? String(format: "%.0f", value)
             : String(format: "%.1f", value)
         return "\(formatted)g \(suffix)"
+    }
+}
+
+struct BrewRecipeStep: Identifiable, Codable, Equatable {
+    let id: UUID
+    var instruction: String
+    var durationSeconds: Int?
+
+    init(
+        id: UUID = UUID(),
+        instruction: String = "",
+        durationSeconds: Int? = nil
+    ) {
+        self.id = id
+        self.instruction = instruction
+        self.durationSeconds = durationSeconds
     }
 }
 

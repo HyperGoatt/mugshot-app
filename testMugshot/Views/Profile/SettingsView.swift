@@ -46,6 +46,9 @@ struct SettingsView: View {
     @State private var showDeleteConfirmation = false
     @State private var copiedSupportEmail = false
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
+#if DEBUG
+    @AppStorage(SipComposerExperience.storageKey) private var sipComposerExperienceRaw = SipComposerExperience.longForm.rawValue
+#endif
 
     private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
     private let termsURL = URL(string: "https://mugshotapp.co/terms")!
@@ -58,6 +61,10 @@ struct SettingsView: View {
                     header
 
                     preferencesSection
+
+#if DEBUG
+                    developerSection
+#endif
 
                     VStack(spacing: 0) {
                         NavigationLink {
@@ -196,6 +203,54 @@ struct SettingsView: View {
             set: { distanceUnitPreferenceRaw = $0.rawValue }
         )
     }
+
+#if DEBUG
+    private var developerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Developer")
+                .font(.system(size: 12, weight: .bold))
+                .tracking(0.8)
+                .foregroundColor(.tertiaryText)
+
+            HStack(spacing: 12) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 34, height: 34)
+                    .background(Color.mugshotSage.opacity(0.16))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sip Composer")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("Switch without losing the active draft")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                }
+
+                Spacer(minLength: 8)
+
+                Picker("Sip Composer", selection: sipComposerExperienceBinding) {
+                    ForEach(SipComposerExperience.allCases) { experience in
+                        Text(experience.title).tag(experience)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.mugshotSage)
+            }
+        }
+        .padding(14)
+        .cardStyle()
+    }
+
+    private var sipComposerExperienceBinding: Binding<SipComposerExperience> {
+        Binding(
+            get: { SipComposerExperience(rawValue: sipComposerExperienceRaw) ?? .longForm },
+            set: { sipComposerExperienceRaw = $0.rawValue }
+        )
+    }
+#endif
 
     private var accountSection: some View {
         VStack(spacing: 12) {

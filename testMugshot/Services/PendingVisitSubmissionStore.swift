@@ -27,6 +27,7 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     let brewDetails: BrewDetails?
     let visibility: VisitVisibility
     let ratings: [String: Double]
+    let overallScore: Double?
     let ratingTemplate: RatingTemplate
     let posterPhotoIndex: Int
     let localPhotoNames: [String]
@@ -41,6 +42,13 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
 
     var resolvedBrewDetails: BrewDetails {
         brewDetails ?? .empty
+    }
+
+    var resolvedOverallScore: Double {
+        if let overallScore, overallScore >= 0.5, overallScore <= 5, overallScore.isFinite {
+            return overallScore
+        }
+        return ratingTemplate.calculateOverallScore(ratings: ratings)
     }
 }
 
@@ -80,6 +88,7 @@ final class PendingVisitSubmissionStore {
         brewDetails: BrewDetails = .empty,
         visibility: VisitVisibility,
         ratings: [String: Double],
+        overallScore: Double? = nil,
         ratingTemplate: RatingTemplate,
         images: [UIImage],
         posterPhotoIndex: Int
@@ -126,6 +135,7 @@ final class PendingVisitSubmissionStore {
             brewDetails: brewDetails,
             visibility: visibility,
             ratings: ratings,
+            overallScore: overallScore,
             ratingTemplate: ratingTemplate,
             posterPhotoIndex: min(max(posterPhotoIndex, 0), max(localNames.count - 1, 0)),
             localPhotoNames: localNames,

@@ -20,7 +20,7 @@ struct AddTabView: View {
     }
 }
 
-struct LogVisitView: View {
+struct LegacyLogVisitView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
     @EnvironmentObject var tabCoordinator: TabCoordinator
@@ -69,7 +69,7 @@ struct LogVisitView: View {
     @StateObject private var searchService = MapSearchService()
     @StateObject private var cafeLocationManager = LocationManager()
     @State private var searchText = ""
-    @State private var cafeSearchRegion = LogVisitView.defaultSearchRegion
+    @State private var cafeSearchRegion = LegacyLogVisitView.defaultSearchRegion
     @State private var scrollToTop = false
     
     private static let defaultSearchRegion = MKCoordinateRegion(
@@ -831,6 +831,7 @@ struct LogVisitView: View {
                     brewDetails: structuredBrewDetails,
                     visibility: visibility,
                     ratings: ratings,
+                    overallScore: overallScore,
                     ratingTemplate: dataManager.appData.ratingTemplate,
                     images: photoImages,
                     posterPhotoIndex: posterPhotoIndex
@@ -855,6 +856,7 @@ struct LogVisitView: View {
                     notes: submission.notes,
                     visibility: .private,
                     ratings: submission.ratings,
+                    overallScore: submission.resolvedOverallScore,
                     ratingTemplate: submission.ratingTemplate,
                     uploadState: .uploading
                 )

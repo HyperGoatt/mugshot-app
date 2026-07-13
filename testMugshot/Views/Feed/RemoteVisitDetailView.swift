@@ -217,8 +217,15 @@ struct RemoteVisitDetailView: View {
                     SipRatingBreakdownPanel(
                         score: detail.summary.visit.overallScore,
                         ratings: detail.summary.visit.ratings,
+                        orderedRatings: detail.summary.visit.orderedRatingScores,
                         title: "Flavor map",
                         subtitle: isOwnVisit(detail) ? "Your saved taste breakdown" : "\(detail.summary.authorDisplayName)'s taste breakdown"
+                    )
+                    SipStructuredEntryDetailsPanel(
+                        context: detail.summary.visit.journalContext,
+                        brewMethod: detail.summary.visit.brewMethod,
+                        equipment: detail.summary.visit.equipment,
+                        details: detail.summary.visit.structuredBrewDetails
                     )
                     ownerNotesSection(detail)
                     commentsSection(detail)
@@ -366,7 +373,7 @@ struct RemoteVisitDetailView: View {
     @ViewBuilder
     private func ownerNotesSection(_ detail: RemoteVisitDetail) -> some View {
         if isOwnVisit(detail),
-           let notes = detail.summary.visit.trimmedNotes {
+           let notes = detail.privateNote?.remoteTrimmedNonEmpty {
             SipPrivateNotePanel(text: notes)
         }
     }
@@ -885,7 +892,6 @@ struct RemoteVisitDetailView: View {
         do {
             let update = try SupabaseVisitUpdate.make(
                 caption: caption,
-                notes: notes,
                 visibility: visibility
             )
             let client = try SupabaseClientProvider.shared.client()
@@ -894,6 +900,11 @@ struct RemoteVisitDetailView: View {
                 visitId: visitId,
                 userId: currentUserId,
                 update: update
+            )
+            try await service.updatePrivateNote(
+                visitId: visitId,
+                userId: currentUserId,
+                note: notes
             )
             self.detail = try await service.fetchVisitDetail(
                 visitId: summary.id,
@@ -946,7 +957,8 @@ struct RemoteVisitDetailView: View {
             photos: detail.photos,
             comments: detail.comments,
             likeCount: state.likeCount,
-            currentUserHasLiked: state.currentUserHasLiked
+            currentUserHasLiked: state.currentUserHasLiked,
+            privateNote: detail.privateNote
         )
     }
 }
@@ -1136,6 +1148,8 @@ struct EditRemoteVisitView: View {
     @State private var visibility: VisitVisibility
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showTextOnlyConfirmation = false
+    @State private var confirmedTextOnlyEveryone = false
 
     init(
         detail: RemoteVisitDetail,
@@ -1146,12 +1160,16 @@ struct EditRemoteVisitView: View {
         self.currentUserId = currentUserId
         self.onSave = onSave
         _caption = State(initialValue: detail.summary.visit.caption)
-        _notes = State(initialValue: detail.summary.visit.trimmedNotes ?? "")
+        _notes = State(initialValue: detail.privateNote ?? "")
         _visibility = State(initialValue: VisitVisibility.supabaseValue(detail.summary.visit.visibility))
     }
 
     private var canSave: Bool {
-        caption.remoteTrimmedNonEmpty != nil && !isSaving
+        !isSaving && !(
+            visibility == .everyone &&
+            detail.photoURLs.isEmpty &&
+            caption.remoteTrimmedNonEmpty == nil
+        )
     }
 
     var body: some View {
@@ -1198,8 +1216,12 @@ struct EditRemoteVisitView: View {
                     }
 
                     Button {
-                        Task {
-                            await save()
+                        if visibility == .everyone,
+                           detail.photoURLs.isEmpty,
+                           !confirmedTextOnlyEveryone {
+                            showTextOnlyConfirmation = true
+                        } else {
+                            Task { await save() }
                         }
                     } label: {
                         HStack {
@@ -1231,6 +1253,17 @@ struct EditRemoteVisitView: View {
                     .disabled(isSaving)
                 }
             }
+            .alert("Publish without a photo?", isPresented: $showTextOnlyConfirmation) {
+                Button("Publish Text Only") {
+                    confirmedTextOnlyEveryone = true
+                    Task { await save() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Confirm that you want this tasting note to be visible to Everyone without a photo.")
+            }
+            .onChange(of: visibility) { _, _ in confirmedTextOnlyEveryone = false }
+            .onChange(of: caption) { _, _ in confirmedTextOnlyEveryone = false }
         }
     }
 
@@ -1510,6 +1543,7 @@ struct SipMetaChip: View {
 struct SipRatingBreakdownPanel: View {
     let score: Double
     let ratings: [String: Double]
+    var orderedRatings: [SupabaseVisitCategoryScore] = []
     let title: String
     let subtitle: String
 
@@ -1546,21 +1580,130 @@ struct SipRatingBreakdownPanel: View {
                     .accessibilityLabel("Overall rating \(String(format: "%.1f", score)) out of 5")
                 }
 
-                if ratings.isEmpty {
+                if orderedRatings.isEmpty && ratings.isEmpty {
                     Text("No category scores were saved with this sip.")
                         .font(.system(size: 13))
                         .foregroundColor(.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     VStack(spacing: 12) {
-                        ForEach(ratings.keys.sorted(), id: \.self) { category in
-                            if let rating = ratings[category] {
-                                SipRatingRow(title: category, value: rating)
+                        if !orderedRatings.isEmpty {
+                            ForEach(orderedRatings) { rating in
+                                SipRatingRow(title: rating.name, value: rating.score)
+                            }
+                        } else {
+                            ForEach(ratings.keys.sorted(), id: \.self) { category in
+                                if let rating = ratings[category] {
+                                    SipRatingRow(title: category, value: rating)
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+struct SipStructuredEntryDetailsPanel: View {
+    let context: JournalEntryContext
+    let brewMethod: String?
+    let equipment: String?
+    let details: BrewDetails
+
+    @ViewBuilder
+    var body: some View {
+        if details.hasStructuredData || brewMethod?.remoteTrimmedNonEmpty != nil || equipment?.remoteTrimmedNonEmpty != nil {
+            SipDetailPanel {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text(context == .cafe ? "Visit details" : context == .recipe ? "Recipe blueprint" : "Brew details")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Spacer()
+                        Image(systemName: context.systemImage)
+                            .foregroundColor(.mugshotSage)
+                    }
+
+                    if let recipe = details.recipeDisplayName {
+                        detailLine("Recipe", recipe)
+                    }
+                    if let extraction = details.extractionSummary {
+                        detailLine("Extraction", extraction)
+                    }
+                    if let beans = details.beans?.remoteTrimmedNonEmpty {
+                        detailLine("Beans", beans)
+                    }
+                    if let origin = details.beanOrigin?.remoteTrimmedNonEmpty {
+                        detailLine("Origin", origin)
+                    }
+                    if let roast = details.roastLevel?.remoteTrimmedNonEmpty {
+                        detailLine("Roast", roast)
+                    }
+                    if let brewMethod = brewMethod?.remoteTrimmedNonEmpty {
+                        detailLine("Method", brewMethod)
+                    }
+                    if let equipment = equipment?.remoteTrimmedNonEmpty {
+                        detailLine("Equipment", equipment)
+                    }
+                    if let grind = details.grindSetting?.remoteTrimmedNonEmpty {
+                        detailLine("Grind", grind)
+                    }
+                    if let temperature = details.waterTemperatureCelsius {
+                        detailLine("Water", String(format: "%.0f°C", temperature))
+                    }
+                    if let water = details.waterNotes?.remoteTrimmedNonEmpty {
+                        detailLine("Water notes", water)
+                    }
+                    if let additions = details.additions?.remoteTrimmedNonEmpty {
+                        detailLine("Additions", additions)
+                    }
+                    if let order = details.orderNotes?.remoteTrimmedNonEmpty {
+                        detailLine("Order", order)
+                    }
+                    if let companions = details.companions, !companions.isEmpty {
+                        detailLine("With", companions.joined(separator: ", "))
+                    }
+                    if let tags = details.tags, !tags.isEmpty {
+                        detailLine("Tags", tags.joined(separator: " · "))
+                    }
+
+                    if let steps = details.steps?.filter({ $0.instruction.remoteTrimmedNonEmpty != nil }), !steps.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Steps")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.tertiaryText)
+                            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("\(index + 1)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.foamWhite)
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.mugshotSage)
+                                        .clipShape(Circle())
+                                    Text(step.instruction)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.espressoBrown)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func detailLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.tertiaryText)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 }
