@@ -29,6 +29,8 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let locationName: String?
     let cityState: String?
     let brewMethod: String?
+    let equipment: String?
+    let brewDetails: BrewDetails?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -49,6 +51,8 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case locationName = "location_name"
         case cityState = "city_state"
         case brewMethod = "brew_method"
+        case equipment
+        case brewDetails = "brew_details"
         case createdAt = "created_at"
     }
 
@@ -70,7 +74,9 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         locationName: String?,
         cityState: String?,
         brewMethod: String?,
-        createdAt: String
+        createdAt: String,
+        equipment: String? = nil,
+        brewDetails: BrewDetails? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -89,6 +95,8 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         self.locationName = locationName
         self.cityState = cityState
         self.brewMethod = brewMethod
+        self.equipment = equipment
+        self.brewDetails = brewDetails
         self.createdAt = createdAt
     }
 
@@ -131,6 +139,18 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
             return "Cafe"
         }
         return context == "Cafe" ? "Cafe" : context.capitalized
+    }
+
+    var journalContext: JournalEntryContext {
+        if JournalEntryContext(backendValue: contextType) == .home,
+           brewDetails?.recipeName?.remoteTrimmedNonEmpty != nil {
+            return .recipe
+        }
+        return JournalEntryContext(backendValue: contextType)
+    }
+
+    var structuredBrewDetails: BrewDetails {
+        brewDetails ?? .empty
     }
 
     var trimmedNotes: String? {

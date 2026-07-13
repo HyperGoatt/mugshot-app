@@ -998,6 +998,10 @@ struct CafeDetailSheet: View {
     @State private var selectedVisit: Visit?
     @State private var isSyncingCafeState = false
     @State private var cafeStateError: String?
+    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteVisits = false
+    @State private var remoteVisitError: String?
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
     
     // Get current cafe state from dataManager to reflect real-time changes
     var currentCafe: Cafe? {
@@ -1013,11 +1017,12 @@ struct CafeDetailSheet: View {
     }
 
     private var displayedVisitCount: Int {
-        max(displayCafe.visitCount, visits.count)
+        max(displayCafe.visitCount, visits.count, remoteVisits.count)
     }
 
     private var displayedScore: Double {
-        displayCafe.averageRating > 0 ? displayCafe.averageRating : 0.0
+        if displayCafe.averageRating > 0 { return displayCafe.averageRating }
+        return RemoteCafeVisitStats.calculate(from: remoteVisits).averageScore
     }
     
     var body: some View {
@@ -1076,6 +1081,17 @@ struct CafeDetailSheet: View {
         }
         .fullScreenCover(item: $selectedVisit) { visit in
             VisitDetailView(visit: visit, dataManager: dataManager)
+        }
+        .fullScreenCover(item: $selectedRemoteVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
+            )
+        }
+        .task(id: displayCafe.remoteCafeId) {
+            await loadRemoteCafeVisits()
         }
     }
 
@@ -1190,7 +1206,16 @@ struct CafeDetailSheet: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.espressoBrown)
 
-            if visits.isEmpty {
+            if isLoadingRemoteVisits && remoteVisits.isEmpty && visits.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading community visits…")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+            } else if remoteVisits.isEmpty && visits.isEmpty {
                 VStack(spacing: 9) {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 24, weight: .semibold))
@@ -1210,6 +1235,20 @@ struct CafeDetailSheet: View {
                 .padding(.horizontal, 14)
                 .background(Color.sandBeige.opacity(0.58))
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                if let remoteVisitError {
+                    Text(remoteVisitError)
+                        .font(.system(size: 11))
+                        .foregroundColor(.tertiaryText)
+                }
+            } else if !remoteVisits.isEmpty {
+                ForEach(remoteVisits.prefix(5)) { visit in
+                    Button {
+                        selectedRemoteVisit = visit
+                    } label: {
+                        MapRemoteVisitRow(visit: visit)
+                    }
+                    .buttonStyle(.plain)
+                }
             } else {
                 ForEach(visits.prefix(5)) { visit in
                     VisitEntryRow(visit: visit)
@@ -1220,6 +1259,32 @@ struct CafeDetailSheet: View {
             }
         }
         .padding(.top, 2)
+    }
+
+    @MainActor
+    private func loadRemoteCafeVisits() async {
+        guard let remoteCafeID = displayCafe.remoteCafeId else {
+            remoteVisits = []
+            remoteVisitError = nil
+            return
+        }
+
+        isLoadingRemoteVisits = true
+        remoteVisitError = nil
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            remoteVisits = try await VisitService(client: client).fetchVisibleCafeVisits(
+                cafeId: remoteCafeID,
+                currentUserId: authModel.authenticatedUser?.id,
+                limit: 5
+            )
+            isLoadingRemoteVisits = false
+        } catch is CancellationError {
+            return
+        } catch {
+            remoteVisitError = "Community visits are unavailable right now."
+            isLoadingRemoteVisits = false
+        }
     }
 
     private func mapSheetPill(_ title: String, systemImage: String) -> some View {
@@ -1358,6 +1423,48 @@ struct CafeDetailSheet: View {
 
 // MARK: - Visit Entry Row
 
+private struct MapRemoteVisitRow: View {
+    let visit: RemoteVisitSummary
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: visit.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill",
+                contentMode: .fill
+            )
+            .frame(width: 58, height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(visit.visit.drinkDisplayName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                Text("\(visit.authorDisplayName) · \(visit.visit.createdAtDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(1)
+                if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
+                    Text(caption)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 6)
+
+            Label(String(format: "%.1f", visit.visit.overallScore), systemImage: "star.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .padding(10)
+        .background(Color.sandBeige.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+    }
+}
+
 struct VisitEntryRow: View {
     let visit: Visit
     
@@ -1407,6 +1514,7 @@ struct VisitEntryRow: View {
 // MARK: - Search Results List
 
 struct SearchResultsList: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     @Binding var searchText: String
     @ObservedObject var searchService: MapSearchService
     @ObservedObject var dataManager: DataManager
@@ -1684,6 +1792,7 @@ struct SearchResultsList: View {
                 )
             }
         }
+        Task { await hydrateSelectedCafe(cafe) }
     }
     
     private func handleSearchResult(_ mapItem: MKMapItem) {
@@ -1708,6 +1817,26 @@ struct SearchResultsList: View {
         isSearchFieldFocused.wrappedValue = false
         searchText = ""
         searchService.cancelSearch()
+        Task { await hydrateSelectedCafe(cafe) }
+    }
+
+    @MainActor
+    private func hydrateSelectedCafe(_ cafe: Cafe) async {
+        guard authModel.authenticatedUser != nil else { return }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            guard let summary = try await CafeService(client: client).resolveSummary(for: cafe) else {
+                return
+            }
+            let hydrated = dataManager.applyResolvedCafeSummary(summary, toLocalCafeID: cafe.id)
+            if selectedCafe?.id == cafe.id {
+                selectedCafe = hydrated
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // MapKit results remain usable when community hydration is unavailable.
+        }
     }
 
     private var typedCafeButton: some View {

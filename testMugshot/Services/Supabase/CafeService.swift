@@ -40,6 +40,22 @@ final class CafeService {
             .value
     }
 
+    func resolveSummary(for cafe: Cafe) async throws -> ResolvedCafeSummary? {
+        let summaries: [ResolvedCafeSummary] = try await client.rpc(
+            "resolve_cafe_summary",
+            params: ResolveCafeParameters(
+                pName: cafe.name,
+                pLatitude: cafe.location?.latitude,
+                pLongitude: cafe.location?.longitude,
+                pApplePlaceID: cafe.mapItemURL
+            )
+        )
+        .execute()
+        .value
+
+        return summaries.first
+    }
+
     func findOrCreateCafe(from cafe: Cafe) async throws -> SupabaseCafeSummary {
         if let remoteCafeId = cafe.remoteCafeId,
            let existingCafe = try await fetchCafe(id: remoteCafeId) {
@@ -130,6 +146,20 @@ final class CafeService {
             .value
 
         return cafes.first
+    }
+}
+
+private struct ResolveCafeParameters: Encodable {
+    let pName: String
+    let pLatitude: Double?
+    let pLongitude: Double?
+    let pApplePlaceID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case pName = "p_name"
+        case pLatitude = "p_latitude"
+        case pLongitude = "p_longitude"
+        case pApplePlaceID = "p_apple_place_id"
     }
 }
 

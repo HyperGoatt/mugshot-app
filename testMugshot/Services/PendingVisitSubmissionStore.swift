@@ -14,12 +14,17 @@ enum PendingVisitSubmissionPhase: Int, Codable, Comparable {
 struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     let id: UUID
     let userId: UUID
-    let cafe: Cafe
+    let cafe: Cafe?
+    let entryContext: JournalEntryContext?
+    let locationName: String?
     let drinkType: DrinkType
     let customDrinkType: String?
     let drinkSubtype: String
     let caption: String
     let notes: String?
+    let brewMethod: String?
+    let equipment: String?
+    let brewDetails: BrewDetails?
     let visibility: VisitVisibility
     let ratings: [String: Double]
     let ratingTemplate: RatingTemplate
@@ -29,6 +34,14 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     let createdAt: Date
     var phase: PendingVisitSubmissionPhase
     var uploadedPhotoURLs: [String]?
+
+    var resolvedEntryContext: JournalEntryContext {
+        entryContext ?? .cafe
+    }
+
+    var resolvedBrewDetails: BrewDetails {
+        brewDetails ?? .empty
+    }
 }
 
 final class PendingVisitSubmissionStore {
@@ -54,12 +67,17 @@ final class PendingVisitSubmissionStore {
 
     func prepare(
         userId: UUID,
-        cafe: Cafe,
+        cafe: Cafe?,
+        entryContext: JournalEntryContext = .cafe,
+        locationName: String? = nil,
         drinkType: DrinkType,
         customDrinkType: String?,
         drinkSubtype: String,
         caption: String,
         notes: String?,
+        brewMethod: String? = nil,
+        equipment: String? = nil,
+        brewDetails: BrewDetails = .empty,
         visibility: VisitVisibility,
         ratings: [String: Double],
         ratingTemplate: RatingTemplate,
@@ -96,11 +114,16 @@ final class PendingVisitSubmissionStore {
             id: visitId,
             userId: userId,
             cafe: cafe,
+            entryContext: entryContext,
+            locationName: locationName,
             drinkType: drinkType,
             customDrinkType: customDrinkType,
             drinkSubtype: drinkSubtype,
             caption: caption,
             notes: notes,
+            brewMethod: brewMethod,
+            equipment: equipment,
+            brewDetails: brewDetails,
             visibility: visibility,
             ratings: ratings,
             ratingTemplate: ratingTemplate,

@@ -13,7 +13,7 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, notes, visibility, upload_state, ratings, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, notes, visibility, upload_state, ratings, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, created_at
     """
 
     private let photoColumns = """
@@ -380,10 +380,15 @@ final class VisitService {
     func createVisit(
         visitId: UUID = UUID(),
         userId: UUID,
-        cafe: Cafe,
+        cafe: Cafe?,
+        entryContext: JournalEntryContext = .cafe,
+        locationName: String? = nil,
         drinkType: DrinkType,
         customDrinkType: String?,
         drinkSubtype: String?,
+        brewMethod: String? = nil,
+        equipment: String? = nil,
+        brewDetails: BrewDetails = .empty,
         caption: String,
         notes: String?,
         visibility: VisitVisibility,
@@ -391,14 +396,27 @@ final class VisitService {
         ratingTemplate: RatingTemplate,
         uploadState: VisitUploadState = .complete
     ) async throws -> RemoteVisitSummary {
-        let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
+        if entryContext == .cafe && cafe == nil {
+            throw VisitServiceError.missingCafe
+        }
+        let remoteCafe: SupabaseCafeSummary?
+        if let cafe {
+            remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
+        } else {
+            remoteCafe = nil
+        }
         let payload = try SupabaseVisitInsert.make(
             visitId: visitId,
             userId: userId,
             remoteCafe: remoteCafe,
+            entryContext: entryContext,
+            locationName: locationName,
             drinkType: drinkType,
             customDrinkType: customDrinkType,
             drinkSubtype: drinkSubtype,
+            brewMethod: brewMethod,
+            equipment: equipment,
+            brewDetails: brewDetails,
             caption: caption,
             notes: notes,
             visibility: visibility,
@@ -717,6 +735,7 @@ private struct MapVisitRow: Decodable {
 
 enum VisitServiceError: LocalizedError, Equatable {
     case visitNotFound
+    case missingCafe
     case missingRating
     case emptyCaption
     case emptyComment
@@ -725,6 +744,8 @@ enum VisitServiceError: LocalizedError, Equatable {
         switch self {
         case .visitNotFound:
             return "Visit not found."
+        case .missingCafe:
+            return "Choose a cafe before saving this journal entry."
         case .missingRating:
             return "Add at least one rating before saving your visit."
         case .emptyCaption:
@@ -738,7 +759,7 @@ enum VisitServiceError: LocalizedError, Equatable {
 struct SupabaseVisitInsert: Encodable, Equatable {
     let id: UUID
     let userId: UUID
-    let cafeId: UUID
+    let cafeId: UUID?
     let drinkType: String?
     let drinkTypeCustom: String?
     let drinkSubtype: String?
@@ -751,6 +772,9 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     let contextType: String
     let locationName: String
     let cityState: String?
+    let brewMethod: String?
+    let equipment: String?
+    let brewDetails: BrewDetails
     let categoryScores: [SupabaseVisitCategoryScore]
 
     enum CodingKeys: String, CodingKey {
@@ -769,16 +793,24 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         case contextType = "context_type"
         case locationName = "location_name"
         case cityState = "city_state"
+        case brewMethod = "brew_method"
+        case equipment
+        case brewDetails = "brew_details"
         case categoryScores = "category_scores"
     }
 
     static func make(
         visitId: UUID = UUID(),
         userId: UUID,
-        remoteCafe: SupabaseCafeSummary,
+        remoteCafe: SupabaseCafeSummary?,
+        entryContext: JournalEntryContext = .cafe,
+        locationName: String? = nil,
         drinkType: DrinkType,
         customDrinkType: String?,
         drinkSubtype: String?,
+        brewMethod: String? = nil,
+        equipment: String? = nil,
+        brewDetails: BrewDetails = .empty,
         caption: String,
         notes: String?,
         visibility: VisitVisibility,
@@ -796,7 +828,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         return SupabaseVisitInsert(
             id: visitId,
             userId: userId,
-            cafeId: remoteCafe.id,
+            cafeId: remoteCafe?.id,
             drinkType: drinkType == .other ? nil : drinkType.rawValue,
             drinkTypeCustom: drinkType == .other ? customDrinkType?.remoteTrimmedNonEmpty : nil,
             drinkSubtype: drinkSubtype?.remoteTrimmedNonEmpty,
@@ -806,9 +838,12 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             uploadState: uploadState.rawValue,
             ratings: cleanRatings,
             overallScore: overallScore,
-            contextType: "Cafe",
-            locationName: remoteCafe.name,
-            cityState: remoteCafe.city?.remoteTrimmedNonEmpty,
+            contextType: entryContext.rawValue,
+            locationName: remoteCafe?.name ?? locationName?.remoteTrimmedNonEmpty ?? entryContext.locationFallback,
+            cityState: remoteCafe?.city?.remoteTrimmedNonEmpty,
+            brewMethod: brewMethod?.remoteTrimmedNonEmpty,
+            equipment: equipment?.remoteTrimmedNonEmpty,
+            brewDetails: brewDetails,
             categoryScores: categoryScores(
                 ratings: cleanRatings,
                 ratingTemplate: ratingTemplate

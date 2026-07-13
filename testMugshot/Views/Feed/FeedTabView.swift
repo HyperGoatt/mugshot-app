@@ -68,6 +68,7 @@ struct FeedTabView: View {
     @State private var feedSearchQuery = ""
     @State private var isFeedSearchPresented = false
     @State private var isPeopleHubPresented = false
+    @AppStorage("mugshot.your-mix-education.v1.dismissed") private var hasDismissedYourMixEducation = false
     @FocusState private var isFeedSearchFocused: Bool
 
     private let feedPageSize = 12
@@ -137,7 +138,7 @@ struct FeedTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
 
-                if selectedScope == .ranked {
+                if selectedScope == .ranked && !hasDismissedYourMixEducation {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 13, weight: .semibold))
@@ -148,6 +149,20 @@ struct FeedTabView: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button {
+                            withAnimation(DesignSystem.Motion.fast) {
+                                hasDismissedYourMixEducation = true
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.secondaryText)
+                                .frame(width: 28, height: 28)
+                                .background(Color.foamWhite.opacity(0.72), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss Your Mix explanation")
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -156,7 +171,6 @@ struct FeedTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
                     .transition(.opacity.combined(with: .move(edge: .top)))
-                    .accessibilityElement(children: .combine)
                 }
 
                 ScrollView {

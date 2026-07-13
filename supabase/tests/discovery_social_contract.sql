@@ -38,6 +38,19 @@ begin
   perform * from public.discover_cafes('nearby',1000,1000,25,5,null,null);
   perform * from public.discover_cafes('nearby',0,0,25,5,null,null);
 
+  -- MapKit selections resolve back to one canonical backend cafe with the
+  -- viewer-safe aggregate contract used by map and Saved cards.
+  if not exists(
+    select 1
+    from public.resolve_cafe_summary(
+      v_first.name,
+      v_first.latitude,
+      v_first.longitude,
+      v_first.apple_place_id
+    ) resolved
+    where resolved.cafe_id = v_first.id
+  ) then raise exception 'canonical cafe summary did not resolve'; end if;
+
   -- Discovery keyset pages never overlap.
   select array_agg(cafe_id order by ranking_score desc,cafe_id desc)
     into v_first_page

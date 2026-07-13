@@ -125,6 +125,15 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
     }
 
     var localCafe: Cafe {
+        remoteCafe.localCafe(
+            isFavorite: isSaved,
+            wantToTry: isSaved && !isVisited,
+            averageRating: averageRating ?? 0,
+            visitCount: visibleVisitCount
+        )
+    }
+
+    var remoteCafe: SupabaseCafeSummary {
         SupabaseCafeSummary(
             id: cafeID,
             name: name,
@@ -135,11 +144,6 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
             applePlaceId: nil,
             websiteURL: nil,
             identityKey: identityKey
-        ).localCafe(
-            isFavorite: isSaved,
-            wantToTry: isSaved && !isVisited,
-            averageRating: averageRating ?? 0,
-            visitCount: visibleVisitCount
         )
     }
 }

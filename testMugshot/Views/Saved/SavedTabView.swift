@@ -228,6 +228,17 @@ struct SavedTabView: View {
                 radiusKM: 100,
                 limit: 50
             )) ?? []
+            for cafe in discoveredCafes {
+                dataManager.upsertRemoteCafe(
+                    cafe.remoteCafe,
+                    averageRating: cafe.averageRating,
+                    visitCount: cafe.visibleVisitCount,
+                    persist: false
+                )
+            }
+            if !discoveredCafes.isEmpty {
+                dataManager.save()
+            }
             remoteCafeCoverURLs = Dictionary(
                 uniqueKeysWithValues: discoveredCafes.compactMap { cafe in
                     guard let cover = cafe.recentCover?.remoteTrimmedNonEmpty else { return nil }
@@ -386,7 +397,10 @@ struct CafeCard: View {
                         }
 
                         HStack(spacing: 8) {
-                            cafePill("\(displayedVisitCount) visits", systemImage: "cup.and.saucer.fill")
+                            cafePill(
+                                "\(displayedVisitCount) \(displayedVisitCount == 1 ? "visit" : "visits")",
+                                systemImage: "cup.and.saucer.fill"
+                            )
 
                             if let category = cafe.consumerPlaceCategory {
                                 cafePill(category, systemImage: "tag.fill")
@@ -466,8 +480,10 @@ struct CafeCard: View {
         .foregroundColor(.espressoBrown)
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color.mugshotSage.opacity(0.38))
+        .background(.ultraThinMaterial)
         .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.foamWhite.opacity(0.9), lineWidth: 1))
+        .shadow(color: .black.opacity(0.18), radius: 5, x: 0, y: 2)
     }
 
     private var savedActionDivider: some View {

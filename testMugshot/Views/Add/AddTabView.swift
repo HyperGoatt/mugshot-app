@@ -29,11 +29,25 @@ struct LogVisitView: View {
     
     @State private var selectedCafe: Cafe?
     @State private var isCafeSearchActive = false
+    @State private var entryContext: JournalEntryContext = .cafe
+    @State private var journalLocationName: String = "Home"
     @State private var drinkType: DrinkType = .coffee
     @State private var customDrinkType: String = ""
     @State private var drinkDetails: String = ""
     @State private var caption: String = ""
     @State private var notes: String = ""
+    @State private var brewMethod: String = ""
+    @State private var equipment: String = ""
+    @State private var doseGrams: String = ""
+    @State private var yieldGrams: String = ""
+    @State private var brewTimeSeconds: String = ""
+    @State private var beanOrigin: String = ""
+    @State private var roastLevel: String = ""
+    @State private var grindSetting: String = ""
+    @State private var waterTemperatureCelsius: String = ""
+    @State private var recipeName: String = ""
+    @State private var recipeVersion: String = ""
+    @State private var additions: String = ""
     @State private var photoImages: [UIImage] = []
     @State private var posterPhotoIndex: Int = 0
     @State private var ratings: [String: Double] = [:]
@@ -93,9 +107,11 @@ struct LogVisitView: View {
             ),
             LogVisitProgressItem(
                 requirement: .cafe,
-                title: "Cafe",
-                systemImage: "mappin.and.ellipse",
-                isComplete: selectedCafe != nil
+                title: entryContext == .cafe ? "Cafe" : "Context",
+                systemImage: entryContext.systemImage,
+                isComplete: entryContext == .cafe
+                    ? selectedCafe != nil
+                    : journalLocationName.remoteTrimmedNonEmpty != nil
             ),
             LogVisitProgressItem(
                 requirement: .drink,
@@ -146,6 +162,21 @@ struct LogVisitView: View {
         }
 
         return drinkType.rawValue
+    }
+
+    private var structuredBrewDetails: BrewDetails {
+        BrewDetails(
+            doseGrams: positiveDouble(doseGrams),
+            yieldGrams: positiveDouble(yieldGrams),
+            brewTimeSeconds: positiveInt(brewTimeSeconds),
+            beanOrigin: beanOrigin.remoteTrimmedNonEmpty,
+            roastLevel: roastLevel.remoteTrimmedNonEmpty,
+            grindSetting: grindSetting.remoteTrimmedNonEmpty,
+            waterTemperatureCelsius: positiveDouble(waterTemperatureCelsius),
+            recipeName: recipeName.remoteTrimmedNonEmpty,
+            recipeVersion: recipeVersion.remoteTrimmedNonEmpty,
+            additions: additions.remoteTrimmedNonEmpty
+        )
     }
     
     var body: some View {
@@ -234,6 +265,14 @@ struct LogVisitView: View {
                     guard let location else { return }
                     updateCafeSearchRegion(for: location)
                 }
+                .onChange(of: entryContext) { _, context in
+                    if context == .cafe {
+                        if journalLocationName == "Home" { journalLocationName = "" }
+                    } else {
+                        if journalLocationName.remoteTrimmedNonEmpty == nil { journalLocationName = "Home" }
+                        if visibility == .everyone { visibility = .private }
+                    }
+                }
                 .fullScreenCover(isPresented: $showVisitDetail, onDismiss: {
                     // When visit detail is dismissed, switch to Feed tab and reset form
                     resetForm()
@@ -314,6 +353,8 @@ struct LogVisitView: View {
                 onSelect: { requestedRequirement = $0 }
             )
 
+            JournalContextSection(selection: $entryContext)
+
             PhotosSection(
                 photoImages: $photoImages,
                 posterPhotoIndex: $posterPhotoIndex,
@@ -322,25 +363,46 @@ struct LogVisitView: View {
             .id(AddVisitRequirement.photo.rawValue)
 
             AddVisitSummaryStrip(
-                cafeName: selectedCafe?.name,
+                cafeName: entryContext == .cafe ? selectedCafe?.name : journalLocationName,
                 drinkName: drinkDisplayName,
                 overallScore: overallScore,
                 visibility: visibility,
                 photoCount: photoImages.count
             )
 
-            // Cafe Location
-            CafeLocationSection(
-                selectedCafe: $selectedCafe,
-                searchText: $searchText,
-                isSearchActive: $isCafeSearchActive,
-                searchService: searchService,
-                dataManager: dataManager,
-                searchRegion: cafeSearchRegion,
-                searchAreaDescription: cafeSearchAreaDescription,
-                locationActionTitle: cafeLocationActionTitle,
-                onLocationAction: useCurrentLocationForCafeSearch
-            )
+            // Journal location or home brew setup
+            Group {
+                if entryContext == .cafe {
+                    CafeLocationSection(
+                        selectedCafe: $selectedCafe,
+                        searchText: $searchText,
+                        isSearchActive: $isCafeSearchActive,
+                        searchService: searchService,
+                        dataManager: dataManager,
+                        searchRegion: cafeSearchRegion,
+                        searchAreaDescription: cafeSearchAreaDescription,
+                        locationActionTitle: cafeLocationActionTitle,
+                        onLocationAction: useCurrentLocationForCafeSearch
+                    )
+                } else {
+                    HomeBrewDetailsSection(
+                        entryContext: entryContext,
+                        locationName: $journalLocationName,
+                        brewMethod: $brewMethod,
+                        equipment: $equipment,
+                        doseGrams: $doseGrams,
+                        yieldGrams: $yieldGrams,
+                        brewTimeSeconds: $brewTimeSeconds,
+                        beanOrigin: $beanOrigin,
+                        roastLevel: $roastLevel,
+                        grindSetting: $grindSetting,
+                        waterTemperatureCelsius: $waterTemperatureCelsius,
+                        recipeName: $recipeName,
+                        recipeVersion: $recipeVersion,
+                        additions: $additions
+                    )
+                }
+            }
             .id(AddVisitRequirement.cafe.rawValue)
             
             // Drink Type
@@ -382,11 +444,25 @@ struct LogVisitView: View {
         // Reset all form fields
         selectedCafe = nil
         isCafeSearchActive = false
+        entryContext = .cafe
+        journalLocationName = "Home"
         drinkType = .coffee
         customDrinkType = ""
         drinkDetails = ""
         caption = ""
         notes = ""
+        brewMethod = ""
+        equipment = ""
+        doseGrams = ""
+        yieldGrams = ""
+        brewTimeSeconds = ""
+        beanOrigin = ""
+        roastLevel = ""
+        grindSetting = ""
+        waterTemperatureCelsius = ""
+        recipeName = ""
+        recipeVersion = ""
+        additions = ""
         photoImages = []
         posterPhotoIndex = 0
         ratings = [:]
@@ -491,6 +567,23 @@ struct LogVisitView: View {
         }
     }
 
+    private func positiveDouble(_ value: String) -> Double? {
+        guard let number = Double(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              number > 0,
+              number.isFinite else {
+            return nil
+        }
+        return number
+    }
+
+    private func positiveInt(_ value: String) -> Int? {
+        guard let number = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              number > 0 else {
+            return nil
+        }
+        return number
+    }
+
     private func requestCamera() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -531,8 +624,14 @@ struct LogVisitView: View {
         validationErrors = []
         
         // Validate
-        guard let cafe = selectedCafe else {
-            validationErrors.append("Please select a Cafe location")
+        let cafe = selectedCafe
+        if entryContext == .cafe && cafe == nil {
+            validationErrors.append("Please select a cafe location")
+            return
+        }
+
+        if entryContext != .cafe && journalLocationName.remoteTrimmedNonEmpty == nil {
+            validationErrors.append("Please name this home journal context")
             return
         }
 
@@ -586,8 +685,11 @@ struct LogVisitView: View {
         // Parse mentions from caption
         let mentions = MentionParser.parseMentions(from: caption)
 
+        let localCafe = cafe ?? dataManager.findOrCreateCafe(
+            named: journalLocationName.remoteTrimmedNonEmpty ?? entryContext.locationFallback
+        )
         let visit = Visit(
-            cafeId: cafe.id,
+            cafeId: localCafe.id,
             userId: userId,
             createdAt: Date(),
             drinkType: drinkType,
@@ -699,7 +801,7 @@ struct LogVisitView: View {
 
     @MainActor
     private func saveRemoteVisit(
-        cafe: Cafe,
+        cafe: Cafe?,
         authenticatedUser: AuthenticatedUser
     ) async {
         isSavingRemoteVisit = true
@@ -717,11 +819,16 @@ struct LogVisitView: View {
                 submission = try store.prepare(
                     userId: authenticatedUser.id,
                     cafe: cafe,
+                    entryContext: entryContext,
+                    locationName: journalLocationName,
                     drinkType: drinkType,
                     customDrinkType: customDrinkType,
                     drinkSubtype: drinkDetails,
                     caption: caption,
                     notes: notes.remoteTrimmedNonEmpty,
+                    brewMethod: brewMethod,
+                    equipment: equipment,
+                    brewDetails: structuredBrewDetails,
                     visibility: visibility,
                     ratings: ratings,
                     ratingTemplate: dataManager.appData.ratingTemplate,
@@ -736,9 +843,14 @@ struct LogVisitView: View {
                     visitId: submission.id,
                     userId: submission.userId,
                     cafe: submission.cafe,
+                    entryContext: submission.resolvedEntryContext,
+                    locationName: submission.locationName,
                     drinkType: submission.drinkType,
                     customDrinkType: submission.customDrinkType,
                     drinkSubtype: submission.drinkSubtype,
+                    brewMethod: submission.brewMethod,
+                    equipment: submission.equipment,
+                    brewDetails: submission.resolvedBrewDetails,
                     caption: submission.caption,
                     notes: submission.notes,
                     visibility: .private,
@@ -857,6 +969,149 @@ struct LogVisitView: View {
             isSavingRemoteVisit = false
             uploadRecoveryMessage = MugshotUserFacingError.message(for: error, context: .photoUpload)
         }
+    }
+}
+
+private struct JournalContextSection: View {
+    @Binding var selection: JournalEntryContext
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Journal context")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text("Log a cafe sip, dial in a home brew, or save a repeatable recipe.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+            }
+
+            MugshotSegmentedControl(
+                options: JournalEntryContext.allCases,
+                selection: $selection,
+                title: { $0.rawValue },
+                icon: { $0.systemImage }
+            )
+        }
+        .padding(16)
+        .cardStyle()
+    }
+}
+
+private struct HomeBrewDetailsSection: View {
+    let entryContext: JournalEntryContext
+    @Binding var locationName: String
+    @Binding var brewMethod: String
+    @Binding var equipment: String
+    @Binding var doseGrams: String
+    @Binding var yieldGrams: String
+    @Binding var brewTimeSeconds: String
+    @Binding var beanOrigin: String
+    @Binding var roastLevel: String
+    @Binding var grindSetting: String
+    @Binding var waterTemperatureCelsius: String
+    @Binding var recipeName: String
+    @Binding var recipeVersion: String
+    @Binding var additions: String
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(
+                    entryContext == .recipe ? "Recipe details" : "Home brew details",
+                    systemImage: entryContext.systemImage
+                )
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                Text("Keep the variables that help you repeat—or improve—the next cup.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+            }
+
+            brewTextField("Journal location", text: $locationName, icon: "house")
+
+            if entryContext == .recipe {
+                HStack(spacing: 10) {
+                    brewTextField("Recipe name", text: $recipeName, icon: "book.pages")
+                    brewTextField("Version", text: $recipeVersion, icon: "number")
+                        .frame(maxWidth: 110)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                brewNumberField("Dose", suffix: "g in", text: $doseGrams)
+                brewNumberField("Yield", suffix: "g out", text: $yieldGrams)
+                brewNumberField("Time", suffix: "sec", text: $brewTimeSeconds)
+            }
+
+            HStack(spacing: 10) {
+                brewTextField("Brew method", text: $brewMethod, icon: "drop")
+                brewTextField("Equipment", text: $equipment, icon: "dial.high")
+            }
+
+            HStack(spacing: 10) {
+                brewTextField("Bean origin", text: $beanOrigin, icon: "globe.americas")
+                brewTextField("Roast", text: $roastLevel, icon: "flame")
+            }
+
+            HStack(spacing: 10) {
+                brewTextField("Grind", text: $grindSetting, icon: "slider.horizontal.3")
+                brewNumberField("Water", suffix: "°C", text: $waterTemperatureCelsius)
+            }
+
+            brewTextField("Sauce, milk, or additions", text: $additions, icon: "list.bullet")
+        }
+        .padding(16)
+        .cardStyle()
+    }
+
+    private func brewTextField(
+        _ title: String,
+        text: Binding<String>,
+        icon: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            TextField(title, text: text)
+                .font(.system(size: 14))
+                .textInputAutocapitalization(.words)
+        }
+        .padding(.horizontal, 11)
+        .frame(minHeight: 44)
+        .background(Color.sandBeige.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func brewNumberField(
+        _ title: String,
+        suffix: String,
+        text: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.tertiaryText)
+            HStack(spacing: 3) {
+                TextField("—", text: text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .keyboardType(.decimalPad)
+                Text(suffix)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 52)
+        .background(Color.sandBeige.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

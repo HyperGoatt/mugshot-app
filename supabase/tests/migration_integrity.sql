@@ -8,7 +8,8 @@ begin
     ('20260712205347'),
     ('20260712211408'),
     ('20260712214406'),
-    ('20260712214646')
+    ('20260712214646'),
+    ('20260713035201')
   ) required(version)
   where not exists (
     select 1 from supabase_migrations.schema_migrations m where m.version=required.version
@@ -60,6 +61,17 @@ begin
   if not exists (
     select 1 from pg_indexes where schemaname='public' and indexname='visits_complete_created_id_idx'
   ) then raise exception 'social pagination index is missing'; end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='visits' and column_name='brew_details'
+      and data_type='jsonb'
+  ) then raise exception 'structured brew_details column is missing'; end if;
+
+  if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
+     or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then
+    raise exception 'canonical cafe resolver grants are incorrect';
+  end if;
 end $$;
 
 select 'migration_integrity_passed' as result;

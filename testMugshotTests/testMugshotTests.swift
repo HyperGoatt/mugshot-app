@@ -1254,6 +1254,113 @@ struct testMugshotTests {
         )
     }
 
+    @Test func structuredHomeRecipeEncodesWithoutCafeAndKeepsBrewVariables() throws {
+        let template = RatingTemplate(categories: [RatingCategory(name: "Taste", weight: 1)])
+        let details = BrewDetails(
+            doseGrams: 18,
+            yieldGrams: 36,
+            brewTimeSeconds: 27,
+            beanOrigin: "Peru",
+            roastLevel: "Medium-light",
+            grindSetting: "4.2",
+            waterTemperatureCelsius: 94,
+            recipeName: "Peru Mocha",
+            recipeVersion: "v3",
+            additions: "Mocha sauce"
+        )
+        let insert = try SupabaseVisitInsert.make(
+            userId: UUID(),
+            remoteCafe: nil,
+            entryContext: .recipe,
+            locationName: "Home",
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Mocha",
+            brewMethod: "Espresso",
+            equipment: "Lelit Bianca",
+            brewDetails: details,
+            caption: "Sweeter and cleaner",
+            notes: "Use less sauce next time",
+            visibility: .private,
+            ratings: ["Taste": 4.5],
+            ratingTemplate: template
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(insert)) as? [String: Any]
+        )
+        let encodedDetails = try #require(object["brew_details"] as? [String: Any])
+
+        #expect(object["cafe_id"] == nil)
+        #expect(object["context_type"] as? String == "Recipe")
+        #expect(object["location_name"] as? String == "Home")
+        #expect(object["brew_method"] as? String == "Espresso")
+        #expect(object["equipment"] as? String == "Lelit Bianca")
+        #expect(encodedDetails["doseGrams"] as? Double == 18)
+        #expect(encodedDetails["yieldGrams"] as? Double == 36)
+        #expect(encodedDetails["brewTimeSeconds"] as? Int == 27)
+        #expect(details.extractionSummary == "18g in · 36g out · 27 sec")
+        #expect(details.recipeDisplayName == "Peru Mocha · v3")
+    }
+
+    @Test func tasteIdentityUsesCafeAndHomeJournalEvidence() {
+        let userID = UUID()
+        let cafe = SupabaseCafeSummary(
+            id: UUID(), name: "Neighborhood Coffee", address: nil, city: nil,
+            latitude: nil, longitude: nil, applePlaceId: nil, websiteURL: nil
+        )
+        let cafeVisit = RemoteVisitSummary(
+            visit: SupabaseVisitRow(
+                id: UUID(), userId: userID, cafeId: cafe.id, drinkType: "Coffee",
+                drinkTypeCustom: nil, drinkSubtype: "Cortado", caption: "Good", notes: nil,
+                visibility: "everyone", ratings: ["Taste": 4], overallScore: 4,
+                posterPhotoURL: nil, contextType: "Cafe", locationName: cafe.name,
+                cityState: nil, brewMethod: nil, createdAt: "2026-07-12T12:00:00Z"
+            ),
+            cafe: cafe
+        )
+        let homeVisit = RemoteVisitSummary(
+            visit: SupabaseVisitRow(
+                id: UUID(), userId: userID, cafeId: nil, drinkType: "Coffee",
+                drinkTypeCustom: nil, drinkSubtype: "Mocha", caption: "Dialed in", notes: nil,
+                visibility: "private", ratings: ["Taste": 4.5], overallScore: 4.5,
+                posterPhotoURL: nil, contextType: "home", locationName: "Home",
+                cityState: nil, brewMethod: "Espresso", createdAt: "2026-07-13T12:00:00Z",
+                equipment: "Lelit Bianca",
+                brewDetails: BrewDetails(doseGrams: 18, yieldGrams: 36, brewTimeSeconds: 27)
+            ),
+            cafe: nil
+        )
+
+        let identity = TasteIdentitySummary.calculate(from: [cafeVisit, homeVisit])
+
+        #expect(identity.title == "The Neighborhood Experimenter")
+        #expect(identity.patterns.contains { $0.text.contains("Espresso") })
+        #expect(identity.patterns.contains { $0.text.contains("1:2.0") })
+        #expect(homeVisit.visit.journalContext == .home)
+    }
+
+    @Test func resolvedCafeSummaryDecodesCanonicalStatsAndState() throws {
+        let cafeID = UUID()
+        let json = """
+        [{
+          "cafe_id":"\(cafeID.uuidString)","name":"Babas on Cannon","address":"11 Cannon St",
+          "city":"Charleston","latitude":32.79164,"longitude":-79.94129,
+          "identity_key":"geo:babas on cannon|32.79164|-79.94129","apple_place_id":null,
+          "website_url":"https://example.com","average_rating":3.0,"visible_visit_count":1,
+          "recent_cover":"https://example.com/cover.jpg","is_favorite":true,
+          "want_to_try":false,"is_visited":true
+        }]
+        """
+        let summary = try #require(JSONDecoder().decode([ResolvedCafeSummary].self, from: Data(json.utf8)).first)
+
+        #expect(summary.cafeID == cafeID)
+        #expect(summary.averageRating == 3)
+        #expect(summary.visibleVisitCount == 1)
+        #expect(summary.isFavorite)
+        #expect(summary.isVisited)
+        #expect(summary.remoteCafe.id == cafeID)
+    }
+
     @Test func productCopyUsesAsciiCafeSpelling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

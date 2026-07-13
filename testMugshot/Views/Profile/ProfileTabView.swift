@@ -8,7 +8,7 @@
 import SwiftUI
 import PhotosUI
 
-struct ProfileTabView: View {
+private struct LegacyProfileTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedTab: ProfileContentTab = .recent

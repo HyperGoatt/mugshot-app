@@ -118,6 +118,46 @@ class DataManager: ObservableObject {
     }
 
     @discardableResult
+    func applyResolvedCafeSummary(
+        _ summary: ResolvedCafeSummary,
+        toLocalCafeID localCafeID: UUID
+    ) -> Cafe {
+        guard let index = appData.cafes.firstIndex(where: { $0.id == localCafeID }) else {
+            return upsertRemoteCafe(
+                summary.remoteCafe,
+                isFavorite: summary.isFavorite,
+                wantToTry: summary.wantToTry,
+                averageRating: summary.averageRating,
+                visitCount: summary.visibleVisitCount
+            )
+        }
+
+        let existing = appData.cafes[index]
+        let remote = summary.remoteCafe.localCafe(
+            isFavorite: summary.isFavorite,
+            wantToTry: summary.wantToTry,
+            averageRating: summary.averageRating ?? 0,
+            visitCount: summary.visibleVisitCount
+        )
+        appData.cafes[index] = Cafe(
+            id: existing.id,
+            name: remote.name,
+            location: remote.location ?? existing.location,
+            address: !remote.address.isEmpty ? remote.address : existing.address,
+            isFavorite: summary.isFavorite,
+            wantToTry: summary.wantToTry,
+            averageRating: summary.averageRating ?? existing.averageRating,
+            visitCount: max(summary.visibleVisitCount, existing.visitCount),
+            mapItemURL: existing.mapItemURL ?? remote.mapItemURL,
+            websiteURL: remote.websiteURL ?? existing.websiteURL,
+            placeCategory: existing.placeCategory,
+            remoteCafeId: summary.cafeID
+        )
+        save()
+        return appData.cafes[index]
+    }
+
+    @discardableResult
     func upsertRemoteCafe(
         _ remoteCafe: SupabaseCafeSummary,
         isFavorite: Bool? = nil,
