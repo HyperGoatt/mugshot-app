@@ -19,10 +19,13 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let drinkTypeCustom: String?
     let drinkSubtype: String?
     let caption: String
-    let notes: String?
+    // Kept for local/test compatibility. Remote visit queries deliberately do
+    // not decode private notes from the social visit row.
+    var notes: String? = nil
     let visibility: String
     let uploadState: String
     let ratings: [String: Double]
+    let categoryScores: [SupabaseVisitCategoryScore]?
     let overallScore: Double
     let posterPhotoURL: String?
     let contextType: String?
@@ -41,10 +44,10 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case drinkTypeCustom = "drink_type_custom"
         case drinkSubtype = "drink_subtype"
         case caption
-        case notes
         case visibility
         case uploadState = "upload_state"
         case ratings
+        case categoryScores = "category_scores"
         case overallScore = "overall_score"
         case posterPhotoURL = "poster_photo_url"
         case contextType = "context_type"
@@ -68,6 +71,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         visibility: String,
         uploadState: String = VisitUploadState.complete.rawValue,
         ratings: [String: Double],
+        categoryScores: [SupabaseVisitCategoryScore]? = nil,
         overallScore: Double,
         posterPhotoURL: String?,
         contextType: String?,
@@ -89,6 +93,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         self.visibility = visibility
         self.uploadState = uploadState
         self.ratings = ratings
+        self.categoryScores = categoryScores
         self.overallScore = overallScore
         self.posterPhotoURL = posterPhotoURL
         self.contextType = contextType
@@ -155,6 +160,16 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
 
     var trimmedNotes: String? {
         notes?.remoteTrimmedNonEmpty
+    }
+
+    var orderedRatingScores: [SupabaseVisitCategoryScore] {
+        if let categoryScores, !categoryScores.isEmpty {
+            return categoryScores
+        }
+        return ratings.keys.sorted().compactMap { name in
+            guard let score = ratings[name] else { return nil }
+            return SupabaseVisitCategoryScore(name: name, score: score, weight: 1)
+        }
     }
 }
 
@@ -254,23 +269,40 @@ struct SupabaseVisitCommentInsert: Encodable, Equatable {
 
 struct SupabaseVisitUpdate: Encodable, Equatable {
     let caption: String
-    let notes: String?
     let visibility: String
 
     static func make(
         caption: String,
-        notes: String?,
         visibility: VisitVisibility
     ) throws -> SupabaseVisitUpdate {
-        guard let trimmedCaption = caption.remoteTrimmedNonEmpty else {
-            throw VisitServiceError.emptyCaption
-        }
-
         return SupabaseVisitUpdate(
-            caption: trimmedCaption,
-            notes: notes?.remoteTrimmedNonEmpty,
+            caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
             visibility: visibility.supabaseValue
         )
+    }
+}
+
+struct SupabaseVisitPrivateNoteRow: Decodable, Equatable {
+    let visitId: UUID
+    let userId: UUID
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case visitId = "visit_id"
+        case userId = "user_id"
+        case note
+    }
+}
+
+struct SupabaseVisitPrivateNoteUpsert: Encodable, Equatable {
+    let visitId: UUID
+    let userId: UUID
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case visitId = "visit_id"
+        case userId = "user_id"
+        case note
     }
 }
 
@@ -305,6 +337,23 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let comments: [RemoteVisitComment]
     let likeCount: Int
     let currentUserHasLiked: Bool
+    let privateNote: String?
+
+    init(
+        summary: RemoteVisitSummary,
+        photos: [SupabaseVisitPhotoRow],
+        comments: [RemoteVisitComment],
+        likeCount: Int,
+        currentUserHasLiked: Bool,
+        privateNote: String? = nil
+    ) {
+        self.summary = summary
+        self.photos = photos
+        self.comments = comments
+        self.likeCount = likeCount
+        self.currentUserHasLiked = currentUserHasLiked
+        self.privateNote = privateNote
+    }
 
     var id: UUID { summary.id }
 

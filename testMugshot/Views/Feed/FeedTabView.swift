@@ -1218,8 +1218,18 @@ struct VisitDetailView: View {
                             SipRatingBreakdownPanel(
                                 score: visit.overallScore,
                                 ratings: visit.ratings,
+                                orderedRatings: visit.ratingCriteria
+                                    .sorted { $0.sortOrder < $1.sortOrder }
+                                    .filter { $0.score > 0 }
+                                    .map { SupabaseVisitCategoryScore(name: $0.name, score: $0.score, weight: $0.weight) },
                                 title: "Flavor map",
                                 subtitle: isOwnVisit ? "Your saved taste breakdown" : "\(user?.displayNameOrUsername ?? "Mugshot User")'s taste breakdown"
+                            )
+                            SipStructuredEntryDetailsPanel(
+                                context: visit.context,
+                                brewMethod: visit.brewMethod,
+                                equipment: visit.equipment,
+                                details: visit.brewDetails
                             )
                             localPrivateNote
                             localCommentsSection
@@ -1332,7 +1342,9 @@ struct VisitDetailView: View {
                 username: localUsername,
                 timestamp: SipDetailFormat.relative(visit.createdAt),
                 drinkName: localDrinkDisplayName,
-                locationTitle: cafe?.consumerDisplayName ?? "Cafe",
+                locationTitle: visit.context == .cafe
+                    ? (cafe?.consumerDisplayName ?? "Cafe")
+                    : (visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback),
                 locationSubtitle: cafe?.address.isEmpty == false ? cafe?.address : nil,
                 score: visit.overallScore,
                 visibilityLabel: localAudienceLabel,

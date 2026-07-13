@@ -42,6 +42,7 @@ struct MainTabView: View {
                 dataManager.noteJournalMutation()
             }
             await VisitDeletionService(client: client).retryPendingMediaCleanup(userId: userId)
+            await DrinkAnalysisService(client: client).retryPendingAnalyses(userId: userId)
         }
     }
 

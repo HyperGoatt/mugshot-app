@@ -9,7 +9,9 @@ begin
     ('20260712211408'),
     ('20260712214406'),
     ('20260712214646'),
-    ('20260713035201')
+    ('20260713035201'),
+    ('20260713152500'),
+    ('20260713191000')
   ) required(version)
   where not exists (
     select 1 from supabase_migrations.schema_migrations m where m.version=required.version
@@ -67,6 +69,74 @@ begin
     where table_schema='public' and table_name='visits' and column_name='brew_details'
       and data_type='jsonb'
   ) then raise exception 'structured brew_details column is missing'; end if;
+
+  if to_regclass('public.visit_private_notes') is null then
+    raise exception 'visit_private_notes table is missing';
+  end if;
+  if not (select relrowsecurity from pg_class where oid='public.visit_private_notes'::regclass) then
+    raise exception 'visit_private_notes RLS is disabled';
+  end if;
+  if (select count(*) from pg_policies
+      where schemaname='public' and tablename='visit_private_notes') <> 4 then
+    raise exception 'visit_private_notes owner policies are incomplete';
+  end if;
+  if exists (
+    select 1 from information_schema.role_table_grants
+    where table_schema='public' and table_name='visit_private_notes' and grantee='anon'
+  ) then raise exception 'anonymous role can access private sip notes'; end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid='public.visits'::regclass
+      and conname='visits_legacy_notes_must_be_null'
+  ) then raise exception 'legacy social notes column can be repopulated'; end if;
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid='public.visits'::regclass
+      and tgname='route_legacy_visit_private_note' and tgenabled='O'
+  ) then raise exception 'legacy private-note compatibility route is missing'; end if;
+  if has_function_privilege('anon','public.route_legacy_visit_private_note()','EXECUTE')
+     or has_function_privilege('authenticated','public.route_legacy_visit_private_note()','EXECUTE') then
+    raise exception 'legacy private-note router is directly callable';
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid='public.visit_private_notes'::regclass
+      and conname='visit_private_notes_visit_owner_fk'
+      and condeferrable and condeferred
+  ) then raise exception 'private-note owner constraint cannot route legacy inserts safely'; end if;
+
+  if to_regclass('public.visit_drink_analyses') is null then
+    raise exception 'visit_drink_analyses table is missing';
+  end if;
+  if not (select relrowsecurity from pg_class where oid='public.visit_drink_analyses'::regclass) then
+    raise exception 'visit_drink_analyses RLS is disabled';
+  end if;
+  if (select count(*) from pg_policies
+      where schemaname='public' and tablename='visit_drink_analyses') <> 1 then
+    raise exception 'drink-analysis visibility policy is incorrect';
+  end if;
+  if exists (
+    select 1 from information_schema.role_table_grants
+    where table_schema='public' and table_name='visit_drink_analyses'
+      and grantee='authenticated' and privilege_type <> 'SELECT'
+  ) then raise exception 'authenticated clients can write parser output directly'; end if;
+  if exists (
+    select 1 from information_schema.role_table_grants
+    where table_schema='public' and table_name='visit_drink_analyses' and grantee='anon'
+  ) then raise exception 'anonymous role can access drink analyses'; end if;
+  if has_function_privilege('anon','public.request_visit_drink_analysis_correction(uuid,jsonb)','EXECUTE')
+     or not has_function_privilege('authenticated','public.request_visit_drink_analysis_correction(uuid,jsonb)','EXECUTE') then
+    raise exception 'drink-analysis correction grants are incorrect';
+  end if;
+  if has_function_privilege('anon','public.seed_visit_drink_analysis()','EXECUTE')
+     or has_function_privilege('authenticated','public.seed_visit_drink_analysis()','EXECUTE') then
+    raise exception 'drink-analysis seed trigger is directly callable';
+  end if;
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid='public.visits'::regclass
+      and tgname='seed_visit_drink_analysis' and tgenabled='O'
+  ) then raise exception 'drink-analysis seed trigger is missing'; end if;
 
   if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then
