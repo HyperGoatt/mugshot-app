@@ -10,61 +10,31 @@ import SwiftUI
 // Reusable view for displaying photos from Visit photo paths
 struct PhotoImageView: View {
     let photoPath: String
-    let remoteURL: String?
-    
+    var contentMode: ContentMode = .fill
     @State private var image: UIImage?
-    @State private var isFetchingRemote = false
-    
-    init(photoPath: String, remoteURL: String? = nil) {
-        self.photoPath = photoPath
-        self.remoteURL = remoteURL
-    }
     
     var body: some View {
         Group {
             if let image = image {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: contentMode)
             } else {
-                // Fallback placeholder
-                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                    .fill(Color.sandBeige)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .fill(Color.sandBeige.opacity(0.72))
                     .overlay(
-                        Image(systemName: "photo")
-                            .font(.system(size: 48))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 34, weight: .semibold))
+                            Text("Legacy sip")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.roastBrown.opacity(0.46))
                     )
             }
         }
-        .onAppear {
-            loadImage()
-        }
-    }
-    
-    private func loadImage() {
-        if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
-            image = cachedImage
-            return
-        }
-        
-        guard !isFetchingRemote,
-              let remoteURL,
-              let url = URL(string: remoteURL) else {
-            return
-        }
-        
-        isFetchingRemote = true
-        Task {
-            defer { isFetchingRemote = false }
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
-                  let downloaded = UIImage(data: data) else {
-                return
-            }
-            PhotoCache.shared.store(downloaded, forKey: photoPath)
-            await MainActor.run {
-                image = downloaded
-            }
+        .task(id: photoPath) {
+            image = await PhotoCache.shared.image(forKey: photoPath)
         }
     }
 }
@@ -72,15 +42,12 @@ struct PhotoImageView: View {
 // Thumbnail version for small previews
 struct PhotoThumbnailView: View {
     let photoPath: String?
-    let remoteURL: String?
     let size: CGFloat
     
     @State private var image: UIImage?
-    @State private var isFetchingRemote = false
     
-    init(photoPath: String?, remoteURL: String? = nil, size: CGFloat = 60) {
+    init(photoPath: String?, size: CGFloat = 60) {
         self.photoPath = photoPath
-        self.remoteURL = remoteURL
         self.size = size
     }
     
@@ -91,47 +58,20 @@ struct PhotoThumbnailView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius)
-                    .fill(Color.sandBeige)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                    .fill(Color.sandBeige.opacity(0.72))
                     .overlay(
                         Image(systemName: "photo")
                             .font(.system(size: 20))
-                            .foregroundColor(.espressoBrown.opacity(0.3))
+                            .foregroundColor(.roastBrown.opacity(0.42))
                     )
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
-        .onAppear {
-            loadImage()
-        }
-    }
-    
-    private func loadImage() {
-        guard let photoPath = photoPath else { return }
-        if let cachedImage = PhotoCache.shared.retrieve(forKey: photoPath) {
-            image = cachedImage
-            return
-        }
-        
-        guard !isFetchingRemote,
-              let remoteURL = remoteURL,
-              let url = URL(string: remoteURL) else {
-            return
-        }
-        
-        isFetchingRemote = true
-        Task {
-            defer { isFetchingRemote = false }
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
-                  let downloaded = UIImage(data: data) else {
-                return
-            }
-            PhotoCache.shared.store(downloaded, forKey: photoPath)
-            await MainActor.run {
-                image = downloaded
-            }
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .task(id: photoPath) {
+            guard let photoPath else { return }
+            image = await PhotoCache.shared.image(forKey: photoPath)
         }
     }
 }
-

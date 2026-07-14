@@ -23,105 +23,82 @@ enum VisitVisibility: String, Codable {
     case everyone = "Everyone"
 }
 
-extension VisitVisibility {
-    init(remoteValue: String) {
-        switch remoteValue.lowercased() {
-        case "friends":
-            self = .friends
-        case "everyone":
-            self = .everyone
-        default:
-            self = .private
-        }
-    }
-    
-    var supabaseValue: String {
-        rawValue.lowercased()
-    }
-}
-
 struct Visit: Identifiable {
     let id: UUID
-    var supabaseId: UUID?
-    var supabaseCafeId: UUID?
-    var supabaseUserId: String?
     var cafeId: UUID
     var userId: UUID
     var createdAt: Date // Renamed from date for clarity
     var drinkType: DrinkType
     var customDrinkType: String? // For "Other" option
-    var drinkSubtype: String? // Optional free-text for specific drink (e.g., "Iced vanilla latte")
     var caption: String
     var notes: String? // Private notes (optional)
+    var context: JournalEntryContext
+    var locationName: String?
+    var brewMethod: String?
+    var equipment: String?
+    var brewDetails: BrewDetails
+    var drinkAnalysis: DrinkAnalysis?
     var photos: [String] // Store image names/paths
     var posterPhotoIndex: Int // Index of the photo to use as poster
-    var posterPhotoURL: String?
-    var remotePhotoURLByKey: [String: String]
     var ratings: [String: Double] // Category name -> rating value
+    var ratingCriteria: [SipRatingCriterionSnapshot]
     var overallScore: Double // Weighted average
     var visibility: VisitVisibility
     var likeCount: Int // Renamed from likes
     var likedByUserIds: [UUID] // Track which users liked this visit
     var comments: [Comment]
     var mentions: [Mention] // Mentions in caption
-    var authorDisplayName: String?
-    var authorUsername: String?
-    var authorAvatarURL: String?
     
     init(
         id: UUID = UUID(),
-        supabaseId: UUID? = nil,
-        supabaseCafeId: UUID? = nil,
-        supabaseUserId: String? = nil,
         cafeId: UUID,
         userId: UUID,
         createdAt: Date = Date(),
         drinkType: DrinkType,
         customDrinkType: String? = nil,
-        drinkSubtype: String? = nil,
         caption: String = "",
         notes: String? = nil,
+        context: JournalEntryContext = .cafe,
+        locationName: String? = nil,
+        brewMethod: String? = nil,
+        equipment: String? = nil,
+        brewDetails: BrewDetails = .empty,
+        drinkAnalysis: DrinkAnalysis? = nil,
         photos: [String] = [],
         posterPhotoIndex: Int = 0,
-        posterPhotoURL: String? = nil,
-        remotePhotoURLByKey: [String: String] = [:],
         ratings: [String: Double] = [:],
+        ratingCriteria: [SipRatingCriterionSnapshot] = [],
         overallScore: Double = 0.0,
         visibility: VisitVisibility = .everyone,
         likeCount: Int = 0,
         likedByUserIds: [UUID] = [],
         comments: [Comment] = [],
-        mentions: [Mention] = [],
-        authorDisplayName: String? = nil,
-        authorUsername: String? = nil,
-        authorAvatarURL: String? = nil
+        mentions: [Mention] = []
     ) {
         self.id = id
-        self.supabaseId = supabaseId
-        self.supabaseCafeId = supabaseCafeId
-        self.supabaseUserId = supabaseUserId
         self.cafeId = cafeId
         self.userId = userId
         self.createdAt = createdAt
         self.drinkType = drinkType
         self.customDrinkType = customDrinkType
-        self.drinkSubtype = drinkSubtype
         self.caption = caption
         self.notes = notes
+        self.context = context
+        self.locationName = locationName
+        self.brewMethod = brewMethod
+        self.equipment = equipment
+        self.brewDetails = brewDetails
+        self.drinkAnalysis = drinkAnalysis
         self.photos = photos
         self.posterPhotoIndex = posterPhotoIndex
-        self.posterPhotoURL = posterPhotoURL
-        self.remotePhotoURLByKey = remotePhotoURLByKey
         self.ratings = ratings
+        self.ratingCriteria = ratingCriteria
         self.overallScore = overallScore
         self.visibility = visibility
         self.likeCount = likeCount
         self.likedByUserIds = likedByUserIds
         self.comments = comments
         self.mentions = mentions
-        self.authorDisplayName = authorDisplayName
-        self.authorUsername = authorUsername
-        self.authorAvatarURL = authorAvatarURL
     }
     
     // Computed property for backward compatibility
@@ -148,70 +125,34 @@ struct Visit: Identifiable {
         }
         return photos.first
     }
-    
-    func remoteURL(for photoKey: String) -> String? {
-        remotePhotoURLByKey[photoKey]
-    }
-    
-    var authorDisplayNameOrUsername: String {
-        authorDisplayName ?? authorUsername ?? "Mugshot Member"
-    }
-    
-    var authorUsernameHandle: String {
-        if let username = authorUsername {
-            return "@\(username)"
-        }
-        return "@mugshot"
-    }
-    
-    var authorInitials: String {
-        String(authorDisplayNameOrUsername.prefix(1)).uppercased()
-    }
-    
-    // Display drink type with optional subtype
-    var drinkDisplayText: String {
-        let typeText: String
-        if drinkType == .other, let custom = customDrinkType, !custom.isEmpty {
-            typeText = custom
-        } else {
-            typeText = drinkType.rawValue
-        }
-        
-        if let subtype = drinkSubtype?.trimmingCharacters(in: .whitespacesAndNewlines), !subtype.isEmpty {
-            return "\(typeText) · \(subtype)"
-        }
-        
-        return typeText
-    }
-}
 
-extension Visit: Hashable {
-    static func == (lhs: Visit, rhs: Visit) -> Bool {
-        lhs.id == rhs.id
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
+    /// The journal-facing name always prefers the immutable natural-language
+    /// entry. Legacy visits fall back to their existing custom or family label.
+    var journalDrinkName: String {
+        if let rawText = drinkAnalysis?.rawDrinkName.remoteTrimmedNonEmpty {
+            return rawText
+        }
+        if let customDrinkType = customDrinkType?.remoteTrimmedNonEmpty {
+            return customDrinkType
+        }
+        return drinkType.rawValue
     }
 }
 
 // Make Visit Codable with custom implementation
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {
-        case id, supabaseId, supabaseCafeId, supabaseUserId, cafeId, userId, drinkType, customDrinkType, drinkSubtype, caption, notes, photos
-        case posterPhotoIndex, posterPhotoURL, remotePhotoURLByKey, ratings, overallScore, visibility, comments, mentions
+        case id, cafeId, userId, drinkType, customDrinkType, caption, notes, photos
+        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis
+        case posterPhotoIndex, ratings, ratingCriteria, overallScore, visibility, comments, mentions
         case createdAt, date // Support both for backward compatibility
         case likeCount, likes // Support both for backward compatibility
         case likedByUserIds
-        case authorDisplayName, authorUsername, authorAvatarURL
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
-        supabaseId = try container.decodeIfPresent(UUID.self, forKey: .supabaseId)
-        supabaseCafeId = try container.decodeIfPresent(UUID.self, forKey: .supabaseCafeId)
-        supabaseUserId = try container.decodeIfPresent(String.self, forKey: .supabaseUserId)
         cafeId = try container.decode(UUID.self, forKey: .cafeId)
         userId = try container.decode(UUID.self, forKey: .userId)
         
@@ -226,14 +167,18 @@ extension Visit: Codable {
         
         drinkType = try container.decode(DrinkType.self, forKey: .drinkType)
         customDrinkType = try container.decodeIfPresent(String.self, forKey: .customDrinkType)
-        drinkSubtype = try container.decodeIfPresent(String.self, forKey: .drinkSubtype)
         caption = try container.decode(String.self, forKey: .caption)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        context = try container.decodeIfPresent(JournalEntryContext.self, forKey: .context) ?? .cafe
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        brewMethod = try container.decodeIfPresent(String.self, forKey: .brewMethod)
+        equipment = try container.decodeIfPresent(String.self, forKey: .equipment)
+        brewDetails = try container.decodeIfPresent(BrewDetails.self, forKey: .brewDetails) ?? .empty
+        drinkAnalysis = try container.decodeIfPresent(DrinkAnalysis.self, forKey: .drinkAnalysis)
         photos = try container.decode([String].self, forKey: .photos)
         posterPhotoIndex = try container.decode(Int.self, forKey: .posterPhotoIndex)
-        posterPhotoURL = try container.decodeIfPresent(String.self, forKey: .posterPhotoURL)
-        remotePhotoURLByKey = try container.decodeIfPresent([String: String].self, forKey: .remotePhotoURLByKey) ?? [:]
         ratings = try container.decode([String: Double].self, forKey: .ratings)
+        ratingCriteria = try container.decodeIfPresent([SipRatingCriterionSnapshot].self, forKey: .ratingCriteria) ?? []
         overallScore = try container.decode(Double.self, forKey: .overallScore)
         visibility = try container.decode(VisitVisibility.self, forKey: .visibility)
         
@@ -249,108 +194,71 @@ extension Visit: Codable {
         likedByUserIds = try container.decodeIfPresent([UUID].self, forKey: .likedByUserIds) ?? []
         comments = try container.decodeIfPresent([Comment].self, forKey: .comments) ?? []
         mentions = try container.decodeIfPresent([Mention].self, forKey: .mentions) ?? []
-        authorDisplayName = try container.decodeIfPresent(String.self, forKey: .authorDisplayName)
-        authorUsername = try container.decodeIfPresent(String.self, forKey: .authorUsername)
-        authorAvatarURL = try container.decodeIfPresent(String.self, forKey: .authorAvatarURL)
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encodeIfPresent(supabaseId, forKey: .supabaseId)
-        try container.encodeIfPresent(supabaseCafeId, forKey: .supabaseCafeId)
-        try container.encodeIfPresent(supabaseUserId, forKey: .supabaseUserId)
         try container.encode(cafeId, forKey: .cafeId)
         try container.encode(userId, forKey: .userId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(drinkType, forKey: .drinkType)
         try container.encodeIfPresent(customDrinkType, forKey: .customDrinkType)
-        try container.encodeIfPresent(drinkSubtype, forKey: .drinkSubtype)
         try container.encode(caption, forKey: .caption)
         try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encode(context, forKey: .context)
+        try container.encodeIfPresent(locationName, forKey: .locationName)
+        try container.encodeIfPresent(brewMethod, forKey: .brewMethod)
+        try container.encodeIfPresent(equipment, forKey: .equipment)
+        try container.encode(brewDetails, forKey: .brewDetails)
+        try container.encodeIfPresent(drinkAnalysis, forKey: .drinkAnalysis)
         try container.encode(photos, forKey: .photos)
         try container.encode(posterPhotoIndex, forKey: .posterPhotoIndex)
-        try container.encodeIfPresent(posterPhotoURL, forKey: .posterPhotoURL)
-        try container.encode(remotePhotoURLByKey, forKey: .remotePhotoURLByKey)
         try container.encode(ratings, forKey: .ratings)
+        try container.encode(ratingCriteria, forKey: .ratingCriteria)
         try container.encode(overallScore, forKey: .overallScore)
         try container.encode(visibility, forKey: .visibility)
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(likedByUserIds, forKey: .likedByUserIds)
         try container.encode(comments, forKey: .comments)
         try container.encode(mentions, forKey: .mentions)
-        try container.encodeIfPresent(authorDisplayName, forKey: .authorDisplayName)
-        try container.encodeIfPresent(authorUsername, forKey: .authorUsername)
-        try container.encodeIfPresent(authorAvatarURL, forKey: .authorAvatarURL)
     }
 }
 
 struct Comment: Identifiable, Codable {
     let id: UUID
-    var supabaseId: UUID?
     var visitId: UUID
     var userId: UUID
-    var supabaseUserId: String?
     var text: String
     var createdAt: Date
     var mentions: [Mention]
-    var parentCommentId: UUID? // For reply threads
-    var likeCount: Int // Total likes on this comment
-    var likedByUserIds: [String] // Track which users liked this comment (Supabase user IDs)
-    var replies: [Comment] // Nested replies (populated in UI)
-    // Author profile data (from Supabase join)
-    var authorDisplayName: String?
-    var authorUsername: String?
-    var authorAvatarURL: String?
     
     enum CodingKeys: String, CodingKey {
-        case id, supabaseId, visitId, userId, supabaseUserId, text, mentions
+        case id, visitId, userId, text, mentions
         case createdAt, date // Support both for backward compatibility
-        case parentCommentId, likeCount, likedByUserIds, replies
-        case authorDisplayName, authorUsername, authorAvatarURL
     }
     
     init(
         id: UUID = UUID(),
-        supabaseId: UUID? = nil,
         visitId: UUID,
         userId: UUID,
-        supabaseUserId: String? = nil,
         text: String,
         createdAt: Date = Date(),
-        mentions: [Mention] = [],
-        parentCommentId: UUID? = nil,
-        likeCount: Int = 0,
-        likedByUserIds: [String] = [],
-        replies: [Comment] = [],
-        authorDisplayName: String? = nil,
-        authorUsername: String? = nil,
-        authorAvatarURL: String? = nil
+        mentions: [Mention] = []
     ) {
         self.id = id
-        self.supabaseId = supabaseId
         self.visitId = visitId
         self.userId = userId
-        self.supabaseUserId = supabaseUserId
         self.text = text
         self.createdAt = createdAt
         self.mentions = mentions
-        self.parentCommentId = parentCommentId
-        self.likeCount = likeCount
-        self.likedByUserIds = likedByUserIds
-        self.replies = replies
-        self.authorDisplayName = authorDisplayName
-        self.authorUsername = authorUsername
-        self.authorAvatarURL = authorAvatarURL
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
-        supabaseId = try container.decodeIfPresent(UUID.self, forKey: .supabaseId)
         visitId = try container.decodeIfPresent(UUID.self, forKey: .visitId) ?? UUID() // Default for old data
         userId = try container.decode(UUID.self, forKey: .userId)
-        supabaseUserId = try container.decodeIfPresent(String.self, forKey: .supabaseUserId)
         text = try container.decode(String.self, forKey: .text)
         
         // Support both createdAt and date for backward compatibility
@@ -363,32 +271,16 @@ struct Comment: Identifiable, Codable {
         }
         
         mentions = try container.decodeIfPresent([Mention].self, forKey: .mentions) ?? []
-        parentCommentId = try container.decodeIfPresent(UUID.self, forKey: .parentCommentId)
-        likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
-        likedByUserIds = try container.decodeIfPresent([String].self, forKey: .likedByUserIds) ?? []
-        replies = try container.decodeIfPresent([Comment].self, forKey: .replies) ?? []
-        authorDisplayName = try container.decodeIfPresent(String.self, forKey: .authorDisplayName)
-        authorUsername = try container.decodeIfPresent(String.self, forKey: .authorUsername)
-        authorAvatarURL = try container.decodeIfPresent(String.self, forKey: .authorAvatarURL)
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encodeIfPresent(supabaseId, forKey: .supabaseId)
         try container.encode(visitId, forKey: .visitId)
         try container.encode(userId, forKey: .userId)
-        try container.encodeIfPresent(supabaseUserId, forKey: .supabaseUserId)
         try container.encode(text, forKey: .text)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(mentions, forKey: .mentions)
-        try container.encodeIfPresent(parentCommentId, forKey: .parentCommentId)
-        try container.encode(likeCount, forKey: .likeCount)
-        try container.encode(likedByUserIds, forKey: .likedByUserIds)
-        try container.encode(replies, forKey: .replies)
-        try container.encodeIfPresent(authorDisplayName, forKey: .authorDisplayName)
-        try container.encodeIfPresent(authorUsername, forKey: .authorUsername)
-        try container.encodeIfPresent(authorAvatarURL, forKey: .authorAvatarURL)
     }
     
     // Computed property for backward compatibility
@@ -396,32 +288,14 @@ struct Comment: Identifiable, Codable {
         get { createdAt }
         set { createdAt = newValue }
     }
-    
-    // Check if a user liked this comment
-    func isLikedBy(supabaseUserId: String) -> Bool {
-        likedByUserIds.contains(supabaseUserId)
-    }
-    
-    // Check if this is a top-level comment
-    var isTopLevel: Bool {
-        parentCommentId == nil
-    }
-    
-    // Get count of all replies (including nested)
-    var totalReplyCount: Int {
-        replies.count + replies.reduce(0) { $0 + $1.totalReplyCount }
-    }
 }
 
 struct Mention: Identifiable, Codable {
     let id: UUID
     var username: String
-    var displayName: String  // Display name shown to users
     
-    init(id: UUID = UUID(), username: String, displayName: String? = nil) {
+    init(id: UUID = UUID(), username: String) {
         self.id = id
         self.username = username
-        self.displayName = displayName ?? username
     }
 }
-

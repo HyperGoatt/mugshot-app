@@ -2,1273 +2,1202 @@
 //  ProfileTabView.swift
 //  testMugshot
 //
-//  Redesigned profile with compact header and Instagram-style grid
+//  Created by Joseph Rosso on 11/14/25.
 //
 
 import SwiftUI
 import PhotosUI
-import UIKit
 
-struct ProfileTabView: View {
+private struct LegacyProfileTabView: View {
     @ObservedObject var dataManager: DataManager
-    @ObservedObject var tabCoordinator: TabCoordinator
-    @EnvironmentObject private var profileNavigator: ProfileNavigator
-    @EnvironmentObject private var hapticsManager: HapticsManager
-    @State private var selectedTab: ProfileContentTab = .posts
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var selectedTab: ProfileContentTab = .recent
     @State private var showEditProfile = false
-    @State private var showShareSheet = false
-    @State private var showNotifications = false
-    @State private var showFriendsHub = false
-    @State private var selectedVisit: Visit?
-    @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
-    @State private var pendingFriendRequestCount: Int = 0
-    
-    private var unreadNotificationCount: Int {
-        dataManager.appData.notifications.filter { !$0.isRead }.count
-    }
-    
+    @State private var showSettings = false
+    @State private var remoteProfileVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteProfileStats = false
+    @State private var remoteProfileStatsError: String?
+
     enum ProfileContentTab: String, CaseIterable {
-        case posts = "Posts"
-        case cafes = "Cafes"
-        case journal = "Journal"
-    }
-    
-    // MARK: - User Data Properties
-    
-    private var displayName: String? { dataManager.appData.currentUserDisplayName }
-    private var username: String? { dataManager.appData.currentUserUsername }
-    private var bio: String? { dataManager.appData.currentUserBio }
-    private var location: String? { dataManager.appData.currentUserLocation }
-    private var favoriteDrink: String? { dataManager.appData.currentUserFavoriteDrink }
-    private var instagramHandle: String? { dataManager.appData.currentUserInstagramHandle }
-    private var website: String? { dataManager.appData.currentUserWebsite }
-    private var profileImageId: String? { dataManager.appData.currentUserProfileImageId }
-    private var bannerImageId: String? { dataManager.appData.currentUserBannerImageId }
-    private var avatarURL: String? { dataManager.appData.currentUserAvatarURL }
-    private var bannerURL: String? { dataManager.appData.currentUserBannerURL }
-    
-    private var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?) {
-        dataManager.getUserStats()
-    }
-    
-    private var friendsCount: Int {
-        dataManager.appData.friendsSupabaseUserIds.count
-    }
-    
-    private var topCafe: (name: String, rating: Double)? {
-        guard let favorite = dataManager.getFavoriteCafe() else { return nil }
-        return (name: favorite.cafe.name, rating: favorite.avgScore)
-    }
-    
-    private var userVisits: [Visit] {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return [] }
-        return dataManager.appData.visits
-            .filter { $0.userId == currentUserId }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-    
-    var body: some View {
-        NavigationStack {
-        ScrollView {
-            VStack(spacing: 0) {
-                    // MARK: - Profile Header Section
-                    profileHeaderSection
-                    
-                    // MARK: - Bio Section
-                    ProfileBioSection(
-                        bio: bio,
-                        location: location,
-                        favoriteDrink: favoriteDrink
-                    )
-                    .padding(.top, DS.Spacing.sm)
-                    
-                    // MARK: - Action Buttons
-                    ProfileActionRow(
-                        onEditProfile: { showEditProfile = true },
-                        onShareProfile: { showShareSheet = true }
-                    )
-                    .padding(.top, DS.Spacing.md)
-                    
-                    // MARK: - Social Row
-                    ProfileSocialRow(
-                        friendsCount: friendsCount,
-                        mutualFriendsCount: nil,
-                        instagramHandle: instagramHandle,
-                        websiteURL: website,
-                        onFriendsTap: { showFriendsHub = true }
-                    )
-                    .padding(.top, DS.Spacing.md)
-                    
-                    // MARK: - Stats Ribbon
-                    CoffeeStatsRibbon(
-                        totalVisits: stats.totalVisits,
-                        totalCafes: stats.totalCafes,
-                        averageRating: stats.averageScore,
-                        favoriteDrinkType: stats.favoriteDrinkType?.rawValue,
-                        topCafe: topCafe,
-                        onTopCafeTap: {
-                        if let favorite = dataManager.getFavoriteCafe() {
-                                selectedCafe = favorite.cafe
-                                showCafeDetail = true
-                            }
-                        }
-                    )
-                    .padding(.top, DS.Spacing.lg)
-                    
-                    // MARK: - Content Tabs
-                    contentTabsSection
-                    
-                    // MARK: - Developer Tools (Debug only, currently hidden)
-                    #if DEBUG
-                    // developerToolsSection
-                    #endif
-                }
-                .padding(.bottom, DS.Spacing.xxl * 2)
-        }
-        .background(DS.Colors.screenBackground)
-            .navigationDestination(item: $selectedVisit) { visit in
-                VisitDetailView(dataManager: dataManager, visit: visit)
-            }
-        .sheet(isPresented: $showEditProfile) {
-            let user = User(
-                username: username ?? "user",
-                displayName: displayName,
-                location: location ?? "",
-                profileImageID: profileImageId,
-                bannerImageID: bannerImageId,
-                bio: bio ?? "",
-                instagramURL: instagramHandle,
-                websiteURL: website,
-                favoriteDrink: favoriteDrink
-            )
-            EditProfileView(user: user, dataManager: dataManager)
-        }
-        .sheet(isPresented: $showShareSheet) {
-            if let username = username {
-                ShareSheet(items: [createShareText(username: username)])
-            }
-        }
-            .sheet(isPresented: $showCafeDetail) {
-                if let cafe = selectedCafe {
-                    UnifiedCafeView(
-                        cafe: cafe,
-                        dataManager: dataManager,
-                        presentationMode: .fullScreen
-                    )
-                }
-            }
-            .sheet(isPresented: $showFriendsHub) {
-                FriendsHubView(dataManager: dataManager)
-            }
-        .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button(action: { showFriendsHub = true }) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(DS.Colors.iconDefault)
-                        
-                        if pendingFriendRequestCount > 0 {
-                            Text("\(pendingFriendRequestCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(4)
-                                .background(Circle().fill(DS.Colors.redAccent))
-                                .offset(x: 8, y: -8)
-                        }
-                    }
-                }
-                
-                Button(action: { showNotifications = true }) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 20))
-                            .foregroundColor(DS.Colors.iconDefault)
-                        
-                        if unreadNotificationCount > 0 {
-                            Text("\(unreadNotificationCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(DS.Colors.textOnMint)
-                                .padding(4)
-                                    .background(Circle().fill(DS.Colors.primaryAccent))
-                                .offset(x: 8, y: -8)
-                        }
-                    }
-                }
-                    
-                    Button(action: { showEditProfile = true }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 20))
-                            .foregroundColor(DS.Colors.iconDefault)
-                    }
-            }
-        }
-        .sheet(isPresented: $showNotifications) {
-            NotificationsCenterView(dataManager: dataManager)
-        }
-        .task {
-            do {
-                try await dataManager.refreshProfileVisits()
-            } catch {
-                print("[ProfileTabView] Error refreshing profile visits: \(error.localizedDescription)")
-            }
-            // Refresh friends list to get accurate count
-            await dataManager.refreshFriendsList()
-            // Fetch pending friend request count
-            await refreshPendingFriendRequestCount()
-        }
-        .onChange(of: showFriendsHub) { _, isShowing in
-            // Refresh badge when returning from Friends hub
-            if !isShowing {
-                Task {
-                    await refreshPendingFriendRequestCount()
-                }
-            }
-        }
-        .onChange(of: tabCoordinator.navigationTarget) { _, newTarget in
-            handleNavigationTarget(newTarget)
-        }
-        .onAppear {
-            handleNavigationTarget(tabCoordinator.navigationTarget)
-        }
-        }
-    }
-    
-    // MARK: - Friend Request Badge
-    
-    private func refreshPendingFriendRequestCount() async {
-        let count = await dataManager.getIncomingFriendRequestCount()
-        await MainActor.run {
-            pendingFriendRequestCount = count
-        }
-        print("[ProfileTabView] Pending friend request count: \(count)")
-    }
-
-    private func handleNavigationTarget(_ target: TabCoordinator.NavigationTarget?) {
-        guard let target else { return }
-        
-        switch target {
-        case .friendRequests, .friendsHub:
-            print("[ProfileTabView] Deep link navigation to Friends Hub")
-            showFriendsHub = true
-            tabCoordinator.clearNavigationTarget()
-        case .friendProfile(let userId):
-            profileNavigator.openProfile(
-                handle: .supabase(id: userId),
-                source: .notifications,
-                triggerHaptic: false
-            )
-            tabCoordinator.clearNavigationTarget()
-        default:
-            break
-        }
-    }
-    
-    // MARK: - Profile Header Section
-    
-    private var profileHeaderSection: some View {
-        ProfileCompactHeader(
-            displayName: displayName,
-            username: username,
-            bio: bio,
-            location: location,
-            favoriteDrink: favoriteDrink,
-            profileImageURL: avatarURL,
-            bannerImageURL: bannerURL,
-            profileImageId: profileImageId,
-            bannerImageId: bannerImageId
-        )
-    }
-    
-    // MARK: - Content Tabs Section
-    
-    private var contentTabsSection: some View {
-        VStack(spacing: 0) {
-            // Tab selector
-            DSDesignSegmentedControl(
-                options: ProfileContentTab.allCases.map { $0.rawValue },
-                selectedIndex: Binding(
-                    get: { ProfileContentTab.allCases.firstIndex(of: selectedTab) ?? 0 },
-                    set: { newIndex in
-                        let newTab = ProfileContentTab.allCases[newIndex]
-                        if newTab != selectedTab {
-                            hapticsManager.selectionChanged()
-                        }
-                        selectedTab = newTab
-                    }
-                )
-            )
-            .padding(.horizontal, DS.Spacing.pagePadding)
-            .padding(.top, DS.Spacing.lg)
-            .padding(.bottom, DS.Spacing.md)
-            
-            // Tab content
-            contentView
-            }
-    }
-    
-    @ViewBuilder
-    private var contentView: some View {
-        if dataManager.isBootstrapping && userVisits.isEmpty {
-            VStack(spacing: DS.Spacing.lg) {
-                ForEach(0..<3) { _ in
-                    DSCardSkeleton()
-                }
-            }
-            .padding(.horizontal, DS.Spacing.pagePadding)
-        } else {
-            switch selectedTab {
-            case .posts:
-                ProfilePostsGrid(
-                    visits: userVisits,
-                    onSelectVisit: { visit in
-                        hapticsManager.lightTap()
-                        selectedVisit = visit
-                    }
-                )
-                .padding(.horizontal, 1) // Small padding for grid edges
-            
-            case .cafes:
-                ProfileCafesView(dataManager: dataManager)
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-            
-            case .journal:
-                ProfileJournalView(dataManager: dataManager)
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-            }
-        }
-    }
-    
-    // MARK: - Developer Tools Section
-    
-    #if DEBUG
-    private var developerToolsSection: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("🛠 Developer Tools")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                
-                // Search Mode segmented control
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text("Search Mode")
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                    
-                    Text(dataManager.appData.mapSearchMode.displayName)
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                    
-                    let modes = Array(MapSearchMode.allCases)
-                    DSDesignSegmentedControl(
-                        options: modes.map { $0.displayName },
-                        selectedIndex: Binding(
-                            get: {
-                                modes.firstIndex(of: dataManager.appData.mapSearchMode) ?? 0
-                            },
-                            set: { newIndex in
-                                guard newIndex >= 0 && newIndex < modes.count else { return }
-                                let newMode = modes[newIndex]
-                                if newMode != dataManager.appData.mapSearchMode {
-                                    hapticsManager.selectionChanged()
-                                    dataManager.setMapSearchMode(newMode)
-                                }
-                            }
-                        )
-                    )
-                }
-                
-                Divider()
-                    .background(DS.Colors.dividerSubtle)
-                
-                // Post Flow Style Toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Post Flow Style")
-                            .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        Text(dataManager.appData.useOnboardingStylePostFlow ? "Onboarding-style (new)" : "Classic (current)")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                            Spacer()
-                    
-                                Button(action: {
-                        dataManager.togglePostFlowStyle()
-                    }) {
-                        Text("Toggle")
-                            .font(DS.Typography.buttonLabel)
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .padding(.horizontal, DS.Spacing.md)
-                            .padding(.vertical, DS.Spacing.sm)
-                            .background(DS.Colors.primaryAccent)
-                                        .cornerRadius(DS.Radius.lg)
-                    }
-                }
-                
-                Divider()
-                    .background(DS.Colors.dividerSubtle)
-                
-                // Sip Squad Simplified Style Toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Sip Squad Style")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        Text(dataManager.appData.useSipSquadSimplifiedStyle ? "Simplified (mint pins, no legend)" : "Standard (color-coded, with legend)")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        hapticsManager.lightTap()
-                        dataManager.toggleSipSquadSimplifiedStyle()
-                    }) {
-                        Text("Toggle")
-                            .font(DS.Typography.buttonLabel)
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .padding(.horizontal, DS.Spacing.md)
-                            .padding(.vertical, DS.Spacing.sm)
-                            .background(DS.Colors.primaryAccent)
-                            .cornerRadius(DS.Radius.lg)
-                    }
-                }
-                
-                Divider()
-                    .background(DS.Colors.dividerSubtle)
-                
-                // Force Onboarding Button
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Force Onboarding")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textPrimary)
-                        Text("Reset onboarding state to trigger full flow")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        hapticsManager.mediumTap()
-                        dataManager.resetOnboardingState()
-                    }) {
-                        Text("Reset")
-                            .font(DS.Typography.buttonLabel)
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .padding(.horizontal, DS.Spacing.md)
-                            .padding(.vertical, DS.Spacing.sm)
-                            .background(DS.Colors.primaryAccent)
-                            .cornerRadius(DS.Radius.lg)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.top, DS.Spacing.lg)
-    }
-    #endif
-    
-    private func createShareText(username: String) -> String {
-        "Check out my Mugshot profile: @\(username)"
-    }
-}
-
-// MARK: - Profile Cafes View
-
-struct ProfileCafesView: View {
-    @ObservedObject var dataManager: DataManager
-    @EnvironmentObject var tabCoordinator: TabCoordinator
-    @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
-    
-    private var topCafes: [(cafe: Cafe, visitCount: Int, avgScore: Double)] {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return [] }
-        
-        let userVisits = dataManager.appData.visits.filter { $0.userId == currentUserId }
-        let visitsByCafe = Dictionary(grouping: userVisits, by: { $0.cafeId })
-        
-        var cafeStats: [(cafe: Cafe, visitCount: Int, avgScore: Double)] = []
-        for (cafeId, visits) in visitsByCafe {
-            guard let cafe = dataManager.getCafe(id: cafeId) else { continue }
-            let avgScore = visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
-            cafeStats.append((cafe: cafe, visitCount: visits.count, avgScore: avgScore))
-        }
-        
-        return cafeStats.sorted {
-            if $0.avgScore == $1.avgScore {
-                return $0.visitCount > $1.visitCount
-            }
-            return $0.avgScore > $1.avgScore
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            if topCafes.isEmpty {
-                emptyState
-            } else {
-                ForEach(topCafes, id: \.cafe.id) { item in
-                    CafeListItem(
-                        cafe: item.cafe,
-                        visitCount: item.visitCount,
-                        avgScore: item.avgScore,
-                        dataManager: dataManager,
-                        onTap: {
-                            selectedCafe = item.cafe
-                            showCafeDetail = true
-                        }
-                    )
-                }
-            }
-        }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
-                UnifiedCafeView(
-                    cafe: cafe,
-                    dataManager: dataManager,
-                    presentationMode: .fullScreen
-                )
-            }
-        }
-    }
-    
-    private var emptyState: some View {
-        VStack(spacing: DS.Spacing.md) {
-            Image(systemName: "cup.and.saucer")
-                .font(.system(size: 40))
-                .foregroundColor(DS.Colors.iconSubtle)
-            
-            Text("No cafes yet")
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textSecondary)
-            
-            Text("Visit your first cafe to start tracking")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
-                .multilineTextAlignment(.center)
-            
-            Button(action: {
-                tabCoordinator.switchToMap()
-            }) {
-                Text("Find a Cafe")
-                    .font(DS.Typography.buttonLabel)
-                    .foregroundColor(DS.Colors.textOnMint)
-                    .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.vertical, DS.Spacing.md)
-                    .background(DS.Colors.primaryAccent)
-                    .cornerRadius(DS.Radius.lg)
-            }
-            .padding(.top, DS.Spacing.md)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DS.Spacing.xxl * 2)
-    }
-}
-
-// MARK: - Cafe List Item
-
-struct CafeListItem: View {
-    let cafe: Cafe
-    let visitCount: Int
-    let avgScore: Double
-    @ObservedObject var dataManager: DataManager
-    let onTap: () -> Void
-    
-    private var featuredVisit: Visit? {
-        let visits = dataManager.getVisitsForCafe(cafe.id)
-        return visits.sorted { $0.createdAt > $1.createdAt }.first
-    }
-    
-    private var cafeImagePath: String? {
-        featuredVisit?.posterImagePath
-    }
-    
-    private var cafeImageRemoteURL: String? {
-        guard let visit = featuredVisit,
-              let key = visit.posterImagePath else { return nil }
-        return visit.remoteURL(for: key)
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DS.Spacing.md) {
-                // Cafe image
-                    if let imagePath = cafeImagePath {
-                        PhotoThumbnailView(
-                            photoPath: imagePath,
-                            remoteURL: cafeImageRemoteURL,
-                        size: 64
-                        )
-                    } else {
-                        RoundedRectangle(cornerRadius: DS.Radius.md)
-                            .fill(DS.Colors.cardBackgroundAlt)
-                        .frame(width: 64, height: 64)
-                            .overlay(
-                            Image(systemName: "cup.and.saucer.fill")
-                                    .foregroundColor(DS.Colors.iconSubtle)
-                            )
-                    }
-                    
-                // Cafe info
-                VStack(alignment: .leading, spacing: 4) {
-                        Text(cafe.name)
-                        .font(DS.Typography.headline())
-                            .foregroundColor(DS.Colors.textPrimary)
-                        .lineLimit(1)
-                        
-                        if !cafe.address.isEmpty {
-                            Text(cafe.address)
-                                .font(DS.Typography.caption1())
-                                .foregroundColor(DS.Colors.textSecondary)
-                                .lineLimit(1)
-                        }
-                        
-                    HStack(spacing: DS.Spacing.sm) {
-                            DSScoreBadge(score: avgScore)
-                        
-                        Text("•")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textTertiary)
-                        
-                        Text("\(visitCount) \(visitCount == 1 ? "visit" : "visits")")
-                                .font(DS.Typography.caption1())
-                                .foregroundColor(DS.Colors.textSecondary)
-                        }
-                    }
-                    
-                    Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(DS.Colors.iconSubtle)
-            }
-            .padding(DS.Spacing.md)
-            .background(DS.Colors.cardBackground)
-            .cornerRadius(DS.Radius.lg)
-            .shadow(
-                color: DS.Shadow.cardSoft.color,
-                radius: DS.Shadow.cardSoft.radius / 2,
-                x: DS.Shadow.cardSoft.x,
-                y: DS.Shadow.cardSoft.y / 2
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Profile Saved View
-
-struct ProfileSavedView: View {
-    @ObservedObject var dataManager: DataManager
-    @EnvironmentObject var tabCoordinator: TabCoordinator
-    @State private var selectedSegment: SavedSegment = .favorites
-    @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
-    
-    enum SavedSegment: String, CaseIterable {
+        case recent = "Recent"
+        case topCafes = "Top Cafes"
         case favorites = "Favorites"
         case wishlist = "Wishlist"
     }
-    
-    private var favorites: [Cafe] {
-        dataManager.appData.cafes.filter { $0.isFavorite }
+
+    var user: User? {
+        dataManager.appData.currentUser
     }
-    
-    private var wishlist: [Cafe] {
-        dataManager.appData.cafes.filter { $0.wantToTry }
+
+    var stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?) {
+        dataManager.getUserStats()
     }
-    
-    var body: some View {
-        VStack(spacing: DS.Spacing.md) {
-            // Segment toggle
-            HStack(spacing: 0) {
-                ForEach(SavedSegment.allCases, id: \.self) { segment in
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedSegment = segment
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: segment == .favorites ? "heart.fill" : "bookmark.fill")
-                                .font(.system(size: 12))
-                            Text(segment.rawValue)
-                                .font(DS.Typography.subheadline(.medium))
-                        }
-                        .foregroundColor(selectedSegment == segment ? DS.Colors.textPrimary : DS.Colors.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(
-                            selectedSegment == segment
-                                ? DS.Colors.cardBackground
-                                : Color.clear
-                        )
-                        .cornerRadius(DS.Radius.md)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(4)
-            .background(DS.Colors.cardBackgroundAlt)
-            .cornerRadius(DS.Radius.lg)
-            
-            // Content
-            if selectedSegment == .favorites {
-                savedCafesList(cafes: favorites, emptyMessage: "No favorite cafes yet", emptyIcon: "heart")
-            } else {
-                savedCafesList(cafes: wishlist, emptyMessage: "No cafes on your wishlist", emptyIcon: "bookmark")
-            }
+
+    private var displayedStats: ProfileStatsDisplay {
+        if authModel.authenticatedUser != nil {
+            return ProfileStatsDisplay(remote: RemoteProfileStats.calculate(from: remoteProfileVisits))
         }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
-                UnifiedCafeView(
-                    cafe: cafe,
-                    dataManager: dataManager,
-                    presentationMode: .fullScreen
+
+        return ProfileStatsDisplay(
+            totalVisits: stats.totalVisits,
+            totalCafes: stats.totalCafes,
+            averageScore: stats.averageScore,
+            favoriteDrinkLabel: stats.favoriteDrinkType?.rawValue
+        )
+    }
+
+    private var topCafeName: String? {
+        if authModel.authenticatedUser != nil {
+            return consumerProfileLabel(RemoteProfileStats.calculate(from: remoteProfileVisits).topCafes.first?.cafe.name)
+        }
+
+        let topLocalCafe = dataManager.appData.cafes
+            .filter { $0.averageRating > 0 || $0.visitCount > 0 }
+            .sorted {
+                if abs($0.averageRating - $1.averageRating) < 0.0001 {
+                    return $0.visitCount > $1.visitCount
+                }
+                return $0.averageRating > $1.averageRating
+            }
+            .first?.name
+
+        return consumerProfileLabel(topLocalCafe)
+    }
+
+    private var tasteMix: [TastePattern] {
+        let names: [String]
+        if authModel.authenticatedUser != nil {
+            names = remoteProfileVisits.map {
+                $0.visit.drinkCategoryDisplayName ?? $0.visit.drinkDisplayName
+            }
+        } else {
+            names = dataManager.appData.visits.map { $0.drinkType.rawValue }
+        }
+
+        guard !names.isEmpty else { return [] }
+
+        let counts = Dictionary(grouping: names, by: { $0 }).mapValues(\.count)
+        return counts
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .prefix(3)
+            .map { name, count in
+                TastePattern(
+                    name: name,
+                    icon: tasteIcon(for: name),
+                    fraction: Double(count) / Double(names.count)
                 )
             }
+    }
+
+    private var homeExperimentCount: Int {
+        if authModel.authenticatedUser != nil {
+            return remoteProfileVisits.filter { $0.visit.journalContext != .cafe }.count
         }
+        return dataManager.appData.visits.filter { $0.context != .cafe }.count
     }
-    
-    @ViewBuilder
-    private func savedCafesList(cafes: [Cafe], emptyMessage: String, emptyIcon: String) -> some View {
-        if cafes.isEmpty {
-            VStack(spacing: DS.Spacing.md) {
-                Image(systemName: emptyIcon)
-                    .font(.system(size: 40))
-                    .foregroundColor(DS.Colors.iconSubtle)
-                
-                Text(emptyMessage)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                
-                Button(action: {
-                    tabCoordinator.switchToMap()
-                }) {
-                    Text("Find a Cafe")
-                        .font(DS.Typography.buttonLabel)
-                        .foregroundColor(DS.Colors.primaryAccent)
-                        .padding(.horizontal, DS.Spacing.lg)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(DS.Colors.primaryAccentSoftFill)
-                        .cornerRadius(DS.Radius.lg)
-                }
-                .padding(.top, DS.Spacing.sm)
-                }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DS.Spacing.xxl * 2)
-            } else {
-            ForEach(cafes) { cafe in
-                SavedCafeListItem(
-                        cafe: cafe,
-                        dataManager: dataManager,
-                    onTap: {
-                            selectedCafe = cafe
-                            showCafeDetail = true
-                        }
-                    )
-            }
-        }
-    }
-}
 
-// MARK: - Saved Cafe List Item
-
-struct SavedCafeListItem: View {
-    let cafe: Cafe
-    @ObservedObject var dataManager: DataManager
-    let onTap: () -> Void
-    
-    private var visitCount: Int {
-        dataManager.getVisitsForCafe(cafe.id).count
-    }
-    
-    private var featuredVisit: Visit? {
-        dataManager.getVisitsForCafe(cafe.id).first
-    }
-    
-    private var cafeImagePath: String? {
-        featuredVisit?.posterImagePath
-    }
-    
-    private var cafeImageRemoteURL: String? {
-        guard let visit = featuredVisit,
-              let key = visit.posterImagePath else { return nil }
-        return visit.remoteURL(for: key)
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DS.Spacing.md) {
-                // Cafe image
-                if let imagePath = cafeImagePath {
-                    PhotoThumbnailView(
-                        photoPath: imagePath,
-                        remoteURL: cafeImageRemoteURL,
-                        size: 56
-                    )
-                } else {
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .fill(DS.Colors.cardBackgroundAlt)
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Image(systemName: "cup.and.saucer.fill")
-                                .foregroundColor(DS.Colors.iconSubtle)
-                        )
-                }
-                
-                // Cafe info
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(cafe.name)
-                        .font(DS.Typography.headline())
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .lineLimit(1)
-                    
-                    if visitCount > 0 {
-                        Text("\(visitCount) \(visitCount == 1 ? "visit" : "visits")")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                    } else {
-                        Text("Not visited yet")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textTertiary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Status indicators
-                HStack(spacing: DS.Spacing.sm) {
-                    if cafe.isFavorite {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(DS.Colors.redAccent)
-                    }
-                    
-                    if cafe.wantToTry {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(DS.Colors.primaryAccent)
-                    }
-                }
-            }
-            .padding(DS.Spacing.md)
-            .background(DS.Colors.cardBackground)
-            .cornerRadius(DS.Radius.lg)
-            .shadow(
-                color: DS.Shadow.cardSoft.color,
-                radius: DS.Shadow.cardSoft.radius / 2,
-                x: DS.Shadow.cardSoft.x,
-                y: DS.Shadow.cardSoft.y / 2
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Edit Profile View
-
-struct EditProfileView: View {
-    @Environment(\.dismiss) var dismiss
-    @ObservedObject var dataManager: DataManager
-    @EnvironmentObject private var hapticsManager: HapticsManager
-    @State private var editableUser: User
-    @State private var showingProfileImagePicker = false
-    @State private var showingBannerImagePicker = false
-    @State private var selectedProfileImage: PhotosPickerItem?
-    @State private var selectedBannerImage: PhotosPickerItem?
-    @State private var showLogoutAlert = false
-    @State private var showDeleteAlert = false
-    
-    private var remoteAvatarURL: String? {
-        dataManager.appData.currentUserAvatarURL
-    }
-    
-    private var remoteBannerURL: String? {
-        dataManager.appData.currentUserBannerURL
-    }
-    
-    init(user: User, dataManager: DataManager) {
-        self._editableUser = State(initialValue: user)
-        self.dataManager = dataManager
-    }
-    
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: DS.Spacing.sectionVerticalGap) {
-                    // Banner Image Section
-                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        DSSectionHeader("Banner Image")
-                        
-                        Button(action: { showingBannerImagePicker = true }) {
-                            ZStack {
-                                if let bannerID = editableUser.bannerImageID,
-                                   let image = PhotoCache.shared.retrieve(forKey: bannerID) {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(height: 150)
-                                        .cornerRadius(DS.Radius.lg)
-                                        .clipped()
-                                } else if let remoteURL = remoteBannerURL,
-                                          let url = URL(string: remoteURL) {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(height: 150)
-                                                .cornerRadius(DS.Radius.lg)
-                                                .clipped()
-                                        default:
-                                            bannerPlaceholder
-                                        }
-                                    }
-                                } else {
-                                    bannerPlaceholder
-                                }
-                            }
+                VStack(spacing: 18) {
+                    MugshotScreenHeader("Profile") {
+                        MugshotIconButton(systemName: "gearshape", size: 36) {
+                            showSettings = true
                         }
-                        .buttonStyle(.plain)
+                        .accessibilityLabel("Settings")
                     }
-                    
-                    // Profile Image Section
-                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        DSSectionHeader("Profile Picture")
-                        
-                        Button(action: { showingProfileImagePicker = true }) {
-                            HStack(spacing: DS.Spacing.lg) {
-                                profileImageView
-                                
-                                Text("Tap to change")
-                                                            .font(DS.Typography.bodyText)
-                                                            .foregroundColor(DS.Colors.textSecondary)
-                                
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
+
+                    profileIdentity
+
+                    statsStrip
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Taste identity")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        CoffeeJourneyView(
+                            stats: displayedStats,
+                            tasteMix: tasteMix,
+                            topCafeName: topCafeName,
+                            homeExperimentCount: homeExperimentCount
+                        )
                     }
-                    
-                    // Form Fields
-                    formFieldsSection
-                    
-                    // Logout Button
-                    Button(action: { showLogoutAlert = true }) {
-                        HStack {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .font(.system(size: 16))
-                            Text("Log Out")
-                                .font(DS.Typography.buttonLabel)
-                        }
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.md)
-                        .background(DS.Colors.cardBackgroundAlt)
-                        .cornerRadius(DS.Radius.lg)
-                    }
-                    .padding(.top, DS.Spacing.lg)
-                    
-                    // Delete Account Button
-                    Button(role: .destructive, action: { showDeleteAlert = true }) {
-                        HStack {
-                            Image(systemName: "trash")
-                                .font(.system(size: 16))
-                            Text("Delete Account")
-                                .font(DS.Typography.buttonLabel)
-                        }
-                        .foregroundColor(DS.Colors.negativeChange)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DS.Spacing.md)
-                        .background(DS.Colors.cardBackgroundAlt)
-                        .cornerRadius(DS.Radius.lg)
-                    }
-                    .padding(.top, DS.Spacing.md)
-                    
-                    // Legal Links
-                    VStack(spacing: DS.Spacing.sm) {
-                        if let privacyURL = URL(string: AppConfig.privacyPolicyURLString) {
-                            Link("Privacy Policy", destination: privacyURL)
-                        }
-                        Link(
-                            "Terms of Service (EULA)",
-                            destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-                        ) // Standard Apple EULA
-                    }
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .padding(.top, DS.Spacing.lg)
-                    .padding(.bottom, DS.Spacing.xl)
+                    .padding(16)
+                    .cardStyle()
+                    .padding(.horizontal, 16)
+
+                    MugshotSegmentedControl(
+                        options: ProfileContentTab.allCases,
+                        selection: $selectedTab,
+                        title: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 16)
+
+                    contentView
+                        .padding(.horizontal, 16)
+
+                    Text("Sip. Save. Share.")
+                        .mugshotDisplay(size: 15)
+                        .foregroundColor(.mugshotLatte)
+                        .padding(.bottom, 120)
                 }
-                .padding(DS.Spacing.pagePadding)
             }
-            .background(DS.Colors.screenBackground)
-            .navigationTitle("Edit Profile")
+            .background(Color.creamWhite)
+            .sheet(isPresented: $showEditProfile) {
+                if let profile = authModel.profile {
+                    EditProfileView(profile: profile, dataManager: dataManager)
+                        .environmentObject(authModel)
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView(dataManager: dataManager)
+                    .environmentObject(authModel)
+            }
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+                await loadRemoteProfileStats()
+            }
+        }
+    }
+
+    private var profileIdentity: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 138)
+
+                MugshotAvatar(
+                    name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                    size: 88,
+                    imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                )
+                .offset(y: 44)
+            }
+
+            VStack(spacing: 10) {
+                VStack(spacing: 3) {
+                    Text(user?.displayName?.isEmpty == false ? user?.displayName ?? "" : user?.username ?? "user")
+                        .mugshotDisplay(size: 24)
+                        .foregroundColor(.espressoBrown)
+
+                    Text("@\(user?.username ?? "user")\(user?.location.isEmpty == false ? " · \(user?.location ?? "")" : "")")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                }
+
+                if let bio = user?.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+
+                HStack(spacing: 6) {
+                    MugshotTagChip(title: displayedStats.favoriteDrinkLabel?.lowercased() ?? "daily ritual", icon: "leaf.fill")
+                    MugshotTagChip(title: topCafeName ?? "taste explorer", icon: "sparkles")
+                }
+
+                if authModel.profile != nil {
+                    Button {
+                        authModel.clearProfileUpdateError()
+                        showEditProfile = true
+                    } label: {
+                        Label("Edit profile", systemImage: "pencil")
+                            .frame(maxWidth: 150)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .padding(.top, 2)
+                }
+            }
+            .padding(.top, 52)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.07), radius: 16, x: 0, y: 8)
+        .padding(.horizontal, 16)
+    }
+
+    private var statsStrip: some View {
+        HStack(spacing: 8) {
+            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
+            MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
+            MugshotStatPill(
+                icon: "star.fill",
+                value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
+                label: "Avg"
+            )
+            MugshotStatPill(icon: "house.fill", value: "\(homeExperimentCount)", label: "Home")
+        }
+        .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        switch selectedTab {
+        case .recent:
+            RecentVisitsView(dataManager: dataManager)
+                .environmentObject(authModel)
+        case .topCafes:
+            TopCafesView(
+                dataManager: dataManager,
+                remoteStats: authModel.authenticatedUser == nil ? nil : RemoteProfileStats.calculate(from: remoteProfileVisits)
+            )
+        case .favorites:
+            FavoritesView(dataManager: dataManager)
+        case .wishlist:
+            WishlistView(dataManager: dataManager)
+        }
+    }
+
+    @MainActor
+    private func loadRemoteProfileStats() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteProfileVisits = []
+            remoteProfileStatsError = nil
+            isLoadingRemoteProfileStats = false
+            return
+        }
+
+        isLoadingRemoteProfileStats = true
+        remoteProfileStatsError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            remoteProfileVisits = try await service.fetchRecentVisits(
+                userId: userId,
+                limit: 100,
+                includeSocialState: false
+            )
+            isLoadingRemoteProfileStats = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            remoteProfileStatsError = MugshotUserFacingError.message(for: error, context: .loading)
+            isLoadingRemoteProfileStats = false
+        }
+    }
+
+    private func tasteIcon(for name: String) -> String {
+        let lowercased = name.lowercased()
+        if lowercased.contains("matcha") || lowercased.contains("tea") {
+            return "leaf.fill"
+        }
+        if lowercased.contains("chai") {
+            return "sparkles"
+        }
+        if lowercased.contains("chocolate") {
+            return "takeoutbag.and.cup.and.straw.fill"
+        }
+        return "cup.and.saucer.fill"
+    }
+
+    private func consumerProfileLabel(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        let lowercased = trimmed.lowercased()
+        guard !lowercased.contains("smoke"),
+              !lowercased.contains("codex") else {
+            return nil
+        }
+
+        return trimmed
+    }
+
+}
+
+struct TastePattern: Equatable {
+    let name: String
+    let icon: String
+    let fraction: Double
+}
+
+struct ProfileStatsDisplay: Equatable {
+    let totalVisits: Int
+    let totalCafes: Int
+    let averageScore: Double
+    let favoriteDrinkLabel: String?
+
+    init(
+        totalVisits: Int,
+        totalCafes: Int,
+        averageScore: Double,
+        favoriteDrinkLabel: String?
+    ) {
+        self.totalVisits = totalVisits
+        self.totalCafes = totalCafes
+        self.averageScore = averageScore
+        self.favoriteDrinkLabel = favoriteDrinkLabel
+    }
+
+    init(remote: RemoteProfileStats) {
+        self.init(
+            totalVisits: remote.totalVisits,
+            totalCafes: remote.totalCafes,
+            averageScore: remote.averageScore,
+            favoriteDrinkLabel: remote.favoriteDrinkLabel
+        )
+    }
+}
+
+struct EditProfileView: View {
+    let profile: SupabaseUserProfile
+    @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var displayName: String
+    @State private var username: String
+    @State private var bio: String
+    @State private var location: String
+    @State private var favoriteDrink: String
+    @State private var instagramHandle: String
+    @State private var websiteURL: String
+    @State private var selectedAvatarItem: PhotosPickerItem?
+
+    init(profile: SupabaseUserProfile, dataManager: DataManager) {
+        self.profile = profile
+        self.dataManager = dataManager
+        _displayName = State(initialValue: profile.displayName)
+        _username = State(initialValue: profile.username)
+        _bio = State(initialValue: profile.bio ?? "")
+        _location = State(initialValue: profile.location ?? "")
+        _favoriteDrink = State(initialValue: profile.favoriteDrink ?? "")
+        _instagramHandle = State(initialValue: profile.instagramHandle ?? "")
+        _websiteURL = State(initialValue: profile.websiteURL ?? "")
+    }
+
+    private var normalizedUsername: String {
+        username
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+    }
+
+    private var displayNameIsValid: Bool {
+        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var usernameIsValid: Bool {
+        normalizedUsername.count >= 3
+    }
+
+    private var canSave: Bool {
+        displayNameIsValid && usernameIsValid && !authModel.isUpdatingProfile
+    }
+
+    var body: some View {
+        let currentAvatarURL = authModel.profile?.avatarURL ?? profile.avatarURL
+        let isUpdatingAvatar = authModel.isUpdatingProfile
+
+        return NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    MugshotSectionTitle(
+                        title: "Profile details",
+                        subtitle: "Keep this warm and useful. It appears alongside your sips."
+                    )
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Profile photo")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                            HStack(spacing: 12) {
+                                MugshotAvatar(
+                                    name: displayName,
+                                    size: 54,
+                                    imageURL: currentAvatarURL
+                                )
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(isUpdatingAvatar ? "Updating photo…" : "Change profile photo")
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Text("A square crop keeps your identity clear everywhere.")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.tertiaryText)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.tertiaryText)
+                            }
+                            .padding(12)
+                            .background(Color.sandBeige.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(authModel.isUpdatingProfile)
+                    }
+
+                    profileField(
+                        title: "Display Name",
+                        text: $displayName,
+                        placeholder: "Your name"
+                    )
+
+                    profileField(
+                        title: "Username",
+                        text: $username,
+                        placeholder: "username",
+                        autocapitalization: .never,
+                        autocorrectionDisabled: true
+                    )
+
+                    if !usernameIsValid {
+                        Text("Username must be at least 3 letters, numbers, or underscores.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.red.opacity(0.8))
+                    } else if normalizedUsername != username.trimmingCharacters(in: .whitespacesAndNewlines) {
+                        Text("Will save as @\(normalizedUsername).")
+                            .font(.system(size: 12))
+                            .foregroundColor(.tertiaryText)
+                    }
+
+                    profileField(
+                        title: "Location",
+                        text: $location,
+                        placeholder: "City"
+                    )
+
+                    profileField(
+                        title: "Favorite Drink",
+                        text: $favoriteDrink,
+                        placeholder: "Cortado, matcha, pour-over..."
+                    )
+
+                    profileField(
+                        title: "Instagram",
+                        text: $instagramHandle,
+                        placeholder: "handle",
+                        autocapitalization: .never,
+                        autocorrectionDisabled: true
+                    )
+
+                    profileField(
+                        title: "Website",
+                        text: $websiteURL,
+                        placeholder: "https://...",
+                        autocapitalization: .never,
+                        autocorrectionDisabled: true
+                    )
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Bio")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+
+                        TextField("Tell people what you are sipping lately.", text: $bio, axis: .vertical)
+                            .lineLimit(3...5)
+                            .profileEditorField()
+                    }
+
+                    if let error = authModel.profileUpdateError {
+                        Text(error)
+                            .font(.system(size: 13))
+                            .foregroundColor(.red.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button(action: saveProfile) {
+                        HStack {
+                            if authModel.isUpdatingProfile {
+                                ProgressView()
+                                    .tint(.foamWhite)
+                            }
+
+                            Text("Save profile")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.6)
+                }
+                .padding(DesignSystem.largePadding)
+            }
+            .background(Color.creamWhite)
+            .onChange(of: selectedAvatarItem) { _, item in
+                guard let item else { return }
+                Task {
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else {
+                        return
+                    }
+                    _ = await authModel.updateAvatar(image, dataManager: dataManager)
+                    selectedAvatarItem = nil
+                }
+            }
+            .navigationTitle("Edit profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundColor(DS.Colors.textPrimary)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") { saveProfile() }
-                        .foregroundColor(DS.Colors.primaryAccent)
-                }
-            }
-            .photosPicker(isPresented: $showingProfileImagePicker, selection: $selectedProfileImage, matching: .images)
-            .photosPicker(isPresented: $showingBannerImagePicker, selection: $selectedBannerImage, matching: .images)
-            .onChange(of: selectedProfileImage) { _, newValue in
-                handleProfileImageSelection(newValue)
-            }
-            .onChange(of: selectedBannerImage) { _, newValue in
-                handleBannerImageSelection(newValue)
-            }
-            .alert("Log Out", isPresented: $showLogoutAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Log Out", role: .destructive) {
-                    dataManager.logout()
-                    dismiss()
-                }
-            } message: {
-                Text("Are you sure you want to log out? This will clear all your data.")
-            }
-            .alert("Delete Account", isPresented: $showDeleteAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    Task {
-                        try? await dataManager.deleteAccount()
-                        await MainActor.run {
-                            dismiss()
-                        }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
+                    .disabled(authModel.isUpdatingProfile)
                 }
-            } message: {
-                Text("Are you sure? This will permanently delete your account and all your data. This action cannot be undone.")
             }
         }
     }
-    
-    private var bannerPlaceholder: some View {
-                                    RoundedRectangle(cornerRadius: DS.Radius.lg)
-                                        .fill(DS.Colors.cardBackgroundAlt)
-                                        .frame(height: 150)
-                                        .overlay(
-                                            VStack(spacing: 8) {
-                                                Image(systemName: "photo.badge.plus")
-                                                    .font(.system(size: 32))
-                                                    .foregroundColor(DS.Colors.iconDefault)
-                                                Text("Add Banner")
-                                                    .font(DS.Typography.bodyText)
-                                                    .foregroundColor(DS.Colors.textSecondary)
-                                            }
-                                        )
-    }
-    
-    @ViewBuilder
-    private var profileImageView: some View {
-        if let profileID = editableUser.profileImageID,
-           let image = PhotoCache.shared.retrieve(forKey: profileID) {
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: 80, height: 80)
-                                                .clipShape(Circle())
-                                    } else if let remoteURL = remoteAvatarURL,
-                                              let url = URL(string: remoteURL) {
-                                        AsyncImage(url: url) { phase in
-                                            switch phase {
-                                            case .success(let image):
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: 80, height: 80)
-                                                    .clipShape(Circle())
-                                            default:
-                    profilePlaceholder
-                                            }
-                                        }
-                                    } else {
-            profilePlaceholder
-        }
-    }
-    
-    private var profilePlaceholder: some View {
-                                        Circle()
-                                            .fill(DS.Colors.cardBackgroundAlt)
-                                            .frame(width: 80, height: 80)
-                                            .overlay(
-                                                Image(systemName: "person.crop.circle.badge.plus")
-                                                    .font(.system(size: 32))
-                                                    .foregroundColor(DS.Colors.iconDefault)
-                                            )
-    }
-    
-    private var formFieldsSection: some View {
-        VStack(spacing: DS.Spacing.sectionVerticalGap) {
-            formField(title: "Display Name", text: Binding(
-                            get: { editableUser.displayName ?? "" },
-                            set: { editableUser.displayName = $0.isEmpty ? nil : $0 }
-                        ))
-            
-            formField(title: "Username", text: $editableUser.username)
-            
-            formField(title: "Bio", text: $editableUser.bio, isMultiline: true)
-            
-            formField(title: "Favorite Drink", text: Binding(
-                            get: { editableUser.favoriteDrink ?? "" },
-                            set: { editableUser.favoriteDrink = $0.isEmpty ? nil : $0 }
-                        ))
-            
-            formField(title: "Location", text: $editableUser.location)
-            
-            formField(title: "Instagram Handle", text: Binding(
-                            get: { editableUser.instagramURL ?? "" },
-                            set: { editableUser.instagramURL = $0.isEmpty ? nil : $0 }
-            ), keyboardType: .twitter)
-            
-            formField(title: "Website URL", text: Binding(
-                get: { editableUser.websiteURL ?? "" },
-                set: { editableUser.websiteURL = $0.isEmpty ? nil : $0 }
-            ), keyboardType: .URL)
-        }
-    }
-    
-    private func formField(
+
+    private func profileField(
         title: String,
         text: Binding<String>,
-        isMultiline: Bool = false,
-        keyboardType: UIKeyboardType = .default
+        placeholder: String,
+        autocapitalization: TextInputAutocapitalization = .words,
+        autocorrectionDisabled: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            DSSectionHeader(title)
-            
-            if isMultiline {
-                TextField("", text: text, axis: .vertical)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .tint(DS.Colors.primaryAccent)
-                    .lineLimit(3...6)
-                        .padding(DS.Spacing.md)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.md)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                        )
-            } else {
-                TextField("", text: text)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .tint(DS.Colors.primaryAccent)
-                    .keyboardType(keyboardType)
-                    .autocapitalization(keyboardType == .URL || keyboardType == .twitter ? .none : .words)
-                        .padding(DS.Spacing.md)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.md)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .stroke(DS.Colors.borderSubtle, lineWidth: 1)
-                        )
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+
+            TextField(placeholder, text: text)
+                .textInputAutocapitalization(autocapitalization)
+                .autocorrectionDisabled(autocorrectionDisabled)
+                .profileEditorField()
         }
     }
-    
-    private func handleProfileImageSelection(_ item: PhotosPickerItem?) {
-        Task {
-            if let data = try? await item?.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                let imageID = UUID().uuidString
-                PhotoCache.shared.store(uiImage, forKey: imageID)
-                editableUser.profileImageID = imageID
-            }
-        }
-    }
-    
-    private func handleBannerImageSelection(_ item: PhotosPickerItem?) {
-        Task {
-            if let data = try? await item?.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                let imageID = UUID().uuidString
-                PhotoCache.shared.store(uiImage, forKey: imageID)
-                editableUser.bannerImageID = imageID
-            }
-        }
-    }
-    
+
     private func saveProfile() {
-                        hapticsManager.mediumTap()
-                        Task {
-                            do {
-                                var avatarImage: UIImage? = nil
-                                var bannerImage: UIImage? = nil
-                                if let profileId = editableUser.profileImageID {
-                                    avatarImage = PhotoCache.shared.retrieve(forKey: profileId)
-                                }
-                                if let bannerId = editableUser.bannerImageID {
-                                    bannerImage = PhotoCache.shared.retrieve(forKey: bannerId)
-                                }
-                                
-                                try await dataManager.updateCurrentUserProfile(
-                                    displayName: editableUser.displayName,
-                                    username: editableUser.username,
-                                    bio: editableUser.bio.isEmpty ? nil : editableUser.bio,
-                                    location: editableUser.location.isEmpty ? nil : editableUser.location,
-                                    favoriteDrink: editableUser.favoriteDrink,
-                                    instagramHandle: editableUser.instagramURL,
-                                    websiteURL: editableUser.websiteURL,
-                                    avatarImage: avatarImage,
-                                    bannerImage: bannerImage
-                                )
-                                
-                                await MainActor.run {
-                                    hapticsManager.playSuccess()
-                                    dismiss()
-                                }
-                            } catch {
-                print("[EditProfileView] Error updating profile: \(error.localizedDescription)")
-                                hapticsManager.playError()
+        Task {
+            let didSave = await authModel.updateProfile(
+                displayName: displayName,
+                username: normalizedUsername,
+                bio: bio,
+                location: location,
+                favoriteDrink: favoriteDrink,
+                instagramHandle: instagramHandle,
+                websiteURL: websiteURL,
+                dataManager: dataManager
+            )
+
+            if didSave {
+                dismiss()
             }
         }
     }
 }
 
-// MARK: - Share Sheet
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-// MARK: - View Extensions
-
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
+private extension View {
+    func profileEditorField() -> some View {
+        mugshotFormField()
     }
 }
 
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-    
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
+struct StatBox: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.espressoBrown)
+
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundColor(.espressoBrown.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct CoffeeJourneyView: View {
+    let stats: ProfileStatsDisplay
+    let tasteMix: [TastePattern]
+    let topCafeName: String?
+    let homeExperimentCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if stats.totalVisits == 0 {
+                ContentUnavailableView {
+                    Label("Your taste profile starts with a sip", systemImage: "leaf.fill")
+                } description: {
+                    Text("Log a few visits and Mugshot will surface your favorite drinks, cafes, and taste patterns.")
+                }
+            } else {
+                HStack(spacing: 10) {
+                    identityTile(
+                        title: "Favorite drink",
+                        value: stats.favoriteDrinkLabel ?? "Still emerging",
+                        icon: "leaf.fill"
+                    )
+
+                    identityTile(
+                        title: "Favorite cafe",
+                        value: topCafeName ?? "Still exploring",
+                        icon: "mappin.circle.fill"
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(tasteMix, id: \.name) { pattern in
+                        MugshotTastePatternRow(pattern: pattern)
+                    }
+                }
+
+                Text(homeExperimentCount > 0
+                     ? "\(homeExperimentCount) home experiments now sit beside your cafe memories."
+                     : "\(stats.totalVisits) memories across \(stats.totalCafes) cafes. Your journal is here whenever something stands out.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+        }
+    }
+
+    private func identityTile(title: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.roastBrown.opacity(0.64))
+                .lineLimit(1)
+
+            Text(value)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.sandBeige.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+    }
+}
+
+struct MugshotTastePatternRow: View {
+    let pattern: TastePattern
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(pattern.name, systemImage: pattern.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("\(Int((pattern.fraction * 100).rounded()))%")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.roastBrown.opacity(0.72))
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.sandBeige.opacity(0.58))
+
+                    Capsule()
+                        .fill(Color.mugshotSage.opacity(0.72))
+                        .frame(width: max(8, proxy.size.width * min(max(pattern.fraction, 0), 1)))
+                }
+            }
+            .frame(height: 7)
+        }
+    }
+}
+
+struct RecentVisitsView: View {
+    @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteVisits = false
+    @State private var remoteVisitError: String?
+    @State private var selectedVisit: Visit?
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
+
+    private var localVisits: [Visit] {
+        dataManager.appData.visits.sorted { $0.date > $1.date }.prefix(10).map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if authModel.authenticatedUser != nil {
+                remoteContent
+            } else {
+                localContent
+            }
+        }
+        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+            await loadRemoteVisits()
+        }
+        .sheet(item: $selectedVisit) { visit in
+            VisitDetailView(visit: visit, dataManager: dataManager)
+        }
+        .fullScreenCover(item: $selectedRemoteVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var remoteContent: some View {
+        if isLoadingRemoteVisits {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(.mugshotSage)
+
+                Text("Loading visits...")
+                    .font(.system(size: 14))
+                    .foregroundColor(.espressoBrown.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding()
+        } else if let remoteVisitError {
+            VStack(spacing: 10) {
+                Text("Could not load visits")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+
+                Text(remoteVisitError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown.opacity(0.65))
+                    .multilineTextAlignment(.center)
+
+                Button("Retry") {
+                    Task {
+                        await loadRemoteVisits()
+                    }
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+        } else if remoteVisits.isEmpty {
+            ProfileEmptyStateCard(
+                asset: .noCafes,
+                systemImage: "cup.and.saucer.fill",
+                title: "No visits yet",
+                message: "Save a real visit from Add. It will appear here, open in detail, and persist after relaunch."
+            )
+        } else {
+            ForEach(remoteVisits) { visit in
+                Button {
+                    selectedRemoteVisit = visit
+                } label: {
+                    RemoteVisitSummaryCard(visit: visit)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
+                .accessibilityHint("Opens visit details")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localContent: some View {
+        if localVisits.isEmpty {
+            ProfileEmptyStateCard(
+                asset: .noCafes,
+                systemImage: "cup.and.saucer.fill",
+                title: "No local visits yet",
+                message: "Log a visit to start filling your taste journal."
+            )
+        } else {
+            ForEach(localVisits) { visit in
+                if dataManager.getCafe(id: visit.cafeId) != nil {
+                    VisitCard(
+                        visit: visit,
+                        dataManager: dataManager,
+                        selectedScope: .friends,
+                        onOpen: { selectedVisit = visit }
+                    )
+                    .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedVisit = visit
+                        }
+                }
+            }
+        }
+    }
+
+    private func loadRemoteVisits() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteVisits = []
+            remoteVisitError = nil
+            isLoadingRemoteVisits = false
+            return
+        }
+
+        isLoadingRemoteVisits = true
+        remoteVisitError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            let visits = try await service.fetchRecentVisits(userId: userId)
+            remoteVisits = visits
+            isLoadingRemoteVisits = false
+        } catch {
+            remoteVisits = []
+            remoteVisitError = error.localizedDescription
+            isLoadingRemoteVisits = false
+        }
+    }
+}
+
+struct ProfileEmptyStateCard: View {
+    let asset: MugsyEmptyStateAsset?
+    let systemImage: String
+    let title: String
+    let message: String
+
+    init(
+        asset: MugsyEmptyStateAsset? = nil,
+        systemImage: String,
+        title: String,
+        message: String
+    ) {
+        self.asset = asset
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+    }
+
+    var body: some View {
+        if let asset {
+            MugsyEmptyStateView(asset: asset, title: title, message: message)
+        } else {
+        VStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.36))
+                .frame(width: 52, height: 52)
+                .background(Color.sandBeige.opacity(0.45))
+                .clipShape(Circle())
+
+            Text(title)
+                .mugshotDisplay(size: 20)
+                .foregroundColor(.espressoBrown)
+
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
         )
-        return Path(path.cgPath)
+        }
+    }
+}
+
+struct RemoteVisitSummaryCard: View {
+    let visit: RemoteVisitSummary
+
+    private var hasPhoto: Bool {
+        visit.visit.posterPhotoURL != nil
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            poster
+                .frame(width: 86, height: 98)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                .overlay(alignment: .bottomLeading) {
+                    scoreBadge
+                        .padding(7)
+                }
+
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(visit.visit.drinkDisplayName)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.35))
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(visit.locationTitle)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.78))
+                        .lineLimit(1)
+
+                    if let subtitle = visit.locationSubtitle {
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.espressoBrown.opacity(0.58))
+                            .lineLimit(1)
+                    }
+                }
+
+                if !visit.visit.caption.isEmpty {
+                    Text(visit.visit.caption)
+                        .font(.system(size: 13))
+                        .foregroundColor(.espressoBrown.opacity(0.68))
+                        .lineLimit(2)
+                }
+
+                metadataRow
+            }
+        }
+        .padding(12)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 5)
+    }
+
+    private var poster: some View {
+        Group {
+            if visit.visit.posterPhotoURL != nil {
+                RemotePhotoImageView(
+                    urlString: visit.visit.posterPhotoURL,
+                    placeholderSystemName: "photo"
+                )
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+            } else {
+                RemoteVisitNoPhotoThumbnail()
+            }
+        }
+    }
+
+    private var scoreBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 11))
+            Text(String(format: "%.1f", visit.visit.overallScore))
+                .font(.system(size: 12, weight: .bold))
+        }
+        .foregroundColor(hasPhoto ? .creamWhite : .espressoBrown)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(hasPhoto ? Color.espressoBrown.opacity(0.70) : Color.mugshotSage.opacity(0.45))
+        .cornerRadius(999)
+    }
+
+    private var metadataRow: some View {
+        HStack(spacing: 7) {
+            Label(formatDate(visit.visit.createdAtDate), systemImage: "clock.fill")
+            Text("•")
+            Label(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundColor(.espressoBrown.opacity(0.55))
+        .lineLimit(1)
+    }
+
+    private var visibilityIcon: String {
+        switch visit.visit.backendVisibilityLabel.lowercased() {
+        case "private":
+            return "lock.fill"
+        case "friends":
+            return "person.2.fill"
+        default:
+            return "globe"
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+struct RemoteVisitNoPhotoThumbnail: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.4))
+
+            Text("No photo")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.55))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.sandBeige.opacity(0.68))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+    }
+}
+
+struct TopCafesView: View {
+    @ObservedObject var dataManager: DataManager
+    let remoteStats: RemoteProfileStats?
+
+    var topCafes: [Cafe] {
+        dataManager.appData.cafes
+            .filter { $0.averageRating > 0 }
+            .sorted { $0.averageRating > $1.averageRating }
+            .prefix(10)
+            .map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let remoteStats {
+                if remoteStats.topCafes.isEmpty {
+                    ProfileEmptyStateCard(
+                        asset: .noCafes,
+                        systemImage: "cup.and.saucer.fill",
+                        title: "No top cafes yet",
+                        message: "Your highest-rated visits will rank your cafes here."
+                    )
+                } else {
+                    ForEach(remoteStats.topCafes) { topCafe in
+                        RemoteTopCafeCard(topCafe: topCafe)
+                    }
+                }
+            } else if topCafes.isEmpty {
+                ProfileEmptyStateCard(
+                    asset: .noCafes,
+                    systemImage: "cup.and.saucer.fill",
+                    title: "No cafes yet",
+                    message: "Log visits to rank your cafes."
+                )
+            } else {
+                ForEach(topCafes) { cafe in
+                    CafeCard(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        showWantToTryTag: false,
+                        onLogVisit: {},
+                        onShowDetails: {}
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct RemoteTopCafeCard: View {
+    let topCafe: RemoteTopCafe
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: topCafe.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill"
+            )
+            .frame(width: 72, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(topCafe.cafe.name)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(2)
+
+                if !topCafe.cafe.displayLocation.isEmpty {
+                    Text(topCafe.cafe.displayLocation)
+                        .font(.system(size: 12))
+                        .foregroundColor(.espressoBrown.opacity(0.62))
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 8) {
+                    Label(String(format: "%.1f", topCafe.averageScore), systemImage: "star.fill")
+                    Label("\(topCafe.visitCount)", systemImage: "cup.and.saucer.fill")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.68))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .cardStyle()
+    }
+}
+
+struct FavoritesView: View {
+    @ObservedObject var dataManager: DataManager
+
+    var favorites: [Cafe] {
+        dataManager.appData.cafes.filter { $0.isFavorite }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if favorites.isEmpty {
+                Text("No favorites yet")
+                    .font(.system(size: 14))
+                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(favorites) { cafe in
+                    CafeCard(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        showWantToTryTag: false,
+                        onLogVisit: {},
+                        onShowDetails: {}
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct WishlistView: View {
+    @ObservedObject var dataManager: DataManager
+
+    var wishlist: [Cafe] {
+        dataManager.appData.cafes.filter { $0.wantToTry }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if wishlist.isEmpty {
+                Text("No wishlist items yet")
+                    .font(.system(size: 14))
+                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(wishlist) { cafe in
+                    CafeCard(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        showWantToTryTag: true,
+                        onLogVisit: {},
+                        onShowDetails: {}
+                    )
+                }
+            }
+        }
     }
 }

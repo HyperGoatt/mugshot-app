@@ -23,9 +23,7 @@ class LocationManager: NSObject, ObservableObject {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        // PERF: Increased from 10m to 50m for better battery life
-        // Most map use cases don't need sub-50m accuracy
-        locationManager.distanceFilter = 50 // Update every 50 meters
+        locationManager.distanceFilter = 10 // Update every 10 meters
         authorizationStatus = locationManager.authorizationStatus
     }
     
@@ -85,15 +83,15 @@ extension LocationManager: CLLocationManagerDelegate {
         if let clError = error as? CLError {
             switch clError.code {
             case .denied:
-                locationError = "Location access denied"
+                locationError = "Location is off. You can still search for a cafe."
             case .locationUnknown:
                 // Location unknown is not necessarily an error, just keep trying
                 break
             default:
-                locationError = clError.localizedDescription
+                locationError = "We couldn’t find your location. You can still search for a cafe."
             }
         } else {
-            locationError = error.localizedDescription
+            locationError = "We couldn’t find your location. You can still search for a cafe."
         }
     }
     
@@ -107,7 +105,7 @@ extension LocationManager: CLLocationManagerDelegate {
             startUpdatingLocation()
             locationError = nil
         case .denied, .restricted:
-            locationError = "Location access denied"
+            locationError = "Location is off. You can still search for a cafe."
             stopUpdatingLocation()
         case .notDetermined:
             // Will request permission when needed
@@ -117,4 +115,3 @@ extension LocationManager: CLLocationManagerDelegate {
         }
     }
 }
-

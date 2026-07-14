@@ -1,1306 +1,1339 @@
-//
-//  ProfileJournalView.swift
-//  testMugshot
-//
-//  Private journal view showing personal coffee stats, streaks, and insights.
-//
-
+import MapKit
 import SwiftUI
 
-struct ProfileJournalView: View {
+struct JournalTabView: View {
     @ObservedObject var dataManager: DataManager
-    @EnvironmentObject var tabCoordinator: TabCoordinator
-    
-    // MARK: - Computed Properties
-    
-    private var userVisits: [Visit] {
-        guard let currentUserId = dataManager.appData.currentUser?.id else { return [] }
-        return dataManager.appData.visits
-            .filter { $0.userId == currentUserId }
+    let onComposeDraft: (SipDraft) -> Void
+    @EnvironmentObject private var authModel: AppAuthModel
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
+
+    @State private var selectedFilter: JournalFilter = .all
+    @State private var activeProfileSheet: ProfileSheet?
+    @State private var showJournalArchive = false
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var selectedLocalVisit: Visit?
+    @State private var journalEntries: [JournalEntryProjection] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var showOwnerProfile = false
+    @State private var localDrafts: [SipDraft] = []
+    @State private var tasteSignals: [RemoteTasteSignal] = []
+    @State private var selectedReflection: JournalReflectionSummary?
+    @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
+    @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
+    @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
+
+    fileprivate enum JournalFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case cafe = "Cafe"
+        case home = "Home"
+        case recipes = "Recipes"
+
+        var id: String { rawValue }
+    }
+
+    private enum ProfileSheet: String, Identifiable {
+        case editProfile
+        case settings
+
+        var id: String { rawValue }
+    }
+
+    private var user: User? { dataManager.appData.currentUser }
+
+    private var remoteVisits: [RemoteVisitSummary] {
+        journalEntries.map(\.summary)
+    }
+
+    private var onThisSipEntries: [JournalEntryProjection] {
+        let calendar = Calendar.current
+        let now = Date()
+        return journalEntries.filter {
+            calendar.component(.month, from: $0.date) == calendar.component(.month, from: now)
+                && calendar.component(.day, from: $0.date) == calendar.component(.day, from: now)
+                && calendar.component(.year, from: $0.date) < calendar.component(.year, from: now)
+        }
+    }
+
+    private var journalTags: [String] {
+        Array(Set(journalEntries.flatMap(\.tags))).sorted()
+    }
+
+    private var profileStats: RemoteProfileStats {
+        RemoteProfileStats.calculate(from: remoteVisits)
+    }
+
+    private var tasteIdentity: TasteIdentitySummary {
+        phase3ExplainableTasteGraph
+            ? TasteIdentitySummary.calculate(from: tasteSignals, visits: remoteVisits)
+            : TasteIdentitySummary.calculate(from: remoteVisits)
+    }
+
+    private var filteredVisits: [RemoteVisitSummary] {
+        remoteVisits
+            .filter { visit in
+                switch selectedFilter {
+                case .all: return true
+                case .cafe: return visit.visit.journalContext == .cafe
+                case .home: return visit.visit.journalContext == .home
+                case .recipes: return visit.visit.journalContext == .recipe
+                }
+            }
+            .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+    }
+
+    private var filteredLocalVisits: [Visit] {
+        dataManager.appData.visits
+            .filter { visit in
+                switch selectedFilter {
+                case .all: return true
+                case .cafe: return visit.context == .cafe
+                case .home: return visit.context == .home
+                case .recipes: return visit.context == .recipe
+                }
+            }
             .sorted { $0.createdAt > $1.createdAt }
     }
-    
-    private var uniqueCafeCount: Int {
-        Set(userVisits.map { $0.cafeId }).count
-    }
-    
-    private var currentStreak: Int {
-        JournalStatsHelper.calculateCurrentStreak(visits: userVisits)
-    }
-    
-    private var longestStreak: Int {
-        JournalStatsHelper.calculateLongestStreak(visits: userVisits)
-    }
-    
-    private var notesCount: Int {
-        JournalStatsHelper.notesCount(from: userVisits)
-    }
-    
-    // MARK: - Body
-    
-    var body: some View {
-        VStack(spacing: DS.Spacing.cardVerticalGap) {
-            // Today's Mugshot
-            TodaysMugshotCard(
-                visit: JournalStatsHelper.todaysVisit(from: userVisits),
-                cafeLookup: { dataManager.getCafe(id: $0) },
-                onLogVisit: {
-                    tabCoordinator.selectedTab = 2 // Switch to Add tab
-                }
-            )
-            
-            // My Taste - Drink subtypes breakdown
-            if !dataManager.getDrinkSubtypesBreakdown().isEmpty {
-                MyTasteSection(drinkSubtypes: dataManager.getDrinkSubtypesBreakdown())
-            }
-            
-            // Streaks & Consistency
-            StreaksCard(
-                currentStreak: currentStreak,
-                longestStreak: longestStreak,
-                weekdayMap: JournalStatsHelper.weekdayVisitMap(visits: userVisits)
-            )
-            
-            // Coffee Stats
-            CoffeeStatsCard(
-                stats: dataManager.getUserStats(),
-                visitsThisWeek: JournalStatsHelper.visitsInLast7Days(visits: userVisits),
-                visitsLast30Days: JournalStatsHelper.visitsInLast30Days(visits: userVisits)
-            )
-            
-            // Top Cafes
-            TopCafesCard(
-                topCafes: JournalStatsHelper.topCafes(
-                    from: userVisits,
-                    cafeLookup: { dataManager.getCafe(id: $0) }
-                ),
-                dataManager: dataManager
-            )
-            
-            // Badges
-            BadgesCard(
-                userVisits: userVisits,
-                onLogVisit: {
-                    tabCoordinator.selectedTab = 2 // Switch to Add tab
-                }
-            )
-            
-            // Notes (full section)
-            NotesCard(
-                userVisits: userVisits,
-                dataManager: dataManager,
-                onLogVisit: {
-                    tabCoordinator.selectedTab = 2 // Switch to Add tab
-                }
-            )
-            
-            // Privacy Footer
-            JournalPrivacyFooter()
-        }
-        .onAppear {
-            print("[Journal] Loaded with \(userVisits.count) visits, \(uniqueCafeCount) cafes")
-            print("[Journal] Current streak: \(currentStreak), longest: \(longestStreak)")
-            
-            let visitsWithNotes = JournalStatsHelper.allVisitsWithNotes(from: userVisits)
-            let groupedNotes = JournalStatsHelper.groupVisitsByMonth(visitsWithNotes)
-            print("[Journal] Notes count: \(visitsWithNotes.count)")
-            print("[Journal] Notes grouped into \(groupedNotes.count) month sections")
-            
-            // Badge logging
-            let badgeStates = BadgeEngine.computeBadges(visits: userVisits)
-            let unlockedCount = badgeStates.filter { $0.isUnlocked }.count
-            let lockedCount = badgeStates.count - unlockedCount
-            print("[Journal] Rendering Badges card – visits: \(userVisits.count), unlocked: \(unlockedCount), locked: \(lockedCount)")
-        }
-    }
-}
 
-// MARK: - Today's Mugshot Card
-
-private struct TodaysMugshotCard: View {
-    let visit: Visit?
-    let cafeLookup: (UUID) -> Cafe?
-    let onLogVisit: () -> Void
-    
-    var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                DSSectionHeader("Today's Mugshot")
-                
-                if let visit = visit {
-                    // Has a visit today
-                    HStack(spacing: DS.Spacing.md) {
-                        // Coffee icon
-                        ZStack {
-                            Circle()
-                                .fill(DS.Colors.primaryAccentSoftFill)
-                                .frame(width: 48, height: 48)
-                            
-                            Text("☕️")
-                                .font(.system(size: 24))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            if let cafe = cafeLookup(visit.cafeId) {
-                                Text("Today at \(cafe.name)")
-                                    .font(DS.Typography.headline())
-                                    .foregroundColor(DS.Colors.textPrimary)
-                            }
-                            
-                            HStack(spacing: DS.Spacing.sm) {
-                                Text(visit.drinkDisplayText)
-                                    .font(DS.Typography.caption1())
-                                    .foregroundColor(DS.Colors.textSecondary)
-                                
-                                Text("·")
-                                    .foregroundColor(DS.Colors.textTertiary)
-                                
-                                HStack(spacing: 2) {
-                                    Image(systemName: "star.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(DS.Colors.yellowAccent)
-                                    
-                                    Text(String(format: "%.1f", visit.overallScore))
-                                        .font(DS.Typography.caption1(.medium))
-                                        .foregroundColor(DS.Colors.textSecondary)
-                                }
-                            }
-                        }
-                        
-                        Spacer()
-                    }
-                } else {
-                    // Empty state
-                    VStack(spacing: DS.Spacing.md) {
-                        Text("☕️")
-                            .font(.system(size: 48))
-                        
-                        Text("No mugshot yet today")
-                            .font(DS.Typography.bodyText)
-                            .foregroundColor(DS.Colors.textSecondary)
-                        
-                        Button(action: onLogVisit) {
-                            HStack(spacing: DS.Spacing.sm) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 16))
-                                Text("Log a visit")
-                                    .font(DS.Typography.buttonLabel)
-                            }
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .padding(.horizontal, DS.Spacing.lg)
-                            .padding(.vertical, DS.Spacing.md)
-                            .background(DS.Colors.primaryAccent)
-                            .cornerRadius(DS.Radius.primaryButton)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DS.Spacing.md)
-                }
-            }
-        }
+    private var recentVisits: [RemoteVisitSummary] {
+        Array(filteredVisits.prefix(4))
     }
-}
 
-// MARK: - Streaks Card
-
-private struct StreaksCard: View {
-    let currentStreak: Int
-    let longestStreak: Int
-    let weekdayMap: [(dayLetter: String, date: Date, hasVisit: Bool)]
-    
-    var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                DSSectionHeader("Streaks & Consistency")
-                
-                // Streak numbers
-                HStack(spacing: DS.Spacing.xxl) {
-                    StreakStat(value: currentStreak, label: "Current streak")
-                    StreakStat(value: longestStreak, label: "Longest streak")
-                    Spacer()
-                }
-                
-                // 7-day mini row
-                HStack(spacing: 0) {
-                    ForEach(Array(weekdayMap.enumerated()), id: \.offset) { _, day in
-                        WeekdayIndicator(
-                            letter: day.dayLetter,
-                            hasVisit: day.hasVisit,
-                            isToday: Calendar.current.isDateInToday(day.date)
-                        )
-                    }
-                }
-                .padding(.top, DS.Spacing.sm)
-            }
-        }
-    }
-}
-
-private struct StreakStat: View {
-    let value: Int
-    let label: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            HStack(spacing: DS.Spacing.xs) {
-                Text("\(value)")
-                    .font(DS.Typography.numericStat)
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                Text("days")
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            
-            Text(label)
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-    }
-}
-
-private struct WeekdayIndicator: View {
-    let letter: String
-    let hasVisit: Bool
-    let isToday: Bool
-    
-    var body: some View {
-        VStack(spacing: DS.Spacing.xs) {
-            Text(letter)
-                .font(DS.Typography.caption2(.medium))
-                .foregroundColor(isToday ? DS.Colors.primaryAccent : DS.Colors.textTertiary)
-            
-            Circle()
-                .fill(hasVisit ? DS.Colors.primaryAccent : DS.Colors.borderSubtle)
-                .frame(width: 24, height: 24)
-                .overlay(
-                    Circle()
-                        .stroke(isToday ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
-                )
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Coffee Stats Card
-
-private struct CoffeeStatsCard: View {
-    let stats: (totalVisits: Int, totalCafes: Int, averageScore: Double, favoriteDrinkType: DrinkType?)
-    let visitsThisWeek: Int
-    let visitsLast30Days: Int
-    
-    var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                DSSectionHeader("Sip Stats")
-                
-                // Main stats grid
-                HStack(spacing: DS.Spacing.lg) {
-                    StatItem(value: "\(stats.totalVisits)", label: "Total visits")
-                    StatItem(value: "\(stats.totalCafes)", label: "Cafes")
-                    StatItem(
-                        value: stats.averageScore > 0 ? String(format: "%.1f", stats.averageScore) : "-",
-                        label: "Avg rating"
-                    )
-                }
-                
-                Divider()
-                    .background(DS.Colors.dividerSubtle)
-                
-                // Recent activity
-                HStack(spacing: DS.Spacing.xxl) {
-                    RecentActivityStat(value: visitsThisWeek, label: "This week")
-                    RecentActivityStat(value: visitsLast30Days, label: "Last 30 days")
-                    Spacer()
-                }
-            }
-        }
-    }
-}
-
-private struct StatItem: View {
-    let value: String
-    let label: String
-    
-    var body: some View {
-        VStack(spacing: DS.Spacing.xs) {
-            Text(value)
-                .font(DS.Typography.numericStat)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            Text(label)
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct RecentActivityStat: View {
-    let value: Int
-    let label: String
-    
-    var body: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Text("\(value)")
-                .font(DS.Typography.headline())
-                .foregroundColor(DS.Colors.primaryAccent)
-            
-            Text(value == 1 ? "visit" : "visits")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-            
-            Text("·")
-                .foregroundColor(DS.Colors.textTertiary)
-            
-            Text(label)
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-    }
-}
-
-// MARK: - Top Cafes Card
-
-private struct TopCafesCard: View {
-    let topCafes: [(cafe: Cafe, visitCount: Int, avgRating: Double)]
-    @ObservedObject var dataManager: DataManager
-    @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
-    
-    var body: some View {
-        if !topCafes.isEmpty {
-            DSBaseCard {
-                VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    DSSectionHeader("Top Cafes")
-                    
-                    ForEach(Array(topCafes.enumerated()), id: \.element.cafe.id) { index, item in
-                        if index > 0 {
-                            Divider()
-                                .background(DS.Colors.dividerSubtle)
-                        }
-                        
-                        TopCafeRow(
-                            cafe: item.cafe,
-                            visitCount: item.visitCount,
-                            avgRating: item.avgRating,
-                            rank: index + 1,
-                            onTap: {
-                                selectedCafe = item.cafe
-                                showCafeDetail = true
-                            }
-                        )
-                    }
-                }
-            }
-            .sheet(isPresented: $showCafeDetail) {
-                if let cafe = selectedCafe {
-                    UnifiedCafeView(
-                        cafe: cafe,
-                        dataManager: dataManager,
-                        presentationMode: .fullScreen
-                    )
-                }
-            }
-        }
-    }
-}
-
-private struct TopCafeRow: View {
-    let cafe: Cafe
-    let visitCount: Int
-    let avgRating: Double
-    let rank: Int
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DS.Spacing.md) {
-                // Rank badge
-                ZStack {
-                    Circle()
-                        .fill(rank == 1 ? DS.Colors.primaryAccent : DS.Colors.cardBackgroundAlt)
-                        .frame(width: 28, height: 28)
-                    
-                    Text("\(rank)")
-                        .font(DS.Typography.caption1(.semibold))
-                        .foregroundColor(rank == 1 ? DS.Colors.textOnMint : DS.Colors.textSecondary)
-                }
-                
-                // Cafe info
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text(cafe.name)
-                        .font(DS.Typography.headline())
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .lineLimit(1)
-                    
-                    HStack(spacing: DS.Spacing.sm) {
-                        if let city = cafe.city, !city.isEmpty {
-                            Text(city)
-                                .font(DS.Typography.caption1())
-                                .foregroundColor(DS.Colors.textTertiary)
-                        }
-                        
-                        Text("·")
-                            .foregroundColor(DS.Colors.textTertiary)
-                        
-                        Text("\(visitCount) \(visitCount == 1 ? "visit" : "visits")")
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Rating
-                HStack(spacing: 2) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(DS.Colors.yellowAccent)
-                    
-                    Text(String(format: "%.1f", avgRating))
-                        .font(DS.Typography.subheadline(.medium))
-                        .foregroundColor(DS.Colors.textPrimary)
-                }
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.iconSubtle)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Badges Card
-
-private struct BadgesCard: View {
-    let userVisits: [Visit]
-    let onLogVisit: () -> Void
-    
-    @State private var selectedBadge: BadgeState?
-    @State private var showBadgeDetail = false
-    
-    private var badgeStates: [BadgeState] {
-        BadgeEngine.computeBadges(visits: userVisits)
-    }
-    
-    var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                // Header
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    DSSectionHeader("Badges")
-                    
-                    Text("Collect badges as you log your sipping journey.")
-                        .font(DS.Typography.caption1())
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                
-                if userVisits.isEmpty {
-                    // Empty state
-                    badgesEmptyState
-                } else {
-                    // Horizontal scrolling badge chips
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: DS.Spacing.sm) {
-                            ForEach(badgeStates) { badge in
-                                BadgeChip(
-                                    badge: badge,
-                                    onTap: {
-                                        selectedBadge = badge
-                                        showBadgeDetail = true
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 1) // Prevent clipping
-                    }
-                    .padding(.horizontal, -DS.Spacing.cardPadding)
-                    .padding(.horizontal, DS.Spacing.cardPadding)
-                    
-                    // Summary line
-                    badgeSummary
-                }
-            }
-        }
-        .sheet(isPresented: $showBadgeDetail) {
-            if let badge = selectedBadge {
-                BadgeDetailSheet(badge: badge)
-            }
-        }
-    }
-    
-    // MARK: - Empty State
-    
-    private var badgesEmptyState: some View {
-        VStack(spacing: DS.Spacing.md) {
-            Text("☕️")
-                .font(.system(size: 48))
-            
-            Text("Start logging visits to unlock your first badge.")
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-            
-            Button(action: onLogVisit) {
-                HStack(spacing: DS.Spacing.sm) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                    Text("Log a visit")
-                        .font(DS.Typography.buttonLabel)
-                }
-                .foregroundColor(DS.Colors.textOnMint)
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.md)
-                .background(DS.Colors.primaryAccent)
-                .cornerRadius(DS.Radius.primaryButton)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DS.Spacing.md)
-    }
-    
-    // MARK: - Summary
-    
-    private var badgeSummary: some View {
-        let unlockedCount = badgeStates.filter { $0.isUnlocked }.count
-        let totalCount = badgeStates.count
-        
-        return HStack(spacing: DS.Spacing.xs) {
-            Image(systemName: "trophy.fill")
-                .font(.system(size: 12))
-                .foregroundColor(DS.Colors.yellowAccent)
-            
-            Text("\(unlockedCount)/\(totalCount) badges unlocked")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-        }
-    }
-}
-
-// MARK: - Badge Chip
-
-private struct BadgeChip: View {
-    let badge: BadgeState
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: DS.Spacing.xs) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(badge.isUnlocked ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackgroundAlt)
-                        .frame(width: 56, height: 56)
-                    
-                    Image(systemName: badge.definition.iconName)
-                        .font(.system(size: 24))
-                        .foregroundColor(badge.isUnlocked ? DS.Colors.primaryAccent : DS.Colors.iconSubtle)
-                }
-                
-                // Name
-                Text(badge.definition.name)
-                    .font(DS.Typography.caption2(.medium))
-                    .foregroundColor(badge.isUnlocked ? DS.Colors.textPrimary : DS.Colors.textTertiary)
-                    .lineLimit(1)
-                    .frame(width: 72)
-                
-                // Progress text
-                Text(badge.progressText)
-                    .font(DS.Typography.caption2())
-                    .foregroundColor(badge.isUnlocked ? DS.Colors.primaryAccent : DS.Colors.textTertiary)
-            }
-            .padding(.vertical, DS.Spacing.sm)
-            .opacity(badge.isUnlocked ? 1.0 : 0.7)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Badge Detail Sheet
-
-private struct BadgeDetailSheet: View {
-    let badge: BadgeState
-    @Environment(\.dismiss) private var dismiss
-    
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: DS.Spacing.xl) {
-                    // Large icon
-                    ZStack {
-                        Circle()
-                            .fill(badge.isUnlocked ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackgroundAlt)
-                            .frame(width: 120, height: 120)
-                        
-                        Image(systemName: badge.definition.iconName)
-                            .font(.system(size: 56))
-                            .foregroundColor(badge.isUnlocked ? DS.Colors.primaryAccent : DS.Colors.iconSubtle)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    MugshotScreenHeader("Journal") {
+                        Button {
+                            showOwnerProfile = true
+                        } label: {
+                            MugshotAvatar(
+                                name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                                size: 42,
+                                imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 44)
+                        .accessibilityLabel("Open your profile")
                     }
-                    .padding(.top, DS.Spacing.xl)
-                    
-                    // Badge name
-                    Text(badge.definition.name)
-                        .font(DS.Typography.title1())
-                        .foregroundColor(DS.Colors.textPrimary)
-                    
-                    // Category pill
-                    Text(badge.definition.category.displayName)
-                        .font(DS.Typography.caption1(.medium))
-                        .foregroundColor(DS.Colors.textOnMint)
-                        .padding(.horizontal, DS.Spacing.md)
-                        .padding(.vertical, DS.Spacing.xs)
-                        .background(DS.Colors.primaryAccent)
-                        .cornerRadius(DS.Radius.chip)
-                    
-                    // Description
-                    Text(badge.definition.description)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, DS.Spacing.xl)
-                    
-                    // Progress section
-                    progressSection
-                    
-                    // How to unlock / Status
-                    statusSection
-                    
+
+                    Text(profileSummaryLine)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 2)
+
+                    if phase2CanonicalJournal, !localDrafts.isEmpty {
+                        draftSection
+                            .padding(.top, 18)
+                    }
+
+                    if phase2CanonicalJournal, let memory = onThisSipEntries.first {
+                        onThisSipCard(memory)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 18)
+                    }
+
+                    if phase5Reflections, !journalEntries.isEmpty {
+                        JournalReflectionsSection(
+                            entries: journalEntries,
+                            onSelect: { selectedReflection = $0 }
+                        )
+                        .padding(.top, 18)
+                    }
+
+                    journalSection
+                        .padding(.top, 18)
+
+                    Divider()
+                        .overlay(Color.mugshotLine)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 24)
+
+                    TasteIdentityJournalSection(
+                        summary: tasteIdentity,
+                        signals: phase3ExplainableTasteGraph ? tasteSignals : [],
+                        entries: journalEntries,
+                        onChange: updateTasteSignal
+                    )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 124)
+                }
+            }
+            .background(Color.creamWhite)
+            .sheet(item: $activeProfileSheet) { sheet in
+                switch sheet {
+                case .editProfile:
+                    if let profile = authModel.profile {
+                        EditProfileView(profile: profile, dataManager: dataManager)
+                            .environmentObject(authModel)
+                    }
+                case .settings:
+                    SettingsView(dataManager: dataManager)
+                        .environmentObject(authModel)
+                }
+            }
+            .navigationDestination(isPresented: $showOwnerProfile) {
+                OwnerPassportProfileView(
+                    dataManager: dataManager,
+                    entries: journalEntries,
+                    identity: tasteIdentity
+                )
+                .environmentObject(authModel)
+            }
+            .fullScreenCover(item: $selectedRemoteVisit) { visit in
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager,
+                    onRepeat: { detail in
+                        launchComposer(from: detail.summary)
+                    }
+                )
+            }
+            .fullScreenCover(item: $selectedLocalVisit) { visit in
+                VisitDetailView(visit: visit, dataManager: dataManager)
+            }
+            .sheet(item: $selectedReflection) { reflection in
+                JournalReflectionDetailView(
+                    reflection: reflection,
+                    milestones: JournalReflectionEngine.milestones(entries: journalEntries)
+                )
+            }
+            .fullScreenCover(isPresented: $showJournalArchive) {
+                JournalArchiveView(
+                    entries: journalEntries,
+                    currentUserID: authModel.authenticatedUser?.id,
+                    dataManager: dataManager,
+                    onComposeDraft: onComposeDraft,
+                    showsPhase2Tools: phase2CanonicalJournal
+                )
+            }
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+                localDrafts = SipDraftStore.shared.allDrafts().sorted { $0.updatedAt > $1.updatedAt }
+                await loadJournal()
+            }
+        }
+    }
+
+    private var draftSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Drafts")
+                    .mugshotDisplay(size: 24)
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                Text("\(localDrafts.count)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            ForEach(localDrafts.prefix(3)) { draft in
+                HStack(spacing: 12) {
+                    Button {
+                        onComposeDraft(draft)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: draft.context.systemImage)
+                                .foregroundColor(.mugshotSage)
+                                .frame(width: 34, height: 34)
+                                .background(Color.mugshotMint.opacity(0.55), in: Circle())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.espressoBrown)
+                                    .lineLimit(1)
+                                Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondaryText)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(role: .destructive) {
+                        SipDraftStore.shared.remove(draft)
+                        localDrafts.removeAll { $0.id == draft.id }
+                    } label: {
+                        Image(systemName: "trash")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Discard \(draft.drinkName.remoteTrimmedNonEmpty ?? "draft")")
+                }
+                .padding(12)
+                .cardStyle()
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func onThisSipCard(_ entry: JournalEntryProjection) -> some View {
+        Button { selectedRemoteVisit = entry.summary } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.foamWhite)
+                    .frame(width: 44, height: 44)
+                    .background(Color.mugshotSage, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("On This Sip")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.mugshotSage)
+                    Text(entry.summary.visit.drinkDisplayName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                    Text("Revisit what stood out, with no pressure to add anything new.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.tertiaryText)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.tertiaryText)
+            }
+            .padding(14)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this memory")
+    }
+
+    private func launchComposer(from summary: RemoteVisitSummary) {
+        selectedRemoteVisit = nil
+        let userID = authModel.authenticatedUser?.id
+        let draft = summary.visit.journalContext == .recipe
+            ? SipDraft.brewAgain(from: summary, ownerUserID: userID)
+            : SipDraft.repeatSip(from: summary, ownerUserID: userID)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            onComposeDraft(draft)
+        }
+    }
+
+    private var profileHeader: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 142)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+
+                MugshotAvatar(
+                    name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                    size: 88,
+                    imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                )
+                .offset(x: 18, y: 42)
+            }
+            .padding(.horizontal, 16)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "Mugshot User")
+                            .mugshotDisplay(size: 28)
+                            .foregroundColor(.espressoBrown)
+                        Text("@\(user?.username ?? authModel.profile?.username ?? "user")\(profileLocationSuffix)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                    }
+
                     Spacer()
-                }
-                .padding(DS.Spacing.pagePadding)
-            }
-            .background(DS.Colors.screenBackground)
-            .navigationTitle("Badge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+
+                    if authModel.profile != nil {
+                        Button {
+                            authModel.clearProfileUpdateError()
+                            activeProfileSheet = .editProfile
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.mugshotSage)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .foregroundColor(DS.Colors.primaryAccent)
                 }
+
+                if let bio = user?.bio.remoteTrimmedNonEmpty {
+                    Text(bio)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(2)
+                }
+
+                HStack(spacing: 6) {
+                    MugshotTagChip(
+                        title: profileStats.favoriteDrinkLabel?.lowercased() ?? "taste explorer",
+                        icon: "leaf.fill"
+                    )
+                    if let topCafe = profileStats.topCafes.first?.cafe.consumerDisplayName {
+                        MugshotTagChip(title: topCafe, icon: "sparkles")
+                    }
+                }
+
+                Text(profileSummaryLine)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 50)
+        }
+    }
+
+    private var journalSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent sips")
+                    .mugshotDisplay(size: 30)
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                if authModel.authenticatedUser != nil {
+                    Button("See all") {
+                        showJournalArchive = true
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            JournalFilterBar(selection: $selectedFilter)
+                .padding(.horizontal, 16)
+
+            if phase2CanonicalJournal, !journalTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(journalTags.prefix(12), id: \.self) { tag in
+                            MugshotTagChip(title: tag, icon: "tag.fill")
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+
+            if authModel.authenticatedUser == nil, !filteredLocalVisits.isEmpty {
+                VStack(spacing: 12) {
+                    ForEach(Array(filteredLocalVisits.prefix(3))) { visit in
+                        VisitCard(
+                            visit: visit,
+                            dataManager: dataManager,
+                            selectedScope: .friends,
+                            onOpen: { selectedLocalVisit = visit }
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedLocalVisit = visit }
+                    }
+                }
+                .padding(.horizontal, 16)
+            } else if isLoading && remoteVisits.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Opening your journal…")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 36)
+            } else if !recentVisits.isEmpty {
+                VStack(spacing: 12) {
+                    ForEach(recentVisits) { visit in
+                        Button { selectedRemoteVisit = visit } label: {
+                            RemoteJournalRow(visit: visit)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            } else {
+                JournalEmptyState(filter: selectedFilter.rawValue) {
+                    tabCoordinator.selectedTab = 2
+                }
+                .padding(.horizontal, 16)
+            }
+
+            if let loadError {
+                Text(loadError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .padding(.horizontal, 16)
             }
         }
     }
-    
-    // MARK: - Progress Section
-    
-    @ViewBuilder
-    private var progressSection: some View {
-        if let target = badge.targetValue, target > 1 {
-            VStack(spacing: DS.Spacing.sm) {
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background
-                        RoundedRectangle(cornerRadius: DS.Radius.xs)
-                            .fill(DS.Colors.cardBackgroundAlt)
-                            .frame(height: 8)
-                        
-                        // Fill
-                        RoundedRectangle(cornerRadius: DS.Radius.xs)
-                            .fill(badge.isUnlocked ? DS.Colors.primaryAccent : DS.Colors.primaryAccent.opacity(0.5))
-                            .frame(width: geometry.size.width * badge.progress, height: 8)
-                    }
-                }
-                .frame(height: 8)
-                .padding(.horizontal, DS.Spacing.xl)
-                
-                // Progress text
-                Text("\(badge.currentValue) / \(target)")
-                    .font(DS.Typography.headline())
-                    .foregroundColor(DS.Colors.textPrimary)
-            }
-            .padding(.vertical, DS.Spacing.md)
+
+    private var profileLocationSuffix: String {
+        guard let location = user?.location.remoteTrimmedNonEmpty else { return "" }
+        return " · \(location)"
+    }
+
+    private var profileSummaryLine: String {
+        if authModel.authenticatedUser == nil {
+            let visits = dataManager.appData.visits
+            let uniqueCafes = Set(visits.filter { $0.context == .cafe }.map(\.cafeId)).count
+            let averageScore = visits.isEmpty ? 0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
+            let average = averageScore > 0 ? String(format: "%.1f average", averageScore) : "taste still forming"
+            return "\(visits.count) journal entries  ·  \(uniqueCafes) cafes  ·  \(average)"
+        }
+        let average = profileStats.averageScore > 0 ? String(format: "%.1f average", profileStats.averageScore) : "taste still forming"
+        return "\(profileStats.totalVisits) journal entries  ·  \(profileStats.totalCafes) cafes  ·  \(average)"
+    }
+
+    @MainActor
+    private func loadJournal() async {
+        guard let userID = authModel.authenticatedUser?.id else {
+            journalEntries = []
+            tasteSignals = []
+            isLoading = false
+            loadError = nil
+            return
+        }
+
+        isLoading = true
+        loadError = nil
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            async let entriesRequest = JournalService(client: client).fetchEntries(userID: userID)
+            async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
+            journalEntries = try await entriesRequest
+            tasteSignals = (try? await signalsRequest) ?? []
+            isLoading = false
+        } catch is CancellationError {
+            return
+        } catch {
+            loadError = MugshotUserFacingError.message(for: error, context: .loading)
+            isLoading = false
         }
     }
-    
-    // MARK: - Status Section
-    
-    private var statusSection: some View {
-        DSBaseCard {
-            VStack(spacing: DS.Spacing.sm) {
-                if badge.isUnlocked {
-                    HStack(spacing: DS.Spacing.sm) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(DS.Colors.primaryAccent)
-                        
-                        Text("Unlocked!")
-                            .font(DS.Typography.headline())
-                            .foregroundColor(DS.Colors.primaryAccent)
-                    }
-                } else {
-                    Text("How to unlock")
-                        .font(DS.Typography.caption1(.medium))
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .textCase(.uppercase)
-                    
-                    Text(badge.definition.unlockHint)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DS.Spacing.sm)
+
+    @MainActor
+    private func updateTasteSignal(
+        _ signal: RemoteTasteSignal,
+        state: TasteSignalOwnerState,
+        label: String?
+    ) async -> Bool {
+        guard let userID = authModel.authenticatedUser?.id else { return false }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = TasteGraphService(client: client)
+            try await service.setOwnerState(signalID: signal.id, state: state, label: label)
+            tasteSignals = try await service.fetchSignals(userID: userID)
+            return true
+        } catch {
+            return false
         }
-        .padding(.horizontal, DS.Spacing.md)
     }
 }
 
-// MARK: - Notes Card (Full Section)
-
-private struct NotesCard: View {
-    let userVisits: [Visit]
+private struct OwnerPassportProfileView: View {
     @ObservedObject var dataManager: DataManager
-    let onLogVisit: () -> Void
-    
-    @State private var filterMode: NotesFilterMode = .all
-    @State private var selectedCafeId: UUID?
-    @State private var selectedVisitForEdit: Visit?
-    @State private var showEditSheet = false
-    
-    enum NotesFilterMode: String, CaseIterable {
-        case all = "All notes"
-        case byCafe = "By cafe"
-    }
-    
-    private var allNotesVisits: [Visit] {
-        JournalStatsHelper.allVisitsWithNotes(from: userVisits)
-    }
-    
-    private var cafesWithNotes: [Cafe] {
-        JournalStatsHelper.cafesWithNotes(from: userVisits) { dataManager.getCafe(id: $0) }
-    }
-    
-    private var filteredVisits: [Visit] {
-        if filterMode == .byCafe, let cafeId = selectedCafeId {
-            return JournalStatsHelper.filterNotesByCafe(allNotesVisits, cafeId: cafeId)
-        }
-        return allNotesVisits
-    }
-    
-    private var groupedNotes: [(key: String, displayString: String, visits: [Visit])] {
-        JournalStatsHelper.groupVisitsByMonth(filteredVisits)
-    }
-    
+    let entries: [JournalEntryProjection]
+    let identity: TasteIdentitySummary
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var showEditProfile = false
+    @State private var showSettings = false
+    @State private var selectedVisit: RemoteVisitSummary?
+
+    private var profile: SupabaseUserProfile? { authModel.profile }
+    private var visits: [RemoteVisitSummary] { entries.map(\.summary) }
+    private var stats: RemoteProfileStats { RemoteProfileStats.calculate(from: visits) }
+    private var homeCount: Int { visits.filter { $0.visit.journalContext != .cafe }.count }
+    private var average: Double? { stats.totalVisits > 0 ? stats.averageScore : nil }
+
     var body: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                DSSectionHeader("Notes")
-                
-                if allNotesVisits.isEmpty {
-                    // Empty state
-                    notesEmptyState
-                } else {
-                    // Summary line
-                    notesSummary
-                    
-                    // Filter controls
-                    filterControls
-                    
-                    // Grouped notes list
-                    notesListContent
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                MugshotScreenHeader("Profile", subtitle: "Your public-facing coffee identity") {
+                    MugshotIconButton(systemName: "gearshape.fill", size: 36) {
+                        showSettings = true
+                    }
+                    .accessibilityLabel("Settings")
+                }
+
+                MugshotPassportCard(
+                    displayName: profile?.displayName ?? dataManager.appData.currentUser?.displayNameOrUsername ?? "Mugshot User",
+                    username: profile?.username ?? dataManager.appData.currentUser?.username ?? "user",
+                    avatarURL: profile?.avatarURL,
+                    bannerURL: profile?.bannerURL,
+                    identity: identity,
+                    stats: MugshotPassportStats(
+                        sips: stats.totalVisits,
+                        cafes: stats.totalCafes,
+                        homeSips: homeCount,
+                        averageRating: average
+                    ),
+                    allowsSharing: true
+                )
+                .padding(.horizontal, 16)
+
+                if let bio = profile?.bio?.remoteTrimmedNonEmpty {
+                    Text(bio)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(15)
+                        .cardStyle()
+                        .padding(.horizontal, 16)
+                }
+
+                Button {
+                    authModel.clearProfileUpdateError()
+                    showEditProfile = true
+                } label: {
+                    Label("Edit profile", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .padding(.horizontal, 16)
+
+                if !visits.isEmpty {
+                    MugshotSectionTitle(
+                        title: "Your visible profile",
+                        subtitle: "This is how your recent shared journal reads to other people."
+                    )
+                    .padding(.horizontal, 16)
+
+                    VStack(spacing: 10) {
+                        ForEach(visits.filter { $0.visit.visibility.lowercased() != "private" }.prefix(6)) { visit in
+                            Button { selectedVisit = visit } label: {
+                                RemoteJournalRow(visit: visit)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
                 }
             }
+            .padding(.bottom, 40)
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let visit = selectedVisitForEdit {
-                NoteDetailEditView(
-                    visit: visit,
-                    cafeName: dataManager.getCafe(id: visit.cafeId)?.name ?? "Unknown Cafe",
+        .background(Color.creamWhite)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEditProfile) {
+            if let profile {
+                EditProfileView(profile: profile, dataManager: dataManager)
+                    .environmentObject(authModel)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(dataManager: dataManager)
+                .environmentObject(authModel)
+        }
+        .fullScreenCover(item: $selectedVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
+            )
+        }
+    }
+}
+
+private struct JournalArchiveView: View {
+    let entries: [JournalEntryProjection]
+    let currentUserID: UUID?
+    @ObservedObject var dataManager: DataManager
+    let onComposeDraft: (SipDraft) -> Void
+    let showsPhase2Tools: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selection: JournalTabView.JournalFilter = .all
+    @State private var query = ""
+    @State private var selectedVisit: RemoteVisitSummary?
+    @State private var showsBookmarksOnly = false
+    @State private var mode: JournalArchiveMode = .timeline
+    @State private var selectedDate = Date()
+    @State private var bookmarkedIDs: Set<UUID>
+
+    init(
+        entries: [JournalEntryProjection],
+        currentUserID: UUID?,
+        dataManager: DataManager,
+        onComposeDraft: @escaping (SipDraft) -> Void,
+        showsPhase2Tools: Bool
+    ) {
+        self.entries = entries
+        self.currentUserID = currentUserID
+        self.dataManager = dataManager
+        self.onComposeDraft = onComposeDraft
+        self.showsPhase2Tools = showsPhase2Tools
+        _bookmarkedIDs = State(initialValue: Set(entries.filter(\.isBookmarked).map(\.id)))
+    }
+
+    private var filteredEntries: [JournalEntryProjection] {
+        entries
+            .filter { entry in
+                switch selection {
+                case .all: return true
+                case .cafe: return entry.context == .cafe
+                case .home: return entry.context == .home
+                case .recipes: return entry.context == .recipe
+                }
+            }
+            .filter { !showsBookmarksOnly || bookmarkedIDs.contains($0.id) }
+            .filter { $0.matches(query) }
+            .sorted { $0.date > $1.date }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 14) {
+                    JournalFilterBar(selection: $selection)
+
+                    if showsPhase2Tools {
+                        JournalArchiveModePicker(selection: $mode)
+                    }
+
+                    if filteredEntries.isEmpty {
+                        JournalEmptyState(filter: selection.rawValue)
+                    } else {
+                        switch mode {
+                        case .timeline:
+                            ForEach(filteredEntries) { entry in
+                                Button { selectedVisit = entry.summary } label: {
+                                    RemoteJournalRow(visit: entry.summary)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        toggleBookmark(entry)
+                                    } label: {
+                                        Label(
+                                            bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
+                                            systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark"
+                                        )
+                                    }
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    Button {
+                                        toggleBookmark(entry)
+                                    } label: {
+                                        Image(systemName: bookmarkedIDs.contains(entry.id) ? "bookmark.fill" : "bookmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.mugshotSage)
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(bookmarkedIDs.contains(entry.id) ? "Remove bookmark" : "Bookmark sip")
+                                }
+                            }
+                        case .calendar:
+                            JournalCalendarView(
+                                entries: filteredEntries,
+                                selectedDate: $selectedDate,
+                                onSelect: { selectedVisit = $0.summary }
+                            )
+                        case .map:
+                            JournalMapSummaryView(
+                                entries: filteredEntries,
+                                onSelect: { selectedVisit = $0.summary }
+                            )
+                        }
+                    }
+                }
+                .padding(16)
+                .padding(.bottom, 30)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Your Journal")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: "Search drinks, cafes, notes, or equipment")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showsBookmarksOnly.toggle()
+                    } label: {
+                        Image(systemName: showsBookmarksOnly ? "bookmark.fill" : "bookmark")
+                    }
+                    .foregroundColor(.mugshotSage)
+                    .accessibilityLabel(showsBookmarksOnly ? "Show all journal entries" : "Show bookmarked entries")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(.mugshotSage)
+                }
+            }
+            .fullScreenCover(item: $selectedVisit) { visit in
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: currentUserID,
                     dataManager: dataManager,
-                    onDismiss: { showEditSheet = false }
+                    onRepeat: { detail in
+                        selectedVisit = nil
+                        let draft = detail.summary.visit.journalContext == .recipe
+                            ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
+                            : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onComposeDraft(draft)
+                        }
+                    }
                 )
             }
         }
     }
-    
-    // MARK: - Empty State
-    
-    private var notesEmptyState: some View {
-        VStack(spacing: DS.Spacing.md) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 40))
-                .foregroundColor(DS.Colors.iconSubtle)
-            
-            Text("No notes yet")
-                .font(DS.Typography.headline())
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            Text("Use the Notes field when logging a visit to capture your thoughts.")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DS.Spacing.md)
-            
-            Button(action: onLogVisit) {
-                HStack(spacing: DS.Spacing.sm) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                    Text("Log a visit")
-                        .font(DS.Typography.buttonLabel)
+
+    private func toggleBookmark(_ entry: JournalEntryProjection) {
+        guard let currentUserID else { return }
+        let wasBookmarked = bookmarkedIDs.contains(entry.id)
+        if wasBookmarked {
+            bookmarkedIDs.remove(entry.id)
+        } else {
+            bookmarkedIDs.insert(entry.id)
+        }
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                try await JournalService(client: client).setBookmarked(
+                    !wasBookmarked,
+                    visitID: entry.id,
+                    userID: currentUserID
+                )
+            } catch {
+                await MainActor.run {
+                    if wasBookmarked {
+                        bookmarkedIDs.insert(entry.id)
+                    } else {
+                        bookmarkedIDs.remove(entry.id)
+                    }
                 }
-                .foregroundColor(DS.Colors.textOnMint)
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.md)
-                .background(DS.Colors.primaryAccent)
-                .cornerRadius(DS.Radius.primaryButton)
             }
-            .padding(.top, DS.Spacing.sm)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DS.Spacing.lg)
-    }
-    
-    // MARK: - Summary
-    
-    private var notesSummary: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Text("You've logged")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-            
-            Text("\(allNotesVisits.count)")
-                .font(DS.Typography.caption1(.semibold))
-                .foregroundColor(DS.Colors.primaryAccent)
-            
-            Text(allNotesVisits.count == 1 ? "note" : "notes")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
-            
-            Text("so far.")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textSecondary)
         }
     }
-    
-    // MARK: - Filter Controls
-    
-    private var filterControls: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            // Segmented control for filter mode
-            HStack(spacing: 0) {
-                ForEach(NotesFilterMode.allCases, id: \.self) { mode in
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            filterMode = mode
-                            if mode == .all {
-                                selectedCafeId = nil
-                            } else if selectedCafeId == nil, let firstCafe = cafesWithNotes.first {
-                                selectedCafeId = firstCafe.id
-                            }
-                        }
-                    }) {
-                        Text(mode.rawValue)
-                            .font(DS.Typography.caption1(.medium))
-                            .foregroundColor(filterMode == mode ? DS.Colors.textPrimary : DS.Colors.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, DS.Spacing.sm)
-                            .background(
-                                filterMode == mode
-                                    ? DS.Colors.cardBackground
-                                    : Color.clear
-                            )
-                            .cornerRadius(DS.Radius.md)
+}
+
+private enum JournalArchiveMode: String, CaseIterable, Identifiable {
+    case timeline = "Timeline"
+    case calendar = "Calendar"
+    case map = "Map"
+
+    var id: String { rawValue }
+}
+
+private struct JournalArchiveModePicker: View {
+    @Binding var selection: JournalArchiveMode
+
+    var body: some View {
+        Picker("Journal view", selection: $selection) {
+            ForEach(JournalArchiveMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityHint("Choose timeline, calendar, or map")
+    }
+}
+
+private struct JournalCalendarView: View {
+    let entries: [JournalEntryProjection]
+    @Binding var selectedDate: Date
+    let onSelect: (JournalEntryProjection) -> Void
+
+    private var entriesForDay: [JournalEntryProjection] {
+        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            DatePicker(
+                "Journal date",
+                selection: $selectedDate,
+                in: ...Date(),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .tint(.mugshotSage)
+            .padding(10)
+            .cardStyle()
+
+            if entriesForDay.isEmpty {
+                Text("No sips remembered on this day.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 22)
+            } else {
+                ForEach(entriesForDay) { entry in
+                    Button { onSelect(entry) } label: {
+                        RemoteJournalRow(visit: entry.summary)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(4)
-            .background(DS.Colors.cardBackgroundAlt)
-            .cornerRadius(DS.Radius.lg)
-            
-            // Cafe picker when "By cafe" is selected
-            if filterMode == .byCafe && !cafesWithNotes.isEmpty {
-                Menu {
-                    ForEach(cafesWithNotes) { cafe in
-                        Button(action: {
-                            selectedCafeId = cafe.id
-                        }) {
-                            HStack {
-                                Text(cafe.name)
-                                if selectedCafeId == cafe.id {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text(selectedCafeName)
-                            .font(DS.Typography.subheadline())
-                            .foregroundColor(DS.Colors.textPrimary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(DS.Colors.iconSubtle)
-                    }
-                    .padding(.horizontal, DS.Spacing.md)
-                    .padding(.vertical, DS.Spacing.sm)
-                    .background(DS.Colors.cardBackgroundAlt)
-                    .cornerRadius(DS.Radius.md)
-                }
-            }
-        }
-    }
-    
-    private var selectedCafeName: String {
-        if let cafeId = selectedCafeId,
-           let cafe = dataManager.getCafe(id: cafeId) {
-            return cafe.name
-        }
-        return "Select a cafe"
-    }
-    
-    // MARK: - Notes List Content
-    
-    private var notesListContent: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            ForEach(groupedNotes, id: \.key) { group in
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    // Month header
-                    Text(group.displayString)
-                        .font(DS.Typography.caption1(.semibold))
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .textCase(.uppercase)
-                    
-                    // Notes in this month
-                    ForEach(group.visits) { visit in
-                        NoteRowInteractive(
-                            visit: visit,
-                            cafe: dataManager.getCafe(id: visit.cafeId),
-                            onTap: {
-                                selectedVisitForEdit = visit
-                                showEditSheet = true
-                            }
-                        )
-                        
-                        if visit.id != group.visits.last?.id {
-                            Divider()
-                                .background(DS.Colors.dividerSubtle)
-                        }
-                    }
-                }
-            }
         }
     }
 }
 
-// MARK: - Interactive Note Row
+private struct JournalMapSummaryView: View {
+    let entries: [JournalEntryProjection]
+    let onSelect: (JournalEntryProjection) -> Void
 
-private struct NoteRowInteractive: View {
-    let visit: Visit
-    let cafe: Cafe?
-    let onTap: () -> Void
-    
-    private let shortDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d" // e.g., "Nov 24"
-        return formatter
-    }()
-    
+    private var mappedEntries: [JournalEntryProjection] {
+        entries.filter { $0.summary.cafe?.latitude != nil && $0.summary.cafe?.longitude != nil }
+    }
+
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                // Header: date, cafe, city
-                HStack {
-                    Text(shortDateFormatter.string(from: visit.createdAt))
-                        .font(DS.Typography.caption1(.medium))
-                        .foregroundColor(DS.Colors.textSecondary)
-                    
-                    if let cafe = cafe {
-                        Text("·")
-                            .foregroundColor(DS.Colors.textTertiary)
-                        
-                        Text(cafe.name)
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textTertiary)
-                            .lineLimit(1)
-                        
-                        if let city = cafe.city, !city.isEmpty {
-                            Text("·")
-                                .foregroundColor(DS.Colors.textTertiary)
-                            
-                            Text(city)
-                                .font(DS.Typography.caption1())
-                                .foregroundColor(DS.Colors.textTertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                
-                // Drink / rating hint
-                HStack(spacing: DS.Spacing.sm) {
-                    Text(visit.drinkDisplayText)
-                        .font(DS.Typography.caption2())
-                        .foregroundColor(DS.Colors.textTertiary)
-                    
-                    if visit.overallScore > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(DS.Colors.yellowAccent)
-                            
-                            Text(String(format: "%.1f", visit.overallScore))
-                                .font(DS.Typography.caption2())
-                                .foregroundColor(DS.Colors.textTertiary)
+        VStack(spacing: 14) {
+            if mappedEntries.isEmpty {
+                Text("Cafe sips with saved locations will appear here.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                    .cardStyle()
+            } else {
+                Map {
+                    ForEach(mappedEntries) { entry in
+                        if let latitude = entry.summary.cafe?.latitude,
+                           let longitude = entry.summary.cafe?.longitude {
+                            Annotation(
+                                entry.summary.locationTitle,
+                                coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                            ) {
+                                Button { onSelect(entry) } label: {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.foamWhite)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.mugshotSage, in: Circle())
+                                        .overlay(Circle().stroke(Color.foamWhite, lineWidth: 2))
+                                        .shadow(color: .black.opacity(0.14), radius: 6, y: 3)
+                                }
+                                .accessibilityLabel("Open \(entry.summary.visit.drinkDisplayName) at \(entry.summary.locationTitle)")
+                            }
                         }
                     }
                 }
-                
-                // Note preview (1-3 lines)
-                if let notes = visit.notes {
-                    Text(notes)
-                        .font(DS.Typography.bodyText)
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                }
-                
-                // Edit hint
-                HStack {
-                    Spacer()
-                    Text("Tap to edit")
-                        .font(DS.Typography.caption2())
-                        .foregroundColor(DS.Colors.textTertiary)
-                    Image(systemName: "pencil")
-                        .font(.system(size: 10))
-                        .foregroundColor(DS.Colors.textTertiary)
-                }
-                .padding(.top, DS.Spacing.xs)
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                .frame(height: 360)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+
+                Text("\(mappedEntries.count) located cafe sip\(mappedEntries.count == 1 ? "" : "s")")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondaryText)
             }
-            .padding(.vertical, DS.Spacing.xs)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 }
 
-// MARK: - Note Detail Edit View
+private struct JournalFilterBar: View {
+    @Binding var selection: JournalTabView.JournalFilter
 
-struct NoteDetailEditView: View {
-    let visit: Visit
-    let cafeName: String
-    @ObservedObject var dataManager: DataManager
-    let onDismiss: () -> Void
-    
-    @State private var editedNotes: String
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(JournalTabView.JournalFilter.allCases) { filter in
+                Button {
+                    withAnimation(DesignSystem.Motion.fast) { selection = filter }
+                } label: {
+                    Text(filter.rawValue)
+                        .font(.system(size: 13, weight: selection == filter ? .bold : .medium))
+                        .foregroundColor(selection == filter ? .foamWhite : .secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(selection == filter ? Color.mugshotSage : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Color.sandBeige.opacity(0.48), in: Capsule())
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct RemoteJournalFeatureCard: View {
+    let visit: RemoteVisitSummary
+
+    private var details: BrewDetails { visit.visit.structuredBrewDetails }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            RemotePhotoImageView(
+                urlString: visit.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill",
+                contentMode: .fill
+            )
+            .frame(width: 118, height: 205)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label(contextLabel, systemImage: visit.visit.journalContext.systemImage)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+
+                Text(details.recipeDisplayName ?? visit.visit.drinkDisplayName)
+                    .mugshotDisplay(size: 22)
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let extraction = details.extractionSummary {
+                    Label(extraction, systemImage: "timer")
+                        .journalFactStyle()
+                }
+
+                if let origin = journalOriginLine {
+                    Label(origin, systemImage: "globe.americas.fill")
+                        .journalFactStyle()
+                }
+
+                if let method = visit.visit.brewMethod?.remoteTrimmedNonEmpty {
+                    Label(method, systemImage: "drop.fill")
+                        .journalFactStyle()
+                }
+
+                if let equipment = visit.visit.equipment?.remoteTrimmedNonEmpty {
+                    Label(equipment, systemImage: "dial.high.fill")
+                        .journalFactStyle()
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+
+                if let note = visit.visit.trimmedNotes ?? visit.visit.caption.remoteTrimmedNonEmpty {
+                    Text(note)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(3)
+                }
+
+                Label(visit.visit.backendVisibilityLabel, systemImage: visibilityIcon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.tertiaryText)
+            }
+            .frame(maxWidth: .infinity, minHeight: 205, alignment: .topLeading)
+        }
+        .padding(12)
+        .background(Color.sandBeige.opacity(0.38))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var contextLabel: String {
+        switch visit.visit.journalContext {
+        case .cafe: return "Cafe Sip · \(visit.locationTitle)"
+        case .home: return "Home Brew"
+        case .recipe: return "Recipe"
+        }
+    }
+
+    private var journalOriginLine: String? {
+        [details.roastLevel?.remoteTrimmedNonEmpty, details.beanOrigin?.remoteTrimmedNonEmpty]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+            .remoteTrimmedNonEmpty
+    }
+
+    private var visibilityIcon: String {
+        switch visit.visit.visibility.lowercased() {
+        case "private": return "lock.fill"
+        case "friends": return "person.2.fill"
+        default: return "globe.americas.fill"
+        }
+    }
+}
+
+struct RemoteJournalRow: View {
+    let visit: RemoteVisitSummary
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: visit.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill",
+                contentMode: .fill
+            )
+            .frame(width: 92, height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 5) {
+                    Image(systemName: visit.visit.journalContext.systemImage)
+                    Text(visit.visit.journalContext == .cafe ? "Cafe Sip" : visit.visit.journalContext.rawValue)
+                    Text("·")
+                    Text(visit.visit.createdAtDate, style: .date)
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+
+                Text(visit.locationTitle)
+                    .mugshotDisplay(size: 19)
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                Text(visit.visit.drinkDisplayName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(1)
+                Label(String(format: "%.1f", visit.visit.overallScore), systemImage: "star.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.tertiaryText)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct JournalEmptyState: View {
+    let filter: String
+    var onAdd: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: filter == "Recipes" ? "book.pages.fill" : "cup.and.saucer.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            Text(filter == "All" ? "Your journal starts with a sip" : "No \(filter.lowercased()) entries yet")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            Text("Capture the drink, the moment, and the details you want to remember.")
+                .font(.system(size: 12))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            if let onAdd {
+                Button("New journal entry", action: onAdd)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+    }
+}
+
+private struct TasteIdentityJournalSection: View {
+    let summary: TasteIdentitySummary
+    let signals: [RemoteTasteSignal]
+    let entries: [JournalEntryProjection]
+    let onChange: (RemoteTasteSignal, TasteSignalOwnerState, String?) async -> Bool
+    @State private var selectedSignal: RemoteTasteSignal?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Mugshot Passport")
+                    .mugshotDisplay(size: 28)
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                Text(summary.isForming ? "Still forming" : "One of 512 title combinations")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundColor(.foamWhite)
+                    .frame(width: 64, height: 64)
+                    .background(Color.mugshotSage, in: Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(summary.title)
+                        .font(.system(size: 22, weight: .bold, design: .serif))
+                        .foregroundColor(.espressoBrown)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(summary.descriptors, id: \.self) { descriptor in
+                                Text(descriptor)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.mugshotSage)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Color.mugshotMint.opacity(0.34), in: Capsule())
+                            }
+                        }
+                    }
+                    Text(summary.description)
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if signals.filter(\.isDurableClaim).isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(summary.patterns) { pattern in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: pattern.systemImage)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.mugshotSage)
+                                .frame(width: 18)
+                            Text(pattern.text)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(signals.filter(\.isDurableClaim).prefix(5)) { signal in
+                        Button {
+                            selectedSignal = signal
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: signal.systemImage)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.mugshotSage)
+                                    .frame(width: 18)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(signal.claimText)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.espressoBrown)
+                                    Text(signal.evidenceSummary)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondaryText)
+                                }
+                                Spacer(minLength: 6)
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.mugshotSage)
+                            }
+                            .padding(.vertical, 9)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .sheet(item: $selectedSignal) { signal in
+            TasteSignalEvidenceView(
+                signal: signal,
+                entries: entries.filter { signal.evidenceVisitIDs.contains($0.id) },
+                onChange: onChange
+            )
+        }
+    }
+}
+
+private struct TasteSignalEvidenceView: View {
+    let signal: RemoteTasteSignal
+    let entries: [JournalEntryProjection]
+    let onChange: (RemoteTasteSignal, TasteSignalOwnerState, String?) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var correctedLabel = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
-    @FocusState private var isTextEditorFocused: Bool
-    
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        return formatter
-    }()
-    
-    init(visit: Visit, cafeName: String, dataManager: DataManager, onDismiss: @escaping () -> Void) {
-        self.visit = visit
-        self.cafeName = cafeName
-        self.dataManager = dataManager
-        self.onDismiss = onDismiss
-        self._editedNotes = State(initialValue: visit.notes ?? "")
-    }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    // Visit info header
-                    visitInfoHeader
-                    
-                    // Error message if any
-                    if let error = errorMessage {
-                        errorBanner(error)
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(signal.signalType.title, systemImage: signal.systemImage)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                        Text(signal.claimText)
+                            .mugshotDisplay(size: 28)
+                            .foregroundColor(.espressoBrown)
+                        Text(signal.evidenceSummary + ". Mugshot requires at least three before showing this pattern.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
                     }
-                    
-                    // Text editor
-                    notesEditor
-                }
-                .padding(DS.Spacing.pagePadding)
-            }
-            .background(DS.Colors.screenBackground)
-            .navigationTitle("Edit Note")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        onDismiss()
+
+                    if signal.signalType == .orderPreference {
+                        Text("This describes what you tend to order. It does not claim that a specific drink tasted sweet, bitter, acidic, or clear.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.espressoBrown.opacity(0.76))
+                            .padding(14)
+                            .background(Color.mugshotMint.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
                     }
-                    .foregroundColor(DS.Colors.textPrimary)
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        saveNotes()
-                    }
-                    .font(.headline)
-                    .foregroundColor(DS.Colors.primaryAccent)
-                    .disabled(isSaving)
-                }
-            }
-            .interactiveDismissDisabled(editedNotes != (visit.notes ?? ""))
-        }
-    }
-    
-    // MARK: - Visit Info Header
-    
-    private var visitInfoHeader: some View {
-        DSBaseCard {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                // Cafe name
-                Text(cafeName)
-                    .font(DS.Typography.headline())
-                    .foregroundColor(DS.Colors.textPrimary)
-                
-                // Date
-                Text(dateFormatter.string(from: visit.createdAt))
-                    .font(DS.Typography.caption1())
-                    .foregroundColor(DS.Colors.textSecondary)
-                
-                // Drink and rating
-                HStack(spacing: DS.Spacing.md) {
-                    // Drink type
-                    HStack(spacing: DS.Spacing.xs) {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(DS.Colors.iconSubtle)
-                        
-                        Text(visit.drinkDisplayText)
-                            .font(DS.Typography.caption1())
-                            .foregroundColor(DS.Colors.textSecondary)
-                    }
-                    
-                    // Rating
-                    if visit.overallScore > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(DS.Colors.yellowAccent)
-                            
-                            Text(String(format: "%.1f", visit.overallScore))
-                                .font(DS.Typography.caption1(.medium))
-                                .foregroundColor(DS.Colors.textSecondary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Journal evidence")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        ForEach(entries) { entry in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.summary.visit.drinkDisplayName)
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("\(entry.summary.locationTitle) · \(entry.date.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondaryText)
+                                }
+                                Spacer()
+                                if signal.signalType == .sensoryEvaluation,
+                                   let score = entry.summary.visit.orderedRatingScores.first(where: {
+                                       $0.name.lowercased().replacingOccurrences(of: " ", with: "_") == signal.attribute
+                                   })?.score {
+                                    Text(String(format: "%.1f", score))
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.mugshotSage)
+                                }
+                            }
+                            .padding(12)
+                            .cardStyle()
                         }
                     }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Make it yours")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        TextField("A label that feels right", text: $correctedLabel)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Use my wording") {
+                            Task { await save(.corrected, label: correctedLabel) }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(correctedLabel.remoteTrimmedNonEmpty == nil || isSaving)
+
+                        Button("This is not me", role: .destructive) {
+                            Task { await save(.dismissed, label: nil) }
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .disabled(isSaving)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Why Mugshot thinks this")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
         }
     }
-    
-    // MARK: - Error Banner
-    
-    private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(DS.Colors.redAccent)
-            
-            Text(message)
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.redAccent)
-            
-            Spacer()
-            
-            Button(action: { errorMessage = nil }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-        }
-        .padding(DS.Spacing.md)
-        .background(DS.Colors.redAccent.opacity(0.1))
-        .cornerRadius(DS.Radius.md)
-    }
-    
-    // MARK: - Notes Editor
-    
-    private var notesEditor: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            Text("Your notes")
-                .font(DS.Typography.sectionTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-            
-            TextEditor(text: $editedNotes)
-                .font(DS.Typography.bodyText)
-                .foregroundColor(DS.Colors.textPrimary)
-                .scrollContentBackground(.hidden)
-                .focused($isTextEditorFocused)
-                .frame(minHeight: 200)
-                .padding(DS.Spacing.md)
-                .background(DS.Colors.cardBackground)
-                .cornerRadius(DS.Radius.lg)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.lg)
-                        .stroke(
-                            isTextEditorFocused ? DS.Colors.primaryAccent : DS.Colors.borderSubtle,
-                            lineWidth: isTextEditorFocused ? 2 : 1
-                        )
-                )
-            
-            // Character count hint
-            Text("\(editedNotes.count) characters")
-                .font(DS.Typography.caption2())
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-    }
-    
-    // MARK: - Save Action
-    
-    private func saveNotes() {
-        guard !isSaving else { return }
-        
+
+    @MainActor
+    private func save(_ state: TasteSignalOwnerState, label: String?) async {
         isSaving = true
         errorMessage = nil
-        
-        Task {
-            do {
-                let notesToSave = editedNotes.isEmpty ? nil : editedNotes
-                try await dataManager.updateVisitNotes(visitId: visit.id, notes: notesToSave)
-                
-                await MainActor.run {
-                    isSaving = false
-                    HapticsManager.shared.playSuccess()
-                    onDismiss()
-                }
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    errorMessage = "Failed to save: \(error.localizedDescription)"
-                    HapticsManager.shared.playError()
-                    print("[NoteDetailEditView] Save error: \(error)")
-                }
-            }
+        let succeeded = await onChange(signal, state, label)
+        isSaving = false
+        if succeeded {
+            dismiss()
+        } else {
+            errorMessage = "That change did not save. Please try again."
         }
     }
 }
 
-// MARK: - Privacy Footer
-
-private struct JournalPrivacyFooter: View {
-    var body: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 12))
-                .foregroundColor(DS.Colors.iconSubtle)
-            
-            Text("Journal and notes are private – only visible to you.")
-                .font(DS.Typography.caption1())
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, DS.Spacing.md)
-        .padding(.bottom, DS.Spacing.lg)
+private extension View {
+    func journalFactStyle() -> some View {
+        font(.system(size: 11, weight: .medium))
+            .foregroundColor(.secondaryText)
+            .lineLimit(1)
     }
 }
-

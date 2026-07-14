@@ -2,538 +2,580 @@
 //  SavedTabView.swift
 //  testMugshot
 //
-//  Redesigned Saved tab with icon-based navigation, summary stats,
-//  rich cafe cards with context, and modern interactions.
+//  Created by Joseph Rosso on 11/14/25.
 //
 
 import SwiftUI
-import CoreLocation
 
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
-    @EnvironmentObject var tabCoordinator: TabCoordinator
-    @StateObject private var locationManager = LocationManager()
-    @EnvironmentObject private var hapticsManager: HapticsManager
-    
-    // MARK: - State
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var selectedSection: SavedSection = .cafes
     @State private var selectedTab: SavedTab = .favorites
-    @State private var sortOption: SavedSortOption = .bestRated
-    @State private var selectedCafe: Cafe?
-    @State private var showLogVisit = false
-    @State private var showCafeDetail = false
-    @State private var showNotifications = false
-    @State private var showUndoToast = false
-    @State private var recentlyRemovedCafe: (cafe: Cafe, fromTab: SavedTab)?
-    
-    private var unreadNotificationCount: Int {
-        dataManager.appData.notifications.filter { !$0.isRead }.count
+    @State private var sortOption: SortOption = .score
+    @State private var activeSheet: SavedSheet?
+    @State private var isLoadingRemoteStates = false
+    @State private var remoteStateError: String?
+    @State private var remoteCafeCoverURLs: [UUID: String] = [:]
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
+
+    enum SavedSection: String, CaseIterable {
+        case cafes = "Cafes"
+        case lists = "Lists"
     }
     
-    // MARK: - Computed Properties
-    
-    private var favoritesCount: Int {
-        dataManager.appData.cafes.filter { $0.isFavorite }.count
+    enum SavedTab: String, CaseIterable {
+        case favorites = "Favorites"
+        case wantToTry = "Want to Try"
+        case allCafes = "All Cafes"
     }
     
-    private var wishlistCount: Int {
-        dataManager.appData.cafes.filter { $0.wantToTry }.count
+    enum SortOption: String, CaseIterable {
+        case score = "By Score"
+        case date = "By Date"
+        case name = "By Name"
+
+        var iconName: String {
+            switch self {
+            case .score:
+                return "star.fill"
+            case .date:
+                return "clock.fill"
+            case .name:
+                return "textformat.abc"
+            }
+        }
     }
 
-    private var currentUserVisitCountsByCafe: [UUID: Int] {
-        dataManager.currentUserVisitCountsByCafe()
+    private var savedSubtitle: String {
+        if selectedSection == .lists {
+            return "Plan places together"
+        }
+        switch selectedTab {
+        case .favorites:
+            return "Your personal cafe library"
+        case .wantToTry:
+            return "Plan your next sip"
+        case .allCafes:
+            return "Every cafe in your Mugshot"
+        }
+    }
+
+    private var emptyTitle: String {
+        switch selectedTab {
+        case .favorites:
+            return "No favorites yet"
+        case .wantToTry:
+            return "No want-to-try cafes yet"
+        case .allCafes:
+            return "No cafes yet"
+        }
+    }
+
+    private var emptyMessage: String {
+        switch selectedTab {
+        case .favorites:
+            return "Favorite cafes from Map or Cafe Detail and they will stay here."
+        case .wantToTry:
+            return "Mark cafes as Want to Try when you are planning the next stop."
+        case .allCafes:
+            return "Log a visit or save a cafe to start building your library."
+        }
     }
     
-    private var totalCafesCount: Int {
-        currentUserVisitCountsByCafe.count
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                MugshotScreenHeader("Saved", subtitle: savedSubtitle) {
+                    Menu {
+                        if selectedSection == .cafes {
+                            Picker("View", selection: $selectedTab) {
+                                ForEach(SavedTab.allCases, id: \.self) { tab in
+                                    Text(tab.rawValue).tag(tab)
+                                }
+                            }
+
+                            if selectedTab == .allCafes {
+                                Picker("Sort All Cafes", selection: $sortOption) {
+                                    ForEach(SortOption.allCases, id: \.self) { option in
+                                        Label(option.rawValue, systemImage: option.iconName).tag(option)
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                            .frame(width: 36, height: 36)
+                            .background(Color.foamWhite)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
+                    }
+                    .accessibilityLabel("Saved filters")
+                }
+
+                if phase4LightweightFriends, authModel.authenticatedUser != nil {
+                    MugshotSegmentedControl(
+                        options: SavedSection.allCases,
+                        selection: $selectedSection,
+                        title: { $0.rawValue },
+                        icon: { $0 == .cafes ? "cup.and.saucer.fill" : "rectangle.stack.fill" }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+                }
+
+                if selectedSection == .cafes {
+                    MugshotSegmentedControl(
+                        options: SavedTab.allCases,
+                        selection: $selectedTab,
+                        title: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+                }
+
+                if selectedSection == .cafes, selectedTab == .allCafes {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                MugshotFilterChip(
+                                    title: option.rawValue,
+                                    icon: option.iconName,
+                                    isSelected: sortOption == option
+                                ) {
+                                    withAnimation(DesignSystem.Motion.base) {
+                                        sortOption = option
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
+                }
+
+                if selectedSection == .cafes, authModel.authenticatedUser != nil {
+                    remoteStateStatus
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 4)
+                }
+                
+                // Cafe list
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if selectedSection == .lists,
+                           phase4LightweightFriends,
+                           let currentUserID = authModel.authenticatedUser?.id {
+                            SharedCafeListsView(
+                                dataManager: dataManager,
+                                currentUserID: currentUserID
+                            )
+                        } else if filteredAndSortedCafes.isEmpty {
+                            SavedEmptyStateView(
+                                asset: mugsyAsset(for: selectedTab),
+                                title: emptyTitle,
+                                message: emptyMessage
+                            )
+                        } else {
+                            ForEach(filteredAndSortedCafes) { cafe in
+                                CafeCard(
+                                    cafe: cafe,
+                                    dataManager: dataManager,
+                                    showWantToTryTag: selectedTab == .wantToTry,
+                                    communityImageURL: remoteCafeCoverURLs[cafe.remoteCafeId ?? cafe.id],
+                                    onLogVisit: {
+                                        guard authModel.authenticatedUser != nil else {
+                                            onAuthenticationRequired?(
+                                                "Keep this sip in your journal",
+                                                "Sign in to log this saved cafe. Your guest saves will remain on this device."
+                                            )
+                                            return
+                                        }
+                                        activeSheet = .logVisit(cafe)
+                                    },
+                                    onShowDetails: {
+                                        activeSheet = .cafeDetail(cafe)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 116)
+                }
+            }
+            .background(Color.creamWhite)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+                if authModel.authenticatedUser == nil { selectedSection = .cafes }
+                await loadRemoteCafeStates()
+            }
+        }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .logVisit(let cafe):
+                LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
+            case .cafeDetail(let cafe):
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    onAuthenticationRequired: onAuthenticationRequired
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var remoteStateStatus: some View {
+        if isLoadingRemoteStates {
+            HStack(spacing: 8) {
+                ProgressView().tint(.mugshotSage)
+                Text("Refreshing saved cafes…")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+        } else if let remoteStateError {
+            MugshotRecoveryCard(
+                title: "Couldn’t refresh saved cafes",
+                message: remoteStateError,
+                actionTitle: "Retry"
+            ) {
+                Task { await loadRemoteCafeStates() }
+            }
+        }
+    }
+
+    @MainActor
+    private func loadRemoteCafeStates() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            remoteStateError = nil
+            remoteCafeCoverURLs = [:]
+            return
+        }
+
+        isLoadingRemoteStates = true
+        remoteStateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            let states = try await service.fetchCafeStates(userId: userId)
+            dataManager.applyRemoteCafeStates(states)
+
+            let discoveredCafes = (try? await SocialDiscoveryService(client: client).discovery(
+                section: .saved,
+                location: nil,
+                radiusKM: 100,
+                limit: 50
+            )) ?? []
+            for cafe in discoveredCafes {
+                dataManager.upsertRemoteCafe(
+                    cafe.remoteCafe,
+                    averageRating: cafe.averageRating,
+                    visitCount: cafe.visibleVisitCount,
+                    persist: false
+                )
+            }
+            if !discoveredCafes.isEmpty {
+                dataManager.save()
+            }
+            remoteCafeCoverURLs = Dictionary(
+                uniqueKeysWithValues: discoveredCafes.compactMap { cafe in
+                    guard let cover = cafe.recentCover?.remoteTrimmedNonEmpty else { return nil }
+                    return (cafe.id, cover)
+                }
+            )
+            isLoadingRemoteStates = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
+            isLoadingRemoteStates = false
+        }
     }
     
-    private var statTabs: [DSStatTabs.Tab] {
-        [
-            .init(id: "favorites", count: favoritesCount, label: "Favorites"),
-            .init(id: "wishlist", count: wishlistCount, label: "Wishlist"),
-            .init(id: "library", count: totalCafesCount, label: "My Cafes")
-        ]
-    }
-    
-    private func filteredCafes(using visitCounts: [UUID: Int]) -> [Cafe] {
+    private var filteredAndSortedCafes: [Cafe] {
         var cafes: [Cafe]
         
         switch selectedTab {
         case .favorites:
             cafes = dataManager.appData.cafes.filter { $0.isFavorite }
-        case .wishlist:
+        case .wantToTry:
             cafes = dataManager.appData.cafes.filter { $0.wantToTry }
-        case .library:
-            cafes = dataManager.appData.cafes.filter { (visitCounts[$0.id] ?? 0) > 0 }
-            logMyCafesDebugInfo(visitCounts: visitCounts, cafes: cafes)
+        case .allCafes:
+            cafes = dataManager.appData.cafes
         }
         
-        return sortCafes(cafes, visitCounts: visitCounts)
-    }
-    
-    private func sortCafes(_ cafes: [Cafe], visitCounts: [UUID: Int]) -> [Cafe] {
+        // Sort
         switch sortOption {
-        case .bestRated:
+        case .score:
             return cafes.sorted { $0.averageRating > $1.averageRating }
-        case .worstRated:
-            return cafes.sorted { $0.averageRating < $1.averageRating }
-        case .mostVisited:
-            return cafes.sorted {
-                (visitCounts[$0.id] ?? 0) > (visitCounts[$1.id] ?? 0)
-            }
-        case .recentlyVisited:
+        case .date:
+            // Sort by most recent visit
             return cafes.sorted { cafe1, cafe2 in
-                let date1 = dataManager.lastVisitDate(for: cafe1.id) ?? Date.distantPast
-                let date2 = dataManager.lastVisitDate(for: cafe2.id) ?? Date.distantPast
+                let visits1 = dataManager.getVisitsForCafe(cafe1.id)
+                let visits2 = dataManager.getVisitsForCafe(cafe2.id)
+                let date1 = visits1.first?.date ?? Date.distantPast
+                let date2 = visits2.first?.date ?? Date.distantPast
                 return date1 > date2
             }
-        case .recentlyAdded:
-            return cafes.sorted { cafe1, cafe2 in
-                let date1 = dataManager.dateAddedToWishlist(for: cafe1.id)
-                let date2 = dataManager.dateAddedToWishlist(for: cafe2.id)
-                return date1 > date2
-            }
-        case .closestToMe:
-            guard let userLocation = locationManager.location else {
-                return cafes // Fall back to original order if no location
-            }
-            return cafes.sorted { cafe1, cafe2 in
-                let dist1 = dataManager.distance(to: cafe1, from: userLocation) ?? Double.greatestFiniteMagnitude
-                let dist2 = dataManager.distance(to: cafe2, from: userLocation) ?? Double.greatestFiniteMagnitude
-                return dist1 < dist2
-            }
-        case .alphabetical:
-            return cafes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .name:
+            return cafes.sorted { $0.name < $1.name }
         }
     }
-    
-    // MARK: - Body
-    
+
+    private func mugsyAsset(for tab: SavedTab) -> MugsyEmptyStateAsset {
+        switch tab {
+        case .favorites:
+            return .noFavorites
+        case .wantToTry:
+            return .noWishlist
+        case .allCafes:
+            return .noCafes
+        }
+    }
+}
+
+struct SavedEmptyStateView: View {
+    let asset: MugsyEmptyStateAsset
+    let title: String
+    let message: String
+
     var body: some View {
-        let visitCounts = currentUserVisitCountsByCafe
-        let cafesForDisplay = filteredCafes(using: visitCounts)
-        
-        return NavigationStack {
-            VStack(spacing: 0) {
-                // 1. Mint header with title + Instagram-style stat tabs
-                headerSection
-                
-                // 2. Stat tabs (Instagram-style with counts)
-                DSStatTabs(
-                    tabs: statTabs,
-                    selectedTabId: Binding(
-                        get: { selectedTab.id },
-                        set: { newId in
-                            if let tab = SavedTab(rawValue: newId), tab != selectedTab {
-                                    hapticsManager.selectionChanged()
-                                selectedTab = tab
-                                sortOption = tab.defaultSort
-                            }
-                        }
-                    )
-                )
-                .background(DS.Colors.appBarBackground)
-                
-                // 3. Content
-                if cafesForDisplay.isEmpty {
-                    emptyStateForCurrentTab
-                        .transition(.opacity)
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // Filter/Sort bar
-                            DSFilterSortBar(
-                                availableOptions: selectedTab.sortOptions,
-                                selectedOption: $sortOption
-                            )
-                            
-                            // Cafe list with swipe actions
-                            LazyVStack(spacing: DS.Spacing.lg) {
-                                ForEach(cafesForDisplay) { cafe in
-                                    let visitCount = visitCounts[cafe.id] ?? 0
-                                    let imageInfo = dataManager.cafeImageInfo(for: cafe.id)
-                                    
-                                    SavedCafeCard(
-                                        cafe: cafe,
-                                        mode: selectedTab,
-                                        lastVisitDate: dataManager.lastVisitDate(for: cafe.id),
-                                        visitCount: visitCount,
-                                        favoriteDrink: dataManager.favoriteDrink(for: cafe.id),
-                                        cafeImagePath: imageInfo.path,
-                                        cafeImageRemoteURL: imageInfo.remoteURL,
-                                        dataManager: dataManager,
-                                        onLogVisit: {
-                                            selectedCafe = cafe
-                                            showLogVisit = true
-                                        },
-                                        onShowDetails: {
-                                            selectedCafe = cafe
-                                            showCafeDetail = true
-                                        }
-                                    )
-                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                        Button {
-                                            hapticsManager.lightTap()
-                                            selectedCafe = cafe
-                                            showLogVisit = true
-                                        } label: {
-                                            Label("Log Visit", systemImage: "cup.and.saucer")
-                                        }
-                                        .tint(DS.Colors.primaryAccent)
-                                    }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            removeCafe(cafe)
-                                        } label: {
-                                            Label("Remove", systemImage: "trash")
-                                        }
-                                    }
-                                    .contextMenu {
-                                        cafeContextMenu(for: cafe)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .padding(.top, DS.Spacing.md)
-                            .padding(.bottom, DS.Spacing.xxl * 2)
-                        }
-                    }
-                    .background(DS.Colors.screenBackground)
-                    .transition(.opacity)
-                }
-            }
-            .background(DS.Colors.screenBackground)
-            .animation(.easeInOut(duration: 0.2), value: selectedTab)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    notificationButton
-                }
-            }
-        }
-        .sheet(isPresented: $showLogVisit) {
-            if let cafe = selectedCafe {
-                LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
-            }
-        }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
-                UnifiedCafeView(
-                    cafe: cafe,
-                    dataManager: dataManager,
-                    presentationMode: .fullScreen
-                )
-            }
-        }
-        .sheet(isPresented: $showNotifications) {
-            NotificationsCenterView(dataManager: dataManager)
-        }
-        .overlay(alignment: .bottom) {
-            if showUndoToast, let removed = recentlyRemovedCafe {
-                undoToast(for: removed.cafe, fromTab: removed.fromTab)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .onAppear {
-            locationManager.requestLocationPermission()
+        MugsyEmptyStateView(asset: asset, title: title, message: message)
+    }
+}
+
+enum SavedSheet: Identifiable {
+    case logVisit(Cafe)
+    case cafeDetail(Cafe)
+
+    var id: String {
+        switch self {
+        case .logVisit(let cafe):
+            return "log-\(cafe.id.uuidString)"
+        case .cafeDetail(let cafe):
+            return "detail-\(cafe.id.uuidString)"
         }
     }
+}
+
+struct CafeCard: View {
+    let cafe: Cafe
+    @ObservedObject var dataManager: DataManager
+    let showWantToTryTag: Bool
+    let communityImageURL: String?
+    let placeImageURL: String?
+    let onLogVisit: () -> Void
+    let onShowDetails: () -> Void
+
+    init(
+        cafe: Cafe,
+        dataManager: DataManager,
+        showWantToTryTag: Bool,
+        communityImageURL: String? = nil,
+        placeImageURL: String? = nil,
+        onLogVisit: @escaping () -> Void,
+        onShowDetails: @escaping () -> Void
+    ) {
+        self.cafe = cafe
+        self.dataManager = dataManager
+        self.showWantToTryTag = showWantToTryTag
+        self.communityImageURL = communityImageURL
+        self.placeImageURL = placeImageURL
+        self.onLogVisit = onLogVisit
+        self.onShowDetails = onShowDetails
+    }
     
-    // MARK: - Header Section
-    
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            Text("Saved")
-                .font(DS.Typography.screenTitle)
-                .foregroundColor(DS.Colors.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.top, DS.Spacing.md)
-        .padding(.bottom, DS.Spacing.sm)
-        .background(
-            // Extend mint background above safe area
-            GeometryReader { geometry in
-                DS.Colors.appBarBackground
-                    .frame(height: geometry.size.height + geometry.safeAreaInsets.top + 100)
-                    .offset(y: -geometry.safeAreaInsets.top - 100)
-            }
+    // Get cafe image from most recent visit, or nil if no visits/photos
+    var cafeImagePath: String? {
+        let visits = dataManager.getVisitsForCafe(cafe.id)
+        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
+        return sortedVisits.first?.posterImagePath
+    }
+
+    private var displayedVisitCount: Int {
+        max(cafe.visitCount, dataManager.getVisitsForCafe(cafe.id).count)
+    }
+
+    private var cafeImageSource: CafeCardImageSource {
+        CafeCardImageSource.preferred(
+            personalJournalPath: cafeImagePath,
+            placePhotoURL: placeImageURL,
+            communityPhotoURL: communityImageURL
         )
     }
-    
-    // MARK: - Empty States
-    
-    @ViewBuilder
-    private var emptyStateForCurrentTab: some View {
-        switch selectedTab {
-        case .favorites:
-            EmptyStateView(
-                iconName: "MugsyNoFavorites",
-                title: "No favorites yet",
-                subtitle: "Heart a cafe from your visits to add it here.",
-                primaryAction: EmptyStateAction(
-                    title: "View Your Visits",
-                    icon: "list.bullet",
-                    action: {
-                        // Navigate to Profile tab
-                        tabCoordinator.switchToProfile()
-                    }
-                )
-            )
-        case .wishlist:
-            EmptyStateView(
-                iconName: "MugsyNoWishlist",
-                title: "Nothing on your wishlist",
-                subtitle: "Bookmark cafes you want to try from the Feed or Map.",
-                primaryAction: EmptyStateAction(
-                    title: "Explore the Map",
-                    icon: "map",
-                    action: {
-                        // Navigate to Map tab
-                        tabCoordinator.switchToMap()
-                    }
-                )
-            )
-        case .library:
-            EmptyStateView(
-                iconName: "MugsyNoCafes",
-                title: "No cafes yet",
-                subtitle: "Log your first visit to start building your cafe collection.",
-                primaryAction: EmptyStateAction(
-                    title: "Log a Visit",
-                    icon: "plus",
-                    action: {
-                        showLogVisit = true
-                    }
-                )
-            )
-        }
-    }
-    
-    // MARK: - Debug Logging
-    
-    private func logMyCafesDebugInfo(visitCounts: [UUID: Int], cafes: [Cafe]) {
-        #if DEBUG
-        let userIdentifier = dataManager.appData.supabaseUserId ??
-            dataManager.appData.currentUser?.id.uuidString ??
-            "unknown"
-        let totalVisits = visitCounts.values.reduce(0, +)
-        
-        print("[MyCafes] Building list for currentUserId=\(userIdentifier)")
-        print("[MyCafes] Total visits for current user: \(totalVisits)")
-        print("[MyCafes] Unique cafes for current user: \(cafes.count)")
-        
-        if cafes.isEmpty {
-            print("[MyCafes] No cafes to include for current user.")
-        }
-        
-        for cafe in cafes {
-            let visitCount = visitCounts[cafe.id] ?? 0
-            print("[MyCafes] Cafe '\(cafe.name)' included with visitCountForCurrentUser=\(visitCount)")
-        }
-        #endif
-    }
-    
-    // MARK: - Context Menu
-    
-    @ViewBuilder
-    private func cafeContextMenu(for cafe: Cafe) -> some View {
-        Button {
-            hapticsManager.lightTap()
-            selectedCafe = cafe
-            showLogVisit = true
-        } label: {
-            Label("Log a Visit", systemImage: "cup.and.saucer")
-        }
-        
-        Button {
-            hapticsManager.lightTap()
-            selectedCafe = cafe
-            showCafeDetail = true
-        } label: {
-            Label("View Details", systemImage: "info.circle")
-        }
-        
-        Button {
-            hapticsManager.lightTap()
-            openInMaps(cafe)
-        } label: {
-            Label("Get Directions", systemImage: "map")
-        }
-        
-        if let websiteURL = cafe.websiteURL, !websiteURL.isEmpty {
-            Button {
-                hapticsManager.lightTap()
-                openWebsite(urlString: websiteURL)
-            } label: {
-                Label("Visit Website", systemImage: "safari")
-            }
-        }
-        
-        Button {
-            hapticsManager.lightTap()
-            shareCafe(cafe)
-        } label: {
-            Label("Share Cafe", systemImage: "square.and.arrow.up")
-        }
-        
-        Divider()
-        
-        // Toggle actions
-        Button {
-            hapticsManager.lightTap()
-            dataManager.toggleCafeFavorite(cafe.id)
-        } label: {
-            Label(
-                cafe.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                systemImage: cafe.isFavorite ? "heart.slash" : "heart"
-            )
-        }
-        
-        Button {
-            hapticsManager.lightTap()
-            dataManager.toggleCafeWantToTry(cafe.id)
-        } label: {
-            Label(
-                cafe.wantToTry ? "Remove from Wishlist" : "Add to Wishlist",
-                systemImage: cafe.wantToTry ? "bookmark.slash" : "bookmark"
-            )
-        }
-        
-        Divider()
-        
-        Button(role: .destructive) {
-            removeCafe(cafe)
-        } label: {
-            Label("Remove from Saved", systemImage: "trash")
-        }
-    }
-    
-    // MARK: - Notification Button
-    
-    private var notificationButton: some View {
-                Button(action: { showNotifications = true }) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 20))
-                            .foregroundColor(DS.Colors.iconDefault)
-                        
-                        if unreadNotificationCount > 0 {
-                            Text("\(unreadNotificationCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(DS.Colors.textOnMint)
-                                .padding(4)
-                                .background(
-                                    Circle()
-                                        .fill(DS.Colors.primaryAccent)
-                                )
-                                .offset(x: 8, y: -8)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onShowDetails) {
+                HStack(alignment: .top, spacing: 14) {
+                    cafeImage
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(cafe.consumerDisplayName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
+
+                        if !cafe.address.isEmpty {
+                            Label(cafe.address, systemImage: "mappin.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(.espressoBrown.opacity(0.62))
+                                .lineLimit(2)
+                        }
+
+                        HStack(spacing: 8) {
+                            if cafe.isFavorite {
+                                cafePill("Favorite", systemImage: "heart.fill")
+                            }
+
+                            if cafe.wantToTry || showWantToTryTag {
+                                cafePill("Want to Try", systemImage: "bookmark.fill")
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            cafePill(
+                                "\(displayedVisitCount) \(displayedVisitCount == 1 ? "visit" : "visits")",
+                                systemImage: "cup.and.saucer.fill"
+                            )
+
+                            if let category = cafe.consumerPlaceCategory {
+                                cafePill(category, systemImage: "tag.fill")
+                            }
                         }
                     }
                 }
+                .padding(12)
+                .contentShape(Rectangle())
             }
-    
-    // MARK: - Undo Toast
-    
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                "\(cafe.consumerDisplayName), \(cafe.consumerScoreLabel), \(displayedVisitCount) visits"
+            )
+            .accessibilityHint("Opens cafe details")
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            Button(action: onLogVisit) {
+                Label("Log a visit", systemImage: "plus.circle.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityHint("Opens a new visit with this cafe selected")
+            .padding(.vertical, 10)
+        }
+        .cardStyle(radius: DesignSystem.Radius.card)
+    }
+
     @ViewBuilder
-    private func undoToast(for cafe: Cafe, fromTab: SavedTab) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Text("Removed \(cafe.name)")
-                .font(DS.Typography.subheadline(.medium))
-                .foregroundColor(.white)
+    private var cafeImage: some View {
+        Group {
+            switch cafeImageSource {
+            case .personalJournal(let imagePath):
+            PhotoThumbnailView(photoPath: imagePath, size: 112)
+            case .place(let url), .community(let url):
+                RemotePhotoImageView(
+                    urlString: url,
+                    placeholderSystemName: "cup.and.saucer.fill",
+                    contentMode: .fill
+                )
+            case .placeholder:
+                VStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.34))
+
+                    Text("Cafe")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.espressoBrown.opacity(0.52))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.sandBeige.opacity(0.66))
+            }
+        }
+        .frame(width: 112, height: 142)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            scoreBadge
+                .padding(6)
+        }
+    }
+
+    private var scoreBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 11, weight: .semibold))
+            Text(cafe.consumerScoreLabel)
+                .font(.system(size: 13, weight: .bold))
+        }
+        .foregroundColor(.espressoBrown)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.foamWhite.opacity(0.9), lineWidth: 1))
+        .shadow(color: .black.opacity(0.18), radius: 5, x: 0, y: 2)
+    }
+
+    private var savedActionDivider: some View {
+        Rectangle()
+            .fill(Color.sandBeige.opacity(0.9))
+            .frame(width: 1, height: 22)
+    }
+
+    private func cafePill(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
-            
-            Spacer()
-            
-            Button("Undo") {
-                undoRemoval()
-            }
-            .font(DS.Typography.subheadline(.bold))
-            .foregroundColor(DS.Colors.primaryAccent)
         }
-        .padding(.horizontal, DS.Spacing.lg)
-        .padding(.vertical, DS.Spacing.md)
-        .background(DS.Colors.textPrimary)
-        .cornerRadius(DS.Radius.md)
-        .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.bottom, DS.Spacing.xxl)
+        .foregroundColor(.roastBrown.opacity(0.78))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.sandBeige.opacity(0.55))
+        .clipShape(Capsule())
+    }
+
+    private func savedCardAction(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .foregroundColor(.espressoBrown.opacity(0.76))
+            .frame(maxWidth: .infinity)
+            .frame(height: 26)
+        }
+        .buttonStyle(.plain)
     }
     
-    // MARK: - Actions
-    
-    private func removeCafe(_ cafe: Cafe) {
-        hapticsManager.playWarning()
-        
-        // Store for undo
-        recentlyRemovedCafe = (cafe, selectedTab)
-        
-        // Remove based on current tab
-        switch selectedTab {
-        case .favorites:
-            dataManager.toggleCafeFavorite(cafe.id)
-        case .wishlist:
-            dataManager.toggleCafeWantToTry(cafe.id)
-        case .library:
-            // For library, remove both flags
-            if cafe.isFavorite {
-                dataManager.toggleCafeFavorite(cafe.id)
-            }
-            if cafe.wantToTry {
-                dataManager.toggleCafeWantToTry(cafe.id)
-            }
-        }
-        
-        // Show undo toast
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showUndoToast = true
-        }
-        
-        // Auto-dismiss after 4 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                showUndoToast = false
-                recentlyRemovedCafe = nil
-            }
-        }
-    }
-    
-    private func undoRemoval() {
-        guard let removed = recentlyRemovedCafe else { return }
-        
-        hapticsManager.playSuccess()
-        
-        // Re-add based on what was removed
-        switch removed.fromTab {
-        case .favorites:
-            dataManager.toggleCafeFavorite(removed.cafe.id)
-        case .wishlist:
-            dataManager.toggleCafeWantToTry(removed.cafe.id)
-        case .library:
-            // For library, we can't fully restore without knowing original state
-            // Just add back to favorites as a reasonable default
-            if !removed.cafe.isFavorite {
-                dataManager.toggleCafeFavorite(removed.cafe.id)
-            }
-        }
-        
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showUndoToast = false
-            recentlyRemovedCafe = nil
-        }
-    }
-    
-    private func openInMaps(_ cafe: Cafe) {
-        guard let location = cafe.location else {
-            print("[Cafe] Get directions failed - no location for \(cafe.name)")
-            return
-        }
-        
-        print("[Cafe] Get directions tapped for \(cafe.name) at (\(location.latitude), \(location.longitude))")
+    private func openInMaps() {
+        guard let location = cafe.location else { return }
         
         if let mapURLString = cafe.mapItemURL, let url = URL(string: mapURLString) {
             UIApplication.shared.open(url)
         } else {
-            let encodedName = cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
+            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
             if let url = URL(string: urlString) {
                 UIApplication.shared.open(url)
             }
@@ -541,43 +583,683 @@ struct SavedTabView: View {
     }
     
     private func openWebsite(urlString: String) {
-        // Normalize URL - add https:// if missing
-        var normalizedURL = urlString
-        if !normalizedURL.lowercased().hasPrefix("http://") && !normalizedURL.lowercased().hasPrefix("https://") {
-            normalizedURL = "https://\(normalizedURL)"
-        }
-        
-        print("[Cafe] Open website tapped: \(normalizedURL)")
-        
-        guard let url = URL(string: normalizedURL) else {
-            print("[Cafe] Failed to create URL from: \(normalizedURL)")
-            return
-        }
+        guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
     }
-    
-    private func shareCafe(_ cafe: Cafe) {
-        // Create share content
-        var shareText = cafe.name
-        if !cafe.address.isEmpty {
-            shareText += "\n\(cafe.address)"
+}
+
+private struct CommunityDrinkCount: Identifiable {
+    let name: String
+    let count: Int
+    var id: String { name }
+}
+
+struct CafeDetailView: View {
+    let cafe: Cafe
+    @ObservedObject var dataManager: DataManager
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
+    @EnvironmentObject private var authModel: AppAuthModel
+    @Environment(\.dismiss) var dismiss
+    @State private var showLogVisit = false
+    @State private var isSyncingCafeState = false
+    @State private var cafeStateError: String?
+    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteVisits = false
+    @State private var remoteVisitError: String?
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var friendUserIDs: Set<UUID> = []
+
+    var currentCafe: Cafe {
+        dataManager.getCafe(id: cafe.id) ?? cafe
+    }
+
+    private var signedInRemoteCafeId: UUID? {
+        guard authModel.authenticatedUser != nil else {
+            return nil
         }
+
+        return currentCafe.remoteCafeId
+    }
+
+    private var shouldShowRemoteVisits: Bool {
+        signedInRemoteCafeId != nil
+    }
+
+    private var displayedAverageRating: Double {
+        guard shouldShowRemoteVisits else {
+            return currentCafe.averageRating
+        }
+
+        let stats = RemoteCafeVisitStats.calculate(from: remoteVisits)
+        return stats.visitCount == 0 ? currentCafe.averageRating : stats.averageScore
+    }
+
+    private var displayedVisitCount: Int {
+        guard shouldShowRemoteVisits else {
+            return currentCafe.visitCount
+        }
+
+        let stats = RemoteCafeVisitStats.calculate(from: remoteVisits)
+        return stats.visitCount == 0 ? max(currentCafe.visitCount, visits.count) : stats.visitCount
+    }
+    
+    var visits: [Visit] {
+        dataManager.getVisitsForCafe(currentCafe.id)
+    }
+    
+    // Get hero image from most recent visit, or nil if no visits/photos
+    var heroImagePath: String? {
+        if shouldShowRemoteVisits,
+           let remotePosterURL = remoteVisits.first?.visit.posterPhotoURL?.remoteTrimmedNonEmpty {
+            return remotePosterURL
+        }
+
+        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
+        return sortedVisits.first?.posterImagePath
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Hero image - user photos > placeholder
+                    if let imagePath = heroImagePath {
+                        if imagePath.hasPrefix("http") {
+                            RemotePhotoImageView(
+                                urlString: imagePath,
+                                placeholderSystemName: "photo",
+                                contentMode: .fit
+                            )
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 250)
+                                .background(Color.sandBeige.opacity(0.7))
+                                .clipped()
+                        } else {
+                            PhotoImageView(photoPath: imagePath, contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 250)
+                                .background(Color.sandBeige.opacity(0.7))
+                                .clipped()
+                        }
+                    } else {
+                        Rectangle()
+                            .fill(Color.sandBeige.opacity(0.7))
+                            .frame(height: 250)
+                            .overlay(
+                                VStack(spacing: 10) {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.system(size: 44, weight: .semibold))
+                                    Text("No cafe photo yet")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundColor(.roastBrown.opacity(0.46))
+                            )
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 20) {
+                        cafeSummarySection
+                            .padding(.horizontal)
+                        .padding(.top, 20)
+                        
+                        detailStatsSection
+                            .padding(.horizontal)
+
+                        if shouldShowRemoteVisits && !remoteVisits.isEmpty {
+                            communityHighlightsSection
+                                .padding(.horizontal)
+                        }
+
+                        detailActionsSection
+                            .padding(.horizontal)
+                        
+                        recentVisitsSection
+                    }
+                    .padding(.bottom, 20)
+                }
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Cafe details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showLogVisit) {
+                LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
+            }
+            .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
+                Task { await loadRemoteVisits() }
+            }) { visit in
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
+            .task(id: remoteVisitTaskID) {
+                await loadRemoteVisits()
+            }
+        }
+    }
+
+    private var remoteVisitTaskID: String {
+        [
+            authModel.authenticatedUser?.id.uuidString ?? "signed-out",
+            currentCafe.remoteCafeId?.uuidString ?? "local"
+        ].joined(separator: "-")
+    }
+
+    private var cafeSummarySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(currentCafe.name)
+                .mugshotDisplay(size: 27)
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !currentCafe.address.isEmpty {
+                Label(currentCafe.address, systemImage: "mappin.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let category = currentCafe.consumerPlaceCategory {
+                HStack(spacing: 5) {
+                    Image(systemName: "tag.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(category)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .foregroundColor(.roastBrown.opacity(0.78))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(Color.sandBeige.opacity(0.58))
+                .clipShape(Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .cardStyle(radius: DesignSystem.Radius.heroCard)
+    }
+
+    private var detailStatsSection: some View {
+        HStack(spacing: 10) {
+            detailStatCard(
+                title: "Average",
+                value: String(format: "%.1f", displayedAverageRating),
+                systemImage: "star.fill"
+            )
+
+            detailStatCard(
+                title: "Visits",
+                value: "\(displayedVisitCount)",
+                systemImage: "cup.and.saucer.fill"
+            )
+        }
+    }
+
+    private var detailActionsSection: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+
+        return VStack(spacing: 12) {
+            Button {
+                guard authModel.authenticatedUser != nil else {
+                    onAuthenticationRequired?(
+                        "Keep this sip in your journal",
+                        "Sign in to log this cafe. You can still favorite it or save it to try while browsing as a guest."
+                    )
+                    return
+                }
+                showLogVisit = true
+            } label: {
+                Label("Log Visit", systemImage: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                detailActionButton(
+                    title: "Favorite",
+                    systemImage: currentCafe.isFavorite ? "heart.fill" : "heart",
+                    isSelected: currentCafe.isFavorite,
+                    action: toggleFavorite
+                )
+                .disabled(isSyncingCafeState)
+
+                detailActionButton(
+                    title: "Want to Try",
+                    systemImage: currentCafe.wantToTry ? "bookmark.fill" : "bookmark",
+                    isSelected: currentCafe.wantToTry,
+                    action: toggleWantToTry
+                )
+                .disabled(isSyncingCafeState)
+
+                detailActionButton(
+                    title: "Directions",
+                    systemImage: "location.north.circle",
+                    isSelected: false,
+                    action: openInMaps
+                )
+
+                if let websiteURL = currentCafe.websiteURL, !websiteURL.isEmpty {
+                    detailActionButton(
+                        title: "Website",
+                        systemImage: "safari",
+                        isSelected: false
+                    ) {
+                        openWebsite(urlString: websiteURL)
+                    }
+                }
+            }
+
+            if let cafeStateError {
+                Text(cafeStateError)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red.opacity(0.82))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var communityHighlightsSection: some View {
+        let friendVisits = Set(remoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
+
+        return VStack(alignment: .leading, spacing: 10) {
+            MugshotSectionTitle(
+                title: "Community favorites",
+                subtitle: friendVisits == 0 ? "Top drinks from visible sips" : "\(friendVisits) friends have shared sips here"
+            )
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(communityDrinkCounts.prefix(5)) { drink in
+                        MugshotTagChip(title: "\(drink.name) · \(drink.count)")
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .cardStyle()
+    }
+
+    private var communityDrinkCounts: [CommunityDrinkCount] {
+        var counts: [String: Int] = [:]
+        for visit in remoteVisits {
+            counts[visit.visit.drinkDisplayName, default: 0] += 1
+        }
+        return counts
+            .map { CommunityDrinkCount(name: $0.key, count: $0.value) }
+            .sorted { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count }
+    }
+
+    private func detailStatCard(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.58))
+
+            Text(value)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.sandBeige.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+    }
+
+    private func detailActionButton(
+        title: String,
+        systemImage: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(isSelected ? Color.mugshotSage.opacity(0.34) : Color.sandBeige.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                        .stroke(isSelected ? Color.mugshotSage : Color.clear, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var recentVisitsSection: some View {
+        if shouldShowRemoteVisits {
+            remoteRecentVisitsSection
+        } else if !visits.isEmpty {
+            localRecentVisitsSection
+        }
+    }
+
+    private var localRecentVisitsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recent Visits")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+            ForEach(visits.prefix(5)) { visit in
+                VisitRow(visit: visit, dataManager: dataManager)
+                    .padding(.horizontal)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var remoteRecentVisitsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent Visits")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+
+                Spacer()
+
+                if isLoadingRemoteVisits {
+                    ProgressView()
+                    .tint(.mugshotSage)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            if let remoteVisitError {
+                Text(remoteVisitError)
+                    .font(.system(size: 13))
+                    .foregroundColor(.red.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal)
+            } else if remoteVisits.isEmpty && !isLoadingRemoteVisits {
+                if !visits.isEmpty {
+                    ForEach(visits.prefix(5)) { visit in
+                        VisitRow(visit: visit, dataManager: dataManager)
+                            .padding(.horizontal)
+                    }
+                } else {
+                    Text("No visits here yet.")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
+                }
+            } else {
+                ForEach(remoteVisits.prefix(5)) { visit in
+                    RemoteCafeVisitRow(visit: visit) {
+                        selectedRemoteVisit = visit
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+    
+    private func openInMaps() {
+        guard let location = currentCafe.location else { return }
         
-        let activityVC = UIActivityViewController(
-            activityItems: [shareText],
-            applicationActivities: nil
+        // Use mapItemURL if available, otherwise construct Maps URL from coordinates
+        if let mapURLString = currentCafe.mapItemURL, let url = URL(string: mapURLString) {
+            UIApplication.shared.open(url)
+        } else {
+            // Fallback: open Maps with coordinates
+            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(currentCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            if let url = URL(string: urlString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+    
+    private func openWebsite(urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    @MainActor
+    private func loadRemoteVisits() async {
+        guard let remoteCafeId = signedInRemoteCafeId,
+              let userId = authModel.authenticatedUser?.id else {
+            remoteVisits = []
+            friendUserIDs = []
+            remoteVisitError = nil
+            isLoadingRemoteVisits = false
+            return
+        }
+
+        isLoadingRemoteVisits = true
+        remoteVisitError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            async let visitsRequest = service.fetchVisibleCafeVisits(
+                cafeId: remoteCafeId,
+                currentUserId: userId,
+                limit: 20
+            )
+            async let friendsRequest = SocialDiscoveryService(client: client).connections(kind: "friends")
+            let (visits, friends) = try await (visitsRequest, friendsRequest)
+            remoteVisits = visits
+            friendUserIDs = Set(friends.map(\.userID))
+            dataManager.upsertRemoteCafe(
+                SupabaseCafeSummary(
+                    id: remoteCafeId,
+                    name: currentCafe.name,
+                    address: currentCafe.address.remoteTrimmedNonEmpty,
+                    city: nil,
+                    latitude: currentCafe.location?.latitude,
+                    longitude: currentCafe.location?.longitude,
+                    applePlaceId: currentCafe.mapItemURL,
+                    websiteURL: currentCafe.websiteURL
+                ),
+                averageRating: visits.isEmpty ? nil : RemoteCafeVisitStats.calculate(from: visits).averageScore,
+                visitCount: visits.isEmpty ? nil : visits.count
+            )
+            isLoadingRemoteVisits = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            remoteVisitError = MugshotUserFacingError.message(for: error, context: .loading)
+            isLoadingRemoteVisits = false
+        }
+    }
+
+    private func toggleFavorite() {
+        updateCafeState(
+            isFavorite: !currentCafe.isFavorite,
+            wantToTry: currentCafe.wantToTry
         )
-        
-        // Present share sheet
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            rootVC.present(activityVC, animated: true)
+    }
+
+    private func toggleWantToTry() {
+        updateCafeState(
+            isFavorite: currentCafe.isFavorite,
+            wantToTry: !currentCafe.wantToTry
+        )
+    }
+
+    private func updateCafeState(isFavorite: Bool, wantToTry: Bool) {
+        let previousCafe = currentCafe
+        dataManager.setCafeState(
+            cafeId: previousCafe.id,
+            isFavorite: isFavorite,
+            wantToTry: wantToTry
+        )
+
+        guard let userId = authModel.authenticatedUser?.id else {
+            return
+        }
+
+        Task {
+            await saveRemoteCafeState(
+                previousCafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                userId: userId
+            )
+        }
+    }
+
+    @MainActor
+    private func saveRemoteCafeState(
+        previousCafe: Cafe,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        userId: UUID
+    ) async {
+        isSyncingCafeState = true
+        cafeStateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            let summary = try await service.setCafeState(
+                userId: userId,
+                cafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry
+            )
+            dataManager.applyRemoteCafeState(summary)
+            isSyncingCafeState = false
+        } catch {
+            dataManager.setCafeState(
+                cafeId: previousCafe.id,
+                isFavorite: previousCafe.isFavorite,
+                wantToTry: previousCafe.wantToTry
+            )
+            cafeStateError = "Could not save cafe state."
+            isSyncingCafeState = false
         }
     }
 }
 
-// MARK: - Preview
+struct RemoteCafeVisitRow: View {
+    let visit: RemoteVisitSummary
+    let action: () -> Void
 
-#Preview {
-    SavedTabView(dataManager: DataManager.shared)
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                RemotePhotoImageView(
+                    urlString: visit.visit.posterPhotoURL,
+                    placeholderSystemName: "cup.and.saucer.fill"
+                )
+                .frame(width: 74, height: 74)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(visit.visit.drinkDisplayName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(1)
+
+                    Text(visit.visit.createdAtDate, style: .date)
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                        .lineLimit(1)
+
+                    if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
+                        Text(caption)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(visit.visit.overallScore > 0 ? String(format: "%.1f", visit.visit.overallScore) : "Unrated")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.espressoBrown)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.mugshotSage.opacity(0.38))
+                    .clipShape(Capsule())
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.tertiaryText)
+                }
+            }
+            .padding(12)
+            .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct VisitRow: View {
+    let visit: Visit
+    @ObservedObject var dataManager: DataManager
+    @State private var showVisitDetail = false
+    
+    var body: some View {
+        Button(action: {
+            showVisitDetail = true
+        }) {
+            HStack(spacing: 12) {
+                // Thumbnail
+                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(visit.date, style: .date)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    
+                    Text(visit.journalDrinkName)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.mugshotSage)
+                        .font(.system(size: 12))
+                    Text(String(format: "%.1f", visit.overallScore))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                }
+            }
+            .padding(12)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .fullScreenCover(isPresented: $showVisitDetail) {
+            VisitDetailView(visit: visit, dataManager: dataManager)
+        }
+    }
 }

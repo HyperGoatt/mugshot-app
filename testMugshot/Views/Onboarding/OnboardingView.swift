@@ -2,24 +2,17 @@
 //  OnboardingView.swift
 //  testMugshot
 //
-//  Legacy non-animated onboarding. Not currently used; kept for future reference.
-//  The app now uses MugshotOnboardingView with ConcentricOnboarding for animated onboarding.
+//  Created by Joseph Rosso on 11/14/25.
 //
 
 import SwiftUI
 
 struct OnboardingView: View {
-    let hasLocationPermission: Bool
-    let onRequestLocation: () -> Void
-    let onComplete: () -> Void
-    
     @ObservedObject var dataManager: DataManager
     @State private var currentStep = 0
     @State private var username = ""
     @State private var location = ""
     @State private var ratingTemplate = RatingTemplate()
-    
-    private var maxStepIndex: Int { 3 } // Welcome, UserInfo, Location, RatingTemplate
     
     var body: some View {
         ZStack {
@@ -32,14 +25,8 @@ struct OnboardingView: View {
                 UserInfoStep(username: $username, location: $location)
                     .tag(1)
                 
-                LocationPermissionStep(
-                    hasLocationPermission: hasLocationPermission,
-                    onRequestLocation: onRequestLocation
-                )
-                    .tag(2)
-                
                 RatingTemplateStep(ratingTemplate: $ratingTemplate)
-                    .tag(3)
+                    .tag(2)
             }
             .tabViewStyle(.page)
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -59,8 +46,8 @@ struct OnboardingView: View {
                     
                     Spacer()
                     
-                    Button(currentStep == maxStepIndex ? "Start using Mugshot" : "Next") {
-                        if currentStep == maxStepIndex {
+                    Button(currentStep == 2 ? "Start sipping" : "Next") {
+                        if currentStep == 2 {
                             completeOnboarding()
                         } else {
                             withAnimation {
@@ -72,14 +59,7 @@ struct OnboardingView: View {
                     .disabled(currentStep == 1 && (username.isEmpty || location.isEmpty))
                 }
                 .padding()
-            }
-        }
-        .onChange(of: hasLocationPermission) {
-            if hasLocationPermission && currentStep == 2 {
-                // Auto-advance when location permission is granted
-                withAnimation(.spring()) {
-                    currentStep = min(currentStep + 1, maxStepIndex)
-                }
+                .background(Color.creamWhite.opacity(0.94))
             }
         }
     }
@@ -92,26 +72,72 @@ struct OnboardingView: View {
         )
         dataManager.setCurrentUser(user)
         dataManager.updateRatingTemplate(ratingTemplate)
-        onComplete()
+        dataManager.completeOnboarding()
     }
 }
 
 struct WelcomeStep: View {
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 22) {
             Spacer()
+
+            Image("MugshotAppIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 92, height: 92)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .shadow(color: .black.opacity(0.1), radius: 16, x: 0, y: 7)
             
             Text("Mugshot")
-                .font(.system(size: 48, weight: .bold))
+                .mugshotDisplay(size: 44)
                 .foregroundColor(.espressoBrown)
             
-            Text("Capture every sip.")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(.espressoBrown.opacity(0.7))
+            Text("Sip. Save. Share.")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.roastBrown)
+
+            VStack(spacing: 10) {
+                OnboardingValueRow(icon: "camera.fill", title: "Photo-backed logs", detail: "Remember what you drank and where it was worth returning.")
+                OnboardingValueRow(icon: "bookmark.fill", title: "Saved cafes", detail: "Build a calm list of favorites and places to try.")
+                OnboardingValueRow(icon: "person.2.fill", title: "Social without noise", detail: "See friend-powered recommendations from people whose taste you trust.")
+            }
+            .padding(16)
+            .cardStyle(radius: DesignSystem.Radius.heroCard)
+            .padding(.horizontal, 12)
             
             Spacer()
         }
         .padding()
+    }
+}
+
+struct OnboardingValueRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 32, height: 32)
+                .background(Color.mugshotMint.opacity(0.22))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -123,99 +149,32 @@ struct UserInfoStep: View {
         VStack(spacing: 24) {
             Spacer()
             
-            Text("Tell us about yourself")
-                .font(.system(size: 32, weight: .bold))
+            Text("Make it yours")
+                .mugshotDisplay(size: 34)
                 .foregroundColor(.espressoBrown)
                 .padding(.bottom, 8)
             
             VStack(alignment: .leading, spacing: 16) {
+                MugshotSectionTitle(title: "Profile basics", subtitle: "This is how shared sips show up in Feed and friend profiles.")
+
                 Text("Username")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 
                 TextField("@username", text: $username)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding(12)
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.inputBorder, lineWidth: 1)
-                    )
+                    .mugshotFormField()
                     .autocapitalization(.none)
                 
                 Text("Location")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 
                 TextField("City", text: $location)
-                    .foregroundColor(.inputText)
-                    .tint(.mugshotMint)
-                    .accentColor(.mugshotMint)
-                    .padding(12)
-                    .background(Color.inputBackground)
-                    .cornerRadius(DesignSystem.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                            .stroke(Color.inputBorder, lineWidth: 1)
-                    )
+                    .mugshotFormField()
             }
-            .padding(.horizontal, 32)
-            
-            Spacer()
-        }
-        .padding()
-    }
-}
-
-struct LocationPermissionStep: View {
-    let hasLocationPermission: Bool
-    let onRequestLocation: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            
-            Text("Enable Location")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(.espressoBrown)
-                .padding(.bottom, 8)
-            
-            Text("We use your location to find nearby cafes and place your visits on the map.")
-                .font(.system(size: 16))
-                .foregroundColor(.espressoBrown.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            
-            if hasLocationPermission {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.mugshotMint)
-                        .font(.system(size: 24))
-                    Text("Location enabled")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.espressoBrown)
-                }
-                .padding()
-                .background(Color.sandBeige)
-                .cornerRadius(DesignSystem.cornerRadius)
-                .padding(.horizontal, 32)
-            } else {
-                Button(action: {
-                    onRequestLocation()
-                }) {
-                    Text("Enable Location")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.mugshotMint)
-                        .foregroundColor(.espressoBrown)
-                        .cornerRadius(16)
-                }
-                .padding(.horizontal, 24)
-            }
+            .padding(18)
+            .cardStyle(radius: DesignSystem.Radius.heroCard)
+            .padding(.horizontal, 24)
             
             Spacer()
         }
@@ -230,14 +189,14 @@ struct RatingTemplateStep: View {
         VStack(spacing: 24) {
             Spacer()
             
-            Text("Your rating preferences")
-                .font(.system(size: 32, weight: .bold))
+            Text("Rate your ritual")
+                .mugshotDisplay(size: 34)
                 .foregroundColor(.espressoBrown)
                 .padding(.bottom, 8)
             
-            Text("You can customize these later in your profile")
+            Text("Mugshot starts with a balanced taste template. You can tune it later.")
                 .font(.system(size: 14))
-                .foregroundColor(.espressoBrown.opacity(0.6))
+                .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
             
             VStack(spacing: 16) {
@@ -254,15 +213,16 @@ struct RatingTemplateStep: View {
                             .foregroundColor(.espressoBrown.opacity(0.7))
                     }
                     .padding()
-                    .background(Color.sandBeige)
-                    .cornerRadius(DesignSystem.smallCornerRadius)
+                    .background(Color.sandBeige.opacity(0.58))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(18)
+            .cardStyle(radius: DesignSystem.Radius.heroCard)
+            .padding(.horizontal, 24)
             
             Spacer()
         }
         .padding()
     }
 }
-

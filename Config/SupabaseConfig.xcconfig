@@ -1,0 +1,10 @@
+// Mugshot Supabase client configuration.
+//
+// Copy SupabaseConfig.local.xcconfig.example to
+// SupabaseConfig.local.xcconfig and fill in local values. The local file is
+// ignored by git.
+
+MUGSHOT_SUPABASE_URL =
+MUGSHOT_SUPABASE_PUBLISHABLE_KEY =
+
+#include? "SupabaseConfig.local.xcconfig"

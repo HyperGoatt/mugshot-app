@@ -8,14 +8,20 @@
 import SwiftUI
 import MapKit
 import CoreLocation
-import UIKit
+
+enum MapDiscoveryMode: String, CaseIterable {
+    case map = "Map"
+    case list = "List"
+
+    var icon: String { self == .map ? "map.fill" : "list.bullet" }
+}
 
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
-    @EnvironmentObject private var hapticsManager: HapticsManager
     
     @State private var region: MKCoordinateRegion?
     @State private var selectedCafe: Cafe?
@@ -23,47 +29,37 @@ struct MapTabView: View {
     @State private var isSearchActive = false
     @State private var searchText = ""
     @FocusState private var isSearchFieldFocused: Bool
+    @State private var searchPreviewCafes: [Cafe] = []
     @State private var hasRequestedLocation = false
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
-    @State private var showNotifications = false
-    @State private var selectedVisit: Visit?
-    @State private var recenterOnUserRequest = false
-    @State private var showFriendsHub = false
-    @State private var lastSearchRegion: MKCoordinateRegion?
-    @State private var searchScope: SearchScope = .cafes
-    
-    enum SearchScope: String, CaseIterable {
-        case cafes = "Cafes"
-        case people = "People"
-    }
-    
-    private var referenceLocation: CLLocation {
-        let activeRegion = region ?? defaultRegion
-        return CLLocation(latitude: activeRegion.center.latitude, longitude: activeRegion.center.longitude)
-    }
-    
-    private var unreadNotificationCount: Int {
-        dataManager.appData.notifications.filter { !$0.isRead }.count
-    }
-    
-    // Simplified Sip Squad mode state (bound to persisted AppData)
-    private var isSipSquadMode: Bool {
-        dataManager.appData.isSipSquadModeEnabled
-    }
-    
-    private var hasFriends: Bool {
-        !dataManager.appData.friendsSupabaseUserIds.isEmpty
-    }
-    
-    private var friendVisitedCafeCount: Int {
-        dataManager.getFriendVisitedCafeCount()
-    }
-    
-    // Feature flag for simplified Sip Squad style (mint pins, no legend)
-    // When Sip Squad Mode is active, always use mint pins
-    private var useSipSquadSimplifiedStyle: Bool {
-        isSipSquadMode
+    @State private var remoteStateError: String?
+    @State private var remoteMapPins: [Cafe] = []
+    @State private var hasLoadedRemoteMapPins = false
+    @State private var remoteMapPinUserId: UUID?
+    @State private var mapFilter: MapPinFilter = .all
+    @State private var discoveryMode: MapDiscoveryMode = .map
+    @State private var discoveryMapCafes: [Cafe] = []
+    @State private var userTrackingMode: MKUserTrackingMode = .none
+
+    enum MapPinFilter: String, CaseIterable {
+        case all = "All"
+        case favorites = "Favorites"
+        case wantToTry = "Want to Try"
+        case visited = "Visited"
+
+        var iconName: String {
+            switch self {
+            case .all:
+                return "map.fill"
+            case .favorites:
+                return "heart.fill"
+            case .wantToTry:
+                return "bookmark.fill"
+            case .visited:
+                return "cup.and.saucer.fill"
+            }
+        }
     }
     
     // Default fallback region (SF) - only used if location unavailable
@@ -72,66 +68,41 @@ struct MapTabView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     
-    private var searchFieldFocusBinding: Binding<Bool> {
-        Binding(
-            get: { isSearchFieldFocused },
-            set: { isSearchFieldFocused = $0 }
-        )
-    }
-    
-    private var shouldShowRecentSearches: Bool {
-        isSearchFieldFocused && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-    
-    private var shouldShowSearchThisArea: Bool {
-        guard let last = lastSearchRegion, let current = region else { return false }
-        
-        let lastLoc = CLLocation(latitude: last.center.latitude, longitude: last.center.longitude)
-        let currentLoc = CLLocation(latitude: current.center.latitude, longitude: current.center.longitude)
-        
-        // Show if moved more than 2km from last search center
-        return lastLoc.distance(from: currentLoc) > 2000
-    }
-    
-    private func handleSearchThisArea() {
-        guard let currentRegion = region else { return }
-        
-        HapticsManager.shared.lightTap()
-        
-        // Use current search text or default to "Café" if empty
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let effectiveQuery = query.isEmpty ? "Café" : query
-        
-        if query.isEmpty {
-            searchText = "Café" // Auto-fill search text
-        }
-        
-        // Update last search region
-        lastSearchRegion = currentRegion
-        
-        // Trigger search
-        isSearchActive = true
-        searchService.search(
-            query: effectiveQuery,
-            region: currentRegion,
-            mode: dataManager.appData.mapSearchMode
-        )
-    }
-    
     var body: some View {
-        NavigationStack {
+        if discoveryMode == .map {
+            mapBody
+        } else {
+            DiscoveryListView(
+                dataManager: dataManager,
+                locationManager: locationManager,
+                discoveryMode: $discoveryMode
+            )
+        }
+    }
+
+    private var mapBody: some View {
         ZStack {
             // Map with POIs hidden
             MapViewRepresentable(
                 region: Binding(
                     get: { region ?? defaultRegion },
-                    set: { region = $0 }
+                    set: { updatedRegion in
+                        region = updatedRegion
+
+                        // A MapKit search should follow the portion of the map
+                        // the person is actually looking at, not the last
+                        // location that happened to initialize the screen.
+                        if isSearchActive,
+                           !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            searchService.search(query: searchText, region: updatedRegion)
+                        }
+                    }
                 ),
-                cafes: cafesWithLocations,
-                useSipSquadSimplifiedStyle: useSipSquadSimplifiedStyle,
+                cafes: displayedMapCafes,
+                highlightedCafe: showCafeDetail ? selectedCafe : nil,
+                showsUserLocation: locationAccessAuthorized,
+                trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
-                    // Haptic: confirm map pin tap
-                    hapticsManager.lightTap()
                     selectedCafe = cafe
                     showCafeDetail = true
                     isSearchActive = false
@@ -139,40 +110,26 @@ struct MapTabView: View {
             )
             .ignoresSafeArea()
             .onAppear {
-                // Request location permission on first appearance
-                if !hasRequestedLocation {
-                    locationManager.requestLocationPermission()
-                    hasRequestedLocation = true
-                }
-                
-                // Initialize location if we already have permission
+                // Opening Map never prompts. Existing permission is honored;
+                // new permission is requested only from the location control.
                 initializeLocationIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
-                guard let location = newLocation else { return }
-                let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
-                guard isAuthorized else { return }
-                
-                // First time we get a good location, auto-center
-                if !hasInitializedLocation || oldValue == nil {
-                    hasInitializedLocation = true
-                    withAnimation {
-                        region = MKCoordinateRegion(
-                            center: location.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                        )
-                    }
-                    return
-                }
-                
-                // If user tapped the My Location button, recenter on the next update
-                if recenterOnUserRequest {
-                    recenterOnUserRequest = false
-                    withAnimation {
-                        region = MKCoordinateRegion(
-                            center: location.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                        )
+                // When we get a location update and we have permission, center the map
+                if let location = newLocation {
+                    let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
+                    
+                    if isAuthorized {
+                        // If we haven't initialized yet, or if this is a fresh location update
+                        if !hasInitializedLocation || (oldValue == nil) {
+                            hasInitializedLocation = true
+                            withAnimation {
+                                region = MKCoordinateRegion(
+                                    center: location.coordinate,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -205,280 +162,215 @@ struct MapTabView: View {
                 // Location message banner
                 if showLocationMessage {
                     LocationBanner()
-                        .padding(.horizontal, DS.Spacing.pagePadding)
-                        .padding(.top, DS.Spacing.sm)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                
-                // Sip Squad banner
-                if isSipSquadMode {
-                    SipSquadBanner(
-                        hasFriends: hasFriends,
-                        friendCafeCount: friendVisitedCafeCount,
-                        onDismiss: {
-                            hapticsManager.lightTap()
-                            dataManager.toggleSipSquadMode()
-                        },
-                        onFindFriends: {
-                            hapticsManager.lightTap()
-                            showFriendsHub = true
+
+                if let remoteStateError {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.roastBrown)
+                        Text(remoteStateError)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                        Button("Retry") {
+                            Task { await loadRemoteMapPins() }
                         }
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.mugshotSage)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                }
+                
+                HStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.espressoBrown.opacity(0.6))
+                        
+                        TextField("Search places", text: $searchText)
+                            .foregroundColor(.inputText)
+                            .tint(.mugshotSage)
+                            .accentColor(.mugshotSage)
+                            .focused($isSearchFieldFocused)
+                            .submitLabel(.search)
+                            .onChange(of: searchText) { oldValue, newValue in
+                                if !newValue.isEmpty {
+                                    isSearchActive = true
+                                    searchService.search(query: newValue, region: region ?? defaultRegion)
+                                } else {
+                                    searchService.cancelSearch()
+                                    isSearchActive = isSearchFieldFocused
+                                }
+                            }
+                            .onTapGesture {
+                                isSearchActive = true
+                            }
+                            .onSubmit {
+                                searchService.search(
+                                    query: searchText,
+                                    region: region ?? defaultRegion,
+                                    immediately: true
+                                )
+                                isSearchFieldFocused = false
+                            }
+                        
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                searchService.cancelSearch()
+                                isSearchActive = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.espressoBrown.opacity(0.4))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .mugshotGlassSurface(
+                        radius: 26,
+                        tint: .foamWhite,
+                        stroke: Color.foamWhite.opacity(0.62),
+                        shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
+                        interactive: true
                     )
-                    .padding(.horizontal, DS.Spacing.pagePadding)
-                    .padding(.top, DS.Spacing.sm)
+                    
+                    if isSearchActive {
+                        Button("Cancel") {
+                            searchText = ""
+                            searchService.cancelSearch()
+                            isSearchActive = false
+                            isSearchFieldFocused = false
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                        .transition(.opacity)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, isSearchActive ? 12 : 8)
+                .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
+                .animation(DesignSystem.Motion.base, value: isSearchActive)
+                .onChange(of: isSearchFieldFocused) { _, isFocused in
+                    if isFocused { isSearchActive = true }
+                }
+
+                if !isSearchActive {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(MapPinFilter.allCases, id: \.self) { filter in
+                                MugshotFilterChip(
+                                    title: filter.rawValue,
+                                    icon: filter.iconName,
+                                    isSelected: mapFilter == filter
+                                ) {
+                                    withAnimation(DesignSystem.Motion.base) {
+                                        mapFilter = filter
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 2)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+
+                    HStack {
+                        Spacer()
+                        MapDiscoveryModeControl(selection: $discoveryMode)
+                            .frame(width: 166)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
-                // Inline search bar
-                VStack(spacing: 0) {
-                    HStack(spacing: DS.Spacing.lg) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(DS.Colors.textSecondary)
-                            
-                            TextField(searchScope == .cafes ? "Search cafes..." : "Search people...", text: $searchText)
-                                .foregroundColor(DS.Colors.textPrimary)
-                                .tint(DS.Colors.primaryAccent)
-                                .accentColor(DS.Colors.primaryAccent)
-                                .textFieldStyle(.plain)
-                                .focused($isSearchFieldFocused)
-                                .onChange(of: searchText) { _, newValue in
-                                    guard searchScope == .cafes else { return } // Only auto-search map for cafes
-                                    
-                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if !trimmed.isEmpty {
-                                        if !isSearchActive {
-                                            withAnimation {
-                                                isSearchActive = true
-                                            }
-                                        }
-                                        searchService.search(
-                                            query: trimmed,
-                                            region: region ?? defaultRegion,
-                                            mode: dataManager.appData.mapSearchMode
-                                        )
-                                        if let currentRegion = region {
-                                            lastSearchRegion = currentRegion
-                                        }
-                                    } else {
-                                        searchService.cancelSearch()
-                                        // If cleared, fetch suggestions again
-                                        searchService.searchNearby(region: region ?? defaultRegion)
-                                        
-                                        if !isSearchFieldFocused {
-                                            withAnimation {
-                                                isSearchActive = false
-                                            }
-                                        }
-                                    }
-                                }
-                                .onChange(of: isSearchFieldFocused) { _, isFocused in
-                                    if isFocused {
-                                        // Fetch suggestions immediately on focus
-                                        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            searchService.searchNearby(region: region ?? defaultRegion)
-                                        }
-                                        
-                                        withAnimation {
-                                            isSearchActive = true
-                                        }
-                                    } else if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        withAnimation {
-                                            isSearchActive = false
-                                        }
-                                    }
-                                }
-                            
-                            if !searchText.isEmpty {
-                                Button(action: {
-                                    searchText = ""
-                                    searchService.cancelSearch()
-                                    // Don't close search, just clear text
-                                    // isSearchActive = false 
-                                    // isSearchFieldFocused = false
-                                    lastSearchRegion = nil 
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(DS.Colors.iconSubtle)
-                                }
-                            }
-                        }
-                        .padding(DS.Spacing.md)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.card)
-                        .dsCardShadow()
-                        
-                        if isSearchActive {
-                            Button("Cancel") {
-                                searchText = ""
-                                searchService.cancelSearch()
-                                isSearchActive = false
-                                isSearchFieldFocused = false
-                                lastSearchRegion = nil
-                                searchScope = .cafes // Reset scope
-                            }
-                            .foregroundColor(DS.Colors.textPrimary)
-                            .transition(.opacity)
-                        }
-                        
-                        // Notifications bell icon (Hidden when searching to save space)
-                        if !isSearchActive {
-                            Button(action: { showNotifications = true }) {
-                                ZStack(alignment: .topTrailing) {
-                                    Image(systemName: "bell")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(DS.Colors.iconDefault)
-                                        .frame(width: 44, height: 44)
-                                    
-                                    if unreadNotificationCount > 0 {
-                                        Text("\(unreadNotificationCount)")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(DS.Colors.textOnMint)
-                                            .padding(4)
-                                            .background(
-                                                Circle()
-                                                    .fill(DS.Colors.primaryAccent)
-                                            )
-                                            .offset(x: 8, y: -8)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Scope Picker (Visible when searching)
-                    if isSearchActive {
-                        Picker("Scope", selection: $searchScope) {
-                            ForEach(SearchScope.allCases, id: \.self) { scope in
-                                Text(scope.rawValue).tag(scope)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.top, DS.Spacing.sm)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-                .padding(DS.Spacing.pagePadding)
-                .background(DS.Colors.screenBackground.opacity(isSearchActive ? 0.95 : 0))
-                .animation(.easeInOut(duration: 0.2), value: isSearchActive)
-                
-                // Search This Area Button (Only for Cafe mode)
-                if shouldShowSearchThisArea && searchScope == .cafes {
-                    SearchThisAreaButton(
-                        action: handleSearchThisArea,
-                        isSearching: searchService.isSearching
-                    )
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                    .zIndex(100)
-                }
-                
-                // Search results list
+                // Search results list (inline below search bar)
                 if isSearchActive {
-                    if searchScope == .cafes {
-                        CafeSearchResultsPanel(
-                            searchText: $searchText,
-                            searchService: searchService,
-                            recentSearches: dataManager.appData.recentSearches,
-                            showRecentSearches: shouldShowRecentSearches,
-                            nearbySuggestions: searchService.nearbySuggestions,
-                            referenceLocation: referenceLocation,
-                            onMapItemSelected: { mapItem in
-                                print("[Search] User selected nearby suggestion: \(mapItem.name ?? "Unknown")")
-                                handleSearchResult(mapItem)
-                            },
-                            onRecentSelected: { entry in
-                                handleRecentSearch(entry)
-                            }
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    } else {
-                        PeopleSearchResultsPanel(
-                            searchText: $searchText,
-                            dataManager: dataManager
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    SearchResultsList(
+                        searchText: $searchText,
+                        searchService: searchService,
+                        dataManager: dataManager,
+                        region: Binding(
+                            get: { region ?? defaultRegion },
+                            set: { region = $0 }
+                        ),
+                        selectedCafe: $selectedCafe,
+                        showCafeDetail: $showCafeDetail,
+                        isSearchActive: $isSearchActive,
+                        isSearchFieldFocused: $isSearchFieldFocused
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 Spacer()
-            }
-            
-            // Bottom UI elements: Location button, Sip Squad toggle, and Ratings Legend
-            VStack(spacing: DS.Spacing.sm) {
-                Spacer()
                 
-                if !showCafeDetail {
-                    // Stack buttons just above the legend, both sitting above the custom tab bar
+                // My Location button
+                VStack {
+                    Spacer()
                     HStack {
                         Spacer()
-                        
-                        // Sip Squad toggle button
-                        SipSquadToggleButton(
-                            isActive: isSipSquadMode,
-                            onTap: {
-                                hapticsManager.lightTap()
-                                
-                                // If turning on but no friends, show the friends hub instead
-                                if !isSipSquadMode && !hasFriends {
-                                    showFriendsHub = true
-                                } else {
-                                    // toggleSipSquadMode() handles fetch internally when enabling
-                                    dataManager.toggleSipSquadMode()
-                                }
-                            }
-                        )
-                        
                         MyLocationButton(
                             locationManager: locationManager,
                             region: Binding(
                                 get: { region ?? defaultRegion },
                                 set: { region = $0 }
                             ),
-                            recenterOnUserRequest: $recenterOnUserRequest
+                            trackingMode: $userTrackingMode
                         )
-                        .padding(.trailing, DS.Spacing.pagePadding)
-                    }
-                    
-                    // Only show legend if not using simplified Sip Squad style
-                    if !useSipSquadSimplifiedStyle {
-                        RatingsLegend(isSipSquadMode: isSipSquadMode)
-                            .padding(.horizontal, DS.Spacing.pagePadding)
-                            .transition(.opacity)
+                        .padding(.trailing)
+                        .padding(.bottom, 188)
                     }
                 }
             }
-            // Keep these elements pinned visually even when the keyboard appears
-            .padding(.bottom, 80) // Reserve space for custom tab bar (≈70pt) + a bit of breathing room
-            .ignoresSafeArea(.keyboard, edges: .bottom)
             
-            // Unified café sheet (preview → full)
-            // Presented via .sheet modifier below
-
-        }
-        .sheet(isPresented: $showNotifications) {
-            NotificationsCenterView(dataManager: dataManager)
-        }
-        .sheet(isPresented: $showFriendsHub) {
-            FriendsHubView(dataManager: dataManager)
-        }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
-                UnifiedCafeView(
-                    cafe: cafe,
-                    dataManager: dataManager,
-                    presentationMode: .mapSheet,
-                    onLogVisitRequested: onLogVisitRequested,
-                    onDismiss: {
-                        showCafeDetail = false
-                    }
-                )
+            // Ratings Legend - sticky at bottom above tab bar
+            VStack {
+                Spacer()
+                if !showCafeDetail && !isSearchActive {
+                    RatingsLegend()
+                        .padding(.horizontal)
+                        .padding(.bottom, 100)
+                        .transition(.opacity)
+                }
+            }
+            
+            // Bottom sheet for cafe details
+            if showCafeDetail, let cafe = selectedCafe {
+                VStack {
+                    Spacer()
+                    CafeDetailSheet(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        isPresented: $showCafeDetail,
+                        onLogVisitRequested: onLogVisitRequested // Pass the closure
+                    )
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .navigationDestination(item: $selectedVisit) { visit in
-            VisitDetailView(dataManager: dataManager, visit: visit)
+        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+            await loadRemoteMapPins()
         }
+        .onChange(of: showCafeDetail) { _, isPresented in
+            guard !isPresented, authModel.authenticatedUser != nil else { return }
+            Task {
+                await loadRemoteMapPins()
+            }
         }
+        .onReceive(searchService.$searchResults) { items in
+            searchPreviewCafes = items.compactMap(Self.searchPreviewCafe(from:))
+        }
+    }
+
+    private var locationAccessAuthorized: Bool {
+        locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways
     }
     
     private func initializeLocationIfNeeded() {
@@ -515,153 +407,120 @@ struct MapTabView: View {
         }
     }
     
-    private func handleSearchResult(_ mapItem: MKMapItem, recordRecent: Bool = true) {
-        guard let location = mapItem.placemark.location?.coordinate else { return }
-        
-        HapticsManager.shared.lightTap()
-        
-        withAnimation {
-            region = MKCoordinateRegion(
-                center: location,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-            isSearchActive = false
-        }
-        
-        let cafe = dataManager.findOrCreateCafe(from: mapItem)
-        selectedCafe = cafe
-        showCafeDetail = true
-        isSearchFieldFocused = false
-        
-        let queryText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchText = ""
-        searchService.cancelSearch()
-        lastSearchRegion = nil // Reset context after selecting
-        
-        if recordRecent {
-            dataManager.addRecentSearch(from: mapItem, query: queryText.isEmpty ? (mapItem.name ?? "") : queryText)
-        }
-    }
-    
-    private func handleRecentSearch(_ entry: RecentSearchEntry) {
-        dataManager.promoteRecentSearch(entry)
-        if let mapItem = entry.asMapItem() {
-            handleSearchResult(mapItem, recordRecent: false)
-        } else {
-            searchText = entry.query
-            searchService.search(
-                query: entry.query,
-                region: region ?? defaultRegion,
-                mode: dataManager.appData.mapSearchMode
-            )
-            isSearchFieldFocused = true
-        }
-    }
-    
-    // MARK: - Map Pin Data Sources (Strict Separation)
-    
-    /// Cafes for SOLO mode - only current user's visits
-    /// Friends' visits NEVER appear in solo mode
-    private var currentUserCafesForMap: [Cafe] {
-        dataManager.getCurrentUserCafesForMap()
-    }
-    
-    /// Cafes for SIP SQUAD mode - combined user + friends visits with aggregated ratings
-    private var sipSquadCombinedCafesForMap: [Cafe] {
-        dataManager.getSipSquadCafes()
-    }
-    
-    /// Final computed property used by the map view
-    /// Strictly separated: solo mode uses ONLY current user data, Sip Squad uses combined data
     private var cafesWithLocations: [Cafe] {
-        #if DEBUG
-        let mode = isSipSquadMode ? "sipSquad" : "solo"
-        print("[Map] Building pins - mode: \(mode)")
-        #endif
-        
-        if isSipSquadMode {
-            // SIP SQUAD MODE: Show aggregated cafes from user + friends
-            let sipSquadCafes = sipSquadCombinedCafesForMap
-            let filtered = filterCafesWithValidLocations(sipSquadCafes)
-            
-            #if DEBUG
-            print("[Map:SipSquad] Total SipSquad cafes: \(sipSquadCafes.count), with valid locations: \(filtered.count)")
-            #endif
-            
-            return filtered
-        }
-        
-        // SOLO MODE: Show ONLY current user's cafes
-        // This MUST NOT include any friends' visits
-        let soloCafes = currentUserCafesForMap
-        let filtered = filterCafesWithValidLocations(soloCafes)
-        
-        #if DEBUG
-        print("[Map:Solo] Total solo cafes: \(soloCafes.count), with valid locations: \(filtered.count)")
-        if let userId = dataManager.appData.supabaseUserId {
-            print("[Map:Solo] Current user ID: \(userId.prefix(8))...")
-        }
-        #endif
-        
-        return filtered
-    }
-    
-    // PERFORMANCE: Extracted filtering logic to reduce code duplication and enable optimization
-    private func filterCafesWithValidLocations(_ cafes: [Cafe]) -> [Cafe] {
-        let filtered = cafes.filter { cafe in
-            // Check location first (fast rejection)
-            guard let location = cafe.location else { return false }
-            
-            // Ensure coordinates are valid
-            guard abs(location.latitude) <= 90 && abs(location.longitude) <= 180 else { return false }
-            
-            // Check if cafe qualifies (has visits, favorite, or wantToTry)
-            return cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry
-        }
-        
-        // PERFORMANCE: Only log summary in debug builds, not per-cafe details
-        #if DEBUG
-        if filtered.isEmpty && !cafes.isEmpty {
-            print("⚠️ [Map] No cafes passed filter from \(cafes.count) total - check locations and flags")
-        }
-        #endif
-        
-        return filtered
-    }
-    
-    /// Debug helper to verify map data integrity
-    /// Call this in debug builds to check if friend data is leaking into solo mode
-    #if DEBUG
-    private func debugVerifyMapPinIsolation() {
-        guard !isSipSquadMode else { return } // Only check in solo mode
-        
-        guard let supabaseUserId = dataManager.appData.supabaseUserId else { return }
-        let friendIds = dataManager.appData.friendsSupabaseUserIds
-        
-        // Check each cafe shown on the map
-        for cafe in cafesWithLocations {
-            // Get all visits for this cafe
-            let cafeVisits = dataManager.appData.visits.filter { visit in
-                visit.cafeId == cafe.id || visit.supabaseCafeId == cafe.id
+        // Signed-in maps are deliberately private journal maps. Their source
+        // of truth is the current user's completed Supabase logs plus active
+        // saved-cafe states, never the public feed or stale local cache.
+        let source = authModel.authenticatedUser == nil
+            ? dataManager.appData.cafes
+            : remoteMapPins + discoveryMapCafes
+
+        return source.filter { cafe in
+            guard cafe.location != nil else {
+                return false
             }
-            
-            // Check if any visits are from friends (not current user)
-            let friendVisitsForCafe = cafeVisits.filter { visit in
-                guard let authorId = visit.supabaseUserId else { return false }
-                return friendIds.contains(authorId) && authorId != supabaseUserId
-            }
-            
-            let userVisitsForCafe = cafeVisits.filter { visit in
-                visit.supabaseUserId == supabaseUserId
-            }
-            
-            // If cafe has only friend visits and no user visits, it shouldn't be on solo map
-            if !friendVisitsForCafe.isEmpty && userVisitsForCafe.isEmpty && !cafe.isFavorite && !cafe.wantToTry {
-                print("🚨 [Map:Solo] DATA LEAK DETECTED: Cafe '\(cafe.name)' has \(friendVisitsForCafe.count) friend visits but 0 user visits and appears in solo mode!")
+
+            switch mapFilter {
+            case .all:
+                return true
+            case .favorites:
+                return cafe.isFavorite
+            case .wantToTry:
+                return cafe.wantToTry
+            case .visited:
+                return cafe.visitCount > 0
             }
         }
     }
-    #endif
+
+    private var displayedMapCafes: [Cafe] {
+        guard isSearchActive, !searchText.isEmpty else { return cafesWithLocations }
+        return (cafesWithLocations + searchPreviewCafes).reduce(into: [Cafe]()) { result, cafe in
+            let isDuplicate = result.contains { existing in
+                guard let lhs = existing.location, let rhs = cafe.location else {
+                    return existing.id == cafe.id
+                }
+                return abs(lhs.latitude - rhs.latitude) < 0.0001 &&
+                    abs(lhs.longitude - rhs.longitude) < 0.0001
+            }
+            if !isDuplicate { result.append(cafe) }
+        }
+    }
+
+    private static func searchPreviewCafe(from mapItem: MKMapItem) -> Cafe? {
+        guard let location = mapItem.placemark.location?.coordinate else { return nil }
+        return Cafe(
+            name: mapItem.name ?? "Place",
+            location: location,
+            address: MapSearchService.subtitle(for: mapItem),
+            mapItemURL: mapItem.url?.absoluteString,
+            websiteURL: mapItem.url?.absoluteString,
+            placeCategory: mapItem.pointOfInterestCategory?.rawValue
+        )
+    }
+
+    @MainActor
+    private func loadRemoteMapPins() async {
+        guard let userId = authModel.authenticatedUser?.id else {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let discovery = try await SocialDiscoveryService(client: client).publicDiscovery(
+                    section: .nearby,
+                    location: locationManager.location,
+                    radiusKM: 25,
+                    limit: 50
+                )
+                remoteMapPins = []
+                discoveryMapCafes = discovery.map(\.localCafe)
+                remoteStateError = nil
+                hasLoadedRemoteMapPins = true
+                remoteMapPinUserId = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                remoteMapPins = []
+                discoveryMapCafes = []
+                remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
+                hasLoadedRemoteMapPins = false
+                remoteMapPinUserId = nil
+            }
+            return
+        }
+
+        if remoteMapPinUserId != userId {
+            remoteMapPins = []
+            hasLoadedRemoteMapPins = false
+        }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let snapshot = try await PerformanceMonitor.measure("Map initial data") {
+                try await MapPinService(
+                    visitService: VisitService(client: client),
+                    cafeStateService: CafeStateService(client: client)
+                ).fetchSnapshot(userId: userId)
+            }
+
+            let discovery = try await SocialDiscoveryService(client: client).discovery(
+                section: .nearby,
+                location: locationManager.location,
+                radiusKM: 25,
+                limit: 50
+            )
+
+            remoteMapPins = snapshot.pins.map(\.localCafe)
+            discoveryMapCafes = discovery.map(\.localCafe)
+            // Keep the rest of the personal library in sync without using it
+            // as the map's source of truth.
+            dataManager.applyRemoteCafeStates(snapshot.cafeStates)
+            hasLoadedRemoteMapPins = true
+            remoteMapPinUserId = userId
+            remoteStateError = nil
+        } catch {
+            guard !Task.isCancelled else { return }
+            remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
+            hasLoadedRemoteMapPins = false
+        }
+    }
 }
 
 // MARK: - Map View Representable (to hide POIs)
@@ -669,7 +528,9 @@ struct MapTabView: View {
 struct MapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let cafes: [Cafe]
-    let useSipSquadSimplifiedStyle: Bool
+    let highlightedCafe: Cafe?
+    let showsUserLocation: Bool
+    @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -677,9 +538,10 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.region = region
         
-        // Show current user location (blue dot)
-        mapView.showsUserLocation = true
-        mapView.userTrackingMode = .none
+        // Keep the standard MapKit blue puck so the map has the same
+        // orientation anchor people expect from Apple Maps.
+        mapView.showsUserLocation = showsUserLocation
+        mapView.userTrackingMode = trackingMode
         
         // Hide points of interest
         mapView.pointOfInterestFilter = .excludingAll
@@ -688,155 +550,90 @@ struct MapViewRepresentable: UIViewRepresentable {
         mapView.showsBuildings = false
         mapView.showsTraffic = false
         
-        // Add initial annotations
-        let initialAnnotations = cafes.map { CafeAnnotation(cafe: $0) }
-        if !initialAnnotations.isEmpty {
-            mapView.addAnnotations(initialAnnotations)
-        }
-        
-        // Register default cluster view
-        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier)
-        
         return mapView
     }
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator(useSipSquadSimplifiedStyle: useSipSquadSimplifiedStyle, onCafeTap: onCafeTap)
-    }
-    
     func updateUIView(_ mapView: MKMapView, context: Context) {
-        // Update the coordinator's style flag
-        context.coordinator.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
-        
-        // Check if Sip Squad style flag changed - if so, force refresh all annotations
-        let styleChanged = context.coordinator.previousUseSipSquadSimplifiedStyle != useSipSquadSimplifiedStyle
-        if styleChanged {
-            // Force refresh all existing cafe annotations when style changes
-            let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
-            if !existingAnnotations.isEmpty {
-                // Remove all existing cafe annotations
-                mapView.removeAnnotations(existingAnnotations)
-                
-                // Build updated cafe list (deduplicated)
-                var cafesById: [UUID: Cafe] = [:]
-                for cafe in cafes {
-                    if cafesById[cafe.id] == nil {
-                        cafesById[cafe.id] = cafe
-                    }
-                }
-                
-                // Re-add annotations with updated cafe data
-                // This will trigger mapView(_:viewFor:) to be called with the new style flag
-                let refreshedAnnotations = cafesById.values.map { CafeAnnotation(cafe: $0) }
-                mapView.addAnnotations(refreshedAnnotations)
-            }
+        context.coordinator.parent = self
+
+        if mapView.showsUserLocation != showsUserLocation {
+            mapView.showsUserLocation = showsUserLocation
         }
-        // Record the current style flag for the next update cycle
-        context.coordinator.previousUseSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
-        
+
+        if mapView.userTrackingMode != trackingMode {
+            mapView.setUserTrackingMode(trackingMode, animated: true)
+        }
+
         // Update region if needed
         if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
            abs(mapView.region.center.longitude - region.center.longitude) > 0.001 {
             mapView.setRegion(region, animated: true)
         }
         
-        // Skip normal update logic if we already refreshed due to style change
-        guard !styleChanged else { return }
-        
-        // PERFORMANCE: Build lookup structures once instead of repeated searches
-        let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
-        let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
-        let currentCafeIds = Set(cafes.map { $0.id })
-        
-        // BUGFIX: Handle duplicate cafe IDs safely - keep only the first occurrence
-        // This prevents crashes if getSipSquadCafes() returns duplicates
-        var cafesById: [UUID: Cafe] = [:]
-        for cafe in cafes {
-            if cafesById[cafe.id] == nil {
-                cafesById[cafe.id] = cafe
+        // Update annotations - refresh all to handle Favorite/Want to Try state changes
+        let displayedCafes = (cafes + [highlightedCafe].compactMap { $0 }).reduce(into: [Cafe]()) { cafes, cafe in
+            if !cafes.contains(where: { $0.id == cafe.id }) {
+                cafes.append(cafe)
             }
         }
-        let currentCafesById = cafesById
+        let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
+        let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
+        let currentCafeIds = Set(displayedCafes.map { $0.id })
         
         // Remove annotations for cafes that no longer exist
         let toRemove = existingAnnotations.filter { !currentCafeIds.contains($0.cafe.id) }
-        if !toRemove.isEmpty {
-            mapView.removeAnnotations(toRemove)
-        }
+        mapView.removeAnnotations(toRemove)
         
-        // PERFORMANCE: Batch annotation updates to minimize map view operations
-        var annotationsToRemove: [CafeAnnotation] = []
-        var annotationsToAdd: [CafeAnnotation] = []
-        
-        // Check existing annotations for state changes
+        // Update existing annotations if cafe state changed (Favorite/Want to Try)
         for existingAnnotation in existingAnnotations {
-            guard let updatedCafe = currentCafesById[existingAnnotation.cafe.id] else { continue }
-            
-            // Check if Favorite/Want to Try state changed
-            if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
-               existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
-               existingAnnotation.cafe.averageRating != updatedCafe.averageRating {
-                annotationsToRemove.append(existingAnnotation)
-                annotationsToAdd.append(CafeAnnotation(cafe: updatedCafe))
+            if let updatedCafe = displayedCafes.first(where: { $0.id == existingAnnotation.cafe.id }) {
+                // Check if Favorite/Want to Try state changed
+                if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
+                   existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
+                   existingAnnotation.cafe.averageRating != updatedCafe.averageRating {
+                    // Remove and re-add to trigger view refresh
+                    mapView.removeAnnotation(existingAnnotation)
+                    let newAnnotation = CafeAnnotation(cafe: updatedCafe)
+                    mapView.addAnnotation(newAnnotation)
+                }
             }
         }
         
-        // Add new annotations for cafes not already shown
-        let toAdd = cafes.filter { !existingCafeIds.contains($0.id) }
-        annotationsToAdd.append(contentsOf: toAdd.map { CafeAnnotation(cafe: $0) })
-        
-        // PERFORMANCE: Batch operations
-        if !annotationsToRemove.isEmpty {
-            mapView.removeAnnotations(annotationsToRemove)
-        }
-        if !annotationsToAdd.isEmpty {
-            mapView.addAnnotations(annotationsToAdd)
-        }
+        // Add new annotations
+        let toAdd = displayedCafes.filter { !existingCafeIds.contains($0.id) }
+        let newAnnotations = toAdd.map { CafeAnnotation(cafe: $0) }
+        mapView.addAnnotations(newAnnotations)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
     }
     
     class Coordinator: NSObject, MKMapViewDelegate {
-        var useSipSquadSimplifiedStyle: Bool
-        var previousUseSipSquadSimplifiedStyle: Bool
-        let onCafeTap: (Cafe) -> Void
-        
-        init(useSipSquadSimplifiedStyle: Bool, onCafeTap: @escaping (Cafe) -> Void) {
-            self.useSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
-            self.previousUseSipSquadSimplifiedStyle = useSipSquadSimplifiedStyle
-            self.onCafeTap = onCafeTap
+        var parent: MapViewRepresentable
+
+        init(parent: MapViewRepresentable) {
+            self.parent = parent
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            // Skip user location annotation
-            if annotation is MKUserLocation {
-                return nil
+            if annotation is MKUserLocation, parent.showsUserLocation {
+                let identifier = "MugshotUserLocation"
+                let userLocationView = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: identifier
+                ) as? MKUserLocationView ?? MKUserLocationView(
+                    annotation: annotation,
+                    reuseIdentifier: identifier
+                )
+                userLocationView.annotation = annotation
+                userLocationView.tintColor = .systemBlue
+                return userLocationView
             }
-            
-            // Handle cluster annotations with mint color
-            if annotation is MKClusterAnnotation {
-                var clusterView = mapView.dequeueReusableAnnotationView(withIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier) as? MKMarkerAnnotationView
-                
-                if clusterView == nil {
-                    clusterView = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier)
-                } else {
-                    clusterView?.annotation = annotation
-                }
-                
-                // Set mint color for cluster pins
-                let mintColor = UIColor(red: 183/255, green: 226/255, blue: 181/255, alpha: 1.0) // #B7E2B5 (mintMain)
-                clusterView?.markerTintColor = mintColor
-                clusterView?.glyphTintColor = UIColor(red: 5/255, green: 46/255, blue: 22/255, alpha: 1.0) // #052E16 (textOnMint)
-                
-                return clusterView
-            }
-            
-            guard let cafeAnnotation = annotation as? CafeAnnotation else {
-                return nil
-            }
+
+            guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
             
             let cafe = cafeAnnotation.cafe
-            // Include style flag in identifier to force new views when style changes
-            let baseIdentifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
-            let identifier = "\(baseIdentifier)_\(useSipSquadSimplifiedStyle ? "mint" : "rating")"
+            let identifier = cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
             
             if annotationView == nil {
@@ -844,37 +641,28 @@ struct MapViewRepresentable: UIViewRepresentable {
                 annotationView?.canShowCallout = false
                 annotationView?.isEnabled = true
                 annotationView?.isUserInteractionEnabled = true
-                // Enable Clustering
-                annotationView?.clusteringIdentifier = "cafeCluster"
             } else {
                 annotationView?.annotation = annotation
             }
             
-            // Determine pin style based on mode and Favorite/Want to Try
+            // Determine pin style based on Favorite/Want to Try
             let pinSize: CGFloat = 36
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: pinSize, height: pinSize))
             containerView.backgroundColor = .clear
             
-            // Use simplified mint style if flag is enabled
-            if useSipSquadSimplifiedStyle {
-                // Sip Squad simplified: All pins are Mugshot Mint with rating
-                let mintPin = createMintPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(mintPin)
+            // Priority: Want to Try > Favorite > Default
+            if cafe.wantToTry {
+                // Want to Try: Blue bookmark icon
+                let bookmarkView = createBookmarkPin(size: pinSize, rating: cafe.averageRating)
+                containerView.addSubview(bookmarkView)
+            } else if cafe.isFavorite {
+                // Favorite: Heart icon with rating color
+                let heartView = createHeartPin(size: pinSize, rating: cafe.averageRating)
+                containerView.addSubview(heartView)
             } else {
-                // Standard mode: Priority: Want to Try > Favorite > Default
-                if cafe.wantToTry {
-                    // Want to Try: Blue bookmark icon
-                    let bookmarkView = createBookmarkPin(size: pinSize, rating: cafe.averageRating)
-                    containerView.addSubview(bookmarkView)
-                } else if cafe.isFavorite {
-                    // Favorite: Heart icon with rating color
-                    let heartView = createHeartPin(size: pinSize, rating: cafe.averageRating)
-                    containerView.addSubview(heartView)
-                } else {
-                    // Default: Rating-colored circle
-                    let circleView = createDefaultPin(size: pinSize, rating: cafe.averageRating)
-                    containerView.addSubview(circleView)
-                }
+                // Default: Rating-colored circle
+                let circleView = createDefaultPin(size: pinSize, rating: cafe.averageRating)
+                containerView.addSubview(circleView)
             }
             
             // Clear existing subviews
@@ -887,15 +675,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
         
         private func createDefaultPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor: UIColor = {
-                if rating >= 4.0 {
-                    return .systemGreen
-                } else if rating >= 3.0 {
-                    return .systemYellow
-                } else {
-                    return .systemRed
-                }
-            }()
+            let pinColor = rating > 0 ? ratingColor(rating) : UIColor(Color.mugshotSage)
             
             let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             pinView.backgroundColor = pinColor
@@ -903,56 +683,26 @@ struct MapViewRepresentable: UIViewRepresentable {
             pinView.layer.borderWidth = 2
             pinView.layer.borderColor = UIColor.white.cgColor
             
-            let scoreLabel = UILabel()
-            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
-            scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-            scoreLabel.textColor = .white
-            scoreLabel.textAlignment = .center
-            scoreLabel.frame = pinView.bounds
-            
-            pinView.addSubview(scoreLabel)
-            return pinView
-        }
-        
-        /// Simplified Sip Squad pin style: Mugshot Mint color with rating displayed
-        private func createMintPin(size: CGFloat, rating: Double) -> UIView {
-            // Mugshot Mint color (from DS.Colors.primaryAccent)
-            let mintColor = UIColor(red: 183/255, green: 226/255, blue: 181/255, alpha: 1.0) // #B7E2B5
-            let textColor = UIColor(red: 5/255, green: 46/255, blue: 22/255, alpha: 1.0) // #052E16 (textOnMint)
-            
-            let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            pinView.backgroundColor = mintColor
-            pinView.layer.cornerRadius = size / 2
-            pinView.layer.borderWidth = 2
-            pinView.layer.borderColor = UIColor.white.cgColor
-            
-            // Add subtle shadow for depth
-            pinView.layer.shadowColor = UIColor.black.cgColor
-            pinView.layer.shadowOffset = CGSize(width: 0, height: 2)
-            pinView.layer.shadowOpacity = 0.15
-            pinView.layer.shadowRadius = 4
-            
-            let scoreLabel = UILabel()
-            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
-            scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-            scoreLabel.textColor = textColor
-            scoreLabel.textAlignment = .center
-            scoreLabel.frame = pinView.bounds
-            
-            pinView.addSubview(scoreLabel)
+            if rating > 0 {
+                let scoreLabel = UILabel()
+                scoreLabel.text = String(format: "%.1f", rating)
+                scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
+                scoreLabel.textColor = .white
+                scoreLabel.textAlignment = .center
+                scoreLabel.frame = pinView.bounds
+                pinView.addSubview(scoreLabel)
+            } else {
+                let imageView = UIImageView(image: UIImage(systemName: "cup.and.saucer.fill"))
+                imageView.tintColor = .white
+                imageView.contentMode = .scaleAspectFit
+                imageView.frame = pinView.bounds.insetBy(dx: 9, dy: 9)
+                pinView.addSubview(imageView)
+            }
             return pinView
         }
         
         private func createHeartPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor: UIColor = {
-                if rating >= 4.0 {
-                    return .systemGreen
-                } else if rating >= 3.0 {
-                    return .systemYellow
-                } else {
-                    return .systemRed
-                }
-            }()
+            let pinColor = ratingColor(rating)
             
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
@@ -986,11 +736,10 @@ struct MapViewRepresentable: UIViewRepresentable {
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
             
-            // Bookmark shape using SF Symbol (blue for Want to Try)
             let bookmarkImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             let bookmarkImage = UIImage(systemName: "bookmark.fill")
             bookmarkImageView.image = bookmarkImage
-            bookmarkImageView.tintColor = .systemBlue
+            bookmarkImageView.tintColor = UIColor(Color.mugshotSage)
             bookmarkImageView.contentMode = .scaleAspectFit
             
             // Score label if rating exists
@@ -1008,10 +757,38 @@ struct MapViewRepresentable: UIViewRepresentable {
             
             return containerView
         }
+
+        private func ratingColor(_ rating: Double) -> UIColor {
+            if rating >= 4.0 {
+                return UIColor(Color.mugshotSage)
+            } else if rating >= 3.0 {
+                return UIColor(Color.mugshotMatcha)
+            } else if rating > 0 {
+                return UIColor(Color(hex: "B04A2F"))
+            } else {
+                return UIColor(Color.mugshotLatte)
+            }
+        }
         
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             guard let cafeAnnotation = view.annotation as? CafeAnnotation else { return }
-            onCafeTap(cafeAnnotation.cafe)
+            parent.onCafeTap(cafeAnnotation.cafe)
+            mapView.deselectAnnotation(cafeAnnotation, animated: false)
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.region = mapView.region
+        }
+
+        func mapView(
+            _ mapView: MKMapView,
+            didChange mode: MKUserTrackingMode,
+            animated: Bool
+        ) {
+            guard parent.trackingMode != mode else { return }
+            DispatchQueue.main.async {
+                self.parent.trackingMode = mode
+            }
         }
     }
 }
@@ -1021,8 +798,7 @@ struct MapViewRepresentable: UIViewRepresentable {
 class CafeAnnotation: NSObject, MKAnnotation {
     let cafe: Cafe
     var coordinate: CLLocationCoordinate2D {
-        // PERFORMANCE: Return location directly without debug logging in hot path
-        return cafe.location ?? CLLocationCoordinate2D()
+        cafe.location ?? CLLocationCoordinate2D()
     }
     
     init(cafe: Cafe) {
@@ -1035,31 +811,31 @@ class CafeAnnotation: NSObject, MKAnnotation {
 // MARK: - Ratings Legend
 
 struct RatingsLegend: View {
-    var isSipSquadMode: Bool = false
-    
     var body: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            Text(isSipSquadMode ? "SIP SQUAD RATINGS" : "YOUR RATINGS")
-                .font(DS.Typography.metaLabel)
-                .foregroundColor(DS.Colors.textSecondary)
-                .tracking(0.5)
+        VStack(spacing: 8) {
+            Text("Your ratings")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.roastBrown)
             
-            HStack(spacing: DS.Spacing.section) {
-                LegendItem(color: DS.Colors.positiveChange, text: "≥ 4.0")
-                LegendItem(color: DS.Colors.neutralChange, text: "3.0–3.9")
-                LegendItem(color: DS.Colors.negativeChange, text: "< 3.0")
-                LegendItem(icon: "bookmark.fill", color: DS.Colors.secondaryAccent, text: "Want to try")
+            HStack(spacing: 16) {
+                LegendItem(color: .mugshotSage, text: "≥ 4.0")
+                LegendItem(color: .mugshotMatcha, text: "3.0–3.9")
+                LegendItem(color: Color(hex: "B04A2F"), text: "< 3.0")
+                LegendItem(icon: "bookmark.fill", color: .mugshotSage, text: "Want to try")
             }
             
             Text("Tap pins for details.")
-                .font(DS.Typography.caption2())
-                .foregroundColor(DS.Colors.textSecondary)
+                .font(.system(size: 10))
+                .foregroundColor(.tertiaryText)
         }
-        .padding(.horizontal, DS.Spacing.pagePadding)
-        .padding(.vertical, DS.Spacing.md)
-        .background(DS.Colors.cardBackground.opacity(0.95))
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .mugshotGlassSurface(
+            radius: DesignSystem.Radius.card,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.58),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6)
+        )
     }
 }
 
@@ -1072,7 +848,7 @@ struct LegendItem: View {
         HStack(spacing: 4) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(DS.Typography.caption2())
+                    .font(.system(size: 10))
                     .foregroundColor(color)
             } else {
                 Circle()
@@ -1080,8 +856,8 @@ struct LegendItem: View {
                     .frame(width: 10, height: 10)
             }
             Text(text)
-                .font(DS.Typography.caption2())
-                .foregroundColor(DS.Colors.textSecondary)
+                .font(.system(size: 11))
+                .foregroundColor(.roastBrown)
         }
     }
 }
@@ -1094,16 +870,16 @@ struct LocationBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "location.slash")
-                .foregroundColor(DS.Colors.textSecondary)
+                .foregroundColor(.espressoBrown.opacity(0.7))
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("Location access is off")
-                    .font(DS.Typography.bodyText)
-                    .foregroundColor(DS.Colors.textPrimary)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.espressoBrown)
                 
                 Text("You can still use Mugshot, but the map won't follow you.")
-                    .font(DS.Typography.caption2())
-                    .foregroundColor(DS.Colors.textSecondary)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
             }
             
             Spacer()
@@ -1113,112 +889,16 @@ struct LocationBanner: View {
                     UIApplication.shared.open(url)
                 }
             }
-        .font(DS.Typography.caption1())
-            .foregroundColor(DS.Colors.primaryAccent)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(.mugshotSage)
         }
-        .padding(DS.Spacing.md)
-        .background(DS.Colors.cardBackgroundAlt)
-        .cornerRadius(DS.Radius.card)
-    }
-}
-
-// MARK: - Sip Squad Banner
-
-struct SipSquadBanner: View {
-    let hasFriends: Bool
-    let friendCafeCount: Int
-    let onDismiss: () -> Void
-    let onFindFriends: () -> Void
-    
-    var body: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            if !hasFriends {
-                // No friends - show CTA to add friends
-                HStack(spacing: DS.Spacing.md) {
-                    Image(systemName: "person.2.slash")
-                        .font(.system(size: 20))
-                        .foregroundColor(DS.Colors.textOnMint)
-                    
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text("Add friends to unlock Sip Squad Mode!")
-                            .font(DS.Typography.caption1(.semibold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: onFindFriends) {
-                        HStack(spacing: DS.Spacing.xs) {
-                            Text("Find Friends")
-                                .font(DS.Typography.caption1(.semibold))
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(DS.Colors.primaryAccent)
-                        .padding(.horizontal, DS.Spacing.md)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .background(DS.Colors.cardBackground)
-                        .cornerRadius(DS.Radius.lg)
-                    }
-                }
-            } else if friendCafeCount == 0 {
-                // Has friends but no friend visits
-                HStack(spacing: DS.Spacing.md) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(DS.Colors.textOnMint)
-                    
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text("Sip Squad Mode")
-                            .font(DS.Typography.caption1(.semibold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                        
-                        Text("Your Sip Squad hasn't logged any cafés yet.")
-                            .font(DS.Typography.caption2())
-                            .foregroundColor(DS.Colors.textOnMint.opacity(0.8))
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .frame(width: 28, height: 28)
-                    }
-                }
-            } else {
-                // Active Sip Squad mode with data
-                HStack(spacing: DS.Spacing.md) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(DS.Colors.textOnMint)
-                    
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text("Sip Squad Mode")
-                            .font(DS.Typography.caption1(.semibold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                        
-                        Text("Showing cafés visited by you and your friends.")
-                            .font(DS.Typography.caption2())
-                            .foregroundColor(DS.Colors.textOnMint.opacity(0.8))
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(DS.Colors.textOnMint)
-                            .frame(width: 28, height: 28)
-                    }
-                }
-            }
-        }
-        .padding(DS.Spacing.md)
-        .background(DS.Colors.primaryAccent)
-        .cornerRadius(DS.Radius.card)
-        .dsCardShadow()
+        .padding()
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        )
     }
 }
 
@@ -1227,49 +907,52 @@ struct SipSquadBanner: View {
 struct MyLocationButton: View {
     @ObservedObject var locationManager: LocationManager
     @Binding var region: MKCoordinateRegion
-    @Binding var recenterOnUserRequest: Bool
+    @Binding var trackingMode: MKUserTrackingMode
     @State private var showMessage = false
     
     var body: some View {
         VStack(spacing: 8) {
             if showMessage {
                 Text("We don't have your location yet")
-                    .font(DS.Typography.caption2())
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .padding(.horizontal, DS.Spacing.md)
-                    .padding(.vertical, DS.Spacing.sm)
-                    .background(DS.Colors.cardBackground)
-                    .cornerRadius(DS.Radius.md)
-                    .dsCardShadow()
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.foamWhite)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
             }
             
             Button(action: {
-                // Haptic: confirm recenter button tap
-                HapticsManager.shared.lightTap()
-                
                 let status = locationManager.authorizationStatus
                 
                 if status == .authorizedWhenInUse || status == .authorizedAlways {
-                    // Try to recenter immediately using the last known location, if available
+                    // Request fresh location update
+                    locationManager.requestCurrentLocation()
+                    
+                    // Try to get current location
                     if let location = locationManager.getCurrentLocation() {
                         withAnimation {
                             region = MKCoordinateRegion(
                                 center: location.coordinate,
                                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                             )
+                            trackingMode = .follow
                         }
-                        // We already recentred, no need to wait for the next update
-                        recenterOnUserRequest = false
                         showMessage = false
                     } else {
-                        // No current location yet – ask for one and let the onChange handler recenter
-                        recenterOnUserRequest = true
-                        locationManager.requestCurrentLocation()
-                        showMessage = false
+                        // Location not available yet, show message
+                        showMessage = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation {
+                                showMessage = false
+                            }
+                        }
                     }
                 } else {
-                    // No permission - show message
-                    recenterOnUserRequest = false
+                    if status == .notDetermined {
+                        locationManager.requestLocationPermission()
+                    }
                     showMessage = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
@@ -1278,41 +961,1121 @@ struct MyLocationButton: View {
                     }
                 }
             }) {
-                Image(systemName: "location.fill")
+                Image(systemName: trackingMode == .none ? "location.fill" : "location.north.line.fill")
                     .font(.system(size: 18))
-                    .foregroundColor(DS.Colors.textPrimary)
+                    .foregroundColor(trackingMode == .none ? .espressoBrown : .mugshotSage)
                     .frame(width: 44, height: 44)
-                    .background(DS.Colors.cardBackground)
-                    .clipShape(Circle())
-                    .dsCardShadow()
+                    .mugshotGlassCircle(
+                        tint: .foamWhite,
+                        stroke: Color.foamWhite.opacity(0.62),
+                        shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: 6),
+                        interactive: true
+                    )
+            }
+            .accessibilityLabel(trackingMode == .none ? "Center on my location" : "Following my location")
+        }
+    }
+}
+
+struct MapDiscoveryModeControl: View {
+    @Binding var selection: MapDiscoveryMode
+
+    var body: some View {
+        MugshotSegmentedControl(
+            options: MapDiscoveryMode.allCases,
+            selection: $selection,
+            title: { $0.rawValue },
+            icon: { $0.icon }
+        )
+    }
+}
+
+// MARK: - Cafe Detail Sheet
+
+struct CafeDetailSheet: View {
+    let cafe: Cafe
+    @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
+    @Binding var isPresented: Bool
+    var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
+    @State private var showLogVisit = false
+    @State private var showFullDetails = false
+    @State private var selectedVisit: Visit?
+    @State private var isSyncingCafeState = false
+    @State private var cafeStateError: String?
+    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var isLoadingRemoteVisits = false
+    @State private var remoteVisitError: String?
+    @State private var selectedRemoteVisit: RemoteVisitSummary?
+    
+    // Get current cafe state from dataManager to reflect real-time changes
+    var currentCafe: Cafe? {
+        dataManager.getCafe(id: cafe.id)
+    }
+    
+    var displayCafe: Cafe {
+        currentCafe ?? cafe
+    }
+    
+    var visits: [Visit] {
+        dataManager.getVisitsForCafe(cafe.id)
+    }
+
+    private var displayedVisitCount: Int {
+        max(displayCafe.visitCount, visits.count, remoteVisits.count)
+    }
+
+    private var displayedScore: Double {
+        if displayCafe.averageRating > 0 { return displayCafe.averageRating }
+        return RemoteCafeVisitStats.calculate(from: remoteVisits).averageScore
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.espressoBrown.opacity(0.2))
+                .frame(width: 54, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+
+            HStack(alignment: .top, spacing: 12) {
+                cafeIdentityBlock
+
+                Button {
+                    withAnimation {
+                        isPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.espressoBrown.opacity(0.48))
+                        .frame(width: 36, height: 36)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    mapSheetStats
+                    
+                    mapSheetActions
+
+                    if let cafeStateError {
+                        Text(cafeStateError)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    mapSheetRecentVisits
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 18)
+            }
+        }
+        .background(Color.creamWhite)
+        .clipShape(RoundedCorner(radius: DesignSystem.Radius.sheet, corners: [.topLeft, .topRight]))
+        .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: -6)
+        .frame(maxHeight: UIScreen.main.bounds.height * 0.75)
+        .sheet(isPresented: $showLogVisit) {
+            LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
+        }
+        .sheet(isPresented: $showFullDetails) {
+            CafeDetailView(cafe: cafe, dataManager: dataManager)
+        }
+        .fullScreenCover(item: $selectedVisit) { visit in
+            VisitDetailView(visit: visit, dataManager: dataManager)
+        }
+        .fullScreenCover(item: $selectedRemoteVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
+            )
+        }
+        .task(id: displayCafe.remoteCafeId) {
+            await loadRemoteCafeVisits()
+        }
+    }
+
+    private var cafeIdentityBlock: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(displayCafe.consumerDisplayName)
+                .mugshotDisplay(size: 25)
+                .foregroundColor(.espressoBrown)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !displayCafe.address.isEmpty {
+                Label(displayCafe.address, systemImage: "mappin.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                if displayCafe.isFavorite {
+                    mapSheetPill("Favorite", systemImage: "heart.fill")
+                }
+
+                if displayCafe.wantToTry {
+                    mapSheetPill("Want to Try", systemImage: "bookmark.fill")
+                }
+
+                if let category = displayCafe.consumerPlaceCategory {
+                    mapSheetPill(category, systemImage: "tag.fill")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var mapSheetStats: some View {
+        HStack(spacing: 10) {
+            mapSheetStatCard(
+                title: "Average",
+                value: displayedScore > 0 ? String(format: "%.1f", displayedScore) : "Unrated",
+                systemImage: "star.fill"
+            )
+
+            mapSheetStatCard(
+                title: "Visits",
+                value: "\(displayedVisitCount)",
+                systemImage: "cup.and.saucer.fill"
+            )
+        }
+    }
+
+    private var mapSheetActions: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+
+        return VStack(spacing: 12) {
+            Button {
+                if let onLogVisit = onLogVisitRequested {
+                    onLogVisit(displayCafe)
+                } else {
+                    showLogVisit = true
+                }
+            } label: {
+                Label("Log Visit", systemImage: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                mapSheetActionButton(
+                    title: "Favorite",
+                    systemImage: displayCafe.isFavorite ? "heart.fill" : "heart",
+                    isSelected: displayCafe.isFavorite,
+                    action: toggleFavorite
+                )
+                .disabled(isSyncingCafeState)
+
+                mapSheetActionButton(
+                    title: "Want to Try",
+                    systemImage: displayCafe.wantToTry ? "bookmark.fill" : "bookmark",
+                    isSelected: displayCafe.wantToTry,
+                    action: toggleWantToTry
+                )
+                .disabled(isSyncingCafeState)
+
+                mapSheetActionButton(
+                    title: "Details",
+                    systemImage: "list.bullet.rectangle",
+                    isSelected: false
+                ) {
+                    showFullDetails = true
+                }
+
+                mapSheetActionButton(
+                    title: "Directions",
+                    systemImage: "location.north.circle",
+                    isSelected: false,
+                    action: openInMaps
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mapSheetRecentVisits: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recent Visits")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+
+            if isLoadingRemoteVisits && remoteVisits.isEmpty && visits.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading community visits…")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+            } else if remoteVisits.isEmpty && visits.isEmpty {
+                VStack(spacing: 9) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.roastBrown.opacity(0.42))
+
+                    Text("No visits here yet")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+
+                    Text("Log this cafe to add it to your taste journal.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .padding(.horizontal, 14)
+                .background(Color.sandBeige.opacity(0.58))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                if let remoteVisitError {
+                    Text(remoteVisitError)
+                        .font(.system(size: 11))
+                        .foregroundColor(.tertiaryText)
+                }
+            } else if !remoteVisits.isEmpty {
+                ForEach(remoteVisits.prefix(5)) { visit in
+                    Button {
+                        selectedRemoteVisit = visit
+                    } label: {
+                        MapRemoteVisitRow(visit: visit)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                ForEach(visits.prefix(5)) { visit in
+                    VisitEntryRow(visit: visit)
+                        .onTapGesture {
+                            selectedVisit = visit
+                        }
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    @MainActor
+    private func loadRemoteCafeVisits() async {
+        guard let remoteCafeID = displayCafe.remoteCafeId else {
+            remoteVisits = []
+            remoteVisitError = nil
+            return
+        }
+
+        isLoadingRemoteVisits = true
+        remoteVisitError = nil
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            remoteVisits = try await VisitService(client: client).fetchVisibleCafeVisits(
+                cafeId: remoteCafeID,
+                currentUserId: authModel.authenticatedUser?.id,
+                limit: 5
+            )
+            isLoadingRemoteVisits = false
+        } catch is CancellationError {
+            return
+        } catch {
+            remoteVisitError = "Community visits are unavailable right now."
+            isLoadingRemoteVisits = false
+        }
+    }
+
+    private func mapSheetPill(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundColor(.roastBrown.opacity(0.78))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.sandBeige.opacity(0.58))
+        .clipShape(Capsule())
+    }
+
+    private func mapSheetStatCard(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.espressoBrown.opacity(0.58))
+
+            Text(value)
+                .font(.system(size: 21, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(Color.sandBeige.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+    }
+
+    private func mapSheetActionButton(
+        title: String,
+        systemImage: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(isSelected ? Color.mugshotSage.opacity(0.34) : Color.sandBeige.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                        .stroke(isSelected ? Color.mugshotSage : Color.clear, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleFavorite() {
+        let nextFavorite = !displayCafe.isFavorite
+        updateCafeState(isFavorite: nextFavorite, wantToTry: displayCafe.wantToTry)
+    }
+
+    private func toggleWantToTry() {
+        let nextWantToTry = !displayCafe.wantToTry
+        updateCafeState(isFavorite: displayCafe.isFavorite, wantToTry: nextWantToTry)
+    }
+
+    private func openInMaps() {
+        guard let location = displayCafe.location else { return }
+
+        if let mapURLString = displayCafe.mapItemURL, let url = URL(string: mapURLString) {
+            UIApplication.shared.open(url)
+        } else {
+            let encodedName = displayCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
+            if let url = URL(string: urlString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    private func updateCafeState(isFavorite: Bool, wantToTry: Bool) {
+        let previousCafe = displayCafe
+        dataManager.setCafeState(
+            cafeId: previousCafe.id,
+            isFavorite: isFavorite,
+            wantToTry: wantToTry
+        )
+
+        guard let userId = authModel.authenticatedUser?.id else {
+            return
+        }
+
+        Task {
+            await saveRemoteCafeState(
+                previousCafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                userId: userId
+            )
+        }
+    }
+
+    @MainActor
+    private func saveRemoteCafeState(
+        previousCafe: Cafe,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        userId: UUID
+    ) async {
+        isSyncingCafeState = true
+        cafeStateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            let summary = try await service.setCafeState(
+                userId: userId,
+                cafe: previousCafe,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry
+            )
+            dataManager.applyRemoteCafeState(summary)
+            isSyncingCafeState = false
+        } catch {
+            dataManager.setCafeState(
+                cafeId: previousCafe.id,
+                isFavorite: previousCafe.isFavorite,
+                wantToTry: previousCafe.wantToTry
+            )
+            cafeStateError = "Could not save cafe state."
+            isSyncingCafeState = false
+        }
+    }
+}
+
+// MARK: - Visit Entry Row
+
+private struct MapRemoteVisitRow: View {
+    let visit: RemoteVisitSummary
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: visit.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill",
+                contentMode: .fill
+            )
+            .frame(width: 58, height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(visit.visit.drinkDisplayName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                Text("\(visit.authorDisplayName) · \(visit.visit.createdAtDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(1)
+                if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
+                    Text(caption)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 6)
+
+            Label(String(format: "%.1f", visit.visit.overallScore), systemImage: "star.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .padding(10)
+        .background(Color.sandBeige.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+    }
+}
+
+struct VisitEntryRow: View {
+    let visit: Visit
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoThumbnailView(photoPath: visit.posterImagePath, size: 50)
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
+            
+            VStack(alignment: .leading, spacing: 5) {
+                Text(visit.journalDrinkName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+
+                Text(visit.date, style: .date)
+                    .font(.system(size: 12))
+                    .foregroundColor(.espressoBrown.opacity(0.58))
+                
+                if !visit.caption.isEmpty {
+                    Text(visit.caption)
+                        .font(.system(size: 12))
+                        .foregroundColor(.espressoBrown.opacity(0.68))
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(visit.overallScore > 0 ? String(format: "%.1f", visit.overallScore) : "Unrated")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(.espressoBrown)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.mugshotSage.opacity(0.36))
+            .clipShape(Capsule())
+        }
+        .padding(12)
+        .cardStyle()
+    }
+}
+
+// MARK: - Search Results List
+
+struct SearchResultsList: View {
+    @EnvironmentObject private var authModel: AppAuthModel
+    @Binding var searchText: String
+    @ObservedObject var searchService: MapSearchService
+    @ObservedObject var dataManager: DataManager
+    @Binding var region: MKCoordinateRegion
+    @Binding var selectedCafe: Cafe?
+    @Binding var showCafeDetail: Bool
+    @Binding var isSearchActive: Bool
+    var isSearchFieldFocused: FocusState<Bool>.Binding
+    
+    var body: some View {
+        ZStack {
+            Color.creamWhite
+
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                discoveryLanding
+            } else if let error = searchService.searchError {
+                searchErrorState(error)
+            } else {
+                activeSearchResults
+            }
+        }
+        .frame(maxHeight: UIScreen.main.bounds.height * 0.64)
+        .clipShape(RoundedCorner(radius: DesignSystem.Radius.sheet, corners: [.bottomLeft, .bottomRight]))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.mugshotLine)
+                .frame(height: 1)
+        }
+    }
+
+    private var discoveryLanding: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                if !searchService.recents.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            SearchSectionTitle(title: "Recent", subtitle: "Pick up where you left off")
+                            Spacer()
+                            Button("Clear") { searchService.removeAllRecents() }
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.mugshotSage)
+                                .accessibilityLabel("Clear recent searches")
+                        }
+
+                        ForEach(searchService.recents) { recent in
+                            Button {
+                                searchText = recent.query
+                                searchService.search(query: recent.query, region: region, immediately: true)
+                            } label: {
+                                SearchLandingRow(
+                                    icon: "clock.arrow.circlepath",
+                                    title: recent.title,
+                                    subtitle: recent.subtitle
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SearchSectionTitle(
+                        title: "Explore nearby",
+                        subtitle: "Coffee-first suggestions for this map area"
+                    )
+
+                    LazyVGrid(
+                        columns: [GridItem(.flexible()), GridItem(.flexible())],
+                        spacing: 10
+                    ) {
+                        discoveryButton("Coffee", icon: "cup.and.saucer.fill", query: "coffee")
+                        discoveryButton("Roasters", icon: "flame.fill", query: "coffee roaster")
+                        discoveryButton("Bakeries", icon: "birthday.cake.fill", query: "bakery")
+                        discoveryButton("Brunch", icon: "fork.knife", query: "brunch")
+                    }
+                }
+
+                let mapCenter = CLLocation(
+                    latitude: region.center.latitude,
+                    longitude: region.center.longitude
+                )
+                let savedPlaces = Array(dataManager.appData.cafes
+                    .filter { cafe in
+                        guard cafe.isFavorite || cafe.wantToTry || cafe.visitCount > 0,
+                              let location = cafe.location else { return false }
+                        return CLLocation(
+                            latitude: location.latitude,
+                            longitude: location.longitude
+                        ).distance(from: mapCenter) < 100_000
+                    }
+                    .prefix(4))
+                if !savedPlaces.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        SearchSectionTitle(title: "Your places", subtitle: "From your Mugshot journal")
+                        ForEach(savedPlaces) { cafe in
+                            LocalCafeRow(cafe: cafe) { selectLocalCafe(cafe) }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 22)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var activeSearchResults: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let corrected = searchService.correctedQuery {
+                    Label("Searching for “\(corrected)”", systemImage: "wand.and.stars")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .accessibilityLabel("Typo corrected. Searching for \(corrected)")
+                }
+
+                if !searchService.completions.isEmpty && searchService.searchResults.isEmpty {
+                    SearchSectionTitle(title: "Suggestions", subtitle: nil)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+
+                    ForEach(searchService.completions.prefix(4), id: \.self) { completion in
+                        SearchCompletionRow(completion: completion) {
+                            searchText = completion.title
+                            Task {
+                                if let mapItem = await searchService.resolve(
+                                    completion: completion,
+                                    region: region
+                                ) {
+                                    handleSearchResult(mapItem)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if searchService.isUpdatingSuggestions {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Updating suggestions…")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .accessibilityLabel("Updating suggestions")
+                }
+
+                if searchService.isSearching {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(searchService.searchResults.isEmpty ? "Finding the best matches…" : "Updating results…")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .accessibilityLabel("Searching")
+                }
+
+                if !searchService.searchResults.isEmpty {
+                    HStack {
+                        SearchSectionTitle(
+                            title: "Places",
+                            subtitle: searchService.searchedExpandedArea ? "Including a wider area" : "Best matches first"
+                        )
+                        Spacer()
+                        Text("\(searchService.searchResults.count)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondaryText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.sandBeige, in: Capsule())
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+
+                    ForEach(searchService.searchResults, id: \.self) { mapItem in
+                        SearchResultRow(mapItem: mapItem, region: region) {
+                            handleSearchResult(mapItem)
+                        }
+                    }
+                } else if !searchService.isSearching &&
+                    !searchService.isUpdatingSuggestions &&
+                    searchService.completions.isEmpty {
+                    zeroResultsState
+                }
+            }
+            .padding(.bottom, 18)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var zeroResultsState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "map.circle")
+                .font(.system(size: 36, weight: .light))
+                .foregroundColor(.mugshotSage)
+            Text("No places matched “\(searchText)”")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .multilineTextAlignment(.center)
+            Text("Try a place name, street address, neighborhood, or category.")
+                .font(.system(size: 14))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            typedCafeButton
+            Button("Browse coffee nearby") {
+                runDiscoverySearch("coffee")
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+    }
+
+    private func searchErrorState(_ error: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 34, weight: .light))
+                .foregroundColor(.roastBrown)
+            Text("We couldn’t finish that search")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+            Text(error)
+                .font(.system(size: 14))
+                .foregroundColor(.secondaryText)
+                .multilineTextAlignment(.center)
+            Button("Try again") { searchService.retry() }
+                .buttonStyle(PrimaryButtonStyle())
+            typedCafeButton
+        }
+        .padding(28)
+    }
+
+    private func discoveryButton(_ title: String, icon: String, query: String) -> some View {
+        Button { runDiscoverySearch(query) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 30, height: 30)
+                    .background(Color.mugshotMint.opacity(0.22), in: Circle())
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Explore nearby \(title)")
+    }
+
+    private func runDiscoverySearch(_ query: String) {
+        searchText = query
+        isSearchFieldFocused.wrappedValue = true
+        searchService.search(query: query, region: region, immediately: true)
+    }
+
+    private func selectLocalCafe(_ cafe: Cafe) {
+        selectedCafe = cafe
+        showCafeDetail = true
+        isSearchActive = false
+        isSearchFieldFocused.wrappedValue = false
+        if let location = cafe.location {
+            withAnimation {
+                region = MKCoordinateRegion(
+                    center: location,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            }
+        }
+        Task { await hydrateSelectedCafe(cafe) }
+    }
+    
+    private func handleSearchResult(_ mapItem: MKMapItem) {
+        guard let location = mapItem.placemark.location?.coordinate else { return }
+        
+        // Center map on result
+        withAnimation {
+            region = MKCoordinateRegion(
+                center: location,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+        }
+        
+        // Find or create cafe
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        searchService.recordRecent(mapItem)
+        
+        // Show pin card
+        selectedCafe = cafe
+        showCafeDetail = true
+        isSearchActive = false
+        isSearchFieldFocused.wrappedValue = false
+        searchText = ""
+        searchService.cancelSearch()
+        Task { await hydrateSelectedCafe(cafe) }
+    }
+
+    @MainActor
+    private func hydrateSelectedCafe(_ cafe: Cafe) async {
+        guard authModel.authenticatedUser != nil else { return }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            guard let summary = try await CafeService(client: client).resolveSummary(for: cafe) else {
+                return
+            }
+            let hydrated = dataManager.applyResolvedCafeSummary(summary, toLocalCafeID: cafe.id)
+            if selectedCafe?.id == cafe.id {
+                selectedCafe = hydrated
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // MapKit results remain usable when community hydration is unavailable.
+        }
+    }
+
+    private var typedCafeButton: some View {
+        Button("Use \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\" as a cafe") {
+            let name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return }
+            selectedCafe = dataManager.findOrCreateCafe(named: name)
+            showCafeDetail = true
+            isSearchActive = false
+            searchText = ""
+            searchService.cancelSearch()
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundColor(.mugshotSage)
+    }
+}
+
+private struct SearchSectionTitle: View {
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
             }
         }
     }
 }
 
-// MARK: - Sip Squad Toggle Button
+private struct SearchLandingRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
 
-struct SipSquadToggleButton: View {
-    let isActive: Bool
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 34, height: 34)
+                .background(Color.mugshotMint.opacity(0.18), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            Image(systemName: "arrow.up.left")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.tertiaryText)
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SearchCompletionRow: View {
+    let completion: MKLocalSearchCompletion
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            SearchLandingRow(
+                icon: completion.subtitle.isEmpty ? "magnifyingglass" : "mappin.and.ellipse",
+                title: completion.title,
+                subtitle: completion.subtitle
+            )
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel([completion.title, completion.subtitle].filter { !$0.isEmpty }.joined(separator: ", "))
+    }
+}
+
+// MARK: - Search Result Row
+
+struct SearchResultRow: View {
+    let mapItem: MKMapItem
+    let region: MKCoordinateRegion
+    let onTap: () -> Void
+    
+    var distance: String {
+        guard let itemLocation = mapItem.placemark.location else { return "" }
+        let regionCenter = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        let distanceInMeters = itemLocation.distance(from: regionCenter)
+        
+        if distanceInMeters < 1000 {
+            return String(format: "%.0f m", distanceInMeters)
+        } else {
+            return String(format: "%.1f km", distanceInMeters / 1000)
+        }
+    }
+    
+    var subtitle: String {
+        MapSearchService.subtitle(for: mapItem)
+    }
+
+    private var categoryLabel: String? {
+        MugshotCafeCategory.display(mapItem.pointOfInterestCategory?.rawValue)
+    }
+
+    private var iconName: String {
+        switch mapItem.pointOfInterestCategory {
+        case .cafe:
+            return "cup.and.saucer.fill"
+        case .bakery:
+            return "birthday.cake.fill"
+        case .restaurant:
+            return "fork.knife"
+        default:
+            return "mappin"
+        }
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 36, height: 36)
+                    .background(Color.mugshotMint.opacity(0.18), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(mapItem.name ?? "Cafe")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(1)
+                    
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    if let categoryLabel {
+                        Text(categoryLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.mugshotSage)
+                    }
+                }
+                
+                Spacer()
+                
+                if !distance.isEmpty {
+                    Text(distance)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.tertiaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Color.foamWhite)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel([
+            mapItem.name ?? "Place",
+            categoryLabel,
+            subtitle,
+            distance,
+            "Show details"
+        ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "))
+        Divider()
+            .padding(.leading, 64)
+    }
+}
+
+// MARK: - Local Cafe Row
+
+struct LocalCafeRow: View {
+    let cafe: Cafe
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
-            Image(systemName: isActive ? "person.2.fill" : "person.2")
-                .font(.system(size: 18))
-                .foregroundColor(isActive ? DS.Colors.primaryAccent : DS.Colors.textPrimary)
-                .frame(width: 44, height: 44)
-                .background(isActive ? DS.Colors.primaryAccentSoftFill : DS.Colors.cardBackground)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(isActive ? DS.Colors.primaryAccent : Color.clear, lineWidth: 2)
-                )
-                .dsCardShadow()
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(cafe.consumerDisplayName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    
+                    if !cafe.address.isEmpty {
+                        Text(cafe.address)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                    }
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.mugshotSage)
+                        .font(.system(size: 12))
+                    Text(cafe.consumerScoreLabel)
+                        .font(.system(size: 14))
+                        .foregroundColor(.roastBrown)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.tertiaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(Color.foamWhite)
         }
+        .buttonStyle(.plain)
+        Divider()
+            .padding(.leading)
     }
 }
-
-// MARK: - Legacy CafeDetailSheet removed
-// The unified café experience is now handled by UnifiedCafeView
-

@@ -7,19 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		40900B8D2EDF41E600366EB9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40900B8C2EDF41E600366EB9 /* WidgetKit.framework */; };
-		40900B8F2EDF41E600366EB9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40900B8E2EDF41E600366EB9 /* SwiftUI.framework */; };
-		40900B9E2EDF41E700366EB9 /* MugshotWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 40900B8A2EDF41E600366EB9 /* MugshotWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		70A000032F00000000000003 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70A000022F00000000000002 /* Supabase */; };
+		71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 71B600032F00000000000003 /* MugshotWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		40900B9C2EDF41E700366EB9 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 40E276792EC7997A005528D1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 40900B892EDF41E600366EB9;
-			remoteInfo = MugshotWidgetsExtension;
-		};
 		40E2768F2EC7997C005528D1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 40E276792EC7997A005528D1 /* Project object */;
@@ -34,63 +26,51 @@
 			remoteGlobalIDString = 40E276802EC7997A005528D1;
 			remoteInfo = testMugshot;
 		};
+		71B600022F00000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40E276792EC7997A005528D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 71B600062F00000000000006;
+			remoteInfo = MugshotWidgets;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		40900BA32EDF41E700366EB9 /* Embed Foundation Extensions */ = {
+		71B600092F00000000000009 /* Embed App Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				40900B9E2EDF41E700366EB9 /* MugshotWidgetsExtension.appex in Embed Foundation Extensions */,
+				71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */,
 			);
-			name = "Embed Foundation Extensions";
+			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		40900B8A2EDF41E600366EB9 /* MugshotWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MugshotWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		40900B8C2EDF41E600366EB9 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		40900B8E2EDF41E600366EB9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		40900BB72EDF439700366EB9 /* MugshotWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MugshotWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		40E276812EC7997A005528D1 /* testMugshot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = testMugshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E276982EC7997C005528D1 /* testMugshotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/SupabaseConfig.xcconfig; sourceTree = "<group>"; };
+		70A000062F00000000000006 /* Config/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config/Info.plist; sourceTree = "<group>"; };
+		71B600032F00000000000003 /* MugshotWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MugshotWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		40900BA22EDF41E700366EB9 /* Exceptions for "MugshotWidgets" folder in "MugshotWidgetsExtension" target */ = {
+		71B6000E2F0000000000000E /* Exceptions for "MugshotWidgets" folder in "MugshotWidgets" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 40900B892EDF41E600366EB9 /* MugshotWidgetsExtension */;
-		};
-		40E281602ECD23DF005528D1 /* Exceptions for "testMugshot" folder in "testMugshot" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 40E276802EC7997A005528D1 /* testMugshot */;
+			target = 71B600062F00000000000006 /* MugshotWidgets */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		40900B902EDF41E600366EB9 /* MugshotWidgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				40900BA22EDF41E700366EB9 /* Exceptions for "MugshotWidgets" folder in "MugshotWidgetsExtension" target */,
-			);
-			path = MugshotWidgets;
-			sourceTree = "<group>";
-		};
 		40E276832EC7997A005528D1 /* testMugshot */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				40E281602ECD23DF005528D1 /* Exceptions for "testMugshot" folder in "testMugshot" target */,
-			);
 			path = testMugshot;
 			sourceTree = "<group>";
 		};
@@ -104,22 +84,22 @@
 			path = testMugshotUITests;
 			sourceTree = "<group>";
 		};
+		71B600042F00000000000004 /* MugshotWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				71B6000E2F0000000000000E /* Exceptions for "MugshotWidgets" folder in "MugshotWidgets" target */,
+			);
+			path = MugshotWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		40900B872EDF41E600366EB9 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				40900B8F2EDF41E600366EB9 /* SwiftUI.framework in Frameworks */,
-				40900B8D2EDF41E600366EB9 /* WidgetKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		40E2767E2EC7997A005528D1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				70A000032F00000000000003 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -137,27 +117,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		71B600052F00000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		40900B8B2EDF41E600366EB9 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				40900B8C2EDF41E600366EB9 /* WidgetKit.framework */,
-				40900B8E2EDF41E600366EB9 /* SwiftUI.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		40E276782EC7997A005528D1 = {
 			isa = PBXGroup;
 			children = (
-				40900BB72EDF439700366EB9 /* MugshotWidgetsExtension.entitlements */,
+				70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */,
+				70A000062F00000000000006 /* Config/Info.plist */,
 				40E276832EC7997A005528D1 /* testMugshot */,
 				40E276912EC7997C005528D1 /* testMugshotTests */,
 				40E2769B2EC7997C005528D1 /* testMugshotUITests */,
-				40900B902EDF41E600366EB9 /* MugshotWidgets */,
-				40900B8B2EDF41E600366EB9 /* Frameworks */,
+				71B600042F00000000000004 /* MugshotWidgets */,
 				40E276822EC7997A005528D1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -168,7 +146,7 @@
 				40E276812EC7997A005528D1 /* testMugshot.app */,
 				40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */,
 				40E276982EC7997C005528D1 /* testMugshotUITests.xctest */,
-				40900B8A2EDF41E600366EB9 /* MugshotWidgetsExtension.appex */,
+				71B600032F00000000000003 /* MugshotWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -176,28 +154,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		40900B892EDF41E600366EB9 /* MugshotWidgetsExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 40900B9F2EDF41E700366EB9 /* Build configuration list for PBXNativeTarget "MugshotWidgetsExtension" */;
-			buildPhases = (
-				40900B862EDF41E600366EB9 /* Sources */,
-				40900B872EDF41E600366EB9 /* Frameworks */,
-				40900B882EDF41E600366EB9 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				40900B902EDF41E600366EB9 /* MugshotWidgets */,
-			);
-			name = MugshotWidgetsExtension;
-			packageProductDependencies = (
-			);
-			productName = MugshotWidgetsExtension;
-			productReference = 40900B8A2EDF41E600366EB9 /* MugshotWidgetsExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		40E276802EC7997A005528D1 /* testMugshot */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 40E276A22EC7997C005528D1 /* Build configuration list for PBXNativeTarget "testMugshot" */;
@@ -205,18 +161,19 @@
 				40E2767D2EC7997A005528D1 /* Sources */,
 				40E2767E2EC7997A005528D1 /* Frameworks */,
 				40E2767F2EC7997A005528D1 /* Resources */,
-				40900BA32EDF41E700366EB9 /* Embed Foundation Extensions */,
+				71B600092F00000000000009 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				40900B9D2EDF41E700366EB9 /* PBXTargetDependency */,
+				71B6000A2F0000000000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				40E276832EC7997A005528D1 /* testMugshot */,
 			);
 			name = testMugshot;
 			packageProductDependencies = (
+				70A000022F00000000000002 /* Supabase */,
 			);
 			productName = testMugshot;
 			productReference = 40E276812EC7997A005528D1 /* testMugshot.app */;
@@ -268,6 +225,28 @@
 			productReference = 40E276982EC7997C005528D1 /* testMugshotUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		71B600062F00000000000006 /* MugshotWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 71B6000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotWidgets" */;
+			buildPhases = (
+				71B600082F00000000000008 /* Sources */,
+				71B600052F00000000000005 /* Frameworks */,
+				71B600072F00000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				71B600042F00000000000004 /* MugshotWidgets */,
+			);
+			name = MugshotWidgets;
+			packageProductDependencies = (
+			);
+			productName = MugshotWidgets;
+			productReference = 71B600032F00000000000003 /* MugshotWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -278,9 +257,6 @@
 				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
-					40900B892EDF41E600366EB9 = {
-						CreatedOnToolsVersion = 16.4;
-					};
 					40E276802EC7997A005528D1 = {
 						CreatedOnToolsVersion = 16.4;
 					};
@@ -291,6 +267,9 @@
 					40E276972EC7997C005528D1 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 40E276802EC7997A005528D1;
+					};
+					71B600062F00000000000006 = {
+						CreatedOnToolsVersion = 16.4;
 					};
 				};
 			};
@@ -303,6 +282,9 @@
 			);
 			mainGroup = 40E276782EC7997A005528D1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 40E276822EC7997A005528D1 /* Products */;
 			projectDirPath = "";
@@ -311,19 +293,12 @@
 				40E276802EC7997A005528D1 /* testMugshot */,
 				40E2768D2EC7997C005528D1 /* testMugshotTests */,
 				40E276972EC7997C005528D1 /* testMugshotUITests */,
-				40900B892EDF41E600366EB9 /* MugshotWidgetsExtension */,
+				71B600062F00000000000006 /* MugshotWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		40900B882EDF41E600366EB9 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		40E2767F2EC7997A005528D1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -345,16 +320,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXResourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section */
-		40900B862EDF41E600366EB9 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
+		71B600072F00000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
 		40E2767D2EC7997A005528D1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -376,14 +351,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		71B600082F00000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		40900B9D2EDF41E700366EB9 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 40900B892EDF41E600366EB9 /* MugshotWidgetsExtension */;
-			targetProxy = 40900B9C2EDF41E700366EB9 /* PBXContainerItemProxy */;
-		};
 		40E276902EC7997C005528D1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 40E276802EC7997A005528D1 /* testMugshot */;
@@ -394,65 +371,14 @@
 			target = 40E276802EC7997A005528D1 /* testMugshot */;
 			targetProxy = 40E276992EC7997C005528D1 /* PBXContainerItemProxy */;
 		};
+		71B6000A2F0000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 71B600062F00000000000006 /* MugshotWidgets */;
+			targetProxy = 71B600022F00000000000002 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		40900BA02EDF41E700366EB9 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = MugshotWidgetsExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = D699BA3NLG;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MugshotWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = MugshotWidgets;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.MugshotWidgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		40900BA12EDF41E700366EB9 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = MugshotWidgetsExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = D699BA3NLG;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MugshotWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = MugshotWidgets;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.MugshotWidgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		40E276A02EC7997C005528D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -576,6 +502,7 @@
 		};
 		40E276A32EC7997C005528D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -585,25 +512,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = testMugshot/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Mugshot;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show nearby cafes and place your visits on the map.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Mugshot needs access to save postcards to your photo library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Mugshot needs access to your photos so you can attach pictures to your cafe visits.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1c2thbW5md2dsY3RxZXd3ZmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzI5NDcsImV4cCI6MjA3OTAwODk0N30.7aBSTJJGzzZb1RKfRDQ3F0iAnJJDMsKff-ieshCFGks";
-				INFOPLIST_KEY_SUPABASE_URL = "https://quskamnfwglctqewwfln.supabase.co";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = "";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -614,6 +529,7 @@
 		};
 		40E276A42EC7997C005528D1 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -623,25 +539,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = testMugshot/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Mugshot;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mugshot uses your location to show nearby cafes and place your visits on the map.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Mugshot needs access to save postcards to your photo library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Mugshot needs access to your photos so you can attach pictures to your cafe visits.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1c2thbW5md2dsY3RxZXd3ZmxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzI5NDcsImV4cCI6MjA3OTAwODk0N30.7aBSTJJGzzZb1RKfRDQ3F0iAnJJDMsKff-ieshCFGks";
-				INFOPLIST_KEY_SUPABASE_URL = "https://quskamnfwglctqewwfln.supabase.co";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = "";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -659,7 +563,7 @@
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -678,7 +582,7 @@
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -695,7 +599,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshotUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -712,7 +616,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D699BA3NLG;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshotUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -722,18 +626,57 @@
 			};
 			name = Release;
 		};
+		71B6000B2F0000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.1;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		71B6000C2F0000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.1;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		40900B9F2EDF41E700366EB9 /* Build configuration list for PBXNativeTarget "MugshotWidgetsExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				40900BA02EDF41E700366EB9 /* Debug */,
-				40900BA12EDF41E700366EB9 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		40E2767C2EC7997A005528D1 /* Build configuration list for PBXProject "testMugshot" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -770,7 +713,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		71B6000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				71B6000B2F0000000000000B /* Debug */,
+				71B6000C2F0000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		70A000022F00000000000002 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 70A000042F00000000000004 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 40E276792EC7997A005528D1 /* Project object */;
 }

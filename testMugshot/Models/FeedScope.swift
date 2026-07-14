@@ -7,17 +7,24 @@
 
 import Foundation
 
-enum FeedScope: CaseIterable {
+enum FeedScope: CaseIterable, Equatable {
+    case ranked
     case friends
     case everyone
-    case discover
     
     var displayName: String {
         switch self {
+        case .ranked: return "Your Mix"
         case .friends: return "Friends"
         case .everyone: return "Everyone"
-        case .discover: return "Discover"
+        }
+    }
+
+    var rpcValue: String {
+        switch self {
+        case .ranked: return "ranked"
+        case .friends: return "friends"
+        case .everyone: return "everyone"
         }
     }
 }
-

@@ -1,0 +1,6 @@
+// Local-only Supabase config example.
+// Copy this file to SupabaseConfig.local.xcconfig and replace the placeholders.
+// Do not use a service-role or secret key in the iOS app.
+
+MUGSHOT_SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+MUGSHOT_SUPABASE_PUBLISHABLE_KEY = sb_publishable_REPLACE_ME

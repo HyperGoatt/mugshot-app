@@ -5,14 +5,11 @@
 //  Created by Joseph Rosso on 11/14/25.
 //
 
+#if DEBUG
 import Foundation
 import CoreLocation
 
-// PERF: Sample data seeder only available in DEBUG builds
-#if DEBUG
-
 class SampleDataSeeder {
-    @MainActor
     static func seedSampleData(dataManager: DataManager) {
         // Only seed if there's no existing data
         guard dataManager.appData.cafes.isEmpty && dataManager.appData.visits.isEmpty else {
@@ -168,5 +165,4 @@ class SampleDataSeeder {
         }
     }
 }
-
-#endif // DEBUG
+#endif
