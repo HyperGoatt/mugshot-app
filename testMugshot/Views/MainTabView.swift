@@ -11,11 +11,13 @@ struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var tabCoordinator = TabCoordinator()
+    @StateObject private var systemRouter = SipSystemRouter.shared
     @State private var composerDraft: SipDraft?
     @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
     @State private var showsGuestSavedMerge = false
     @State private var showsCapturePreferences = false
+    @State private var systemRouteError: String?
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -43,6 +45,7 @@ struct MainTabView: View {
                !Self.guestTabs.contains(tabCoordinator.selectedTab) {
                 tabCoordinator.selectedTab = 0
             }
+            handlePendingSystemRoute()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
             if userId != nil {
@@ -51,6 +54,13 @@ struct MainTabView: View {
                       !Self.guestTabs.contains(tabCoordinator.selectedTab) {
                 tabCoordinator.selectedTab = 0
             }
+            handlePendingSystemRoute()
+        }
+        .onChange(of: authModel.status) { _, _ in
+            handlePendingSystemRoute()
+        }
+        .onChange(of: systemRouter.pendingRoute?.id) { _, _ in
+            handlePendingSystemRoute()
         }
         .onChange(of: authModel.pendingGuestSavedCafes.count) { _, count in
             guard count > 0 else {
@@ -84,6 +94,15 @@ struct MainTabView: View {
             CapturePreferencesView(allowsSkipping: true)
                 .environmentObject(authModel)
         }
+        .alert("Couldn’t open that shortcut", isPresented: Binding(
+            get: { systemRouteError != nil },
+            set: { if !$0 { systemRouteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(systemRouteError ?? "Please try again.")
+        }
+        .onOpenURL { systemRouter.enqueue(url: $0) }
         .task(id: authModel.authenticatedUser?.id) {
             guard let userId = authModel.authenticatedUser?.id,
                   let client = try? SupabaseClientProvider.shared.client() else { return }
@@ -182,6 +201,88 @@ struct MainTabView: View {
 
     private func requestAuthentication(title: String, message: String) {
         authenticationPrompt = AuthenticationPrompt(title: title, message: message)
+    }
+
+    private func handlePendingSystemRoute() {
+        guard authModel.status != .checking,
+              authModel.status != .working,
+              let route = systemRouter.pendingRoute else { return }
+        guard hasAuthenticatedNavigation else {
+            requestAuthentication(
+                title: route.destination == .journal ? "Your journal lives here" : "Keep this sip in your journal",
+                message: "Sign in to continue. Mugshot will keep this shortcut ready while authentication finishes."
+            )
+            return
+        }
+
+        if route.destination == .journal {
+            tabCoordinator.selectedTab = 4
+            systemRouter.consume(route)
+            return
+        }
+
+        Task { await openComposer(for: route) }
+    }
+
+    private func openComposer(for route: SipSystemRoute) async {
+        let ownerID = authModel.authenticatedUser?.id
+        var draft: SipDraft?
+        switch route.destination {
+        case .cafeSip, .cameraSip:
+            draft = SipDraft(
+                ownerUserID: ownerID,
+                launchContext: SipComposerLaunchContext(
+                    source: route.destination == .cameraSip ? .camera : .appShortcut,
+                    returnTab: tabCoordinator.selectedTab
+                ),
+                context: .cafe,
+                visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility,
+                composerExperience: .guided,
+                guidedStep: route.destination == .cameraSip ? .drink : .context
+            )
+        case .homeSip:
+            draft = SipDraft(
+                ownerUserID: ownerID,
+                launchContext: SipComposerLaunchContext(source: .appShortcut, returnTab: tabCoordinator.selectedTab),
+                context: .home,
+                locationName: JournalEntryContext.home.locationFallback,
+                visibility: .private,
+                composerExperience: .guided,
+                guidedStep: .context
+            )
+        case .repeatRecentSip, .brewSavedRecipe:
+            guard let ownerID,
+                  let client = try? SupabaseClientProvider.shared.client() else { break }
+            do {
+                let entries = try await JournalService(client: client).fetchEntries(userID: ownerID)
+                if route.destination == .repeatRecentSip, let recent = entries.first?.summary {
+                    draft = .repeatSip(from: recent, ownerUserID: ownerID)
+                } else if let recipe = entries.first(where: {
+                    $0.context == .recipe || $0.summary.visit.structuredBrewDetails.recipeIdentityID != nil
+                })?.summary {
+                    draft = .brewAgain(from: recipe, ownerUserID: ownerID)
+                }
+            } catch {
+                systemRouteError = "Mugshot couldn’t load your journal for this shortcut. Your existing drafts are safe."
+            }
+        case .journal:
+            break
+        }
+
+        guard var draft else {
+            if systemRouteError == nil {
+                systemRouteError = route.destination == .brewSavedRecipe
+                    ? "Save a recipe first, then Brew Again can open it here."
+                    : "Save a sip first, then Repeat Recent Sip can open it here."
+            }
+            systemRouter.consume(route)
+            return
+        }
+        draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
+        composerDraft = draft
+        composerSessionID = UUID()
+        tabCoordinator.selectedTab = 2
+        systemRouter.consume(route)
     }
 
     private static func cafeDraft(_ cafe: Cafe, dataManager: DataManager, userID: UUID?) -> SipDraft {

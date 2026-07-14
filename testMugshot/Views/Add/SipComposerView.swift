@@ -82,6 +82,7 @@ struct LogVisitView: View {
         self.explicitLaunchDraft = initialDraft
         let restoredImages = initialDraft.flatMap { SipDraftStore.shared.load(id: $0.id)?.images } ?? []
         _photoImages = State(initialValue: restoredImages)
+        _showPhotoSourceDialog = State(initialValue: initialDraft?.launchContext.source == .camera)
         _composerModel = StateObject(wrappedValue: SipComposerModel(
             draft: initialDraft ?? Self.initialDraft(
                 dataManager: dataManager,
@@ -1798,6 +1799,7 @@ private struct SipComposerCard<Content: View>: View {
 struct HalfStepStarRating: View {
     @Binding var value: Double
     let label: String
+    @AppStorage("MugshotSettings.haptics.v1") private var ratingHaptics = true
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1824,7 +1826,7 @@ struct HalfStepStarRating: View {
             }
         }
         .frame(height: 42)
-        .sensoryFeedback(.selection, trigger: value)
+        .sensoryFeedback(.selection, trigger: value) { _, _ in ratingHaptics }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(value > 0 ? "\(String(format: "%.1f", value)) out of 5" : "Not rated")

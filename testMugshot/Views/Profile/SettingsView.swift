@@ -52,6 +52,7 @@ struct SettingsView: View {
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
+    @AppStorage(RoadmapFeatureFlags.phase6OwnershipAndSystemEntry) private var phase6OwnershipAndSystemEntry = true
 #endif
 
     private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
@@ -64,65 +65,23 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
 
-                    preferencesSection
+                    if usesPhase6Settings {
+                        phase6SettingsHub
+                    } else {
+                        preferencesSection
+                        helpLegalSection
+                        accountSection
+                    }
 
 #if DEBUG
                     developerSection
 #endif
-
-                    VStack(spacing: 0) {
-                        NavigationLink {
-                            AboutMugshotView()
-                        } label: {
-                            settingsRow("About Mugshot", systemImage: "info.circle")
-                        }
-
-                        Divider().padding(.leading, 60)
-
-                        NavigationLink {
-                            PolicyDocumentView(
-                                title: "Privacy",
-                                subtitle: "How Mugshot handles your journal.",
-                                url: privacyURL,
-                                sections: PrivacyDocument.sections
-                            )
-                        } label: {
-                            settingsRow("Privacy", systemImage: "hand.raised.fill")
-                        }
-
-                        Divider().padding(.leading, 60)
-
-                        NavigationLink {
-                            PolicyDocumentView(
-                                title: "Terms",
-                                subtitle: "The ground rules for Mugshot.",
-                                url: termsURL,
-                                sections: TermsDocument.sections
-                            )
-                        } label: {
-                            settingsRow("Terms", systemImage: "doc.text.fill")
-                        }
-
-                        Divider().padding(.leading, 60)
-
-                        NavigationLink {
-                            SupportView(
-                                supportEmail: supportEmail,
-                                didCopy: $copiedSupportEmail
-                            )
-                        } label: {
-                            settingsRow("Support", systemImage: "envelope.fill")
-                        }
-                    }
-                    .cardStyle()
 
                     if copiedSupportEmail {
                         Text("Support email copied")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.mugshotSage)
                     }
-
-                    accountSection
 
                     Text(versionText)
                         .font(.system(size: 12, weight: .medium))
@@ -151,6 +110,127 @@ struct SettingsView: View {
             } message: {
                 Text("This permanently removes your profile, photos, visits, saved cafes, comments, and account data. This can’t be undone.")
             }
+        }
+    }
+
+    private var usesPhase6Settings: Bool {
+#if DEBUG
+        phase6OwnershipAndSystemEntry
+#else
+        true
+#endif
+    }
+
+    private var phase6SettingsHub: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            settingsGroup("Account and Profile") {
+                if let profile = authModel.profile {
+                    NavigationLink {
+                        EditProfileView(profile: profile, dataManager: dataManager)
+                    } label: {
+                        settingsRow("Edit Profile", systemImage: "person.crop.circle")
+                    }
+                    Divider().padding(.leading, 60)
+                }
+                NavigationLink {
+                    DataOwnershipSettingsView(dataManager: dataManager).environmentObject(authModel)
+                } label: {
+                    settingsRow("Account and Sign In", systemImage: "person.badge.key.fill")
+                }
+            }
+
+            settingsGroup("Journal and Capture Defaults") {
+                NavigationLink {
+                    CapturePreferencesView(allowsSkipping: false).environmentObject(authModel)
+                } label: {
+                    settingsRow("Coffee Preferences", systemImage: "slider.horizontal.3")
+                }
+            }
+
+            settingsGroup("Privacy and Visibility") {
+                NavigationLink { PrivacyVisibilitySettingsView() } label: {
+                    settingsRow("Audience Defaults", systemImage: "lock.shield.fill")
+                }
+            }
+
+            settingsGroup("Friends and Discoverability") {
+                NavigationLink { FriendsDiscoverabilitySettingsView() } label: {
+                    settingsRow("Friend Discovery", systemImage: "person.2.fill")
+                }
+            }
+
+            settingsGroup("Map, Location, and Distance Units") {
+                NavigationLink { MapLocationSettingsView() } label: {
+                    settingsRow("Map and Location", systemImage: "location.fill")
+                }
+            }
+
+            settingsGroup("Notifications and Recaps") {
+                NavigationLink { ReflectionPreferencesView() } label: {
+                    settingsRow("Reflections and Recaps", systemImage: "calendar.badge.clock")
+                }
+            }
+
+            settingsGroup("Data Export, Backup, and Account Deletion") {
+                NavigationLink {
+                    DataOwnershipSettingsView(dataManager: dataManager).environmentObject(authModel)
+                } label: {
+                    settingsRow("Data and Cloud Health", systemImage: "externaldrive.badge.icloud")
+                }
+            }
+
+            settingsGroup("Appearance and Accessibility") {
+                NavigationLink { AppearanceAccessibilitySettingsView() } label: {
+                    settingsRow("Display and Accessibility", systemImage: "textformat.size")
+                }
+            }
+
+            settingsGroup("Help, Feedback, Legal, and About") {
+                helpLegalRows
+            }
+        }
+    }
+
+    private func settingsGroup<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .tracking(0.7)
+                .foregroundColor(.tertiaryText)
+                .padding(.horizontal, 4)
+            VStack(spacing: 0) { content() }.cardStyle()
+        }
+    }
+
+    private var helpLegalSection: some View {
+        VStack(spacing: 0) { helpLegalRows }.cardStyle()
+    }
+
+    @ViewBuilder
+    private var helpLegalRows: some View {
+        NavigationLink { AboutMugshotView() } label: {
+            settingsRow("About Mugshot", systemImage: "info.circle")
+        }
+        Divider().padding(.leading, 60)
+        NavigationLink {
+            PolicyDocumentView(title: "Privacy", subtitle: "How Mugshot handles your journal.", url: privacyURL, sections: PrivacyDocument.sections)
+        } label: {
+            settingsRow("Privacy", systemImage: "hand.raised.fill")
+        }
+        Divider().padding(.leading, 60)
+        NavigationLink {
+            PolicyDocumentView(title: "Terms", subtitle: "The ground rules for Mugshot.", url: termsURL, sections: TermsDocument.sections)
+        } label: {
+            settingsRow("Terms", systemImage: "doc.text.fill")
+        }
+        Divider().padding(.leading, 60)
+        NavigationLink {
+            SupportView(supportEmail: supportEmail, didCopy: $copiedSupportEmail)
+        } label: {
+            settingsRow("Support and Feedback", systemImage: "envelope.fill")
         }
     }
 
@@ -359,6 +439,29 @@ struct SettingsView: View {
                 }
                 Spacer(minLength: 8)
                 Toggle("Phase 5 Reflections", isOn: $phase5Reflections)
+                    .labelsHidden()
+                    .tint(.mugshotSage)
+            }
+
+            Divider().padding(.leading, 46)
+
+            HStack(spacing: 12) {
+                Image(systemName: "externaldrive.badge.icloud")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 34, height: 34)
+                    .background(Color.mugshotSage.opacity(0.16))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Phase 6 Ownership")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("Settings, export, accessibility, and system entry")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                }
+                Spacer(minLength: 8)
+                Toggle("Phase 6 Ownership", isOn: $phase6OwnershipAndSystemEntry)
                     .labelsHidden()
                     .tint(.mugshotSage)
             }

@@ -45,7 +45,7 @@ async function removePrefix(
       if (removeError) throw removeError;
     }
 
-    if (files.isEmpty && folders.isEmpty) return;
+    if (files.length === 0 && folders.length === 0) return;
   }
 }
 

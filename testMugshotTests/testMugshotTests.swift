@@ -2117,6 +2117,41 @@ struct testMugshotTests {
         #expect(!combinedCopy.contains("caffeine goal"))
     }
 
+    @MainActor
+    @Test func systemEntryRoutesPersistUntilExplicitlyConsumed() throws {
+        let suite = "SipSystemRouterTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let router = SipSystemRouter(defaults: defaults)
+
+        router.enqueue(.cameraSip)
+        let pending = try #require(router.pendingRoute)
+        #expect(pending.destination == .cameraSip)
+
+        let restored = SipSystemRouter(defaults: defaults)
+        #expect(restored.pendingRoute == pending)
+        restored.consume(pending)
+        #expect(restored.pendingRoute == nil)
+    }
+
+    @MainActor
+    @Test func widgetAndShortcutDeepLinksUseOneKnownRouteContract() throws {
+        let routes: [(String, SipSystemRoute.Destination)] = [
+            ("mugshot://cafe-sip", .cafeSip),
+            ("mugshot://home-sip", .homeSip),
+            ("mugshot://repeat-sip", .repeatRecentSip),
+            ("mugshot://brew-recipe", .brewSavedRecipe),
+            ("mugshot://camera", .cameraSip),
+            ("mugshot://journal", .journal)
+        ]
+        for (rawURL, destination) in routes {
+            let url = try #require(URL(string: rawURL))
+            #expect(SipSystemRouter.destination(for: url) == destination)
+        }
+        #expect(SipSystemRouter.destination(for: try #require(URL(string: "https://mugshotapp.co"))) == nil)
+        #expect(SipSystemRouter.destination(for: try #require(URL(string: "mugshot://unknown"))) == nil)
+    }
+
     private static func reflectionEntry(
         drink: String,
         context: String,

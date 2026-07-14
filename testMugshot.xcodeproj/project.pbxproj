@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		70A000032F00000000000003 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70A000022F00000000000002 /* Supabase */; };
+		71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 71B600032F00000000000003 /* MugshotWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +26,28 @@
 			remoteGlobalIDString = 40E276802EC7997A005528D1;
 			remoteInfo = testMugshot;
 		};
+		71B600022F00000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40E276792EC7997A005528D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 71B600062F00000000000006;
+			remoteInfo = MugshotWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		71B600092F00000000000009 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		40E276812EC7997A005528D1 /* testMugshot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = testMugshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -33,7 +55,18 @@
 		40E276982EC7997C005528D1 /* testMugshotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/SupabaseConfig.xcconfig; sourceTree = "<group>"; };
 		70A000062F00000000000006 /* Config/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config/Info.plist; sourceTree = "<group>"; };
+		71B600032F00000000000003 /* MugshotWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MugshotWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		71B6000E2F0000000000000E /* Exceptions for "MugshotWidgets" folder in "MugshotWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 71B600062F00000000000006 /* MugshotWidgets */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		40E276832EC7997A005528D1 /* testMugshot */ = {
@@ -49,6 +82,14 @@
 		40E2769B2EC7997C005528D1 /* testMugshotUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = testMugshotUITests;
+			sourceTree = "<group>";
+		};
+		71B600042F00000000000004 /* MugshotWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				71B6000E2F0000000000000E /* Exceptions for "MugshotWidgets" folder in "MugshotWidgets" target */,
+			);
+			path = MugshotWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -76,6 +117,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		71B600052F00000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -87,6 +135,7 @@
 				40E276832EC7997A005528D1 /* testMugshot */,
 				40E276912EC7997C005528D1 /* testMugshotTests */,
 				40E2769B2EC7997C005528D1 /* testMugshotUITests */,
+				71B600042F00000000000004 /* MugshotWidgets */,
 				40E276822EC7997A005528D1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -97,6 +146,7 @@
 				40E276812EC7997A005528D1 /* testMugshot.app */,
 				40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */,
 				40E276982EC7997C005528D1 /* testMugshotUITests.xctest */,
+				71B600032F00000000000003 /* MugshotWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -111,10 +161,12 @@
 				40E2767D2EC7997A005528D1 /* Sources */,
 				40E2767E2EC7997A005528D1 /* Frameworks */,
 				40E2767F2EC7997A005528D1 /* Resources */,
+				71B600092F00000000000009 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				71B6000A2F0000000000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				40E276832EC7997A005528D1 /* testMugshot */,
@@ -173,6 +225,28 @@
 			productReference = 40E276982EC7997C005528D1 /* testMugshotUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		71B600062F00000000000006 /* MugshotWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 71B6000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotWidgets" */;
+			buildPhases = (
+				71B600082F00000000000008 /* Sources */,
+				71B600052F00000000000005 /* Frameworks */,
+				71B600072F00000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				71B600042F00000000000004 /* MugshotWidgets */,
+			);
+			name = MugshotWidgets;
+			packageProductDependencies = (
+			);
+			productName = MugshotWidgets;
+			productReference = 71B600032F00000000000003 /* MugshotWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -193,6 +267,9 @@
 					40E276972EC7997C005528D1 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 40E276802EC7997A005528D1;
+					};
+					71B600062F00000000000006 = {
+						CreatedOnToolsVersion = 16.4;
 					};
 				};
 			};
@@ -216,6 +293,7 @@
 				40E276802EC7997A005528D1 /* testMugshot */,
 				40E2768D2EC7997C005528D1 /* testMugshotTests */,
 				40E276972EC7997C005528D1 /* testMugshotUITests */,
+				71B600062F00000000000006 /* MugshotWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -236,6 +314,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		40E276962EC7997C005528D1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		71B600072F00000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -266,6 +351,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		71B600082F00000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,6 +370,11 @@
 			isa = PBXTargetDependency;
 			target = 40E276802EC7997A005528D1 /* testMugshot */;
 			targetProxy = 40E276992EC7997C005528D1 /* PBXContainerItemProxy */;
+		};
+		71B6000A2F0000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 71B600062F00000000000006 /* MugshotWidgets */;
+			targetProxy = 71B600022F00000000000002 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -529,6 +626,54 @@
 			};
 			name = Release;
 		};
+		71B6000B2F0000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		71B6000C2F0000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -564,6 +709,15 @@
 			buildConfigurations = (
 				40E276A92EC7997C005528D1 /* Debug */,
 				40E276AA2EC7997C005528D1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		71B6000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				71B6000B2F0000000000000B /* Debug */,
+				71B6000C2F0000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

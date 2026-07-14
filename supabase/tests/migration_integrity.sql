@@ -25,7 +25,9 @@ begin
     ('close_phase_4_direct_mutations', array['20260714161500','20260714051432']),
     ('sanitize_shared_recipe_payloads', array['20260714163000','20260714051603']),
     ('add_cafe_list_reordering', array['20260714164500','20260714052754']),
-    ('phase_5_reflection_preferences', array['20260714170000','20260714053353'])
+    ('phase_5_reflection_preferences', array['20260714170000','20260714053353']),
+    ('phase_6_owner_data_export', array['20260714180000','20260714055538']),
+    ('harden_owner_data_export_invoker', array['20260714181000','20260714061539'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -228,6 +230,16 @@ begin
      or not has_function_privilege('authenticated','public.set_reflection_preferences(boolean,boolean,boolean,boolean)','EXECUTE') then
     raise exception 'reflection preference RPC grants are incorrect';
   end if;
+  if has_function_privilege('anon','public.build_owner_data_export()','EXECUTE')
+     or not has_function_privilege('authenticated','public.build_owner_data_export()','EXECUTE') then
+    raise exception 'owner data export RPC grants are incorrect';
+  end if;
+  if exists (
+    select 1 from pg_proc procedure
+    join pg_namespace namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public' and procedure.proname = 'build_owner_data_export'
+      and procedure.prosecdef
+  ) then raise exception 'owner data export bypasses caller RLS'; end if;
 end $$;
 
 select 'migration_integrity_passed' as result;
