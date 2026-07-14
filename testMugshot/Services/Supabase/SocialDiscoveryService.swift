@@ -23,6 +23,20 @@ final class SocialDiscoveryService {
         ).execute().value
     }
 
+    func companionSuggestions(limit: Int = 50) async throws -> [SipCompanionSuggestion] {
+        try await client.rpc(
+            "companion_suggestions",
+            params: ["p_limit": limit]
+        ).execute().value
+    }
+
+    func setCompanions(_ userIDs: [UUID], for visitID: UUID) async throws {
+        try await client.rpc(
+            "set_visit_companions",
+            params: VisitCompanionParameters(pVisitID: visitID, pCompanionUserIDs: userIDs)
+        ).execute()
+    }
+
     func discovery(
         section: DiscoverySection,
         location: CLLocation?,
@@ -32,6 +46,27 @@ final class SocialDiscoveryService {
     ) async throws -> [DiscoveryCafe] {
         try await client.rpc(
             "discover_cafes",
+            params: DiscoveryParameters(
+                pSection: section.rawValue,
+                pLatitude: location?.coordinate.latitude,
+                pLongitude: location?.coordinate.longitude,
+                pRadiusKM: radiusKM,
+                pLimit: limit,
+                pAfterScore: after?.rankingScore,
+                pAfterID: after?.id
+            )
+        ).execute().value
+    }
+
+    func publicDiscovery(
+        section: DiscoverySection,
+        location: CLLocation?,
+        radiusKM: Double,
+        limit: Int = 20,
+        after: DiscoveryCafe? = nil
+    ) async throws -> [DiscoveryCafe] {
+        try await client.rpc(
+            "discover_public_cafes",
             params: DiscoveryParameters(
                 pSection: section.rawValue,
                 pLatitude: location?.coordinate.latitude,
@@ -385,5 +420,14 @@ private struct ToggleReactionParameters: Encodable {
     enum CodingKeys: String, CodingKey {
         case pVisitID = "p_visit_id"
         case pReaction = "p_reaction"
+    }
+}
+
+private struct VisitCompanionParameters: Encodable {
+    let pVisitID: UUID
+    let pCompanionUserIDs: [UUID]
+    enum CodingKeys: String, CodingKey {
+        case pVisitID = "p_visit_id"
+        case pCompanionUserIDs = "p_companion_user_ids"
     }
 }

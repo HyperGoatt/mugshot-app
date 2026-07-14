@@ -11,6 +11,7 @@ struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
+    @State private var selectedSection: SavedSection = .cafes
     @State private var selectedTab: SavedTab = .favorites
     @State private var sortOption: SortOption = .score
     @State private var activeSheet: SavedSheet?
@@ -18,6 +19,11 @@ struct SavedTabView: View {
     @State private var remoteStateError: String?
     @State private var remoteCafeCoverURLs: [UUID: String] = [:]
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
+
+    enum SavedSection: String, CaseIterable {
+        case cafes = "Cafes"
+        case lists = "Lists"
+    }
     
     enum SavedTab: String, CaseIterable {
         case favorites = "Favorites"
@@ -43,6 +49,9 @@ struct SavedTabView: View {
     }
 
     private var savedSubtitle: String {
+        if selectedSection == .lists {
+            return "Plan places together"
+        }
         switch selectedTab {
         case .favorites:
             return "Your personal cafe library"
@@ -80,16 +89,18 @@ struct SavedTabView: View {
             VStack(spacing: 0) {
                 MugshotScreenHeader("Saved", subtitle: savedSubtitle) {
                     Menu {
-                        Picker("View", selection: $selectedTab) {
-                            ForEach(SavedTab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
+                        if selectedSection == .cafes {
+                            Picker("View", selection: $selectedTab) {
+                                ForEach(SavedTab.allCases, id: \.self) { tab in
+                                    Text(tab.rawValue).tag(tab)
+                                }
                             }
-                        }
 
-                        if selectedTab == .allCafes {
-                            Picker("Sort All Cafes", selection: $sortOption) {
-                                ForEach(SortOption.allCases, id: \.self) { option in
-                                    Label(option.rawValue, systemImage: option.iconName).tag(option)
+                            if selectedTab == .allCafes {
+                                Picker("Sort All Cafes", selection: $sortOption) {
+                                    ForEach(SortOption.allCases, id: \.self) { option in
+                                        Label(option.rawValue, systemImage: option.iconName).tag(option)
+                                    }
                                 }
                             }
                         }
@@ -105,15 +116,28 @@ struct SavedTabView: View {
                     .accessibilityLabel("Saved filters")
                 }
 
-                MugshotSegmentedControl(
-                    options: SavedTab.allCases,
-                    selection: $selectedTab,
-                    title: { $0.rawValue }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+                if phase4LightweightFriends, authModel.authenticatedUser != nil {
+                    MugshotSegmentedControl(
+                        options: SavedSection.allCases,
+                        selection: $selectedSection,
+                        title: { $0.rawValue },
+                        icon: { $0 == .cafes ? "cup.and.saucer.fill" : "rectangle.stack.fill" }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+                }
 
-                if selectedTab == .allCafes {
+                if selectedSection == .cafes {
+                    MugshotSegmentedControl(
+                        options: SavedTab.allCases,
+                        selection: $selectedTab,
+                        title: { $0.rawValue }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+                }
+
+                if selectedSection == .cafes, selectedTab == .allCafes {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(SortOption.allCases, id: \.self) { option in
@@ -133,7 +157,7 @@ struct SavedTabView: View {
                     }
                 }
 
-                if authModel.authenticatedUser != nil {
+                if selectedSection == .cafes, authModel.authenticatedUser != nil {
                     remoteStateStatus
                         .padding(.horizontal, 16)
                         .padding(.bottom, 4)
@@ -142,16 +166,14 @@ struct SavedTabView: View {
                 // Cafe list
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        if phase4LightweightFriends,
+                        if selectedSection == .lists,
+                           phase4LightweightFriends,
                            let currentUserID = authModel.authenticatedUser?.id {
                             SharedCafeListsView(
                                 dataManager: dataManager,
                                 currentUserID: currentUserID
                             )
-                            .padding(.bottom, 4)
-                        }
-
-                        if filteredAndSortedCafes.isEmpty {
+                        } else if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
                                 asset: mugsyAsset(for: selectedTab),
                                 title: emptyTitle,
@@ -190,6 +212,7 @@ struct SavedTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+                if authModel.authenticatedUser == nil { selectedSection = .cafes }
                 await loadRemoteCafeStates()
             }
         }

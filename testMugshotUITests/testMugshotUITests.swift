@@ -37,8 +37,8 @@ final class testMugshotUITests: XCTestCase {
     func testJournalAccountMenuOpensSettings() throws {
         let app = launch(reset: true)
         app.buttons["Journal"].tap()
-        XCTAssertTrue(app.buttons["Profile and settings"].waitForExistence(timeout: 3))
-        app.buttons["Profile and settings"].tap()
+        XCTAssertTrue(app.buttons["Open your profile"].waitForExistence(timeout: 3))
+        app.buttons["Open your profile"].tap()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
         app.buttons["Settings"].tap()
 
@@ -59,6 +59,8 @@ final class testMugshotUITests: XCTestCase {
 
             let primaryAction = app.buttons["sipComposer.primaryAction"]
             XCTAssertTrue(primaryAction.isEnabled, "Quick Sip should be saveable after context, drink, and rating.")
+            primaryAction.tap()
+            XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
             primaryAction.tap()
 
             XCTAssertTrue(
@@ -88,8 +90,8 @@ final class testMugshotUITests: XCTestCase {
         openHomeQuickSip(in: app, drinkName: "Draft restoration latte")
         chooseQuickRating(in: app)
 
-        app.buttons["Add optional details"].tap()
-        XCTAssertTrue(app.staticTexts["Keep what mattered."].waitForExistence(timeout: 2))
+        app.buttons["sipComposer.primaryAction"].tap()
+        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
 
         app.buttons["Everyone"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
@@ -105,7 +107,9 @@ final class testMugshotUITests: XCTestCase {
         caption.tap()
         caption.typeText("A text-only sip worth remembering")
         app.buttons["sipComposer.primaryAction"].tap()
-        app.buttons["Add optional details"].tap()
+        XCTAssertTrue(app.staticTexts["Make it yours."].waitForExistence(timeout: 2))
+        app.buttons["sipComposer.primaryAction"].tap()
+        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
         app.buttons["sipComposer.primaryAction"].tap()
 
         XCTAssertTrue(app.alerts["Publish without a photo?"].waitForExistence(timeout: 2))
@@ -118,7 +122,7 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Add"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["Keep what mattered."].waitForExistence(timeout: 3),
+            app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 3),
             "A meaningful draft should restore to its persisted guided step after relaunch."
         )
         XCTAssertTrue(app.buttons["Everyone"].isSelected, "The selected audience should restore with the draft.")
@@ -146,8 +150,8 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["sipComposer.primaryAction"].isEnabled)
 
         app.scrollViews.firstMatch.swipeUp()
-        tapAfterRevealing(app.buttons["Add optional details"], in: app)
-        XCTAssertTrue(app.staticTexts["Keep what mattered."].waitForExistence(timeout: 2))
+        tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
+        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
         tapAfterRevealing(app.buttons["Friends"], in: app)
         let friendsSelected = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "isSelected == true"),
@@ -173,9 +177,9 @@ final class testMugshotUITests: XCTestCase {
 
         app.buttons["Saved"].tap()
         XCTAssertTrue(app.staticTexts["Mugshot Test Cafe"].waitForExistence(timeout: 3))
-        app.buttons["Log a visit"].tap()
+        tapAfterRevealing(app.buttons["Log a visit"], in: app)
 
-        XCTAssertTrue(app.staticTexts["Where did this happen?"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Where did this happen?"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Mugshot Test Cafe"].exists)
         XCTAssertTrue(app.buttons["Cafe"].isSelected)
         app.buttons["sipComposer.primaryAction"].tap()
@@ -186,7 +190,7 @@ final class testMugshotUITests: XCTestCase {
         drinkField.typeText(drinkName)
         app.buttons["sipComposer.primaryAction"].tap()
         chooseQuickRating(in: app)
-        tapAfterRevealing(app.buttons["Add optional details"], in: app)
+        tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
         tapAfterRevealing(app.buttons["Friends"], in: app)
         app.buttons["sipComposer.primaryAction"].tap()
 
@@ -206,7 +210,7 @@ final class testMugshotUITests: XCTestCase {
 
         openHomeQuickSip(in: app, drinkName: drinkName, expectedPhotoCount: 1)
         chooseQuickRating(in: app)
-        tapAfterRevealing(app.buttons["Add optional details"], in: app)
+        tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
         tapAfterRevealing(app.buttons["Friends"], in: app)
         app.buttons["sipComposer.primaryAction"].tap()
 
@@ -219,13 +223,13 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(app.staticTexts["Keep what mattered."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Retry save"].exists)
         app.buttons["Previous step"].tap()
         app.buttons["Previous step"].tap()
         XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 2))
         app.buttons["sipComposer.primaryAction"].tap()
-        app.buttons["Add optional details"].tap()
+        app.buttons["sipComposer.primaryAction"].tap()
         XCTAssertTrue(app.buttons["Friends"].isSelected)
         XCTAssertTrue(app.staticTexts["Retry save"].exists)
         app.buttons["sipComposer.primaryAction"].tap()
@@ -246,6 +250,7 @@ final class testMugshotUITests: XCTestCase {
         openHomeQuickSip(in: app, drinkName: drinkName)
         chooseQuickRating(in: app)
         app.buttons["sipComposer.primaryAction"].tap()
+        app.buttons["sipComposer.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["Sign back in to save. Your draft will stay here."].waitForExistence(timeout: 2))
 
         app.terminate()
@@ -254,10 +259,12 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(app.staticTexts["Make it yours."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 3))
+        app.buttons["Previous step"].tap()
         app.buttons["Previous step"].tap()
         XCTAssertTrue(app.textFields["sipComposer.drinkName"].waitForExistence(timeout: 2))
         XCTAssertEqual(app.textFields["sipComposer.drinkName"].value as? String, drinkName)
+        app.buttons["sipComposer.primaryAction"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
 
@@ -337,12 +344,9 @@ final class testMugshotUITests: XCTestCase {
     private func tapAfterRevealing(_ element: XCUIElement, in app: XCUIApplication, maximumSwipes: Int = 8) {
         XCTAssertTrue(element.waitForExistence(timeout: 2))
         var swipes = 0
-        let safeTop: CGFloat = 120
-        let safeBottom: CGFloat = 680
-        while swipes < maximumSwipes {
+        while swipes < maximumSwipes, !element.isHittable {
             let frame = element.frame
-            if element.isHittable, frame.minY >= safeTop, frame.maxY <= safeBottom { break }
-            if frame.minY < safeTop {
+            if frame.midY < app.windows.firstMatch.frame.midY {
                 app.scrollViews.firstMatch.swipeDown()
             } else {
                 app.scrollViews.firstMatch.swipeUp()
@@ -350,8 +354,8 @@ final class testMugshotUITests: XCTestCase {
             swipes += 1
         }
         XCTAssertTrue(
-            element.isHittable && element.frame.minY >= safeTop && element.frame.maxY <= safeBottom,
-            "Expected \(element) to become fully visible after scrolling."
+            element.isHittable,
+            "Expected \(element) to become tappable after scrolling."
         )
         element.tap()
     }

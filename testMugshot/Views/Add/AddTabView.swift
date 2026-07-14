@@ -1609,6 +1609,7 @@ struct CafeLocationSection: View {
                         CafeSearchResultsDropdown(
                             searchService: searchService,
                             dataManager: dataManager,
+                            searchRegion: searchRegion,
                             searchText: $searchText,
                             selectedCafe: $selectedCafe,
                             isSearchActive: $isSearchActive
@@ -1671,16 +1672,21 @@ struct CafeLocationSection: View {
 struct CafeSearchResultsDropdown: View {
     @ObservedObject var searchService: MapSearchService
     @ObservedObject var dataManager: DataManager
+    let searchRegion: MKCoordinateRegion
     @Binding var searchText: String
     @Binding var selectedCafe: Cafe?
     @Binding var isSearchActive: Bool
+    @State private var resolvingCompletionTitle: String?
     
     var body: some View {
         VStack(spacing: 0) {
-            if searchService.isSearching {
+            if searchService.isSearching || (searchService.isUpdatingSuggestions && searchService.completions.isEmpty) {
                 HStack {
                     ProgressView()
                         .padding()
+                    Text(searchService.isSearching ? "Finding this cafe…" : "Finding suggestions…")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondaryText)
                     Spacer()
                 }
                 .background(Color.creamWhite)
@@ -1698,6 +1704,60 @@ struct CafeSearchResultsDropdown: View {
                 }
                 .padding()
                 .background(Color.creamWhite)
+            } else if !searchService.completions.isEmpty && searchService.searchResults.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(searchService.completions.prefix(6).enumerated()), id: \.offset) { index, completion in
+                            Button {
+                                resolvingCompletionTitle = completion.title
+                                Task {
+                                    if let mapItem = await searchService.resolve(
+                                        completion: completion,
+                                        region: searchRegion
+                                    ) {
+                                        select(mapItem)
+                                    }
+                                    resolvingCompletionTitle = nil
+                                }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "mappin.and.ellipse")
+                                        .foregroundColor(.mugshotSage)
+                                        .frame(width: 24)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(completion.title)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.espressoBrown)
+                                        if !completion.subtitle.isEmpty {
+                                            Text(completion.subtitle)
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.secondaryText)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    if resolvingCompletionTitle == completion.title {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Image(systemName: "arrow.up.left")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(.tertiaryText)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.creamWhite)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(resolvingCompletionTitle != nil)
+
+                            if index < min(searchService.completions.count, 6) - 1 {
+                                Divider().background(Color.sandBeige)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 260)
+                .background(Color.creamWhite)
             } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
                 VStack(spacing: 12) {
                     Text("No results found")
@@ -1713,11 +1773,7 @@ struct CafeSearchResultsDropdown: View {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(searchService.searchResults.enumerated()), id: \.offset) { index, mapItem in
                             Button(action: {
-                                let cafe = dataManager.findOrCreateCafe(from: mapItem)
-                                selectedCafe = cafe
-                                searchText = ""
-                                searchService.cancelSearch()
-                                isSearchActive = false
+                                select(mapItem)
                             }) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
@@ -1760,6 +1816,15 @@ struct CafeSearchResultsDropdown: View {
             x: DesignSystem.cardShadow.x,
             y: DesignSystem.cardShadow.y
         )
+    }
+
+    private func select(_ mapItem: MKMapItem) {
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        searchService.recordRecent(mapItem)
+        selectedCafe = cafe
+        searchText = ""
+        searchService.cancelSearch()
+        isSearchActive = false
     }
 
     private var typedCafeButton: some View {

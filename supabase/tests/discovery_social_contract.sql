@@ -64,13 +64,24 @@ begin
     raise exception 'discovery cursor returned duplicate cafes';
   end if;
 
-  -- Profile map payloads are exclusively canonical cafe-backed visits.
+  -- Profile journals may contain Cafe, Home, and Recipe sips. Cafe rows keep
+  -- canonical map identity; non-cafe rows never invent coordinates.
   v_profile := public.get_public_profile(v_target);
   if exists(
     select 1 from jsonb_array_elements(v_profile->'visits') visit
-    where visit->>'cafe_id' is null or visit->>'identity_key' is null
-       or visit->>'latitude' is null or visit->>'longitude' is null
-  ) then raise exception 'profile map exposed a non-cafe visit'; end if;
+    where (visit->>'cafe_id' is not null and (
+             visit->>'identity_key' is null
+             or visit->>'latitude' is null
+             or visit->>'longitude' is null
+           ))
+       or (visit->>'cafe_id' is null and (
+             visit->>'latitude' is not null
+             or visit->>'longitude' is not null
+           ))
+  ) then raise exception 'profile journal returned invalid location identity'; end if;
+  if v_profile::text ilike '%private_notes%' or v_profile::text ilike '%brew_details%' then
+    raise exception 'profile journal exposed private fields';
+  end if;
 
   -- All feed scopes execute with stable cursor contracts, including empty sets.
   perform * from public.ranked_feed('ranked',null,null,10,null,null,null);

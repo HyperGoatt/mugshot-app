@@ -6,6 +6,7 @@ struct DiscoveryListView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var locationManager: LocationManager
     @Binding var discoveryMode: MapDiscoveryMode
+    @EnvironmentObject private var authModel: AppAuthModel
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
     @State private var radiusKM = 25.0
     @State private var cafesBySection: [DiscoverySection: [DiscoveryCafe]] = [:]
@@ -109,20 +110,34 @@ struct DiscoveryListView: View {
             }
 #endif
             let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
-            async let nearby = service.discovery(section: .nearby, location: locationManager.location, radiusKM: radiusKM)
-            async let friends = service.discovery(section: .lovedByFriends, location: locationManager.location, radiusKM: radiusKM)
-            async let drinks = service.discovery(section: .popularDrinks, location: locationManager.location, radiusKM: radiusKM)
-            async let trending = service.discovery(section: .trending, location: locationManager.location, radiusKM: radiusKM)
-            async let saved = service.discovery(section: .saved, location: locationManager.location, radiusKM: radiusKM)
-            async let visited = service.discovery(section: .visited, location: locationManager.location, radiusKM: radiusKM)
-            cafesBySection = try await [
-                .nearby: nearby,
-                .lovedByFriends: friends,
-                .popularDrinks: drinks,
-                .trending: trending,
-                .saved: saved,
-                .visited: visited
-            ]
+            if authModel.authenticatedUser == nil {
+                async let nearby = service.publicDiscovery(section: .nearby, location: locationManager.location, radiusKM: radiusKM)
+                async let drinks = service.publicDiscovery(section: .popularDrinks, location: locationManager.location, radiusKM: radiusKM)
+                async let trending = service.publicDiscovery(section: .trending, location: locationManager.location, radiusKM: radiusKM)
+                cafesBySection = try await [
+                    .nearby: nearby,
+                    .lovedByFriends: [],
+                    .popularDrinks: drinks,
+                    .trending: trending,
+                    .saved: [],
+                    .visited: []
+                ]
+            } else {
+                async let nearby = service.discovery(section: .nearby, location: locationManager.location, radiusKM: radiusKM)
+                async let friends = service.discovery(section: .lovedByFriends, location: locationManager.location, radiusKM: radiusKM)
+                async let drinks = service.discovery(section: .popularDrinks, location: locationManager.location, radiusKM: radiusKM)
+                async let trending = service.discovery(section: .trending, location: locationManager.location, radiusKM: radiusKM)
+                async let saved = service.discovery(section: .saved, location: locationManager.location, radiusKM: radiusKM)
+                async let visited = service.discovery(section: .visited, location: locationManager.location, radiusKM: radiusKM)
+                cafesBySection = try await [
+                    .nearby: nearby,
+                    .lovedByFriends: friends,
+                    .popularDrinks: drinks,
+                    .trending: trending,
+                    .saved: saved,
+                    .visited: visited
+                ]
+            }
             errorMessage = nil
         } catch is CancellationError {
         } catch {

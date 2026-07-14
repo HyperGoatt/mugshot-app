@@ -264,6 +264,30 @@ struct testMugshotTests {
         #expect(filtered.first?.name == "The Daily")
     }
 
+    @MainActor
+    @Test func mapSearchAllowsNamedCafeAndCityOutsideVisibleRegion() {
+        let charlestonRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        let newYorkCafe = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: 40.75, longitude: -73.99),
+            addressDictionary: [
+                "Street": "8th Avenue",
+                "City": "New York"
+            ]
+        ))
+        newYorkCafe.name = "Blank Street Coffee"
+
+        let filtered = MapSearchService.credibleResults(
+            [newYorkCafe],
+            query: "Blank Street New York 8th Ave",
+            region: charlestonRegion
+        )
+
+        #expect(filtered.first?.name == "Blank Street Coffee")
+    }
+
     @Test func mapPinsMergeCompletedLogsWithActiveSavedCafes() {
         let userId = UUID()
         let loggedCafe = SupabaseCafeSummary(
@@ -1120,6 +1144,36 @@ struct testMugshotTests {
         #expect(analysis.estimatedCaffeineMilligrams == 126)
     }
 
+    @Test func semanticSipTagsDescribeTheRitualInsteadOfRepeatingDrinkTokens() {
+        let cinnamonBun = SemanticSipTagEngine.suggestions(
+            drinkName: "Cinnamon bun latte",
+            analysis: DrinkAnalysisParser.analyze("Cinnamon bun latte"),
+            context: .cafe
+        )
+        let washedChemex = SemanticSipTagEngine.suggestions(
+            drinkName: "Washed Ethiopian Chemex",
+            analysis: DrinkAnalysisParser.analyze("Washed Ethiopian Chemex"),
+            context: .home
+        )
+        let strawberryMatcha = SemanticSipTagEngine.suggestions(
+            drinkName: "Strawberry matcha with oat milk",
+            analysis: DrinkAnalysisParser.analyze("Strawberry matcha with oat milk"),
+            context: .cafe
+        )
+
+        #expect(cinnamonBun.contains("Bakery-inspired"))
+        #expect(cinnamonBun.contains("Spice-led order"))
+        #expect(cinnamonBun.contains("Dessert-style"))
+        #expect(!cinnamonBun.contains("Cinnamon"))
+        #expect(!cinnamonBun.contains("Latte"))
+        #expect(washedChemex.contains("Washed process"))
+        #expect(washedChemex.contains("Manual brew"))
+        #expect(washedChemex.contains("Single-origin"))
+        #expect(strawberryMatcha.contains("Berry-inspired"))
+        #expect(strawberryMatcha.contains("Plant-milk pick"))
+        #expect(strawberryMatcha.contains("Matcha creation"))
+    }
+
     @Test func caffeineEstimatesUsePreparationAveragesWithoutUserEnteredMilligrams() {
         let largeLatte = DrinkAnalysisParser.analyze(
             "Vanilla latte",
@@ -1188,7 +1242,7 @@ struct testMugshotTests {
                 espressoShotCount: 2
             ),
             composerExperience: .guided,
-            guidedStep: .memory,
+            guidedStep: .audience,
             memoryDetailsExpanded: true
         )
         draft.refreshDrinkAnalysis()
@@ -1197,7 +1251,7 @@ struct testMugshotTests {
         #expect(restored.brewDetails.yieldGrams == 36)
         #expect(restored.brewDetails.servingVolumeMilliliters == 120)
         #expect(restored.brewDetails.espressoShotCount == 2)
-        #expect(restored.guidedStep == .memory)
+        #expect(restored.guidedStep == .audience)
         #expect(restored.composerExperience == .guided)
         #expect(restored.drinkAnalysis?.estimatedCaffeineMilligrams == 126)
     }
@@ -1930,10 +1984,40 @@ struct testMugshotTests {
 
         #expect(!emerging.isDurableClaim)
         #expect(sensory.isDurableClaim)
-        #expect(summary.title == "Your tasting language")
+        #expect(summary.title.hasPrefix("The "))
+        #expect(summary.descriptors.count == 3)
+        #expect(summary.descriptors[1] == "Texture-Led")
         #expect(summary.patterns.count == 1)
         #expect(summary.patterns[0].text.contains("Mouthfeel"))
         #expect(!summary.patterns[0].text.contains("Fruit"))
+    }
+
+    @Test func mugshotPassportUsesThreeDescriptorsAndAStableLargeTitleSystem() {
+        let userID = UUID()
+        let visitIDs = [UUID(), UUID(), UUID()]
+        let fruit = RemoteTasteSignal(
+            id: UUID(), userID: userID, signalType: .orderPreference,
+            attribute: "chooses_fruit_flavors", supportCount: 3, confidence: 0.8,
+            averageScore: nil, evidenceVisitIDs: visitIDs,
+            calculationVersion: "taste-signals-1", ownerState: .active,
+            ownerLabel: nil, updatedAt: "2026-07-14T00:00:00Z"
+        )
+        let ambiance = RemoteTasteSignal(
+            id: UUID(), userID: userID, signalType: .sensoryEvaluation,
+            attribute: "ambiance", supportCount: 4, confidence: 0.9,
+            averageScore: 4.25, evidenceVisitIDs: visitIDs,
+            calculationVersion: "taste-signals-1", ownerState: .active,
+            ownerLabel: nil, updatedAt: "2026-07-14T00:00:00Z"
+        )
+
+        let first = TasteIdentitySummary.calculate(from: [fruit, ambiance], visits: [])
+        let second = TasteIdentitySummary.calculate(from: [ambiance, fruit], visits: [])
+
+        #expect(TasteIdentitySummary.possiblePassportTitles >= 500)
+        #expect(first.descriptors == ["Fruit-Forward", "Ambiance-Led", "Memory Keeper"])
+        #expect(first.title == second.title)
+        #expect(first.title.hasPrefix("The "))
+        #expect(!first.isForming)
     }
 
     @Test func tasteSignalCorrectionChangesTheClaimWithoutChangingEvidence() {

@@ -61,6 +61,16 @@ final class VisitService {
         )
     }
 
+    func fetchOwnerSipCount(userId: UUID) async throws -> Int {
+        let response = try await client
+            .from("visits")
+            .select(head: true, count: .exact)
+            .eq("user_id", value: userId.uuidString)
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
+            .execute()
+        return response.count ?? 0
+    }
+
     func fetchCafeVisits(
         cafeId: UUID,
         userId: UUID,

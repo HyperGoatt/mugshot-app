@@ -2,6 +2,7 @@ import MapKit
 import SwiftUI
 
 struct PeopleHubView: View {
+    @ObservedObject var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authModel: AppAuthModel
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
@@ -63,7 +64,7 @@ struct PeopleHubView: View {
             .task(id: query) { await search() }
             .refreshable { await loadConnections() }
             .navigationDestination(item: $selectedProfile) { route in
-                PublicProfileView(route: route, onRelationshipChanged: {
+                PublicProfileView(route: route, dataManager: dataManager, onRelationshipChanged: {
                     await loadConnections()
                     await search(immediate: true)
                 })
@@ -161,6 +162,7 @@ struct PeopleHubView: View {
                     PeopleRow(
                         displayName: person.displayName,
                         username: person.username,
+                        avatarURL: person.avatarURL,
                         subtitle: person.mutualFriendCount == 0 ? person.location : "\(person.mutualFriendCount) mutual friends",
                         state: person.friendshipState
                     )
@@ -181,6 +183,7 @@ struct PeopleHubView: View {
                     PeopleRow(
                         displayName: person.displayName,
                         username: person.username,
+                        avatarURL: person.avatarURL,
                         subtitle: nil,
                         state: state(for: person.kind)
                     )
@@ -262,12 +265,13 @@ struct PeopleHubView: View {
 private struct PeopleRow: View {
     let displayName: String
     let username: String
+    let avatarURL: String?
     let subtitle: String?
     let state: FriendshipState
 
     var body: some View {
         HStack(spacing: 12) {
-            MugshotAvatar(name: displayName, size: 46)
+            MugshotAvatar(name: displayName, size: 46, imageURL: avatarURL)
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayName).font(.system(size: 15, weight: .bold)).foregroundColor(.espressoBrown)
                 Text("@\(username)").font(.system(size: 13)).foregroundColor(.secondaryText)
@@ -331,17 +335,32 @@ struct PeopleProfileRoute: Identifiable, Hashable {
 
 private struct PublicProfileView: View {
     let route: PeopleProfileRoute
+    @ObservedObject var dataManager: DataManager
     let onRelationshipChanged: () async -> Void
+    @EnvironmentObject private var authModel: AppAuthModel
     @State private var payload: PublicProfilePayload?
     @State private var state: FriendshipState
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var reportReason: ReportReason?
     @State private var compatibility: FriendCompatibility?
+    @State private var selectedSipFilter: PublicSipFilter = .all
+    @State private var selectedVisit: RemoteVisitSummary?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 
-    init(route: PeopleProfileRoute, onRelationshipChanged: @escaping () async -> Void) {
+    private enum PublicSipFilter: String, CaseIterable {
+        case all = "All"
+        case cafe = "Cafe"
+        case home = "Home"
+    }
+
+    init(
+        route: PeopleProfileRoute,
+        dataManager: DataManager,
+        onRelationshipChanged: @escaping () async -> Void
+    ) {
         self.route = route
+        self.dataManager = dataManager
         self.onRelationshipChanged = onRelationshipChanged
         _state = State(initialValue: route.state)
     }
@@ -353,6 +372,14 @@ private struct PublicProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { safetyToolbar }
             .task { await load() }
+            .fullScreenCover(item: $selectedVisit) { visit in
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
             .alert("Report this profile?", isPresented: reportIsPresented) {
                 Button("Report", role: .destructive) { Task { await report() } }
                 Button("Cancel", role: .cancel) { reportReason = nil }
@@ -374,6 +401,23 @@ private struct PublicProfileView: View {
                     }
                     .padding(.horizontal)
 
+                    MugshotPassportCard(
+                        displayName: payload.profile.displayName,
+                        username: payload.profile.username,
+                        avatarURL: payload.profile.avatarURL,
+                        bannerURL: payload.profile.bannerURL,
+                        identity: TasteIdentitySummary.publicPassport(from: payload.visits),
+                        stats: MugshotPassportStats(
+                            sips: payload.stats.visibleVisits,
+                            cafes: payload.stats.cafes,
+                            homeSips: payload.stats.homeSips ?? payload.visits.filter { $0.journalContext != .cafe }.count,
+                            averageRating: payload.visits.isEmpty
+                                ? nil
+                                : payload.visits.reduce(0) { $0 + $1.overallScore } / Double(payload.visits.count)
+                        )
+                    )
+                    .padding(.horizontal)
+
                     if phase4LightweightFriends,
                        state == .friends,
                        let compatibility {
@@ -392,8 +436,10 @@ private struct PublicProfileView: View {
                         .disabled(isWorking)
                     }
 
-                    if !payload.visits.isEmpty {
+                    if payload.visits.contains(where: { $0.cafe != nil }) {
                         profileMap(payload.visits)
+                    }
+                    if !payload.visits.isEmpty {
                         visibleVisits(payload.visits)
                     }
                 } else if let errorMessage {
@@ -439,7 +485,12 @@ private struct PublicProfileView: View {
 
     private var profileHeader: some View {
         ZStack(alignment: .bottomLeading) {
-            MugshotProfileBanner(imageURL: payload?.profile.bannerURL)
+            MugshotProfileBanner(imageURL: payload?.profile.bannerURL, height: 194)
+            LinearGradient(
+                colors: [.clear, Color.espressoBrown.opacity(0.56)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
             HStack(alignment: .bottom, spacing: 12) {
                 MugshotAvatar(
                     name: payload?.profile.displayName ?? route.displayName,
@@ -455,11 +506,10 @@ private struct PublicProfileView: View {
                         Text(location).font(.system(size: 12))
                     }
                 }
-                .foregroundColor(.espressoBrown)
+                .foregroundColor(.foamWhite)
                 Spacer()
             }
             .padding(16)
-            .background(Color.foamWhite.opacity(0.92))
         }
     }
 
@@ -484,21 +534,36 @@ private struct PublicProfileView: View {
         )
     }
 
+    @ViewBuilder
     private var relationshipButton: some View {
-        Button {
-            Task { await relationshipAction() }
-        } label: {
-            Label(actionTitle, systemImage: actionIcon)
-                .frame(maxWidth: .infinity)
+        if state == .friends {
+            Menu {
+                Button("Remove friend", role: .destructive) {
+                    Task { await relationshipAction() }
+                }
+            } label: {
+                Label("Friends", systemImage: "person.2.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(isWorking)
+        } else {
+            Button {
+                Task { await relationshipAction() }
+            } label: {
+                Label(actionTitle, systemImage: actionIcon)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(isWorking || state == .self)
         }
-        .buttonStyle(PrimaryButtonStyle())
-        .disabled(isWorking)
     }
 
     private func profileMap(_ visits: [PublicProfileVisit]) -> some View {
-        MapViewRepresentable(
+        let cafes = visits.compactMap(\.cafe)
+        return MapViewRepresentable(
             region: .constant(profileRegion(visits)),
-            cafes: Array(Dictionary(grouping: visits.map(\.cafe), by: \.id).values.compactMap { $0.first }),
+            cafes: Array(Dictionary(grouping: cafes, by: \.id).values.compactMap { $0.first }),
             highlightedCafe: nil,
             showsUserLocation: false,
             trackingMode: .constant(.none),
@@ -512,29 +577,50 @@ private struct PublicProfileView: View {
 
     private func visibleVisits(_ visits: [PublicProfileVisit]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            MugshotSectionTitle(title: "Visible sips")
-            ForEach(visits) { visit in
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(visit.cafeName).font(.system(size: 14, weight: .bold))
-                        Text(visit.drinkSubtype ?? visit.drinkType ?? "Coffee").font(.system(size: 12)).foregroundColor(.secondaryText)
-                    }
-                    Spacer()
-                    MugshotRatingBadge(score: visit.overallScore)
+            MugshotSectionTitle(
+                title: "Public tasting journal",
+                subtitle: "Only sips shared with you appear here."
+            )
+            MugshotSegmentedControl(
+                options: PublicSipFilter.allCases,
+                selection: $selectedSipFilter,
+                title: { $0.rawValue }
+            )
+            ForEach(filteredPublicVisits(visits)) { visit in
+                Button {
+                    selectedVisit = visit.summary(profile: payload!.profile)
+                } label: {
+                    RemoteJournalRow(visit: visit.summary(profile: payload!.profile))
                 }
-                .padding(12)
-                .cardStyle()
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal)
     }
 
     private func profileRegion(_ visits: [PublicProfileVisit]) -> MKCoordinateRegion {
-        let first = visits[0]
+        guard let first = visits.first(where: { $0.latitude != nil && $0.longitude != nil }),
+              let latitude = first.latitude,
+              let longitude = first.longitude else {
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+                span: MKCoordinateSpan(latitudeDelta: 35, longitudeDelta: 55)
+            )
+        }
         return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: first.latitude, longitude: first.longitude),
+            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
             span: MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18)
         )
+    }
+
+    private func filteredPublicVisits(_ visits: [PublicProfileVisit]) -> [PublicProfileVisit] {
+        visits.filter { visit in
+            switch selectedSipFilter {
+            case .all: return true
+            case .cafe: return visit.journalContext == .cafe
+            case .home: return visit.journalContext != .cafe
+            }
+        }
     }
 
     private var actionTitle: String {

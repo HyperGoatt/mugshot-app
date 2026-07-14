@@ -116,6 +116,41 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         )
     }
 
+    /// Resolves a type-ahead suggestion to its best concrete place in one tap.
+    /// Callers can immediately attach or open the returned cafe instead of
+    /// forcing the person through a second "Places" selection.
+    func resolve(
+        completion: MKLocalSearchCompletion,
+        region: MKCoordinateRegion
+    ) async -> MKMapItem? {
+        let request = MKLocalSearch.Request(completion: completion)
+        request.region = region
+        let searchID = beginImmediateSearch(rawQuery: completion.title, region: region)
+        let search = MKLocalSearch(request: request)
+        currentSearch = search
+
+        do {
+            let response = try await search.start()
+            guard searchID == activeSearchID else { return nil }
+            let rankedItems = Array(
+                Self.ranked(
+                    Self.credibleResults(response.mapItems, query: completion.title, region: region),
+                    query: completion.title,
+                    region: region
+                ).prefix(15)
+            )
+            finish(items: rankedItems, query: completion.title, region: region)
+            if let first = rankedItems.first { recordRecent(first) }
+            return rankedItems.first
+        } catch is CancellationError {
+            return nil
+        } catch {
+            guard searchID == activeSearchID else { return nil }
+            finishWithError()
+            return nil
+        }
+    }
+
     func retry() {
         guard let lastRegion, !lastRawQuery.isEmpty else { return }
         search(query: lastRawQuery, region: lastRegion, immediately: true)
@@ -347,8 +382,8 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         }
     }
 
-    /// Removes MapKit fallbacks that are implausibly far from the visible map
-    /// or unrelated to a specific partial place name.
+    /// Keeps generic discovery local while allowing a named place plus city
+    /// to resolve beyond the visible map for trip and cafe-list planning.
     static func credibleResults(
         _ items: [MKMapItem],
         query: String,
@@ -361,22 +396,31 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         ]
         let isGenericDiscovery = !queryTokens.isEmpty &&
             queryTokens.allSatisfy(genericDiscoveryTerms.contains)
+        let allowsRemotePlanning = queryTokens.count >= 3 || query.contains(",")
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
         return items.filter { item in
+            // Generic searches such as "coffee" should remain local. A named
+            // place plus a city is intentionally allowed outside the visible
+            // region so a list can be planned before a trip.
             if let location = item.placemark.location,
-               location.distance(from: center) > 100_000 {
+               location.distance(from: center) > 100_000,
+               (isGenericDiscovery || !allowsRemotePlanning) {
                 return false
             }
 
             guard !isGenericDiscovery else { return true }
             let searchable = normalized("\(item.name ?? "") \(subtitle(for: item))")
             let itemTokens = searchable.split(separator: " ").map(String.init)
-            return !queryTokens.isEmpty && queryTokens.allSatisfy { queryToken in
+            let matchedTokenCount = queryTokens.filter { queryToken in
                 itemTokens.contains { itemToken in
                     itemToken.hasPrefix(queryToken) || queryToken.hasPrefix(itemToken)
                 }
-            }
+            }.count
+            let requiredMatches = allowsRemotePlanning
+                ? max(2, queryTokens.count - 1)
+                : queryTokens.count
+            return !queryTokens.isEmpty && matchedTokenCount >= requiredMatches
         }
     }
 

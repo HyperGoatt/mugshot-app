@@ -58,6 +58,35 @@ struct SocialConnection: Identifiable, Decodable, Equatable {
     }
 }
 
+struct SipCompanionSuggestion: Identifiable, Decodable, Equatable {
+    let userID: UUID
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+    let sharedSipCount: Int
+    let lastSharedAt: String?
+
+    var id: UUID { userID }
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case displayName = "display_name"
+        case username
+        case avatarURL = "avatar_url"
+        case sharedSipCount = "shared_sip_count"
+        case lastSharedAt = "last_shared_at"
+    }
+
+    var companion: SipCompanion {
+        SipCompanion(
+            userID: userID,
+            displayName: displayName,
+            username: username,
+            avatarURL: avatarURL
+        )
+    }
+}
+
 enum DiscoverySection: String, CaseIterable, Identifiable {
     case nearby
     case lovedByFriends = "loved_by_friends"
@@ -180,51 +209,116 @@ struct PublicProfileStats: Decodable, Equatable {
     let visibleVisits: Int
     let friends: Int
     let cafes: Int
+    let homeSips: Int?
+    let recipeSips: Int?
 
     enum CodingKeys: String, CodingKey {
         case friends, cafes
         case visibleVisits = "visible_visits"
+        case homeSips = "home_sips"
+        case recipeSips = "recipe_sips"
     }
 }
 
 struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     let id: UUID
-    let cafeID: UUID
+    let userID: UUID?
+    let cafeID: UUID?
     let caption: String
     let drinkType: String?
+    let drinkTypeCustom: String?
     let drinkSubtype: String?
+    let visibility: String?
+    let ratings: [String: Double]?
     let overallScore: Double
     let posterPhotoURL: String?
+    let contextType: String?
+    let locationName: String?
     let createdAt: String
-    let cafeName: String
-    let latitude: Double
-    let longitude: Double
-    let identityKey: String
+    let cafeName: String?
+    let cafeCity: String?
+    let latitude: Double?
+    let longitude: Double?
+    let identityKey: String?
 
     enum CodingKeys: String, CodingKey {
         case id, caption, latitude, longitude
+        case userID = "user_id"
         case cafeID = "cafe_id"
         case drinkType = "drink_type"
+        case drinkTypeCustom = "drink_type_custom"
         case drinkSubtype = "drink_subtype"
+        case visibility, ratings
         case overallScore = "overall_score"
         case posterPhotoURL = "poster_photo_url"
+        case contextType = "context_type"
+        case locationName = "location_name"
         case createdAt = "created_at"
         case cafeName = "cafe_name"
+        case cafeCity = "cafe_city"
         case identityKey = "identity_key"
     }
 
-    var cafe: Cafe {
-        SupabaseCafeSummary(
+    var journalContext: JournalEntryContext {
+        JournalEntryContext(backendValue: contextType)
+    }
+
+    var drinkDisplayName: String {
+        drinkSubtype?.remoteTrimmedNonEmpty
+            ?? drinkTypeCustom?.remoteTrimmedNonEmpty
+            ?? drinkType?.remoteTrimmedNonEmpty
+            ?? "Drink"
+    }
+
+    var cafe: Cafe? {
+        guard let cafeID, let cafeName else { return nil }
+        return SupabaseCafeSummary(
             id: cafeID,
             name: cafeName,
             address: nil,
-            city: nil,
+            city: cafeCity,
             latitude: latitude,
             longitude: longitude,
             applePlaceId: nil,
             websiteURL: nil,
             identityKey: identityKey
         ).localCafe(averageRating: overallScore, visitCount: 1)
+    }
+
+    func summary(profile: SupabaseUserProfile) -> RemoteVisitSummary {
+        let remoteCafe = cafeID.map { id in
+            SupabaseCafeSummary(
+                id: id,
+                name: cafeName ?? "Cafe",
+                address: nil,
+                city: cafeCity,
+                latitude: latitude,
+                longitude: longitude,
+                applePlaceId: nil,
+                websiteURL: nil,
+                identityKey: identityKey
+            )
+        }
+        let row = SupabaseVisitRow(
+            id: id,
+            userId: userID ?? profile.id,
+            cafeId: cafeID,
+            drinkType: drinkType,
+            drinkTypeCustom: drinkTypeCustom,
+            drinkSubtype: drinkSubtype,
+            caption: caption,
+            notes: nil,
+            visibility: visibility ?? "everyone",
+            ratings: ratings ?? [:],
+            overallScore: overallScore,
+            posterPhotoURL: posterPhotoURL,
+            contextType: contextType,
+            locationName: locationName,
+            cityState: cafeCity,
+            brewMethod: nil,
+            createdAt: createdAt
+        )
+        return RemoteVisitSummary(visit: row, cafe: remoteCafe, author: profile)
     }
 }
 

@@ -33,6 +33,10 @@ struct LogVisitView: View {
     @State private var pendingSubmission: PendingVisitSubmissionRecord?
     @State private var uploadRecoveryMessage: String?
     @State private var servingVolumeUnit: ServingVolumeUnit = .preferredForCurrentLocale
+    @State private var isAddingCustomTag = false
+    @State private var customTagText = ""
+    @State private var showCompanionPicker = false
+    @State private var showPhotoOrganizer = false
 
     @StateObject private var searchService = MapSearchService()
     @StateObject private var locationManager = LocationManager()
@@ -161,6 +165,15 @@ struct LogVisitView: View {
                     onSaveTemplate: savePersonalCriteria
                 )
             }
+            .sheet(isPresented: $showCompanionPicker) {
+                SipCompanionPicker(
+                    selected: draft.taggedCompanions ?? [],
+                    onSave: { companions in
+                        draft.taggedCompanions = companions
+                        draft.companions = companions.map(\.displayName)
+                    }
+                )
+            }
             .confirmationDialog(
                 "Add a photo",
                 isPresented: $showPhotoSourceDialog,
@@ -192,6 +205,15 @@ struct LogVisitView: View {
                     isPresented: $showPhotoLibrary,
                     maximumSelectionCount: max(1, 10 - photoImages.count)
                 )
+            }
+            .sheet(isPresented: $showPhotoOrganizer, onDismiss: persistDraft) {
+                SipPhotoOrganizer(
+                    images: $photoImages,
+                    posterPhotoIndex: $composerModel.draft.posterPhotoIndex,
+                    localPhotoNames: $composerModel.draft.localPhotoNames
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .alert("Camera access is off", isPresented: $showCameraPermissionRecovery) {
                 Button("Choose from Library") { showPhotoLibrary = true }
@@ -293,14 +315,33 @@ struct LogVisitView: View {
                         repeatedSipContext
                     }
                     overallRatingCard
-                    Button(action: openMemoryStep) {
-                        Label("Add optional details", systemImage: "plus.circle.fill")
-                            .frame(maxWidth: .infinity)
+                case .audience:
+                    visibilityCard
+                    Button {
+                        withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
+                            draft.memoryDetailsExpanded = !draft.isMemoryExpanded
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "note.text.badge.plus")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Serving details or a private note")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text("Optional and never required to publish")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondaryText)
+                            }
+                            Spacer()
+                            Image(systemName: draft.isMemoryExpanded ? "chevron.up" : "chevron.down")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(SecondaryButtonStyle())
-                case .memory:
-                    guidedDetailContent
-                    visibilityCard
+
+                    if draft.isMemoryExpanded {
+                        guidedDetailContent
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+                    }
                 }
 
                 recoveryAndValidationContent
@@ -659,6 +700,25 @@ struct LogVisitView: View {
                                 .scaledToFill()
                                 .frame(width: 76, height: 76)
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(alignment: .bottomLeading) {
+                                    if index == draft.posterPhotoIndex {
+                                        Text("Cover")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.foamWhite)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(Color.espressoBrown.opacity(0.82))
+                                            .clipShape(Capsule())
+                                            .padding(5)
+                                    }
+                                }
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(
+                                            index == draft.posterPhotoIndex ? Color.mugshotSage : Color.clear,
+                                            lineWidth: 2
+                                        )
+                                }
                                 .overlay(alignment: .topTrailing) {
                                     Button { removePhoto(at: index) } label: {
                                         Image(systemName: "xmark.circle.fill")
@@ -672,6 +732,18 @@ struct LogVisitView: View {
                     }
                     .padding(.top, 4)
                 }
+
+                if photoImages.count > 1 {
+                    Button {
+                        showPhotoOrganizer = true
+                    } label: {
+                        Label("Choose cover and reorder", systemImage: "rectangle.2.swap")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens photo order and cover controls")
+                }
             }
         }
     }
@@ -680,29 +752,170 @@ struct LogVisitView: View {
         SipComposerCard(
             step: nil,
             title: "Tags and company",
-            subtitle: "Optional context that helps this sip feel like yours."
+            subtitle: "Optional context that makes your journal easier to revisit."
         ) {
-            TextField("Tags, separated by commas", text: arrayBinding(\.tags))
-                .mugshotFormField()
+            tagsAndCompanyContent
+        }
+    }
 
-            TextField("Who you shared it with, separated by commas", text: arrayBinding(\.companions))
-                .mugshotFormField()
+    private var semanticTagSuggestions: [String] {
+        let existing = Set(draft.tags.map { $0.localizedLowercase })
+        return SemanticSipTagEngine.suggestions(
+            drinkName: draft.drinkName,
+            analysis: draft.drinkAnalysis,
+            context: draft.context
+        ).filter { !existing.contains($0.localizedLowercase) }
+    }
+
+    private var tagsAndCompanyContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Label("Helpful tags", systemImage: "tag.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                    Spacer()
+                    Text("Optional")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.tertiaryText)
+                }
+
+                if !semanticTagSuggestions.isEmpty {
+                    Text("Suggested from the order—not invented tasting notes")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondaryText)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(semanticTagSuggestions, id: \.self) { suggestion in
+                                Button {
+                                    addTag(suggestion)
+                                } label: {
+                                    Label(suggestion, systemImage: "plus")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.espressoBrown)
+                                        .padding(.horizontal, 11)
+                                        .frame(minHeight: 38)
+                                        .background(Color.mugshotMint.opacity(0.42), in: Capsule())
+                                        .overlay(Capsule().stroke(Color.mugshotSage.opacity(0.24), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Adds this optional journal tag")
+                            }
+                        }
+                    }
+                }
+
+                if !draft.tags.isEmpty {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 8)], alignment: .leading, spacing: 8) {
+                        ForEach(draft.tags, id: \.self) { tag in
+                            HStack(spacing: 6) {
+                                Text(tag)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                Button {
+                                    draft.tags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 13))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(tag) tag")
+                            }
+                            .foregroundColor(.espressoBrown)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 36)
+                            .background(Color.sandBeige.opacity(0.58), in: Capsule())
+                        }
+                    }
+                }
+
+                if isAddingCustomTag {
+                    HStack(spacing: 8) {
+                        TextField("Add a helpful tag", text: $customTagText)
+                            .textInputAutocapitalization(.sentences)
+                            .mugshotFormField()
+                            .onSubmit { commitCustomTag() }
+                        Button("Add") { commitCustomTag() }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                            .disabled(customTagText.remoteTrimmedNonEmpty == nil)
+                    }
+                } else {
+                    Button {
+                        isAddingCustomTag = true
+                    } label: {
+                        Label("Add your own tag", systemImage: "plus.circle")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.mugshotSage)
+                }
+            }
+
+            Divider().overlay(Color.mugshotLine)
+
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Label("Who you shared it with", systemImage: "person.2.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                    Spacer()
+                    Button {
+                        showCompanionPicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 36, height: 36)
+                            .foregroundColor(.mugshotSage)
+                            .background(Color.mugshotMint.opacity(0.42), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add friends you shared this sip with")
+                }
+
+                if let companions = draft.taggedCompanions, !companions.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(companions) { companion in
+                                HStack(spacing: 7) {
+                                    MugshotAvatar(
+                                        name: companion.displayName,
+                                        size: 28,
+                                        imageURL: companion.avatarURL
+                                    )
+                                    Text(companion.displayName)
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Button {
+                                        removeCompanion(companion)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 13))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove \(companion.displayName)")
+                                }
+                                .foregroundColor(.espressoBrown)
+                                .padding(.leading, 5)
+                                .padding(.trailing, 9)
+                                .frame(minHeight: 40)
+                                .background(Color.sandBeige.opacity(0.56), in: Capsule())
+                            }
+                        }
+                    }
+                } else {
+                    Text("Tap plus to choose from your friends. Mugshot stores the person—not just typed text.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondaryText)
+                }
+            }
         }
     }
 
     @ViewBuilder
     private var guidedDetailContent: some View {
         servingDetailsCard
-
-        switch draft.context {
-        case .cafe:
-            EmptyView()
-        case .home:
-            homeDetailsCard(includeRecipe: false)
-        case .recipe:
-            homeDetailsCard(includeRecipe: true)
-        }
-
         privateNotesCard
     }
 
@@ -742,25 +955,27 @@ struct LogVisitView: View {
                 .frame(width: 112)
             }
 
-            Picker("Espresso base", selection: espressoShotCountBinding) {
-                Text("Not specified").tag(nil as Int?)
-                Text("Single shot").tag(1 as Int?)
-                Text("Double shot").tag(2 as Int?)
-                Text("Triple shot").tag(3 as Int?)
-                Text("Quad shot").tag(4 as Int?)
+            if draft.drinkAnalysis?.preparation.isEspressoBased == true {
+                Picker("Espresso base", selection: espressoShotCountBinding) {
+                    Text("Not specified").tag(nil as Int?)
+                    Text("Single shot").tag(1 as Int?)
+                    Text("Double shot").tag(2 as Int?)
+                    Text("Triple shot").tag(3 as Int?)
+                    Text("Quad shot").tag(4 as Int?)
+                }
+                .pickerStyle(.menu)
+                .tint(.mugshotSage)
+            } else {
+                Text("This preparation uses serving size rather than espresso shot count.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondaryText)
             }
-            .pickerStyle(.menu)
-            .tint(.mugshotSage)
         }
     }
 
     private var cafeDetailsCard: some View {
-        SipComposerCard(step: nil, title: "Tags and company", subtitle: "Optional context that helps this sip feel like yours.") {
-            TextField("Tags, separated by commas", text: arrayBinding(\.tags))
-                .mugshotFormField()
-
-            TextField("Who you shared it with, separated by commas", text: arrayBinding(\.companions))
-                .mugshotFormField()
+        SipComposerCard(step: nil, title: "Tags and company", subtitle: "Optional context that makes your journal easier to revisit.") {
+            tagsAndCompanyContent
         }
     }
 
@@ -1010,7 +1225,7 @@ struct LogVisitView: View {
         case .context: return "Where did this happen?"
         case .drink: return "Name the sip."
         case .rating: return "Make it yours."
-        case .memory: return "Keep what mattered."
+        case .audience: return "Who should see this sip?"
         }
     }
 
@@ -1019,7 +1234,7 @@ struct LogVisitView: View {
         case .context: return "Start with Cafe or Home. Recipes live inside Home when you need one."
         case .drink: return "Use the order name you will recognize later."
         case .rating: return "Choose one quick score or open your personal tasting lens."
-        case .memory: return "Everything here is optional. Save only the details worth remembering."
+        case .audience: return "Choose the journal audience. Private notes stay private in every setting."
         }
     }
 
@@ -1083,7 +1298,7 @@ struct LogVisitView: View {
                         }
                         Text(guidedPrimaryTitle)
                         Spacer()
-                        if draft.resolvedGuidedStep == .rating || draft.resolvedGuidedStep == .memory {
+                        if draft.resolvedGuidedStep == .audience {
                             Text(guidedSaveVisibility.rawValue)
                                 .font(.system(size: 12, weight: .bold))
                                 .padding(.horizontal, 9)
@@ -1413,6 +1628,13 @@ struct LogVisitView: View {
             )
             SipSaveDiagnostics.record(.visitFinalized, draftID: draft.id, visitID: submission.id)
 
+            if let taggedCompanions = draft.taggedCompanions {
+                try? await SocialDiscoveryService(client: client).setCompanions(
+                    taggedCompanions.map(\.userID),
+                    for: submission.id
+                )
+            }
+
             DrinkAnalysisRetryStore.shared.enqueue(
                 visitId: submission.id,
                 userId: submission.userId
@@ -1500,18 +1722,13 @@ struct LogVisitView: View {
         composerModel.refreshDrinkAnalysis()
     }
 
-    private func openMemoryStep() {
-        draft.memoryDetailsExpanded = true
-        moveToGuidedStep(.memory)
-    }
-
     private func moveToPreviousGuidedStep() {
         let prior: SipGuidedStep
         switch draft.resolvedGuidedStep {
         case .context: return
         case .drink: prior = .context
         case .rating: prior = .drink
-        case .memory: prior = .rating
+        case .audience: prior = .rating
         }
         moveToGuidedStep(prior)
     }
@@ -1525,10 +1742,8 @@ struct LogVisitView: View {
             guard draft.drinkName.remoteTrimmedNonEmpty != nil else { return }
             moveToGuidedStep(.rating)
         case .rating:
-            draft.visibility = .private
-            confirmedTextOnlyEveryone = false
-            saveSip()
-        case .memory:
+            moveToGuidedStep(.audience)
+        case .audience:
             saveSip()
         }
     }
@@ -1550,37 +1765,36 @@ struct LogVisitView: View {
         case .context: return hasCompletedContext
         case .drink: return draft.drinkName.remoteTrimmedNonEmpty != nil
         case .rating: return draft.resolvedOverallScore >= 0.5 && draft.resolvedOverallScore <= 5
-        case .memory: return draft.hasRequiredCore
+        case .audience: return draft.hasRequiredCore
         }
     }
 
     private var guidedPrimaryTitle: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "Continue"
-        case .rating:
-            return isSaving || pendingSubmission != nil ? saveButtonTitle : "Save privately now"
-        case .memory: return saveButtonTitle
+        case .rating: return "Choose audience"
+        case .audience: return saveButtonTitle
         }
     }
 
     private var guidedPrimaryIcon: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "arrow.right"
-        case .rating: return "lock.fill"
-        case .memory: return "checkmark"
+        case .rating: return "person.2.fill"
+        case .audience: return "checkmark"
         }
     }
 
     private var guidedSaveVisibility: VisitVisibility {
-        draft.resolvedGuidedStep == .rating ? .private : draft.visibility
+        draft.visibility
     }
 
     private var guidedFooterHint: String {
         switch draft.resolvedGuidedStep {
         case .context: return "Your draft is saved as you go."
         case .drink: return "Mugshot will organize this in the background."
-        case .rating: return "Save this privately now, or add details and choose an audience."
-        case .memory: return "Optional details never block a private save."
+        case .rating: return "Your score is ready. Next, decide who can see the sip."
+        case .audience: return "Serving details and private notes are optional."
         }
     }
 
@@ -1594,6 +1808,27 @@ struct LogVisitView: View {
         dataManager.updateRatingTemplate(RatingTemplate(categories: categories))
     }
 
+    private func addTag(_ rawTag: String) {
+        guard let tag = rawTag.remoteTrimmedNonEmpty,
+              !draft.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else {
+            return
+        }
+        draft.tags.append(tag)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func commitCustomTag() {
+        guard let tag = customTagText.remoteTrimmedNonEmpty else { return }
+        addTag(tag)
+        customTagText = ""
+        isAddingCustomTag = false
+    }
+
+    private func removeCompanion(_ companion: SipCompanion) {
+        draft.taggedCompanions?.removeAll { $0.userID == companion.userID }
+        draft.companions = draft.taggedCompanions?.map(\.displayName) ?? []
+    }
+
     private func appendPhotos(_ images: [UIImage]) {
         let remaining = max(0, 10 - photoImages.count)
         photoImages.append(contentsOf: images.prefix(remaining))
@@ -1602,11 +1837,18 @@ struct LogVisitView: View {
 
     private func removePhoto(at index: Int) {
         guard photoImages.indices.contains(index) else { return }
+        let removedPoster = draft.posterPhotoIndex == index
         photoImages.remove(at: index)
         if draft.localPhotoNames.indices.contains(index) {
             draft.localPhotoNames.remove(at: index)
         }
-        draft.posterPhotoIndex = min(draft.posterPhotoIndex, max(photoImages.count - 1, 0))
+        if removedPoster {
+            draft.posterPhotoIndex = min(index, max(photoImages.count - 1, 0))
+        } else if index < draft.posterPhotoIndex {
+            draft.posterPhotoIndex -= 1
+        } else {
+            draft.posterPhotoIndex = min(draft.posterPhotoIndex, max(photoImages.count - 1, 0))
+        }
         persistDraft()
     }
 
@@ -1743,6 +1985,115 @@ struct LogVisitView: View {
                 draft.brewDetails.steps?[index].instruction = value
             }
         )
+    }
+}
+
+private struct SipPhotoOrganizer: View {
+    @Binding var images: [UIImage]
+    @Binding var posterPhotoIndex: Int
+    @Binding var localPhotoNames: [String]
+    @Environment(\.dismiss) private var dismiss
+
+    private var safePosterIndex: Int {
+        min(max(posterPhotoIndex, 0), max(images.count - 1, 0))
+    }
+
+    private var coverImage: UIImage? {
+        guard images.indices.contains(safePosterIndex) else { return nil }
+        return images[safePosterIndex]
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if let cover = coverImage {
+                        Image(uiImage: cover)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .overlay(alignment: .bottomLeading) {
+                                Label("Feed cover", systemImage: "sparkles")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.foamWhite)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
+                                    .background(Color.espressoBrown.opacity(0.82))
+                                    .clipShape(Capsule())
+                                    .padding(10)
+                            }
+                    }
+                } footer: {
+                    Text("The cover appears first in Feed and Journal. Drag the rows to change the swipe order.")
+                }
+
+                Section("Photo order") {
+                    ForEach(images.indices, id: \.self) { index in
+                        HStack(spacing: 12) {
+                            Image(uiImage: images[index])
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 54, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Photo \(index + 1)")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.espressoBrown)
+                                Text(index == safePosterIndex ? "Cover photo" : "Swipe position \(index + 1)")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondaryText)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                posterPhotoIndex = index
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: index == safePosterIndex ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(.mugshotSage)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(index == safePosterIndex ? "Current cover photo" : "Make photo \(index + 1) the cover")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .onMove(perform: movePhotos)
+                }
+            }
+            .environment(\.editMode, .constant(.active))
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("Organize photos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.bold)
+                }
+            }
+        }
+    }
+
+    private func movePhotos(from source: IndexSet, to destination: Int) {
+        let previousCoverImage = coverImage
+        images.move(fromOffsets: source, toOffset: destination)
+        if localPhotoNames.count == images.count {
+            localPhotoNames.move(fromOffsets: source, toOffset: destination)
+        } else {
+            // The draft store will create a fresh ordered set on dismiss.
+            localPhotoNames = []
+        }
+        if let previousCoverImage,
+           let updatedIndex = images.firstIndex(where: { $0 === previousCoverImage }) {
+            posterPhotoIndex = updatedIndex
+        } else {
+            posterPhotoIndex = min(safePosterIndex, max(images.count - 1, 0))
+        }
     }
 }
 
@@ -1894,6 +2245,161 @@ private struct DetailedCriterionRow: View {
 
     private func formatWeight(_ value: Double) -> String {
         value.rounded() == value ? String(format: "%.0fx", value) : String(format: "%.1fx", value)
+    }
+}
+
+private struct SipCompanionPicker: View {
+    let onSave: ([SipCompanion]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected: [SipCompanion]
+    @State private var suggestions: [SipCompanionSuggestion] = []
+    @State private var friends: [SocialConnection] = []
+    @State private var query = ""
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    init(selected: [SipCompanion], onSave: @escaping ([SipCompanion]) -> Void) {
+        self.onSave = onSave
+        _selected = State(initialValue: selected)
+    }
+
+    private var allFriends: [SipCompanion] {
+        var result = suggestions.map(\.companion)
+        let existing = Set(result.map(\.userID))
+        result.append(contentsOf: friends.compactMap { friend in
+            guard !existing.contains(friend.userID) else { return nil }
+            return SipCompanion(
+                userID: friend.userID,
+                displayName: friend.displayName,
+                username: friend.username,
+                avatarURL: friend.avatarURL
+            )
+        })
+        return result
+    }
+
+    private var filteredFriends: [SipCompanion] {
+        guard let needle = query.remoteTrimmedNonEmpty?.localizedLowercase else { return allFriends }
+        return allFriends.filter {
+            $0.displayName.localizedLowercase.contains(needle)
+                || $0.username.localizedLowercase.contains(needle)
+        }
+    }
+
+    private var recommended: [SipCompanion] {
+        let learned = suggestions.filter { $0.sharedSipCount > 0 }.map(\.companion)
+        return Array((learned.isEmpty ? allFriends : learned).prefix(3))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 9) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.mugshotSage)
+                        TextField("Search friends", text: $query)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                }
+
+                if query.isEmpty, !recommended.isEmpty {
+                    Section("Quick add") {
+                        ForEach(recommended) { companion in
+                            companionRow(companion)
+                        }
+                    }
+                }
+
+                Section(query.isEmpty ? "All friends" : "Matches") {
+                    if isLoading {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Opening your friends…")
+                                .foregroundColor(.secondaryText)
+                        }
+                    } else if filteredFriends.isEmpty {
+                        Text(query.isEmpty ? "Add friends before tagging company in a sip." : "No friends match that search.")
+                            .foregroundColor(.secondaryText)
+                    } else {
+                        ForEach(filteredFriends) { companion in
+                            companionRow(companion)
+                        }
+                    }
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("Shared this sip")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        onSave(selected)
+                        dismiss()
+                    }
+                    .fontWeight(.bold)
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func companionRow(_ companion: SipCompanion) -> some View {
+        let isSelected = selected.contains { $0.userID == companion.userID }
+        return Button {
+            if isSelected {
+                selected.removeAll { $0.userID == companion.userID }
+            } else if selected.count < 12 {
+                selected.append(companion)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                MugshotAvatar(name: companion.displayName, size: 38, imageURL: companion.avatarURL)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(companion.displayName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("@\(companion.username)")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                }
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(isSelected ? .mugshotSage : .tertiaryText)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @MainActor
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+            async let loadedFriends = service.connections(kind: "friends")
+            friends = try await loadedFriends
+            suggestions = (try? await service.companionSuggestions()) ?? []
+            errorMessage = nil
+        } catch {
+            errorMessage = "Mugshot couldn’t open your friends just now."
+        }
     }
 }
 

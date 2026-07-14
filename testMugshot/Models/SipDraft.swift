@@ -84,6 +84,15 @@ struct SipRatingCriterionSnapshot: Identifiable, Codable, Equatable {
     }
 }
 
+struct SipCompanion: Identifiable, Codable, Equatable, Hashable {
+    let userID: UUID
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+
+    var id: UUID { userID }
+}
+
 struct SipDraft: Identifiable, Codable, Equatable {
     let id: UUID
     var ownerUserID: UUID?
@@ -105,6 +114,9 @@ struct SipDraft: Identifiable, Codable, Equatable {
     var orderNotes: String
     var tags: [String]
     var companions: [String]
+    /// Account-bound companion identities. `companions` remains as a legacy
+    /// display snapshot so older visits and drafts continue to render.
+    var taggedCompanions: [SipCompanion]?
     var brewMethod: String
     var equipment: String
     var brewDetails: BrewDetails
@@ -137,6 +149,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
         orderNotes: String = "",
         tags: [String] = [],
         companions: [String] = [],
+        taggedCompanions: [SipCompanion]? = nil,
         brewMethod: String = "",
         equipment: String = "",
         brewDetails: BrewDetails = .empty,
@@ -168,6 +181,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.orderNotes = orderNotes
         self.tags = tags
         self.companions = companions
+        self.taggedCompanions = taggedCompanions
         self.brewMethod = brewMethod
         self.equipment = equipment
         self.brewDetails = brewDetails

@@ -167,18 +167,6 @@ struct MapTabView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                if authModel.authenticatedUser != nil && !hasLoadedRemoteMapPins {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Updating your journal map…")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.secondaryText)
-                    }
-                    .padding(.top, 8)
-                    .accessibilityLabel("Updating your journal map")
-                }
-
                 if let remoteStateError {
                     HStack(spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -474,10 +462,27 @@ struct MapTabView: View {
     @MainActor
     private func loadRemoteMapPins() async {
         guard let userId = authModel.authenticatedUser?.id else {
-            remoteStateError = nil
-            remoteMapPins = []
-            hasLoadedRemoteMapPins = false
-            remoteMapPinUserId = nil
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let discovery = try await SocialDiscoveryService(client: client).publicDiscovery(
+                    section: .nearby,
+                    location: locationManager.location,
+                    radiusKM: 25,
+                    limit: 50
+                )
+                remoteMapPins = []
+                discoveryMapCafes = discovery.map(\.localCafe)
+                remoteStateError = nil
+                hasLoadedRemoteMapPins = true
+                remoteMapPinUserId = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                remoteMapPins = []
+                discoveryMapCafes = []
+                remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
+                hasLoadedRemoteMapPins = false
+                remoteMapPinUserId = nil
+            }
             return
         }
 
@@ -1643,7 +1648,14 @@ struct SearchResultsList: View {
                     ForEach(searchService.completions.prefix(4), id: \.self) { completion in
                         SearchCompletionRow(completion: completion) {
                             searchText = completion.title
-                            searchService.search(completion: completion, region: region)
+                            Task {
+                                if let mapItem = await searchService.resolve(
+                                    completion: completion,
+                                    region: region
+                                ) {
+                                    handleSearchResult(mapItem)
+                                }
+                            }
                         }
                     }
                 }

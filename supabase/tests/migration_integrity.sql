@@ -27,7 +27,9 @@ begin
     ('add_cafe_list_reordering', array['20260714164500','20260714052754']),
     ('phase_5_reflection_preferences', array['20260714170000','20260714053353']),
     ('phase_6_owner_data_export', array['20260714180000','20260714055538']),
-    ('harden_owner_data_export_invoker', array['20260714181000','20260714061539'])
+    ('harden_owner_data_export_invoker', array['20260714181000','20260714061539']),
+    ('followup_discovery_feed_companions', array['20260714190000','20260714151316']),
+    ('fix_visit_companion_visibility_policy', array['20260714200000','20260714185446'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -240,6 +242,47 @@ begin
     where namespace.nspname = 'public' and procedure.proname = 'build_owner_data_export'
       and procedure.prosecdef
   ) then raise exception 'owner data export bypasses caller RLS'; end if;
+
+  if to_regclass('public.visit_companions') is null then
+    raise exception 'visit_companions table is missing';
+  end if;
+  if not (select relrowsecurity from pg_class where oid='public.visit_companions'::regclass) then
+    raise exception 'visit_companions RLS is disabled';
+  end if;
+  if has_table_privilege('anon','public.visit_companions','SELECT')
+     or has_table_privilege('authenticated','public.visit_companions','INSERT')
+     or has_table_privilege('authenticated','public.visit_companions','UPDATE')
+     or has_table_privilege('authenticated','public.visit_companions','DELETE') then
+    raise exception 'visit companion grants are incorrect';
+  end if;
+  if not has_table_privilege('authenticated','public.visit_companions','SELECT') then
+    raise exception 'authenticated users cannot read visible companion links';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='visit_companions'
+      and policyname='Visible sip companions'
+      and qual ilike '%can_view_visit%'
+      and qual ilike '%is_blocked_between%'
+      and qual not ilike '%private.%'
+  ) then raise exception 'visit companion policy bypasses caller-bound visibility wrappers'; end if;
+  if has_function_privilege('anon','public.set_visit_companions(uuid,uuid[])','EXECUTE')
+     or not has_function_privilege('authenticated','public.set_visit_companions(uuid,uuid[])','EXECUTE')
+     or has_function_privilege('anon','public.companion_suggestions(integer)','EXECUTE')
+     or not has_function_privilege('authenticated','public.companion_suggestions(integer)','EXECUTE') then
+    raise exception 'companion RPC grants are incorrect';
+  end if;
+  if not has_function_privilege(
+       'anon',
+       'public.discover_public_cafes(text,double precision,double precision,double precision,integer,double precision,uuid)',
+       'EXECUTE'
+     ) then
+    raise exception 'signed-out discovery is unavailable to anon';
+  end if;
+  if has_function_privilege('anon','public.get_public_profile(uuid)','EXECUTE')
+     or not has_function_privilege('authenticated','public.get_public_profile(uuid)','EXECUTE') then
+    raise exception 'public profile RPC grants are incorrect';
+  end if;
 end $$;
 
 select 'migration_integrity_passed' as result;

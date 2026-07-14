@@ -16,6 +16,10 @@ struct JournalReflectionsSection: View {
         JournalReflectionEngine.milestones(entries: entries)
     }
 
+    private var yearCurrentlyMatchesMonth: Bool {
+        monthly.entryCount > 0 && monthly.entryCount == yearly.entryCount
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -30,8 +34,8 @@ struct JournalReflectionsSection: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    reflectionCard(monthly)
-                    reflectionCard(yearly)
+                    reflectionCard(monthly, matchesCurrentMonth: false)
+                    reflectionCard(yearly, matchesCurrentMonth: yearCurrentlyMatchesMonth)
                 }
                 .padding(.horizontal, 16)
             }
@@ -57,14 +61,22 @@ struct JournalReflectionsSection: View {
         }
     }
 
-    private func reflectionCard(_ reflection: JournalReflectionSummary) -> some View {
+    private func reflectionCard(
+        _ reflection: JournalReflectionSummary,
+        matchesCurrentMonth: Bool
+    ) -> some View {
         Button { onSelect(reflection) } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(reflection.period.title.uppercased())
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundColor(.mugshotSage)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(reflection.period.title.uppercased())
+                            .font(.system(size: 11, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundColor(.mugshotSage)
+                        Text(periodRange(reflection))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.tertiaryText)
+                    }
                     Spacer()
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 11, weight: .bold))
@@ -82,13 +94,29 @@ struct JournalReflectionsSection: View {
                 }
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondaryText)
+                if matchesCurrentMonth {
+                    Text("All of this year’s sips are from this month so far.")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .lineLimit(2)
+                }
             }
-            .frame(width: 240, height: 126, alignment: .topLeading)
+            .frame(width: 250, height: 154, alignment: .topLeading)
             .padding(15)
             .cardStyle()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(reflection.period.title) reflection, \(reflection.entryCount) sips")
+    }
+
+    private func periodRange(_ reflection: JournalReflectionSummary) -> String {
+        if reflection.period == .month {
+            return reflection.startDate.formatted(.dateTime.month(.wide).year())
+        }
+        let effectiveEnd = min(Date(), reflection.endDate.addingTimeInterval(-1))
+        let start = reflection.startDate.formatted(.dateTime.month(.abbreviated))
+        let end = effectiveEnd.formatted(.dateTime.month(.abbreviated).year())
+        return "\(start)–\(end)"
     }
 }
 

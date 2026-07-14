@@ -1158,7 +1158,13 @@ private struct DrinkInterpretationEditor: View {
                 }
 
                 Section("Serving details") {
-                    Stepper("\(shotCount) espresso \(shotCount == 1 ? "shot" : "shots")", value: $shotCount, in: 1...8)
+                    if selectedPreparation.isEspressoBased {
+                        Stepper("\(shotCount) espresso \(shotCount == 1 ? "shot" : "shots")", value: $shotCount, in: 1...8)
+                    } else {
+                        Text("Shot count does not apply to this preparation. Serving size is enough for Mugshot’s recap estimate.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                    }
                     TextField("Serving size in mL", text: $servingVolume)
                         .keyboardType(.decimalPad)
                 }
@@ -1226,7 +1232,7 @@ private struct DrinkInterpretationEditor: View {
                     canonicalFamily: nil,
                     preparation: preparation,
                     temperature: temperature,
-                    espressoShotCount: shotCount,
+                    espressoShotCount: selectedPreparation.isEspressoBased ? shotCount : nil,
                     servingVolumeMilliliters: Double(servingVolume)
                 ),
                 userID: currentUserID
@@ -1237,6 +1243,10 @@ private struct DrinkInterpretationEditor: View {
             errorMessage = "That correction did not save. Please try again."
             isSaving = false
         }
+    }
+
+    private var selectedPreparation: DrinkPreparation {
+        DrinkPreparation(rawValue: preparation) ?? .unknown
     }
 }
 

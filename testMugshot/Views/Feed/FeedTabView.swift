@@ -56,6 +56,7 @@ struct FeedTabView: View {
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
     @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var canonicalSipCount = 0
     @State private var isLoadingRemoteVisits = false
     @State private var isLoadingMoreRemoteVisits = false
     @State private var hasMoreRemoteVisits = false
@@ -99,7 +100,7 @@ struct FeedTabView: View {
                         .accessibilityLabel("People, requests, and friends")
                         MugshotStatPill(
                             icon: "flame.fill",
-                            value: "\(remoteVisits.count)",
+                            value: "\(canonicalSipCount)",
                             label: "sips",
                             accent: true
                         )
@@ -197,7 +198,7 @@ struct FeedTabView: View {
             }
         }
         .sheet(isPresented: $isPeopleHubPresented) {
-            PeopleHubView()
+            PeopleHubView(dataManager: dataManager)
         }
         .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
             Task {
@@ -396,6 +397,7 @@ struct FeedTabView: View {
     private func loadRemoteFeedIfNeeded(forceRefresh: Bool = false) async {
         guard let userId = authModel.authenticatedUser?.id else {
             remoteVisits = []
+            canonicalSipCount = dataManager.appData.visits.count
             remoteVisitError = nil
             isLoadingRemoteVisits = false
             return
@@ -407,7 +409,10 @@ struct FeedTabView: View {
             remoteVisits = cached.visits
             hasMoreRemoteVisits = cached.hasMore
             isLoadingRemoteVisits = false
-            if cached.isFresh { return }
+            if cached.isFresh {
+                await refreshCanonicalSipCount(userID: userId)
+                return
+            }
         }
 
         let requestID = UUID()
@@ -431,6 +436,7 @@ struct FeedTabView: View {
             hasMoreRemoteVisits = visits.count == feedPageSize
             RemoteFeedMemoryCache.shared.store(visits, hasMore: hasMoreRemoteVisits, for: cacheKey)
             isLoadingRemoteVisits = false
+            await refreshCanonicalSipCount(userID: userId, service: service)
         } catch {
             guard scope == selectedScope, activeFeedRequestID == requestID else { return }
             guard !Task.isCancelled else { return }
@@ -441,6 +447,25 @@ struct FeedTabView: View {
                 socialRecoveryMessage = "Couldn’t refresh just now. Your recent feed is still here."
             }
             isLoadingRemoteVisits = false
+        }
+    }
+
+    @MainActor
+    private func refreshCanonicalSipCount(
+        userID: UUID,
+        service: VisitService? = nil
+    ) async {
+        do {
+            let resolvedService: VisitService
+            if let service {
+                resolvedService = service
+            } else {
+                resolvedService = VisitService(client: try SupabaseClientProvider.shared.client())
+            }
+            canonicalSipCount = try await resolvedService.fetchOwnerSipCount(userId: userID)
+        } catch {
+            // A count failure should never replace an otherwise healthy feed.
+            canonicalSipCount = max(canonicalSipCount, dataManager.appData.visits.count)
         }
     }
 
@@ -638,6 +663,10 @@ struct RemoteFeedVisitCard: View {
         visit.visit.posterPhotoURL != nil
     }
 
+    private var posterHeight: CGFloat {
+        hasPhoto ? 270 : 178
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             authorHeader
@@ -662,6 +691,8 @@ struct RemoteFeedVisitCard: View {
                 .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("feed.remoteVisitCard.\(visit.id.uuidString)")
     }
 
     private var authorHeader: some View {
@@ -692,34 +723,38 @@ struct RemoteFeedVisitCard: View {
     }
 
     private var poster: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                if hasPhoto {
-                    RemotePhotoImageView(
-                        urlString: visit.visit.posterPhotoURL,
-                        placeholderSystemName: "photo.on.rectangle"
-                    )
-                } else {
-                    RemoteFeedNoPhotoPoster()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: hasPhoto ? 270 : 178)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            locationOverlay
-
-            if hasPhoto, visit.visit.overallScore > 0 {
-                VStack {
-                    HStack {
-                        Spacer()
-                        MugshotRatingBadge(score: visit.visit.overallScore, onPhoto: true)
-                            .padding(12)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                Group {
+                    if hasPhoto {
+                        RemotePhotoImageView(
+                            urlString: visit.visit.posterPhotoURL,
+                            placeholderSystemName: "photo.on.rectangle"
+                        )
+                    } else {
+                        RemoteFeedNoPhotoPoster()
                     }
-                    Spacer()
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+
+                locationOverlay
+
+                if hasPhoto, visit.visit.overallScore > 0 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            MugshotRatingBadge(score: visit.visit.overallScore, onPhoto: true)
+                                .padding(12)
+                        }
+                        Spacer()
+                    }
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
+        .frame(height: posterHeight)
         .padding(.horizontal, 12)
     }
 
@@ -987,6 +1022,10 @@ struct VisitCard: View {
         guard let currentUserId = dataManager.appData.currentUser?.id else { return false }
         return visit.isLikedBy(userId: currentUserId)
     }
+
+    private var localPosterHeight: CGFloat {
+        visit.photos.isEmpty ? 178 : 260
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1002,6 +1041,7 @@ struct VisitCard: View {
                 .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
+        .frame(maxWidth: .infinity)
     }
 
     private var localAuthorHeader: some View {
@@ -1043,61 +1083,65 @@ struct VisitCard: View {
     }
 
     private var localPoster: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                if !visit.photos.isEmpty {
-                    PosterImageView(visit: visit)
-                } else {
-                    RemoteFeedNoPhotoPoster()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: visit.photos.isEmpty ? 178 : 260)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Label(cafe?.consumerDisplayName ?? "Cafe", systemImage: "mappin.circle.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.creamWhite)
-                        .lineLimit(2)
-
-                    if let address = cafe?.address, !address.isEmpty {
-                        Text(address)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.creamWhite.opacity(0.75))
-                            .lineLimit(1)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                Group {
+                    if !visit.photos.isEmpty {
+                        PosterImageView(visit: visit)
+                    } else {
+                        RemoteFeedNoPhotoPoster()
                     }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
 
-                Spacer(minLength: 8)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label(cafe?.consumerDisplayName ?? "Cafe", systemImage: "mappin.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.creamWhite)
+                            .lineLimit(2)
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.creamWhite.opacity(0.78))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .mugshotGlassSurface(
-                radius: 19,
-                tint: .espressoBrown,
-                stroke: Color.creamWhite.opacity(0.20),
-                shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
-                interactive: true
-            )
-            .padding(12)
+                        if let address = cafe?.address, !address.isEmpty {
+                            Text(address)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.creamWhite.opacity(0.75))
+                                .lineLimit(1)
+                        }
+                    }
 
-            if !visit.photos.isEmpty, visit.overallScore > 0 {
-                VStack {
-                    HStack {
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.creamWhite.opacity(0.78))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .mugshotGlassSurface(
+                    radius: 19,
+                    tint: .espressoBrown,
+                    stroke: Color.creamWhite.opacity(0.20),
+                    shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
+                    interactive: true
+                )
+                .padding(12)
+
+                if !visit.photos.isEmpty, visit.overallScore > 0 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            MugshotRatingBadge(score: visit.overallScore, onPhoto: true)
+                                .padding(12)
+                        }
                         Spacer()
-                        MugshotRatingBadge(score: visit.overallScore, onPhoto: true)
-                            .padding(12)
                     }
-                    Spacer()
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
+        .frame(height: localPosterHeight)
         .padding(.horizontal, 12)
     }
 

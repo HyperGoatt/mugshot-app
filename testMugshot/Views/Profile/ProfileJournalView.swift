@@ -15,7 +15,7 @@ struct JournalTabView: View {
     @State private var journalEntries: [JournalEntryProjection] = []
     @State private var isLoading = false
     @State private var loadError: String?
-    @State private var showAccountMenu = false
+    @State private var showOwnerProfile = false
     @State private var localDrafts: [SipDraft] = []
     @State private var tasteSignals: [RemoteTasteSignal] = []
     @State private var selectedReflection: JournalReflectionSummary?
@@ -65,7 +65,7 @@ struct JournalTabView: View {
 
     private var tasteIdentity: TasteIdentitySummary {
         phase3ExplainableTasteGraph
-            ? TasteIdentitySummary.calculate(from: tasteSignals)
+            ? TasteIdentitySummary.calculate(from: tasteSignals, visits: remoteVisits)
             : TasteIdentitySummary.calculate(from: remoteVisits)
     }
 
@@ -95,17 +95,8 @@ struct JournalTabView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    private var featuredVisit: RemoteVisitSummary? {
-        if selectedFilter == .all,
-           let homeEntry = filteredVisits.first(where: { $0.visit.journalContext != .cafe }) {
-            return homeEntry
-        }
-        return filteredVisits.first
-    }
-
-    private var supportingVisits: [RemoteVisitSummary] {
-        let limit = selectedFilter == .all ? 1 : 3
-        return Array(filteredVisits.filter { $0.id != featuredVisit?.id }.prefix(limit))
+    private var recentVisits: [RemoteVisitSummary] {
+        Array(filteredVisits.prefix(4))
     }
 
     var body: some View {
@@ -114,7 +105,7 @@ struct JournalTabView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     MugshotScreenHeader("Journal") {
                         Button {
-                            showAccountMenu = true
+                            showOwnerProfile = true
                         } label: {
                             MugshotAvatar(
                                 name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
@@ -124,7 +115,7 @@ struct JournalTabView: View {
                         }
                         .buttonStyle(.plain)
                         .frame(width: 44, height: 44)
-                        .accessibilityLabel("Profile and settings")
+                        .accessibilityLabel("Open your profile")
                     }
 
                     Text(profileSummaryLine)
@@ -183,21 +174,13 @@ struct JournalTabView: View {
                         .environmentObject(authModel)
                 }
             }
-            .confirmationDialog(
-                "Journal account",
-                isPresented: $showAccountMenu,
-                titleVisibility: .visible
-            ) {
-                if authModel.profile != nil {
-                    Button("Edit Profile") {
-                        authModel.clearProfileUpdateError()
-                        activeProfileSheet = .editProfile
-                    }
-                }
-                Button("Settings") { activeProfileSheet = .settings }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Profile and durable journal preferences live here.")
+            .navigationDestination(isPresented: $showOwnerProfile) {
+                OwnerPassportProfileView(
+                    dataManager: dataManager,
+                    entries: journalEntries,
+                    identity: tasteIdentity
+                )
+                .environmentObject(authModel)
             }
             .fullScreenCover(item: $selectedRemoteVisit) { visit in
                 RemoteVisitDetailView(
@@ -455,14 +438,9 @@ struct JournalTabView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 36)
-            } else if let featuredVisit {
+            } else if !recentVisits.isEmpty {
                 VStack(spacing: 12) {
-                    Button { selectedRemoteVisit = featuredVisit } label: {
-                        RemoteJournalFeatureCard(visit: featuredVisit)
-                    }
-                    .buttonStyle(.plain)
-
-                    ForEach(supportingVisits) { visit in
+                    ForEach(recentVisits) { visit in
                         Button { selectedRemoteVisit = visit } label: {
                             RemoteJournalRow(visit: visit)
                         }
@@ -545,6 +523,110 @@ struct JournalTabView: View {
             return true
         } catch {
             return false
+        }
+    }
+}
+
+private struct OwnerPassportProfileView: View {
+    @ObservedObject var dataManager: DataManager
+    let entries: [JournalEntryProjection]
+    let identity: TasteIdentitySummary
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var showEditProfile = false
+    @State private var showSettings = false
+    @State private var selectedVisit: RemoteVisitSummary?
+
+    private var profile: SupabaseUserProfile? { authModel.profile }
+    private var visits: [RemoteVisitSummary] { entries.map(\.summary) }
+    private var stats: RemoteProfileStats { RemoteProfileStats.calculate(from: visits) }
+    private var homeCount: Int { visits.filter { $0.visit.journalContext != .cafe }.count }
+    private var average: Double? { stats.totalVisits > 0 ? stats.averageScore : nil }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                MugshotScreenHeader("Profile", subtitle: "Your public-facing coffee identity") {
+                    MugshotIconButton(systemName: "gearshape.fill", size: 36) {
+                        showSettings = true
+                    }
+                    .accessibilityLabel("Settings")
+                }
+
+                MugshotPassportCard(
+                    displayName: profile?.displayName ?? dataManager.appData.currentUser?.displayNameOrUsername ?? "Mugshot User",
+                    username: profile?.username ?? dataManager.appData.currentUser?.username ?? "user",
+                    avatarURL: profile?.avatarURL,
+                    bannerURL: profile?.bannerURL,
+                    identity: identity,
+                    stats: MugshotPassportStats(
+                        sips: stats.totalVisits,
+                        cafes: stats.totalCafes,
+                        homeSips: homeCount,
+                        averageRating: average
+                    ),
+                    allowsSharing: true
+                )
+                .padding(.horizontal, 16)
+
+                if let bio = profile?.bio?.remoteTrimmedNonEmpty {
+                    Text(bio)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(15)
+                        .cardStyle()
+                        .padding(.horizontal, 16)
+                }
+
+                Button {
+                    authModel.clearProfileUpdateError()
+                    showEditProfile = true
+                } label: {
+                    Label("Edit profile", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .padding(.horizontal, 16)
+
+                if !visits.isEmpty {
+                    MugshotSectionTitle(
+                        title: "Your visible profile",
+                        subtitle: "This is how your recent shared journal reads to other people."
+                    )
+                    .padding(.horizontal, 16)
+
+                    VStack(spacing: 10) {
+                        ForEach(visits.filter { $0.visit.visibility.lowercased() != "private" }.prefix(6)) { visit in
+                            Button { selectedVisit = visit } label: {
+                                RemoteJournalRow(visit: visit)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+            .padding(.bottom, 40)
+        }
+        .background(Color.creamWhite)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEditProfile) {
+            if let profile {
+                EditProfileView(profile: profile, dataManager: dataManager)
+                    .environmentObject(authModel)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(dataManager: dataManager)
+                .environmentObject(authModel)
+        }
+        .fullScreenCover(item: $selectedVisit) { visit in
+            RemoteVisitDetailView(
+                visitId: visit.id,
+                initialSummary: visit,
+                currentUserId: authModel.authenticatedUser?.id,
+                dataManager: dataManager
+            )
         }
     }
 }
@@ -956,7 +1038,7 @@ private struct RemoteJournalFeatureCard: View {
     }
 }
 
-private struct RemoteJournalRow: View {
+struct RemoteJournalRow: View {
     let visit: RemoteVisitSummary
 
     var body: some View {
@@ -1040,11 +1122,11 @@ private struct TasteIdentityJournalSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Taste Identity")
+                Text("Mugshot Passport")
                     .mugshotDisplay(size: 28)
                     .foregroundColor(.espressoBrown)
                 Spacer()
-                Text("Evolves with every journal entry")
+                Text(summary.isForming ? "Still forming" : "One of 512 title combinations")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.mugshotSage)
             }
@@ -1058,8 +1140,20 @@ private struct TasteIdentityJournalSection: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(summary.title)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 22, weight: .bold, design: .serif))
                         .foregroundColor(.espressoBrown)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(summary.descriptors, id: \.self) { descriptor in
+                                Text(descriptor)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.mugshotSage)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Color.mugshotMint.opacity(0.34), in: Capsule())
+                            }
+                        }
+                    }
                     Text(summary.description)
                         .font(.system(size: 13))
                         .foregroundColor(.secondaryText)

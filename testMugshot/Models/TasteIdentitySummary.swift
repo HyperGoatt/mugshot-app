@@ -95,15 +95,21 @@ struct TasteIdentityPattern: Equatable, Identifiable {
 
 struct TasteIdentitySummary: Equatable {
     let title: String
+    let descriptors: [String]
     let description: String
     let patterns: [TasteIdentityPattern]
+    let isForming: Bool
+
+    static let possiblePassportTitles = 512
 
     static let empty = TasteIdentitySummary(
-        title: "Your taste is taking shape",
+        title: "Your Mugshot Passport is forming",
+        descriptors: ["Taste forming", "Lens forming", "Ritual forming"],
         description: "Every journal entry gives Mugshot a little more to learn from.",
         patterns: [
             TasteIdentityPattern(text: "Log a sip to begin your taste story", systemImage: "sparkles")
-        ]
+        ],
+        isForming: true
     )
 
     static func calculate(from visits: [RemoteVisitSummary]) -> TasteIdentitySummary {
@@ -188,36 +194,210 @@ struct TasteIdentitySummary: Equatable {
 
         return TasteIdentitySummary(
             title: title,
+            descriptors: legacyDescriptors(from: visits),
             description: description,
-            patterns: Array(patterns.prefix(3))
+            patterns: Array(patterns.prefix(3)),
+            isForming: visits.count < 3
         )
     }
 
     static func calculate(from signals: [RemoteTasteSignal]) -> TasteIdentitySummary {
+        calculate(from: signals, visits: [])
+    }
+
+    static func calculate(
+        from signals: [RemoteTasteSignal],
+        visits: [RemoteVisitSummary]
+    ) -> TasteIdentitySummary {
         let durable = signals.filter(\.isDurableClaim)
         guard !durable.isEmpty else { return .empty }
 
         let sensoryCount = durable.filter { $0.signalType == .sensoryEvaluation }.count
         let orderCount = durable.filter { $0.signalType == .orderPreference }.count
-        let title: String
+        let descriptors = passportDescriptors(signals: durable, visits: visits)
+        let title = passportTitle(descriptors: descriptors)
         let description: String
         if sensoryCount > 0, orderCount > 0 {
-            title = "Your evolving taste"
-            description = "Mugshot separates what you choose from what you explicitly notice in the cup."
+            description = "A tasting business card built from what you choose, what you notice, and where coffee fits into your life."
         } else if sensoryCount > 0 {
-            title = "Your tasting language"
             description = "These patterns come only from qualities you rated in your tasting lens."
         } else {
-            title = "Your order patterns"
             description = "These are recurring choices, not claims about how a specific drink tasted."
         }
 
         return TasteIdentitySummary(
             title: title,
+            descriptors: descriptors,
             description: description,
             patterns: durable.prefix(3).map {
                 TasteIdentityPattern(text: $0.claimText, systemImage: $0.systemImage)
-            }
+            },
+            isForming: false
         )
+    }
+
+    static func publicPassport(from visits: [PublicProfileVisit]) -> TasteIdentitySummary {
+        guard visits.count >= 3 else { return .empty }
+        let descriptors = publicPassportDescriptors(visits: visits)
+        let patterns = publicPatterns(visits: visits)
+        return TasteIdentitySummary(
+            title: passportTitle(descriptors: descriptors),
+            descriptors: descriptors,
+            description: "Built only from sips this person has chosen to share with you.",
+            patterns: patterns,
+            isForming: false
+        )
+    }
+
+    private static func passportDescriptors(
+        signals: [RemoteTasteSignal],
+        visits: [RemoteVisitSummary]
+    ) -> [String] {
+        [
+            orderDescriptor(signals: signals, drinkNames: visits.map { $0.visit.drinkDisplayName }),
+            lensDescriptor(signals: signals),
+            ritualDescriptor(
+                contexts: visits.map { $0.visit.journalContext },
+                cafeIDs: visits.compactMap { $0.cafe?.id },
+                companionCounts: visits.map { $0.visit.structuredBrewDetails.companions?.count ?? 0 }
+            )
+        ]
+    }
+
+    private static func publicPassportDescriptors(visits: [PublicProfileVisit]) -> [String] {
+        let ratingNames = visits.flatMap { ($0.ratings ?? [:]).keys }
+        let contexts = visits.map(\.journalContext)
+        return [
+            orderDescriptor(signals: [], drinkNames: visits.map(\.drinkDisplayName)),
+            publicLensDescriptor(ratingNames: ratingNames),
+            ritualDescriptor(
+                contexts: contexts,
+                cafeIDs: visits.compactMap(\.cafeID),
+                companionCounts: Array(repeating: 0, count: visits.count)
+            )
+        ]
+    }
+
+    private static func orderDescriptor(
+        signals: [RemoteTasteSignal],
+        drinkNames: [String]
+    ) -> String {
+        let attributes = Set(signals.filter { $0.signalType == .orderPreference }.map(\.attribute))
+        if attributes.contains("chooses_fruit_flavors") { return "Fruit-Forward" }
+        if attributes.contains("chooses_sweet_flavors") || attributes.contains("chooses_sweetened_drinks") { return "Sweet-Toothed" }
+        if attributes.contains("chooses_flavored_drinks") { return "Flavor-Curious" }
+        if attributes.contains("chooses_cold_drinks") { return "Cold-Drink Loyalist" }
+        if attributes.contains("chooses_milk_drinks") { return "Milk-Forward" }
+
+        let normalized = drinkNames.map { $0.localizedLowercase }
+        if normalized.filter({ $0.contains("matcha") }).count * 2 >= max(1, normalized.count) { return "Matcha-Minded" }
+        if normalized.filter({ $0.contains("tea") || $0.contains("chai") || $0.contains("hojicha") }).count * 2 >= max(1, normalized.count) { return "Tea-Curious" }
+        if normalized.contains(where: { $0.contains("pour over") || $0.contains("chemex") || $0.contains("v60") }) { return "Brew-Method Curious" }
+        return "Coffee-First"
+    }
+
+    private static func lensDescriptor(signals: [RemoteTasteSignal]) -> String {
+        guard let strongest = signals
+            .filter({ $0.signalType == .sensoryEvaluation })
+            .max(by: { lhs, rhs in
+                let left = Double(lhs.supportCount) * lhs.confidence
+                let right = Double(rhs.supportCount) * rhs.confidence
+                return left < right
+            }) else { return "Detail-Driven" }
+        return lensDescriptor(attribute: strongest.attribute)
+    }
+
+    private static func publicLensDescriptor(ratingNames: [String]) -> String {
+        let counts = Dictionary(grouping: ratingNames.map { $0.localizedLowercase }, by: { $0 }).mapValues(\.count)
+        guard let strongest = counts.max(by: { $0.value < $1.value })?.key else { return "Detail-Driven" }
+        return lensDescriptor(attribute: strongest)
+    }
+
+    private static func lensDescriptor(attribute: String) -> String {
+        switch attribute.localizedLowercase.replacingOccurrences(of: " ", with: "_") {
+        case "ambiance": return "Ambiance-Led"
+        case "presentation": return "Presentation-Led"
+        case "taste": return "Taste-Led"
+        case "aroma": return "Aroma-Led"
+        case "mouthfeel", "texture": return "Texture-Led"
+        case "value": return "Value-Aware"
+        case "bean_clarity", "clarity": return "Clarity-Seeking"
+        case "balance": return "Balance-Seeking"
+        case "service": return "Hospitality-Minded"
+        default: return "Detail-Driven"
+        }
+    }
+
+    private static func ritualDescriptor(
+        contexts: [JournalEntryContext],
+        cafeIDs: [UUID],
+        companionCounts: [Int]
+    ) -> String {
+        let cafeCount = contexts.filter { $0 == .cafe }.count
+        let homeCount = contexts.filter { $0 == .home }.count
+        let recipeCount = contexts.filter { $0 == .recipe }.count
+        if recipeCount >= 2 { return "Recipe Builder" }
+        if companionCounts.reduce(0, +) >= 3 { return "Social Sipper" }
+        if homeCount > cafeCount { return "Home Dialer" }
+        let cafeFrequency = Dictionary(grouping: cafeIDs, by: { $0 }).mapValues(\.count)
+        if cafeFrequency.values.max() ?? 0 >= 3 { return "Neighborhood Regular" }
+        if Set(cafeIDs).count >= 3 { return "Cafe Explorer" }
+        if homeCount > 0, cafeCount > 0 { return "Ritual Mixer" }
+        return cafeCount > 0 ? "Cafe Explorer" : "Memory Keeper"
+    }
+
+    private static func passportTitle(descriptors: [String]) -> String {
+        let seeds = ["Orchard", "Velvet", "Ember", "Meadow", "Citrus", "Cocoa", "Honey", "Classic"]
+        let moods = ["Curious", "Textural", "Thoughtful", "Precise", "Expressive", "Balanced", "Story-Led", "Detail-Minded"]
+        let roles = ["Cartographer", "Ritualist", "Alchemist", "Archivist", "Explorer", "Host", "Tinkerer", "Voyager"]
+        let first = descriptors.indices.contains(0) ? descriptors[0] : "Taste forming"
+        let second = descriptors.indices.contains(1) ? descriptors[1] : "Lens forming"
+        let third = descriptors.indices.contains(2) ? descriptors[2] : "Ritual forming"
+        return "The \(moods[stableIndex(second, count: moods.count)]) \(seeds[stableIndex(first, count: seeds.count)]) \(roles[stableIndex(third, count: roles.count)])"
+    }
+
+    private static func stableIndex(_ value: String, count: Int) -> Int {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return Int(hash % UInt64(count))
+    }
+
+    private static func legacyDescriptors(from visits: [RemoteVisitSummary]) -> [String] {
+        [
+            orderDescriptor(signals: [], drinkNames: visits.map { $0.visit.drinkDisplayName }),
+            "Detail-Driven",
+            ritualDescriptor(
+                contexts: visits.map { $0.visit.journalContext },
+                cafeIDs: visits.compactMap { $0.cafe?.id },
+                companionCounts: visits.map { $0.visit.structuredBrewDetails.companions?.count ?? 0 }
+            )
+        ]
+    }
+
+    private static func publicPatterns(visits: [PublicProfileVisit]) -> [TasteIdentityPattern] {
+        var patterns: [TasteIdentityPattern] = []
+        let drinkCounts = Dictionary(grouping: visits.map(\.drinkDisplayName), by: { $0 }).mapValues(\.count)
+        if let favorite = drinkCounts.max(by: { $0.value < $1.value }) {
+            patterns.append(TasteIdentityPattern(
+                text: "\(favorite.key) appears in \(favorite.value) shared \(favorite.value == 1 ? "sip" : "sips")",
+                systemImage: "cup.and.saucer.fill"
+            ))
+        }
+        let ratingNames = visits.flatMap { ($0.ratings ?? [:]).keys }
+        if let mostUsed = Dictionary(grouping: ratingNames, by: { $0 }).mapValues(\.count).max(by: { $0.value < $1.value }) {
+            patterns.append(TasteIdentityPattern(
+                text: "\(mostUsed.key.capitalized) is a recurring part of their tasting lens",
+                systemImage: "slider.horizontal.3"
+            ))
+        }
+        let cafeCount = Set(visits.compactMap(\.cafeID)).count
+        patterns.append(TasteIdentityPattern(
+            text: "Their visible journal spans \(cafeCount) \(cafeCount == 1 ? "cafe" : "cafes")",
+            systemImage: "map.fill"
+        ))
+        return Array(patterns.prefix(3))
     }
 }

@@ -11,7 +11,7 @@ struct CapturePreferencesView: View {
     @State private var discoveryIntents: Set<String> = []
     @State private var hasLoaded = false
 
-    private let drinkFamilies = ["Espresso", "Filter coffee", "Cold coffee", "Matcha", "Tea", "Other"]
+    private let drinkFamilies = ["Coffee", "Tea", "Matcha", "Other"]
     private let habits = [
         PreferenceOption(id: "cafe", title: "Mostly cafe", icon: "cup.and.saucer.fill"),
         PreferenceOption(id: "home", title: "Mostly Home", icon: "house.fill"),

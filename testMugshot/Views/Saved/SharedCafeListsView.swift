@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct SharedCafeListsView: View {
@@ -300,15 +301,20 @@ private struct CafeListDetailView: View {
         .task { await load() }
         .sheet(isPresented: $isPresentingCafePicker) {
             CafeListCafePicker(
-                cafes: dataManager.appData.cafes,
+                dataManager: dataManager,
                 existingCafeIDs: Set(items.map(\.cafeID))
             ) { cafe in
                 Task { await add(cafe) }
             }
         }
         .sheet(isPresented: $isPresentingFriendPicker) {
-            CafeListFriendPicker(friends: friends) { friend, role in
-                Task { await invite(friend, role: role) }
+            CafeListFriendPicker(
+                initialFriends: friends,
+                existingMemberIDs: Set(members.map(\.userID))
+            ) { friend, role in
+                let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+                _ = try await service.inviteFriend(friend.userID, to: list.id, role: role)
+                await load()
             }
         }
     }
@@ -385,26 +391,13 @@ private struct CafeListDetailView: View {
 
     @MainActor
     private func add(_ cafe: Cafe) async {
-        guard let cafeID = cafe.remoteCafeId else {
-            errorMessage = "This cafe needs to finish syncing before it can join a shared list."
-            return
-        }
         do {
-            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
-            _ = try await service.addCafe(cafeID, to: list.id)
+            let client = try SupabaseClientProvider.shared.client()
+            let remoteCafe = try await CafeService(client: client).findOrCreateCafe(from: cafe)
+            dataManager.upsertRemoteCafe(remoteCafe)
+            let service = SocialDiscoveryService(client: client)
+            _ = try await service.addCafe(remoteCafe.id, to: list.id)
             isPresentingCafePicker = false
-            await load()
-        } catch {
-            errorMessage = MugshotUserFacingError.message(for: error, context: .social)
-        }
-    }
-
-    @MainActor
-    private func invite(_ friend: SocialConnection, role: String) async {
-        do {
-            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
-            _ = try await service.inviteFriend(friend.userID, to: list.id, role: role)
-            isPresentingFriendPicker = false
             await load()
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .social)
@@ -424,52 +417,381 @@ private struct CafeListDetailView: View {
 }
 
 private struct CafeListCafePicker: View {
-    let cafes: [Cafe]
+    @ObservedObject var dataManager: DataManager
     let existingCafeIDs: Set<UUID>
     let onSelect: (Cafe) -> Void
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var searchService = MapSearchService()
+    @StateObject private var locationManager = LocationManager()
+    @State private var query = ""
+    @State private var resolvingSuggestion: String?
+    @State private var selectedMapItem: MKMapItem?
+    @State private var mapPosition: MapCameraPosition = .automatic
 
-    var body: some View {
-        NavigationStack {
-            List(cafes.filter { cafe in
-                guard let id = cafe.remoteCafeId else { return false }
-                return !existingCafeIDs.contains(id)
-            }) { cafe in
-                Button(cafe.consumerDisplayName) { onSelect(cafe) }
-                    .foregroundColor(.espressoBrown)
-            }
-            .navigationTitle("Add a cafe")
-            .toolbar { Button("Done") { dismiss() } }
+    private var searchRegion: MKCoordinateRegion {
+        if let location = locationManager.location?.coordinate {
+            return MKCoordinateRegion(
+                center: location,
+                span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
+            )
+        }
+        if let coordinate = dataManager.appData.cafes.compactMap(\.location).first {
+            return MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
+            )
+        }
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
+            span: MKCoordinateSpan(latitudeDelta: 35, longitudeDelta: 55)
+        )
+    }
+
+    private var availableLocalCafes: [Cafe] {
+        dataManager.appData.cafes.filter { cafe in
+            guard let id = cafe.remoteCafeId else { return true }
+            return !existingCafeIDs.contains(id)
         }
     }
-}
-
-private struct CafeListFriendPicker: View {
-    let friends: [SocialConnection]
-    let onSelect: (SocialConnection, String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var role = "viewer"
 
     var body: some View {
         NavigationStack {
             List {
-                Picker("Permission", selection: $role) {
-                    Text("Can view").tag("viewer")
-                    Text("Can edit").tag("editor")
+                Section {
+                    HStack(spacing: 9) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.mugshotSage)
+                        TextField("Search any city or cafe", text: $query)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .onChange(of: query) { _, value in
+                                if value.remoteTrimmedNonEmpty == nil {
+                                    searchService.cancelSearch()
+                                } else {
+                                    searchService.search(query: value, region: searchRegion)
+                                }
+                            }
+                            .onSubmit {
+                                searchService.search(query: query, region: searchRegion, immediately: true)
+                            }
+                    }
+                } footer: {
+                    Text("Search works beyond your saved and visited cafes, so lists can plan a future trip.")
                 }
-                ForEach(friends) { friend in
-                    Button {
-                        onSelect(friend, role)
-                    } label: {
-                        VStack(alignment: .leading) {
-                            Text(friend.displayName).fontWeight(.semibold)
-                            Text("@\(friend.username)").font(.caption).foregroundColor(.secondaryText)
+
+                if query.remoteTrimmedNonEmpty != nil,
+                   !searchService.searchResults.isEmpty {
+                    Section {
+                        Map(position: $mapPosition) {
+                            ForEach(searchService.searchResults, id: \.self) { item in
+                                Annotation(
+                                    item.name ?? "Cafe",
+                                    coordinate: item.placemark.coordinate,
+                                    anchor: .bottom
+                                ) {
+                                    Button {
+                                        focus(item)
+                                    } label: {
+                                        Image(systemName: selectedMapItem == item ? "cup.and.saucer.fill" : "mappin.circle.fill")
+                                            .font(.system(size: 28, weight: .semibold))
+                                            .foregroundStyle(
+                                                selectedMapItem == item ? Color.espressoBrown : Color.mugshotSage,
+                                                Color.foamWhite
+                                            )
+                                            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Select \(item.name ?? "cafe")")
+                                }
+                            }
+                        }
+                        .mapStyle(.standard(pointsOfInterest: .including([.cafe, .bakery])))
+                        .frame(height: 240)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+
+                        if let selectedMapItem {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(selectedMapItem.name ?? "Cafe")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundColor(.espressoBrown)
+                                    Text(MapSearchService.subtitle(for: selectedMapItem))
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondaryText)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Button("Add") { select(selectedMapItem) }
+                                    .font(.system(size: 13, weight: .bold))
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.mugshotSage)
+                            }
+                        }
+                    } header: {
+                        Text("Choose on the map")
+                    }
+                }
+
+                if query.remoteTrimmedNonEmpty == nil {
+                    Section("Your cafes") {
+                        if availableLocalCafes.isEmpty {
+                            Text("Search above to add somewhere new.")
+                                .foregroundColor(.secondaryText)
+                        } else {
+                            ForEach(availableLocalCafes) { cafe in
+                                cafeButton(cafe)
+                            }
+                        }
+                    }
+                } else {
+                    if searchService.isSearching || searchService.isUpdatingSuggestions {
+                        Section {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text(searchService.isSearching ? "Finding cafes…" : "Finding suggestions…")
+                                    .foregroundColor(.secondaryText)
+                            }
+                        }
+                    }
+
+                    if !searchService.completions.isEmpty && searchService.searchResults.isEmpty {
+                        Section("Suggestions") {
+                            ForEach(searchService.completions.prefix(6), id: \.self) { completion in
+                                Button {
+                                    resolvingSuggestion = completion.title
+                                    Task {
+                                        if let item = await searchService.resolve(completion: completion, region: searchRegion) {
+                                            focus(item)
+                                        }
+                                        resolvingSuggestion = nil
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(completion.title)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.espressoBrown)
+                                            if !completion.subtitle.isEmpty {
+                                                Text(completion.subtitle)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondaryText)
+                                            }
+                                        }
+                                        Spacer()
+                                        if resolvingSuggestion == completion.title {
+                                            ProgressView().controlSize(.small)
+                                        }
+                                    }
+                                }
+                                .disabled(resolvingSuggestion != nil)
+                            }
+                        }
+                    }
+
+                    if !searchService.searchResults.isEmpty {
+                        Section("Places") {
+                            ForEach(searchService.searchResults, id: \.self) { item in
+                                Button { focus(item) } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(item.name ?? "Cafe")
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.espressoBrown)
+                                            let subtitle = MapSearchService.subtitle(for: item)
+                                            if !subtitle.isEmpty {
+                                                Text(subtitle)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondaryText)
+                                            }
+                                        }
+                                        Spacer()
+                                        Image(systemName: selectedMapItem == item ? "checkmark.circle.fill" : "mappin.circle")
+                                            .foregroundColor(.mugshotSage)
+                                    }
+                                }
+                            }
+                        }
+                    } else if !searchService.isSearching,
+                              !searchService.isUpdatingSuggestions,
+                              searchService.completions.isEmpty {
+                        Section {
+                            Text("No cafes matched yet. Try a full place name, neighborhood, or city.")
+                                .foregroundColor(.secondaryText)
                         }
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("Add a cafe")
+            .toolbar { Button("Done") { dismiss() } }
+            .task(id: query) {
+                let value = query
+                guard value.remoteTrimmedNonEmpty != nil else { return }
+                try? await Task.sleep(for: .milliseconds(450))
+                guard !Task.isCancelled, query == value else { return }
+                searchService.search(query: value, region: searchRegion, immediately: true)
+            }
+            .onAppear {
+                mapPosition = .region(searchRegion)
+            }
+            .onChange(of: searchService.completedQuery) { _, _ in
+                guard let first = searchService.searchResults.first else { return }
+                focus(first)
+            }
+        }
+    }
+
+    private func cafeButton(_ cafe: Cafe) -> some View {
+        Button { onSelect(cafe) } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(cafe.consumerDisplayName)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.espressoBrown)
+                if !cafe.address.isEmpty {
+                    Text(cafe.address)
+                        .font(.caption)
+                        .foregroundColor(.secondaryText)
+                }
+            }
+        }
+    }
+
+    private func select(_ item: MKMapItem) {
+        let cafe = dataManager.findOrCreateCafe(from: item)
+        searchService.recordRecent(item)
+        onSelect(cafe)
+    }
+
+    private func focus(_ item: MKMapItem) {
+        selectedMapItem = item
+        mapPosition = .region(MKCoordinateRegion(
+            center: item.placemark.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.025, longitudeDelta: 0.025)
+        ))
+    }
+}
+
+private struct CafeListFriendPicker: View {
+    let initialFriends: [SocialConnection]
+    let existingMemberIDs: Set<UUID>
+    let onSelect: (SocialConnection, String) async throws -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var friends: [SocialConnection] = []
+    @State private var role = "viewer"
+    @State private var query = ""
+    @State private var isLoading = false
+    @State private var invitingFriendID: UUID?
+    @State private var errorMessage: String?
+
+    private var availableFriends: [SocialConnection] {
+        let candidates = friends.filter { !existingMemberIDs.contains($0.userID) }
+        guard let search = query.remoteTrimmedNonEmpty?.localizedLowercase else { return candidates }
+        return candidates.filter {
+            $0.displayName.localizedLowercase.contains(search) ||
+                $0.username.localizedLowercase.contains(search)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Permission", selection: $role) {
+                        Text("Can view").tag("viewer")
+                        Text("Can edit").tag("editor")
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text(role == "editor" ? "Editors can add and reorder cafes." : "Viewers can follow the list without changing it.")
+                }
+
+                Section("Friends") {
+                    if isLoading && friends.isEmpty {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Finding your friends…")
+                                .foregroundColor(.secondaryText)
+                        }
+                    } else if availableFriends.isEmpty {
+                        Text(query.remoteTrimmedNonEmpty == nil
+                            ? "Everyone here has already been invited."
+                            : "No friends match that search.")
+                            .foregroundColor(.secondaryText)
+                    } else {
+                        ForEach(availableFriends) { friend in
+                            Button {
+                                invite(friend)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    MugshotAvatar(name: friend.displayName, size: 42, imageURL: friend.avatarURL)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(friend.displayName)
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundColor(.espressoBrown)
+                                        Text("@\(friend.username)")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondaryText)
+                                    }
+                                    Spacer()
+                                    if invitingFriendID == friend.userID {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Image(systemName: "person.badge.plus")
+                                            .foregroundColor(.mugshotSage)
+                                    }
+                                }
+                            }
+                            .disabled(invitingFriendID != nil)
+                        }
+                    }
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red.opacity(0.82))
+                    }
+                }
+            }
+            .searchable(text: $query, prompt: "Search friends")
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
             .navigationTitle("Invite a friend")
             .toolbar { Button("Done") { dismiss() } }
+            .task { await loadFriends() }
+        }
+    }
+
+    @MainActor
+    private func loadFriends() async {
+        friends = initialFriends
+        guard friends.isEmpty else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            friends = try await SocialDiscoveryService(
+                client: try SupabaseClientProvider.shared.client()
+            ).connections(kind: "friends")
+            errorMessage = nil
+        } catch {
+            errorMessage = MugshotUserFacingError.message(for: error, context: .loading)
+        }
+    }
+
+    private func invite(_ friend: SocialConnection) {
+        invitingFriendID = friend.userID
+        errorMessage = nil
+        Task {
+            do {
+                try await onSelect(friend, role)
+                dismiss()
+            } catch {
+                errorMessage = MugshotUserFacingError.message(for: error, context: .social)
+                invitingFriendID = nil
+            }
         }
     }
 }
