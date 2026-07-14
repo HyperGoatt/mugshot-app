@@ -31,19 +31,22 @@ struct RemoteVisitDetailView: View {
     let currentUserId: UUID?
     @ObservedObject var dataManager: DataManager
     let justPosted: Bool
+    let onRepeat: ((RemoteVisitDetail) -> Void)?
 
     init(
         visitId: UUID,
         initialSummary: RemoteVisitSummary,
         currentUserId: UUID?,
         dataManager: DataManager,
-        justPosted: Bool = false
+        justPosted: Bool = false,
+        onRepeat: ((RemoteVisitDetail) -> Void)? = nil
     ) {
         self.visitId = visitId
         self.initialSummary = initialSummary
         self.currentUserId = currentUserId
         self.dataManager = dataManager
         self.justPosted = justPosted
+        self.onRepeat = onRepeat
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -111,7 +114,7 @@ struct RemoteVisitDetailView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This removes the sip from Profile, Feed, and cafe history.")
+                Text("This removes the sip from Journal, Feed, and cafe history.")
             }
             .confirmationDialog(
                 "Why are you reporting this?",
@@ -164,6 +167,19 @@ struct RemoteVisitDetailView: View {
                         Label("Edit Sip", systemImage: "pencil")
                     }
 
+                    if onRepeat != nil {
+                        Button {
+                            repeatCurrentSip(detail)
+                        } label: {
+                            Label(
+                                detail.summary.visit.journalContext == .recipe ? "Brew Again" : "Repeat Sip",
+                                systemImage: detail.summary.visit.journalContext == .recipe
+                                    ? "arrow.clockwise.circle.fill"
+                                    : "plus.square.on.square"
+                            )
+                        }
+                    }
+
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
@@ -204,6 +220,14 @@ struct RemoteVisitDetailView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
+    }
+
+    private func repeatCurrentSip(_ detail: RemoteVisitDetail) {
+        guard let onRepeat else { return }
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            onRepeat(detail)
+        }
     }
 
     private func detailContent(_ detail: RemoteVisitDetail) -> some View {

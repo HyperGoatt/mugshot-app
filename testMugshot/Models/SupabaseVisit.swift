@@ -34,6 +34,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let brewMethod: String?
     let equipment: String?
     let brewDetails: BrewDetails?
+    let recipeVersionID: UUID?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -56,6 +57,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case brewMethod = "brew_method"
         case equipment
         case brewDetails = "brew_details"
+        case recipeVersionID = "recipe_version_id"
         case createdAt = "created_at"
     }
 
@@ -80,7 +82,8 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         brewMethod: String?,
         createdAt: String,
         equipment: String? = nil,
-        brewDetails: BrewDetails? = nil
+        brewDetails: BrewDetails? = nil,
+        recipeVersionID: UUID? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -102,6 +105,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         self.brewMethod = brewMethod
         self.equipment = equipment
         self.brewDetails = brewDetails
+        self.recipeVersionID = recipeVersionID
         self.createdAt = createdAt
     }
 

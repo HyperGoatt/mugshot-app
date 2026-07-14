@@ -110,6 +110,11 @@ final class SipDraftStore {
         }
     }
 
+    func load(id: UUID) -> StoredSipDraft? {
+        guard let draft = loadDraft(id: id) else { return nil }
+        return stored(draft)
+    }
+
     func remove(_ draft: SipDraft) {
         try? fileManager.removeItem(at: directory(for: draft.id))
         if activeDraftID() == draft.id {

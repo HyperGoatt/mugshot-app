@@ -8,6 +8,7 @@ import UIKit
 struct LogVisitView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
+    private let explicitLaunchDraft: SipDraft?
 
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @EnvironmentObject private var authModel: AppAuthModel
@@ -71,11 +72,18 @@ struct LogVisitView: View {
         )
     }
 
-    init(dataManager: DataManager, preselectedCafe: Cafe? = nil) {
+    init(
+        dataManager: DataManager,
+        preselectedCafe: Cafe? = nil,
+        initialDraft: SipDraft? = nil
+    ) {
         self.dataManager = dataManager
         self.preselectedCafe = preselectedCafe
+        self.explicitLaunchDraft = initialDraft
+        let restoredImages = initialDraft.flatMap { SipDraftStore.shared.load(id: $0.id)?.images } ?? []
+        _photoImages = State(initialValue: restoredImages)
         _composerModel = StateObject(wrappedValue: SipComposerModel(
-            draft: Self.initialDraft(
+            draft: initialDraft ?? Self.initialDraft(
                 dataManager: dataManager,
                 preselectedCafe: preselectedCafe
             )
@@ -280,6 +288,9 @@ struct LogVisitView: View {
                         guidedCafeContextCard
                     }
                 case .rating:
+                    if draft.launchContext.source == .repeatSip || draft.launchContext.source == .brewAgain {
+                        repeatedSipContext
+                    }
                     overallRatingCard
                     Button(action: openMemoryStep) {
                         Label("Add optional details", systemImage: "plus.circle.fill")
@@ -300,6 +311,36 @@ struct LogVisitView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .id(draft.resolvedGuidedStep)
+    }
+
+    private var repeatedSipContext: some View {
+        HStack(spacing: 12) {
+            Image(systemName: draft.launchContext.source == .brewAgain
+                ? "arrow.clockwise.circle.fill"
+                : "plus.square.on.square")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 36, height: 36)
+                .background(Color.mugshotMint.opacity(0.6), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(draft.launchContext.source == .brewAgain ? "Brewing again" : "Repeating this sip")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+                Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Saved sip")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(1)
+                Text(draft.context == .cafe ? draft.cafe?.name ?? "Cafe" : draft.locationName)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .cardStyle()
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -1081,7 +1122,9 @@ struct LogVisitView: View {
         guard !didRestoreDraft else { return }
         didRestoreDraft = true
 
-        if let stored = SipDraftStore.shared.load(), shouldResume(stored.draft) {
+        if explicitLaunchDraft == nil,
+           let stored = SipDraftStore.shared.load(),
+           shouldResume(stored.draft) {
             suppressContextDefaults = true
             draft = stored.draft
             photoImages = stored.images
@@ -1119,6 +1162,7 @@ struct LogVisitView: View {
     }
 
     private func shouldResume(_ storedDraft: SipDraft) -> Bool {
+        guard explicitLaunchDraft == nil else { return false }
         guard let preselectedCafe else { return true }
         guard storedDraft.context == .cafe, let storedCafe = storedDraft.cafe else { return false }
         if storedCafe.id == preselectedCafe.id { return true }

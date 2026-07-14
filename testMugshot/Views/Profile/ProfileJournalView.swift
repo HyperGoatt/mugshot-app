@@ -1,7 +1,9 @@
+import MapKit
 import SwiftUI
 
-struct ProfileTabView: View {
+struct JournalTabView: View {
     @ObservedObject var dataManager: DataManager
+    let onComposeDraft: (SipDraft) -> Void
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
 
@@ -10,9 +12,12 @@ struct ProfileTabView: View {
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
-    @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var journalEntries: [JournalEntryProjection] = []
     @State private var isLoading = false
     @State private var loadError: String?
+    @State private var showAccountMenu = false
+    @State private var localDrafts: [SipDraft] = []
+    @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
 
     fileprivate enum JournalFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -31,6 +36,24 @@ struct ProfileTabView: View {
     }
 
     private var user: User? { dataManager.appData.currentUser }
+
+    private var remoteVisits: [RemoteVisitSummary] {
+        journalEntries.map(\.summary)
+    }
+
+    private var onThisSipEntries: [JournalEntryProjection] {
+        let calendar = Calendar.current
+        let now = Date()
+        return journalEntries.filter {
+            calendar.component(.month, from: $0.date) == calendar.component(.month, from: now)
+                && calendar.component(.day, from: $0.date) == calendar.component(.day, from: now)
+                && calendar.component(.year, from: $0.date) < calendar.component(.year, from: now)
+        }
+    }
+
+    private var journalTags: [String] {
+        Array(Set(journalEntries.flatMap(\.tags))).sorted()
+    }
 
     private var profileStats: RemoteProfileStats {
         RemoteProfileStats.calculate(from: remoteVisits)
@@ -83,22 +106,40 @@ struct ProfileTabView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    MugshotScreenHeader("Profile") {
-                        MugshotIconButton(systemName: "gearshape", size: 44) {
-                            activeProfileSheet = .settings
+                    MugshotScreenHeader("Journal") {
+                        Button {
+                            showAccountMenu = true
+                        } label: {
+                            MugshotAvatar(
+                                name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                                size: 42,
+                                imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                            )
                         }
-                        .accessibilityLabel("Settings")
+                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 44)
+                        .accessibilityLabel("Profile and settings")
                     }
 
-                    profileHeader
-
-                    Divider()
-                        .overlay(Color.mugshotLine)
+                    Text(profileSummaryLine)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondaryText)
                         .padding(.horizontal, 16)
-                        .padding(.top, 22)
+                        .padding(.top, 2)
+
+                    if phase2CanonicalJournal, !localDrafts.isEmpty {
+                        draftSection
+                            .padding(.top, 18)
+                    }
+
+                    if phase2CanonicalJournal, let memory = onThisSipEntries.first {
+                        onThisSipCard(memory)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 18)
+                    }
 
                     journalSection
-                        .padding(.top, 22)
+                        .padding(.top, 18)
 
                     Divider()
                         .overlay(Color.mugshotLine)
@@ -123,12 +164,31 @@ struct ProfileTabView: View {
                         .environmentObject(authModel)
                 }
             }
+            .confirmationDialog(
+                "Journal account",
+                isPresented: $showAccountMenu,
+                titleVisibility: .visible
+            ) {
+                if authModel.profile != nil {
+                    Button("Edit Profile") {
+                        authModel.clearProfileUpdateError()
+                        activeProfileSheet = .editProfile
+                    }
+                }
+                Button("Settings") { activeProfileSheet = .settings }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Profile and durable journal preferences live here.")
+            }
             .fullScreenCover(item: $selectedRemoteVisit) { visit in
                 RemoteVisitDetailView(
                     visitId: visit.id,
                     initialSummary: visit,
                     currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+                    dataManager: dataManager,
+                    onRepeat: { detail in
+                        launchComposer(from: detail.summary)
+                    }
                 )
             }
             .fullScreenCover(item: $selectedLocalVisit) { visit in
@@ -136,14 +196,110 @@ struct ProfileTabView: View {
             }
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
-                    visits: remoteVisits,
+                    entries: journalEntries,
                     currentUserID: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+                    dataManager: dataManager,
+                    onComposeDraft: onComposeDraft,
+                    showsPhase2Tools: phase2CanonicalJournal
                 )
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+                localDrafts = SipDraftStore.shared.allDrafts().sorted { $0.updatedAt > $1.updatedAt }
                 await loadJournal()
             }
+        }
+    }
+
+    private var draftSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Drafts")
+                    .mugshotDisplay(size: 24)
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                Text("\(localDrafts.count)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            ForEach(localDrafts.prefix(3)) { draft in
+                HStack(spacing: 12) {
+                    Button {
+                        onComposeDraft(draft)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: draft.context.systemImage)
+                                .foregroundColor(.mugshotSage)
+                                .frame(width: 34, height: 34)
+                                .background(Color.mugshotMint.opacity(0.55), in: Circle())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.espressoBrown)
+                                    .lineLimit(1)
+                                Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondaryText)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(role: .destructive) {
+                        SipDraftStore.shared.remove(draft)
+                        localDrafts.removeAll { $0.id == draft.id }
+                    } label: {
+                        Image(systemName: "trash")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Discard \(draft.drinkName.remoteTrimmedNonEmpty ?? "draft")")
+                }
+                .padding(12)
+                .cardStyle()
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func onThisSipCard(_ entry: JournalEntryProjection) -> some View {
+        Button { selectedRemoteVisit = entry.summary } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.foamWhite)
+                    .frame(width: 44, height: 44)
+                    .background(Color.mugshotSage, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("On This Sip")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.mugshotSage)
+                    Text(entry.summary.visit.drinkDisplayName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.tertiaryText)
+            }
+            .padding(14)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this memory")
+    }
+
+    private func launchComposer(from summary: RemoteVisitSummary) {
+        selectedRemoteVisit = nil
+        let userID = authModel.authenticatedUser?.id
+        let draft = summary.visit.journalContext == .recipe
+            ? SipDraft.brewAgain(from: summary, ownerUserID: userID)
+            : SipDraft.repeatSip(from: summary, ownerUserID: userID)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            onComposeDraft(draft)
         }
     }
 
@@ -218,7 +374,7 @@ struct ProfileTabView: View {
     private var journalSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Journal")
+                Text("Recent sips")
                     .mugshotDisplay(size: 30)
                     .foregroundColor(.espressoBrown)
                 Spacer()
@@ -235,6 +391,17 @@ struct ProfileTabView: View {
 
             JournalFilterBar(selection: $selectedFilter)
                 .padding(.horizontal, 16)
+
+            if phase2CanonicalJournal, !journalTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(journalTags.prefix(12), id: \.self) { tag in
+                            MugshotTagChip(title: tag, icon: "tag.fill")
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
 
             if authModel.authenticatedUser == nil, !filteredLocalVisits.isEmpty {
                 VStack(spacing: 12) {
@@ -310,7 +477,7 @@ struct ProfileTabView: View {
     @MainActor
     private func loadJournal() async {
         guard let userID = authModel.authenticatedUser?.id else {
-            remoteVisits = []
+            journalEntries = []
             isLoading = false
             loadError = nil
             return
@@ -320,11 +487,7 @@ struct ProfileTabView: View {
         loadError = nil
         do {
             let client = try SupabaseClientProvider.shared.client()
-            remoteVisits = try await VisitService(client: client).fetchRecentVisits(
-                userId: userID,
-                limit: 100,
-                includeSocialState: false
-            )
+            journalEntries = try await JournalService(client: client).fetchEntries(userID: userID)
             isLoading = false
         } catch is CancellationError {
             return
@@ -336,37 +499,49 @@ struct ProfileTabView: View {
 }
 
 private struct JournalArchiveView: View {
-    let visits: [RemoteVisitSummary]
+    let entries: [JournalEntryProjection]
     let currentUserID: UUID?
     @ObservedObject var dataManager: DataManager
+    let onComposeDraft: (SipDraft) -> Void
+    let showsPhase2Tools: Bool
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selection: ProfileTabView.JournalFilter = .all
+    @State private var selection: JournalTabView.JournalFilter = .all
     @State private var query = ""
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var showsBookmarksOnly = false
+    @State private var mode: JournalArchiveMode = .timeline
+    @State private var selectedDate = Date()
+    @State private var bookmarkedIDs: Set<UUID>
 
-    private var filteredVisits: [RemoteVisitSummary] {
-        visits
-            .filter { visit in
+    init(
+        entries: [JournalEntryProjection],
+        currentUserID: UUID?,
+        dataManager: DataManager,
+        onComposeDraft: @escaping (SipDraft) -> Void,
+        showsPhase2Tools: Bool
+    ) {
+        self.entries = entries
+        self.currentUserID = currentUserID
+        self.dataManager = dataManager
+        self.onComposeDraft = onComposeDraft
+        self.showsPhase2Tools = showsPhase2Tools
+        _bookmarkedIDs = State(initialValue: Set(entries.filter(\.isBookmarked).map(\.id)))
+    }
+
+    private var filteredEntries: [JournalEntryProjection] {
+        entries
+            .filter { entry in
                 switch selection {
                 case .all: return true
-                case .cafe: return visit.visit.journalContext == .cafe
-                case .home: return visit.visit.journalContext == .home
-                case .recipes: return visit.visit.journalContext == .recipe
+                case .cafe: return entry.context == .cafe
+                case .home: return entry.context == .home
+                case .recipes: return entry.context == .recipe
                 }
             }
-            .filter { visit in
-                guard let query = query.remoteTrimmedNonEmpty?.lowercased() else { return true }
-                return [
-                    visit.visit.drinkDisplayName,
-                    visit.locationTitle,
-                    visit.visit.caption,
-                    visit.visit.notes ?? "",
-                    visit.visit.brewMethod ?? "",
-                    visit.visit.equipment ?? ""
-                ].contains { $0.lowercased().contains(query) }
-            }
-            .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+            .filter { !showsBookmarksOnly || bookmarkedIDs.contains($0.id) }
+            .filter { $0.matches(query) }
+            .sorted { $0.date > $1.date }
     }
 
     var body: some View {
@@ -375,14 +550,54 @@ private struct JournalArchiveView: View {
                 LazyVStack(spacing: 14) {
                     JournalFilterBar(selection: $selection)
 
-                    if filteredVisits.isEmpty {
+                    if showsPhase2Tools {
+                        JournalArchiveModePicker(selection: $mode)
+                    }
+
+                    if filteredEntries.isEmpty {
                         JournalEmptyState(filter: selection.rawValue)
                     } else {
-                        ForEach(filteredVisits) { visit in
-                            Button { selectedVisit = visit } label: {
-                                RemoteJournalRow(visit: visit)
+                        switch mode {
+                        case .timeline:
+                            ForEach(filteredEntries) { entry in
+                                Button { selectedVisit = entry.summary } label: {
+                                    RemoteJournalRow(visit: entry.summary)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        toggleBookmark(entry)
+                                    } label: {
+                                        Label(
+                                            bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
+                                            systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark"
+                                        )
+                                    }
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    Button {
+                                        toggleBookmark(entry)
+                                    } label: {
+                                        Image(systemName: bookmarkedIDs.contains(entry.id) ? "bookmark.fill" : "bookmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.mugshotSage)
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(bookmarkedIDs.contains(entry.id) ? "Remove bookmark" : "Bookmark sip")
+                                }
                             }
-                            .buttonStyle(.plain)
+                        case .calendar:
+                            JournalCalendarView(
+                                entries: filteredEntries,
+                                selectedDate: $selectedDate,
+                                onSelect: { selectedVisit = $0.summary }
+                            )
+                        case .map:
+                            JournalMapSummaryView(
+                                entries: filteredEntries,
+                                onSelect: { selectedVisit = $0.summary }
+                            )
                         }
                     }
                 }
@@ -394,6 +609,15 @@ private struct JournalArchiveView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search drinks, cafes, notes, or equipment")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showsBookmarksOnly.toggle()
+                    } label: {
+                        Image(systemName: showsBookmarksOnly ? "bookmark.fill" : "bookmark")
+                    }
+                    .foregroundColor(.mugshotSage)
+                    .accessibilityLabel(showsBookmarksOnly ? "Show all journal entries" : "Show bookmarked entries")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                         .foregroundColor(.mugshotSage)
@@ -404,19 +628,171 @@ private struct JournalArchiveView: View {
                     visitId: visit.id,
                     initialSummary: visit,
                     currentUserId: currentUserID,
-                    dataManager: dataManager
+                    dataManager: dataManager,
+                    onRepeat: { detail in
+                        selectedVisit = nil
+                        let draft = detail.summary.visit.journalContext == .recipe
+                            ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
+                            : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onComposeDraft(draft)
+                        }
+                    }
                 )
+            }
+        }
+    }
+
+    private func toggleBookmark(_ entry: JournalEntryProjection) {
+        guard let currentUserID else { return }
+        let wasBookmarked = bookmarkedIDs.contains(entry.id)
+        if wasBookmarked {
+            bookmarkedIDs.remove(entry.id)
+        } else {
+            bookmarkedIDs.insert(entry.id)
+        }
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                try await JournalService(client: client).setBookmarked(
+                    !wasBookmarked,
+                    visitID: entry.id,
+                    userID: currentUserID
+                )
+            } catch {
+                await MainActor.run {
+                    if wasBookmarked {
+                        bookmarkedIDs.insert(entry.id)
+                    } else {
+                        bookmarkedIDs.remove(entry.id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private enum JournalArchiveMode: String, CaseIterable, Identifiable {
+    case timeline = "Timeline"
+    case calendar = "Calendar"
+    case map = "Map"
+
+    var id: String { rawValue }
+}
+
+private struct JournalArchiveModePicker: View {
+    @Binding var selection: JournalArchiveMode
+
+    var body: some View {
+        Picker("Journal view", selection: $selection) {
+            ForEach(JournalArchiveMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityHint("Choose timeline, calendar, or map")
+    }
+}
+
+private struct JournalCalendarView: View {
+    let entries: [JournalEntryProjection]
+    @Binding var selectedDate: Date
+    let onSelect: (JournalEntryProjection) -> Void
+
+    private var entriesForDay: [JournalEntryProjection] {
+        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            DatePicker(
+                "Journal date",
+                selection: $selectedDate,
+                in: ...Date(),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .tint(.mugshotSage)
+            .padding(10)
+            .cardStyle()
+
+            if entriesForDay.isEmpty {
+                Text("No sips remembered on this day.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 22)
+            } else {
+                ForEach(entriesForDay) { entry in
+                    Button { onSelect(entry) } label: {
+                        RemoteJournalRow(visit: entry.summary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct JournalMapSummaryView: View {
+    let entries: [JournalEntryProjection]
+    let onSelect: (JournalEntryProjection) -> Void
+
+    private var mappedEntries: [JournalEntryProjection] {
+        entries.filter { $0.summary.cafe?.latitude != nil && $0.summary.cafe?.longitude != nil }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            if mappedEntries.isEmpty {
+                Text("Cafe sips with saved locations will appear here.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                    .cardStyle()
+            } else {
+                Map {
+                    ForEach(mappedEntries) { entry in
+                        if let latitude = entry.summary.cafe?.latitude,
+                           let longitude = entry.summary.cafe?.longitude {
+                            Annotation(
+                                entry.summary.locationTitle,
+                                coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                            ) {
+                                Button { onSelect(entry) } label: {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.foamWhite)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.mugshotSage, in: Circle())
+                                        .overlay(Circle().stroke(Color.foamWhite, lineWidth: 2))
+                                        .shadow(color: .black.opacity(0.14), radius: 6, y: 3)
+                                }
+                                .accessibilityLabel("Open \(entry.summary.visit.drinkDisplayName) at \(entry.summary.locationTitle)")
+                            }
+                        }
+                    }
+                }
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                .frame(height: 360)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+
+                Text("\(mappedEntries.count) located cafe sip\(mappedEntries.count == 1 ? "" : "s")")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondaryText)
             }
         }
     }
 }
 
 private struct JournalFilterBar: View {
-    @Binding var selection: ProfileTabView.JournalFilter
+    @Binding var selection: JournalTabView.JournalFilter
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(ProfileTabView.JournalFilter.allCases) { filter in
+            ForEach(JournalTabView.JournalFilter.allCases) { filter in
                 Button {
                     withAnimation(DesignSystem.Motion.fast) { selection = filter }
                 } label: {

@@ -1382,6 +1382,129 @@ struct testMugshotTests {
         #expect(store.load()?.draft.id == recipe.id)
     }
 
+    @Test func remoteRepeatSipKeepsReusableContextAndResetsMemoryFields() {
+        let userID = UUID()
+        let cafeID = UUID()
+        let visitID = UUID()
+        let row = SupabaseVisitRow(
+            id: visitID,
+            userId: userID,
+            cafeId: cafeID,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "Iced orange cortado",
+            caption: "A social memory",
+            notes: nil,
+            visibility: "Everyone",
+            ratings: ["Aroma": 4.5, "Mouthfeel": 4],
+            categoryScores: [
+                SupabaseVisitCategoryScore(name: "Aroma", score: 4.5, weight: 1),
+                SupabaseVisitCategoryScore(name: "Mouthfeel", score: 4, weight: 2)
+            ],
+            overallScore: 4.2,
+            posterPhotoURL: "https://example.com/sip.jpg",
+            contextType: "Cafe",
+            locationName: nil,
+            cityState: "Charleston, SC",
+            brewMethod: nil,
+            createdAt: "2026-07-01T12:00:00Z",
+            brewDetails: BrewDetails(tags: ["sunny"], companions: ["Amanda"])
+        )
+        let cafe = SupabaseCafeSummary(
+            id: cafeID,
+            name: "Harbinger Cafe",
+            address: "1107 King St",
+            city: "Charleston",
+            latitude: 32.8,
+            longitude: -79.9,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let summary = RemoteVisitSummary(visit: row, cafe: cafe)
+        let repeated = SipDraft.repeatSip(
+            from: summary,
+            ownerUserID: userID,
+            now: Date(timeIntervalSince1970: 500)
+        )
+
+        #expect(repeated.id != visitID)
+        #expect(repeated.launchContext.sourceVisitID == visitID)
+        #expect(repeated.cafe?.remoteCafeId == cafeID)
+        #expect(repeated.drinkName == "Iced orange cortado")
+        #expect(repeated.tags == ["sunny"])
+        #expect(repeated.companions.isEmpty)
+        #expect(repeated.socialCaption.isEmpty)
+        #expect(repeated.privateNotes.isEmpty)
+        #expect(repeated.localPhotoNames.isEmpty)
+        #expect(repeated.ratingCriteria.allSatisfy { $0.score == 0 })
+    }
+
+    @Test func remoteRecipeBrewAgainReferencesExactRecipeAndCreatesPrivateAttempt() {
+        let recipeIdentityID = UUID()
+        let row = SupabaseVisitRow(
+            id: UUID(),
+            userId: UUID(),
+            cafeId: nil,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "Washed Ethiopian V60",
+            caption: "",
+            notes: nil,
+            visibility: "Private",
+            ratings: ["Clarity": 5],
+            overallScore: 5,
+            posterPhotoURL: nil,
+            contextType: "Recipe",
+            locationName: "Home",
+            cityState: nil,
+            brewMethod: "V60",
+            createdAt: "2026-07-01T12:00:00Z",
+            equipment: "Kettle and scale",
+            brewDetails: BrewDetails(
+                beans: "Ethiopia Hambela",
+                recipeName: "Bright V60",
+                recipeVersion: "v3",
+                recipeIdentityID: recipeIdentityID,
+                steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
+            ),
+            recipeVersionID: UUID()
+        )
+        let summary = RemoteVisitSummary(visit: row, cafe: nil)
+        let attempt = SipDraft.brewAgain(from: summary, ownerUserID: UUID())
+
+        #expect(attempt.context == .home)
+        #expect(attempt.visibility == .private)
+        #expect(attempt.launchContext.source == .brewAgain)
+        #expect(attempt.launchContext.sourceRecipeIdentityID == recipeIdentityID)
+        #expect(attempt.brewDetails.sourceRecipeIdentityID == recipeIdentityID)
+        #expect(attempt.brewDetails.sourceRecipeVersion == "v3")
+        #expect(attempt.brewDetails.recipeName == nil)
+        #expect(attempt.brewDetails.steps?.first?.instruction == "Bloom for 45 seconds")
+        #expect(attempt.overallScore == 0)
+    }
+
+    @Test func journalProjectionSearchIncludesOwnerNoteAndTags() {
+        let row = SupabaseVisitRow(
+            id: UUID(), userId: UUID(), cafeId: nil,
+            drinkType: "Coffee", drinkTypeCustom: nil, drinkSubtype: "Flat white",
+            caption: "Quiet morning", notes: nil, visibility: "Private",
+            ratings: ["Overall": 4], overallScore: 4, posterPhotoURL: nil,
+            contextType: "Home", locationName: "Kitchen", cityState: nil,
+            brewMethod: "Espresso", createdAt: "2026-07-01T12:00:00Z",
+            brewDetails: BrewDetails(tags: ["dial-in"])
+        )
+        let entry = JournalEntryProjection(
+            summary: RemoteVisitSummary(visit: row, cafe: nil),
+            privateNote: "Use the finer grind next time",
+            isBookmarked: false
+        )
+
+        #expect(entry.matches("finer grind"))
+        #expect(entry.matches("dial-in"))
+        #expect(entry.matches("flat white"))
+        #expect(!entry.matches("Harbinger"))
+    }
+
     @Test func remoteProfileStatsMapVisitsToRealStatsAndTopCafes() throws {
         let cafeId = UUID()
         let otherCafeId = UUID()

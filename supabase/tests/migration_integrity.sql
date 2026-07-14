@@ -14,7 +14,9 @@ begin
     ('add_visit_drink_analysis', array['20260713191000','20260713205518']),
     ('add_drink_analysis_retry_metadata_and_backfill', array['20260713231635']),
     ('harden_visit_photo_storage_contract', array['20260714013429','20260714013618']),
-    ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836'])
+    ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836']),
+    ('phase_2_canonical_journal', array['20260714110000','20260714042024']),
+    ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328'])
   ) required(name, versions)
   where not exists (
     select 1

@@ -155,7 +155,7 @@ struct UserInfoStep: View {
                 .padding(.bottom, 8)
             
             VStack(alignment: .leading, spacing: 16) {
-                MugshotSectionTitle(title: "Profile basics", subtitle: "This is how your sips show up in Feed and Profile.")
+                MugshotSectionTitle(title: "Profile basics", subtitle: "This is how shared sips show up in Feed and friend profiles.")
 
                 Text("Username")
                     .font(.system(size: 14, weight: .semibold))

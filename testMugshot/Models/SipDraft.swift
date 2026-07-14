@@ -332,4 +332,78 @@ struct SipDraft: Identifiable, Codable, Equatable {
             brewDetails: details
         )
     }
+
+    static func repeatSip(
+        from prior: RemoteVisitSummary,
+        ownerUserID: UUID?,
+        cafeVisibilityPreferences: CafeVisibilityPreferenceStore = .shared,
+        now: Date = Date()
+    ) -> SipDraft {
+        let context = prior.visit.journalContext
+        let criteria = prior.visit.orderedRatingScores.enumerated().map { index, score in
+            SipRatingCriterionSnapshot(
+                name: score.name,
+                score: 0,
+                weight: score.weight,
+                sortOrder: index
+            )
+        }
+        let details = prior.visit.structuredBrewDetails
+        var draft = SipDraft(
+            ownerUserID: ownerUserID,
+            createdAt: now,
+            updatedAt: now,
+            captureMode: criteria.count > 1 ? .addDetails : .quickSip,
+            launchContext: SipComposerLaunchContext(
+                source: .repeatSip,
+                preselectedCafe: prior.cafe?.localCafe(),
+                sourceVisitID: prior.id,
+                returnTab: 4
+            ),
+            context: context,
+            cafe: prior.cafe?.localCafe(),
+            locationName: prior.visit.locationName?.remoteTrimmedNonEmpty ?? context.locationFallback,
+            drinkType: DrinkType.allCases.first {
+                $0.rawValue.caseInsensitiveCompare(prior.visit.drinkType ?? "") == .orderedSame
+            } ?? .other,
+            customDrinkType: prior.visit.drinkTypeCustom ?? "",
+            drinkName: prior.visit.drinkDisplayName,
+            visibility: context == .cafe ? cafeVisibilityPreferences.defaultCafeVisibility : .private,
+            ratingCriteria: criteria,
+            orderNotes: details.orderNotes ?? "",
+            tags: details.tags ?? [],
+            companions: [],
+            brewMethod: prior.visit.brewMethod ?? "",
+            equipment: prior.visit.equipment ?? "",
+            brewDetails: details,
+            composerExperience: .guided,
+            guidedStep: .rating
+        )
+        draft.refreshDrinkAnalysis()
+        return draft
+    }
+
+    static func brewAgain(
+        from prior: RemoteVisitSummary,
+        ownerUserID: UUID?,
+        now: Date = Date()
+    ) -> SipDraft {
+        var draft = repeatSip(from: prior, ownerUserID: ownerUserID, now: now)
+        var details = prior.visit.structuredBrewDetails
+        details.sourceRecipeIdentityID = details.recipeIdentityID
+        details.sourceRecipeVersion = details.recipeVersion
+        details.recipeName = nil
+        details.recipeVersion = nil
+        draft.context = .home
+        draft.visibility = .private
+        draft.brewDetails = details
+        draft.launchContext = SipComposerLaunchContext(
+            source: .brewAgain,
+            sourceVisitID: prior.id,
+            sourceRecipeIdentityID: prior.visit.structuredBrewDetails.recipeIdentityID,
+            sourceRecipeVersion: prior.visit.structuredBrewDetails.recipeVersion,
+            returnTab: 4
+        )
+        return draft
+    }
 }

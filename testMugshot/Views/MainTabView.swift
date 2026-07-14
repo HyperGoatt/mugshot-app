@@ -11,7 +11,8 @@ struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var tabCoordinator = TabCoordinator()
-    @State private var preselectedCafeForLogVisit: Cafe?
+    @State private var composerDraft: SipDraft?
+    @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
     @State private var showsGuestSavedMerge = false
     @State private var showsCapturePreferences = false
@@ -108,7 +109,8 @@ struct MainTabView: View {
                     )
                     return
                 }
-                preselectedCafeForLogVisit = cafe
+                composerDraft = Self.cafeDraft(cafe, dataManager: dataManager, userID: authModel.authenticatedUser?.id)
+                composerSessionID = UUID()
                 withAnimation(DesignSystem.Motion.base) {
                     tabCoordinator.selectedTab = 2
                 }
@@ -116,11 +118,12 @@ struct MainTabView: View {
         case 1:
             FeedTabView(dataManager: dataManager)
         case 2:
-            AddTabView(dataManager: dataManager, preselectedCafe: preselectedCafeForLogVisit)
+            AddTabView(dataManager: dataManager, initialDraft: composerDraft)
+                .id(composerSessionID)
                 .onAppear {
-                    if preselectedCafeForLogVisit != nil {
+                    if composerDraft != nil {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            preselectedCafeForLogVisit = nil
+                            composerDraft = nil
                         }
                     }
                 }
@@ -129,7 +132,13 @@ struct MainTabView: View {
                 requestAuthentication(title: title, message: message)
             }
         default:
-            ProfileTabView(dataManager: dataManager)
+            JournalTabView(dataManager: dataManager) { draft in
+                composerDraft = draft
+                composerSessionID = UUID()
+                withAnimation(DesignSystem.Motion.base) {
+                    tabCoordinator.selectedTab = 2
+                }
+            }
         }
     }
 
@@ -173,6 +182,18 @@ struct MainTabView: View {
 
     private func requestAuthentication(title: String, message: String) {
         authenticationPrompt = AuthenticationPrompt(title: title, message: message)
+    }
+
+    private static func cafeDraft(_ cafe: Cafe, dataManager: DataManager, userID: UUID?) -> SipDraft {
+        var draft = SipDraft(
+            ownerUserID: userID,
+            launchContext: SipComposerLaunchContext(source: .cafeDetail, preselectedCafe: cafe),
+            context: .cafe,
+            cafe: cafe,
+            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
+        )
+        draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
+        return draft
     }
 
     private func scheduleCapturePreferencesIfNeeded() {
@@ -323,7 +344,7 @@ private struct MugshotBottomNav: View {
         MugshotTabItem(index: 1, title: "Feed", icon: "square.grid.2x2"),
         MugshotTabItem(index: 2, title: "Add", icon: "plus"),
         MugshotTabItem(index: 3, title: "Saved", icon: "bookmark"),
-        MugshotTabItem(index: 4, title: "Profile", icon: "person")
+        MugshotTabItem(index: 4, title: "Journal", icon: "book.closed")
     ]
 
     var body: some View {
@@ -503,6 +524,8 @@ private struct MugshotBottomNav: View {
             return "bookmark.fill"
         case "person":
             return "person.fill"
+        case "book.closed":
+            return "book.closed.fill"
         case "map":
             return "map.fill"
         default:

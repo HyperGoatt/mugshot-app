@@ -14,9 +14,14 @@ import AVFoundation
 struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
+    var initialDraft: SipDraft? = nil
     
     var body: some View {
-        LogVisitView(dataManager: dataManager, preselectedCafe: preselectedCafe)
+        LogVisitView(
+            dataManager: dataManager,
+            preselectedCafe: preselectedCafe,
+            initialDraft: initialDraft
+        )
     }
 }
 

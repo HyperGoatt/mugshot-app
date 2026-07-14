@@ -34,9 +34,11 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testProfileSettingsGearOpensSettings() throws {
+    func testJournalAccountMenuOpensSettings() throws {
         let app = launch(reset: true)
-        app.buttons["Profile"].tap()
+        app.buttons["Journal"].tap()
+        XCTAssertTrue(app.buttons["Profile and settings"].waitForExistence(timeout: 3))
+        app.buttons["Profile and settings"].tap()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
         app.buttons["Settings"].tap()
 
@@ -259,8 +261,8 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["sipComposer.primaryAction"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
 
-        XCTAssertTrue(app.buttons["Profile"].waitForExistence(timeout: 5))
-        app.buttons["Profile"].tap()
+        XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 5))
+        app.buttons["Journal"].tap()
         let savedDrink = app.staticTexts[drinkName]
         for _ in 0..<6 where !savedDrink.exists {
             app.scrollViews.firstMatch.swipeUp()
