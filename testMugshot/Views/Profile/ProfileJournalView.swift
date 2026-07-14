@@ -18,8 +18,10 @@ struct JournalTabView: View {
     @State private var showAccountMenu = false
     @State private var localDrafts: [SipDraft] = []
     @State private var tasteSignals: [RemoteTasteSignal] = []
+    @State private var selectedReflection: JournalReflectionSummary?
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
+    @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
 
     fileprivate enum JournalFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -142,6 +144,14 @@ struct JournalTabView: View {
                             .padding(.top, 18)
                     }
 
+                    if phase5Reflections, !journalEntries.isEmpty {
+                        JournalReflectionsSection(
+                            entries: journalEntries,
+                            onSelect: { selectedReflection = $0 }
+                        )
+                        .padding(.top, 18)
+                    }
+
                     journalSection
                         .padding(.top, 18)
 
@@ -202,6 +212,12 @@ struct JournalTabView: View {
             }
             .fullScreenCover(item: $selectedLocalVisit) { visit in
                 VisitDetailView(visit: visit, dataManager: dataManager)
+            }
+            .sheet(item: $selectedReflection) { reflection in
+                JournalReflectionDetailView(
+                    reflection: reflection,
+                    milestones: JournalReflectionEngine.milestones(entries: journalEntries)
+                )
             }
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
@@ -289,6 +305,10 @@ struct JournalTabView: View {
                     Text(entry.date.formatted(date: .abbreviated, time: .omitted))
                         .font(.system(size: 12))
                         .foregroundColor(.secondaryText)
+                    Text("Revisit what stood out, with no pressure to add anything new.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.tertiaryText)
+                        .lineLimit(2)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")

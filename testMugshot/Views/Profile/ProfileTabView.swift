@@ -89,15 +89,11 @@ private struct LegacyProfileTabView: View {
             }
     }
 
-    private var streakDays: Int {
-        let dates: [Date]
+    private var homeExperimentCount: Int {
         if authModel.authenticatedUser != nil {
-            dates = remoteProfileVisits.map { $0.visit.createdAtDate }
-        } else {
-            dates = dataManager.appData.visits.map(\.createdAt)
+            return remoteProfileVisits.filter { $0.visit.journalContext != .cafe }.count
         }
-
-        return Self.currentStreak(from: dates)
+        return dataManager.appData.visits.filter { $0.context != .cafe }.count
     }
 
     var body: some View {
@@ -124,7 +120,7 @@ private struct LegacyProfileTabView: View {
                             stats: displayedStats,
                             tasteMix: tasteMix,
                             topCafeName: topCafeName,
-                            streakDays: streakDays
+                            homeExperimentCount: homeExperimentCount
                         )
                     }
                     .padding(16)
@@ -236,7 +232,7 @@ private struct LegacyProfileTabView: View {
                 value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
                 label: "Avg"
             )
-            MugshotStatPill(icon: "flame.fill", value: "\(streakDays)", label: "Streak")
+            MugshotStatPill(icon: "house.fill", value: "\(homeExperimentCount)", label: "Home")
         }
         .padding(.horizontal, 16)
     }
@@ -316,29 +312,6 @@ private struct LegacyProfileTabView: View {
         return trimmed
     }
 
-    private static func currentStreak(from dates: [Date]) -> Int {
-        let calendar = Calendar.current
-        let days = Set(dates.map { calendar.startOfDay(for: $0) })
-        guard !days.isEmpty else { return 0 }
-
-        var cursor = calendar.startOfDay(for: Date())
-        if !days.contains(cursor),
-           let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor),
-           days.contains(yesterday) {
-            cursor = yesterday
-        }
-
-        var count = 0
-        while days.contains(cursor) {
-            count += 1
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else {
-                break
-            }
-            cursor = previous
-        }
-
-        return count
-    }
 }
 
 struct TastePattern: Equatable {
@@ -643,7 +616,7 @@ struct CoffeeJourneyView: View {
     let stats: ProfileStatsDisplay
     let tasteMix: [TastePattern]
     let topCafeName: String?
-    let streakDays: Int
+    let homeExperimentCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -674,7 +647,9 @@ struct CoffeeJourneyView: View {
                     }
                 }
 
-                Text(streakDays > 0 ? "\(streakDays)-day streak. Your taste memory is alive." : "\(stats.totalVisits) logs across \(stats.totalCafes) cafes. Patterns will sharpen as you sip.")
+                Text(homeExperimentCount > 0
+                     ? "\(homeExperimentCount) home experiments now sit beside your cafe memories."
+                     : "\(stats.totalVisits) memories across \(stats.totalCafes) cafes. Your journal is here whenever something stands out.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondaryText)
             }

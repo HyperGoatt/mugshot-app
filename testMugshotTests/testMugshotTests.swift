@@ -2035,6 +2035,128 @@ struct testMugshotTests {
         #expect(Set(SipReaction.allCases.map(\.rawValue)) == ["want_to_try", "great_find", "dialed_in", "cozy"])
     }
 
+    @Test func journalReflectionUsesOnlyCoveredCaffeineEstimates() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let referenceDate = try #require(ISO8601DateFormatter().date(from: "2026-07-15T12:00:00Z"))
+        let entries = [
+            Self.reflectionEntry(
+                drink: "Double cortado", context: "Cafe", score: 4.5,
+                createdAt: "2026-07-03T12:00:00Z", estimatedCaffeine: 126,
+                caffeineCoverage: DrinkAnalysisCoverage.estimated.rawValue
+            ),
+            Self.reflectionEntry(
+                drink: "Washed Ethiopian Chemex", context: "Home", score: 4,
+                createdAt: "2026-07-08T12:00:00Z", estimatedCaffeine: 172,
+                caffeineCoverage: DrinkAnalysisCoverage.estimated.rawValue
+            ),
+            Self.reflectionEntry(
+                drink: "Seasonal special", context: "Cafe", score: 3.5,
+                createdAt: "2026-07-10T12:00:00Z", estimatedCaffeine: nil,
+                caffeineCoverage: DrinkAnalysisCoverage.excluded.rawValue
+            ),
+            Self.reflectionEntry(
+                drink: "June latte", context: "Cafe", score: 3,
+                createdAt: "2026-06-10T12:00:00Z", estimatedCaffeine: 126,
+                caffeineCoverage: DrinkAnalysisCoverage.estimated.rawValue
+            )
+        ]
+
+        let summary = JournalReflectionEngine.summary(
+            for: .month, entries: entries, referenceDate: referenceDate, calendar: calendar
+        )
+
+        #expect(summary.entryCount == 3)
+        #expect(summary.homeExperimentCount == 1)
+        #expect(summary.caffeine?.roundedTotal == 298)
+        #expect(summary.caffeine?.coveredEntries == 2)
+        #expect(summary.caffeine?.totalEntries == 3)
+        #expect(summary.caffeine?.coverageText == "Based on 2 of 3 sips")
+        #expect(summary.ratingChange == 1)
+    }
+
+    @Test func journalReflectionDoesNotInventZeroCaffeineWhenCoverageIsUnknown() {
+        let entry = Self.reflectionEntry(
+            drink: "House special", context: "Cafe", score: 4,
+            createdAt: "2026-07-10T12:00:00Z", estimatedCaffeine: nil,
+            caffeineCoverage: DrinkAnalysisCoverage.excluded.rawValue
+        )
+
+        let summary = JournalReflectionEngine.summary(
+            for: .month,
+            entries: [entry],
+            referenceDate: ISO8601DateFormatter().date(from: "2026-07-15T12:00:00Z") ?? Date()
+        )
+
+        #expect(summary.entryCount == 1)
+        #expect(summary.caffeine == nil)
+    }
+
+    @Test func journalMilestonesRewardMemoryAndLearningInsteadOfConsumptionPressure() {
+        let entries = [
+            Self.reflectionEntry(
+                drink: "V60", context: "Home", score: 4,
+                createdAt: "2026-07-10T12:00:00Z", estimatedCaffeine: nil,
+                caffeineCoverage: DrinkAnalysisCoverage.excluded.rawValue,
+                caption: "Dialed in a calmer finish"
+            ),
+            Self.reflectionEntry(
+                drink: "Morning V60", context: "Recipe", score: 4.5,
+                createdAt: "2026-07-11T12:00:00Z", estimatedCaffeine: nil,
+                caffeineCoverage: DrinkAnalysisCoverage.excluded.rawValue
+            )
+        ]
+
+        let milestones = JournalReflectionEngine.milestones(entries: entries)
+        let combinedCopy = milestones.flatMap { [$0.title, $0.detail] }.joined(separator: " ").lowercased()
+
+        #expect(milestones.contains(where: { $0.id == "first-home" }))
+        #expect(milestones.contains(where: { $0.id == "first-recipe" }))
+        #expect(!combinedCopy.contains("streak"))
+        #expect(!combinedCopy.contains("most drinks"))
+        #expect(!combinedCopy.contains("caffeine goal"))
+    }
+
+    private static func reflectionEntry(
+        drink: String,
+        context: String,
+        score: Double,
+        createdAt: String,
+        estimatedCaffeine: Double?,
+        caffeineCoverage: String,
+        caption: String = ""
+    ) -> JournalEntryProjection {
+        let visitID = UUID()
+        let row = SupabaseVisitRow(
+            id: visitID, userId: UUID(), cafeId: nil,
+            drinkType: "Coffee", drinkTypeCustom: nil, drinkSubtype: drink,
+            caption: caption, notes: nil, visibility: "Private",
+            ratings: ["Overall": score], overallScore: score, posterPhotoURL: nil,
+            contextType: context, locationName: context == "Cafe" ? "Test Cafe" : "Home",
+            cityState: context == "Cafe" ? "Charleston" : nil,
+            brewMethod: context == "Home" || context == "Recipe" ? drink : nil,
+            createdAt: createdAt
+        )
+        let analysis = JournalDrinkAnalysis(
+            visitID: visitID,
+            processingStatus: "complete",
+            preparation: drink,
+            caffeineModifier: nil,
+            estimatedCaffeineMilligrams: estimatedCaffeine,
+            caffeineCalculationBasis: estimatedCaffeine == nil ? nil : "Traditional preparation average",
+            caffeineCoverage: caffeineCoverage,
+            caffeineReferenceVersion: "traditional-averages-1",
+            parserVersion: "local-1",
+            confidence: estimatedCaffeine == nil ? 0.2 : 0.9
+        )
+        return JournalEntryProjection(
+            summary: RemoteVisitSummary(visit: row, cafe: nil),
+            privateNote: nil,
+            isBookmarked: false,
+            drinkAnalysis: analysis
+        )
+    }
+
     @Test func productCopyUsesAsciiCafeSpelling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

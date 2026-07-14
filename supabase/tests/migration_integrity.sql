@@ -24,7 +24,8 @@ begin
     ('expose_caller_bound_phase_4_policies', array['20260714160000','20260714051404']),
     ('close_phase_4_direct_mutations', array['20260714161500','20260714051432']),
     ('sanitize_shared_recipe_payloads', array['20260714163000','20260714051603']),
-    ('add_cafe_list_reordering', array['20260714164500','20260714052754'])
+    ('add_cafe_list_reordering', array['20260714164500','20260714052754']),
+    ('phase_5_reflection_preferences', array['20260714170000','20260714053353'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -209,6 +210,23 @@ begin
   if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then
     raise exception 'canonical cafe resolver grants are incorrect';
+  end if;
+
+  if to_regclass('public.user_reflection_preferences') is null then
+    raise exception 'reflection preferences table is missing';
+  end if;
+  if not (select relrowsecurity from pg_class where oid='public.user_reflection_preferences'::regclass) then
+    raise exception 'reflection preferences RLS is disabled';
+  end if;
+  if has_table_privilege('anon','public.user_reflection_preferences','SELECT')
+     or has_table_privilege('authenticated','public.user_reflection_preferences','INSERT')
+     or has_table_privilege('authenticated','public.user_reflection_preferences','UPDATE') then
+    raise exception 'reflection preference grants are incorrect';
+  end if;
+  if has_function_privilege('anon','public.get_reflection_preferences()','EXECUTE')
+     or not has_function_privilege('authenticated','public.get_reflection_preferences()','EXECUTE')
+     or not has_function_privilege('authenticated','public.set_reflection_preferences(boolean,boolean,boolean,boolean)','EXECUTE') then
+    raise exception 'reflection preference RPC grants are incorrect';
   end if;
 end $$;
 

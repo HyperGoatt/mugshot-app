@@ -28,19 +28,28 @@ final class JournalService {
             .eq("user_id", value: userID.uuidString)
             .execute()
             .value
+        async let analysesRequest: [JournalDrinkAnalysis] = client
+            .from("visit_drink_analyses")
+            .select("visit_id,processing_status,preparation,caffeine_modifier,estimated_caffeine_mg,caffeine_calculation_basis,caffeine_coverage,caffeine_reference_version,parser_version,confidence")
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+            .value
 
-        let (summaries, notes, bookmarks) = try await (
+        let (summaries, notes, bookmarks, analyses) = try await (
             summariesRequest,
             notesRequest,
-            bookmarksRequest
+            bookmarksRequest,
+            analysesRequest
         )
         let notesByVisit = Dictionary(uniqueKeysWithValues: notes.map { ($0.visitID, $0.note) })
         let bookmarkedIDs = Set(bookmarks.map(\.visitID))
+        let analysesByVisit = Dictionary(uniqueKeysWithValues: analyses.map { ($0.visitID, $0) })
         return summaries.map { summary in
             JournalEntryProjection(
                 summary: summary,
                 privateNote: notesByVisit[summary.id],
-                isBookmarked: bookmarkedIDs.contains(summary.id)
+                isBookmarked: bookmarkedIDs.contains(summary.id),
+                drinkAnalysis: analysesByVisit[summary.id]
             )
         }
     }
