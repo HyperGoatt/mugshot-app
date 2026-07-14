@@ -1475,7 +1475,7 @@ struct VisitEntryRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
             
             VStack(alignment: .leading, spacing: 5) {
-                Text(visit.drinkType.rawValue)
+                Text(visit.journalDrinkName)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.espressoBrown)
                     .lineLimit(1)

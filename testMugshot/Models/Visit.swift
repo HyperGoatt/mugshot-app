@@ -125,6 +125,18 @@ struct Visit: Identifiable {
         }
         return photos.first
     }
+
+    /// The journal-facing name always prefers the immutable natural-language
+    /// entry. Legacy visits fall back to their existing custom or family label.
+    var journalDrinkName: String {
+        if let rawText = drinkAnalysis?.rawDrinkName.remoteTrimmedNonEmpty {
+            return rawText
+        }
+        if let customDrinkType = customDrinkType?.remoteTrimmedNonEmpty {
+            return customDrinkType
+        }
+        return drinkType.rawValue
+    }
 }
 
 // Make Visit Codable with custom implementation

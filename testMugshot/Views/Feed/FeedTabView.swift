@@ -53,7 +53,6 @@ struct FeedTabView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
     @State private var selectedVisit: Visit?
-    @State private var showVisitDetail = false
     @State private var selectedCafe: Cafe?
     @State private var showCafeDetail = false
     @State private var remoteVisits: [RemoteVisitSummary] = []
@@ -188,10 +187,8 @@ struct FeedTabView: View {
             }
             .background(Color.creamWhite)
         }
-        .fullScreenCover(isPresented: $showVisitDetail) {
-            if let visit = selectedVisit {
-                VisitDetailView(visit: visit, dataManager: dataManager)
-            }
+        .fullScreenCover(item: $selectedVisit) { visit in
+            VisitDetailView(visit: visit, dataManager: dataManager)
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
@@ -357,6 +354,9 @@ struct FeedTabView: View {
                 visit: visit,
                 dataManager: dataManager,
                 selectedScope: selectedScope,
+                onOpen: {
+                    selectedVisit = visit
+                },
                 onCafeTap: {
                     if let cafe = dataManager.getCafe(id: visit.cafeId) {
                         selectedCafe = cafe
@@ -364,9 +364,9 @@ struct FeedTabView: View {
                     }
                 }
             )
+            .contentShape(Rectangle())
             .onTapGesture {
                 selectedVisit = visit
-                showVisitDetail = true
             }
         }
     }
@@ -381,12 +381,7 @@ struct FeedTabView: View {
 
         return visits.filter { visit in
             let cafeName = dataManager.getCafe(id: visit.cafeId)?.name ?? ""
-            let customDrinkName = visit.customDrinkType?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let drinkName = customDrinkName?.isEmpty == false
-                ? customDrinkName ?? visit.drinkType.rawValue
-                : visit.drinkType.rawValue
-            let searchableText = [drinkName, visit.caption, cafeName]
+            let searchableText = [visit.journalDrinkName, visit.caption, cafeName]
                 .joined(separator: " ")
                 .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             let tokens = query
@@ -947,6 +942,7 @@ struct VisitCard: View {
     let visit: Visit
     @ObservedObject var dataManager: DataManager
     let selectedScope: FeedScope
+    var onOpen: (() -> Void)? = nil
     var onCafeTap: (() -> Void)? = nil
     
     var cafe: Cafe? {
@@ -1121,13 +1117,19 @@ struct VisitCard: View {
 
             Spacer(minLength: 0)
 
-            Text("Open")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.espressoBrown)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.sandBeige.opacity(0.44))
-                .clipShape(Capsule())
+            if let onOpen {
+                Button(action: onOpen) {
+                    Text("Open")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.sandBeige.opacity(0.44))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open sip")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -1140,7 +1142,7 @@ struct VisitCard: View {
     }
 
     private var localDrinkDisplayName: String {
-        visit.customDrinkType ?? visit.drinkType.rawValue
+        visit.journalDrinkName
     }
 
     private func localSocialLabel(value: Int, systemImage: String, isActive: Bool) -> some View {
@@ -1268,12 +1270,7 @@ struct VisitDetailView: View {
     }
 
     private var localDrinkDisplayName: String {
-        if let custom = visit.customDrinkType?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !custom.isEmpty {
-            return custom
-        }
-
-        return visit.drinkType.rawValue
+        visit.journalDrinkName
     }
 
     private var localAuthorName: String {

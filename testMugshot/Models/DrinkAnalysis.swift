@@ -5,6 +5,7 @@ enum SipComposerExperience: String, Codable, CaseIterable, Identifiable {
     case guided
 
     static let storageKey = "MugshotComposer.experience.v1"
+    static let defaultExperience: SipComposerExperience = .guided
 
     var id: String { rawValue }
 

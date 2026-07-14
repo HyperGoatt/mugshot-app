@@ -862,16 +862,25 @@ struct testMugshotTests {
         #expect(RemoteCafeVisitStats.calculate(from: []).averageScore == 0)
     }
 
-    @Test func addVisitValidationRequiresPhotoForEverySavePath() {
-        #expect(!AddVisitValidation.hasRequiredPhoto(photoCount: 0))
-        #expect(AddVisitValidation.hasRequiredPhoto(photoCount: 1))
-        #expect(AddVisitValidation.photoRequiredMessage.contains("photo"))
+    @Test func legacyAddVisitKeepsPhotoAndCaptionOptional() {
+        #expect(AddVisitRequirement.requiredCases == [.cafe, .drink, .rating])
+        #expect(AddVisitRequirement.optionalCases == [.photo, .caption])
     }
 
     @Test func addVisitRequirementSequenceMatchesTheGuidedJournalFlow() {
         #expect(AddVisitRequirement.allCases == [.photo, .cafe, .drink, .rating, .caption])
         #expect(AddVisitRequirement.photo.actionTitle == "Add a photo")
         #expect(AddVisitRequirement.caption.guidance.contains("tasting note"))
+    }
+
+    @Test func guidedComposerIsTheDefaultAndQuickSaveIsPrivate() {
+        #expect(SipComposerExperience.defaultExperience == .guided)
+        #expect(SipPublicationPolicy.requirement(
+            visibility: .private,
+            photoCount: 0,
+            socialCaption: "",
+            confirmedTextOnlyEveryone: false
+        ) == .ready)
     }
 
     @Test func userFacingErrorsNeverExposeTransportCopy() {
@@ -1628,6 +1637,18 @@ struct testMugshotTests {
         #expect(encodedDetails["brewTimeSeconds"] as? Int == 27)
         #expect(details.extractionSummary == "18g in · 36g out · 27 sec")
         #expect(details.recipeDisplayName == "Peru Mocha · v3")
+    }
+
+    @Test func localVisitPrefersImmutableNaturalLanguageDrinkName() {
+        let rawName = "Iced cinnamon and orange cortado"
+        let visit = Visit(
+            cafeId: UUID(),
+            userId: UUID(),
+            drinkType: .coffee,
+            drinkAnalysis: DrinkAnalysisParser.analyze(rawName)
+        )
+
+        #expect(visit.journalDrinkName == rawName)
     }
 
     @Test func tasteIdentityUsesCafeAndHomeJournalEvidence() {

@@ -20,8 +20,11 @@ struct MainTabView: View {
                 .background(Color.creamWhite)
                 .transition(.opacity)
 
-            MugshotBottomNav(selectedTab: $tabCoordinator.selectedTab)
-                .zIndex(1)
+            if tabCoordinator.selectedTab != 2 {
+                MugshotBottomNav(selectedTab: $tabCoordinator.selectedTab)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
         .environmentObject(tabCoordinator)
         .tint(.mugshotSage)

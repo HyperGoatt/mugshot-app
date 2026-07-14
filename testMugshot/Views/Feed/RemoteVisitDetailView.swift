@@ -279,14 +279,21 @@ struct RemoteVisitDetailView: View {
     @ViewBuilder
     private func remotePhotoPager(_ detail: RemoteVisitDetail) -> some View {
         if detail.photoURLs.isEmpty {
-            Color.sandBeige.opacity(0.64)
+            LinearGradient(
+                colors: [
+                    Color.darkRoast,
+                    Color.roastBrown,
+                    Color.mugshotSage.opacity(0.84)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .overlay {
-                    MugshotLegacySipHero(
-                        title: detail.summary.visit.drinkDisplayName,
-                        subtitle: detail.summary.locationTitle,
-                        score: detail.summary.visit.overallScore
-                    )
-                    .padding(20)
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 76, weight: .semibold))
+                        .foregroundColor(.creamWhite.opacity(0.12))
+                        .offset(y: -44)
+                        .accessibilityHidden(true)
                 }
         } else {
             TabView(selection: $selectedPhotoIndex) {

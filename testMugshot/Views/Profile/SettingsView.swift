@@ -47,7 +47,7 @@ struct SettingsView: View {
     @State private var copiedSupportEmail = false
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
 #if DEBUG
-    @AppStorage(SipComposerExperience.storageKey) private var sipComposerExperienceRaw = SipComposerExperience.longForm.rawValue
+    @AppStorage(SipComposerExperience.storageKey) private var sipComposerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
 #endif
 
     private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
@@ -246,7 +246,7 @@ struct SettingsView: View {
 
     private var sipComposerExperienceBinding: Binding<SipComposerExperience> {
         Binding(
-            get: { SipComposerExperience(rawValue: sipComposerExperienceRaw) ?? .longForm },
+            get: { SipComposerExperience(rawValue: sipComposerExperienceRaw) ?? .defaultExperience },
             set: { sipComposerExperienceRaw = $0.rawValue }
         )
     }

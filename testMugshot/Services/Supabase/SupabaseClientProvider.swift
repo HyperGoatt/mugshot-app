@@ -19,10 +19,12 @@ final class SupabaseClientProvider {
         let configuration = try SupabaseConfiguration.load()
         let client = SupabaseClient(
             supabaseURL: configuration.url,
-            supabaseKey: configuration.publishableKey
+            supabaseKey: configuration.publishableKey,
+            options: SupabaseClientOptions(
+                auth: .init(emitLocalSessionAsInitialSession: true)
+            )
         )
         cachedClient = client
         return client
     }
 }
-

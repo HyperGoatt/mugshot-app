@@ -167,78 +167,107 @@ Deno.serve(async (request) => {
   const payload = await request.json().catch(() => null) as { visit_id?: string } | null;
   if (!payload?.visit_id) return json({ error: "visit_id_required" }, 400);
 
+  const { data: current } = await admin.from("visit_drink_analyses")
+    .select("user_overrides,attempt_count")
+    .eq("visit_id", payload.visit_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const attemptCount = Math.max(Number(current?.attempt_count ?? 0), 0);
+  const markFailure = async (code: string) => {
+    await admin.from("visit_drink_analyses")
+      .update({
+        processing_status: "failed",
+        attempt_count: attemptCount + 1,
+        last_attempt_at: new Date().toISOString(),
+        last_error_code: code,
+        next_retry_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("visit_id", payload.visit_id)
+      .eq("user_id", user.id);
+  };
+
   const { data: visit, error: visitError } = await admin.from("visits")
     .select("id,user_id,drink_subtype,drink_type_custom,drink_type,brew_details")
     .eq("id", payload.visit_id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (visitError) return json({ error: "analysis_unavailable" }, 503);
-  if (!visit) return json({ error: "not_found" }, 404);
-
-  const { data: current } = await admin.from("visit_drink_analyses")
-    .select("user_overrides")
-    .eq("visit_id", visit.id)
-    .maybeSingle();
-  const overrides = (current?.user_overrides ?? {}) as Record<string, unknown>;
-  const raw = String(visit.drink_subtype || visit.drink_type_custom || visit.drink_type || "Drink").trim();
-  const value = normalized(raw);
-  const inferredPreparation = preparation(value);
-  const prep = String(overrides.preparation ?? inferredPreparation) as Preparation;
-  const servingFromVisit = Number(visit.brew_details?.servingVolumeMilliliters);
-  const explicitServing = Number(overrides.serving_volume_ml ?? servingFromVisit);
-  const serving = Number.isFinite(explicitServing) && explicitServing > 0 ? explicitServing : null;
-  const shotFromVisit = Number(visit.brew_details?.espressoShotCount);
-  const explicitShots = Number(overrides.espresso_shot_count ?? shotFromVisit);
-  const shots = shotCount(value, prep, Number.isInteger(explicitShots) ? explicitShots : null);
-  const caffeineModifier = modifier(value);
-  const estimate = caffeine(prep, caffeineModifier, shots, serving);
-  const milk = milkTerms.find((term) => value.includes(term)) ?? null;
-  const flavors = flavorTerms.filter((term) => value.includes(term));
-  const signals = new Set<string>();
-  const resolvedTemperature = String(overrides.temperature ?? temperature(value, prep));
-  if (resolvedTemperature !== "hot") signals.add("chooses_cold_drinks");
-  if (milk) signals.add("chooses_milk_drinks");
-  if (flavors.length) signals.add("chooses_flavored_drinks");
-  if (flavorTerms.slice(0, 6).some((term) => value.includes(term))) {
-    signals.add("chooses_fruit_flavors");
-    signals.add("chooses_sweet_flavors");
-  }
-  if (["syrup", "sugar", "sweet", "honey", "caramel", "vanilla"].some((term) => value.includes(term))) {
-    signals.add("chooses_sweetened_drinks");
-  }
-
-  const row = {
-    visit_id: visit.id,
-    user_id: visit.user_id,
-    raw_drink_name: raw,
-    raw_drink_hash: await sha256(value),
-    analysis_schema_version: 1,
-    parser_version: "edge-rules-1",
-    caffeine_reference_version: "traditional-averages-1",
-    processing_status: "complete",
-    canonical_family: String(overrides.canonical_family ?? family(prep, value)),
-    preparation: prep,
-    temperature: resolvedTemperature,
-    caffeine_modifier: caffeineModifier,
-    espresso_shot_count: shots,
-    serving_volume_ml: serving,
-    estimated_caffeine_mg: estimate?.milligrams ?? null,
-    caffeine_calculation_basis: estimate?.basis ?? null,
-    caffeine_coverage: estimate ? "estimated" : "excluded",
-    preference_signals: Array.from(signals).sort(),
-    confidence: prep === "unknown" ? 0.25 : 0.9,
-    provenance: "edge_rules",
-    model_output: { milk, flavors },
-    user_overrides: overrides,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error: upsertError } = await admin.from("visit_drink_analyses")
-    .upsert(row, { onConflict: "visit_id" });
-  if (upsertError) {
-    console.error("drink analysis upsert failed", upsertError);
+  if (visitError) {
+    await markFailure("visit_lookup_failed");
     return json({ error: "analysis_unavailable" }, 503);
   }
+  if (!visit) return json({ error: "not_found" }, 404);
 
-  return json({ accepted: true });
+  try {
+    const overrides = (current?.user_overrides ?? {}) as Record<string, unknown>;
+    const raw = String(visit.drink_subtype || visit.drink_type_custom || visit.drink_type || "Drink").trim();
+    const value = normalized(raw);
+    const inferredPreparation = preparation(value);
+    const prep = String(overrides.preparation ?? inferredPreparation) as Preparation;
+    const servingFromVisit = Number(visit.brew_details?.servingVolumeMilliliters);
+    const explicitServing = Number(overrides.serving_volume_ml ?? servingFromVisit);
+    const serving = Number.isFinite(explicitServing) && explicitServing > 0 ? explicitServing : null;
+    const shotFromVisit = Number(visit.brew_details?.espressoShotCount);
+    const explicitShots = Number(overrides.espresso_shot_count ?? shotFromVisit);
+    const shots = shotCount(value, prep, Number.isInteger(explicitShots) ? explicitShots : null);
+    const caffeineModifier = modifier(value);
+    const estimate = caffeine(prep, caffeineModifier, shots, serving);
+    const milk = milkTerms.find((term) => value.includes(term)) ?? null;
+    const flavors = flavorTerms.filter((term) => value.includes(term));
+    const signals = new Set<string>();
+    const resolvedTemperature = String(overrides.temperature ?? temperature(value, prep));
+    if (resolvedTemperature !== "hot") signals.add("chooses_cold_drinks");
+    if (milk) signals.add("chooses_milk_drinks");
+    if (flavors.length) signals.add("chooses_flavored_drinks");
+    if (flavorTerms.slice(0, 6).some((term) => value.includes(term))) {
+      signals.add("chooses_fruit_flavors");
+      signals.add("chooses_sweet_flavors");
+    }
+    if (["syrup", "sugar", "sweet", "honey", "caramel", "vanilla"].some((term) => value.includes(term))) {
+      signals.add("chooses_sweetened_drinks");
+    }
+
+    const row = {
+      visit_id: visit.id,
+      user_id: visit.user_id,
+      raw_drink_name: raw,
+      raw_drink_hash: await sha256(value),
+      analysis_schema_version: 1,
+      parser_version: "edge-rules-2",
+      caffeine_reference_version: "traditional-averages-1",
+      processing_status: "complete",
+      canonical_family: String(overrides.canonical_family ?? family(prep, value)),
+      preparation: prep,
+      temperature: resolvedTemperature,
+      caffeine_modifier: caffeineModifier,
+      espresso_shot_count: shots,
+      serving_volume_ml: serving,
+      estimated_caffeine_mg: estimate?.milligrams ?? null,
+      caffeine_calculation_basis: estimate?.basis ?? null,
+      caffeine_coverage: estimate ? "estimated" : "excluded",
+      preference_signals: Array.from(signals).sort(),
+      confidence: prep === "unknown" ? 0.25 : 0.9,
+      provenance: "edge_rules",
+      model_output: { milk, flavors },
+      user_overrides: overrides,
+      attempt_count: attemptCount + 1,
+      last_attempt_at: new Date().toISOString(),
+      last_error_code: null,
+      next_retry_at: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: upsertError } = await admin.from("visit_drink_analyses")
+      .upsert(row, { onConflict: "visit_id" });
+    if (upsertError) {
+      console.error("drink analysis upsert failed", upsertError.code);
+      await markFailure("analysis_upsert_failed");
+      return json({ error: "analysis_unavailable" }, 503);
+    }
+
+    return json({ accepted: true });
+  } catch {
+    await markFailure("analysis_exception");
+    return json({ error: "analysis_unavailable" }, 503);
+  }
 });

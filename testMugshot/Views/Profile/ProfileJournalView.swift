@@ -10,6 +10,7 @@ struct ProfileTabView: View {
     @State private var showSettings = false
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var selectedLocalVisit: Visit?
     @State private var remoteVisits: [RemoteVisitSummary] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -44,6 +45,19 @@ struct ProfileTabView: View {
                 }
             }
             .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+    }
+
+    private var filteredLocalVisits: [Visit] {
+        dataManager.appData.visits
+            .filter { visit in
+                switch selectedFilter {
+                case .all: return true
+                case .cafe: return visit.context == .cafe
+                case .home: return visit.context == .home
+                case .recipes: return visit.context == .recipe
+                }
+            }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     private var featuredVisit: RemoteVisitSummary? {
@@ -108,6 +122,9 @@ struct ProfileTabView: View {
                     currentUserId: authModel.authenticatedUser?.id,
                     dataManager: dataManager
                 )
+            }
+            .fullScreenCover(item: $selectedLocalVisit) { visit in
+                VisitDetailView(visit: visit, dataManager: dataManager)
             }
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
@@ -197,19 +214,35 @@ struct ProfileTabView: View {
                     .mugshotDisplay(size: 30)
                     .foregroundColor(.espressoBrown)
                 Spacer()
-                Button("See all") {
-                    showJournalArchive = true
+                if authModel.authenticatedUser != nil {
+                    Button("See all") {
+                        showJournalArchive = true
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .buttonStyle(.plain)
                 }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotSage)
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
 
             JournalFilterBar(selection: $selectedFilter)
                 .padding(.horizontal, 16)
 
-            if isLoading && remoteVisits.isEmpty {
+            if authModel.authenticatedUser == nil, !filteredLocalVisits.isEmpty {
+                VStack(spacing: 12) {
+                    ForEach(Array(filteredLocalVisits.prefix(3))) { visit in
+                        VisitCard(
+                            visit: visit,
+                            dataManager: dataManager,
+                            selectedScope: .friends,
+                            onOpen: { selectedLocalVisit = visit }
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedLocalVisit = visit }
+                    }
+                }
+                .padding(.horizontal, 16)
+            } else if isLoading && remoteVisits.isEmpty {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text("Opening your journal…")
@@ -255,6 +288,13 @@ struct ProfileTabView: View {
     }
 
     private var profileSummaryLine: String {
+        if authModel.authenticatedUser == nil {
+            let visits = dataManager.appData.visits
+            let uniqueCafes = Set(visits.filter { $0.context == .cafe }.map(\.cafeId)).count
+            let averageScore = visits.isEmpty ? 0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
+            let average = averageScore > 0 ? String(format: "%.1f average", averageScore) : "taste still forming"
+            return "\(visits.count) journal entries  ·  \(uniqueCafes) cafes  ·  \(average)"
+        }
         let average = profileStats.averageScore > 0 ? String(format: "%.1f average", profileStats.averageScore) : "taste still forming"
         return "\(profileStats.totalVisits) journal entries  ·  \(profileStats.totalCafes) cafes  ·  \(average)"
     }

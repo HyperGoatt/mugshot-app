@@ -28,6 +28,11 @@ do $$ begin
     select 1 from public.visit_drink_analyses
     where visit_id = (select visit_id from drink_analysis_test_visit)
   ) then raise exception 'owner cannot read seeded drink analysis'; end if;
+  if exists (
+    select 1 from public.visit_drink_analyses
+    where attempt_count < 0
+       or (processing_status = 'failed' and last_error_code is null)
+  ) then raise exception 'drink analysis retry metadata is inconsistent'; end if;
 end $$;
 
 select public.request_visit_drink_analysis_correction(

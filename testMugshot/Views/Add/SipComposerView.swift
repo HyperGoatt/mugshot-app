@@ -3,6 +3,7 @@ import CoreLocation
 import MapKit
 import SwiftUI
 import Supabase
+import UIKit
 
 struct LogVisitView: View {
     @ObservedObject var dataManager: DataManager
@@ -12,7 +13,7 @@ struct LogVisitView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.longForm.rawValue
+    @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
 
     @StateObject private var composerModel: SipComposerModel
     @State private var photoImages: [UIImage] = []
@@ -44,7 +45,11 @@ struct LogVisitView: View {
     )
 
     private var composerExperience: SipComposerExperience {
-        SipComposerExperience(rawValue: composerExperienceRaw) ?? .longForm
+#if DEBUG
+        SipComposerExperience(rawValue: composerExperienceRaw) ?? .defaultExperience
+#else
+        .guided
+#endif
     }
 
     private var draft: SipDraft {
@@ -52,10 +57,38 @@ struct LogVisitView: View {
         nonmutating set { composerModel.draft = newValue }
     }
 
+    private var primaryContext: Binding<JournalEntryContext> {
+        Binding(
+            get: { draft.context == .cafe ? .cafe : .home },
+            set: { draft.context = $0 }
+        )
+    }
+
+    private var homeUsesRecipe: Binding<Bool> {
+        Binding(
+            get: { draft.context == .recipe },
+            set: { draft.context = $0 ? .recipe : .home }
+        )
+    }
+
     init(dataManager: DataManager, preselectedCafe: Cafe? = nil) {
         self.dataManager = dataManager
         self.preselectedCafe = preselectedCafe
-        var initial = SipDraft(
+        _composerModel = StateObject(wrappedValue: SipComposerModel(
+            draft: Self.initialDraft(
+                dataManager: dataManager,
+                preselectedCafe: preselectedCafe
+            )
+        ))
+    }
+
+    private static func initialDraft(
+        dataManager: DataManager,
+        preselectedCafe: Cafe?,
+        ownerUserID: UUID? = nil
+    ) -> SipDraft {
+        var draft = SipDraft(
+            ownerUserID: ownerUserID,
             launchContext: SipComposerLaunchContext(
                 source: preselectedCafe == nil ? .centralAdd : .cafeDetail,
                 preselectedCafe: preselectedCafe
@@ -63,8 +96,8 @@ struct LogVisitView: View {
             cafe: preselectedCafe,
             visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
         )
-        initial.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
-        _composerModel = StateObject(wrappedValue: SipComposerModel(draft: initial))
+        draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
+        return draft
     }
 
     var body: some View {
@@ -242,16 +275,19 @@ struct LogVisitView: View {
                     locationCard
                 case .drink:
                     drinkCard
+                    memoryCard
+                    if draft.context == .cafe {
+                        guidedCafeContextCard
+                    }
                 case .rating:
                     overallRatingCard
                     Button(action: openMemoryStep) {
-                        Label("Add to the memory", systemImage: "plus.circle.fill")
+                        Label("Add optional details", systemImage: "plus.circle.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(SecondaryButtonStyle())
                 case .memory:
-                    memoryCard
-                    detailContent
+                    guidedDetailContent
                     visibilityCard
                 }
 
@@ -263,6 +299,7 @@ struct LogVisitView: View {
             .containerRelativeFrame(.horizontal)
         }
         .scrollDismissesKeyboard(.interactively)
+        .id(draft.resolvedGuidedStep)
     }
 
     @ViewBuilder
@@ -316,28 +353,38 @@ struct LogVisitView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(draft.resolvedGuidedStep.number) of 4")
+        .accessibilityRespondsToUserInteraction(false)
     }
 
     private var contextCard: some View {
         SipComposerCard(step: "01", title: "Where are you sipping?", subtitle: contextSubtitle) {
             MugshotSegmentedControl(
-                options: JournalEntryContext.allCases,
-                selection: $composerModel.draft.context,
+                options: [.cafe, .home],
+                selection: primaryContext,
                 title: { $0.rawValue },
                 icon: { $0.systemImage }
             )
 
-            if draft.context == .home {
+            if draft.context != .cafe {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("How are you brewing?")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+
+                    MugshotSegmentedControl(
+                        options: [false, true],
+                        selection: homeUsesRecipe,
+                        title: { $0 ? "Recipe" : "One-time brew" },
+                        icon: { $0 ? "book.pages.fill" : "clock.arrow.circlepath" }
+                    )
+                }
+
                 contextExplainer(
-                    icon: "clock.arrow.circlepath",
-                    title: "Home is an attempt",
-                    text: "A timestamped brew you can compare with every other try."
-                )
-            } else if draft.context == .recipe {
-                contextExplainer(
-                    icon: "book.pages.fill",
-                    title: "Recipe is a reusable blueprint",
-                    text: "This sip is saved now, while its named version can start a fresh Home brew later."
+                    icon: draft.context == .recipe ? "book.pages.fill" : "clock.arrow.circlepath",
+                    title: draft.context == .recipe ? "Recipe is a reusable blueprint" : "Home is an attempt",
+                    text: draft.context == .recipe
+                        ? "Save this sip with a named version you can brew again later."
+                        : "Keep this brew independent so you can compare it with every other try."
                 )
             }
         }
@@ -368,9 +415,15 @@ struct LogVisitView: View {
 
     private var drinkCard: some View {
         SipComposerCard(step: "02", title: "What did you drink?", subtitle: "Say it naturally. Mugshot organizes the details for your journal.") {
-            TextField("Iced cinnamon and orange cortado", text: $composerModel.draft.drinkName)
+            TextField(
+                "Iced cinnamon and orange cortado",
+                text: $composerModel.draft.drinkName,
+                axis: .vertical
+            )
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.continue)
+                .lineLimit(1...3)
+                .accessibilityIdentifier("sipComposer.drinkName")
                 .mugshotFormField()
 
             Text("Try the full order name—temperature, milk, flavor, preparation, or shot count can all live here.")
@@ -386,6 +439,7 @@ struct LogVisitView: View {
 
             if draft.captureMode == .quickSip {
                 HalfStepStarRating(value: $composerModel.draft.overallScore, label: "Overall sip rating")
+                    .accessibilityIdentifier("sipComposer.overallRating")
 
                 HStack {
                     Text(draft.overallScore > 0 ? scoreLabel : "Tap a half or whole star")
@@ -447,6 +501,7 @@ struct LogVisitView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("sipComposer.ratingMode.\(mode == .quickSip ? "quick" : "lens")")
     }
 
     private var personalRatingContent: some View {
@@ -529,8 +584,8 @@ struct LogVisitView: View {
     }
 
     private var memoryCard: some View {
-        SipComposerCard(step: nil, title: "A little more, if you want", subtitle: "Both are optional for a private journal entry.") {
-            HStack(spacing: 12) {
+        SipComposerCard(step: nil, title: "Make it memorable", subtitle: "A photo and one-line thought are optional.") {
+            HStack(alignment: .top, spacing: 12) {
                 Button { showPhotoSourceDialog = true } label: {
                     HStack(spacing: 8) {
                         Image(systemName: photoImages.isEmpty ? "camera.fill" : "photo.stack.fill")
@@ -546,9 +601,11 @@ struct LogVisitView: View {
                 }
                 .buttonStyle(.plain)
 
-                TextField("One-line thought", text: $composerModel.draft.socialCaption)
-                    .lineLimit(1)
+                TextField("One-line thought", text: $composerModel.draft.socialCaption, axis: .vertical)
+                    .lineLimit(1...2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .mugshotFormField()
+                    .accessibilityIdentifier("sipComposer.socialCaption")
             }
 
             if !photoImages.isEmpty {
@@ -575,6 +632,36 @@ struct LogVisitView: View {
                 }
             }
         }
+    }
+
+    private var guidedCafeContextCard: some View {
+        SipComposerCard(
+            step: nil,
+            title: "Tags and company",
+            subtitle: "Optional context that helps this sip feel like yours."
+        ) {
+            TextField("Tags, separated by commas", text: arrayBinding(\.tags))
+                .mugshotFormField()
+
+            TextField("Who you shared it with, separated by commas", text: arrayBinding(\.companions))
+                .mugshotFormField()
+        }
+    }
+
+    @ViewBuilder
+    private var guidedDetailContent: some View {
+        servingDetailsCard
+
+        switch draft.context {
+        case .cafe:
+            EmptyView()
+        case .home:
+            homeDetailsCard(includeRecipe: false)
+        case .recipe:
+            homeDetailsCard(includeRecipe: true)
+        }
+
+        privateNotesCard
     }
 
     @ViewBuilder
@@ -626,15 +713,11 @@ struct LogVisitView: View {
     }
 
     private var cafeDetailsCard: some View {
-        SipComposerCard(step: nil, title: "Cafe details", subtitle: "Order, company, and the parts of the experience you want to remember.") {
-            TextField("Order notes", text: $composerModel.draft.orderNotes, axis: .vertical)
-                .lineLimit(2...4)
-                .mugshotFormField()
-
+        SipComposerCard(step: nil, title: "Tags and company", subtitle: "Optional context that helps this sip feel like yours.") {
             TextField("Tags, separated by commas", text: arrayBinding(\.tags))
                 .mugshotFormField()
 
-            TextField("Who were you with?", text: arrayBinding(\.companions))
+            TextField("Who you shared it with, separated by commas", text: arrayBinding(\.companions))
                 .mugshotFormField()
         }
     }
@@ -752,6 +835,7 @@ struct LogVisitView: View {
             TextField("What do you want only yourself to remember?", text: $composerModel.draft.privateNotes, axis: .vertical)
                 .lineLimit(3...7)
                 .mugshotFormField()
+                .accessibilityIdentifier("sipComposer.privateNotes")
 
             Label("Only you", systemImage: "lock.fill")
                 .font(.system(size: 12, weight: .bold))
@@ -890,7 +974,7 @@ struct LogVisitView: View {
 
     private var guidedSubtitle: String {
         switch draft.resolvedGuidedStep {
-        case .context: return "Start with the setting: Cafe, Home, or a reusable Recipe."
+        case .context: return "Start with Cafe or Home. Recipes live inside Home when you need one."
         case .drink: return "Use the order name you will recognize later."
         case .rating: return "Choose one quick score or open your personal tasting lens."
         case .memory: return "Everything here is optional. Save only the details worth remembering."
@@ -906,7 +990,7 @@ struct LogVisitView: View {
     private var visibilitySubtitle: String {
         switch draft.context {
         case .cafe: return "Cafe sips remember your last audience choice."
-        case .home, .recipe: return "Home and Recipe begin Private every time."
+        case .home, .recipe: return "Home sips begin Private every time."
         }
     }
 
@@ -922,6 +1006,7 @@ struct LogVisitView: View {
     private var saveButtonTitle: String {
         if isSaving { return photoImages.isEmpty ? "Saving sip…" : "Saving photos…" }
         if pendingSubmission != nil { return "Retry same sip" }
+        if uploadRecoveryMessage != nil { return "Retry save" }
         return "Save sip"
     }
 
@@ -957,7 +1042,7 @@ struct LogVisitView: View {
                         Text(guidedPrimaryTitle)
                         Spacer()
                         if draft.resolvedGuidedStep == .rating || draft.resolvedGuidedStep == .memory {
-                            Text(draft.visibility.rawValue)
+                            Text(guidedSaveVisibility.rawValue)
                                 .font(.system(size: 12, weight: .bold))
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 5)
@@ -970,6 +1055,7 @@ struct LogVisitView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(isSaving || !canPerformGuidedPrimaryAction)
+                .accessibilityIdentifier("sipComposer.primaryAction")
             }
 
             Text(guidedFooterHint)
@@ -1004,9 +1090,23 @@ struct LogVisitView: View {
             draft.ownerUserID = authModel.authenticatedUser?.id
             draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         }
+#if DEBUG
+        if MugshotLaunchEnvironment.shouldSeedUITestPhoto, photoImages.isEmpty {
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96))
+            let fixturePhoto = renderer.image { context in
+                UIColor(red: 0.36, green: 0.49, blue: 0.40, alpha: 1).setFill()
+                context.fill(CGRect(origin: .zero, size: CGSize(width: 96, height: 96)))
+            }
+            photoImages = [fixturePhoto]
+        }
+#endif
         draft.composerExperience = composerExperience
         if draft.guidedStep == nil { draft.guidedStep = .context }
         refreshDrinkAnalysis()
+
+        if draft.uploadState == .failed, uploadRecoveryMessage == nil {
+            uploadRecoveryMessage = "Your last save was interrupted. Retry continues the same sip and photos."
+        }
 
         if let userID = authModel.authenticatedUser?.id,
            let pending = PendingVisitSubmissionStore.shared.load(userId: userID) {
@@ -1050,8 +1150,12 @@ struct LogVisitView: View {
     }
 
     private func saveSip() {
+        SipSaveDiagnostics.record(.requested, draftID: draft.id, visitID: pendingSubmission?.id)
         errorMessage = validationMessage
-        guard errorMessage == nil else { return }
+        guard errorMessage == nil else {
+            SipSaveDiagnostics.record(.validationBlocked, draftID: draft.id, visitID: pendingSubmission?.id)
+            return
+        }
 
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
@@ -1059,9 +1163,25 @@ struct LogVisitView: View {
             socialCaption: draft.socialCaption,
             confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
         ) == .needsTextOnlyConfirmation {
+            SipSaveDiagnostics.record(.awaitingTextOnlyConfirmation, draftID: draft.id, visitID: pendingSubmission?.id)
             showTextOnlyConfirmation = true
             return
         }
+
+#if DEBUG
+        if MugshotLaunchEnvironment.consumeAuthenticationInterruption() {
+            persistDraft()
+            errorMessage = "Sign back in to save. Your draft will stay here."
+            return
+        }
+        if MugshotLaunchEnvironment.consumeForcedSaveFailure() {
+            draft.uploadState = .failed
+            persistDraft()
+            uploadRecoveryMessage = "The network interrupted this save. Retry continues the same sip and photos."
+            errorMessage = "We couldn’t finish this save. Your sip is safe—try again."
+            return
+        }
+#endif
 
         if draft.context == .cafe {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
@@ -1111,6 +1231,7 @@ struct LogVisitView: View {
     private func saveLocal() {
         guard let userID = dataManager.appData.currentUser?.id else { return }
         isSaving = true
+        SipSaveDiagnostics.record(.localSaveStarted, draftID: draft.id)
 
         let cafe = draft.cafe ?? dataManager.findOrCreateCafe(
             named: draft.locationName.remoteTrimmedNonEmpty ?? draft.context.locationFallback
@@ -1142,13 +1263,14 @@ struct LogVisitView: View {
             mentions: MentionParser.parseMentions(from: draft.socialCaption)
         )
         dataManager.addVisit(visit)
-        completeSuccessfulSave()
+        completeSuccessfulSave(visitID: visit.id)
     }
 
     @MainActor
     private func saveRemote(authenticatedUser: AuthenticatedUser) async {
         isSaving = true
         errorMessage = nil
+        SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
 
         do {
             let client = try SupabaseClientProvider.shared.client()
@@ -1180,6 +1302,7 @@ struct LogVisitView: View {
                     posterPhotoIndex: draft.posterPhotoIndex
                 )
                 self.pendingSubmission = submission
+                SipSaveDiagnostics.record(.submissionPrepared, draftID: draft.id, visitID: submission.id)
             }
 
             if submission.phase == .prepared {
@@ -1206,9 +1329,16 @@ struct LogVisitView: View {
                 submission.phase = .visitCreated
                 try pendingStore.save(submission)
                 self.pendingSubmission = submission
+                SipSaveDiagnostics.record(.visitCreated, draftID: draft.id, visitID: submission.id)
             }
 
             if submission.phase < .photosUploaded {
+#if DEBUG
+                if !submission.objectPaths.isEmpty,
+                   MugshotLaunchEnvironment.consumeRemotePhotoUploadFailure() {
+                    throw URLError(.networkConnectionLost)
+                }
+#endif
                 let images = try pendingStore.loadImages(for: submission)
                 let result = try await VisitPhotoUploadService(client: client).uploadPhotos(
                     userId: submission.userId,
@@ -1222,6 +1352,7 @@ struct LogVisitView: View {
                 submission.phase = .photosUploaded
                 try pendingStore.save(submission)
                 self.pendingSubmission = submission
+                SipSaveDiagnostics.record(.photosUploaded, draftID: draft.id, visitID: submission.id)
             }
 
             let urls = submission.uploadedPhotoURLs ?? []
@@ -1235,6 +1366,7 @@ struct LogVisitView: View {
                 userId: submission.userId,
                 visibility: submission.visibility
             )
+            SipSaveDiagnostics.record(.visitFinalized, draftID: draft.id, visitID: submission.id)
 
             DrinkAnalysisRetryStore.shared.enqueue(
                 visitId: submission.id,
@@ -1246,6 +1378,7 @@ struct LogVisitView: View {
                     userId: submission.userId
                 )
             }
+            SipSaveDiagnostics.record(.analysisQueued, draftID: draft.id, visitID: submission.id)
 
             if let cafeID = attached.cafe?.id {
                 try? await CafeStateService(client: client).clearWantToTryAfterVisit(
@@ -1258,9 +1391,10 @@ struct LogVisitView: View {
             self.pendingSubmission = nil
             uploadRecoveryMessage = nil
             dataManager.noteJournalMutation()
-            completeSuccessfulSave()
+            completeSuccessfulSave(visitID: submission.id)
         } catch {
             isSaving = false
+            SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: pendingSubmission?.id)
             draft.uploadState = .failed
             persistDraft()
             if let pendingSubmission {
@@ -1278,12 +1412,27 @@ struct LogVisitView: View {
     }
 
     @MainActor
-    private func completeSuccessfulSave() {
+    private func completeSuccessfulSave(visitID: UUID) {
         isSaving = false
+        SipSaveDiagnostics.record(.completed, draftID: draft.id, visitID: visitID)
         if draft.context == .cafe {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
         }
         SipDraftStore.shared.remove(draft)
+        var replacement = Self.initialDraft(
+            dataManager: dataManager,
+            preselectedCafe: nil,
+            ownerUserID: authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+        )
+        replacement.composerExperience = composerExperience
+        composerModel.draft = replacement
+        photoImages.removeAll()
+        searchText = ""
+        isCafeSearchActive = false
+        confirmedTextOnlyEveryone = false
+        showTextOnlyConfirmation = false
+        pendingSubmission = nil
+        uploadRecoveryMessage = nil
         withAnimation(DesignSystem.Motion.base) { showSavedConfirmation = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
             tabCoordinator.returnFromComposer(fallback: 4)
@@ -1330,7 +1479,11 @@ struct LogVisitView: View {
         case .drink:
             guard draft.drinkName.remoteTrimmedNonEmpty != nil else { return }
             moveToGuidedStep(.rating)
-        case .rating, .memory:
+        case .rating:
+            draft.visibility = .private
+            confirmedTextOnlyEveryone = false
+            saveSip()
+        case .memory:
             saveSip()
         }
     }
@@ -1359,22 +1512,29 @@ struct LogVisitView: View {
     private var guidedPrimaryTitle: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "Continue"
-        case .rating, .memory: return saveButtonTitle
+        case .rating:
+            return isSaving || pendingSubmission != nil ? saveButtonTitle : "Save privately now"
+        case .memory: return saveButtonTitle
         }
     }
 
     private var guidedPrimaryIcon: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "arrow.right"
-        case .rating, .memory: return "checkmark"
+        case .rating: return "lock.fill"
+        case .memory: return "checkmark"
         }
+    }
+
+    private var guidedSaveVisibility: VisitVisibility {
+        draft.resolvedGuidedStep == .rating ? .private : draft.visibility
     }
 
     private var guidedFooterHint: String {
         switch draft.resolvedGuidedStep {
         case .context: return "Your draft is saved as you go."
         case .drink: return "Mugshot will organize this in the background."
-        case .rating: return "Save now, or add more to the memory."
+        case .rating: return "Save this privately now, or add details and choose an audience."
         case .memory: return "Optional details never block a private save."
         }
     }

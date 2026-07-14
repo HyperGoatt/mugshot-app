@@ -1180,7 +1180,7 @@ struct VisitRow: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                     
-                    Text(visit.drinkType.rawValue)
+                    Text(visit.journalDrinkName)
                         .font(.system(size: 12))
                         .foregroundColor(.secondaryText)
                 }

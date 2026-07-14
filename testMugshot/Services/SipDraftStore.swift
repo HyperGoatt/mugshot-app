@@ -120,6 +120,12 @@ final class SipDraftStore {
         }
     }
 
+#if DEBUG
+    func removeAllForTesting() {
+        try? fileManager.removeItem(at: baseDirectory)
+    }
+#endif
+
     private func directory(for draftID: UUID) -> URL {
         baseDirectory.appendingPathComponent(draftID.uuidString.lowercased(), isDirectory: true)
     }
@@ -165,14 +171,14 @@ final class CafeVisibilityPreferenceStore {
     static let shared = CafeVisibilityPreferenceStore()
 
     private let defaults: UserDefaults
-    private let valueKey = "MugshotComposer.lastCafeVisibility.v1"
+    static let valueKey = "MugshotComposer.lastCafeVisibility.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
     var defaultCafeVisibility: VisitVisibility {
-        guard let rawValue = defaults.string(forKey: valueKey),
+        guard let rawValue = defaults.string(forKey: Self.valueKey),
               let visibility = VisitVisibility(rawValue: rawValue) else {
             return .friends
         }
@@ -180,7 +186,7 @@ final class CafeVisibilityPreferenceStore {
     }
 
     func rememberCafeVisibility(_ visibility: VisitVisibility) {
-        defaults.set(visibility.rawValue, forKey: valueKey)
+        defaults.set(visibility.rawValue, forKey: Self.valueKey)
     }
 }
 

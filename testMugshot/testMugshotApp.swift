@@ -10,10 +10,18 @@ import UIKit
 
 @main
 struct testMugshotApp: App {
-    @StateObject private var dataManager = DataManager.shared
+    @StateObject private var dataManager: DataManager
     
     init() {
         PerformanceMonitor.mark("App init")
+        let manager = DataManager.shared
+#if DEBUG
+        MugshotLaunchEnvironment.prepareDebugFailureHooks()
+        if MugshotLaunchEnvironment.isUITesting {
+            manager.prepareUITestFixture(reset: MugshotLaunchEnvironment.shouldResetUITestState)
+        }
+#endif
+        _dataManager = StateObject(wrappedValue: manager)
         // Keep input text legible without painting an inner UIKit background
         // inside SwiftUI's own field surfaces.
         configureTextInputAppearance()

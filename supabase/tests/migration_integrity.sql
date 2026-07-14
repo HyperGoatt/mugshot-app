@@ -1,23 +1,28 @@
 do $$
-declare missing_versions text[];
+declare missing_migrations text[];
 begin
-  select array_agg(required.version) into missing_versions
+  select array_agg(required.name) into missing_migrations
   from (values
-    ('20260712163405'),
-    ('20260712205140'),
-    ('20260712205347'),
-    ('20260712211408'),
-    ('20260712214406'),
-    ('20260712214646'),
-    ('20260713035201'),
-    ('20260713152500'),
-    ('20260713191000')
-  ) required(version)
+    ('secure_social_foundation', array['20260712163405']),
+    ('harden_legacy_views', array['20260712205140']),
+    ('quarantine_legacy_definers', array['20260712205347']),
+    ('optimize_social_pagination', array['20260712211408']),
+    ('discovery_social_expansion', array['20260712214406']),
+    ('complete_push_quarantine', array['20260712214646']),
+    ('phase_two_journal_data', array['20260713035201']),
+    ('separate_visit_private_notes', array['20260713152500','20260713205511']),
+    ('add_visit_drink_analysis', array['20260713191000','20260713205518']),
+    ('add_drink_analysis_retry_metadata_and_backfill', array['20260713231635']),
+    ('harden_visit_photo_storage_contract', array['20260714013429','20260714013618']),
+    ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836'])
+  ) required(name, versions)
   where not exists (
-    select 1 from supabase_migrations.schema_migrations m where m.version=required.version
+    select 1
+    from supabase_migrations.schema_migrations migration
+    where migration.version = any(required.versions)
   );
-  if missing_versions is not null then
-    raise exception 'missing live migrations: %',missing_versions;
+  if missing_migrations is not null then
+    raise exception 'missing live migrations: %', missing_migrations;
   end if;
 
   if to_regclass('public.comment_mentions') is null then
@@ -137,6 +142,44 @@ begin
     where tgrelid='public.visits'::regclass
       and tgname='seed_visit_drink_analysis' and tgenabled='O'
   ) then raise exception 'drink-analysis seed trigger is missing'; end if;
+
+  if not exists (
+    select 1
+    from storage.buckets
+    where id='visit-photos'
+      and public
+      and file_size_limit=10485760
+      and allowed_mime_types @> array['image/jpeg','image/png','image/gif','image/webp','image/heic']
+  ) then raise exception 'visit-photo bucket contract is incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='Authenticated users can upload visit photos'
+      and cmd='INSERT' and roles='{authenticated}'::name[]
+      and with_check ilike '%auth.uid%'
+      and with_check ilike '%storage.foldername%'
+  ) then raise exception 'visit-photo insert policy is incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='Users can update their own visit photos'
+      and cmd='UPDATE' and roles='{authenticated}'::name[]
+      and qual ilike '%auth.uid%'
+      and with_check ilike '%storage.extension%'
+  ) then raise exception 'visit-photo update policy is incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='Users can delete their own visit photos'
+      and cmd='DELETE' and roles='{authenticated}'::name[]
+      and qual ilike '%auth.uid%'
+  ) then raise exception 'visit-photo delete policy is incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='View photos based on completed visit visibility'
+      and cmd='SELECT'
+  ) then raise exception 'visit-photo visibility policy is missing'; end if;
 
   if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then

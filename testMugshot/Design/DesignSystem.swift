@@ -323,11 +323,13 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
                     }
                     .foregroundColor(selection == option ? .espressoBrown : .roastBrown.opacity(0.72))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 34)
+                    .frame(minHeight: 44)
                     .background(selection == option ? Color.foamWhite : Color.clear)
                     .clipShape(Capsule())
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == option ? .isSelected : [])
             }
         }
         .padding(4)

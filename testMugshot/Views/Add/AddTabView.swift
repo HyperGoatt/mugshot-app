@@ -140,7 +140,9 @@ struct LegacyLogVisitView: View {
     }
 
     private var canSubmitVisit: Bool {
-        completedProgressCount == progressItems.count
+        AddVisitRequirement.requiredCases.allSatisfy { requirement in
+            progressItems.first(where: { $0.requirement == requirement })?.isComplete == true
+        }
     }
 
     private var isSaveButtonDisabled: Bool {
@@ -148,7 +150,9 @@ struct LegacyLogVisitView: View {
     }
 
     private var firstIncompleteRequirement: AddVisitRequirement? {
-        progressItems.first(where: { !$0.isComplete })?.requirement
+        AddVisitRequirement.requiredCases.first { requirement in
+            progressItems.first(where: { $0.requirement == requirement })?.isComplete != true
+        }
     }
 
     private var drinkDisplayName: String {
@@ -645,20 +649,13 @@ struct LegacyLogVisitView: View {
             return
         }
         
-        guard caption.remoteTrimmedNonEmpty != nil else {
-            validationErrors.append("Please write a caption")
-            return
-        }
-
         guard overallScore > 0 else {
             validationErrors.append("Please add at least one rating")
             return
         }
 
-        guard AddVisitValidation.hasRequiredPhoto(
-            photoCount: photoImages.count
-        ) else {
-            validationErrors.append(AddVisitValidation.photoRequiredMessage)
+        if visibility == .everyone && photoImages.isEmpty {
+            validationErrors.append("Add a photo before sharing this legacy entry with Everyone.")
             scrollToTop = true
             return
         }
@@ -1126,6 +1123,9 @@ enum AddVisitRequirement: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static let requiredCases: [AddVisitRequirement] = [.cafe, .drink, .rating]
+    static let optionalCases: [AddVisitRequirement] = [.photo, .caption]
+
     var actionTitle: String {
         switch self {
         case .photo: return "Add a photo"
@@ -1144,14 +1144,6 @@ enum AddVisitRequirement: String, CaseIterable, Identifiable {
         case .rating: return "add a taste rating"
         case .caption: return "write a tasting note"
         }
-    }
-}
-
-enum AddVisitValidation {
-    static let photoRequiredMessage = "Add a sip photo so this memory has a cover."
-
-    static func hasRequiredPhoto(photoCount: Int) -> Bool {
-        photoCount > 0
     }
 }
 

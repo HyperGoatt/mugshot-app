@@ -62,6 +62,55 @@ class DataManager: ObservableObject {
         appData = AppData()
         UserDefaults.standard.removeObject(forKey: dataKey)
     }
+
+#if DEBUG
+    func prepareUITestFixture(reset: Bool) {
+        guard MugshotLaunchEnvironment.isUITesting else { return }
+
+        if reset {
+            appData = AppData()
+            UserDefaults.standard.removeObject(forKey: dataKey)
+            UserDefaults.standard.removeObject(forKey: CafeVisibilityPreferenceStore.valueKey)
+            SipDraftStore.shared.removeAllForTesting()
+            MugshotLaunchEnvironment.resetDeterministicFailures()
+        }
+
+        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+        let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
+        if !reset, appData.currentUser?.id == userID {
+            UserDefaults.standard.set(
+                SipComposerExperience.guided.rawValue,
+                forKey: SipComposerExperience.storageKey
+            )
+            return
+        }
+
+        appData = AppData(
+            currentUser: User(
+                id: userID,
+                username: "mugshot_ui_test",
+                displayName: "Mugshot Test",
+                location: "Charleston, SC"
+            ),
+            cafes: [
+                Cafe(
+                    id: cafeID,
+                    name: "Mugshot Test Cafe",
+                    address: "1 Test Street, Charleston, SC",
+                    isFavorite: true
+                )
+            ],
+            visits: [],
+            ratingTemplate: RatingTemplate(),
+            hasCompletedOnboarding: true
+        )
+        UserDefaults.standard.set(
+            SipComposerExperience.guided.rawValue,
+            forKey: SipComposerExperience.storageKey
+        )
+        save()
+    }
+#endif
     
     // MARK: - Cafe Operations
     func addCafe(_ cafe: Cafe) {

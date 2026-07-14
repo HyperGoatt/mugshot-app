@@ -741,7 +741,6 @@ struct RecentVisitsView: View {
     @State private var isLoadingRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var selectedVisit: Visit?
-    @State private var showVisitDetail = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
 
     private var localVisits: [Visit] {
@@ -759,10 +758,8 @@ struct RecentVisitsView: View {
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
             await loadRemoteVisits()
         }
-        .sheet(isPresented: $showVisitDetail) {
-            if let visit = selectedVisit {
-                VisitDetailView(visit: visit, dataManager: dataManager)
-            }
+        .sheet(item: $selectedVisit) { visit in
+            VisitDetailView(visit: visit, dataManager: dataManager)
         }
         .fullScreenCover(item: $selectedRemoteVisit) { visit in
             RemoteVisitDetailView(
@@ -847,10 +844,15 @@ struct RecentVisitsView: View {
         } else {
             ForEach(localVisits) { visit in
                 if dataManager.getCafe(id: visit.cafeId) != nil {
-                    VisitCard(visit: visit, dataManager: dataManager, selectedScope: .friends)
+                    VisitCard(
+                        visit: visit,
+                        dataManager: dataManager,
+                        selectedScope: .friends,
+                        onOpen: { selectedVisit = visit }
+                    )
+                    .contentShape(Rectangle())
                         .onTapGesture {
                             selectedVisit = visit
-                            showVisitDetail = true
                         }
                 }
             }
