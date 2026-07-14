@@ -1986,6 +1986,55 @@ struct testMugshotTests {
         #expect(object["caption"] == nil)
     }
 
+    @Test func friendCompatibilityCommunicatesEvidenceWithoutCompetitiveRanking() throws {
+        let json = """
+        [{"evidence_level":"some_overlap","shared_signal_count":2,"shared_attributes":["mouthfeel","iced drinks"],"explanation":"A few journal patterns overlap."}]
+        """
+        let compatibility = try #require(
+            JSONDecoder().decode([FriendCompatibility].self, from: Data(json.utf8)).first
+        )
+
+        #expect(compatibility.title == "Some taste overlap")
+        #expect(compatibility.sharedSignalCount == 2)
+        #expect(compatibility.sharedAttributes == ["mouthfeel", "iced drinks"])
+        #expect(!compatibility.explanation.lowercased().contains("rank"))
+        #expect(!compatibility.explanation.contains("%"))
+    }
+
+    @Test func sharedRecipeDecodesOnlyBrewInstructions() throws {
+        let recommendationID = UUID()
+        let identityID = UUID()
+        let versionID = UUID()
+        let senderID = UUID()
+        let json = """
+        [{
+          "recommendation_id":"\(recommendationID)",
+          "recipe_identity_id":"\(identityID)",
+          "recipe_version_id":"\(versionID)",
+          "recipe_name":"Morning V60",
+          "version_number":2,
+          "version_label":"Sweeter finish",
+          "brew_details":{"doseGrams":18,"yieldGrams":300,"brewTimeSeconds":180},
+          "sender_id":"\(senderID)",
+          "note":"Try a finer grind",
+          "shared_at":"2026-07-14T00:00:00Z"
+        }]
+        """
+        let recipe = try #require(
+            JSONDecoder().decode([SharedRecipeRecord].self, from: Data(json.utf8)).first
+        )
+
+        #expect(recipe.recipeName == "Morning V60")
+        #expect(recipe.brewDetails.doseGrams == 18)
+        #expect(recipe.brewDetails.yieldGrams == 300)
+        #expect(recipe.brewDetails.extractionSummary == "18g in · 300g out · 180 sec")
+    }
+
+    @Test func sipReactionsRemainSmallAndCoffeeFocused() {
+        #expect(SipReaction.allCases.count == 4)
+        #expect(Set(SipReaction.allCases.map(\.rawValue)) == ["want_to_try", "great_find", "dialed_in", "cozy"])
+    }
+
     @Test func productCopyUsesAsciiCafeSpelling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -18,7 +18,13 @@ begin
     ('phase_2_canonical_journal', array['20260714110000','20260714042024']),
     ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328']),
     ('phase_3_explainable_taste_graph', array['20260714130000','20260714044901']),
-    ('refine_taste_graph_recommendation_reasons', array['20260714133000','20260714045207'])
+    ('refine_taste_graph_recommendation_reasons', array['20260714133000','20260714045207']),
+    ('phase_4_lightweight_friends', array['20260714150000','20260714050516']),
+    ('refine_cafe_list_invitation_visibility', array['20260714153000','20260714051041']),
+    ('expose_caller_bound_phase_4_policies', array['20260714160000','20260714051404']),
+    ('close_phase_4_direct_mutations', array['20260714161500','20260714051432']),
+    ('sanitize_shared_recipe_payloads', array['20260714163000','20260714051603']),
+    ('add_cafe_list_reordering', array['20260714164500','20260714052754'])
   ) required(name, versions)
   where not exists (
     select 1

@@ -50,6 +50,7 @@ struct SettingsView: View {
     @AppStorage(SipComposerExperience.storageKey) private var sipComposerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 #endif
 
     private let privacyURL = URL(string: "https://mugshotapp.co/privacy")!
@@ -299,6 +300,32 @@ struct SettingsView: View {
                 Spacer(minLength: 8)
 
                 Toggle("Phase 3 Taste Graph", isOn: $phase3ExplainableTasteGraph)
+                    .labelsHidden()
+                    .tint(.mugshotSage)
+            }
+
+            Divider().padding(.leading, 46)
+
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.badge.gearshape.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 34, height: 34)
+                    .background(Color.mugshotSage.opacity(0.16))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Phase 4 Friends")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("Shared lists, recommendations, and reactions")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                }
+
+                Spacer(minLength: 8)
+
+                Toggle("Phase 4 Friends", isOn: $phase4LightweightFriends)
                     .labelsHidden()
                     .tint(.mugshotSage)
             }

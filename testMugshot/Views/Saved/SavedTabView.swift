@@ -17,6 +17,7 @@ struct SavedTabView: View {
     @State private var isLoadingRemoteStates = false
     @State private var remoteStateError: String?
     @State private var remoteCafeCoverURLs: [UUID: String] = [:]
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     
     enum SavedTab: String, CaseIterable {
         case favorites = "Favorites"
@@ -141,6 +142,15 @@ struct SavedTabView: View {
                 // Cafe list
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        if phase4LightweightFriends,
+                           let currentUserID = authModel.authenticatedUser?.id {
+                            SharedCafeListsView(
+                                dataManager: dataManager,
+                                currentUserID: currentUserID
+                            )
+                            .padding(.bottom, 4)
+                        }
+
                         if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
                                 asset: mugsyAsset(for: selectedTab),

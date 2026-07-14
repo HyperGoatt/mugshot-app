@@ -66,6 +66,9 @@ struct RemoteVisitDetailView: View {
     @State private var isShowingDrinkInterpretation = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
+    @State private var reactions: [SipReactionRecord] = []
+    @State private var isShowingRecommendation = false
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @FocusState private var isCommentFocused: Bool
 
     private var displayedSummary: RemoteVisitSummary {
@@ -105,6 +108,13 @@ struct RemoteVisitDetailView: View {
                         currentUserID: currentUserId
                     )
                 }
+            }
+            .sheet(isPresented: $isShowingRecommendation) {
+                RecommendToFriendView(
+                    kind: recommendationKind,
+                    targetID: recommendationTargetID,
+                    title: displayedSummary.visit.drinkDisplayName
+                )
             }
             .fullScreenCover(item: $photoViewerPresentation) { presentation in
                 RemotePhotoViewer(
@@ -254,6 +264,9 @@ struct RemoteVisitDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     memoryPanel(detail)
                     actionShelf(detail)
+                    if phase4LightweightFriends {
+                        reactionShelf
+                    }
                     SipRatingBreakdownPanel(
                         score: detail.summary.visit.overallScore,
                         ratings: detail.summary.visit.ratings,
@@ -499,6 +512,20 @@ struct RemoteVisitDetailView: View {
                         text: shareText(for: detail),
                         photoURL: detail.summary.visit.posterPhotoURL
                     )
+
+                    if phase4LightweightFriends,
+                       currentUserId != nil,
+                       canRecommend(detail) {
+                        SipActionButton(
+                            title: "Recommend",
+                            value: nil,
+                            systemImage: "paperplane",
+                            isActive: false,
+                            isEnabled: !isSavingSocialAction
+                        ) {
+                            isShowingRecommendation = true
+                        }
+                    }
                 }
 
                 if let socialError {
@@ -506,6 +533,61 @@ struct RemoteVisitDetailView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.red.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var recommendationKind: TrustedRecommendationKind {
+        displayedSummary.visit.recipeVersionID == nil ? .visit : .recipe
+    }
+
+    private var recommendationTargetID: UUID {
+        displayedSummary.visit.recipeVersionID ?? visitId
+    }
+
+    private func canRecommend(_ detail: RemoteVisitDetail) -> Bool {
+        if detail.summary.visit.recipeVersionID != nil && isOwnVisit(detail) {
+            return true
+        }
+        return detail.summary.visit.visibility != VisitVisibility.private.rawValue
+    }
+
+    private var reactionShelf: some View {
+        SipDetailPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("What stood out?")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text("A small coffee-focused reaction—not a scorecard.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(SipReaction.allCases) { reaction in
+                            let count = reactions.filter { $0.reaction == reaction }.count
+                            let isSelected = reactions.contains {
+                                $0.reaction == reaction && $0.userID == currentUserId
+                            }
+                            Button {
+                                Task { await toggleReaction(reaction) }
+                            } label: {
+                                Label(
+                                    count > 0 ? "\(reaction.title) \(count)" : reaction.title,
+                                    systemImage: reaction.systemImage
+                                )
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(isSelected ? .foamWhite : .espressoBrown)
+                                .padding(.horizontal, 11)
+                                .frame(minHeight: 40)
+                                .background(isSelected ? Color.mugshotSage : Color.sandBeige.opacity(0.52))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(currentUserId == nil || isSavingSocialAction)
+                            .accessibilityLabel("\(reaction.title), \(count) reactions")
+                        }
+                    }
                 }
             }
         }
@@ -783,12 +865,31 @@ struct RemoteVisitDetailView: View {
                 visitId: visitId,
                 currentUserId: currentUserId
             )
+            if phase4LightweightFriends {
+                reactions = (try? await SocialDiscoveryService(client: client).reactions(for: visitId)) ?? []
+            }
             selectedPhotoIndex = 0
             isLoading = false
         } catch {
             detail = nil
             loadError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoading = false
+        }
+    }
+
+    @MainActor
+    private func toggleReaction(_ reaction: SipReaction) async {
+        guard currentUserId != nil else { return }
+        isSavingSocialAction = true
+        defer { isSavingSocialAction = false }
+        do {
+            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+            _ = try await service.toggleReaction(reaction, visitID: visitId)
+            reactions = try await service.reactions(for: visitId)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            socialError = nil
+        } catch {
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
         }
     }
 

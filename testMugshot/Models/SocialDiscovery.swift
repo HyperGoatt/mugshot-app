@@ -239,3 +239,197 @@ enum ReportReason: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String { rawValue.replacingOccurrences(of: "_", with: " ").capitalized }
 }
+
+enum CafeListVisibility: String, Codable, CaseIterable, Identifiable {
+    case `private`
+    case friends
+    case invited
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .private: "Private"
+        case .friends: "Friends"
+        case .invited: "Invited only"
+        }
+    }
+}
+
+struct CafeListRecord: Identifiable, Codable, Equatable {
+    let id: UUID
+    let ownerID: UUID
+    let title: String
+    let description: String?
+    let visibility: CafeListVisibility
+    let systemKind: String?
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, visibility
+        case ownerID = "owner_id"
+        case systemKind = "system_kind"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct CafeListItemRecord: Identifiable, Codable, Equatable {
+    let id: UUID
+    let listID: UUID
+    let cafeID: UUID
+    let position: Int
+    let contributorID: UUID
+    let note: String?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, note
+        case listID = "list_id"
+        case cafeID = "cafe_id"
+        case contributorID = "contributor_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct CafeListMemberRecord: Codable, Equatable {
+    let listID: UUID
+    let userID: UUID
+    let role: String
+    let invitationStatus: String
+    let invitedBy: UUID
+    let createdAt: String
+    let acceptedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case listID = "list_id"
+        case userID = "user_id"
+        case invitationStatus = "invitation_status"
+        case invitedBy = "invited_by"
+        case createdAt = "created_at"
+        case acceptedAt = "accepted_at"
+    }
+}
+
+enum TrustedRecommendationKind: String, Codable, CaseIterable {
+    case cafe
+    case visit
+    case recipe
+}
+
+struct TrustedRecommendation: Identifiable, Codable, Equatable {
+    let id: UUID
+    let senderID: UUID
+    let recipientID: UUID
+    let targetKind: TrustedRecommendationKind
+    let targetCafeID: UUID?
+    let targetVisitID: UUID?
+    let targetRecipeVersionID: UUID?
+    let note: String?
+    let status: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, note, status
+        case senderID = "sender_id"
+        case recipientID = "recipient_id"
+        case targetKind = "target_kind"
+        case targetCafeID = "target_cafe_id"
+        case targetVisitID = "target_visit_id"
+        case targetRecipeVersionID = "target_recipe_version_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct SharedRecipeRecord: Identifiable, Decodable, Equatable {
+    let recommendationID: UUID
+    let recipeIdentityID: UUID
+    let recipeVersionID: UUID
+    let recipeName: String
+    let versionNumber: Int
+    let versionLabel: String?
+    let brewDetails: BrewDetails
+    let senderID: UUID
+    let note: String?
+    let sharedAt: String
+
+    var id: UUID { recommendationID }
+
+    enum CodingKeys: String, CodingKey {
+        case note
+        case recommendationID = "recommendation_id"
+        case recipeIdentityID = "recipe_identity_id"
+        case recipeVersionID = "recipe_version_id"
+        case recipeName = "recipe_name"
+        case versionNumber = "version_number"
+        case versionLabel = "version_label"
+        case brewDetails = "brew_details"
+        case senderID = "sender_id"
+        case sharedAt = "shared_at"
+    }
+}
+
+struct FriendCompatibility: Decodable, Equatable {
+    let evidenceLevel: String
+    let sharedSignalCount: Int
+    let sharedAttributes: [String]
+    let explanation: String
+
+    enum CodingKeys: String, CodingKey {
+        case explanation
+        case evidenceLevel = "evidence_level"
+        case sharedSignalCount = "shared_signal_count"
+        case sharedAttributes = "shared_attributes"
+    }
+
+    var title: String {
+        switch evidenceLevel {
+        case "strong_overlap": "Strong taste overlap"
+        case "some_overlap": "Some taste overlap"
+        default: "Still learning together"
+        }
+    }
+}
+
+enum SipReaction: String, Codable, CaseIterable, Identifiable {
+    case wantToTry = "want_to_try"
+    case greatFind = "great_find"
+    case dialedIn = "dialed_in"
+    case cozy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .wantToTry: "Want to try"
+        case .greatFind: "Great find"
+        case .dialedIn: "Dialed in"
+        case .cozy: "Cozy"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .wantToTry: "bookmark"
+        case .greatFind: "sparkles"
+        case .dialedIn: "scope"
+        case .cozy: "cup.and.saucer"
+        }
+    }
+}
+
+struct SipReactionRecord: Codable, Equatable {
+    let visitID: UUID
+    let userID: UUID
+    let reaction: SipReaction
+
+    enum CodingKeys: String, CodingKey {
+        case reaction
+        case visitID = "visit_id"
+        case userID = "user_id"
+    }
+}

@@ -3,6 +3,8 @@ import SwiftUI
 
 struct PeopleHubView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authModel: AppAuthModel
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @State private var query = ""
     @State private var searchResults: [PeopleSearchResult] = []
     @State private var incoming: [SocialConnection] = []
@@ -12,6 +14,9 @@ struct PeopleHubView: View {
     @State private var selectedProfile: PeopleProfileRoute?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var recommendations: [TrustedRecommendation] = []
+    @State private var sharedRecipes: [SharedRecipeRecord] = []
+    @State private var selectedSharedRecipe: SharedRecipeRecord?
 
     var body: some View {
         NavigationStack {
@@ -28,6 +33,9 @@ struct PeopleHubView: View {
                     if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         peopleSection("People", rows: searchResults)
                     } else {
+                        if phase4LightweightFriends {
+                            recommendationSection
+                        }
                         connectionSection("Requests", rows: incoming, icon: "person.crop.circle.badge.plus")
                         connectionSection("Sent", rows: outgoing, icon: "paperplane")
                         connectionSection("Friends", rows: friends, icon: "person.2.fill")
@@ -60,6 +68,79 @@ struct PeopleHubView: View {
                     await search(immediate: true)
                 })
             }
+            .sheet(item: $selectedSharedRecipe) { recipe in
+                SharedRecipeDetailView(recipe: recipe)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recommendationSection: some View {
+        let incomingRecommendations = recommendations.filter {
+            $0.recipientID == authModel.authenticatedUser?.id && $0.status != "dismissed"
+        }
+        if !incomingRecommendations.isEmpty {
+            MugshotSectionTitle(title: "Shared with you", subtitle: "Coffee ideas from friends you trust.")
+            ForEach(incomingRecommendations.prefix(4)) { recommendation in
+                HStack(spacing: 12) {
+                    Image(systemName: recommendationIcon(recommendation.targetKind))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .frame(width: 38, height: 38)
+                        .background(Color.mugshotSage.opacity(0.14))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(recommendationTitle(recommendation))
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        if let note = recommendation.note?.remoteTrimmedNonEmpty {
+                            Text(note)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondaryText)
+                                .lineLimit(2)
+                        }
+                    }
+                    Spacer()
+                    if let recipe = sharedRecipe(for: recommendation) {
+                        Button("View") { selectedSharedRecipe = recipe }
+                            .font(.system(size: 12, weight: .bold))
+                            .buttonStyle(.bordered)
+                            .tint(.mugshotSage)
+                    }
+                    Button("Done") {
+                        Task { await dismissRecommendation(recommendation) }
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .buttonStyle(.bordered)
+                    .tint(.mugshotSage)
+                }
+                .padding(12)
+                .cardStyle()
+            }
+        }
+    }
+
+    private func recommendationTitle(_ recommendation: TrustedRecommendation) -> String {
+        if let recipe = sharedRecipe(for: recommendation) {
+            return recipe.recipeName
+        }
+        return switch recommendation.targetKind {
+        case .cafe: "A cafe recommendation"
+        case .visit: "A sip recommendation"
+        case .recipe: "A recipe recommendation"
+        }
+    }
+
+    private func sharedRecipe(for recommendation: TrustedRecommendation) -> SharedRecipeRecord? {
+        guard recommendation.targetKind == .recipe else { return nil }
+        return sharedRecipes.first { $0.recipeVersionID == recommendation.targetRecipeVersionID }
+    }
+
+    private func recommendationIcon(_ kind: TrustedRecommendationKind) -> String {
+        switch kind {
+        case .cafe: "mappin.and.ellipse"
+        case .visit: "cup.and.saucer.fill"
+        case .recipe: "list.bullet.clipboard.fill"
         }
     }
 
@@ -132,10 +213,24 @@ struct PeopleHubView: View {
             (incoming, outgoing, friends, blocked) = try await (
                 incomingRequest, outgoingRequest, friendsRequest, blockedRequest
             )
+            if phase4LightweightFriends {
+                recommendations = (try? await service.recommendations()) ?? []
+                sharedRecipes = (try? await service.sharedRecipes()) ?? []
+            }
             errorMessage = nil
         } catch is CancellationError {
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .loading)
+        }
+    }
+
+    @MainActor
+    private func dismissRecommendation(_ recommendation: TrustedRecommendation) async {
+        do {
+            let updated = try await socialService().updateRecommendation(recommendation.id, status: "dismissed")
+            recommendations = recommendations.map { $0.id == updated.id ? updated : $0 }
+        } catch {
+            errorMessage = MugshotUserFacingError.message(for: error, context: .social)
         }
     }
 
@@ -242,6 +337,8 @@ private struct PublicProfileView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var reportReason: ReportReason?
+    @State private var compatibility: FriendCompatibility?
+    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 
     init(route: PeopleProfileRoute, onRelationshipChanged: @escaping () async -> Void) {
         self.route = route
@@ -277,6 +374,13 @@ private struct PublicProfileView: View {
                     }
                     .padding(.horizontal)
 
+                    if phase4LightweightFriends,
+                       state == .friends,
+                       let compatibility {
+                        compatibilityCard(compatibility)
+                            .padding(.horizontal)
+                    }
+
                     relationshipButton
                         .padding(.horizontal)
 
@@ -309,6 +413,28 @@ private struct PublicProfileView: View {
             }
             .padding(.bottom, 30)
         }
+    }
+
+    private func compatibilityCard(_ compatibility: FriendCompatibility) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(compatibility.title, systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            Text(compatibility.explanation)
+                .font(.system(size: 13))
+                .foregroundColor(.secondaryText)
+            if !compatibility.sharedAttributes.isEmpty {
+                Text(compatibility.sharedAttributes.map { $0.capitalized }.joined(separator: " · "))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
+            Text("Based only on journal patterns each of you has supported across at least three sips.")
+                .font(.system(size: 11))
+                .foregroundColor(.tertiaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .cardStyle()
     }
 
     private var profileHeader: some View {
@@ -435,8 +561,14 @@ private struct PublicProfileView: View {
 
     @MainActor private func load() async {
         do {
-            payload = try await service().publicProfile(userID: route.id)
+            let socialService = try service()
+            payload = try await socialService.publicProfile(userID: route.id)
             state = payload?.friendshipState ?? state
+            if phase4LightweightFriends && state == .friends {
+                compatibility = try? await socialService.compatibility(with: route.id)
+            } else {
+                compatibility = nil
+            }
             errorMessage = nil
         } catch { errorMessage = MugshotUserFacingError.message(for: error, context: .loading) }
     }
@@ -499,5 +631,99 @@ private struct PublicProfileView: View {
 
     private func service() throws -> SocialDiscoveryService {
         SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+    }
+}
+
+private struct SharedRecipeDetailView: View {
+    let recipe: SharedRecipeRecord
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(recipe.recipeName)
+                            .font(.system(size: 32, weight: .bold, design: .serif))
+                            .foregroundColor(.espressoBrown)
+                        Text(recipe.versionLabel?.remoteTrimmedNonEmpty ?? "Version \(recipe.versionNumber)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.mugshotSage)
+                        if let note = recipe.note?.remoteTrimmedNonEmpty {
+                            Text(note)
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondaryText)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .cardStyle()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Recipe details")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        recipeRow("Beans", recipe.brewDetails.beans)
+                        recipeRow("Origin", recipe.brewDetails.beanOrigin)
+                        recipeRow("Roast", recipe.brewDetails.roastLevel)
+                        recipeRow("Grind", recipe.brewDetails.grindSetting)
+                        recipeRow("Ratio", recipe.brewDetails.extractionSummary)
+                        recipeRow("Water", recipe.brewDetails.waterNotes)
+                        recipeRow("Additions", recipe.brewDetails.additions)
+                    }
+                    .padding(16)
+                    .cardStyle()
+
+                    if let steps = recipe.brewDetails.steps, !steps.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Steps")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.espressoBrown)
+                            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Text("\(index + 1)")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.foamWhite)
+                                        .frame(width: 26, height: 26)
+                                        .background(Color.mugshotSage)
+                                        .clipShape(Circle())
+                                    Text(step.instruction)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.espressoBrown)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .cardStyle()
+                    }
+
+                    Text("Shared recipes include brew instructions only. Private journal notes are never included.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                }
+                .padding(16)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Shared recipe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+        }
+    }
+
+    @ViewBuilder
+    private func recipeRow(_ title: String, _ value: String?) -> some View {
+        if let value = value?.remoteTrimmedNonEmpty {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondaryText)
+                Spacer()
+                Text(value)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.espressoBrown)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
     }
 }
