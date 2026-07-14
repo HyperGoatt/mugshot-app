@@ -1908,6 +1908,84 @@ struct testMugshotTests {
         #expect(summary.remoteCafe.id == cafeID)
     }
 
+    @Test func explainableTasteIdentityRequiresThreeEntriesAndSeparatesEvidenceFamilies() {
+        let userID = UUID()
+        let visitIDs = [UUID(), UUID(), UUID()]
+        let emerging = RemoteTasteSignal(
+            id: UUID(), userID: userID, signalType: .orderPreference,
+            attribute: "chooses_fruit_flavors", supportCount: 2, confidence: 0.25,
+            averageScore: nil, evidenceVisitIDs: Array(visitIDs.prefix(2)),
+            calculationVersion: "taste-signals-1", ownerState: .active,
+            ownerLabel: nil, updatedAt: "2026-07-14T00:00:00Z"
+        )
+        let sensory = RemoteTasteSignal(
+            id: UUID(), userID: userID, signalType: .sensoryEvaluation,
+            attribute: "mouthfeel", supportCount: 3, confidence: 0.375,
+            averageScore: 4.5, evidenceVisitIDs: visitIDs,
+            calculationVersion: "taste-signals-1", ownerState: .active,
+            ownerLabel: nil, updatedAt: "2026-07-14T00:00:00Z"
+        )
+
+        let summary = TasteIdentitySummary.calculate(from: [emerging, sensory])
+
+        #expect(!emerging.isDurableClaim)
+        #expect(sensory.isDurableClaim)
+        #expect(summary.title == "Your tasting language")
+        #expect(summary.patterns.count == 1)
+        #expect(summary.patterns[0].text.contains("Mouthfeel"))
+        #expect(!summary.patterns[0].text.contains("Fruit"))
+    }
+
+    @Test func tasteSignalCorrectionChangesTheClaimWithoutChangingEvidence() {
+        let visits = [UUID(), UUID(), UUID()]
+        let signal = RemoteTasteSignal(
+            id: UUID(), userID: UUID(), signalType: .orderPreference,
+            attribute: "chooses_sweetened_drinks", supportCount: 3, confidence: 0.375,
+            averageScore: nil, evidenceVisitIDs: visits,
+            calculationVersion: "taste-signals-1", ownerState: .corrected,
+            ownerLabel: "Dessert-like orders", updatedAt: "2026-07-14T00:00:00Z"
+        )
+
+        #expect(signal.displayAttribute == "Dessert-like orders")
+        #expect(signal.claimText.contains("Dessert-like orders"))
+        #expect(signal.evidenceVisitIDs == visits)
+        #expect(signal.signalType == .orderPreference)
+    }
+
+    @Test func rankedFeedDecodesStructuredRecommendationReason() throws {
+        let visitID = UUID()
+        let json = """
+        [{"visit_id":"\(visitID.uuidString)","feed_score":0.82,"created_at":"2026-07-14T00:00:00Z","ranking_reason":"Matches patterns in your Taste Identity","reason_type":"taste_match"}]
+        """
+
+        let reference = try #require(JSONDecoder().decode([RankedFeedReference].self, from: Data(json.utf8)).first)
+
+        #expect(reference.visitID == visitID)
+        #expect(reference.rankingReason == "Matches patterns in your Taste Identity")
+        #expect(reference.reasonType == "taste_match")
+    }
+
+    @Test func drinkInterpretationCorrectionCannotContainCaffeineOrPrivateJournalText() throws {
+        let correction = DrinkAnalysisCorrection(
+            canonicalFamily: nil,
+            preparation: "cortado",
+            temperature: "iced",
+            espressoShotCount: 2,
+            servingVolumeMilliliters: 355
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(correction)) as? [String: Any]
+        )
+
+        #expect(object["preparation"] as? String == "cortado")
+        #expect(object["temperature"] as? String == "iced")
+        #expect(object["espresso_shot_count"] as? Int == 2)
+        #expect(object["serving_volume_ml"] as? Double == 355)
+        #expect(object["estimated_caffeine_mg"] == nil)
+        #expect(object["private_notes"] == nil)
+        #expect(object["caption"] == nil)
+    }
+
     @Test func productCopyUsesAsciiCafeSpelling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

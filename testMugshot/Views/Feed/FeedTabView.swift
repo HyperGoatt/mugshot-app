@@ -68,6 +68,7 @@ struct FeedTabView: View {
     @State private var isFeedSearchPresented = false
     @State private var isPeopleHubPresented = false
     @AppStorage("mugshot.your-mix-education.v1.dismissed") private var hasDismissedYourMixEducation = false
+    @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @FocusState private var isFeedSearchFocused: Bool
 
     private let feedPageSize = 12
@@ -306,6 +307,7 @@ struct FeedTabView: View {
                     visit: visit,
                     isCafeSaved: isCafeSaved(for: visit),
                     isSocialActionInFlight: pendingSocialVisitIDs.contains(visit.id),
+                    showsRecommendationReason: phase3ExplainableTasteGraph && selectedScope == .ranked,
                     onOpen: {
                         selectedRemoteVisit = visit
                     },
@@ -609,7 +611,9 @@ struct FeedTabView: View {
             cafe: visit.cafe,
             author: visit.author,
             socialState: socialState,
-            rankingScore: visit.rankingScore
+            rankingScore: visit.rankingScore,
+            recommendationReason: visit.recommendationReason,
+            recommendationReasonType: visit.recommendationReasonType
         )
     }
 }
@@ -618,6 +622,7 @@ struct RemoteFeedVisitCard: View {
     let visit: RemoteVisitSummary
     let isCafeSaved: Bool
     let isSocialActionInFlight: Bool
+    let showsRecommendationReason: Bool
     let onOpen: () -> Void
     let onLike: () -> Void
     let onSaveCafe: () -> Void
@@ -769,6 +774,15 @@ struct RemoteFeedVisitCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if showsRecommendationReason,
+               let reason = visit.recommendationReason?.remoteTrimmedNonEmpty {
+                Label(reason, systemImage: recommendationIcon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Recommended because \(reason)")
+            }
+
             Text("\(visit.visit.contextDisplayName) · \(timeAgoString(from: visit.visit.createdAtDate))")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown.opacity(0.58))
@@ -777,6 +791,16 @@ struct RemoteFeedVisitCard: View {
         .padding(.horizontal, 16)
         .padding(.top, 14)
         .padding(.bottom, 14)
+    }
+
+    private var recommendationIcon: String {
+        switch visit.recommendationReasonType {
+        case "friend_activity": return "person.2.fill"
+        case "taste_match": return "slider.horizontal.3"
+        case "saved_cafe": return "bookmark.fill"
+        case "journal_evidence": return "book.closed.fill"
+        default: return "sparkles"
+        }
     }
 
     private var footer: some View {

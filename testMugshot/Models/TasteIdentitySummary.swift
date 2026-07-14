@@ -1,5 +1,91 @@
 import Foundation
 
+enum TasteSignalType: String, Codable, CaseIterable {
+    case orderPreference = "order_preference"
+    case sensoryEvaluation = "sensory_evaluation"
+
+    var title: String {
+        switch self {
+        case .orderPreference: return "What you choose"
+        case .sensoryEvaluation: return "What you notice"
+        }
+    }
+}
+
+enum TasteSignalOwnerState: String, Codable {
+    case active
+    case dismissed
+    case corrected
+}
+
+struct RemoteTasteSignal: Identifiable, Decodable, Equatable {
+    let id: UUID
+    let userID: UUID
+    let signalType: TasteSignalType
+    let attribute: String
+    let supportCount: Int
+    let confidence: Double
+    let averageScore: Double?
+    let evidenceVisitIDs: [UUID]
+    let calculationVersion: String
+    let ownerState: TasteSignalOwnerState
+    let ownerLabel: String?
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, attribute, confidence
+        case userID = "user_id"
+        case signalType = "signal_type"
+        case supportCount = "support_count"
+        case averageScore = "average_score"
+        case evidenceVisitIDs = "evidence_visit_ids"
+        case calculationVersion = "calculation_version"
+        case ownerState = "owner_state"
+        case ownerLabel = "owner_label"
+        case updatedAt = "updated_at"
+    }
+
+    var isDurableClaim: Bool { supportCount >= 3 && ownerState != .dismissed }
+
+    var displayAttribute: String {
+        if ownerState == .corrected, let ownerLabel = ownerLabel?.remoteTrimmedNonEmpty {
+            return ownerLabel
+        }
+        let known: [String: String] = [
+            "chooses_cold_drinks": "Cold drinks",
+            "chooses_milk_drinks": "Milk drinks",
+            "chooses_flavored_drinks": "Flavored drinks",
+            "chooses_fruit_flavors": "Fruit flavors",
+            "chooses_sweet_flavors": "Sweet flavors",
+            "chooses_sweetened_drinks": "Sweetened drinks",
+            "bean_clarity": "Bean clarity"
+        ]
+        return known[attribute] ?? attribute
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
+    var claimText: String {
+        switch signalType {
+        case .orderPreference:
+            return "\(displayAttribute) appear often in your orders"
+        case .sensoryEvaluation:
+            if let averageScore {
+                return String(format: "%@ averages %.1f in your tasting lens", displayAttribute, averageScore)
+            }
+            return "\(displayAttribute) is part of your tasting lens"
+        }
+    }
+
+    var evidenceSummary: String {
+        "Based on \(supportCount) distinct \(supportCount == 1 ? "sip" : "sips")"
+    }
+
+    var systemImage: String {
+        signalType == .orderPreference ? "cup.and.saucer.fill" : "slider.horizontal.3"
+    }
+}
+
 struct TasteIdentityPattern: Equatable, Identifiable {
     let text: String
     let systemImage: String
@@ -104,6 +190,34 @@ struct TasteIdentitySummary: Equatable {
             title: title,
             description: description,
             patterns: Array(patterns.prefix(3))
+        )
+    }
+
+    static func calculate(from signals: [RemoteTasteSignal]) -> TasteIdentitySummary {
+        let durable = signals.filter(\.isDurableClaim)
+        guard !durable.isEmpty else { return .empty }
+
+        let sensoryCount = durable.filter { $0.signalType == .sensoryEvaluation }.count
+        let orderCount = durable.filter { $0.signalType == .orderPreference }.count
+        let title: String
+        let description: String
+        if sensoryCount > 0, orderCount > 0 {
+            title = "Your evolving taste"
+            description = "Mugshot separates what you choose from what you explicitly notice in the cup."
+        } else if sensoryCount > 0 {
+            title = "Your tasting language"
+            description = "These patterns come only from qualities you rated in your tasting lens."
+        } else {
+            title = "Your order patterns"
+            description = "These are recurring choices, not claims about how a specific drink tasted."
+        }
+
+        return TasteIdentitySummary(
+            title: title,
+            description: description,
+            patterns: durable.prefix(3).map {
+                TasteIdentityPattern(text: $0.claimText, systemImage: $0.systemImage)
+            }
         )
     }
 }

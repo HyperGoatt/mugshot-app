@@ -16,7 +16,9 @@ begin
     ('harden_visit_photo_storage_contract', array['20260714013429','20260714013618']),
     ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836']),
     ('phase_2_canonical_journal', array['20260714110000','20260714042024']),
-    ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328'])
+    ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328']),
+    ('phase_3_explainable_taste_graph', array['20260714130000','20260714044901']),
+    ('refine_taste_graph_recommendation_reasons', array['20260714133000','20260714045207'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -114,6 +116,21 @@ begin
 
   if to_regclass('public.visit_drink_analyses') is null then
     raise exception 'visit_drink_analyses table is missing';
+  end if;
+
+  if to_regclass('public.taste_signals') is null then
+    raise exception 'taste_signals table is missing';
+  end if;
+  if not (select relrowsecurity from pg_class where oid='public.taste_signals'::regclass) then
+    raise exception 'taste_signals RLS is disabled';
+  end if;
+  if has_table_privilege('anon','public.taste_signals','SELECT')
+     or not has_table_privilege('authenticated','public.taste_signals','SELECT') then
+    raise exception 'taste signal grants are incorrect';
+  end if;
+  if has_function_privilege('authenticated','public.refresh_taste_signals(uuid)','EXECUTE')
+     or not has_function_privilege('authenticated','public.set_taste_signal_owner_state(uuid,text,text)','EXECUTE') then
+    raise exception 'taste graph function grants are incorrect';
   end if;
   if not (select relrowsecurity from pg_class where oid='public.visit_drink_analyses'::regclass) then
     raise exception 'visit_drink_analyses RLS is disabled';

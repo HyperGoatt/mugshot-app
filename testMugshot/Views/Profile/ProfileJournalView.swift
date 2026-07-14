@@ -17,7 +17,9 @@ struct JournalTabView: View {
     @State private var loadError: String?
     @State private var showAccountMenu = false
     @State private var localDrafts: [SipDraft] = []
+    @State private var tasteSignals: [RemoteTasteSignal] = []
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
+    @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
 
     fileprivate enum JournalFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -60,7 +62,9 @@ struct JournalTabView: View {
     }
 
     private var tasteIdentity: TasteIdentitySummary {
-        TasteIdentitySummary.calculate(from: remoteVisits)
+        phase3ExplainableTasteGraph
+            ? TasteIdentitySummary.calculate(from: tasteSignals)
+            : TasteIdentitySummary.calculate(from: remoteVisits)
     }
 
     private var filteredVisits: [RemoteVisitSummary] {
@@ -146,7 +150,12 @@ struct JournalTabView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 24)
 
-                    TasteIdentityJournalSection(summary: tasteIdentity)
+                    TasteIdentityJournalSection(
+                        summary: tasteIdentity,
+                        signals: phase3ExplainableTasteGraph ? tasteSignals : [],
+                        entries: journalEntries,
+                        onChange: updateTasteSignal
+                    )
                         .padding(.horizontal, 16)
                         .padding(.bottom, 124)
                 }
@@ -478,6 +487,7 @@ struct JournalTabView: View {
     private func loadJournal() async {
         guard let userID = authModel.authenticatedUser?.id else {
             journalEntries = []
+            tasteSignals = []
             isLoading = false
             loadError = nil
             return
@@ -487,13 +497,34 @@ struct JournalTabView: View {
         loadError = nil
         do {
             let client = try SupabaseClientProvider.shared.client()
-            journalEntries = try await JournalService(client: client).fetchEntries(userID: userID)
+            async let entriesRequest = JournalService(client: client).fetchEntries(userID: userID)
+            async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
+            journalEntries = try await entriesRequest
+            tasteSignals = (try? await signalsRequest) ?? []
             isLoading = false
         } catch is CancellationError {
             return
         } catch {
             loadError = MugshotUserFacingError.message(for: error, context: .loading)
             isLoading = false
+        }
+    }
+
+    @MainActor
+    private func updateTasteSignal(
+        _ signal: RemoteTasteSignal,
+        state: TasteSignalOwnerState,
+        label: String?
+    ) async -> Bool {
+        guard let userID = authModel.authenticatedUser?.id else { return false }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = TasteGraphService(client: client)
+            try await service.setOwnerState(signalID: signal.id, state: state, label: label)
+            tasteSignals = try await service.fetchSignals(userID: userID)
+            return true
+        } catch {
+            return false
         }
     }
 }
@@ -981,6 +1012,10 @@ private struct JournalEmptyState: View {
 
 private struct TasteIdentityJournalSection: View {
     let summary: TasteIdentitySummary
+    let signals: [RemoteTasteSignal]
+    let entries: [JournalEntryProjection]
+    let onChange: (RemoteTasteSignal, TasteSignalOwnerState, String?) async -> Bool
+    @State private var selectedSignal: RemoteTasteSignal?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1012,24 +1047,171 @@ private struct TasteIdentityJournalSection: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(summary.patterns) { pattern in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: pattern.systemImage)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.mugshotSage)
-                            .frame(width: 18)
-                        Text(pattern.text)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            if signals.filter(\.isDurableClaim).isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(summary.patterns) { pattern in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: pattern.systemImage)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.mugshotSage)
+                                .frame(width: 18)
+                            Text(pattern.text)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.vertical, 8)
                     }
-                    .padding(.vertical, 8)
-                    if pattern.id != summary.patterns.last?.id {
-                        Divider().overlay(Color.mugshotLine)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(signals.filter(\.isDurableClaim).prefix(5)) { signal in
+                        Button {
+                            selectedSignal = signal
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: signal.systemImage)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.mugshotSage)
+                                    .frame(width: 18)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(signal.claimText)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.espressoBrown)
+                                    Text(signal.evidenceSummary)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondaryText)
+                                }
+                                Spacer(minLength: 6)
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.mugshotSage)
+                            }
+                            .padding(.vertical, 9)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
+        }
+        .sheet(item: $selectedSignal) { signal in
+            TasteSignalEvidenceView(
+                signal: signal,
+                entries: entries.filter { signal.evidenceVisitIDs.contains($0.id) },
+                onChange: onChange
+            )
+        }
+    }
+}
+
+private struct TasteSignalEvidenceView: View {
+    let signal: RemoteTasteSignal
+    let entries: [JournalEntryProjection]
+    let onChange: (RemoteTasteSignal, TasteSignalOwnerState, String?) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var correctedLabel = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(signal.signalType.title, systemImage: signal.systemImage)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                        Text(signal.claimText)
+                            .mugshotDisplay(size: 28)
+                            .foregroundColor(.espressoBrown)
+                        Text(signal.evidenceSummary + ". Mugshot requires at least three before showing this pattern.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                    }
+
+                    if signal.signalType == .orderPreference {
+                        Text("This describes what you tend to order. It does not claim that a specific drink tasted sweet, bitter, acidic, or clear.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.espressoBrown.opacity(0.76))
+                            .padding(14)
+                            .background(Color.mugshotMint.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Journal evidence")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        ForEach(entries) { entry in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.summary.visit.drinkDisplayName)
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("\(entry.summary.locationTitle) · \(entry.date.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondaryText)
+                                }
+                                Spacer()
+                                if signal.signalType == .sensoryEvaluation,
+                                   let score = entry.summary.visit.orderedRatingScores.first(where: {
+                                       $0.name.lowercased().replacingOccurrences(of: " ", with: "_") == signal.attribute
+                                   })?.score {
+                                    Text(String(format: "%.1f", score))
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.mugshotSage)
+                                }
+                            }
+                            .padding(12)
+                            .cardStyle()
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Make it yours")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        TextField("A label that feels right", text: $correctedLabel)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Use my wording") {
+                            Task { await save(.corrected, label: correctedLabel) }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(correctedLabel.remoteTrimmedNonEmpty == nil || isSaving)
+
+                        Button("This is not me", role: .destructive) {
+                            Task { await save(.dismissed, label: nil) }
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .disabled(isSaving)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Why Mugshot thinks this")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func save(_ state: TasteSignalOwnerState, label: String?) async {
+        isSaving = true
+        errorMessage = nil
+        let succeeded = await onChange(signal, state, label)
+        isSaving = false
+        if succeeded {
+            dismiss()
+        } else {
+            errorMessage = "That change did not save. Please try again."
         }
     }
 }

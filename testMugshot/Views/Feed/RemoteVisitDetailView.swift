@@ -63,6 +63,7 @@ struct RemoteVisitDetailView: View {
     @State private var mentionedUserIDs: Set<UUID> = []
     @State private var reportTarget: SocialReportTarget?
     @State private var isShowingEditVisit = false
+    @State private var isShowingDrinkInterpretation = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
     @FocusState private var isCommentFocused: Bool
@@ -93,6 +94,15 @@ struct RemoteVisitDetailView: View {
                         detail: detail,
                         currentUserId: currentUserId,
                         onSave: saveVisitEdits
+                    )
+                }
+            }
+            .sheet(isPresented: $isShowingDrinkInterpretation) {
+                if let currentUserId {
+                    DrinkInterpretationEditor(
+                        visitID: visitId,
+                        rawDrinkName: displayedSummary.visit.drinkDisplayName,
+                        currentUserID: currentUserId
                     )
                 }
             }
@@ -165,6 +175,12 @@ struct RemoteVisitDetailView: View {
                         isShowingEditVisit = true
                     } label: {
                         Label("Edit Sip", systemImage: "pencil")
+                    }
+
+                    Button {
+                        isShowingDrinkInterpretation = true
+                    } label: {
+                        Label("Correct Drink Details", systemImage: "slider.horizontal.3")
                     }
 
                     if onRepeat != nil {
@@ -983,7 +999,10 @@ struct RemoteVisitDetailView: View {
                 visit: detail.summary.visit,
                 cafe: detail.summary.cafe,
                 author: detail.summary.author,
-                socialState: state
+                socialState: state,
+                rankingScore: detail.summary.rankingScore,
+                recommendationReason: detail.summary.recommendationReason,
+                recommendationReasonType: detail.summary.recommendationReasonType
             ),
             photos: detail.photos,
             comments: detail.comments,
@@ -991,6 +1010,132 @@ struct RemoteVisitDetailView: View {
             currentUserHasLiked: state.currentUserHasLiked,
             privateNote: detail.privateNote
         )
+    }
+}
+
+private struct DrinkInterpretationEditor: View {
+    let visitID: UUID
+    let rawDrinkName: String
+    let currentUserID: UUID
+    @Environment(\.dismiss) private var dismiss
+    @State private var analysis: RemoteVisitDrinkAnalysis?
+    @State private var preparation = DrinkPreparation.unknown.rawValue
+    @State private var temperature = DrinkTemperature.hot.rawValue
+    @State private var shotCount = 2
+    @State private var servingVolume = ""
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(rawDrinkName)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Text("Your original drink name stays unchanged. These corrections only improve Mugshot’s private journal data and recaps.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                } header: {
+                    Text("Original sip")
+                }
+
+                Section("Preparation") {
+                    Picker("Style", selection: $preparation) {
+                        ForEach(DrinkPreparation.allCases, id: \.rawValue) { option in
+                            Text(option.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .tag(option.rawValue)
+                        }
+                    }
+                    Picker("Temperature", selection: $temperature) {
+                        Text("Hot").tag(DrinkTemperature.hot.rawValue)
+                        Text("Iced").tag(DrinkTemperature.iced.rawValue)
+                        Text("Frozen").tag(DrinkTemperature.frozen.rawValue)
+                        Text("Cold brew").tag(DrinkTemperature.coldBrew.rawValue)
+                    }
+                }
+
+                Section("Serving details") {
+                    Stepper("\(shotCount) espresso \(shotCount == 1 ? "shot" : "shots")", value: $shotCount, in: 1...8)
+                    TextField("Serving size in mL", text: $servingVolume)
+                        .keyboardType(.decimalPad)
+                }
+
+                Section {
+                    Text("Mugshot recalculates estimated recap data from traditional averages. You never enter caffeine milligrams.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondaryText)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("Drink details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "Saving…" : "Save") {
+                        Task { await save() }
+                    }
+                    .disabled(isSaving || isLoading)
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    @MainActor
+    private func load() async {
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let loaded = try await TasteGraphService(client: client).fetchDrinkAnalysis(visitID: visitID)
+            analysis = loaded
+            preparation = loaded?.preparation ?? DrinkPreparation.unknown.rawValue
+            temperature = loaded?.temperature ?? DrinkTemperature.hot.rawValue
+            shotCount = loaded?.espressoShotCount ?? 2
+            if let volume = loaded?.servingVolumeMilliliters {
+                servingVolume = volume.rounded() == volume ? String(format: "%.0f", volume) : String(format: "%.1f", volume)
+            }
+            isLoading = false
+        } catch {
+            errorMessage = "Mugshot could not load this interpretation. Please try again."
+            isLoading = false
+        }
+    }
+
+    @MainActor
+    private func save() async {
+        isSaving = true
+        errorMessage = nil
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            try await TasteGraphService(client: client).correctDrinkAnalysis(
+                visitID: visitID,
+                correction: DrinkAnalysisCorrection(
+                    canonicalFamily: nil,
+                    preparation: preparation,
+                    temperature: temperature,
+                    espressoShotCount: shotCount,
+                    servingVolumeMilliliters: Double(servingVolume)
+                ),
+                userID: currentUserID
+            )
+            isSaving = false
+            dismiss()
+        } catch {
+            errorMessage = "That correction did not save. Please try again."
+            isSaving = false
+        }
     }
 }
 

@@ -152,11 +152,15 @@ struct RankedFeedReference: Decodable, Equatable {
     let visitID: UUID
     let feedScore: Double
     let createdAt: String
+    let rankingReason: String?
+    let reasonType: String?
 
     enum CodingKeys: String, CodingKey {
         case visitID = "visit_id"
         case feedScore = "feed_score"
         case createdAt = "created_at"
+        case rankingReason = "ranking_reason"
+        case reasonType = "reason_type"
     }
 }
 

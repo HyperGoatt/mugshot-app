@@ -178,7 +178,9 @@ final class VisitService {
                 cafe: summary.cafe,
                 author: summary.author,
                 socialState: summary.socialState,
-                rankingScore: reference.feedScore
+                rankingScore: reference.feedScore,
+                recommendationReason: reference.rankingReason,
+                recommendationReasonType: reference.reasonType
             )
         }
     }
