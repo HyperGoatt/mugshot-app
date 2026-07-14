@@ -16,18 +16,29 @@ class DataManager: ObservableObject {
     @Published private(set) var journalRevision = 0
     
     private let dataKey = "MugshotAppData"
+    private let guestDataKey = "MugshotGuestAppData.v1"
+    private let userDataKeyPrefix = "MugshotUserAppData.v1."
+    private let defaults: UserDefaults
+    private var storageScope: StorageScope = .legacy
+
+    private enum StorageScope: Equatable {
+        case legacy
+        case guest
+        case user(UUID)
+    }
     
-    private init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         PerformanceMonitor.mark("Local data load start")
         defer { PerformanceMonitor.mark("Local data load end") }
         // Try to load existing data, otherwise start fresh
-        if let data = UserDefaults.standard.data(forKey: dataKey),
+        if let data = defaults.data(forKey: dataKey),
            let decoded = try? JSONDecoder().decode(AppData.self, from: data) {
             let reconciliation = CafeIdentityReconciler.reconcile(decoded)
             self.appData = reconciliation.appData
             if reconciliation.mergedCafeCount > 0,
                let encoded = try? JSONEncoder().encode(reconciliation.appData) {
-                UserDefaults.standard.set(encoded, forKey: dataKey)
+                defaults.set(encoded, forKey: dataKey)
             }
         } else {
             self.appData = AppData()
@@ -35,9 +46,7 @@ class DataManager: ObservableObject {
     }
     
     func save() {
-        if let encoded = try? JSONEncoder().encode(appData) {
-            UserDefaults.standard.set(encoded, forKey: dataKey)
-        }
+        persist(appData, forKey: activeStorageKey)
     }
 
     func noteJournalMutation() {
@@ -51,6 +60,7 @@ class DataManager: ObservableObject {
     }
     
     func applyAuthenticatedProfile(_ profile: SupabaseUserProfile) {
+        activateUserStorage(userId: profile.id)
         appData.currentUser = profile.localUser
         if !appData.hasCompletedOnboarding {
             appData.hasCompletedOnboarding = true
@@ -58,27 +68,117 @@ class DataManager: ObservableObject {
         save()
     }
 
+    func prepareGuestSession() {
+        guard storageScope != .guest else { return }
+
+        switch storageScope {
+        case .legacy:
+            if let userId = appData.currentUser?.id {
+                persist(appData, forKey: userDataKey(userId))
+            }
+        case .user(let userId):
+            persist(appData, forKey: userDataKey(userId))
+        case .guest:
+            break
+        }
+
+        appData = loadAppData(forKey: guestDataKey) ?? AppData()
+        storageScope = .guest
+        noteJournalMutation()
+    }
+
+    func guestSavedCafes() -> [Cafe] {
+        let guestData = storageScope == .guest
+            ? appData
+            : (loadAppData(forKey: guestDataKey) ?? AppData())
+        return guestData.cafes.filter { $0.isFavorite || $0.wantToTry }
+    }
+
+    func clearMergedGuestSavedCafes() {
+        let cleared = AppData()
+        persist(cleared, forKey: guestDataKey)
+        if storageScope == .guest {
+            appData = cleared
+            noteJournalMutation()
+        }
+    }
+
     func clearLocalReleaseState() {
+        if case .user(let userId) = storageScope {
+            defaults.removeObject(forKey: userDataKey(userId))
+        }
         appData = AppData()
-        UserDefaults.standard.removeObject(forKey: dataKey)
+        storageScope = .guest
+        defaults.removeObject(forKey: dataKey)
+        defaults.removeObject(forKey: guestDataKey)
+    }
+
+    private var activeStorageKey: String {
+        switch storageScope {
+        case .legacy:
+            return dataKey
+        case .guest:
+            return guestDataKey
+        case .user(let userId):
+            return userDataKey(userId)
+        }
+    }
+
+    private func activateUserStorage(userId: UUID) {
+        switch storageScope {
+        case .legacy:
+            if appData.currentUser?.id != userId,
+               let stored = loadAppData(forKey: userDataKey(userId)) {
+                appData = stored
+            }
+        case .guest:
+            persist(appData, forKey: guestDataKey)
+            appData = loadAppData(forKey: userDataKey(userId)) ?? AppData()
+        case .user(let currentUserId):
+            guard currentUserId != userId else { return }
+            persist(appData, forKey: userDataKey(currentUserId))
+            appData = loadAppData(forKey: userDataKey(userId)) ?? AppData()
+        }
+        storageScope = .user(userId)
+        noteJournalMutation()
+    }
+
+    private func userDataKey(_ userId: UUID) -> String {
+        userDataKeyPrefix + userId.uuidString.lowercased()
+    }
+
+    private func persist(_ value: AppData, forKey key: String) {
+        guard let encoded = try? JSONEncoder().encode(value) else { return }
+        defaults.set(encoded, forKey: key)
+    }
+
+    private func loadAppData(forKey key: String) -> AppData? {
+        guard let data = defaults.data(forKey: key),
+              let decoded = try? JSONDecoder().decode(AppData.self, from: data) else {
+            return nil
+        }
+        return CafeIdentityReconciler.reconcile(decoded).appData
     }
 
 #if DEBUG
     func prepareUITestFixture(reset: Bool) {
         guard MugshotLaunchEnvironment.isUITesting else { return }
 
+        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+
         if reset {
             appData = AppData()
-            UserDefaults.standard.removeObject(forKey: dataKey)
+            defaults.removeObject(forKey: dataKey)
+            defaults.removeObject(forKey: guestDataKey)
+            defaults.removeObject(forKey: userDataKey(userID))
             UserDefaults.standard.removeObject(forKey: CafeVisibilityPreferenceStore.valueKey)
             SipDraftStore.shared.removeAllForTesting()
             MugshotLaunchEnvironment.resetDeterministicFailures()
         }
 
-        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
         let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
         if !reset, appData.currentUser?.id == userID {
-            UserDefaults.standard.set(
+            defaults.set(
                 SipComposerExperience.guided.rawValue,
                 forKey: SipComposerExperience.storageKey
             )
@@ -104,7 +204,7 @@ class DataManager: ObservableObject {
             ratingTemplate: RatingTemplate(),
             hasCompletedOnboarding: true
         )
-        UserDefaults.standard.set(
+        defaults.set(
             SipComposerExperience.guided.rawValue,
             forKey: SipComposerExperience.storageKey
         )

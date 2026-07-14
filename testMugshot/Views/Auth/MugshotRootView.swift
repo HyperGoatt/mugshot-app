@@ -19,9 +19,7 @@ struct MugshotRootView: View {
                     AuthLoadingView()
                 case .configurationRequired(let message):
                     SupabaseConfigurationRequiredView(message: message)
-                case .working, .signedOut, .failed:
-                    AuthEntryView(dataManager: dataManager)
-                case .signedIn:
+                case .working, .signedOut, .failed, .signedIn:
                     MainTabView(dataManager: dataManager)
                 }
             }

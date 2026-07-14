@@ -193,6 +193,15 @@ struct SettingsView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
+
+            Divider().padding(.leading, 60)
+
+            NavigationLink {
+                CapturePreferencesView(allowsSkipping: false)
+                    .environmentObject(authModel)
+            } label: {
+                settingsRow("Coffee Preferences", systemImage: "slider.horizontal.3")
+            }
         }
         .cardStyle()
     }
@@ -266,7 +275,7 @@ struct SettingsView: View {
 
             Button {
                 Task {
-                    await authModel.signOut()
+                    await authModel.signOut(dataManager: dataManager)
                     dismiss()
                 }
             } label: {

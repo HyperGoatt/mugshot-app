@@ -6,6 +6,46 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testSignedOutShellKeepsMapAndSavedOpenAndGatesJournalActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Saved"].exists)
+        XCTAssertTrue(
+            app.buttons.matching(identifier: "Map").allElementsBoundByIndex.contains(where: \.isSelected)
+        )
+        XCTAssertTrue(app.textFields["Search places"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.alerts.firstMatch.exists, "Guest discovery should not request permission at launch.")
+
+        app.buttons["Add"].tap()
+        XCTAssertTrue(app.staticTexts["Start your sip journal"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Keep exploring"].exists)
+        app.buttons["Keep exploring"].tap()
+
+        XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 2))
+        app.buttons["Feed"].tap()
+        XCTAssertTrue(app.staticTexts["Friends make discovery better"].waitForExistence(timeout: 3))
+        app.buttons["Keep exploring"].tap()
+
+        app.buttons["Saved"].tap()
+        XCTAssertTrue(app.buttons["Saved"].isSelected)
+    }
+
+    @MainActor
+    func testProfileSettingsGearOpensSettings() throws {
+        let app = launch(reset: true)
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
+        app.buttons["Settings"].tap()
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Coffee Preferences"].exists)
+        XCTAssertTrue(app.buttons["Done"].exists)
+    }
+
+    @MainActor
     func testGuidedQuickSipTenCleanRunsUnderTwentySeconds() throws {
         let app = launch(reset: true)
         var durations: [TimeInterval] = []

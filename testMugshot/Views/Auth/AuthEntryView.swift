@@ -3,15 +3,21 @@
 //  testMugshot
 //
 
+import AuthenticationServices
 import SwiftUI
 
 struct AuthEntryView: View {
     @ObservedObject var dataManager: DataManager
+    var contextTitle: String? = nil
+    var contextMessage: String? = nil
+    var showsCloseButton = false
     @EnvironmentObject private var authModel: AppAuthModel
+    @Environment(\.dismiss) private var dismiss
     
     @State private var isCreatingAccount = false
     @State private var email = ""
     @State private var password = ""
+    @State private var appleNonce: String?
     
     private var isBusy: Bool {
         if case .working = authModel.status {
@@ -37,7 +43,26 @@ struct AuthEntryView: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    Spacer(minLength: 42)
+                    if showsCloseButton {
+                        HStack {
+                            Spacer()
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.espressoBrown)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.foamWhite)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.mugshotLine))
+                            }
+                            .accessibilityLabel("Keep exploring")
+                        }
+                        .padding(.horizontal, 24)
+                    } else {
+                        Spacer(minLength: 42)
+                    }
                     
                     VStack(spacing: 10) {
                         Image("MugshotAppIcon")
@@ -51,13 +76,41 @@ struct AuthEntryView: View {
                             .mugshotDisplay(size: 42)
                             .foregroundColor(.espressoBrown)
                         
-                        Text(isCreatingAccount ? "Start your sip journal." : "Savor more. Share better.")
+                        Text(contextTitle ?? (isCreatingAccount ? "Start your sip journal." : "Savor more. Share better."))
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
 
-                    SignedOutJournalPreview()
+                    SignedOutJournalPreview(message: contextMessage)
+
+                    VStack(spacing: 12) {
+                        SignInWithAppleButton(.continue) { request in
+                            do {
+                                let nonce = try AppleSignInNonce.random()
+                                appleNonce = nonce
+                                request.requestedScopes = [.email, .fullName]
+                                request.nonce = AppleSignInNonce.sha256(nonce)
+                            } catch {
+                                appleNonce = nil
+                            }
+                        } onCompletion: { result in
+                            handleAppleAuthorization(result)
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 50)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                        .disabled(isBusy)
+
+                        HStack(spacing: 10) {
+                            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+                            Text("or use email")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.tertiaryText)
+                            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+                        }
+                    }
+                    .padding(.horizontal, 24)
                     
                     VStack(alignment: .leading, spacing: 16) {
                         MugshotSectionTitle(
@@ -136,6 +189,11 @@ struct AuthEntryView: View {
                 }
             }
         }
+        .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+            if userId != nil, showsCloseButton {
+                dismiss()
+            }
+        }
     }
     
     private var canSubmit: Bool {
@@ -156,6 +214,25 @@ struct AuthEntryView: View {
             } else {
                 await authModel.signIn(email: email, password: password, dataManager: dataManager)
             }
+        }
+    }
+
+    private func handleAppleAuthorization(_ result: Result<ASAuthorization, Error>) {
+        guard case .success(let authorization) = result,
+              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let idToken = String(data: tokenData, encoding: .utf8),
+              let nonce = appleNonce else {
+            return
+        }
+
+        Task {
+            await authModel.signInWithApple(
+                idToken: idToken,
+                nonce: nonce,
+                dataManager: dataManager
+            )
+            appleNonce = nil
         }
     }
 }
@@ -217,6 +294,8 @@ struct AuthLoadingView: View {
 }
 
 private struct SignedOutJournalPreview: View {
+    let message: String?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Your first sip, saved with care", systemImage: "book.closed.fill")
@@ -229,7 +308,7 @@ private struct SignedOutJournalPreview: View {
                 previewStep(icon: "lock.fill", title: "Keep", detail: "Private notes stay yours")
             }
 
-            Text("Create an account to keep your photo-backed sips, saved cafes, and personal tasting notes together.")
+            Text(message ?? "Create an account to keep your photo-backed sips, saved cafes, and personal tasting notes together.")
                 .font(.system(size: 12))
                 .foregroundColor(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

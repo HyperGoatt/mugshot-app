@@ -51,6 +51,17 @@ final class AuthService {
             requiresEmailConfirmation: true
         )
     }
+
+    func signInWithApple(idToken: String, nonce: String) async throws -> AuthenticatedUser {
+        let session = try await client.auth.signInWithIdToken(
+            credentials: .init(
+                provider: .apple,
+                idToken: idToken,
+                nonce: nonce
+            )
+        )
+        return authenticatedUser(from: session.user)
+    }
     
     func signOut() async throws {
         try await client.auth.signOut()

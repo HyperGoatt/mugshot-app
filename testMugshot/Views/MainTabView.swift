@@ -12,6 +12,9 @@ struct MainTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var tabCoordinator = TabCoordinator()
     @State private var preselectedCafeForLogVisit: Cafe?
+    @State private var authenticationPrompt: AuthenticationPrompt?
+    @State private var showsGuestSavedMerge = false
+    @State private var showsCapturePreferences = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -21,7 +24,7 @@ struct MainTabView: View {
                 .transition(.opacity)
 
             if tabCoordinator.selectedTab != 2 {
-                MugshotBottomNav(selectedTab: $tabCoordinator.selectedTab)
+                MugshotBottomNav(selectedTab: gatedTabSelection)
                     .transition(.opacity)
                     .zIndex(1)
             }
@@ -35,6 +38,50 @@ struct MainTabView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .onAppear {
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
+            if !hasAuthenticatedNavigation,
+               !Self.guestTabs.contains(tabCoordinator.selectedTab) {
+                tabCoordinator.selectedTab = 0
+            }
+        }
+        .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+            if userId != nil {
+                authenticationPrompt = nil
+            } else if !hasAuthenticatedNavigation,
+                      !Self.guestTabs.contains(tabCoordinator.selectedTab) {
+                tabCoordinator.selectedTab = 0
+            }
+        }
+        .onChange(of: authModel.pendingGuestSavedCafes.count) { _, count in
+            guard count > 0 else {
+                scheduleCapturePreferencesIfNeeded()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+                guard authenticationPrompt == nil else { return }
+                showsGuestSavedMerge = true
+            }
+        }
+        .onChange(of: authModel.shouldOfferCapturePreferences) { _, shouldOffer in
+            guard shouldOffer else { return }
+            scheduleCapturePreferencesIfNeeded()
+        }
+        .sheet(item: $authenticationPrompt, onDismiss: scheduleCapturePreferencesIfNeeded) { prompt in
+            AuthEntryView(
+                dataManager: dataManager,
+                contextTitle: prompt.title,
+                contextMessage: prompt.message,
+                showsCloseButton: true
+            )
+            .environmentObject(authModel)
+        }
+        .sheet(isPresented: $showsGuestSavedMerge, onDismiss: scheduleCapturePreferencesIfNeeded) {
+            GuestSavedMergeView(dataManager: dataManager)
+                .environmentObject(authModel)
+                .interactiveDismissDisabled(authModel.isMergingGuestSaved)
+        }
+        .sheet(isPresented: $showsCapturePreferences) {
+            CapturePreferencesView(allowsSkipping: true)
+                .environmentObject(authModel)
         }
         .task(id: authModel.authenticatedUser?.id) {
             guard let userId = authModel.authenticatedUser?.id,
@@ -54,6 +101,13 @@ struct MainTabView: View {
         switch tabCoordinator.selectedTab {
         case 0:
             MapTabView(dataManager: dataManager, onLogVisitRequested: { cafe in
+                guard hasAuthenticatedNavigation else {
+                    requestAuthentication(
+                        title: "Keep this sip in your journal",
+                        message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
+                    )
+                    return
+                }
                 preselectedCafeForLogVisit = cafe
                 withAnimation(DesignSystem.Motion.base) {
                     tabCoordinator.selectedTab = 2
@@ -71,10 +125,191 @@ struct MainTabView: View {
                     }
                 }
         case 3:
-            SavedTabView(dataManager: dataManager)
+            SavedTabView(dataManager: dataManager) { title, message in
+                requestAuthentication(title: title, message: message)
+            }
         default:
             ProfileTabView(dataManager: dataManager)
         }
+    }
+
+    private static let guestTabs: Set<Int> = [0, 3]
+
+    private var hasAuthenticatedNavigation: Bool {
+        authModel.authenticatedUser != nil
+            || (MugshotLaunchEnvironment.isUITesting && !MugshotLaunchEnvironment.isUITestingSignedOut)
+    }
+
+    private var gatedTabSelection: Binding<Int> {
+        Binding(
+            get: { tabCoordinator.selectedTab },
+            set: { requestedTab in
+                guard !hasAuthenticatedNavigation,
+                      !Self.guestTabs.contains(requestedTab) else {
+                    tabCoordinator.selectedTab = requestedTab
+                    return
+                }
+
+                switch requestedTab {
+                case 1:
+                    requestAuthentication(
+                        title: "Friends make discovery better",
+                        message: "Sign in to see friend sips and Your Mix. You can keep exploring Map and Saved without an account."
+                    )
+                case 2:
+                    requestAuthentication(
+                        title: "Start your sip journal",
+                        message: "Sign in to save a sip privately, with friends, or for Everyone. Your current guest saves will stay on this device."
+                    )
+                default:
+                    requestAuthentication(
+                        title: "Your journal lives here",
+                        message: "Sign in to open your profile, settings, and personal sip history."
+                    )
+                }
+            }
+        )
+    }
+
+    private func requestAuthentication(title: String, message: String) {
+        authenticationPrompt = AuthenticationPrompt(title: title, message: message)
+    }
+
+    private func scheduleCapturePreferencesIfNeeded() {
+        guard authModel.authenticatedUser != nil,
+              authModel.shouldOfferCapturePreferences,
+              authModel.pendingGuestSavedCafes.isEmpty,
+              authenticationPrompt == nil,
+              !showsGuestSavedMerge else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            guard authModel.shouldOfferCapturePreferences,
+                  authModel.pendingGuestSavedCafes.isEmpty,
+                  authenticationPrompt == nil,
+                  !showsGuestSavedMerge else { return }
+            showsCapturePreferences = true
+        }
+    }
+}
+
+private struct AuthenticationPrompt: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
+private struct GuestSavedMergeView: View {
+    @ObservedObject var dataManager: DataManager
+    @EnvironmentObject private var authModel: AppAuthModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var cafes: [Cafe] { authModel.pendingGuestSavedCafes }
+    private var favoriteCount: Int { cafes.filter(\.isFavorite).count }
+    private var wantToTryCount: Int { cafes.filter(\.wantToTry).count }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Bring your guest saves with you?")
+                            .mugshotDisplay(size: 30)
+                            .foregroundColor(.espressoBrown)
+                        Text("Mugshot found cafes you saved before signing in. Review the count, then merge them into this account or leave them safely on this device.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack(spacing: 12) {
+                        mergeStat(title: "Favorites", value: favoriteCount, icon: "heart.fill")
+                        mergeStat(title: "Want to Try", value: wantToTryCount, icon: "bookmark.fill")
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(cafes.prefix(4)) { cafe in
+                            HStack(spacing: 10) {
+                                Image(systemName: cafe.isFavorite ? "heart.fill" : "bookmark.fill")
+                                    .foregroundColor(.mugshotSage)
+                                    .frame(width: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(cafe.name)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.espressoBrown)
+                                    if !cafe.address.isEmpty {
+                                        Text(cafe.address)
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.tertiaryText)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+
+                        if cafes.count > 4 {
+                            Text("And \(cafes.count - 4) more")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.secondaryText)
+                        }
+                    }
+                    .padding(16)
+                    .cardStyle()
+
+                    if let error = authModel.guestSavedMergeError {
+                        Text(error)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.roastBrown)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        Task {
+                            if await authModel.mergeGuestSaved(dataManager: dataManager) {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if authModel.isMergingGuestSaved {
+                                ProgressView().tint(.foamWhite)
+                            }
+                            Text("Merge \(cafes.count) cafe\(cafes.count == 1 ? "" : "s")")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(authModel.isMergingGuestSaved)
+
+                    Button("Not now") {
+                        authModel.postponeGuestSavedMerge()
+                        dismiss()
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.roastBrown)
+                    .frame(maxWidth: .infinity)
+                    .disabled(authModel.isMergingGuestSaved)
+                }
+                .padding(22)
+            }
+            .background(Color.creamWhite)
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    private func mergeStat(title: String, value: Int, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondaryText)
+            Text("\(value)")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.espressoBrown)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.sandBeige.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
     }
 }
 

@@ -100,7 +100,7 @@ struct MapTabView: View {
                 ),
                 cafes: displayedMapCafes,
                 highlightedCafe: showCafeDetail ? selectedCafe : nil,
-                showsUserLocation: true,
+                showsUserLocation: locationAccessAuthorized,
                 trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
                     selectedCafe = cafe
@@ -110,13 +110,8 @@ struct MapTabView: View {
             )
             .ignoresSafeArea()
             .onAppear {
-                // Request location permission on first appearance
-                if !hasRequestedLocation {
-                    locationManager.requestLocationPermission()
-                    hasRequestedLocation = true
-                }
-                
-                // Initialize location if we already have permission
+                // Opening Map never prompts. Existing permission is honored;
+                // new permission is requested only from the location control.
                 initializeLocationIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
@@ -383,6 +378,11 @@ struct MapTabView: View {
         .onReceive(searchService.$searchResults) { items in
             searchPreviewCafes = items.compactMap(Self.searchPreviewCafe(from:))
         }
+    }
+
+    private var locationAccessAuthorized: Bool {
+        locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways
     }
     
     private func initializeLocationIfNeeded() {

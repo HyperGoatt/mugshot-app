@@ -19,6 +19,9 @@ struct testMugshotApp: App {
         MugshotLaunchEnvironment.prepareDebugFailureHooks()
         if MugshotLaunchEnvironment.isUITesting {
             manager.prepareUITestFixture(reset: MugshotLaunchEnvironment.shouldResetUITestState)
+            if MugshotLaunchEnvironment.isUITestingSignedOut {
+                manager.prepareGuestSession()
+            }
         }
 #endif
         _dataManager = StateObject(wrappedValue: manager)

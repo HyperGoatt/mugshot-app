@@ -22,10 +22,18 @@ final class AppAuthModel: ObservableObject {
     @Published private(set) var profile: SupabaseUserProfile?
     @Published private(set) var isUpdatingProfile = false
     @Published private(set) var profileUpdateError: String?
+    @Published private(set) var pendingGuestSavedCafes: [Cafe] = []
+    @Published private(set) var isMergingGuestSaved = false
+    @Published private(set) var guestSavedMergeError: String?
+    @Published private(set) var capturePreferences: CapturePreferences = .empty
+    @Published private(set) var shouldOfferCapturePreferences = false
+    @Published private(set) var isSavingCapturePreferences = false
+    @Published private(set) var capturePreferencesError: String?
 
     private let authService: AuthService?
     private let profileService: ProfileService?
     private let accountDeletionService: AccountDeletionService?
+    private let capturePreferencesService: CapturePreferencesService?
 
     init(provider: SupabaseClientProvider = .shared) {
         do {
@@ -33,10 +41,12 @@ final class AppAuthModel: ObservableObject {
             self.authService = AuthService(client: client)
             self.profileService = ProfileService(client: client)
             self.accountDeletionService = AccountDeletionService(client: client)
+            self.capturePreferencesService = CapturePreferencesService(client: client)
         } catch {
             self.authService = nil
             self.profileService = nil
             self.accountDeletionService = nil
+            self.capturePreferencesService = nil
             self.status = .configurationRequired(error.localizedDescription)
         }
     }
@@ -49,6 +59,7 @@ final class AppAuthModel: ObservableObject {
             guard let user = try await authService.restoreSession() else {
                 authenticatedUser = nil
                 profile = nil
+                dataManager.prepareGuestSession()
                 status = .signedOut()
                 return
             }
@@ -107,7 +118,29 @@ final class AppAuthModel: ObservableObject {
         }
     }
 
-    func signOut() async {
+    func signInWithApple(
+        idToken: String,
+        nonce: String,
+        dataManager: DataManager
+    ) async {
+        guard let authService, let profileService else { return }
+        status = .working
+
+        do {
+            let user = try await authService.signInWithApple(idToken: idToken, nonce: nonce)
+            try await finishAuthentication(
+                user: user,
+                profileService: profileService,
+                dataManager: dataManager
+            )
+        } catch {
+            authenticatedUser = nil
+            profile = nil
+            status = .failed(safeMessage(for: error))
+        }
+    }
+
+    func signOut(dataManager: DataManager) async {
         guard let authService else { return }
         status = .working
 
@@ -115,6 +148,10 @@ final class AppAuthModel: ObservableObject {
             try await authService.signOut()
             authenticatedUser = nil
             profile = nil
+            pendingGuestSavedCafes = []
+            capturePreferences = .empty
+            shouldOfferCapturePreferences = false
+            dataManager.prepareGuestSession()
             status = .signedOut()
         } catch {
             status = .failed(safeMessage(for: error))
@@ -171,6 +208,66 @@ final class AppAuthModel: ObservableObject {
         profileUpdateError = nil
     }
 
+    func postponeGuestSavedMerge() {
+        pendingGuestSavedCafes = []
+        guestSavedMergeError = nil
+    }
+
+    func mergeGuestSaved(dataManager: DataManager) async -> Bool {
+        guard let userId = authenticatedUser?.id,
+              !pendingGuestSavedCafes.isEmpty else { return true }
+
+        isMergingGuestSaved = true
+        guestSavedMergeError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeStateService(client: client)
+            for cafe in pendingGuestSavedCafes {
+                let summary = try await service.setCafeState(
+                    userId: userId,
+                    cafe: cafe,
+                    isFavorite: cafe.isFavorite,
+                    wantToTry: cafe.wantToTry
+                )
+                dataManager.applyRemoteCafeState(summary)
+            }
+            dataManager.clearMergedGuestSavedCafes()
+            pendingGuestSavedCafes = []
+            isMergingGuestSaved = false
+            return true
+        } catch {
+            guestSavedMergeError = "Your guest saves are still safe on this device. Try merging again when you are online."
+            isMergingGuestSaved = false
+            return false
+        }
+    }
+
+    func saveCapturePreferences(_ preferences: CapturePreferences) async -> Bool {
+        guard let userId = authenticatedUser?.id,
+              let capturePreferencesService else { return false }
+        isSavingCapturePreferences = true
+        capturePreferencesError = nil
+
+        do {
+            capturePreferences = try await capturePreferencesService.save(
+                userId: userId,
+                preferences: preferences
+            )
+            shouldOfferCapturePreferences = false
+            isSavingCapturePreferences = false
+            return true
+        } catch {
+            capturePreferencesError = "We couldn’t save those preferences yet. Your journal still works normally."
+            isSavingCapturePreferences = false
+            return false
+        }
+    }
+
+    func skipCapturePreferences() async -> Bool {
+        await saveCapturePreferences(.empty)
+    }
+
     func updateAvatar(_ image: UIImage, dataManager: DataManager) async -> Bool {
         guard let authenticatedUser, let profileService else { return false }
         isUpdatingProfile = true
@@ -220,6 +317,7 @@ final class AppAuthModel: ObservableObject {
         profileService: ProfileService,
         dataManager: DataManager
     ) async throws {
+        let guestSavedCafes = dataManager.guestSavedCafes()
         let bootstrappedProfile = try await profileService.bootstrapProfile(
             for: user,
             localUser: dataManager.appData.currentUser
@@ -228,6 +326,12 @@ final class AppAuthModel: ObservableObject {
         authenticatedUser = user
         profile = bootstrappedProfile
         dataManager.applyAuthenticatedProfile(bootstrappedProfile)
+        pendingGuestSavedCafes = guestSavedCafes
+        if let capturePreferencesService {
+            let stored = try? await capturePreferencesService.fetch(userId: user.id)
+            capturePreferences = stored ?? .empty
+            shouldOfferCapturePreferences = stored?.setupCompletedAt == nil
+        }
         status = .signedIn
     }
 

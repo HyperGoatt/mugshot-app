@@ -6,8 +6,7 @@ struct ProfileTabView: View {
     @EnvironmentObject private var tabCoordinator: TabCoordinator
 
     @State private var selectedFilter: JournalFilter = .all
-    @State private var showEditProfile = false
-    @State private var showSettings = false
+    @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
@@ -20,6 +19,13 @@ struct ProfileTabView: View {
         case cafe = "Cafe"
         case home = "Home"
         case recipes = "Recipes"
+
+        var id: String { rawValue }
+    }
+
+    private enum ProfileSheet: String, Identifiable {
+        case editProfile
+        case settings
 
         var id: String { rawValue }
     }
@@ -78,8 +84,8 @@ struct ProfileTabView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     MugshotScreenHeader("Profile") {
-                        MugshotIconButton(systemName: "gearshape", size: 36) {
-                            showSettings = true
+                        MugshotIconButton(systemName: "gearshape", size: 44) {
+                            activeProfileSheet = .settings
                         }
                         .accessibilityLabel("Settings")
                     }
@@ -105,15 +111,17 @@ struct ProfileTabView: View {
                 }
             }
             .background(Color.creamWhite)
-            .sheet(isPresented: $showEditProfile) {
-                if let profile = authModel.profile {
-                    EditProfileView(profile: profile, dataManager: dataManager)
+            .sheet(item: $activeProfileSheet) { sheet in
+                switch sheet {
+                case .editProfile:
+                    if let profile = authModel.profile {
+                        EditProfileView(profile: profile, dataManager: dataManager)
+                            .environmentObject(authModel)
+                    }
+                case .settings:
+                    SettingsView(dataManager: dataManager)
                         .environmentObject(authModel)
                 }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView(dataManager: dataManager)
-                    .environmentObject(authModel)
             }
             .fullScreenCover(item: $selectedRemoteVisit) { visit in
                 RemoteVisitDetailView(
@@ -170,7 +178,7 @@ struct ProfileTabView: View {
                     if authModel.profile != nil {
                         Button {
                             authModel.clearProfileUpdateError()
-                            showEditProfile = true
+                            activeProfileSheet = .editProfile
                         } label: {
                             Label("Edit", systemImage: "pencil")
                                 .font(.system(size: 14, weight: .semibold))

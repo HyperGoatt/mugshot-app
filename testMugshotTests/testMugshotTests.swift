@@ -14,6 +14,81 @@ import Testing
 
 struct testMugshotTests {
 
+    @Test func guestSavedCafesStayIsolatedFromAuthenticatedLocalDataUntilMerge() throws {
+        let suite = "DataManagerGuestScopeTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = DataManager(defaults: defaults)
+        manager.prepareGuestSession()
+
+        let guestCafe = Cafe(name: "Guest Saved Cafe", isFavorite: true)
+        manager.addCafe(guestCafe)
+        #expect(manager.guestSavedCafes().map(\.name) == ["Guest Saved Cafe"])
+
+        let userId = UUID()
+        manager.applyAuthenticatedProfile(SupabaseUserProfile(
+            id: userId,
+            displayName: "Journal Owner",
+            username: "journal_owner",
+            bio: nil,
+            location: nil,
+            favoriteDrink: nil,
+            instagramHandle: nil,
+            avatarURL: nil,
+            bannerURL: nil,
+            websiteURL: nil
+        ))
+
+        #expect(manager.appData.cafes.isEmpty)
+        #expect(manager.guestSavedCafes().map(\.name) == ["Guest Saved Cafe"])
+
+        manager.addCafe(Cafe(name: "Account Cafe", wantToTry: true))
+        manager.prepareGuestSession()
+        #expect(manager.appData.cafes.map(\.name) == ["Guest Saved Cafe"])
+
+        manager.applyAuthenticatedProfile(SupabaseUserProfile(
+            id: userId,
+            displayName: "Journal Owner",
+            username: "journal_owner",
+            bio: nil,
+            location: nil,
+            favoriteDrink: nil,
+            instagramHandle: nil,
+            avatarURL: nil,
+            bannerURL: nil,
+            websiteURL: nil
+        ))
+        #expect(manager.appData.cafes.map(\.name) == ["Account Cafe"])
+    }
+
+    @Test func clearingMergedGuestSavesDoesNotEraseAuthenticatedLocalData() throws {
+        let suite = "DataManagerGuestMergeTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = DataManager(defaults: defaults)
+        manager.prepareGuestSession()
+        manager.addCafe(Cafe(name: "Guest Favorite", isFavorite: true))
+
+        let userId = UUID()
+        manager.applyAuthenticatedProfile(SupabaseUserProfile(
+            id: userId,
+            displayName: "Journal Owner",
+            username: "journal_owner",
+            bio: nil,
+            location: nil,
+            favoriteDrink: nil,
+            instagramHandle: nil,
+            avatarURL: nil,
+            bannerURL: nil,
+            websiteURL: nil
+        ))
+        manager.addCafe(Cafe(name: "Account Favorite", isFavorite: true))
+        manager.clearMergedGuestSavedCafes()
+
+        #expect(manager.guestSavedCafes().isEmpty)
+        #expect(manager.appData.cafes.map(\.name) == ["Account Favorite"])
+    }
+
     @Test func cafeIdentityIsStableAcrossAddressFormattingAndSeparatesNeighbors() {
         let location = CLLocationCoordinate2D(latitude: 32.791641, longitude: -79.941289)
         let first = Cafe(name: "Babas on Cannon", location: location, address: "11 Cannon St")

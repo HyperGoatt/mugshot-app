@@ -7,6 +7,7 @@ enum MugshotLaunchEnvironment {
     private static let remotePhotoFailureKey = "MugshotDebug.remotePhotoFailureConsumed"
 
     static let isUITesting = arguments.contains("--ui-testing")
+    static let isUITestingSignedOut = arguments.contains("--ui-testing-signed-out")
     static let shouldResetUITestState = arguments.contains("--ui-testing-reset")
     static let shouldSeedUITestPhoto = arguments.contains("--ui-testing-seed-photo")
 

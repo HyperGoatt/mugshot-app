@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedTab: SavedTab = .favorites
     @State private var sortOption: SortOption = .score
@@ -154,6 +155,13 @@ struct SavedTabView: View {
                                     showWantToTryTag: selectedTab == .wantToTry,
                                     communityImageURL: remoteCafeCoverURLs[cafe.remoteCafeId ?? cafe.id],
                                     onLogVisit: {
+                                        guard authModel.authenticatedUser != nil else {
+                                            onAuthenticationRequired?(
+                                                "Keep this sip in your journal",
+                                                "Sign in to log this saved cafe. Your guest saves will remain on this device."
+                                            )
+                                            return
+                                        }
                                         activeSheet = .logVisit(cafe)
                                     },
                                     onShowDetails: {
@@ -180,7 +188,11 @@ struct SavedTabView: View {
             case .logVisit(let cafe):
                 LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
             case .cafeDetail(let cafe):
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    onAuthenticationRequired: onAuthenticationRequired
+                )
             }
         }
     }
@@ -552,6 +564,7 @@ private struct CommunityDrinkCount: Identifiable {
 struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) var dismiss
     @State private var showLogVisit = false
@@ -767,6 +780,13 @@ struct CafeDetailView: View {
 
         return VStack(spacing: 12) {
             Button {
+                guard authModel.authenticatedUser != nil else {
+                    onAuthenticationRequired?(
+                        "Keep this sip in your journal",
+                        "Sign in to log this cafe. You can still favorite it or save it to try while browsing as a guest."
+                    )
+                    return
+                }
                 showLogVisit = true
             } label: {
                 Label("Log Visit", systemImage: "plus.circle.fill")
