@@ -24,7 +24,6 @@ struct MainTabView: View {
             activeTab
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
-                .transition(.opacity)
 
             if tabCoordinator.selectedTab != 2 {
                 MugshotBottomNav(selectedTab: gatedTabSelection)
@@ -120,22 +119,9 @@ struct MainTabView: View {
     private var activeTab: some View {
         switch tabCoordinator.selectedTab {
         case 0:
-            MapTabView(dataManager: dataManager, onLogVisitRequested: { cafe in
-                guard hasAuthenticatedNavigation else {
-                    requestAuthentication(
-                        title: "Keep this sip in your journal",
-                        message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
-                    )
-                    return
-                }
-                composerDraft = Self.cafeDraft(cafe, dataManager: dataManager, userID: authModel.authenticatedUser?.id)
-                composerSessionID = UUID()
-                withAnimation(DesignSystem.Motion.base) {
-                    tabCoordinator.selectedTab = 2
-                }
-            })
+            MapTabView(dataManager: dataManager, onLogVisitRequested: beginCafeSip)
         case 1:
-            FeedTabView(dataManager: dataManager)
+            FeedTabView(dataManager: dataManager, onLogVisitRequested: beginCafeSip)
         case 2:
             AddTabView(dataManager: dataManager, initialDraft: composerDraft)
                 .id(composerSessionID)
@@ -147,9 +133,11 @@ struct MainTabView: View {
                     }
                 }
         case 3:
-            SavedTabView(dataManager: dataManager) { title, message in
-                requestAuthentication(title: title, message: message)
-            }
+            SavedTabView(
+                dataManager: dataManager,
+                onLogVisitRequested: beginCafeSip,
+                onAuthenticationRequired: requestAuthentication
+            )
         default:
             JournalTabView(dataManager: dataManager) { draft in
                 composerDraft = draft
@@ -162,6 +150,24 @@ struct MainTabView: View {
     }
 
     private static let guestTabs: Set<Int> = [0, 3]
+
+    private func beginCafeSip(_ cafe: Cafe) {
+        guard hasAuthenticatedNavigation else {
+            requestAuthentication(
+                title: "Keep this sip in your journal",
+                message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
+            )
+            return
+        }
+
+        composerDraft = Self.cafeDraft(
+            cafe,
+            dataManager: dataManager,
+            userID: authModel.authenticatedUser?.id
+        )
+        composerSessionID = UUID()
+        tabCoordinator.selectedTab = 2
+    }
 
     private var hasAuthenticatedNavigation: Bool {
         authModel.authenticatedUser != nil
@@ -506,6 +512,10 @@ private struct MugshotBottomNav: View {
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                         .accessibilityLabel(item.title)
+                        .accessibilityIdentifier("mugshot.tab.\(item.title.lowercased())")
+                        .accessibilityValue(selectedTab == item.index ? "Selected" : "")
+                        .accessibilityHint(item.index == 2 ? "Opens the guided sip composer" : "Switches to the \(item.title) tab")
+                        .accessibilityAddTraits(selectedTab == item.index ? .isSelected : [])
                     }
                 }
             }

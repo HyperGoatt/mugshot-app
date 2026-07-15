@@ -107,6 +107,219 @@ struct MugshotLoadingCards: View {
     }
 }
 
+enum MugshotLoadingLayout {
+    case feed
+    case journal
+    case collection
+    case cafeDetail
+}
+
+/// Layout-faithful loading placeholders for Mugshot's primary surfaces.
+/// These deliberately avoid shimmer and motion so they remain calm, cheap to
+/// render, and compatible with Reduce Motion by default.
+struct MugshotLoadingState: View {
+    let layout: MugshotLoadingLayout
+    var count = 3
+
+    var body: some View {
+        Group {
+            switch layout {
+            case .feed:
+                VStack(spacing: 12) {
+                    ForEach(0..<count, id: \.self) { _ in
+                        feedCard
+                    }
+                }
+            case .journal:
+                VStack(spacing: 12) {
+                    ForEach(0..<count, id: \.self) { _ in
+                        journalRow
+                    }
+                }
+            case .collection:
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(0..<count, id: \.self) { _ in
+                            collectionTile
+                        }
+                    }
+                }
+            case .cafeDetail:
+                cafeDetail
+            }
+        }
+        .foregroundStyle(Color.sandBeige.opacity(0.92))
+        .redacted(reason: .placeholder)
+        .accessibilityHidden(true)
+    }
+
+    private var feedCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Circle().frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 7) {
+                    loadingBar(width: 126, height: 13)
+                    loadingBar(width: 92, height: 10)
+                }
+                Spacer()
+            }
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .frame(maxWidth: .infinity)
+                .frame(height: 238)
+
+            loadingBar(width: 172, height: 18)
+            loadingBar(width: 238, height: 12)
+
+            HStack(spacing: 10) {
+                Capsule().frame(width: 62, height: 38)
+                Capsule().frame(width: 62, height: 38)
+                Capsule().frame(width: 46, height: 38)
+                Spacer()
+            }
+        }
+        .padding(14)
+        .cardStyle(radius: DesignSystem.Radius.heroCard)
+    }
+
+    private var journalRow: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                .frame(width: 92, height: 96)
+
+            VStack(alignment: .leading, spacing: 8) {
+                loadingBar(width: 104, height: 10)
+                loadingBar(width: 166, height: 18)
+                loadingBar(width: 126, height: 12)
+                loadingBar(width: 58, height: 11)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var collectionTile: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .frame(width: 154, height: 72)
+            loadingBar(width: 112, height: 14)
+            loadingBar(width: 76, height: 10)
+        }
+        .frame(width: 154, alignment: .leading)
+        .padding(12)
+        .cardStyle()
+    }
+
+    private var cafeDetail: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            loadingBar(width: 210, height: 24)
+            loadingBar(width: 164, height: 12)
+
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .frame(height: 74)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .frame(height: 74)
+            }
+
+            Capsule().frame(maxWidth: .infinity).frame(height: 48)
+
+            ForEach(0..<2, id: \.self) { _ in
+                journalRow
+            }
+        }
+    }
+
+    private func loadingBar(width: CGFloat, height: CGFloat) -> some View {
+        Capsule().frame(width: width, height: height)
+    }
+}
+
+struct MugshotCompletionFact: Identifiable, Equatable {
+    let icon: String
+    let label: String
+    let value: String
+
+    var id: String { "\(icon)-\(label)-\(value)" }
+}
+
+struct MugshotCompletionCard: View {
+    var assetName: String? = nil
+    var systemImage = "checkmark"
+    let eyebrow: String
+    let title: String
+    let message: String
+    var facts: [MugshotCompletionFact] = []
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Group {
+                if let assetName {
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(.foamWhite)
+                        .frame(width: 64, height: 64)
+                        .background(Color.mugshotSage, in: Circle())
+                }
+            }
+            .frame(width: 72, height: 72)
+            .accessibilityHidden(true)
+
+            VStack(spacing: 5) {
+                Text(eyebrow.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundColor(.mugshotSage)
+
+                Text(title)
+                    .mugshotDisplay(size: 27)
+                    .foregroundColor(.espressoBrown)
+                    .multilineTextAlignment(.center)
+
+                Text(message)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !facts.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(facts) { fact in
+                        HStack(alignment: .firstTextBaseline, spacing: 9) {
+                            Image(systemName: fact.icon)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.mugshotSage)
+                                .frame(width: 18)
+                            Text(fact.label)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondaryText)
+                            Spacer(minLength: 8)
+                            Text(fact.value)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.espressoBrown)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Color.sandBeige.opacity(0.54))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            }
+        }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 24)
+        .mugshotGlassSurface(radius: 26, tint: .foamWhite, interactive: false)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct MugshotLegacySipHero: View {
     let title: String
     let subtitle: String

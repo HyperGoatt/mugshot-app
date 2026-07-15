@@ -49,6 +49,7 @@ private final class RemoteFeedMemoryCache {
 
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
+    var onLogVisitRequested: ((Cafe) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
@@ -194,7 +195,11 @@ struct FeedTabView: View {
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
-                CafeDetailView(cafe: cafe, dataManager: dataManager)
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    onLogVisitRequested: onLogVisitRequested
+                )
             }
         }
         .sheet(isPresented: $isPeopleHubPresented) {
@@ -281,7 +286,7 @@ struct FeedTabView: View {
     @ViewBuilder
     private var remoteFeedContent: some View {
         if isLoadingRemoteVisits {
-            MugshotLoadingCards(count: 4, cardHeight: 228)
+            MugshotLoadingState(layout: .feed, count: 3)
         } else if let remoteVisitError {
             MugshotRecoveryCard(
                 title: "Couldn’t load your feed",
@@ -352,24 +357,38 @@ struct FeedTabView: View {
 
     @ViewBuilder
     private var localFeedContent: some View {
-        ForEach(filteredLocalVisits) { visit in
-            VisitCard(
-                visit: visit,
-                dataManager: dataManager,
-                selectedScope: selectedScope,
-                onOpen: {
-                    selectedVisit = visit
-                },
-                onCafeTap: {
-                    if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                        selectedCafe = cafe
-                        showCafeDetail = true
-                    }
-                }
+        if visits.isEmpty {
+            MugsyEmptyStateView(
+                asset: .comingSoon,
+                title: "Your feed starts with a sip",
+                message: "Log a cafe or Home sip and your memories will begin gathering here."
             )
-            .contentShape(Rectangle())
-            .onTapGesture {
-                selectedVisit = visit
+        } else if filteredLocalVisits.isEmpty {
+            MugsyEmptyStateView(
+                asset: .comingSoon,
+                title: "No matching sips",
+                message: "Try another drink, cafe, or note."
+            )
+        } else {
+            ForEach(filteredLocalVisits) { visit in
+                VisitCard(
+                    visit: visit,
+                    dataManager: dataManager,
+                    selectedScope: selectedScope,
+                    onOpen: {
+                        selectedVisit = visit
+                    },
+                    onCafeTap: {
+                        if let cafe = dataManager.getCafe(id: visit.cafeId) {
+                            selectedCafe = cafe
+                            showCafeDetail = true
+                        }
+                    }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    selectedVisit = visit
+                }
             }
         }
     }
@@ -669,8 +688,6 @@ struct RemoteFeedVisitCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            authorHeader
-
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 0) {
                     poster
@@ -682,6 +699,7 @@ struct RemoteFeedVisitCard: View {
             .accessibilityLabel("Open \(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
             .accessibilityHint("Opens visit details")
 
+            provenanceBlock
             footer
         }
         .background(Color.foamWhite)
@@ -695,31 +713,40 @@ struct RemoteFeedVisitCard: View {
         .accessibilityIdentifier("feed.remoteVisitCard.\(visit.id.uuidString)")
     }
 
-    private var authorHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            MugshotAvatar(name: visit.authorDisplayName, size: 40)
+    private var provenanceBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 9) {
+                MugshotAvatar(name: visit.authorDisplayName, size: 30)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(visit.authorDisplayName)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.espressoBrown)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(visit.authorDisplayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(1)
 
-                Text("@\(visit.authorUsername) · \(timeAgoString(from: visit.visit.createdAtDate))")
-                    .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .lineLimit(1)
+                    Text("@\(visit.authorUsername) · \(timeAgoString(from: visit.visit.createdAtDate))")
+                        .font(.system(size: 11))
+                        .foregroundColor(.tertiaryText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
             }
 
-            Spacer(minLength: 8)
-
-            if !hasPhoto, visit.visit.overallScore > 0 {
-                scoreBadge
+            if showsRecommendationReason,
+               let reason = visit.recommendationReason?.remoteTrimmedNonEmpty {
+                Label(reason, systemImage: recommendationIcon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Recommended because \(reason)")
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 10)
+        .padding(.vertical, 11)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+        }
     }
 
     private var poster: some View {
@@ -740,7 +767,7 @@ struct RemoteFeedVisitCard: View {
 
                 locationOverlay
 
-                if hasPhoto, visit.visit.overallScore > 0 {
+                if visit.visit.overallScore > 0 {
                     VStack {
                         HStack {
                             Spacer()
@@ -807,15 +834,6 @@ struct RemoteFeedVisitCard: View {
                     .foregroundColor(.espressoBrown.opacity(0.74))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if showsRecommendationReason,
-               let reason = visit.recommendationReason?.remoteTrimmedNonEmpty {
-                Label(reason, systemImage: recommendationIcon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Recommended because \(reason)")
             }
 
             Text("\(visit.visit.contextDisplayName) · \(timeAgoString(from: visit.visit.createdAtDate))")
@@ -890,8 +908,6 @@ struct RemoteFeedVisitCard: View {
                 .foregroundColor(.espressoBrown)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.sandBeige.opacity(0.44))
-                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open \(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
@@ -924,8 +940,7 @@ struct RemoteFeedVisitCard: View {
         .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
         .padding(.horizontal, value == nil ? 9 : 10)
         .frame(minHeight: 44)
-        .background(isActive ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.34))
-        .clipShape(Capsule())
+        .background(isActive ? Color.mugshotMint.opacity(0.28) : Color.clear, in: Capsule())
     }
 
     private func timeAgoString(from date: Date) -> String {
@@ -1029,9 +1044,9 @@ struct VisitCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            localAuthorHeader
             localPoster
             localContent
+            localAuthorHeader
             localFooter
         }
         .background(Color.foamWhite)
@@ -1046,12 +1061,12 @@ struct VisitCard: View {
 
     private var localAuthorHeader: some View {
         HStack(alignment: .center, spacing: 12) {
-            MugshotAvatar(name: user?.username ?? "User", size: 40)
+            MugshotAvatar(name: user?.username ?? "User", size: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(user?.displayNameOrUsername ?? user?.username ?? "Mugshot User")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                         .lineLimit(1)
 
@@ -1066,20 +1081,19 @@ struct VisitCard: View {
                     }
                 }
 
-                Text(formatDate(visit.createdAt))
-                    .font(.system(size: 12))
+                Text("@\(user?.username ?? "user") · \(formatDate(visit.createdAt))")
+                    .font(.system(size: 11))
                     .foregroundColor(.espressoBrown.opacity(0.6))
             }
 
             Spacer(minLength: 8)
 
-            if visit.photos.isEmpty, visit.overallScore > 0 {
-                MugshotRatingBadge(score: visit.overallScore)
-            }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 10)
+        .padding(.vertical, 11)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+        }
     }
 
     private var localPoster: some View {
@@ -1127,7 +1141,7 @@ struct VisitCard: View {
                 )
                 .padding(12)
 
-                if !visit.photos.isEmpty, visit.overallScore > 0 {
+                if visit.overallScore > 0 {
                     VStack {
                         HStack {
                             Spacer()
@@ -1192,8 +1206,6 @@ struct VisitCard: View {
                         .foregroundColor(.espressoBrown)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.sandBeige.opacity(0.44))
-                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open sip")
@@ -1222,9 +1234,8 @@ struct VisitCard: View {
         }
         .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(isActive ? Color.mugshotMint.opacity(0.34) : Color.sandBeige.opacity(0.34))
-        .clipShape(Capsule())
+        .frame(minHeight: 44)
+        .background(isActive ? Color.mugshotMint.opacity(0.28) : Color.clear, in: Capsule())
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -1501,12 +1512,9 @@ struct VisitDetailView: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.espressoBrown)
 
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 94), spacing: 10)],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    SipActionButton(
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        SipActionButton(
                         title: isLiked ? "Liked" : "Like",
                         value: "\(visit.likeCount)",
                         systemImage: isLiked ? "heart.fill" : "heart",
@@ -1516,7 +1524,7 @@ struct VisitDetailView: View {
                         toggleLocalLike()
                     }
 
-                    SipActionButton(
+                        SipActionButton(
                         title: "Comment",
                         value: "\(visit.commentCount)",
                         systemImage: "bubble.right",
@@ -1526,8 +1534,8 @@ struct VisitDetailView: View {
                         isCommentFocused = true
                     }
 
-                    if cafe != nil {
-                        SipActionButton(
+                        if cafe != nil {
+                            SipActionButton(
                             title: cafe?.isFavorite == true ? "Saved" : "Save",
                             value: nil,
                             systemImage: cafe?.isFavorite == true ? "bookmark.fill" : "bookmark",
@@ -1537,20 +1545,21 @@ struct VisitDetailView: View {
                             toggleLocalCafeFavorite()
                         }
 
-                        if !isOwnVisit {
-                            SipActionButton(
-                                title: cafe?.wantToTry == true ? "Wanting" : "Want",
-                                value: nil,
-                                systemImage: cafe?.wantToTry == true ? "pin.fill" : "pin",
-                                isActive: cafe?.wantToTry == true,
-                                isEnabled: true
-                            ) {
-                                toggleLocalCafeWantToTry()
-                            }
                         }
-                    }
 
-                    SipShareButton(text: localShareText, photoURL: nil)
+                        SipShareButton(
+                        payload: SipShareCardPayload(
+                            authorName: user?.displayNameOrUsername ?? "Mugshot user",
+                            drinkName: localDrinkDisplayName,
+                            cafeName: cafe?.consumerDisplayName ?? visit.locationName ?? "Cafe",
+                            rating: visit.overallScore,
+                            date: visit.createdAt,
+                            publicCaption: consumerPreviewCaption(visit.caption),
+                            remotePhotoURL: nil,
+                            localPhotoPath: visit.posterImagePath
+                        )
+                        )
+                    }
                 }
             }
         }
@@ -1647,10 +1656,6 @@ struct VisitDetailView: View {
         case .everyone:
             return "Public sip"
         }
-    }
-
-    private var localShareText: String {
-        "\(user?.displayNameOrUsername ?? "A Mugshot user") rated \(localDrinkDisplayName) \(String(format: "%.1f", visit.overallScore)) at \(cafe?.name ?? "a cafe") on Mugshot."
     }
 
     private func refreshVisit() {

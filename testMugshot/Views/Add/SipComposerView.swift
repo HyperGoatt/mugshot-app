@@ -29,6 +29,7 @@ struct LogVisitView: View {
     @State private var confirmedTextOnlyEveryone = false
     @State private var isSaving = false
     @State private var showSavedConfirmation = false
+    @State private var completionSummary: SipCompletionSummary?
     @State private var errorMessage: String?
     @State private var pendingSubmission: PendingVisitSubmissionRecord?
     @State private var uploadRecoveryMessage: String?
@@ -117,22 +118,7 @@ struct LogVisitView: View {
         NavigationStack {
             ZStack {
                 Color.creamWhite.ignoresSafeArea()
-
-                Group {
-                    if composerExperience == .longForm {
-                        longFormComposer
-                    } else {
-                        guidedComposer
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-
-                if showSavedConfirmation {
-                    savedConfirmation
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.94).combined(with: .opacity))
-                        .zIndex(5)
-                }
+                composerBodyContent
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -158,7 +144,12 @@ struct LogVisitView: View {
             }
             .toolbarBackground(Color.creamWhite, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) { composerFooter }
+            .toolbar(showSavedConfirmation ? .hidden : .visible, for: .navigationBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !showSavedConfirmation {
+                    composerFooter
+                }
+            }
             .sheet(isPresented: $showCriteriaEditor) {
                 SipCriteriaEditor(
                     criteria: $composerModel.draft.ratingCriteria,
@@ -267,6 +258,23 @@ struct LogVisitView: View {
         .background(Color.creamWhite.ignoresSafeArea())
     }
 
+    @ViewBuilder
+    private var composerBodyContent: some View {
+        if showSavedConfirmation {
+            savedConfirmation
+        } else {
+            Group {
+                if composerExperience == .longForm {
+                    longFormComposer
+                } else {
+                    guidedComposer
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+        }
+    }
+
     private var longFormComposer: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -306,9 +314,11 @@ struct LogVisitView: View {
                     locationCard
                 case .drink:
                     drinkCard
-                    memoryCard
-                    if draft.context == .cafe {
-                        guidedCafeContextCard
+                    if draft.drinkName.remoteTrimmedNonEmpty != nil {
+                        memoryCard
+                        if draft.context == .cafe {
+                            guidedCafeContextCard
+                        }
                     }
                 case .rating:
                     if draft.launchContext.source == .repeatSip || draft.launchContext.source == .brewAgain {
@@ -1154,22 +1164,52 @@ struct LogVisitView: View {
     }
 
     private var savedConfirmation: some View {
-        VStack(spacing: 12) {
-            Image("MugsyComingSoon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 64)
-                .accessibilityHidden(true)
-            Text("Sip remembered")
-                .mugshotDisplay(size: 26)
-                .foregroundColor(.espressoBrown)
-            Text("Back to your day.")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.secondaryText)
+        let summary = completionSummary
+        let facts = [
+            summary.map {
+                MugshotCompletionFact(
+                    icon: $0.contextIcon,
+                    label: $0.contextLabel,
+                    value: $0.locationName
+                )
+            },
+            summary.map {
+                MugshotCompletionFact(
+                    icon: "star.fill",
+                    label: "Rating",
+                    value: String(format: "%.1f", $0.score)
+                )
+            },
+            summary?.isDetailedMemory == true ? summary.map {
+                MugshotCompletionFact(
+                    icon: $0.visibilityIcon,
+                    label: "Saved for",
+                    value: $0.visibility.rawValue
+                )
+            } : nil,
+            summary?.detailHighlights.isEmpty == false ? summary.map {
+                MugshotCompletionFact(
+                    icon: "sparkles",
+                    label: "Includes",
+                    value: $0.detailHighlights.joined(separator: " · ")
+                )
+            } : nil
+        ].compactMap { $0 }
+
+        return VStack(spacing: 12) {
+            MugshotCompletionCard(
+                assetName: "MugsyComingSoon",
+                eyebrow: summary?.isDetailedMemory == true ? "Memory saved" : "Sip saved",
+                title: summary?.drinkName ?? "Sip remembered",
+                message: summary?.completionMessage
+                    ?? "Your rating is saved in Journal and ready whenever you want to add more.",
+                facts: facts
+            )
+
+            Button("View in Journal", action: finishSuccessfulSave)
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityHint("Closes the composer and opens your saved coffee memories")
         }
-        .padding(.horizontal, 34)
-        .padding(.vertical, 28)
-        .mugshotGlassSurface(radius: 26, tint: .foamWhite, interactive: false)
         .padding(28)
     }
 
@@ -1685,6 +1725,24 @@ struct LogVisitView: View {
         if draft.context == .cafe {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
         }
+        completionSummary = SipCompletionSummary(
+            drinkName: draft.drinkName.remoteTrimmedNonEmpty ?? "Saved sip",
+            locationName: draft.context == .cafe
+                ? draft.cafe?.consumerDisplayName ?? "Cafe"
+                : draft.locationName.remoteTrimmedNonEmpty ?? draft.context.locationFallback,
+            context: draft.context,
+            score: draft.resolvedOverallScore,
+            visibility: draft.visibility,
+            usedTastingLens: draft.captureMode == .addDetails,
+            hasPhoto: !photoImages.isEmpty,
+            hasThought: draft.socialCaption.remoteTrimmedNonEmpty != nil,
+            hasPrivateNote: draft.privateNotes.remoteTrimmedNonEmpty != nil,
+            hasBrewDetails: draft.brewMethod.remoteTrimmedNonEmpty != nil
+                || draft.equipment.remoteTrimmedNonEmpty != nil
+                || !draft.tags.isEmpty
+                || !draft.companions.isEmpty
+                || draft.orderNotes.remoteTrimmedNonEmpty != nil
+        )
         SipDraftStore.shared.remove(draft)
         var replacement = Self.initialDraft(
             dataManager: dataManager,
@@ -1700,11 +1758,12 @@ struct LogVisitView: View {
         showTextOnlyConfirmation = false
         pendingSubmission = nil
         uploadRecoveryMessage = nil
-        withAnimation(DesignSystem.Motion.base) { showSavedConfirmation = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-            tabCoordinator.returnFromComposer(fallback: 4)
-            dismiss()
-        }
+        showSavedConfirmation = true
+    }
+
+    private func finishSuccessfulSave() {
+        tabCoordinator.selectedTab = 4
+        dismiss()
     }
 
     private var submissionBrewDetails: BrewDetails {
@@ -1985,6 +2044,56 @@ struct LogVisitView: View {
                 draft.brewDetails.steps?[index].instruction = value
             }
         )
+    }
+}
+
+private struct SipCompletionSummary {
+    let drinkName: String
+    let locationName: String
+    let context: JournalEntryContext
+    let score: Double
+    let visibility: VisitVisibility
+    let usedTastingLens: Bool
+    let hasPhoto: Bool
+    let hasThought: Bool
+    let hasPrivateNote: Bool
+    let hasBrewDetails: Bool
+
+    var detailHighlights: [String] {
+        [
+            hasPhoto ? "photo" : nil,
+            usedTastingLens ? "tasting lens" : nil,
+            hasThought ? "public thought" : nil,
+            hasPrivateNote ? "private note" : nil,
+            hasBrewDetails ? "brew details" : nil
+        ].compactMap { $0 }
+    }
+
+    var isDetailedMemory: Bool { !detailHighlights.isEmpty }
+
+    var completionMessage: String {
+        if detailHighlights.isEmpty {
+            return "Your rating is saved in Journal and ready whenever you want to add more."
+        }
+        return "This memory reflects the details you added. Everything is waiting in Journal."
+    }
+
+    var contextIcon: String { context.systemImage }
+
+    var contextLabel: String {
+        switch context {
+        case .cafe: return "Cafe"
+        case .home: return "Brewed at"
+        case .recipe: return "Recipe"
+        }
+    }
+
+    var visibilityIcon: String {
+        switch visibility {
+        case .private: return "lock.fill"
+        case .friends: return "person.2.fill"
+        case .everyone: return "globe.americas.fill"
+        }
     }
 }
 

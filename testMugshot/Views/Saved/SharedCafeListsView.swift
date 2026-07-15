@@ -10,6 +10,7 @@ struct SharedCafeListsView: View {
     @State private var isPresentingNewList = false
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var visualSummaries: [UUID: CafeListVisualSummary] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,12 +27,11 @@ struct SharedCafeListsView: View {
                         .font(.system(size: 13, weight: .bold))
                 }
                 .buttonStyle(.bordered)
-                .tint(.mugshotSage)
+                .tint(Color.mugshotSage)
             }
 
             if isLoading && lists.isEmpty {
-                ProgressView("Loading lists…")
-                    .tint(.mugshotSage)
+                MugshotLoadingState(layout: .collection, count: 3)
             } else if lists.isEmpty {
                 Button {
                     isPresentingNewList = true
@@ -62,7 +62,11 @@ struct SharedCafeListsView: View {
                         ForEach(lists) { list in
                             if pendingMemberships.contains(where: { $0.listID == list.id }) {
                                 VStack(spacing: 8) {
-                                    CafeListTile(list: list, isOwner: false)
+                                    CafeListTile(
+                                        list: list,
+                                        isOwner: false,
+                                        summary: visualSummaries[list.id] ?? .empty
+                                    )
                                     HStack(spacing: 8) {
                                         Button("Decline") {
                                             Task { await respond(to: list.id, accept: false) }
@@ -84,7 +88,11 @@ struct SharedCafeListsView: View {
                                         currentUserID: currentUserID
                                     )
                                 } label: {
-                                    CafeListTile(list: list, isOwner: list.ownerID == currentUserID)
+                                    CafeListTile(
+                                        list: list,
+                                        isOwner: list.ownerID == currentUserID,
+                                        summary: visualSummaries[list.id] ?? .empty
+                                    )
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -120,6 +128,20 @@ struct SharedCafeListsView: View {
             let (resolvedLists, resolvedMemberships) = try await (loadedLists, memberships)
             lists = resolvedLists
             pendingMemberships = resolvedMemberships.filter { $0.invitationStatus == "pending" }
+            var summaries: [UUID: CafeListVisualSummary] = [:]
+            for list in resolvedLists {
+                let items = (try? await service.cafeListItems(listID: list.id)) ?? []
+                let members = (try? await service.cafeListMembers(listID: list.id)) ?? []
+                let localCafes = items.compactMap { item in
+                    dataManager.appData.cafes.first { ($0.remoteCafeId ?? $0.id) == item.cafeID }
+                }
+                summaries[list.id] = CafeListVisualSummary(
+                    cafeCount: items.count,
+                    collaboratorCount: members.filter { $0.invitationStatus == "accepted" }.count,
+                    mapContext: localCafes.first(where: { !$0.address.isEmpty })?.address
+                )
+            }
+            visualSummaries = summaries
             errorMessage = nil
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .loading)
@@ -138,24 +160,70 @@ struct SharedCafeListsView: View {
     }
 }
 
+private struct CafeListVisualSummary: Equatable {
+    let cafeCount: Int
+    let collaboratorCount: Int
+    let mapContext: String?
+
+    static let empty = CafeListVisualSummary(cafeCount: 0, collaboratorCount: 0, mapContext: nil)
+}
+
 private struct CafeListTile: View {
     let list: CafeListRecord
     let isOwner: Bool
+    let summary: CafeListVisualSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: list.visibility == .private ? "lock.fill" : "person.2.fill")
-                .foregroundColor(.mugshotSage)
+        VStack(alignment: .leading, spacing: 9) {
+            ZStack(alignment: .bottomLeading) {
+                LinearGradient(
+                    colors: [Color.mugshotMint.opacity(0.78), Color.mugshotSage.opacity(0.74)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                Image(systemName: "map.fill")
+                    .font(.system(size: 48, weight: .semibold))
+                    .foregroundColor(.foamWhite.opacity(0.16))
+                    .offset(x: 55, y: 8)
+                HStack(spacing: 6) {
+                    Image(systemName: list.visibility == .private ? "lock.fill" : "person.2.fill")
+                    Text(list.visibility.title)
+                }
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.foamWhite)
+                .padding(.horizontal, 9)
+                .frame(height: 28)
+                .background(Color.espressoBrown.opacity(0.30), in: Capsule())
+                .padding(10)
+            }
+            .frame(height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
             Text(list.title)
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
-            Text(isOwner ? list.visibility.title : "Shared with you")
+
+            HStack(spacing: 10) {
+                Label("\(summary.cafeCount)", systemImage: "cup.and.saucer.fill")
+                if summary.collaboratorCount > 0 {
+                    Label("\(summary.collaboratorCount)", systemImage: "person.2.fill")
+                }
+                Spacer()
+                Text(isOwner ? "Yours" : "Shared")
+            }
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondaryText)
+
+            if let context = summary.mapContext {
+                Label(context, systemImage: "mappin.circle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(1)
+            }
         }
-        .frame(width: 154, height: 112, alignment: .topLeading)
-        .padding(14)
+        .frame(width: 184, height: 206, alignment: .topLeading)
+        .padding(12)
         .cardStyle()
     }
 }
@@ -244,6 +312,14 @@ private struct CafeListDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 MugshotScreenHeader(list.title, subtitle: list.description ?? list.visibility.title)
 
+                listOverview
+                    .padding(.horizontal, 16)
+
+                if !mappedCafes.isEmpty {
+                    CafeListMapPreview(cafes: mappedCafes)
+                        .padding(.horizontal, 16)
+                }
+
                 if list.ownerID == currentUserID {
                     HStack(spacing: 10) {
                         Button { isPresentingCafePicker = true } label: {
@@ -325,6 +401,39 @@ private struct CafeListDetailView: View {
 
     private var pendingMemberCount: Int {
         members.filter { $0.invitationStatus == "pending" }.count
+    }
+
+    private var mappedCafes: [Cafe] {
+        items.compactMap { item in
+            dataManager.appData.cafes.first {
+                ($0.remoteCafeId ?? $0.id) == item.cafeID && $0.location != nil
+            }
+        }
+    }
+
+    private var listOverview: some View {
+        HStack(spacing: 9) {
+            listMetric("\(items.count)", label: items.count == 1 ? "cafe" : "cafes", icon: "cup.and.saucer.fill")
+            listMetric("\(acceptedMemberCount)", label: "collaborators", icon: "person.2.fill")
+            listMetric(list.visibility.title, label: "visibility", icon: list.visibility == .private ? "lock.fill" : "eye.fill")
+        }
+    }
+
+    private func listMetric(_ value: String, label: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(value, systemImage: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondaryText)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(Color.sandBeige.opacity(0.52), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func cafeItem(_ item: CafeListItemRecord) -> some View {
@@ -413,6 +522,38 @@ private struct CafeListDetailView: View {
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .social)
         }
+    }
+}
+
+private struct CafeListMapPreview: View {
+    let cafes: [Cafe]
+
+    var body: some View {
+        Map {
+            ForEach(cafes.filter { $0.location != nil }) { cafe in
+                Marker(
+                    cafe.consumerDisplayName,
+                    systemImage: "cup.and.saucer.fill",
+                    coordinate: cafe.location!
+                )
+                .tint(Color.mugshotSage)
+            }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .allowsHitTesting(false)
+        .frame(height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(alignment: .topLeading) {
+            Label("List map", systemImage: "map.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.espressoBrown)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(10)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Map showing \(cafes.count) \(cafes.count == 1 ? "cafe" : "cafes") in this list")
     }
 }
 

@@ -12,7 +12,8 @@ final class testMugshotUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Saved"].exists)
+        let savedTab = app.buttons["mugshot.tab.saved"]
+        XCTAssertTrue(savedTab.exists)
         XCTAssertTrue(
             app.buttons.matching(identifier: "Map").allElementsBoundByIndex.contains(where: \.isSelected)
         )
@@ -29,8 +30,8 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Friends make discovery better"].waitForExistence(timeout: 3))
         app.buttons["Keep exploring"].tap()
 
-        app.buttons["Saved"].tap()
-        XCTAssertTrue(app.buttons["Saved"].isSelected)
+        savedTab.tap()
+        XCTAssertTrue(savedTab.isSelected)
     }
 
     @MainActor
@@ -48,6 +49,32 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testRepeatedTabSwitchingKeepsJournalInteractive() throws {
+        let app = launch(reset: true)
+        let map = app.buttons["mugshot.tab.map"]
+        let feed = app.buttons["mugshot.tab.feed"]
+        let saved = app.buttons["mugshot.tab.saved"]
+        let journal = app.buttons["mugshot.tab.journal"]
+
+        for pass in 1...4 {
+            map.tap()
+            XCTAssertTrue(app.textFields["Search places"].waitForExistence(timeout: 3), "Map failed on pass \(pass)")
+            feed.tap()
+            XCTAssertTrue(app.staticTexts["Feed"].waitForExistence(timeout: 3), "Feed failed on pass \(pass)")
+            saved.tap()
+            XCTAssertTrue(saved.isSelected, "Saved failed on pass \(pass)")
+            journal.tap()
+            XCTAssertTrue(
+                app.buttons["Open your profile"].waitForExistence(timeout: 3),
+                "Journal stopped responding on pass \(pass)"
+            )
+        }
+
+        app.buttons["Open your profile"].tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     func testGuidedQuickSipTenCleanRunsUnderTwentySeconds() throws {
         let app = launch(reset: true)
         var durations: [TimeInterval] = []
@@ -62,10 +89,11 @@ final class testMugshotUITests: XCTestCase {
             primaryAction.tap()
             XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
             primaryAction.tap()
+            finishSuccessfulSip(in: app)
 
             XCTAssertTrue(
                 app.buttons["Add"].waitForExistence(timeout: 5),
-                "A successful save should return to the prior tab and expose Add for the next run."
+                "The explicit completion action should open Journal and expose Add for the next run."
             )
             let duration = Date().timeIntervalSince(startedAt)
             durations.append(duration)
@@ -159,6 +187,7 @@ final class testMugshotUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [friendsSelected], timeout: 2), .completed)
         app.buttons["sipComposer.primaryAction"].tap()
+        finishSuccessfulSip(in: app, captureCompletion: true)
 
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         let savedDrink = app.staticTexts[drinkName]
@@ -193,6 +222,7 @@ final class testMugshotUITests: XCTestCase {
         tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
         tapAfterRevealing(app.buttons["Friends"], in: app)
         app.buttons["sipComposer.primaryAction"].tap()
+        finishSuccessfulSip(in: app)
 
         XCTAssertTrue(app.buttons["Feed"].waitForExistence(timeout: 5))
         app.buttons["Feed"].tap()
@@ -233,6 +263,7 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Friends"].isSelected)
         XCTAssertTrue(app.staticTexts["Retry save"].exists)
         app.buttons["sipComposer.primaryAction"].tap()
+        finishSuccessfulSip(in: app)
 
         XCTAssertTrue(app.buttons["Feed"].waitForExistence(timeout: 5))
         app.buttons["Feed"].tap()
@@ -267,6 +298,7 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["sipComposer.primaryAction"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
         app.buttons["sipComposer.primaryAction"].tap()
+        finishSuccessfulSip(in: app)
 
         XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 5))
         app.buttons["Journal"].tap()
@@ -300,12 +332,76 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testPolishedTabSurfacesPassAccessibilityAudit() throws {
+        let app = launch(reset: true)
+
+        app.buttons["mugshot.tab.map"].tap()
+        XCTAssertTrue(app.textFields["Search places"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait]) { issue in
+            if issue.element?.label == "Legal",
+               issue.detailedDescription.contains("MKAttributionLabel") {
+                return true
+            }
+            let elementDescription = issue.element.map {
+                "\($0.debugDescription)\nFrame: \($0.frame)\nLabel: \($0.label)\nIdentifier: \($0.identifier)"
+            } ?? "No associated element"
+            let attachment = XCTAttachment(
+                string: "\(issue.compactDescription)\n\(issue.detailedDescription)\n\(elementDescription)"
+            )
+            attachment.name = "Map accessibility audit diagnostic"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            return false
+        }
+
+        app.buttons["mugshot.tab.feed"].tap()
+        XCTAssertTrue(app.staticTexts["Feed"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
+
+        app.buttons["mugshot.tab.saved"].tap()
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
+
+        app.buttons["mugshot.tab.journal"].tap()
+        XCTAssertTrue(app.staticTexts["Recent sips"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait]) { issue in
+            let elementDescription = issue.element.map {
+                "\($0.debugDescription)\nFrame: \($0.frame)\nLabel: \($0.label)\nIdentifier: \($0.identifier)"
+            } ?? "No associated element"
+            let attachment = XCTAttachment(
+                string: "\(issue.compactDescription)\n\(issue.detailedDescription)\n\(elementDescription)"
+            )
+            attachment.name = "Accessibility audit diagnostic"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            return false
+        }
+    }
+
+    @MainActor
     private func launch(reset: Bool, extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"] + (reset ? ["--ui-testing-reset"] : []) + extraArguments
         app.launch()
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         return app
+    }
+
+    @MainActor
+    private func finishSuccessfulSip(in app: XCUIApplication, captureCompletion: Bool = false) {
+        let viewInJournal = app.buttons["View in Journal"]
+        XCTAssertTrue(
+            viewInJournal.waitForExistence(timeout: 5),
+            "A successful save should pause on an informative completion state."
+        )
+        if captureCompletion {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "Effort-aware sip completion"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        viewInJournal.tap()
+        XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 3))
     }
 
     @MainActor

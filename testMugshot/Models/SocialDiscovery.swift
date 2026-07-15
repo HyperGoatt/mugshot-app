@@ -115,6 +115,26 @@ struct DiscoveryDrink: Decodable, Equatable, Identifiable {
     var id: String { name }
 }
 
+struct DiscoveryCafeFriend: Identifiable, Decodable, Equatable {
+    let userID: UUID
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+    let averageRating: Double
+    let sipCount: Int
+
+    var id: UUID { userID }
+
+    enum CodingKeys: String, CodingKey {
+        case username
+        case userID = "user_id"
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+        case averageRating = "average_rating"
+        case sipCount = "sip_count"
+    }
+}
+
 struct DiscoveryCafe: Identifiable, Decodable, Equatable {
     let cafeID: UUID
     let name: String
@@ -134,6 +154,7 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
     let recentCover: String?
     let isSaved: Bool
     let isVisited: Bool
+    let friendProfiles: [DiscoveryCafeFriend]?
 
     var id: UUID { cafeID }
 
@@ -151,7 +172,10 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
         case recentCover = "recent_cover"
         case isSaved = "is_saved"
         case isVisited = "is_visited"
+        case friendProfiles = "friend_profiles"
     }
+
+    var friends: [DiscoveryCafeFriend] { friendProfiles ?? [] }
 
     var localCafe: Cafe {
         remoteCafe.localCafe(

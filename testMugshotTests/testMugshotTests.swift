@@ -1747,6 +1747,32 @@ struct testMugshotTests {
         #expect(cafes.first?.identityKey == "apple:needle")
         #expect(cafes.first?.topDrinks.first?.name == "Latte")
         #expect(cafes.first?.localCafe.remoteCafeId == cafeID)
+        #expect(cafes.first?.friends.isEmpty == true)
+    }
+
+    @Test func friendCafeDiscoveryDecodesFriendOnlyContext() throws {
+        let cafeID = UUID()
+        let friendID = UUID()
+        let json = """
+        [{
+          "cafe_id":"\(cafeID)","name":"Friend Bean","address":"2 Main St","city":"Pittsburgh",
+          "latitude":40.4,"longitude":-80.0,"identity_key":"apple:friend-bean","section":"loved_by_friends",
+          "ranking_score":0.91,"ranking_reason":"Shared by 1 friend","distance_km":1.2,
+          "average_rating":4.7,"visible_visit_count":2,"friend_count":1,
+          "top_drinks":[],"recent_cover":null,"is_saved":false,"is_visited":false,
+          "friend_profiles":[{
+            "user_id":"\(friendID)","display_name":"Alice","username":"alice","avatar_url":"https://example.com/alice.jpg",
+            "average_rating":4.7,"sip_count":2
+          }]
+        }]
+        """
+
+        let cafe = try #require(JSONDecoder().decode([DiscoveryCafe].self, from: Data(json.utf8)).first)
+        let friend = try #require(cafe.friends.first)
+        #expect(cafe.averageRating == 4.7)
+        #expect(cafe.friendCount == 1)
+        #expect(friend.id == friendID)
+        #expect(friend.sipCount == 2)
     }
 
     @Test func peopleSearchPayloadPreservesFriendshipAndCursorFields() throws {
@@ -2117,6 +2143,46 @@ struct testMugshotTests {
     @Test func sipReactionsRemainSmallAndCoffeeFocused() {
         #expect(SipReaction.allCases.count == 4)
         #expect(Set(SipReaction.allCases.map(\.rawValue)) == ["want_to_try", "great_find", "dialed_in", "cozy"])
+    }
+
+    @Test func mapDiscoveryScopesKeepSourcesExplicitAndAuthenticationAware() {
+        #expect(MapDiscoveryScope.all.sections(isAuthenticated: false) == [.nearby, .trending])
+        #expect(MapDiscoveryScope.friends.sections(isAuthenticated: false).isEmpty)
+        #expect(MapDiscoveryScope.friends.sections(isAuthenticated: true) == [.lovedByFriends])
+        #expect(MapDiscoveryScope.favorites.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.wantToTry.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.visited.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.all.sections(isAuthenticated: true) == [.nearby, .lovedByFriends, .trending])
+        #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
+        #expect(MapDiscoveryScope.available(isAuthenticated: false) == [.all, .favorites, .wantToTry, .visited])
+    }
+
+    @Test func mapDiscoveryRadiusUsesAZeroToFiftyMileControl() {
+        #expect(MapDiscoveryRadius.miles == 0...50)
+        #expect(MapDiscoveryRadius.kilometers(forMiles: 0) == 1.609_344)
+        #expect(abs(MapDiscoveryRadius.kilometers(forMiles: 50) - 80.467_2) < 0.000_1)
+    }
+
+    @Test func sipShareCardPayloadContainsOnlyExplicitlyShareableMemoryFields() {
+        let payload = SipShareCardPayload(
+            authorName: "Journal Owner",
+            drinkName: "Cortado",
+            cafeName: "Mugshot Test Cafe",
+            rating: 4.5,
+            date: Date(timeIntervalSince1970: 1_700_000_000),
+            publicCaption: "A bright finish",
+            remotePhotoURL: "https://example.com/sip.jpg",
+            localPhotoPath: nil
+        )
+        let fieldNames = Set(Mirror(reflecting: payload).children.compactMap(\.label))
+
+        #expect(fieldNames == [
+            "authorName", "drinkName", "cafeName", "rating", "date",
+            "publicCaption", "remotePhotoURL", "localPhotoPath"
+        ])
+        #expect(!fieldNames.contains("privateNote"))
+        #expect(!fieldNames.contains("notes"))
+        #expect(payload.shareText == "Journal Owner remembered Cortado at Mugshot Test Cafe on Mugshot.")
     }
 
     @Test func journalReflectionUsesOnlyCoveredCaffeineEstimates() throws {

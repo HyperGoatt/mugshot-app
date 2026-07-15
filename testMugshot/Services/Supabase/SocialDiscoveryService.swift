@@ -79,6 +79,25 @@ final class SocialDiscoveryService {
         ).execute().value
     }
 
+    func friendCafeDiscovery(
+        location: CLLocation?,
+        radiusKM: Double,
+        limit: Int = 20,
+        after: DiscoveryCafe? = nil
+    ) async throws -> [DiscoveryCafe] {
+        try await client.rpc(
+            "discover_friend_cafes",
+            params: FriendCafeDiscoveryParameters(
+                pLatitude: location?.coordinate.latitude,
+                pLongitude: location?.coordinate.longitude,
+                pRadiusKM: radiusKM,
+                pLimit: limit,
+                pAfterScore: after?.rankingScore,
+                pAfterID: after?.id
+            )
+        ).execute().value
+    }
+
     func publicProfile(userID: UUID) async throws -> PublicProfilePayload {
         try await client.rpc(
             "get_public_profile",
@@ -311,6 +330,24 @@ private struct DiscoveryParameters: Encodable {
     let pAfterID: UUID?
     enum CodingKeys: String, CodingKey {
         case pSection = "p_section"
+        case pLatitude = "p_latitude"
+        case pLongitude = "p_longitude"
+        case pRadiusKM = "p_radius_km"
+        case pLimit = "p_limit"
+        case pAfterScore = "p_after_score"
+        case pAfterID = "p_after_id"
+    }
+}
+
+private struct FriendCafeDiscoveryParameters: Encodable {
+    let pLatitude: Double?
+    let pLongitude: Double?
+    let pRadiusKM: Double
+    let pLimit: Int
+    let pAfterScore: Double?
+    let pAfterID: UUID?
+
+    enum CodingKeys: String, CodingKey {
         case pLatitude = "p_latitude"
         case pLongitude = "p_longitude"
         case pRadiusKM = "p_radius_km"

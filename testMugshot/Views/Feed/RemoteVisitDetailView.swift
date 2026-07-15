@@ -449,12 +449,9 @@ struct RemoteVisitDetailView: View {
                     Spacer()
                 }
 
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 94), spacing: 10)],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    SipActionButton(
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        SipActionButton(
                         title: detail.currentUserHasLiked ? "Liked" : "Like",
                         value: "\(detail.likeCount)",
                         systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart",
@@ -466,7 +463,7 @@ struct RemoteVisitDetailView: View {
                         }
                     }
 
-                    SipActionButton(
+                        SipActionButton(
                         title: "Comment",
                         value: "\(detail.commentCount)",
                         systemImage: "bubble.right",
@@ -476,8 +473,8 @@ struct RemoteVisitDetailView: View {
                         isCommentFocused = true
                     }
 
-                    if detail.summary.cafe != nil {
-                        SipActionButton(
+                        if detail.summary.cafe != nil {
+                            SipActionButton(
                             title: isCafeFavorite(detail) ? "Saved" : "Save",
                             value: nil,
                             systemImage: isCafeFavorite(detail) ? "bookmark.fill" : "bookmark",
@@ -491,39 +488,33 @@ struct RemoteVisitDetailView: View {
                             )
                         }
 
-                        if !isOwnVisit(detail) {
-                            SipActionButton(
-                                title: isCafeWantToTry(detail) ? "Wanting" : "Want",
-                                value: nil,
-                                systemImage: isCafeWantToTry(detail) ? "pin.fill" : "pin",
-                                isActive: isCafeWantToTry(detail),
-                                isEnabled: currentUserId != nil
-                            ) {
-                                setCafeStateFromVisit(
-                                    detail,
-                                    isFavorite: nil,
-                                    wantToTry: !isCafeWantToTry(detail)
-                                )
-                            }
                         }
-                    }
 
-                    SipShareButton(
-                        text: shareText(for: detail),
-                        photoURL: detail.summary.visit.posterPhotoURL
+                        SipShareButton(
+                        payload: SipShareCardPayload(
+                            authorName: detail.summary.authorDisplayName,
+                            drinkName: detail.summary.visit.drinkDisplayName,
+                            cafeName: detail.summary.locationTitle,
+                            rating: detail.summary.visit.overallScore,
+                            date: detail.summary.visit.createdAtDate,
+                            publicCaption: detail.summary.visit.caption.remoteTrimmedNonEmpty,
+                            remotePhotoURL: detail.summary.visit.posterPhotoURL,
+                            localPhotoPath: nil
+                        )
                     )
 
-                    if phase4LightweightFriends,
-                       currentUserId != nil,
-                       canRecommend(detail) {
-                        SipActionButton(
+                        if phase4LightweightFriends,
+                           currentUserId != nil,
+                           canRecommend(detail) {
+                            SipActionButton(
                             title: "Recommend",
                             value: nil,
                             systemImage: "paperplane",
                             isActive: false,
                             isEnabled: !isSavingSocialAction
-                        ) {
-                            isShowingRecommendation = true
+                            ) {
+                                isShowingRecommendation = true
+                            }
                         }
                     }
                 }
@@ -559,9 +550,10 @@ struct RemoteVisitDetailView: View {
                 Text("What stood out?")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.espressoBrown)
-                Text("A small coffee-focused reaction—not a scorecard.")
+                Text(reactionExplanation)
                     .font(.system(size: 12))
                     .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(SipReaction.allCases) { reaction in
@@ -584,13 +576,24 @@ struct RemoteVisitDetailView: View {
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
-                            .disabled(currentUserId == nil || isSavingSocialAction)
+                            .disabled(currentUserId == nil || isOwnDisplayedVisit || isSavingSocialAction)
                             .accessibilityLabel("\(reaction.title), \(count) reactions")
                         }
                     }
                 }
             }
         }
+    }
+
+    private var isOwnDisplayedVisit: Bool {
+        displayedSummary.visit.userId == currentUserId
+    }
+
+    private var reactionExplanation: String {
+        if isOwnDisplayedVisit {
+            return "These are quick reactions friends left on your sip. They do not change your rating or tasting notes."
+        }
+        return "Choose the coffee detail that stood out to you in this sip. It is your quick reaction to their post, not part of their rating."
     }
 
     private func commentsSection(_ detail: RemoteVisitDetail) -> some View {
@@ -848,10 +851,6 @@ struct RemoteVisitDetailView: View {
                 socialError = "Could not update this cafe."
             }
         }
-    }
-
-    private func shareText(for detail: RemoteVisitDetail) -> String {
-        "\(detail.summary.authorDisplayName) rated \(detail.summary.visit.drinkDisplayName) \(String(format: "%.1f", detail.summary.visit.overallScore)) at \(detail.summary.locationTitle) on Mugshot."
     }
 
     private func loadDetail() async {
@@ -2071,9 +2070,23 @@ struct SipActionButton: View {
     }
 }
 
+struct SipShareCardPayload: Equatable {
+    let authorName: String
+    let drinkName: String
+    let cafeName: String
+    let rating: Double
+    let date: Date
+    let publicCaption: String?
+    let remotePhotoURL: String?
+    let localPhotoPath: String?
+
+    var shareText: String {
+        "\(authorName) remembered \(drinkName) at \(cafeName) on Mugshot."
+    }
+}
+
 struct SipShareButton: View {
-    let text: String
-    let photoURL: String?
+    let payload: SipShareCardPayload
     @State private var presentation: RichSharePresentation?
     @State private var isPreparing = false
 
@@ -2101,13 +2114,121 @@ struct SipShareButton: View {
     private func prepareShare() async {
         isPreparing = true
         defer { isPreparing = false }
-        var items: [Any] = [text]
-        if let photoURL, let url = URL(string: photoURL),
-           let (data, _) = try? await URLSession.shared.data(from: url),
-           let image = UIImage(data: data) {
+        let photo = await sharePhoto()
+        let artwork = MugshotSipShareCard(payload: payload, photo: photo)
+            .frame(width: 540, height: 675)
+        let renderer = ImageRenderer(content: artwork)
+        renderer.scale = 2
+        var items: [Any] = [payload.shareText]
+        if let image = renderer.uiImage {
             items.insert(image, at: 0)
         }
         presentation = RichSharePresentation(items: items)
+    }
+
+    private func sharePhoto() async -> UIImage? {
+        if let localPhotoPath = payload.localPhotoPath {
+            return await PhotoCache.shared.image(forKey: localPhotoPath)
+        }
+        guard let remotePhotoURL = payload.remotePhotoURL,
+              let url = URL(string: remotePhotoURL),
+              let (data, _) = try? await URLSession.shared.data(from: url) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+}
+
+private struct MugshotSipShareCard: View {
+    let payload: SipShareCardPayload
+    let photo: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.creamWhite
+
+            VStack(spacing: 0) {
+                photoSurface
+                    .frame(height: 356)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("MUGSHOT")
+                            .font(.system(size: 13, weight: .black))
+                            .tracking(2.2)
+                            .foregroundColor(.mugshotSage)
+                        Spacer()
+                        Text(payload.date.formatted(date: .abbreviated, time: .omitted))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondaryText)
+                    }
+
+                    Text(payload.drinkName)
+                        .font(.system(size: 34, weight: .bold, design: .serif))
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .center, spacing: 12) {
+                        Label(payload.cafeName, systemImage: "mappin.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(2)
+                        Spacer(minLength: 8)
+                        MugshotRatingBadge(score: payload.rating)
+                    }
+
+                    if let caption = payload.publicCaption?.remoteTrimmedNonEmpty {
+                        Text("“\(caption)”")
+                            .font(.system(size: 16, weight: .medium, design: .serif))
+                            .foregroundColor(.roastBrown)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text("Remembered by \(payload.authorName)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.tertiaryText)
+                }
+                .padding(28)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var photoSurface: some View {
+        if let photo {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .clipped()
+                .overlay(alignment: .bottomLeading) {
+                    LinearGradient(
+                        colors: [.clear, Color.espressoBrown.opacity(0.34)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [Color.mugshotMint.opacity(0.64), Color.sandBeige],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                Image("MugsyComingSoon")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(54)
+            }
+        }
     }
 }
 
@@ -2134,30 +2255,28 @@ struct SipActionLabel: View {
     var isEnabled = true
 
     var body: some View {
-        VStack(spacing: 5) {
+        HStack(spacing: 7) {
             Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
 
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.system(size: 12, weight: .bold))
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .lineLimit(1)
+
+            if let value {
+                Text(value)
+                    .font(.system(size: 11, weight: .bold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-
-                if let value {
-                    Text(value)
-                        .font(.system(size: 12, weight: .bold))
-                        .lineLimit(1)
-                }
+                    .monospacedDigit()
             }
         }
         .foregroundColor(foreground)
-        .frame(maxWidth: .infinity)
-        .frame(height: 56)
+        .padding(.horizontal, 12)
+        .frame(minWidth: 78, minHeight: 44)
         .background(background)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .clipShape(Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+            Capsule()
                 .stroke(isActive ? Color.mugshotSage.opacity(0.58) : Color.clear, lineWidth: 1.3)
         )
         .opacity(isEnabled ? 1 : 0.48)
