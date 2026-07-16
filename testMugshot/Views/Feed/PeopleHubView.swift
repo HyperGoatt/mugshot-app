@@ -149,7 +149,7 @@ struct PeopleHubView: View {
     private func peopleSection(_ title: String, rows: [PeopleSearchResult]) -> some View {
         if rows.isEmpty && !isLoading {
             MugsyEmptyStateView(
-                asset: .noFriends,
+                placement: .friendsEmpty,
                 title: "No people found",
                 message: "Try a username, display name, or a shorter spelling."
             )
@@ -372,13 +372,20 @@ private struct PublicProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { safetyToolbar }
             .task { await load() }
-            .fullScreenCover(item: $selectedVisit) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedVisit != nil },
+                    set: { if !$0 { selectedVisit = nil } }
                 )
+            ) {
+                if let visit = selectedVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager
+                    )
+                }
             }
             .alert("Report this profile?", isPresented: reportIsPresented) {
                 Button("Report", role: .destructive) { Task { await report() } }

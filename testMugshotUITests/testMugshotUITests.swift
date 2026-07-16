@@ -194,9 +194,52 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(savedDrink.waitForExistence(timeout: 3))
         app.buttons["Open sip"].tap()
 
-        XCTAssertTrue(app.buttons["Close sip"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Flavor map"].exists)
-        XCTAssertTrue(app.staticTexts["Presentation"].exists)
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Taste snapshot"].exists)
+        XCTAssertFalse(app.staticTexts["Presentation"].exists)
+        XCTAssertTrue(app.buttons["View breakdown"].exists)
+
+        app.buttons["View breakdown"].tap()
+
+        XCTAssertTrue(app.staticTexts["Presentation"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Hide details"].exists)
+    }
+
+    @MainActor
+    func testFeedSipUsesImmersivePourPushAndOwnerSurfaces() throws {
+        let app = launch(reset: true)
+        let drinkName = "Immersive Pour cortado"
+        openHomeQuickSip(in: app, drinkName: drinkName)
+        chooseQuickRating(in: app)
+        tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
+        tapAfterRevealing(app.buttons["Friends"], in: app)
+        app.buttons["sipComposer.primaryAction"].tap()
+        finishSuccessfulSip(in: app)
+
+        app.buttons["Feed"].tap()
+        XCTAssertTrue(app.staticTexts[drinkName].waitForExistence(timeout: 4))
+        let openSip = app.buttons["Open sip"]
+
+        XCTAssertTrue(openSip.waitForExistence(timeout: 3))
+        openSip.tap()
+
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews["sip.detail.screen"].exists)
+        XCTAssertTrue(app.staticTexts["Taste snapshot"].exists)
+        XCTAssertTrue(app.staticTexts["Visit details"].exists)
+        XCTAssertFalse(app.buttons["mugshot.tab.feed"].exists, "The app dock should yield to sip detail.")
+        XCTAssertTrue(app.buttons["Sip actions"].exists)
+
+        app.buttons["Sip actions"].tap()
+        XCTAssertTrue(app.buttons["Edit Sip"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Delete Sip"].exists)
+        app.buttons["Edit Sip"].tap()
+
+        XCTAssertTrue(app.staticTexts["Edit sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Public note"].exists)
+        XCTAssertTrue(app.staticTexts["Private note"].exists)
+        XCTAssertTrue(app.buttons["Save sip"].exists)
+        app.buttons["Cancel"].tap()
     }
 
     @MainActor
@@ -228,7 +271,7 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Feed"].tap()
         XCTAssertTrue(app.staticTexts[drinkName].waitForExistence(timeout: 3))
         app.buttons["Open sip"].tap()
-        XCTAssertTrue(app.buttons["Close sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Mugshot Test Cafe"].exists)
     }
 
@@ -269,7 +312,7 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Feed"].tap()
         XCTAssertTrue(app.staticTexts[drinkName].waitForExistence(timeout: 3))
         app.buttons["Open sip"].tap()
-        XCTAssertTrue(app.buttons["Close sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["No photo saved"].exists)
     }
 
@@ -308,7 +351,7 @@ final class testMugshotUITests: XCTestCase {
         }
         XCTAssertTrue(savedDrink.waitForExistence(timeout: 3))
         app.buttons["Open sip"].tap()
-        XCTAssertTrue(app.buttons["Close sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
     }
 
     @MainActor

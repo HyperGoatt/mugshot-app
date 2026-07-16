@@ -733,16 +733,30 @@ struct RecentVisitsView: View {
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
             await loadRemoteVisits()
         }
-        .sheet(item: $selectedVisit) { visit in
-            VisitDetailView(visit: visit, dataManager: dataManager)
-        }
-        .fullScreenCover(item: $selectedRemoteVisit) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVisit != nil },
+                set: { if !$0 { selectedVisit = nil } }
             )
+        ) {
+            if let visit = selectedVisit {
+                VisitDetailView(visit: visit, dataManager: dataManager)
+            }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedRemoteVisit != nil },
+                set: { if !$0 { selectedRemoteVisit = nil } }
+            )
+        ) {
+            if let visit = selectedRemoteVisit {
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
         }
     }
 
@@ -788,7 +802,7 @@ struct RecentVisitsView: View {
             )
         } else if remoteVisits.isEmpty {
             ProfileEmptyStateCard(
-                asset: .noCafes,
+                placement: .journalEmpty,
                 systemImage: "cup.and.saucer.fill",
                 title: "No visits yet",
                 message: "Save a real visit from Add. It will appear here, open in detail, and persist after relaunch."
@@ -811,7 +825,7 @@ struct RecentVisitsView: View {
     private var localContent: some View {
         if localVisits.isEmpty {
             ProfileEmptyStateCard(
-                asset: .noCafes,
+                placement: .journalEmpty,
                 systemImage: "cup.and.saucer.fill",
                 title: "No local visits yet",
                 message: "Log a visit to start filling your taste journal."
@@ -860,26 +874,26 @@ struct RecentVisitsView: View {
 }
 
 struct ProfileEmptyStateCard: View {
-    let asset: MugsyEmptyStateAsset?
+    let placement: MugsyPlacement?
     let systemImage: String
     let title: String
     let message: String
 
     init(
-        asset: MugsyEmptyStateAsset? = nil,
+        placement: MugsyPlacement? = nil,
         systemImage: String,
         title: String,
         message: String
     ) {
-        self.asset = asset
+        self.placement = placement
         self.systemImage = systemImage
         self.title = title
         self.message = message
     }
 
     var body: some View {
-        if let asset {
-            MugsyEmptyStateView(asset: asset, title: title, message: message)
+        if let placement {
+            MugsyEmptyStateView(placement: placement, title: title, message: message)
         } else {
         VStack(spacing: 10) {
             Image(systemName: systemImage)
@@ -1070,7 +1084,7 @@ struct TopCafesView: View {
             if let remoteStats {
                 if remoteStats.topCafes.isEmpty {
                     ProfileEmptyStateCard(
-                        asset: .noCafes,
+                        placement: .savedCafes,
                         systemImage: "cup.and.saucer.fill",
                         title: "No top cafes yet",
                         message: "Your highest-rated visits will rank your cafes here."
@@ -1082,7 +1096,7 @@ struct TopCafesView: View {
                 }
             } else if topCafes.isEmpty {
                 ProfileEmptyStateCard(
-                    asset: .noCafes,
+                    placement: .savedCafes,
                     systemImage: "cup.and.saucer.fill",
                     title: "No cafes yet",
                     message: "Log visits to rank your cafes."
@@ -1152,11 +1166,11 @@ struct FavoritesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if favorites.isEmpty {
-                Text("No favorites yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    placement: .savedFavorites,
+                    title: "No favorites yet",
+                    message: "Favorite a cafe to keep it close."
+                )
             } else {
                 ForEach(favorites) { cafe in
                     CafeCard(
@@ -1182,11 +1196,11 @@ struct WishlistView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if wishlist.isEmpty {
-                Text("No wishlist items yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    placement: .savedWishlist,
+                    title: "No Wishlist cafes yet",
+                    message: "Mark a cafe when it catches your curiosity."
+                )
             } else {
                 ForEach(wishlist) { cafe in
                     CafeCard(

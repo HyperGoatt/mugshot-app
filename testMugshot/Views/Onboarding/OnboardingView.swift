@@ -81,12 +81,13 @@ struct WelcomeStep: View {
         VStack(spacing: 22) {
             Spacer()
 
-            Image("MugshotAppIcon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 92, height: 92)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .shadow(color: .black.opacity(0.1), radius: 16, x: 0, y: 7)
+            MugsyAnimatedView(
+                configuration: MugsyPlacement.onboarding.configuration,
+                action: .entering,
+                tapBehavior: MugsyPlacement.onboarding.tapBehavior
+            )
+            .frame(width: 164, height: 164)
+            .accessibilityHidden(true)
             
             Text("Mugshot")
                 .mugshotDisplay(size: 44)

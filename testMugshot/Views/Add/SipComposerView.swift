@@ -63,6 +63,19 @@ struct LogVisitView: View {
         nonmutating set { composerModel.draft = newValue }
     }
 
+    /// Required product state drives the vessel. Optional photos and notes add
+    /// texture to the memory but never make the mug look incomplete.
+    private var logMotionProgress: CGFloat {
+        if showSavedConfirmation { return 1 }
+        var progress: CGFloat = 0.08
+        if hasCompletedContext { progress += 0.22 }
+        if draft.drinkName.remoteTrimmedNonEmpty != nil { progress += 0.28 }
+        if draft.resolvedOverallScore >= 0.5 { progress += 0.28 }
+        if draft.resolvedGuidedStep == .audience { progress += 0.10 }
+        if isSaving { progress = max(progress, 0.94) }
+        return MugshotMotion.normalized(progress)
+    }
+
     private var primaryContext: Binding<JournalEntryContext> {
         Binding(
             get: { draft.context == .cafe ? .cafe : .home },
@@ -406,30 +419,55 @@ struct LogVisitView: View {
     }
 
     private var composerHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Remember this sip.")
-                .mugshotDisplay(size: 36)
-                .foregroundColor(.espressoBrown)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Remember this sip.")
+                    .mugshotDisplay(size: 36)
+                    .foregroundColor(.espressoBrown)
 
-            Text("Capture what you drank, where it happened, and what stood out.")
-                .font(.system(size: 15))
-                .foregroundColor(.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("Capture what you drank, where it happened, and what stood out.")
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            MugshotSipProgressMug(
+                progress: logMotionProgress,
+                drinkName: draft.drinkName,
+                rating: draft.resolvedOverallScore,
+                isSaving: isSaving
+            )
+            .frame(width: 78, height: 90)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
     }
 
     private var guidedHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(guidedTitle)
-                .mugshotDisplay(size: 38)
-                .foregroundColor(.espressoBrown)
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(guidedTitle)
+                    .mugshotDisplay(size: 35)
+                    .foregroundColor(.espressoBrown)
 
-            Text(guidedSubtitle)
-                .font(.system(size: 15))
-                .foregroundColor(.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(guidedSubtitle)
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            MugshotSipProgressMug(
+                progress: logMotionProgress,
+                drinkName: draft.drinkName,
+                rating: draft.resolvedOverallScore,
+                isSaving: isSaving
+            )
+            .frame(width: 82, height: 94)
+            .animation(MugshotMotion.response, value: logMotionProgress)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
@@ -1198,12 +1236,22 @@ struct LogVisitView: View {
 
         return VStack(spacing: 12) {
             MugshotCompletionCard(
-                assetName: "MugsyComingSoon",
+                mugsyConfiguration: MugsyModelConfiguration(
+                    expression: .delighted,
+                    gaze: .topTrailing,
+                    liquid: MugsyLiquidState(
+                        appearance: .infer(from: summary?.drinkName ?? ""),
+                        fillProgress: 0.94,
+                        steamIntensity: min(1, CGFloat((summary?.score ?? 4) / 5))
+                    )
+                ),
+                mugsyAction: .celebrating,
                 eyebrow: summary?.isDetailedMemory == true ? "Memory saved" : "Sip saved",
                 title: summary?.drinkName ?? "Sip remembered",
                 message: summary?.completionMessage
                     ?? "Your rating is saved in Journal and ready whenever you want to add more.",
-                facts: facts
+                facts: facts,
+                celebrates: true
             )
 
             Button("View in Journal", action: finishSuccessfulSave)
@@ -1812,7 +1860,7 @@ struct LogVisitView: View {
         withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
             draft.guidedStep = step
         }
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        MugshotHaptic.softImpact.play()
     }
 
     private var hasCompletedContext: Bool {

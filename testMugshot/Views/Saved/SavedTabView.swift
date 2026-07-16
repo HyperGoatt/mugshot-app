@@ -176,10 +176,11 @@ struct SavedTabView: View {
                             )
                         } else if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
-                                asset: mugsyAsset(for: selectedTab),
+                                placement: mugsyPlacement(for: selectedTab),
                                 title: emptyTitle,
                                 message: emptyMessage
                             )
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
                         } else {
                             ForEach(filteredAndSortedCafes) { cafe in
                                 CafeCard(
@@ -194,12 +195,14 @@ struct SavedTabView: View {
                                         activeSheet = .cafeDetail(cafe)
                                     }
                                 )
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                             }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
                     .padding(.bottom, 116)
+                    .animation(MugshotMotion.response, value: filteredAndSortedCafes.count)
                 }
             }
             .background(Color.creamWhite)
@@ -321,25 +324,25 @@ struct SavedTabView: View {
         }
     }
 
-    private func mugsyAsset(for tab: SavedTab) -> MugsyEmptyStateAsset {
+    private func mugsyPlacement(for tab: SavedTab) -> MugsyPlacement {
         switch tab {
         case .favorites:
-            return .noFavorites
+            return .savedFavorites
         case .wantToTry:
-            return .noWishlist
+            return .savedWishlist
         case .allCafes:
-            return .noCafes
+            return .savedCafes
         }
     }
 }
 
 struct SavedEmptyStateView: View {
-    let asset: MugsyEmptyStateAsset
+    let placement: MugsyPlacement
     let title: String
     let message: String
 
     var body: some View {
-        MugsyEmptyStateView(asset: asset, title: title, message: message)
+        MugsyEmptyStateView(placement: placement, title: title, message: message)
     }
 }
 
@@ -724,15 +727,21 @@ struct CafeDetailView: View {
             .sheet(isPresented: $showLogVisit) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
             }
-            .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
-                Task { await loadRemoteVisits() }
-            }) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedRemoteVisit != nil },
+                    set: { if !$0 { selectedRemoteVisit = nil } }
                 )
+            ) {
+                if let visit = selectedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager
+                    )
+                    .onDisappear { Task { await loadRemoteVisits() } }
+                }
             }
             .task(id: remoteVisitTaskID) {
                 await loadRemoteVisits()
@@ -1324,7 +1333,7 @@ struct VisitRow: View {
             )
         }
         .buttonStyle(.plain)
-        .fullScreenCover(isPresented: $showVisitDetail) {
+        .navigationDestination(isPresented: $showVisitDetail) {
             VisitDetailView(visit: visit, dataManager: dataManager)
         }
     }

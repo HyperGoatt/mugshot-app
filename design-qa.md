@@ -117,3 +117,32 @@ passed
 ## Final result
 
 Passed. No open P0, P1, or P2 visual or interaction issues remain in the guided composer scope.
+
+---
+
+# Sip detail Taste snapshot disclosure QA
+
+## Evidence
+
+- Source visual truth: `/Users/joe.rosso/.codex/visualizations/2026/07/15/019f6350-13a4-7c93-a7b5-82bf28410276/sip-taste-snapshot/reference.png`
+- Collapsed implementation: `/Users/joe.rosso/.codex/visualizations/2026/07/15/019f6350-13a4-7c93-a7b5-82bf28410276/sip-taste-snapshot/collapsed.jpg`
+- Expanded implementation: `/Users/joe.rosso/.codex/visualizations/2026/07/15/019f6350-13a4-7c93-a7b5-82bf28410276/sip-taste-snapshot/expanded.jpg`
+- Full comparison: `/Users/joe.rosso/.codex/visualizations/2026/07/15/019f6350-13a4-7c93-a7b5-82bf28410276/sip-taste-snapshot/comparison.jpg`
+- Viewport: iPhone 17 Pro, 368 x 800.
+- States: collapsed and expanded Taste snapshot.
+
+## Findings
+
+- No open P0, P1, or P2 issues.
+- Typography, spacing, cream and mint tokens, source imagery, and product copy remain consistent with the approved Immersive Pour system.
+- The collapsed state intentionally improves on the supplied screenshot by following the user's explicit hierarchy: title, overall score, and disclosure control only.
+- The expanded state reveals every available criterion with its score and bar, with a one-time animated fill and a Reduce Motion fallback.
+
+## Comparison history
+
+- P2 fixed: criterion names and scores previously appeared before the disclosure was opened. The complete criteria grid now enters only after `View breakdown` is activated.
+- Focused UI coverage confirmed the collapsed labels are absent and the expanded labels and `Hide details` control appear after activation.
+
+## Final result
+
+final result: passed

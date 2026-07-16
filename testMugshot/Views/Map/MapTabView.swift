@@ -1528,16 +1528,30 @@ struct CafeDetailSheet: View {
                 onLogVisitRequested: onLogVisitRequested
             )
         }
-        .fullScreenCover(item: $selectedVisit) { visit in
-            VisitDetailView(visit: visit, dataManager: dataManager)
-        }
-        .fullScreenCover(item: $selectedRemoteVisit) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVisit != nil },
+                set: { if !$0 { selectedVisit = nil } }
             )
+        ) {
+            if let visit = selectedVisit {
+                VisitDetailView(visit: visit, dataManager: dataManager)
+            }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedRemoteVisit != nil },
+                set: { if !$0 { selectedRemoteVisit = nil } }
+            )
+        ) {
+            if let visit = selectedRemoteVisit {
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
         }
         .task(id: displayCafe.remoteCafeId) {
             await loadRemoteCafeVisits()

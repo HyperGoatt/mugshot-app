@@ -293,7 +293,11 @@ struct LegacyLogVisitView: View {
                     dismiss()
                 }) {
                     if let visit = savedVisit {
-                        VisitDetailView(visit: visit, dataManager: dataManager)
+                        VisitDetailView(
+                            visit: visit,
+                            dataManager: dataManager,
+                            presentationMode: .postSave
+                        )
                     }
                 }
                 .fullScreenCover(item: $savedRemoteVisit, onDismiss: {
@@ -306,7 +310,8 @@ struct LegacyLogVisitView: View {
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
-                        justPosted: true
+                        justPosted: true,
+                        presentationMode: .postSave
                     )
                 }
         }

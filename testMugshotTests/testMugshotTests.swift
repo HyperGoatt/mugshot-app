@@ -14,6 +14,47 @@ import Testing
 
 struct testMugshotTests {
 
+    @Test func ritualSnapshotCelebratesSupportedMilestonesWithoutPunishingRest() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-14T12:00:00Z"))
+        let sevenDays = (0..<7).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: now)
+        }
+
+        let milestone = MugshotRitualSnapshot.make(dates: sevenDays, now: now, calendar: calendar)
+        #expect(milestone.consecutiveDays == 7)
+        #expect(milestone.totalDays == 7)
+        #expect(milestone.tone == .milestone(7))
+
+        let olderDate = try #require(calendar.date(byAdding: .day, value: -12, to: now))
+        let returning = MugshotRitualSnapshot.make(dates: [olderDate], now: now, calendar: calendar)
+        #expect(returning.consecutiveDays == 0)
+        #expect(returning.tone == .returning)
+    }
+
+    @Test func ritualSnapshotKeepsYesterdayWarmWithoutInventingToday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-14T12:00:00Z"))
+        let dates = (1...3).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: now)
+        }
+
+        let snapshot = MugshotRitualSnapshot.make(dates: dates, now: now, calendar: calendar)
+        #expect(snapshot.consecutiveDays == 3)
+        #expect(snapshot.tone == .yesterday)
+    }
+
+    @Test func motionProgressAndDrinkAppearanceStayDeterministic() {
+        #expect(MugshotMotion.normalized(-0.4) == 0)
+        #expect(MugshotMotion.normalized(1.4) == 1)
+        #expect(MugshotDrinkAppearance.infer(from: "Iced strawberry matcha") == .matcha)
+        #expect(MugshotDrinkAppearance.infer(from: "Masala chai") == .chai)
+        #expect(MugshotDrinkAppearance.infer(from: "Earl Grey tea") == .tea)
+        #expect(MugshotDrinkAppearance.infer(from: "Flat white") == .coffee)
+    }
+
     @Test func guestSavedCafesStayIsolatedFromAuthenticatedLocalDataUntilMerge() throws {
         let suite = "DataManagerGuestScopeTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))

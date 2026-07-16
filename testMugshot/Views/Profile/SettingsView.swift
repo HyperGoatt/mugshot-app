@@ -287,7 +287,7 @@ struct SettingsView: View {
                 settingsRow("Coffee Preferences", systemImage: "slider.horizontal.3")
             }
 
-            if phase5Reflections, authModel.authenticatedUser != nil {
+            if reflectionsEnabled, authModel.authenticatedUser != nil {
                 Divider().padding(.leading, 60)
                 NavigationLink {
                     ReflectionPreferencesView()
@@ -306,6 +306,14 @@ struct SettingsView: View {
         )
     }
 
+    private var reflectionsEnabled: Bool {
+#if DEBUG
+        phase5Reflections
+#else
+        true
+#endif
+    }
+
 #if DEBUG
     private var developerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -313,6 +321,62 @@ struct SettingsView: View {
                 .font(.system(size: 12, weight: .bold))
                 .tracking(0.8)
                 .foregroundColor(.tertiaryText)
+
+            NavigationLink {
+                MugsyStudioView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.crop.square.filled.and.at.rectangle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .frame(width: 34, height: 34)
+                        .background(Color.mugshotSage.opacity(0.16))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mugsy Studio")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                        Text("Canonical model sheet and identity checks")
+                            .font(.system(size: 12))
+                            .foregroundColor(.tertiaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.tertiaryText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 46)
+
+            NavigationLink {
+                MotionLabView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "waveform.path.ecg.rectangle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .frame(width: 34, height: 34)
+                        .background(Color.mugshotSage.opacity(0.16))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Motion Lab")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                        Text("Mugsy reactions, refresh, camera, ritual, and saved celebrations")
+                            .font(.system(size: 12))
+                            .foregroundColor(.tertiaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.tertiaryText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 46)
 
             HStack(spacing: 12) {
                 Image(systemName: "wand.and.stars")

@@ -99,6 +99,13 @@ struct JournalTabView: View {
         Array(filteredVisits.prefix(4))
     }
 
+    private var ritualDates: [Date] {
+        if authModel.authenticatedUser != nil {
+            return journalEntries.map(\.date)
+        }
+        return dataManager.appData.visits.map(\.date)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -123,6 +130,10 @@ struct JournalTabView: View {
                         .foregroundColor(.secondaryText)
                         .padding(.horizontal, 16)
                         .padding(.top, 2)
+
+                    MugshotRitualCard(dates: ritualDates)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
 
                     if phase2CanonicalJournal, !localDrafts.isEmpty {
                         draftSection
@@ -183,19 +194,33 @@ struct JournalTabView: View {
                 )
                 .environmentObject(authModel)
             }
-            .fullScreenCover(item: $selectedRemoteVisit) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager,
-                    onRepeat: { detail in
-                        launchComposer(from: detail.summary)
-                    }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedRemoteVisit != nil },
+                    set: { if !$0 { selectedRemoteVisit = nil } }
                 )
+            ) {
+                if let visit = selectedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager,
+                        onRepeat: { detail in
+                            launchComposer(from: detail.summary)
+                        }
+                    )
+                }
             }
-            .fullScreenCover(item: $selectedLocalVisit) { visit in
-                VisitDetailView(visit: visit, dataManager: dataManager)
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedLocalVisit != nil },
+                    set: { if !$0 { selectedLocalVisit = nil } }
+                )
+            ) {
+                if let visit = selectedLocalVisit {
+                    VisitDetailView(visit: visit, dataManager: dataManager)
+                }
             }
             .sheet(item: $selectedReflection) { reflection in
                 JournalReflectionDetailView(
@@ -617,13 +642,20 @@ private struct OwnerPassportProfileView: View {
             SettingsView(dataManager: dataManager)
                 .environmentObject(authModel)
         }
-        .fullScreenCover(item: $selectedVisit) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVisit != nil },
+                set: { if !$0 { selectedVisit = nil } }
             )
+        ) {
+            if let visit = selectedVisit {
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
         }
     }
 }
@@ -747,23 +779,30 @@ private struct JournalArchiveView: View {
                         .foregroundColor(.mugshotSage)
                 }
             }
-            .fullScreenCover(item: $selectedVisit) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: currentUserID,
-                    dataManager: dataManager,
-                    onRepeat: { detail in
-                        selectedVisit = nil
-                        let draft = detail.summary.visit.journalContext == .recipe
-                            ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
-                            : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            onComposeDraft(draft)
-                        }
-                    }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedVisit != nil },
+                    set: { if !$0 { selectedVisit = nil } }
                 )
+            ) {
+                if let visit = selectedVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: currentUserID,
+                        dataManager: dataManager,
+                        onRepeat: { detail in
+                            selectedVisit = nil
+                            let draft = detail.summary.visit.journalContext == .recipe
+                                ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
+                                : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onComposeDraft(draft)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -1173,9 +1212,8 @@ private struct JournalEmptyState: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: filter == "Recipes" ? "book.pages.fill" : "cup.and.saucer.fill")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundColor(.mugshotSage)
+            MugsyModelView(configuration: MugsyPlacement.journalEmpty.configuration)
+                .frame(width: 104, height: 104)
                 .accessibilityHidden(true)
             Text(filter == "All" ? "Your journal starts with a sip" : "No \(filter.lowercased()) entries yet")
                 .font(.system(size: 15, weight: .bold))
@@ -1224,6 +1262,36 @@ private struct TasteIdentityJournalSection: View {
         Set(locatedEntries.compactMap { $0.summary.cafe?.id }).count
     }
 
+    private var bloomSamples: [TasteBloomSample] {
+        let durable = signals.filter(\.isDurableClaim)
+        if !durable.isEmpty {
+            return durable.map {
+                TasteBloomSample(
+                    label: $0.displayAttribute,
+                    value: MugshotMotion.normalized($0.confidence),
+                    support: $0.supportCount
+                )
+            }
+        }
+
+        let confidence = min(0.72, 0.24 + Double(recentEntries.count) * 0.06)
+        return summary.descriptors.enumerated().map { index, descriptor in
+            TasteBloomSample(
+                label: descriptor,
+                value: max(0.22, confidence - Double(index) * 0.07),
+                support: recentEntries.count
+            )
+        }
+    }
+
+    private var bloomConfidence: Double {
+        let durable = signals.filter(\.isDurableClaim)
+        if !durable.isEmpty {
+            return durable.map(\.confidence).reduce(0, +) / Double(durable.count)
+        }
+        return min(0.68, Double(recentEntries.count) / 10)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -1237,12 +1305,11 @@ private struct TasteIdentityJournalSection: View {
             }
 
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 27, weight: .semibold))
-                    .foregroundColor(.foamWhite)
-                    .frame(width: 64, height: 64)
-                    .background(Color.mugshotSage, in: Circle())
-                    .accessibilityHidden(true)
+                MugshotTasteBloom(
+                    samples: bloomSamples,
+                    confidence: bloomConfidence,
+                    size: 104
+                )
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(summary.title)

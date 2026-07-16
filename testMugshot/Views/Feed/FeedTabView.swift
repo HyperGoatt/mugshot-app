@@ -69,6 +69,9 @@ struct FeedTabView: View {
     @State private var feedSearchQuery = ""
     @State private var isFeedSearchPresented = false
     @State private var isPeopleHubPresented = false
+    @State private var refreshPullProgress: CGFloat = 0
+    @State private var isRefreshingFeed = false
+    @State private var didArmRefresh = false
     @AppStorage("mugshot.your-mix-education.v1.dismissed") private var hasDismissedYourMixEducation = false
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @FocusState private var isFeedSearchFocused: Bool
@@ -177,21 +180,67 @@ struct FeedTabView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        MugshotPullProgressReader(coordinateSpace: "feed.refresh", restingOffset: 8)
                         feedContent
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, 116)
                 }
+                .coordinateSpace(name: "feed.refresh")
                 .background(Color.creamWhite)
+                .overlay(alignment: .top) {
+                    MugshotPullRefreshIndicator(
+                        progress: refreshPullProgress,
+                        isRefreshing: isRefreshingFeed
+                    )
+                    .offset(y: 6)
+                    .allowsHitTesting(false)
+                }
+                .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
+                    refreshPullProgress = MugshotMotion.normalized(distance / 82)
+                    if refreshPullProgress >= 1, !didArmRefresh {
+                        didArmRefresh = true
+                        MugshotHaptic.refreshArmed.play()
+                    } else if refreshPullProgress < 0.35 {
+                        didArmRefresh = false
+                    }
+                }
                 .refreshable {
+                    isRefreshingFeed = true
                     await loadRemoteFeedIfNeeded(forceRefresh: true)
+                    isRefreshingFeed = false
                 }
             }
             .background(Color.creamWhite)
-        }
-        .fullScreenCover(item: $selectedVisit) { visit in
-            VisitDetailView(visit: visit, dataManager: dataManager)
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedVisit != nil },
+                    set: { if !$0 { selectedVisit = nil } }
+                )
+            ) {
+                if let visit = selectedVisit {
+                    VisitDetailView(visit: visit, dataManager: dataManager)
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedRemoteVisit != nil },
+                    set: { if !$0 { selectedRemoteVisit = nil } }
+                )
+            ) {
+                if let visit = selectedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager
+                    )
+                    .onDisappear {
+                        Task { await loadRemoteFeedIfNeeded(forceRefresh: true) }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
@@ -204,18 +253,6 @@ struct FeedTabView: View {
         }
         .sheet(isPresented: $isPeopleHubPresented) {
             PeopleHubView(dataManager: dataManager)
-        }
-        .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
-            Task {
-                await loadRemoteFeedIfNeeded(forceRefresh: true)
-            }
-        }) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
-            )
         }
         .task(id: feedTaskID) {
             await loadRemoteFeedIfNeeded()
@@ -297,13 +334,13 @@ struct FeedTabView: View {
             }
         } else if remoteVisits.isEmpty {
             MugsyEmptyStateView(
-                asset: selectedScope == .friends ? .noFriends : .comingSoon,
+                placement: selectedScope == .friends ? .friendsEmpty : .feedEmpty,
                 title: selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet",
                 message: selectedScope == .friends ? "Sips from friends will appear here as your circle grows." : "Public sips will appear here as people log them."
             )
         } else if filteredRemoteVisits.isEmpty {
             MugsyEmptyStateView(
-                asset: .comingSoon,
+                placement: .feedFiltered,
                 title: "No matching sips",
                 message: "Try another drink, cafe, caption, or username."
             )
@@ -359,13 +396,13 @@ struct FeedTabView: View {
     private var localFeedContent: some View {
         if visits.isEmpty {
             MugsyEmptyStateView(
-                asset: .comingSoon,
+                placement: .feedEmpty,
                 title: "Your feed starts with a sip",
                 message: "Log a cafe or Home sip and your memories will begin gathering here."
             )
         } else if filteredLocalVisits.isEmpty {
             MugsyEmptyStateView(
-                asset: .comingSoon,
+                placement: .feedFiltered,
                 title: "No matching sips",
                 message: "Try another drink, cafe, or note."
             )
@@ -1255,16 +1292,25 @@ struct VisitCard: View {
 struct VisitDetailView: View {
     @ObservedObject var dataManager: DataManager
     @State private var visit: Visit
+    let presentationMode: SipDetailPresentationMode
     @Environment(\.dismiss) var dismiss
     @State private var commentText = ""
     @State private var selectedPhotoIndex = 0
     @FocusState private var isCommentFocused: Bool
     @State private var showEdit = false
     @State private var showDeleteAlert = false
+    @State private var showMoreActions = false
+    @State private var toolbarProgress: CGFloat = 0
+    @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
     
-    init(visit: Visit, dataManager: DataManager) {
+    init(
+        visit: Visit,
+        dataManager: DataManager,
+        presentationMode: SipDetailPresentationMode = .pushed
+    ) {
         self._visit = State(initialValue: visit)
         self.dataManager = dataManager
+        self.presentationMode = presentationMode
     }
     
     var cafe: Cafe? {
@@ -1284,64 +1330,152 @@ struct VisitDetailView: View {
         dataManager.getComments(for: visit.id)
     }
     
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                SipDetailBackground()
+        if presentationMode == .postSave {
+            NavigationStack { detailScene }
+        } else {
+            detailScene
+        }
+    }
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        localHeroSection
+    private var detailScene: some View {
+        SipDetailScreen(
+            presentation: sharedPresentation,
+            selectedPhotoIndex: $selectedPhotoIndex,
+            commentText: $commentText,
+            toolbarProgress: $toolbarProgress,
+            commentFocus: $isCommentFocused,
+            isWorking: false,
+            mentionSuggestions: [],
+            onAction: perform,
+            onSubmitComment: addComment,
+            onReply: { _ in },
+            onCancelReply: {},
+            onSelectMention: { _ in },
+            onPhotoTap: { index in
+                let photos = sharedPresentation.content.photos
+                guard photos.indices.contains(index) else { return }
+                photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                    photos: photos,
+                    initialIndex: index
+                )
+            }
+        )
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
+        .mugshotBottomNavHidden()
+        .toolbar { localDetailToolbar }
+        .toolbarBackground(toolbarProgress > 0.82 ? .visible : .hidden, for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .onAppear(perform: refreshVisit)
+        .sheet(isPresented: $showEdit) {
+            SipDetailEditForm(
+                summary: sharedPresentation.content,
+                initialVisibility: visit.visibility,
+                onSave: saveLocalVisitEdits
+            )
+        }
+        .sheet(isPresented: $showDeleteAlert) {
+            SipDeleteConfirmationSheet(isDeleting: false) {
+                dataManager.deleteVisit(id: visit.id)
+                dismiss()
+            }
+            .presentationDetents([.height(340)])
+            .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $photoViewerPresentation) { presentation in
+            SipDetailPhotoViewer(presentation: presentation)
+        }
+        .confirmationDialog("Sip actions", isPresented: $showMoreActions, titleVisibility: .visible) {
+            ForEach(sharedPresentation.capabilities.menuActions) { action in
+                Button(action.title, role: action == .delete ? .destructive : nil) {
+                    perform(action)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
 
-                        VStack(alignment: .leading, spacing: 18) {
-                            localMemoryPanel
-                            localActionShelf
-                            SipRatingBreakdownPanel(
-                                score: visit.overallScore,
-                                ratings: visit.ratings,
-                                orderedRatings: visit.ratingCriteria
-                                    .sorted { $0.sortOrder < $1.sortOrder }
-                                    .filter { $0.score > 0 }
-                                    .map { SupabaseVisitCategoryScore(name: $0.name, score: $0.score, weight: $0.weight) },
-                                title: "Flavor map",
-                                subtitle: isOwnVisit ? "Your saved taste breakdown" : "\(user?.displayNameOrUsername ?? "Mugshot User")'s taste breakdown"
-                            )
-                            SipStructuredEntryDetailsPanel(
-                                context: visit.context,
-                                brewMethod: visit.brewMethod,
-                                equipment: visit.equipment,
-                                details: visit.brewDetails
-                            )
-                            localPrivateNote
-                            localCommentsSection
+    @ToolbarContentBuilder
+    private var localDetailToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: presentationMode.dismissIcon)
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(presentationMode.dismissLabel)
+        }
+
+        ToolbarItem(placement: .principal) {
+            Text(localDrinkDisplayName)
+                .font(.system(size: 16, weight: .bold))
+                .lineLimit(1)
+                .opacity(toolbarProgress)
+                .accessibilityHidden(toolbarProgress < 0.82)
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            if isOwnVisit {
+                Menu {
+                    ForEach(sharedPresentation.capabilities.menuActions) { action in
+                        Button(role: action == .delete ? .destructive : nil) {
+                            perform(action)
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 18)
-                        .padding(.bottom, 34)
                     }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(width: 44, height: 44)
                 }
-
-                localTopControls
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .onAppear {
-                refreshVisit()
-            }
-            .sheet(isPresented: $showEdit) {
-                EditVisitView(visit: visit, dataManager: dataManager) { updated in
-                    visit = updated
-                }
-            }
-            .alert("Delete this sip?", isPresented: $showDeleteAlert) {
-                Button("Delete", role: .destructive) {
-                    dataManager.deleteVisit(id: visit.id)
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes it from your map, feed, and saved lists.")
+                .accessibilityLabel("Sip actions")
             }
         }
+    }
+
+    private var sharedPresentation: SipDetailPresentation {
+        SipDetailPresentationAdapter.local(
+            visit: visit,
+            cafe: cafe,
+            user: user,
+            comments: comments,
+            isCafeSaved: cafe?.isFavorite == true
+        )
+    }
+
+    private func perform(_ action: SipDetailAction) {
+        switch action {
+        case .like:
+            toggleLocalLike()
+        case .comment, .share, .report, .block, .correctDrink, .repeatSip, .recommend:
+            break
+        case .saveCafe:
+            toggleLocalCafeFavorite()
+        case .more:
+            showMoreActions = true
+        case .edit:
+            showEdit = true
+        case .delete:
+            showDeleteAlert = true
+        }
+    }
+
+    @MainActor
+    private func saveLocalVisitEdits(
+        caption: String,
+        notes: String,
+        visibility: VisitVisibility
+    ) async -> Bool {
+        var updated = visit
+        updated.caption = caption
+        updated.notes = notes.remoteTrimmedNonEmpty
+        updated.visibility = visibility
+        dataManager.updateVisit(updated)
+        visit = updated
+        return true
     }
 
     private var isOwnVisit: Bool {

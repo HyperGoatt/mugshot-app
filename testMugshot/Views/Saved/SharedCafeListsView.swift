@@ -339,7 +339,7 @@ private struct CafeListDetailView: View {
 
                 if items.isEmpty {
                     MugsyEmptyStateView(
-                        asset: .noFavorites,
+                        placement: .sharedLists,
                         title: "No cafes yet",
                         message: "Add a cafe to begin this list."
                     )

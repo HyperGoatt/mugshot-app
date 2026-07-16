@@ -32,6 +32,7 @@ struct RemoteVisitDetailView: View {
     @ObservedObject var dataManager: DataManager
     let justPosted: Bool
     let onRepeat: ((RemoteVisitDetail) -> Void)?
+    let presentationMode: SipDetailPresentationMode
 
     init(
         visitId: UUID,
@@ -39,7 +40,8 @@ struct RemoteVisitDetailView: View {
         currentUserId: UUID?,
         dataManager: DataManager,
         justPosted: Bool = false,
-        onRepeat: ((RemoteVisitDetail) -> Void)? = nil
+        onRepeat: ((RemoteVisitDetail) -> Void)? = nil,
+        presentationMode: SipDetailPresentationMode = .pushed
     ) {
         self.visitId = visitId
         self.initialSummary = initialSummary
@@ -47,6 +49,7 @@ struct RemoteVisitDetailView: View {
         self.dataManager = dataManager
         self.justPosted = justPosted
         self.onRepeat = onRepeat
+        self.presentationMode = presentationMode
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -68,6 +71,8 @@ struct RemoteVisitDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var reactions: [SipReactionRecord] = []
     @State private var isShowingRecommendation = false
+    @State private var toolbarProgress: CGFloat = 0
+    @State private var showMoreActions = false
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @FocusState private var isCommentFocused: Bool
 
@@ -77,82 +82,215 @@ struct RemoteVisitDetailView: View {
 
     private var heroHeight: CGFloat { 500 }
 
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                SipDetailBackground()
+        if presentationMode == .postSave {
+            NavigationStack { detailScene }
+        } else {
+            detailScene
+        }
+    }
 
-                content
-
-                topControls
+    private var detailScene: some View {
+        Group {
+            if let detail {
+                SipDetailScreen(
+                    presentation: sharedPresentation(for: detail),
+                    selectedPhotoIndex: $selectedPhotoIndex,
+                    commentText: $commentText,
+                    toolbarProgress: $toolbarProgress,
+                    commentFocus: $isCommentFocused,
+                    isWorking: isSavingSocialAction || isDeletingVisit,
+                    mentionSuggestions: mentionSuggestions.map {
+                        SipDetailMentionSuggestion(id: $0.id, username: $0.username)
+                    },
+                    onAction: perform,
+                    onSubmitComment: { Task { await postComment() } },
+                    onReply: beginReply,
+                    onCancelReply: { replyingTo = nil },
+                    onSelectMention: selectMention,
+                    onPhotoTap: { index in
+                        photoViewerPresentation = RemotePhotoViewerPresentation(
+                            photoURLs: detail.photoURLs,
+                            initialIndex: index
+                        )
+                    }
+                )
+            } else if isLoading {
+                SipDetailLoadingView()
+            } else if let loadError {
+                SipDetailErrorView(
+                    message: loadError,
+                    onRetry: { Task { await loadDetail() } },
+                    onClose: { dismiss() }
+                )
+            } else {
+                SipDetailLoadingView()
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .task(id: visitId) {
-                await loadDetail()
-            }
-            .sheet(isPresented: $isShowingEditVisit) {
-                if let detail,
-                   let currentUserId {
-                    EditRemoteVisitView(
-                        detail: detail,
-                        currentUserId: currentUserId,
-                        onSave: saveVisitEdits
-                    )
-                }
-            }
-            .sheet(isPresented: $isShowingDrinkInterpretation) {
-                if let currentUserId {
-                    DrinkInterpretationEditor(
-                        visitID: visitId,
-                        rawDrinkName: displayedSummary.visit.drinkDisplayName,
-                        currentUserID: currentUserId
-                    )
-                }
-            }
-            .sheet(isPresented: $isShowingRecommendation) {
-                RecommendToFriendView(
-                    kind: recommendationKind,
-                    targetID: recommendationTargetID,
-                    title: displayedSummary.visit.drinkDisplayName
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
+        .mugshotBottomNavHidden()
+        .toolbar { detailToolbar }
+        .toolbarBackground(toolbarProgress > 0.82 ? .visible : .hidden, for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .task(id: visitId) { await loadDetail() }
+        .task(id: commentText) { await updateMentionSuggestions() }
+        .sheet(isPresented: $isShowingEditVisit) {
+            if let detail {
+                SipDetailEditForm(
+                    summary: sharedPresentation(for: detail).content,
+                    initialVisibility: VisitVisibility.supabaseValue(detail.summary.visit.visibility),
+                    onSave: saveVisitEdits
                 )
             }
-            .fullScreenCover(item: $photoViewerPresentation) { presentation in
-                RemotePhotoViewer(
-                    photoURLs: presentation.photoURLs,
-                    initialIndex: presentation.initialIndex
+        }
+        .sheet(isPresented: $isShowingDrinkInterpretation) {
+            if let currentUserId {
+                DrinkInterpretationEditor(
+                    visitID: visitId,
+                    rawDrinkName: displayedSummary.visit.drinkDisplayName,
+                    currentUserID: currentUserId
                 )
             }
-            .confirmationDialog(
-                "Delete this sip?",
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Delete Sip", role: .destructive) {
-                    Task {
-                        await deleteVisit()
+        }
+        .sheet(isPresented: $isShowingRecommendation) {
+            RecommendToFriendView(
+                kind: recommendationKind,
+                targetID: recommendationTargetID,
+                title: displayedSummary.visit.drinkDisplayName
+            )
+        }
+        .sheet(isPresented: $showDeleteConfirmation) {
+            SipDeleteConfirmationSheet(
+                isDeleting: isDeletingVisit,
+                onDelete: { Task { await deleteVisit() } }
+            )
+            .presentationDetents([.height(340)])
+            .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $photoViewerPresentation) { presentation in
+            RemotePhotoViewer(
+                photoURLs: presentation.photoURLs,
+                initialIndex: presentation.initialIndex
+            )
+        }
+        .confirmationDialog("Sip actions", isPresented: $showMoreActions, titleVisibility: .visible) {
+            if let detail {
+                ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
+                    Button(action.title, role: action == .delete ? .destructive : nil) {
+                        perform(action)
                     }
                 }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes the sip from Journal, Feed, and cafe history.")
             }
-            .confirmationDialog(
-                "Why are you reporting this?",
-                isPresented: Binding(
-                    get: { reportTarget != nil },
-                    set: { if !$0 { reportTarget = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                ForEach(ReportReason.allCases) { reason in
-                    Button(reason.title, role: .destructive) {
-                        Task { await submitReport(reason: reason) }
-                    }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Why are you reporting this?",
+            isPresented: Binding(
+                get: { reportTarget != nil },
+                set: { if !$0 { reportTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            ForEach(ReportReason.allCases) { reason in
+                Button(reason.title, role: .destructive) {
+                    Task { await submitReport(reason: reason) }
                 }
-                Button("Cancel", role: .cancel) { reportTarget = nil }
-            } message: {
-                Text("Reports are reviewed and do not automatically remove content.")
             }
+            Button("Cancel", role: .cancel) { reportTarget = nil }
+        } message: {
+            Text("Reports are reviewed and do not automatically remove content.")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var detailToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: presentationMode.dismissIcon)
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(presentationMode.dismissLabel)
+        }
+
+        ToolbarItem(placement: .principal) {
+            Text(displayedSummary.visit.drinkDisplayName)
+                .font(.system(size: 16, weight: .bold))
+                .lineLimit(1)
+                .opacity(toolbarProgress)
+                .accessibilityHidden(toolbarProgress < 0.82)
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            if let detail {
+                Menu {
+                    ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
+                        Button(role: action == .delete ? .destructive : nil) {
+                            perform(action)
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(isDeletingVisit)
+                .accessibilityLabel("Sip actions")
+            }
+        }
+    }
+
+    private func sharedPresentation(for detail: RemoteVisitDetail) -> SipDetailPresentation {
+        SipDetailPresentationAdapter.remote(
+            detail: detail,
+            currentUserID: currentUserId,
+            reactions: reactions,
+            isCafeSaved: isCafeFavorite(detail),
+            canRecommend: phase4LightweightFriends && canRecommend(detail),
+            canRepeat: onRepeat != nil,
+            replyingToUsername: replyingTo.map { "@\($0.authorUsername)" }
+        )
+    }
+
+    private func beginReply(to commentID: UUID) {
+        guard let comment = detail?.comments.first(where: { $0.id == commentID }) else { return }
+        replyingTo = comment
+    }
+
+    private func selectMention(id: UUID) {
+        guard let person = mentionSuggestions.first(where: { $0.id == id }) else { return }
+        selectMention(person)
+    }
+
+    private func perform(_ action: SipDetailAction) {
+        guard let detail else { return }
+        switch action {
+        case .like:
+            Task { await toggleLike() }
+        case .comment, .share:
+            break
+        case .saveCafe:
+            setCafeStateFromVisit(detail, isFavorite: !isCafeFavorite(detail), wantToTry: nil)
+        case .recommend:
+            isShowingRecommendation = true
+        case .more:
+            showMoreActions = true
+        case .edit:
+            isShowingEditVisit = true
+        case .correctDrink:
+            isShowingDrinkInterpretation = true
+        case .repeatSip:
+            repeatCurrentSip(detail)
+        case .delete:
+            showDeleteConfirmation = true
+        case .report:
+            reportTarget = .visit(visitId)
+        case .block:
+            Task { await blockVisitAuthor() }
         }
     }
 
@@ -2085,8 +2223,14 @@ struct SipShareCardPayload: Equatable {
     }
 }
 
+enum SipShareButtonLayout: Equatable {
+    case pill
+    case dock
+}
+
 struct SipShareButton: View {
     let payload: SipShareCardPayload
+    var layout: SipShareButtonLayout = .pill
     @State private var presentation: RichSharePresentation?
     @State private var isPreparing = false
 
@@ -2094,13 +2238,21 @@ struct SipShareButton: View {
         Button {
             Task { await prepareShare() }
         } label: {
-            SipActionLabel(
-                title: "Share",
-                value: nil,
-                systemImage: isPreparing ? "hourglass" : "square.and.arrow.up",
-                isActive: false,
-                isEnabled: !isPreparing
-            )
+            if layout == .dock {
+                SipDetailDockLabel(
+                    action: .share,
+                    isActive: false,
+                    value: nil
+                )
+            } else {
+                SipActionLabel(
+                    title: "Share",
+                    value: nil,
+                    systemImage: isPreparing ? "hourglass" : "square.and.arrow.up",
+                    isActive: false,
+                    isEnabled: !isPreparing
+                )
+            }
         }
         .buttonStyle(.plain)
         .disabled(isPreparing)
@@ -2223,10 +2375,9 @@ private struct MugshotSipShareCard: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                Image("MugsyComingSoon")
-                    .resizable()
-                    .scaledToFit()
-                    .padding(54)
+                MugsyModelView(configuration: MugsyPlacement.camera.configuration)
+                    .padding(46)
+                    .accessibilityHidden(true)
             }
         }
     }

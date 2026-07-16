@@ -58,9 +58,13 @@ struct MugshotRecoveryCard: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(.mugshotSage)
+            MugsyAnimatedView(
+                configuration: MugsyPlacement.recovery.configuration,
+                action: .recovering,
+                isPaused: true
+            )
+            .frame(width: 88, height: 88)
+            .accessibilityHidden(true)
 
             Text(title)
                 .font(.system(size: 18, weight: .bold))
@@ -246,77 +250,164 @@ struct MugshotCompletionFact: Identifiable, Equatable {
 
 struct MugshotCompletionCard: View {
     var assetName: String? = nil
+    var mugsyConfiguration: MugsyModelConfiguration? = nil
+    var mugsyAction: MugsyActionState = .success
     var systemImage = "checkmark"
     let eyebrow: String
     let title: String
     let message: String
     var facts: [MugshotCompletionFact] = []
+    var celebrates = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
+    @State private var revealProgress: CGFloat = 0
+    @State private var confettiProgress: CGFloat = 0
+
+    private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
 
     var body: some View {
-        VStack(spacing: 14) {
-            Group {
-                if let assetName {
-                    Image(assetName)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundColor(.foamWhite)
-                        .frame(width: 64, height: 64)
-                        .background(Color.mugshotSage, in: Circle())
-                }
-            }
-            .frame(width: 72, height: 72)
-            .accessibilityHidden(true)
-
-            VStack(spacing: 5) {
-                Text(eyebrow.uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundColor(.mugshotSage)
-
-                Text(title)
-                    .mugshotDisplay(size: 27)
-                    .foregroundColor(.espressoBrown)
-                    .multilineTextAlignment(.center)
-
-                Text(message)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+        ZStack {
+            if celebrates {
+                MugshotConfettiBurst(progress: confettiProgress)
+                    .frame(width: 280, height: 188)
+                    .offset(y: -38)
+                    .accessibilityHidden(true)
             }
 
-            if !facts.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(facts) { fact in
-                        HStack(alignment: .firstTextBaseline, spacing: 9) {
-                            Image(systemName: fact.icon)
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.mugshotSage)
-                                .frame(width: 18)
-                            Text(fact.label)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondaryText)
-                            Spacer(minLength: 8)
-                            Text(fact.value)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.espressoBrown)
-                                .multilineTextAlignment(.trailing)
-                                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 14) {
+                Group {
+                    if let assetName {
+                        Image(assetName)
+                            .resizable()
+                            .scaledToFit()
+                    } else if let mugsyConfiguration {
+                        if celebrates {
+                            MugsyCelebrationLoopView(configuration: mugsyConfiguration)
+                        } else {
+                            MugsyAnimatedView(configuration: mugsyConfiguration, action: mugsyAction)
                         }
+                    } else {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundColor(.foamWhite)
+                            .frame(width: 64, height: 64)
+                            .background(Color.mugshotSage, in: Circle())
                     }
                 }
-                .padding(12)
-                .background(Color.sandBeige.opacity(0.54))
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                .frame(
+                    width: mugsyConfiguration == nil ? 72 : (celebrates ? 136 : 106),
+                    height: mugsyConfiguration == nil ? 72 : (celebrates ? 148 : 118)
+                )
+                .accessibilityHidden(true)
+
+                VStack(spacing: 5) {
+                    Text(eyebrow.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundColor(.mugshotSage)
+
+                    Text(title)
+                        .mugshotDisplay(size: 27)
+                        .foregroundColor(.espressoBrown)
+                        .multilineTextAlignment(.center)
+
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !facts.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(facts) { fact in
+                            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                                Image(systemName: fact.icon)
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.mugshotSage)
+                                    .frame(width: 18)
+                                Text(fact.label)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondaryText)
+                                Spacer(minLength: 8)
+                                Text(fact.value)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.espressoBrown)
+                                    .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.sandBeige.opacity(0.54))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                }
             }
         }
         .padding(.horizontal, 26)
         .padding(.vertical, 24)
         .mugshotGlassSurface(radius: 26, tint: .foamWhite, interactive: false)
+        .scaleEffect(celebrates ? 0.88 + revealProgress * 0.12 : 1)
+        .offset(y: celebrates ? 24 * (1 - revealProgress) : 0)
+        .opacity(celebrates ? revealProgress : 1)
+        .task {
+            guard celebrates, revealProgress == 0 else { return }
+            if effectiveReduceMotion {
+                revealProgress = 1
+                confettiProgress = 1
+                return
+            }
+
+            withAnimation(MugshotMotion.celebration) {
+                revealProgress = 1
+            }
+            try? await Task.sleep(for: .milliseconds(90))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.92)) {
+                confettiProgress = 1
+            }
+            MugshotHaptic.success.play()
+        }
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct MugshotConfettiBurst: View {
+    let progress: CGFloat
+
+    private let colors: [Color] = [
+        .mugshotMint,
+        .mugshotSage,
+        .mugshotLatte,
+        MugsyStyleTokens.blush,
+        MugshotDrinkAppearance.coffee.liquidColor
+    ]
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(0..<20, id: \.self) { index in
+                    let angle = (Double(index) / 20 * .pi * 2) - (.pi / 2)
+                    let distance = progress * CGFloat(48 + (index % 5) * 11)
+                    let x = CGFloat(cos(angle)) * distance
+                    let y = CGFloat(sin(angle)) * distance + progress * progress * 28
+                    let fade = 1 - MugshotMotion.normalized((progress - 0.74) / 0.26)
+
+                    RoundedRectangle(cornerRadius: index.isMultiple(of: 3) ? 4 : 1.5, style: .continuous)
+                        .fill(colors[index % colors.count])
+                        .frame(
+                            width: index.isMultiple(of: 2) ? 7 : 4,
+                            height: index.isMultiple(of: 2) ? 4 : 10
+                        )
+                        .rotationEffect(.degrees(Double(index * 31) + Double(progress) * 210))
+                        .offset(x: x, y: y)
+                        .opacity(min(1, progress * 5) * fade)
+                }
+            }
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+        }
+        .allowsHitTesting(false)
     }
 }
 

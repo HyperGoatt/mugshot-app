@@ -18,6 +18,7 @@ struct MainTabView: View {
     @State private var showsGuestSavedMerge = false
     @State private var showsCapturePreferences = false
     @State private var systemRouteError: String?
+    @State private var isBottomNavHidden = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -25,13 +26,18 @@ struct MainTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
 
-            if tabCoordinator.selectedTab != 2 {
+            if tabCoordinator.selectedTab != 2, !isBottomNavHidden {
                 MugshotBottomNav(selectedTab: gatedTabSelection)
                     .transition(.opacity)
                     .zIndex(1)
             }
         }
         .environmentObject(tabCoordinator)
+        .onPreferenceChange(MugshotBottomNavHiddenPreferenceKey.self) { isHidden in
+            withAnimation(DesignSystem.Motion.fast) {
+                isBottomNavHidden = isHidden
+            }
+        }
         .tint(.mugshotSage)
         .background(Color.creamWhite.ignoresSafeArea())
         // The dock deliberately extends through the container safe area so it
@@ -316,6 +322,20 @@ struct MainTabView: View {
                   !showsGuestSavedMerge else { return }
             showsCapturePreferences = true
         }
+    }
+}
+
+struct MugshotBottomNavHiddenPreferenceKey: PreferenceKey {
+    static var defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
+extension View {
+    func mugshotBottomNavHidden(_ isHidden: Bool = true) -> some View {
+        preference(key: MugshotBottomNavHiddenPreferenceKey.self, value: isHidden)
     }
 }
 

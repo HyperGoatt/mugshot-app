@@ -65,12 +65,13 @@ struct AuthEntryView: View {
                     }
                     
                     VStack(spacing: 10) {
-                        Image("MugshotAppIcon")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 5)
+                        MugsyAnimatedView(
+                            configuration: MugsyPlacement.authentication.configuration,
+                            action: .entering,
+                            tapBehavior: MugsyPlacement.authentication.tapBehavior
+                        )
+                        .frame(width: 108, height: 108)
+                        .accessibilityHidden(true)
 
                         Text("Mugshot")
                             .mugshotDisplay(size: 42)
@@ -245,6 +246,14 @@ struct SupabaseConfigurationRequiredView: View {
             Color.creamWhite.ignoresSafeArea()
             
             VStack(spacing: 18) {
+                MugsyAnimatedView(
+                    configuration: MugsyPlacement.recovery.configuration,
+                    action: .recovering,
+                    isPaused: true
+                )
+                .frame(width: 112, height: 112)
+                .accessibilityHidden(true)
+
                 Text("Mugshot")
                     .mugshotDisplay(size: 40)
                     .foregroundColor(.espressoBrown)
@@ -277,17 +286,35 @@ struct SupabaseConfigurationRequiredView: View {
 }
 
 struct AuthLoadingView: View {
+    @State private var showsMugsy = false
+
     var body: some View {
         ZStack {
             Color.creamWhite.ignoresSafeArea()
             
             VStack(spacing: 16) {
+                MugsyAnimatedView(
+                    configuration: MugsyModelConfiguration(expression: .focused),
+                    action: .focusing,
+                    isPaused: true
+                )
+                .frame(width: 92, height: 92)
+                .opacity(showsMugsy ? 1 : 0)
+                .accessibilityHidden(true)
+
                 ProgressView()
                     .tint(.mugshotSage)
                 
                 Text("Opening your journal")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.secondaryText)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                showsMugsy = true
             }
         }
     }

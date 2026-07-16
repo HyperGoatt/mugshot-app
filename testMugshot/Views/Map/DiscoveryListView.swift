@@ -18,11 +18,15 @@ struct DiscoveryListView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var presentedCafe: Cafe?
+    @State private var refreshPullProgress: CGFloat = 0
+    @State private var isRefreshing = false
+    @State private var didArmRefresh = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
+                    MugshotPullProgressReader(coordinateSpace: "discovery.refresh", restingOffset: 18)
                     HStack(spacing: 10) {
                         Text("Discover")
                             .mugshotDisplay(size: 30)
@@ -51,7 +55,7 @@ struct DiscoveryListView: View {
                         ) { Task { await load() } }
                     } else if visibleCafeCount == 0 {
                         MugsyEmptyStateView(
-                            asset: .noCafes,
+                            placement: .discoveryEmpty,
                             title: searchText.isEmpty ? "No cafes to show yet" : "No cafes match that search",
                             message: emptyStateMessage
                         )
@@ -75,9 +79,31 @@ struct DiscoveryListView: View {
                 .padding(.top, 18)
                 .padding(.bottom, 116)
             }
+            .coordinateSpace(name: "discovery.refresh")
             .background(Color.creamWhite)
+            .overlay(alignment: .top) {
+                MugshotPullRefreshIndicator(
+                    progress: refreshPullProgress,
+                    isRefreshing: isRefreshing
+                )
+                .offset(y: 8)
+                .allowsHitTesting(false)
+            }
+            .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
+                refreshPullProgress = MugshotMotion.normalized(distance / 82)
+                if refreshPullProgress >= 1, !didArmRefresh {
+                    didArmRefresh = true
+                    MugshotHaptic.refreshArmed.play()
+                } else if refreshPullProgress < 0.35 {
+                    didArmRefresh = false
+                }
+            }
             .toolbar(.hidden, for: .navigationBar)
-            .refreshable { await load() }
+            .refreshable {
+                isRefreshing = true
+                await load()
+                isRefreshing = false
+            }
             .sheet(item: $presentedCafe) { cafe in
                 CafeDetailView(
                     cafe: cafe,
