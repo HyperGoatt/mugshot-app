@@ -169,15 +169,52 @@ final class testMugshotUITests: XCTestCase {
 
         let tastingLens = app.buttons["sipComposer.ratingMode.lens"]
         tastingLens.tap()
-        XCTAssertTrue(tastingLens.isSelected)
-        XCTAssertFalse(app.otherElements["sipComposer.overallRating"].exists)
+        XCTAssertTrue(app.staticTexts["Make the Lens fit the drink."].waitForExistence(timeout: 3))
 
-        let presentationRating = app.otherElements["Presentation"]
-        XCTAssertTrue(presentationRating.waitForExistence(timeout: 2))
-        presentationRating.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)).tap()
+        let lensPrimary = app.buttons["tastingLens2.primary"]
+        XCTAssertTrue(lensPrimary.isEnabled)
+        lensPrimary.tap()
+
+        let ownWords = app.descendants(matching: .any)["tastingLens2.ownWords"]
+        XCTAssertTrue(ownWords.waitForExistence(timeout: 2))
+        ownWords.tap()
+        ownWords.typeText("Citrus, tea-like, silky")
+        lensPrimary.tap()
+
+        let customFlavor = app.textFields["tastingLens2.flavor.custom"]
+        XCTAssertTrue(customFlavor.waitForExistence(timeout: 2))
+        customFlavor.tap()
+        customFlavor.typeText("orange peel")
+        lensPrimary.tap()
+
+        XCTAssertTrue(app.staticTexts["Notice what arrives first."].waitForExistence(timeout: 2))
+        lensPrimary.tap()
+
+        var answeredCriteria = 0
+        let unsure = app.buttons["tastingLens2.criterion.state.unsure"]
+        let enjoyment = app.otherElements["tastingLens2.enjoyment.stars"]
+        while !enjoyment.exists, answeredCriteria < 24 {
+            XCTAssertTrue(
+                unsure.waitForExistence(timeout: 2),
+                "Every typed observation must preserve a Not sure yet path."
+            )
+            unsure.tap()
+            lensPrimary.tap()
+            answeredCriteria += 1
+        }
+        XCTAssertLessThan(answeredCriteria, 24, "Guided Lens did not reach independent enjoyment.")
+        XCTAssertTrue(enjoyment.waitForExistence(timeout: 2))
+        enjoyment.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)).tap()
+        lensPrimary.tap()
+
+        XCTAssertTrue(app.staticTexts["A memory, not a formula."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Citrus, tea-like, silky")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["The observations do not calculate these stars"].exists == false)
+        lensPrimary.tap()
+
+        XCTAssertTrue(app.staticTexts["Your guided tasting is captured"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["sipComposer.primaryAction"].isEnabled)
 
-        app.scrollViews.firstMatch.swipeUp()
         tapAfterRevealing(app.buttons["sipComposer.primaryAction"], in: app)
         XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
         tapAfterRevealing(app.buttons["Friends"], in: app)
@@ -197,11 +234,12 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Taste snapshot"].exists)
         XCTAssertFalse(app.staticTexts["Presentation"].exists)
-        XCTAssertTrue(app.buttons["View breakdown"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Citrus, tea-like, silky")).firstMatch.exists)
+        XCTAssertTrue(app.buttons["View sensory trail"].exists)
 
-        app.buttons["View breakdown"].tap()
+        app.buttons["View sensory trail"].tap()
 
-        XCTAssertTrue(app.staticTexts["Presentation"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Not sure yet"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Hide details"].exists)
     }
 

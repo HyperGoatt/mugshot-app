@@ -38,11 +38,12 @@ struct Visit: Identifiable {
     var equipment: String?
     var brewDetails: BrewDetails
     var drinkAnalysis: DrinkAnalysis?
+    var sensorySnapshot: SipSensorySnapshot?
     var photos: [String] // Store image names/paths
     var posterPhotoIndex: Int // Index of the photo to use as poster
     var ratings: [String: Double] // Category name -> rating value
     var ratingCriteria: [SipRatingCriterionSnapshot]
-    var overallScore: Double // Weighted average
+    var overallScore: Double // The user's independent personal enjoyment rating
     var visibility: VisitVisibility
     var likeCount: Int // Renamed from likes
     var likedByUserIds: [UUID] // Track which users liked this visit
@@ -64,6 +65,7 @@ struct Visit: Identifiable {
         equipment: String? = nil,
         brewDetails: BrewDetails = .empty,
         drinkAnalysis: DrinkAnalysis? = nil,
+        sensorySnapshot: SipSensorySnapshot? = nil,
         photos: [String] = [],
         posterPhotoIndex: Int = 0,
         ratings: [String: Double] = [:],
@@ -89,6 +91,7 @@ struct Visit: Identifiable {
         self.equipment = equipment
         self.brewDetails = brewDetails
         self.drinkAnalysis = drinkAnalysis
+        self.sensorySnapshot = sensorySnapshot
         self.photos = photos
         self.posterPhotoIndex = posterPhotoIndex
         self.ratings = ratings
@@ -143,7 +146,7 @@ struct Visit: Identifiable {
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {
         case id, cafeId, userId, drinkType, customDrinkType, caption, notes, photos
-        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis
+        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis, sensorySnapshot
         case posterPhotoIndex, ratings, ratingCriteria, overallScore, visibility, comments, mentions
         case createdAt, date // Support both for backward compatibility
         case likeCount, likes // Support both for backward compatibility
@@ -175,6 +178,7 @@ extension Visit: Codable {
         equipment = try container.decodeIfPresent(String.self, forKey: .equipment)
         brewDetails = try container.decodeIfPresent(BrewDetails.self, forKey: .brewDetails) ?? .empty
         drinkAnalysis = try container.decodeIfPresent(DrinkAnalysis.self, forKey: .drinkAnalysis)
+        sensorySnapshot = try container.decodeIfPresent(SipSensorySnapshot.self, forKey: .sensorySnapshot)
         photos = try container.decode([String].self, forKey: .photos)
         posterPhotoIndex = try container.decode(Int.self, forKey: .posterPhotoIndex)
         ratings = try container.decode([String: Double].self, forKey: .ratings)
@@ -212,6 +216,7 @@ extension Visit: Codable {
         try container.encodeIfPresent(equipment, forKey: .equipment)
         try container.encode(brewDetails, forKey: .brewDetails)
         try container.encodeIfPresent(drinkAnalysis, forKey: .drinkAnalysis)
+        try container.encodeIfPresent(sensorySnapshot, forKey: .sensorySnapshot)
         try container.encode(photos, forKey: .photos)
         try container.encode(posterPhotoIndex, forKey: .posterPhotoIndex)
         try container.encode(ratings, forKey: .ratings)

@@ -146,3 +146,132 @@ Passed. No open P0, P1, or P2 visual or interaction issues remain in the guided 
 ## Final result
 
 final result: passed
+
+---
+
+# Tasting Lens 2.0 Design QA
+
+## Scope
+
+Production implementation of the Tasting Lens 2.0 journey across brewed coffee, espresso, milk coffee, matcha, specialty matcha latte, hojicha, tea, milk tea, additions, and the universal fallback.
+
+The journey keeps these concepts distinct:
+
+- the drink identity and ingredient provenance;
+- the user's own words;
+- broad-to-specific flavor vocabulary;
+- typed sensory observations, uncertainty, and confidence;
+- personal preference and optional style impression;
+- independent half-step enjoyment stars;
+- immutable private snapshots and optional lossy social projections.
+
+## Reference comparison
+
+Accepted references:
+
+- `/Users/joe.rosso/.codex/generated_images/019f6c5b-9d2c-7f73-95d1-b8fcde370cfe/exec-9de9fb82-48cb-4012-928e-05f478decb37.png`
+- `/Users/joe.rosso/.codex/generated_images/019f6c5b-9d2c-7f73-95d1-b8fcde370cfe/exec-33aead15-9f24-4b7e-a3fd-d9494edc58f3.png`
+- `/Users/joe.rosso/.codex/generated_images/019f6c5b-9d2c-7f73-95d1-b8fcde370cfe/exec-c4ed0abf-0561-488d-b7ce-c37532e951cb.png`
+
+Combined reference-versus-build board:
+
+- `/Users/joe.rosso/.codex/visualizations/2026/07/16/019f6c5b-9d2c-7f73-95d1-b8fcde370cfe/tasting-lens-qa/reference-vs-build.png`
+
+Visible comparison findings:
+
+- The cream, espresso, sage, mint, sand, serif-heading, and rounded-control language matches Mugshot's established brand.
+- “Start with your words” preserves the reference hierarchy while deliberately hiding suggestions until the user has formed a first impression.
+- The flavor explorer preserves the memorable web relationship while adding real broad-to-specific disclosure, custom language, ingredient provenance, and accessible list mode.
+- Mugsy remains a brief contextual guide, with drink-specific first-sensation choices, optional closer distinctions, and a “why” explanation.
+- Navigation, progress, primary actions, uncertainty states, and selection feedback are production controls rather than visual placeholders.
+- Personal stars and the final Taste Snapshot extend the accepted direction without turning observations into a score formula.
+
+## Product behavior QA
+
+- Completed a clean Guided specialty matcha latte journey on iPhone 17 Pro at 368 x 800.
+- Confirmed matcha-specific dispersion and texture questions appeared.
+- Confirmed added orange remained ingredient provenance and did not become a claimed base-drink detection.
+- Confirmed own words, Orange-like flavor, Mugsy guidance, observations, and a 2.5 personal rating remained distinct in the snapshot.
+- Saved the sip privately and reached the completion state.
+- Automated the complete Lens journey through Friends visibility, save, Journal reopen, and sensory-trail disclosure.
+- Confirmed Quick, Guided, and Deep selection logic, universal fallback, old-draft migration, preference correction retry, offline draft restore, and repeated-evidence personalization thresholds in focused tests.
+
+## Accessibility and motion QA
+
+- Verified the largest accessibility content size.
+- Corrected an initial header/footer crowding defect found during this check.
+- Rechecked the corrected layout: compact header, reachable action, scrollable content, and no hidden required control.
+- Confirmed the flavor web automatically becomes a disclosure list at accessibility text sizes.
+- Confirmed Reduce Motion was `true` inside the running Mugshot process.
+- Re-ran the complete save-and-reopen UI journey with Reduce Motion enabled; it passed.
+
+## Data and privacy QA
+
+- Full sensory snapshots are owner-private and insert-only.
+- Corrections are append-only; preferences remain editable and account-scoped.
+- Public projection storage cannot contain own words, full responses, or snapshot payloads.
+- Canonical payload fields are cross-checked against indexed columns.
+- Descriptor and dimension projections are bounded and identifier-only, including the `unexpected` dimension.
+- Live read-only dependency preflight confirmed `set_updated_at()`, `can_view_visit(uuid, uuid)`, and the required visit-owner composite key exist.
+- The production migration was deployed as four tracked, ordered migrations after live save diagnostics exposed the missing-schema release boundary.
+
+## Verification evidence
+
+- Debug Simulator build: passed.
+- Release Simulator build: passed.
+- Tasting Lens domain suite: 21 passed, 0 failed.
+- Adjacent app unit suite: 91 passed, 0 failed.
+- Sip detail presentation suite: 5 passed, 0 failed.
+- Full Tasting Lens UI journey: passed normally and passed again with Reduce Motion enabled.
+- Knowledge bundle JSON validation: passed.
+- Swift/SQL diff whitespace checks: passed.
+
+final result: passed
+
+---
+
+# Deep Tasting Lens posting recovery QA
+
+## Reported state
+
+- Source screenshot: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-34ae6fd0-7031-4992-bde8-0958659d387b.png`
+- The UI reported a photo failure after a completed Deep Tasting Lens save.
+- Production request logs showed the actual failure was a `404` while inserting the private sensory snapshot.
+- Photo storage was never called, so the selected image was not the cause.
+- The private visit shell remained server-side in a failed upload state with no attached photo, preserving the same-ID retry boundary.
+
+## Repairs
+
+- Deployed the missing Tasting Lens schema as four tracked production migrations:
+  - `20260717114908_tasting_lens_2_core`
+  - `20260717114953_tasting_lens_2_security`
+  - `20260717115015_tasting_lens_2_export`
+  - `20260717115054_tasting_lens_2_indexes`
+- Split save diagnostics and recovery copy by visit creation, Tasting Lens snapshot, photo upload, and finalization.
+- Removed the misleading instruction to remove the photo.
+- Changed replacement photo uploads to storage upserts so an ambiguous interrupted request can retry without a duplicate-object loop.
+- Kept the immutable sensory snapshot write ahead of publication and made retry verify or repair it before finalizing the visit.
+
+## Live contract verification
+
+- Confirmed all four production tables exist with forced RLS.
+- Confirmed an owner could insert and read a sensory snapshot while a different authenticated user could not read it.
+- Rolled the live probe transaction back and confirmed it left no probe row.
+- Confirmed the new owner, projection, correction, and foreign-key support indexes exist.
+- Confirmed the canonical Swift snapshot encoder writes `personalEnjoyment` as the numeric half-step expected by the SQL contract.
+
+## Build and test evidence
+
+- Debug Simulator build and launch: passed with no warnings or errors.
+- Release Simulator compile: passed with no warnings or errors.
+- Tasting Lens domain suite: 21 passed, 0 failed.
+- Adjacent app unit suite: 91 passed, 0 failed, including stage-specific retry copy.
+- Relaunch-and-retry photo UI test: 1 passed, 0 failed.
+- Migration and knowledge-bundle integrity checks: passed.
+- Diff whitespace and ASCII `cafe` checks: passed.
+
+## Remaining observation
+
+- The original pending save lives on the user's physical device. Its server-side prerequisites and retry contract are repaired, but the final tap on that device cannot be observed from the Simulator.
+
+final result: passed; original-device retry confirmation remains observational

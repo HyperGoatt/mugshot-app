@@ -9,7 +9,11 @@ enum SipSaveStage: String {
     case remoteSaveStarted
     case submissionPrepared
     case visitCreated
+    case tastingLensSnapshotStarted
+    case tastingLensSnapshotSaved
+    case photoUploadStarted
     case photosUploaded
+    case finalizationStarted
     case visitFinalized
     case analysisQueued
     case completed

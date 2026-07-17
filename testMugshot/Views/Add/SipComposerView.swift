@@ -14,13 +14,14 @@ struct LogVisitView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
 
     @StateObject private var composerModel: SipComposerModel
     @State private var photoImages: [UIImage] = []
     @State private var didRestoreDraft = false
     @State private var suppressContextDefaults = false
-    @State private var showCriteriaEditor = false
+    @State private var showTastingLens2 = false
     @State private var showPhotoSourceDialog = false
     @State private var showCamera = false
     @State private var showPhotoLibrary = false
@@ -61,6 +62,17 @@ struct LogVisitView: View {
     private var draft: SipDraft {
         get { composerModel.draft }
         nonmutating set { composerModel.draft = newValue }
+    }
+
+    private var tastingLensUserID: UUID? {
+        draft.ownerUserID ?? authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+    }
+
+    private var tastingLensHistory: [SipSensorySnapshot] {
+        guard let userID = tastingLensUserID else { return [] }
+        return dataManager.appData.visits
+            .filter { $0.userId == userID }
+            .compactMap(\.sensorySnapshot)
     }
 
     /// Required product state drives the vessel. Optional photos and notes add
@@ -114,7 +126,7 @@ struct LogVisitView: View {
         preselectedCafe: Cafe?,
         ownerUserID: UUID? = nil
     ) -> SipDraft {
-        var draft = SipDraft(
+        let draft = SipDraft(
             ownerUserID: ownerUserID,
             launchContext: SipComposerLaunchContext(
                 source: preselectedCafe == nil ? .centralAdd : .cafeDetail,
@@ -123,7 +135,6 @@ struct LogVisitView: View {
             cafe: preselectedCafe,
             visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
         )
-        draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         return draft
     }
 
@@ -163,10 +174,32 @@ struct LogVisitView: View {
                     composerFooter
                 }
             }
-            .sheet(isPresented: $showCriteriaEditor) {
-                SipCriteriaEditor(
-                    criteria: $composerModel.draft.ratingCriteria,
-                    onSaveTemplate: savePersonalCriteria
+            .fullScreenCover(isPresented: $showTastingLens2) {
+                TastingLens2ComposerContainer(
+                    analysis: draft.drinkAnalysis,
+                    rawDrinkName: draft.drinkName,
+                    userID: tastingLensUserID,
+                    remoteSyncEnabled: authModel.authenticatedUser?.id == tastingLensUserID,
+                    history: tastingLensHistory,
+                    existingSnapshot: draft.sensorySnapshot,
+                    existingSession: draft.sensorySessionDraft,
+                    onComplete: { snapshot in
+                        draft.sensorySnapshot = snapshot
+                        draft.sensorySessionDraft = nil
+                        draft.overallScore = snapshot.personalEnjoyment?.value ?? draft.overallScore
+                        draft.captureMode = .addDetails
+                        showTastingLens2 = false
+                        MugshotHaptic.softImpact.play()
+                    },
+                    onCancel: {
+                        if draft.sensorySnapshot == nil {
+                            draft.captureMode = .quickSip
+                        }
+                        showTastingLens2 = false
+                    },
+                    onSessionUpdate: { session in
+                        draft.sensorySessionDraft = session
+                    }
                 )
             }
             .sheet(isPresented: $showCompanionPicker) {
@@ -587,8 +620,22 @@ struct LogVisitView: View {
         }
     }
 
+    @ViewBuilder
     private var ratingModeControl: some View {
-        HStack(spacing: 8) {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
+                ratingModeButtons
+            }
+        } else {
+            HStack(spacing: 8) {
+                ratingModeButtons
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ratingModeButtons: some View {
+        Group {
             ratingModeButton(
                 title: "Quick rating",
                 subtitle: "One score",
@@ -597,7 +644,7 @@ struct LogVisitView: View {
             )
             ratingModeButton(
                 title: "Use my tasting lens",
-                subtitle: "What matters to you",
+                subtitle: draft.sensorySessionDraft == nil ? "What matters to you" : "Resume saved Lens",
                 systemImage: "sparkles",
                 mode: .addDetails
             )
@@ -614,6 +661,9 @@ struct LogVisitView: View {
         return Button {
             withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
                 draft.captureMode = mode
+            }
+            if mode == .addDetails {
+                showTastingLens2 = true
             }
         } label: {
             VStack(alignment: .leading, spacing: 5) {
@@ -637,45 +687,77 @@ struct LogVisitView: View {
 
     private var personalRatingContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Your criteria", systemImage: "slider.horizontal.3")
+            if let snapshot = draft.sensorySnapshot {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your \(snapshot.depth.title.lowercased()) tasting is captured")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Text(tastingLensSnapshotPreview(snapshot))
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    if let enjoyment = snapshot.personalEnjoyment {
+                        Text(String(format: "%.1f", enjoyment.value))
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .monospacedDigit()
+                            .accessibilityLabel("Personal rating \(String(format: "%.1f", enjoyment.value)) out of 5")
+                    }
+                }
+
+                Button {
+                    showTastingLens2 = true
+                } label: {
+                    Label("Review or refine this tasting", systemImage: "slider.horizontal.3")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .accessibilityIdentifier("sipComposer.openTastingLens2")
+            } else {
+                Label("Describe first. Rate enjoyment separately.", systemImage: "sparkles")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.mugshotSage)
-                Spacer()
-                Button("Customize") { showCriteriaEditor = true }
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.mugshotSage)
-            }
 
-            ForEach(Array(draft.ratingCriteria.sorted { $0.sortOrder < $1.sortOrder }.enumerated()), id: \.element.id) { _, criterion in
-                if let index = draft.ratingCriteria.firstIndex(where: { $0.id == criterion.id }) {
-                    DetailedCriterionRow(criterion: $composerModel.draft.ratingCriteria[index])
+                Text("Start in your own words, explore a broad-to-specific flavor web, then let Mugsy guide only the questions that fit this drink.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    showTastingLens2 = true
+                } label: {
+                    Label("Open Tasting Lens 2.0", systemImage: "arrow.right")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(SecondaryButtonStyle())
+                .accessibilityIdentifier("sipComposer.openTastingLens2")
             }
 
-            if draft.ratingCriteria.isEmpty {
-                Button("Add your first criterion") { showCriteriaEditor = true }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.mugshotSage)
-            }
-
-            if draft.resolvedOverallScore > 0 {
-                HStack {
-                    Text("Tasting lens overall")
-                    Spacer()
-                    Text(String(format: "%.1f", draft.resolvedOverallScore))
-                        .font(.system(size: 22, weight: .bold))
-                }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-                .padding(.top, 4)
-            }
-
-            Text("The criteria you rate are shared with this sip. Criteria marked not relevant are left out.")
+            Text("Your observations never calculate your stars. High intensity is not automatically better.")
                 .font(.system(size: 11))
                 .foregroundColor(.tertiaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func tastingLensSnapshotPreview(_ snapshot: SipSensorySnapshot) -> String {
+        if let ownWords = snapshot.ownWords.remoteTrimmedNonEmpty {
+            return "“\(ownWords)”"
+        }
+        let descriptors = snapshot.responses
+            .flatMap(\.descriptors)
+            .map(\.displayedTitle)
+        if !descriptors.isEmpty {
+            return Array(descriptors.prefix(3)).joined(separator: " · ")
+        }
+        return "A versioned sensory snapshot is ready for your journal."
     }
 
     private var addToMemoryCard: some View {
@@ -1329,7 +1411,7 @@ struct LogVisitView: View {
     private var ratingSubtitle: String {
         draft.captureMode == .quickSip
             ? "One honest score in half-star steps."
-            : "Rate the qualities that define this sip for you."
+            : "Describe what you noticed, then rate personal enjoyment at the end."
     }
 
     private var visibilitySubtitle: String {
@@ -1340,12 +1422,7 @@ struct LogVisitView: View {
     }
 
     private var scoreLabel: String {
-        switch draft.overallScore {
-        case 4.5...5: return "One to remember"
-        case 3.5..<4.5: return "A good sip"
-        case 2.5..<3.5: return "Mixed feelings"
-        default: return "Part of the journey"
-        }
+        PersonalEnjoymentRating(value: draft.overallScore)?.anchor ?? "Choose a personal rating"
     }
 
     private var saveButtonTitle: String {
@@ -1435,7 +1512,6 @@ struct LogVisitView: View {
             DispatchQueue.main.async { suppressContextDefaults = false }
         } else {
             draft.ownerUserID = authModel.authenticatedUser?.id
-            draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         }
 #if DEBUG
         if MugshotLaunchEnvironment.shouldSeedUITestPhoto, photoImages.isEmpty {
@@ -1557,10 +1633,11 @@ struct LogVisitView: View {
         if draft.drinkName.remoteTrimmedNonEmpty == nil {
             return "Add the drink you want to remember."
         }
+        if draft.captureMode == .addDetails && draft.sensorySnapshot == nil {
+            return "Finish or switch from Tasting Lens before saving this sip."
+        }
         if draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5 {
-            return draft.captureMode == .addDetails
-                ? "Rate at least one relevant tasting criterion."
-                : "Add one overall How was it? rating."
+            return "Add your personal How was it? rating."
         }
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
@@ -1602,6 +1679,7 @@ struct LogVisitView: View {
             equipment: draft.equipment.remoteTrimmedNonEmpty,
             brewDetails: submissionBrewDetails,
             drinkAnalysis: draft.drinkAnalysis,
+            sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
             photos: photoPaths,
             posterPhotoIndex: draft.posterPhotoIndex,
             ratings: draft.ratingsDictionary,
@@ -1618,6 +1696,7 @@ struct LogVisitView: View {
     private func saveRemote(authenticatedUser: AuthenticatedUser) async {
         isSaving = true
         errorMessage = nil
+        var saveOperation = SipRemoteSaveOperation.preparing
         SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
 
         do {
@@ -1646,6 +1725,7 @@ struct LogVisitView: View {
                     ratings: draft.ratingsDictionary,
                     overallScore: draft.resolvedOverallScore,
                     ratingTemplate: draft.ratingTemplateSnapshot,
+                    sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
                     images: photoImages,
                     posterPhotoIndex: draft.posterPhotoIndex
                 )
@@ -1654,6 +1734,7 @@ struct LogVisitView: View {
             }
 
             if submission.phase == .prepared {
+                saveOperation = .creatingVisit
                 _ = try await service.createVisit(
                     visitId: submission.id,
                     userId: submission.userId,
@@ -1680,7 +1761,37 @@ struct LogVisitView: View {
                 SipSaveDiagnostics.record(.visitCreated, draftID: draft.id, visitID: submission.id)
             }
 
+            // The immutable private Taste Snapshot belongs to the visit, not to
+            // photo publication. Keep this retry-safe block outside the prepared
+            // branch so an interrupted save always repairs or verifies it before
+            // the visit can be finalized for an audience.
+            if submission.phase >= .visitCreated,
+               let sensorySnapshot = submission.sensorySnapshot {
+                saveOperation = .savingTastingLens
+                SipSaveDiagnostics.record(
+                    .tastingLensSnapshotStarted,
+                    draftID: draft.id,
+                    visitID: submission.id
+                )
+                _ = try await SensorySnapshotService(client: client).insertOnce(
+                    visitID: submission.id,
+                    userID: submission.userId,
+                    snapshot: sensorySnapshot
+                )
+                SipSaveDiagnostics.record(
+                    .tastingLensSnapshotSaved,
+                    draftID: draft.id,
+                    visitID: submission.id
+                )
+            }
+
             if submission.phase < .photosUploaded {
+                saveOperation = .uploadingPhotos
+                SipSaveDiagnostics.record(
+                    .photoUploadStarted,
+                    draftID: draft.id,
+                    visitID: submission.id
+                )
 #if DEBUG
                 if !submission.objectPaths.isEmpty,
                    MugshotLaunchEnvironment.consumeRemotePhotoUploadFailure() {
@@ -1703,6 +1814,12 @@ struct LogVisitView: View {
                 SipSaveDiagnostics.record(.photosUploaded, draftID: draft.id, visitID: submission.id)
             }
 
+            saveOperation = .finalizing
+            SipSaveDiagnostics.record(
+                .finalizationStarted,
+                draftID: draft.id,
+                visitID: submission.id
+            )
             let urls = submission.uploadedPhotoURLs ?? []
             let attached = try await service.attachPhotoURLs(
                 visitId: submission.id,
@@ -1760,9 +1877,12 @@ struct LogVisitView: View {
                         userId: pendingSubmission.userId
                     )
                 }
-                uploadRecoveryMessage = "The network interrupted this save. Retry continues the same sip and photos."
+                uploadRecoveryMessage = saveOperation.recoveryMessage
             }
-            errorMessage = MugshotUserFacingError.message(for: error, context: .photoUpload)
+            errorMessage = MugshotUserFacingError.message(
+                for: error,
+                context: saveOperation.errorContext
+            )
         }
     }
 
@@ -1871,7 +1991,9 @@ struct LogVisitView: View {
         switch draft.resolvedGuidedStep {
         case .context: return hasCompletedContext
         case .drink: return draft.drinkName.remoteTrimmedNonEmpty != nil
-        case .rating: return draft.resolvedOverallScore >= 0.5 && draft.resolvedOverallScore <= 5
+        case .rating:
+            return draft.resolvedOverallScore >= 0.5 && draft.resolvedOverallScore <= 5
+                && (draft.captureMode == .quickSip || draft.sensorySnapshot != nil)
         case .audience: return draft.hasRequiredCore
         }
     }
@@ -1900,19 +2022,12 @@ struct LogVisitView: View {
         switch draft.resolvedGuidedStep {
         case .context: return "Your draft is saved as you go."
         case .drink: return "Mugshot will organize this in the background."
-        case .rating: return "Your score is ready. Next, decide who can see the sip."
+        case .rating:
+            return draft.captureMode == .addDetails
+                ? "Your observations and personal stars are separate. Next, choose the audience."
+                : "Your score is ready. Next, decide who can see the sip."
         case .audience: return "Serving details and private notes are optional."
         }
-    }
-
-    private func savePersonalCriteria() {
-        let categories = draft.ratingCriteria
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .compactMap { criterion -> RatingCategory? in
-                guard let name = criterion.name.remoteTrimmedNonEmpty else { return nil }
-                return RatingCategory(id: criterion.id, name: name, weight: max(criterion.weight, 0.25))
-            }
-        dataManager.updateRatingTemplate(RatingTemplate(categories: categories))
     }
 
     private func addTag(_ rawTag: String) {
@@ -2340,8 +2455,8 @@ struct HalfStepStarRating: View {
         .accessibilityValue(value > 0 ? "\(String(format: "%.1f", value)) out of 5" : "Not rated")
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: value = min(5, max(0.5, value + 0.5))
-            case .decrement: value = max(0.5, value - 0.5)
+            case .increment: value = value <= 0 ? 1 : min(5, value + 0.5)
+            case .decrement: value = max(1, value - 0.5)
             @unknown default: break
             }
         }
@@ -2357,51 +2472,7 @@ struct HalfStepStarRating: View {
     static func ratingValue(starIndex: Int, tapX: CGFloat, starWidth: CGFloat) -> Double {
         let clampedIndex = min(max(starIndex, 1), 5)
         let isLeadingHalf = tapX < max(starWidth, 1) / 2
-        return Double(clampedIndex) - (isLeadingHalf ? 0.5 : 0)
-    }
-}
-
-private struct DetailedCriterionRow: View {
-    @Binding var criterion: SipRatingCriterionSnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(criterion.name)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.espressoBrown)
-                if criterion.weight != 1 {
-                    Text("\(formatWeight(criterion.weight)) influence")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.mugshotSage)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(Color.mugshotMint.opacity(0.25))
-                        .clipShape(Capsule())
-                }
-                Spacer()
-                Button(criterion.isRelevant ? "Mark N/A" : "Include") {
-                    criterion.isRelevant.toggle()
-                    if !criterion.isRelevant { criterion.score = 0 }
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.mugshotSage)
-                .buttonStyle(.plain)
-
-                Text(criterion.isRelevant && criterion.score > 0 ? String(format: "%.1f", criterion.score) : "—")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.secondaryText)
-            }
-            HalfStepStarRating(value: $criterion.score, label: criterion.name)
-                .frame(height: 34)
-                .disabled(!criterion.isRelevant)
-                .opacity(criterion.isRelevant ? 1 : 0.32)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func formatWeight(_ value: Double) -> String {
-        value.rounded() == value ? String(format: "%.0fx", value) : String(format: "%.1fx", value)
+        return max(1, Double(clampedIndex) - (isLeadingHalf ? 0.5 : 0))
     }
 }
 
@@ -2556,85 +2627,6 @@ private struct SipCompanionPicker: View {
             errorMessage = nil
         } catch {
             errorMessage = "Mugshot couldn’t open your friends just now."
-        }
-    }
-}
-
-private struct SipCriteriaEditor: View {
-    @Binding var criteria: [SipRatingCriterionSnapshot]
-    let onSaveTemplate: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var newName = ""
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach($criteria) { $criterion in
-                        HStack(spacing: 10) {
-                            TextField("Criterion", text: $criterion.name)
-                            Spacer()
-                            Picker("Influence", selection: $criterion.weight) {
-                                Text("0.5x").tag(0.5)
-                                Text("1x").tag(1.0)
-                                Text("1.5x").tag(1.5)
-                                Text("2x").tag(2.0)
-                            }
-                            .pickerStyle(.menu)
-                            .tint(.mugshotSage)
-                        }
-                    }
-                    .onDelete { criteria.remove(atOffsets: $0) }
-                    .onMove { source, destination in
-                        criteria.move(fromOffsets: source, toOffset: destination)
-                        for index in criteria.indices { criteria[index].sortOrder = index }
-                    }
-                } header: {
-                    Text("Your criteria")
-                } footer: {
-                    Text("Order and influence are snapshotted with every sip, so changing this later never rewrites your history.")
-                }
-
-                Section("Add another") {
-                    HStack {
-                        TextField("Aroma, clarity, freshness…", text: $newName)
-                        Button("Add") { addCriterion() }
-                            .disabled(newName.remoteTrimmedNonEmpty == nil)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.creamWhite)
-            .navigationTitle("Tasting lens")
-            .navigationBarTitleDisplayMode(.inline)
-            .environment(\.editMode, .constant(.active))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        normalizeCriteria()
-                        onSaveTemplate()
-                        dismiss()
-                    }
-                    .fontWeight(.bold)
-                }
-            }
-        }
-    }
-
-    private func addCriterion() {
-        guard let name = newName.remoteTrimmedNonEmpty else { return }
-        criteria.append(SipRatingCriterionSnapshot(name: name, sortOrder: criteria.count))
-        newName = ""
-    }
-
-    private func normalizeCriteria() {
-        criteria = criteria.enumerated().compactMap { index, criterion in
-            guard let name = criterion.name.remoteTrimmedNonEmpty else { return nil }
-            var copy = criterion
-            copy.name = name
-            copy.sortOrder = index
-            return copy
         }
     }
 }

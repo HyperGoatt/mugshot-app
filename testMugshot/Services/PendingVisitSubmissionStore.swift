@@ -29,6 +29,7 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     let ratings: [String: Double]
     let overallScore: Double?
     let ratingTemplate: RatingTemplate
+    let sensorySnapshot: SipSensorySnapshot?
     let posterPhotoIndex: Int
     let localPhotoNames: [String]
     let objectPaths: [String]
@@ -90,6 +91,7 @@ final class PendingVisitSubmissionStore {
         ratings: [String: Double],
         overallScore: Double? = nil,
         ratingTemplate: RatingTemplate,
+        sensorySnapshot: SipSensorySnapshot? = nil,
         images: [UIImage],
         posterPhotoIndex: Int
     ) throws -> PendingVisitSubmissionRecord {
@@ -137,6 +139,7 @@ final class PendingVisitSubmissionStore {
             ratings: ratings,
             overallScore: overallScore,
             ratingTemplate: ratingTemplate,
+            sensorySnapshot: sensorySnapshot,
             posterPhotoIndex: min(max(posterPhotoIndex, 0), max(localNames.count - 1, 0)),
             localPhotoNames: localNames,
             objectPaths: objectPaths,

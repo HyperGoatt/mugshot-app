@@ -233,7 +233,8 @@ enum DrinkAnalysisParser {
 
     private static let milkTerms = [
         "oat milk", "almond milk", "soy milk", "coconut milk", "whole milk",
-        "skim milk", "2% milk", "half and half", "cream"
+        "skim milk", "2% milk", "half and half", "macadamia milk", "cashew milk",
+        "pea milk", "rice milk", "lactose free milk", "cream"
     ]
 
     private static let flavorTerms = [
@@ -286,6 +287,17 @@ enum DrinkAnalysisParser {
     }
 
     private static func family(for preparation: DrinkPreparation, normalized: String) -> DrinkFamily {
+        // A preparation word such as "latte" describes format, not the base
+        // ingredient. Resolve named tea bases first so matcha, hojicha, and chai
+        // lattes receive their tea sensory pack plus the milk overlay instead of
+        // being treated as espresso drinks.
+        if normalized.contains("matcha") { return .matcha }
+        if normalized.contains("hojicha") { return .hojicha }
+        if normalized.contains("chai") { return .chai }
+        if normalized.contains("hot chocolate") || normalized.contains("cocoa") {
+            return .hotChocolate
+        }
+
         switch preparation {
         case .espresso, .americano, .latte, .cappuccino, .cortado, .flatWhite, .mocha, .macchiato:
             return .espresso

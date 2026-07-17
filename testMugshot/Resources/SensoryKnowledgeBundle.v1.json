@@ -1,0 +1,721 @@
+{
+  "bundleID": "mugshot.sensory.en-US",
+  "schemaVersion": 1,
+  "contentVersion": "2026.07.16.1",
+  "locale": "en-US",
+  "publicationDate": "2026-07-16",
+  "reviewDate": "2026-07-16",
+  "sources": [
+    {
+      "id": "source.product.principles",
+      "title": "Mugshot Tasting Lens 2.0 research synthesis",
+      "url": "docs/TASTING_LENS_2_PHASE_1_RESEARCH.md",
+      "sourceType": "product_research",
+      "evidenceClass": "product_interpretation",
+      "confidence": "high",
+      "attribution": "Mugshot product research",
+      "licenseNote": "Original Mugshot product language and structure.",
+      "applicability": ["all beverages", "consumer reflection"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Do not present product prompts as professional calibration or objective quality."
+    },
+    {
+      "id": "source.sca.cva",
+      "title": "SCA Coffee Value Assessment",
+      "url": "https://sca.coffee/value-assessment",
+      "sourceType": "professional_resource",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "Specialty Coffee Association",
+      "licenseNote": "Citation-only inspiration; this bundle does not reproduce SCA forms.",
+      "applicability": ["coffee", "separation of descriptive and affective information"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "A Mugshot snapshot is not a CVA assessment or Q score."
+    },
+    {
+      "id": "source.wcr.lexicon",
+      "title": "World Coffee Research Sensory Lexicon",
+      "url": "https://worldcoffeeresearch.org/resources/sensory-lexicon",
+      "sourceType": "professional_resource",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "World Coffee Research",
+      "licenseNote": "Citation-only inspiration; no proprietary inventory, wording, or references are reproduced.",
+      "applicability": ["coffee vocabulary", "trained sensory work"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Selecting a descriptor does not show trained-panel calibration."
+    },
+    {
+      "id": "source.iso.sensory",
+      "title": "ISO 6658:2017 Sensory analysis methodology",
+      "url": "https://www.iso.org/standard/65519.html",
+      "sourceType": "standard",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "International Organization for Standardization",
+      "licenseNote": "Standard is cited, not reproduced.",
+      "applicability": ["separate analytical description and personal preference"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Consumer responses are not a controlled sensory panel."
+    },
+    {
+      "id": "source.retronasal",
+      "title": "Retronasal olfaction methods systematic review",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6335936/",
+      "sourceType": "peer_reviewed_review",
+      "evidenceClass": "established_science",
+      "confidence": "high",
+      "attribution": "Peer-reviewed sensory-science review",
+      "licenseNote": "Cited and paraphrased in original plain language.",
+      "applicability": ["aroma before, during, and after a sip"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": null
+    },
+    {
+      "id": "source.astringency",
+      "title": "Astringency perception review",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7465539/",
+      "sourceType": "peer_reviewed_review",
+      "evidenceClass": "established_science",
+      "confidence": "high",
+      "attribution": "Peer-reviewed sensory-science review",
+      "licenseNote": "Cited and paraphrased in original plain language.",
+      "applicability": ["coffee", "tea", "matcha", "tactile dryness"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Astringency is tactile and should not be relabeled as bitterness."
+    },
+    {
+      "id": "source.temperature",
+      "title": "Coffee serving-temperature sensory study",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0963996918309761",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "high",
+      "attribution": "Peer-reviewed coffee research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["temperature change", "coffee"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Do not predict a universal direction of sensory change."
+    },
+    {
+      "id": "source.cold_brew",
+      "title": "Cold- and hot-brew coffee sensory comparison",
+      "url": "https://www.mdpi.com/2304-8158/11/16/2440",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "high",
+      "attribution": "Peer-reviewed coffee research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["cold brew", "extraction identity"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Cold brew is not always sweeter or less acidic."
+    },
+    {
+      "id": "source.milk_coffee",
+      "title": "Milk effects on coffee sensory perception",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12147775/",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "medium",
+      "attribution": "Peer-reviewed coffee research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["milk coffee", "coffee presence", "integration"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Milk intensity does not determine beverage quality."
+    },
+    {
+      "id": "source.iso.tea",
+      "title": "ISO 3103:2019 Tea preparation for sensory tests",
+      "url": "https://www.iso.org/standard/73224.html",
+      "sourceType": "standard",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "International Organization for Standardization",
+      "licenseNote": "Standard is cited, not reproduced.",
+      "applicability": ["tea comparison", "preparation context"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "The comparative method is not the best home recipe."
+    },
+    {
+      "id": "source.matcha",
+      "title": "Japanese matcha sensory evaluation",
+      "url": "https://doi.org/10.5979/cha.2022.134_31",
+      "sourceType": "professional_resource",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "Japanese tea sensory research",
+      "licenseNote": "Citation-only inspiration with original consumer wording.",
+      "applicability": ["matcha color", "dispersion", "foam", "texture", "harmony"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Professional convention is not a personal enjoyment score or grade claim."
+    },
+    {
+      "id": "source.green_tea",
+      "title": "Green tea descriptive lexicon study",
+      "url": "https://doi.org/10.1111/j.1745-459X.2007.00105",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "professional_convention",
+      "confidence": "high",
+      "attribution": "Peer-reviewed trained-panel study",
+      "licenseNote": "Citation-only inspiration; vocabulary is compact and original.",
+      "applicability": ["green tea", "broad descriptor families"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "References may be culture-specific and are optional memory aids."
+    },
+    {
+      "id": "source.hojicha",
+      "title": "Hojicha aroma research",
+      "url": "https://doi.org/10.5979/cha.2012.114_65",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "high",
+      "attribution": "Japanese tea aroma research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["hojicha", "sweet", "roast", "green aroma"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Do not claim all hojicha is low-caffeine or non-bitter."
+    },
+    {
+      "id": "source.oolong",
+      "title": "Oolong process and sensory study",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10314214/",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "medium",
+      "attribution": "Peer-reviewed tea research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["oolong style", "floral", "fruit", "roast"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Oolong spans broad oxidation and roast styles."
+    },
+    {
+      "id": "source.white_tea",
+      "title": "White tea odorant study",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7767441/",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "established_science",
+      "confidence": "medium",
+      "attribution": "Peer-reviewed tea research",
+      "licenseNote": "Citation and original summary only.",
+      "applicability": ["white tea", "fresh", "floral", "fruit", "sweet aroma"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Subtle aroma is not automatically a fault."
+    },
+    {
+      "id": "source.herbal",
+      "title": "Blended tea descriptive lexicon study",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6342540/",
+      "sourceType": "peer_reviewed_study",
+      "evidenceClass": "professional_convention",
+      "confidence": "medium",
+      "attribution": "Peer-reviewed trained-panel study",
+      "licenseNote": "Citation-only inspiration; ingredient prompts remain user-confirmed.",
+      "applicability": ["herbal infusions", "ingredient-led vocabulary"],
+      "reviewDate": "2026-07-16",
+      "doNotInfer": "Herbal infusion is not one flavor family."
+    }
+  ],
+  "scales": [
+    {
+      "id": "scale.intensity_3",
+      "version": 1,
+      "title": "Everyday intensity",
+      "anchors": [
+        {"value": 1, "label": "Low", "anchor": "Subtle; I notice it when I look for it."},
+        {"value": 2, "label": "Medium", "anchor": "Clear; it shares the sip with other sensations."},
+        {"value": 3, "label": "High", "anchor": "It leads the sip or lingers."}
+      ],
+      "guidance": "High intensity is not automatically better."
+    },
+    {
+      "id": "scale.intensity_5",
+      "version": 1,
+      "title": "Deep intensity",
+      "anchors": [
+        {"value": 1, "label": "Trace", "anchor": "Barely present."},
+        {"value": 2, "label": "Gentle", "anchor": "Easy to find without leading."},
+        {"value": 3, "label": "Clear", "anchor": "Clearly present among other sensations."},
+        {"value": 4, "label": "Strong", "anchor": "One of the leading sensations."},
+        {"value": 5, "label": "Dominant", "anchor": "Defines the sip or finish."}
+      ],
+      "guidance": "Use only in Deep mode; intensity remains separate from liking."
+    },
+    {
+      "id": "scale.duration_3",
+      "version": 1,
+      "title": "Finish duration",
+      "anchors": [
+        {"value": 1, "label": "Quick", "anchor": "Most sensations leave soon after the sip."},
+        {"value": 2, "label": "Medium", "anchor": "Something remains for several seconds."},
+        {"value": 3, "label": "Lingering", "anchor": "Aroma, taste, or mouthfeel stays clearly present."}
+      ],
+      "guidance": "A longer finish is not automatically better."
+    },
+    {
+      "id": "scale.quality_impression_5",
+      "version": 1,
+      "title": "Personal style impression",
+      "anchors": [
+        {"value": 1, "label": "Did not work", "anchor": "It did not work for its intended style, for me."},
+        {"value": 2, "label": "Mostly missed", "anchor": "Several parts felt out of place for the intended style."},
+        {"value": 3, "label": "Worked", "anchor": "It generally worked for the intended style."},
+        {"value": 4, "label": "Worked well", "anchor": "The style felt clear and well put together."},
+        {"value": 5, "label": "Exceptional for style", "anchor": "It felt exceptional for the intended style, to me."}
+      ],
+      "guidance": "Optional in Deep mode. This is not an objective quality grade."
+    },
+    {
+      "id": "scale.personal_enjoyment_half_stars",
+      "version": 1,
+      "title": "Personal enjoyment",
+      "anchors": [
+        {"value": 2, "label": "1.0", "anchor": "Not for me"},
+        {"value": 3, "label": "1.5", "anchor": "Mostly not for me"},
+        {"value": 4, "label": "2.0", "anchor": "More misses than hits"},
+        {"value": 5, "label": "2.5", "anchor": "Mixed"},
+        {"value": 6, "label": "3.0", "anchor": "Enjoyed it"},
+        {"value": 7, "label": "3.5", "anchor": "Really enjoyed it"},
+        {"value": 8, "label": "4.0", "anchor": "Would order again"},
+        {"value": 9, "label": "4.5", "anchor": "Memorable; I would seek it out"},
+        {"value": 10, "label": "5.0", "anchor": "A personal favorite"}
+      ],
+      "guidance": "This independent personal rating is never calculated from sensory responses."
+    }
+  ],
+  "descriptors": [
+    {"id":"descriptor.fruit","parentID":null,"title":"Fruit","definition":"An aroma or flavor that reminds you of fruit.","synonyms":["fruity"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":100},
+    {"id":"descriptor.fruit.citrus","parentID":"descriptor.fruit","title":"Citrus","definition":"Bright fruit impressions such as peel, juice, or zest.","synonyms":["zesty"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":101},
+    {"id":"descriptor.fruit.citrus.lemon","parentID":"descriptor.fruit.citrus","title":"Lemon-like","definition":"A lemon, lemon-peel, or lemonade association.","synonyms":["lemon peel"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":102},
+    {"id":"descriptor.fruit.citrus.orange","parentID":"descriptor.fruit.citrus","title":"Orange-like","definition":"An orange, tangerine, or orange-peel association.","synonyms":["tangerine","orange peel"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":103},
+    {"id":"descriptor.fruit.orchard","parentID":"descriptor.fruit","title":"Orchard fruit","definition":"Fruit impressions such as apple or pear.","synonyms":["apple-like","pear-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":110},
+    {"id":"descriptor.fruit.berry","parentID":"descriptor.fruit","title":"Berry","definition":"Fresh, cooked, or jam-like berry impressions.","synonyms":["berry-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":120},
+    {"id":"descriptor.fruit.stone","parentID":"descriptor.fruit","title":"Stone fruit","definition":"Fruit impressions such as peach, apricot, plum, or cherry.","synonyms":["peach-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":130},
+    {"id":"descriptor.fruit.tropical","parentID":"descriptor.fruit","title":"Tropical fruit","definition":"Fruit impressions such as pineapple, mango, papaya, or coconut.","synonyms":["tropical"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":140},
+    {"id":"descriptor.fruit.dried","parentID":"descriptor.fruit","title":"Dried fruit","definition":"Fruit impressions such as raisin, date, or dried apricot.","synonyms":["raisin-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":150},
+
+    {"id":"descriptor.floral","parentID":null,"title":"Floral","definition":"An aroma or flavor that reminds you of flowers.","synonyms":["flower-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.retronasal"],"evidenceClass":"product_interpretation","confidence":"high","order":200},
+    {"id":"descriptor.floral.fresh","parentID":"descriptor.floral","title":"Fresh blossom","definition":"A light impression of a freshly smelled flower.","synonyms":["blossom"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.retronasal"],"evidenceClass":"product_interpretation","confidence":"high","order":201},
+    {"id":"descriptor.floral.perfumed","parentID":"descriptor.floral","title":"Perfumed","definition":"A stronger, perfume-like flower association.","synonyms":["fragrant"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.retronasal"],"evidenceClass":"product_interpretation","confidence":"high","order":202},
+    {"id":"descriptor.floral.tea","parentID":"descriptor.floral","title":"Tea-floral","definition":"A soft flower association often found alongside leafy tea aromas.","synonyms":["jasmine-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea","source.oolong"],"evidenceClass":"product_interpretation","confidence":"medium","order":203},
+
+    {"id":"descriptor.sweet_browned","parentID":null,"title":"Sweet and browned","definition":"Sweet-smelling or cooked-sugar associations; not a claim that sugar is present.","synonyms":["sweet aroma"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":300},
+    {"id":"descriptor.sweet_browned.honey","parentID":"descriptor.sweet_browned","title":"Honey-like","definition":"An aroma or flavor association with honey.","synonyms":["honeyed"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":301},
+    {"id":"descriptor.sweet_browned.caramel","parentID":"descriptor.sweet_browned","title":"Caramel-like","definition":"A browned-sugar or caramel association.","synonyms":["toffee-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":302},
+    {"id":"descriptor.sweet_browned.molasses","parentID":"descriptor.sweet_browned","title":"Dark sugar","definition":"A dark brown sugar or molasses association.","synonyms":["brown sugar"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":303},
+    {"id":"descriptor.sweet_browned.vanilla","parentID":"descriptor.sweet_browned","title":"Vanilla-like","definition":"A vanilla aroma association, whether inherent or added.","synonyms":["vanilla"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":304},
+
+    {"id":"descriptor.nut_cocoa","parentID":null,"title":"Nut and cocoa","definition":"Aroma or flavor associations with nuts, cocoa, or chocolate.","synonyms":["nutty","chocolate-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":400},
+    {"id":"descriptor.nut_cocoa.almond","parentID":"descriptor.nut_cocoa","title":"Almond-like","definition":"A mild, sweet nut association.","synonyms":["almond"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":401},
+    {"id":"descriptor.nut_cocoa.roasted_nut","parentID":"descriptor.nut_cocoa","title":"Roasted nut","definition":"A darker toasted-nut association.","synonyms":["toasted nut"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":402},
+    {"id":"descriptor.nut_cocoa.cocoa","parentID":"descriptor.nut_cocoa","title":"Cocoa","definition":"An unsweetened cocoa or cocoa-nib association.","synonyms":["cocoa nib"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":403},
+    {"id":"descriptor.nut_cocoa.dark_chocolate","parentID":"descriptor.nut_cocoa","title":"Dark chocolate","definition":"A dark chocolate aroma or flavor association.","synonyms":["bittersweet chocolate"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":404},
+
+    {"id":"descriptor.grain_malt","parentID":null,"title":"Grain and malt","definition":"Aroma or flavor associations with cereal, malt, bread, or toasted grain.","synonyms":["cereal-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":500},
+    {"id":"descriptor.grain_malt.fresh","parentID":"descriptor.grain_malt","title":"Fresh grain","definition":"A mild uncooked grain or cereal association.","synonyms":["grain"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":501},
+    {"id":"descriptor.grain_malt.malt","parentID":"descriptor.grain_malt","title":"Malt","definition":"A malt cereal or malted-grain association.","synonyms":["malty"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":502},
+    {"id":"descriptor.grain_malt.bread","parentID":"descriptor.grain_malt","title":"Bread","definition":"A fresh bread or bread-crust association.","synonyms":["bread crust"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":503},
+    {"id":"descriptor.grain_malt.toasted","parentID":"descriptor.grain_malt","title":"Toasted grain","definition":"A toasted rice, barley, or cereal association.","synonyms":["toasted rice"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.hojicha"],"evidenceClass":"product_interpretation","confidence":"high","order":504},
+
+    {"id":"descriptor.roast_smoke","parentID":null,"title":"Roast and smoke","definition":"Aroma or flavor associations created by browning, roasting, smoke, or char.","synonyms":["roasty"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":600},
+    {"id":"descriptor.roast_smoke.toasted","parentID":"descriptor.roast_smoke","title":"Toasted","definition":"A gentle toast association.","synonyms":["toast"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.hojicha"],"evidenceClass":"product_interpretation","confidence":"high","order":601},
+    {"id":"descriptor.roast_smoke.roasty","parentID":"descriptor.roast_smoke","title":"Clear roast","definition":"A clear roasted aroma without requiring smoke or char.","synonyms":["roast"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.hojicha"],"evidenceClass":"product_interpretation","confidence":"high","order":602},
+    {"id":"descriptor.roast_smoke.smoky","parentID":"descriptor.roast_smoke","title":"Smoky","definition":"An aroma or flavor association with smoke.","synonyms":["smoke"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":603},
+    {"id":"descriptor.roast_smoke.charred","parentID":"descriptor.roast_smoke","title":"Charred","definition":"A dark char or burned-edge association.","synonyms":["char"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":604},
+    {"id":"descriptor.roast_smoke.ashy","parentID":"descriptor.roast_smoke","title":"Ashy","definition":"A dry ash association that may be intentional or unexpected depending on style.","synonyms":["ash"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":605},
+
+    {"id":"descriptor.green_botanical","parentID":null,"title":"Green and botanical","definition":"Aroma or flavor associations with leaves, vegetables, herbs, grass, marine notes, or roots.","synonyms":["vegetal","leafy"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea"],"evidenceClass":"professional_convention","confidence":"high","order":700},
+    {"id":"descriptor.green_botanical.fresh_leaf","parentID":"descriptor.green_botanical","title":"Fresh leaf","definition":"A fresh leafy or tender-green association.","synonyms":["leafy"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea"],"evidenceClass":"product_interpretation","confidence":"high","order":701},
+    {"id":"descriptor.green_botanical.steamed","parentID":"descriptor.green_botanical","title":"Steamed greens","definition":"An association with steamed spinach, edamame, or similar greens.","synonyms":["steamed vegetable"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea"],"evidenceClass":"product_interpretation","confidence":"high","order":702},
+    {"id":"descriptor.green_botanical.herb","parentID":"descriptor.green_botanical","title":"Fresh herb","definition":"A fresh herb association.","synonyms":["herbal"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea"],"evidenceClass":"product_interpretation","confidence":"high","order":703},
+    {"id":"descriptor.green_botanical.grass","parentID":"descriptor.green_botanical","title":"Grass","definition":"A fresh-cut or dry grass association.","synonyms":["grassy"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea"],"evidenceClass":"product_interpretation","confidence":"high","order":704},
+    {"id":"descriptor.green_botanical.marine","parentID":"descriptor.green_botanical","title":"Marine","definition":"An association with nori, sea air, or another marine aroma.","synonyms":["nori-like","seaweed-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.green_tea","source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":705},
+    {"id":"descriptor.green_botanical.root","parentID":"descriptor.green_botanical","title":"Root and earth","definition":"A botanical root or clean earthy association.","synonyms":["rooty"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.herbal"],"evidenceClass":"product_interpretation","confidence":"medium","order":706},
+
+    {"id":"descriptor.spice","parentID":null,"title":"Spice","definition":"Aroma, flavor, warmth, or cooling associated with spices.","synonyms":["spiced"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.herbal"],"evidenceClass":"product_interpretation","confidence":"high","order":800},
+    {"id":"descriptor.spice.warm","parentID":"descriptor.spice","title":"Warm spice","definition":"A warming cinnamon-, clove-, or cardamom-like association.","synonyms":["cinnamon-like","cardamom-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.herbal"],"evidenceClass":"product_interpretation","confidence":"high","order":801},
+    {"id":"descriptor.spice.pepper","parentID":"descriptor.spice","title":"Pepper-like","definition":"A black-pepper-like aroma or prickle.","synonyms":["peppery"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.herbal"],"evidenceClass":"product_interpretation","confidence":"high","order":802},
+    {"id":"descriptor.spice.cooling","parentID":"descriptor.spice","title":"Cooling","definition":"A cooling mint- or menthol-like sensation.","synonyms":["minty"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.herbal"],"evidenceClass":"product_interpretation","confidence":"high","order":803},
+
+    {"id":"descriptor.fermented_savory","parentID":null,"title":"Fermented and savory","definition":"Tangy, wine-like, vinegar-like, broth-like, or soy-like associations.","synonyms":["savory"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":900},
+    {"id":"descriptor.fermented_savory.tangy","parentID":"descriptor.fermented_savory","title":"Tangy fermentation","definition":"A lively fermented-fruit or cultured association.","synonyms":["fermented"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":901},
+    {"id":"descriptor.fermented_savory.wine","parentID":"descriptor.fermented_savory","title":"Wine-like","definition":"An aroma association with wine or fermented fruit.","synonyms":["vinous"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":902},
+    {"id":"descriptor.fermented_savory.broth","parentID":"descriptor.fermented_savory","title":"Broth-like","definition":"A light broth or savory-water association.","synonyms":["brothy"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.matcha"],"evidenceClass":"product_interpretation","confidence":"medium","order":903},
+
+    {"id":"descriptor.earth_wood","parentID":null,"title":"Earth and wood","definition":"Aroma or flavor associations with soil, wood, cedar, or tobacco.","synonyms":["earthy","woody"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1000},
+    {"id":"descriptor.earth_wood.clean_earth","parentID":"descriptor.earth_wood","title":"Clean earth","definition":"A fresh-soil association without a mold implication.","synonyms":["fresh earth"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1001},
+    {"id":"descriptor.earth_wood.dry_wood","parentID":"descriptor.earth_wood","title":"Dry wood","definition":"A dry wood or cedar association.","synonyms":["cedar-like"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1002},
+
+    {"id":"descriptor.dairy_ingredient","parentID":null,"title":"Milk and additions","definition":"Sensations clearly connected to confirmed milk, syrup, fruit, spice, or another addition.","synonyms":["ingredient"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"evidenceClass":"product_interpretation","confidence":"high","order":1100},
+    {"id":"descriptor.dairy_ingredient.dairy","parentID":"descriptor.dairy_ingredient","title":"Dairy","definition":"A milk, cream, or cultured-dairy association.","synonyms":["milky","creamy"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"evidenceClass":"product_interpretation","confidence":"high","order":1101},
+    {"id":"descriptor.dairy_ingredient.cereal_milk","parentID":"descriptor.dairy_ingredient","title":"Cereal milk","definition":"A sweet cereal-and-milk association.","synonyms":["cereal-like milk"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"evidenceClass":"product_interpretation","confidence":"medium","order":1102},
+    {"id":"descriptor.dairy_ingredient.plant_milk","parentID":"descriptor.dairy_ingredient","title":"Plant milk","definition":"A grain, nut, seed, or coconut association from a confirmed plant milk.","synonyms":["oat milk","nut milk"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"evidenceClass":"product_interpretation","confidence":"high","order":1103},
+    {"id":"descriptor.dairy_ingredient.syrup","parentID":"descriptor.dairy_ingredient","title":"Syrup or sauce","definition":"A confirmed syrup, sauce, or sweet flavor contribution.","synonyms":["syrupy flavor"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1104},
+    {"id":"descriptor.dairy_ingredient.fruit","parentID":"descriptor.dairy_ingredient","title":"Added fruit","definition":"A fruit ingredient or fruit-flavor contribution recorded separately from the base drink.","synonyms":["fruit addition"],"dimension":"flavor","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1105},
+
+    {"id":"descriptor.texture","parentID":null,"title":"Texture","definition":"How the drink feels physically in the mouth, separate from flavor.","synonyms":["mouthfeel"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"established_science","confidence":"high","order":1200},
+    {"id":"descriptor.texture.silky","parentID":"descriptor.texture","title":"Silky","definition":"Fine, smooth movement with little obvious particle sensation.","synonyms":["silken"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":1201},
+    {"id":"descriptor.texture.creamy","parentID":"descriptor.texture","title":"Creamy","definition":"A smooth, rounded, lubricating sensation.","synonyms":["velvety"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"evidenceClass":"product_interpretation","confidence":"high","order":1202},
+    {"id":"descriptor.texture.chalky","parentID":"descriptor.texture","title":"Chalky","definition":"A fine dry powder sensation, distinct from larger grit.","synonyms":["powdery"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":1203},
+    {"id":"descriptor.texture.gritty","parentID":"descriptor.texture","title":"Gritty","definition":"Clearly noticeable particles or coarse sediment.","synonyms":["sandy"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":1204},
+    {"id":"descriptor.texture.coating","parentID":"descriptor.texture","title":"Coating","definition":"A layer or sensation that stays on the mouth after swallowing.","synonyms":["mouth-coating"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1205},
+    {"id":"descriptor.texture.airy","parentID":"descriptor.texture","title":"Airy foam","definition":"Light foam with obvious air and larger bubbles.","synonyms":["foamy"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.milk_coffee","source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":1206},
+    {"id":"descriptor.texture.fine_foam","parentID":"descriptor.texture","title":"Fine foam","definition":"Foam made of small, even bubbles.","synonyms":["microfoam"],"dimension":"texture","applicability":[],"evidenceSourceIDs":["source.milk_coffee","source.matcha"],"evidenceClass":"product_interpretation","confidence":"high","order":1207},
+
+    {"id":"descriptor.astringency","parentID":null,"title":"Dry grip","definition":"A drying or gripping mouthfeel, not a bitter taste.","synonyms":["astringent","drying"],"dimension":"astringency","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"established_science","confidence":"high","order":1300},
+    {"id":"descriptor.astringency.dry","parentID":"descriptor.astringency","title":"Dry","definition":"A loss of mouth lubrication after the sip.","synonyms":["drying"],"dimension":"astringency","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"established_science","confidence":"high","order":1301},
+    {"id":"descriptor.astringency.rough","parentID":"descriptor.astringency","title":"Rough","definition":"A coarse gripping sensation on the tongue, gums, or cheeks.","synonyms":["roughing"],"dimension":"astringency","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"product_interpretation","confidence":"high","order":1302},
+    {"id":"descriptor.astringency.puckering","parentID":"descriptor.astringency","title":"Puckering","definition":"A stronger tightening or puckering sensation.","synonyms":["tightening"],"dimension":"astringency","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"product_interpretation","confidence":"high","order":1303},
+
+    {"id":"descriptor.finish","parentID":null,"title":"Finish","definition":"What remains after swallowing: aroma, taste, mouthfeel, or a change over time.","synonyms":["aftertaste"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1400},
+    {"id":"descriptor.finish.fades","parentID":"descriptor.finish","title":"Fades","definition":"The sensation gradually becomes quieter.","synonyms":["fading"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1401},
+    {"id":"descriptor.finish.lingers","parentID":"descriptor.finish","title":"Lingers","definition":"A sensation stays clearly present.","synonyms":["lingering"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1402},
+    {"id":"descriptor.finish.blooms","parentID":"descriptor.finish","title":"Blooms","definition":"A sensation becomes clearer after swallowing.","synonyms":["opens"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1403},
+    {"id":"descriptor.finish.changes","parentID":"descriptor.finish","title":"Changes","definition":"The leading sensation becomes something different.","synonyms":["shifts"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1404},
+    {"id":"descriptor.finish.builds","parentID":"descriptor.finish","title":"Builds","definition":"A sensation becomes stronger across time or repeated sips.","synonyms":["accumulates"],"dimension":"finish","applicability":[],"evidenceSourceIDs":["source.astringency"],"evidenceClass":"established_science","confidence":"medium","order":1405},
+
+    {"id":"descriptor.unexpected","parentID":null,"title":"Unexpected","definition":"Something that did not fit what you expected for this drink or style.","synonyms":["unfamiliar"],"dimension":"unexpected","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"high","order":1500},
+    {"id":"descriptor.unexpected.papery","parentID":"descriptor.unexpected","title":"Papery or stale","definition":"A dry paper, cardboard, or stale association.","synonyms":["cardboard-like"],"dimension":"unexpected","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1501},
+    {"id":"descriptor.unexpected.mold_like","parentID":"descriptor.unexpected","title":"Mold-like","definition":"A mold-like or damp-basement association that may warrant a safety check.","synonyms":["moldy"],"dimension":"unexpected","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1502},
+    {"id":"descriptor.unexpected.metallic","parentID":"descriptor.unexpected","title":"Metallic","definition":"A metal-like taste or mouth sensation.","synonyms":["metal-like"],"dimension":"unexpected","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1503},
+    {"id":"descriptor.unexpected.chemical","parentID":"descriptor.unexpected","title":"Chemical","definition":"A foreign chemical, solvent, cleaning-product, or medicinal association.","synonyms":["solvent-like"],"dimension":"unexpected","applicability":[],"evidenceSourceIDs":["source.product.principles"],"evidenceClass":"product_interpretation","confidence":"medium","order":1504}
+  ],
+  "criteria": [
+    {
+      "id":"criterion.own_words","title":"Your own words","prompt":"Before the labels, what stands out?","helper":"Your own words are enough. You can also choose not sure yet.","accessibilityLabel":"Describe what stands out before seeing suggestions","dimension":"flavor","stage":"own_words","measure":"own_words","scaleID":null,"options":[],"descriptorRootIDs":[],"depths":["quick","guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":0
+    },
+    {
+      "id":"criterion.aroma.before","title":"Aroma before the sip","prompt":"What reaches your nose before the sip?","helper":"Smell near the drink without forcing an answer. Aroma can also return while you sip or breathe out afterward.","accessibilityLabel":"Aroma before sipping","dimension":"aroma","stage":"aroma","measure":"multiple_choice","scaleID":null,"options":[],"descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.grain_malt","descriptor.roast_smoke","descriptor.green_botanical","descriptor.spice","descriptor.earth_wood","descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.retronasal"],"order":100
+    },
+    {
+      "id":"criterion.taste.sweetness","title":"Sweet impression","prompt":"How strong is the sweet impression?","helper":"An unsweetened drink can feel sweet. Added sweetness is recorded separately.","accessibilityLabel":"Sweet impression intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles","source.iso.sensory"],"order":200
+    },
+    {
+      "id":"criterion.taste.sourness","title":"Sour side","prompt":"How strong is the sour side?","helper":"Sourness is a taste. Bright or lively can describe a broader shape; strength and enjoyment stay separate.","accessibilityLabel":"Sour taste intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":210
+    },
+    {
+      "id":"criterion.taste.bitterness","title":"Bitterness","prompt":"How strong is the bitterness?","helper":"Bitterness is a taste. First record its strength; then decide whether you enjoy how it fits.","accessibilityLabel":"Bitter taste intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":220
+    },
+    {
+      "id":"criterion.taste.umami","title":"Umami or savory depth","prompt":"How strong is the savory or broth-like side?","helper":"Umami is a taste. Marine or leafy aromas are separate observations.","accessibilityLabel":"Umami taste intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":["descriptor.fermented_savory"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.matcha","source.green_tea"],"order":230
+    },
+    {
+      "id":"criterion.taste.saltiness","title":"Salty side","prompt":"Is there a salty taste?","helper":"Record the taste itself, not whether it is good or bad. Not present and not sure are different answers.","accessibilityLabel":"Salty taste presence","dimension":"taste","stage":"first_sip","measure":"presence","scaleID":null,"options":[],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":240
+    },
+    {
+      "id":"criterion.flavor.web","title":"Explore the sip","prompt":"Which broad direction feels closest?","helper":"Start broad, then open one branch at a time. These are possibilities, not expected answers.","accessibilityLabel":"Explore broad flavor families and optional specific descriptors","dimension":"flavor","stage":"flavor","measure":"multiple_choice","scaleID":null,"options":[],"descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.grain_malt","descriptor.roast_smoke","descriptor.green_botanical","descriptor.spice","descriptor.fermented_savory","descriptor.earth_wood","descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles","source.wcr.lexicon"],"order":300
+    },
+    {
+      "id":"criterion.body.weight","title":"Body","prompt":"How heavy does the drink feel?","helper":"Body is weight, not smoothness or quality.","accessibilityLabel":"Choose the drink's body or weight","dimension":"body","stage":"mouthfeel","measure":"single_choice","scaleID":null,"options":[{"id":"body.light","label":"Light","helper":"Closer to water or tea-like movement.","descriptorID":null},{"id":"body.medium","label":"Medium","helper":"Between light and full.","descriptorID":null},{"id":"body.full","label":"Full","helper":"Dense or whole-milk-like weight.","descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":400
+    },
+    {
+      "id":"criterion.texture.motion","title":"Texture in motion","prompt":"What does it feel like as it moves?","helper":"Separate thickness from texture. More than one can be true.","accessibilityLabel":"Choose one or more mouth textures","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles","source.matcha","source.milk_coffee"],"order":410
+    },
+    {
+      "id":"criterion.astringency.grip","title":"Dry grip","prompt":"A few seconds after the sip, do your cheeks, gums, or tongue feel drier?","helper":"Astringency is a drying or gripping mouthfeel, not bitterness.","accessibilityLabel":"Drying or gripping mouthfeel intensity","dimension":"astringency","stage":"mouthfeel","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":["descriptor.astringency"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.astringency"],"order":420
+    },
+    {
+      "id":"criterion.finish.remains","title":"What remains","prompt":"Ten seconds later, what remains?","helper":"Aroma, taste, and physical feeling can follow different timelines.","accessibilityLabel":"Choose what remains after swallowing","dimension":"finish","stage":"finish","measure":"multiple_choice","scaleID":null,"options":[{"id":"finish.aroma","label":"Aroma","helper":"A smell-like impression remains.","descriptorID":null},{"id":"finish.taste","label":"Taste","helper":"Sweet, sour, bitter, salty, or umami remains.","descriptorID":null},{"id":"finish.dryness","label":"Dry grip","helper":"A drying or gripping feeling remains.","descriptorID":"descriptor.astringency"},{"id":"finish.coating","label":"Coating","helper":"A physical coating remains.","descriptorID":"descriptor.texture.coating"},{"id":"finish.nothing_clear","label":"Nothing clear","helper":"Nothing stands out after the sip.","descriptorID":null}],"descriptorRootIDs":["descriptor.finish"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.retronasal","source.astringency","source.product.principles"],"order":500
+    },
+    {
+      "id":"criterion.finish.duration","title":"Finish length","prompt":"How long does the clearest sensation stay?","helper":"Long is not automatically better.","accessibilityLabel":"Duration of the finish; longer is not automatically better","dimension":"finish","stage":"finish","measure":"duration","scaleID":"scale.duration_3","options":[],"descriptorRootIDs":["descriptor.finish"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":510
+    },
+    {
+      "id":"criterion.temperature.change","title":"Temperature change","prompt":"As it changes temperature, what changes for you?","helper":"There is no required answer. Different drinks and people change in different ways.","accessibilityLabel":"Choose sensations that changed as the drink's temperature changed","dimension":"temperature_change","stage":"temperature","measure":"multiple_choice","scaleID":null,"options":[{"id":"temperature.aroma","label":"Aroma","helper":null,"descriptorID":null},{"id":"temperature.sweetness","label":"Sweetness","helper":null,"descriptorID":null},{"id":"temperature.sourness","label":"Sourness","helper":null,"descriptorID":null},{"id":"temperature.bitterness","label":"Bitterness","helper":null,"descriptorID":null},{"id":"temperature.texture","label":"Texture","helper":null,"descriptorID":null},{"id":"temperature.nothing_named","label":"Nothing I can name","helper":"A valid observation.","descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.temperature","source.product.principles"],"order":600
+    },
+    {
+      "id":"criterion.structure.integration","title":"Integration","prompt":"Do the parts feel joined or separate?","helper":"Integration does not require one ideal ratio or a strong base drink.","accessibilityLabel":"How joined or separate the drink's parts feel","dimension":"integration","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"integration.joined","label":"Joined","helper":"The parts feel like one drink.","descriptorID":null},{"id":"integration.layered","label":"Layered","helper":"The parts stay distinct in a useful way.","descriptorID":null},{"id":"integration.separate","label":"Separate","helper":"The parts feel disconnected.","descriptorID":null},{"id":"integration.one_leads","label":"One part leads","helper":"One component clearly leads the rest.","descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":700
+    },
+    {
+      "id":"criterion.structure.balance","title":"What leads","prompt":"Does anything dominate for you?","helper":"Dominant is descriptive, not automatically a flaw.","accessibilityLabel":"Choose whether one sensation dominates","dimension":"balance","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"balance.shared","label":"Shared","helper":"No single part dominates.","descriptorID":null},{"id":"balance.one_leads","label":"One thing leads","helper":"One sensation defines the sip.","descriptorID":null},{"id":"balance.changes","label":"The lead changes","helper":"Different sensations lead across the sip.","descriptorID":null}],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":710
+    },
+    {
+      "id":"criterion.unexpected.notes","title":"Anything unexpected","prompt":"Did anything feel unfamiliar or unexpected for this drink?","helper":"Roast, smoke, earth, marine notes, sourness, bitterness, and dryness can be intentional. If you suspect spoilage or contamination, stop drinking and check the drink rather than scoring it lower.","accessibilityLabel":"Record an unexpected note or possible safety concern","dimension":"unexpected","stage":"structure","measure":"multiple_choice","scaleID":null,"options":[],"descriptorRootIDs":["descriptor.unexpected"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":720
+    },
+    {
+      "id":"criterion.confidence","title":"How sure are you","prompt":"How sure are you about what you noticed?","helper":"This helps Mugshot phrase your snapshot carefully. It does not grade your palate.","accessibilityLabel":"Confidence in this tasting observation","dimension":"personal_response","stage":"personal","measure":"confidence","scaleID":null,"options":[{"id":"confidence.learning","label":"I'm still learning","helper":null,"descriptorID":null},{"id":"confidence.maybe","label":"Maybe","helper":null,"descriptorID":null},{"id":"confidence.sure","label":"I'm sure","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":800
+    },
+    {
+      "id":"criterion.quality.style","title":"Personal style impression","prompt":"How well did this drink work for its intended style?","helper":"Optional. This is your impression, not an objective grade or professional assessment.","accessibilityLabel":"Optional personal impression of how the drink worked for its intended style","dimension":"personal_response","stage":"personal","measure":"quality_impression","scaleID":"scale.quality_impression_5","options":[],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.sca.cva","source.iso.sensory","source.product.principles"],"order":850
+    },
+    {
+      "id":"criterion.preference.leading_sensation","title":"How it worked for you","prompt":"How did the leading sensation work for you?","helper":"This preference stays separate from how intense the sensation was.","accessibilityLabel":"Personal preference for the leading sensation","dimension":"personal_response","stage":"personal","measure":"preference","scaleID":null,"options":[{"id":"sensation_preference.not_for_me","label":"Not for me","helper":null,"descriptorID":null},{"id":"sensation_preference.neutral","label":"Neutral","helper":null,"descriptorID":null},{"id":"sensation_preference.liked","label":"I liked it","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":840
+    },
+    {
+      "id":"criterion.mugsy.leading","title":"Mugsy first-sensation check","prompt":"Which sensation arrived first?","helper":"One stable, drink-aware distinction can guide the next sip without scoring it.","accessibilityLabel":"The first sensation you noticed with Mugsy","dimension":"personal_response","stage":"first_sip","measure":"multiple_choice","scaleID":null,
+      "options":[
+        {"id":"mugsy.sweet","label":"Sweet","helper":null,"descriptorID":null},{"id":"mugsy.bright","label":"Bright","helper":null,"descriptorID":null},{"id":"mugsy.bitter","label":"Bitter","helper":null,"descriptorID":null},{"id":"mugsy.texture","label":"Texture","helper":null,"descriptorID":"descriptor.texture"},{"id":"mugsy.umami","label":"Umami or savory","helper":null,"descriptorID":"descriptor.fermented_savory"},{"id":"mugsy.fresh_green","label":"Fresh green","helper":null,"descriptorID":"descriptor.green_botanical"},{"id":"mugsy.toasted","label":"Toasted","helper":null,"descriptorID":"descriptor.roast_smoke.toasted"},{"id":"mugsy.green","label":"Green","helper":null,"descriptorID":"descriptor.green_botanical"},{"id":"mugsy.aromatic","label":"Aromatic","helper":null,"descriptorID":"descriptor.floral"},{"id":"mugsy.brisk_dry","label":"Brisk or dry","helper":null,"descriptorID":"descriptor.astringency.dry"},{"id":"mugsy.body","label":"Body","helper":null,"descriptorID":null},{"id":"mugsy.unsure","label":"Not sure yet","helper":null,"descriptorID":null},{"id":"mugsy.followup_unsure","label":"Not sure yet","helper":null,"descriptorID":null},
+        {"id":"mugsy.juicy","label":"Juicy","helper":null,"descriptorID":"descriptor.fruit"},{"id":"mugsy.sharp","label":"Sharp","helper":null,"descriptorID":null},{"id":"mugsy.cocoa_like","label":"Cocoa-like","helper":null,"descriptorID":"descriptor.nut_cocoa"},{"id":"mugsy.roasty","label":"Roasty","helper":null,"descriptorID":"descriptor.roast_smoke.roasty"},{"id":"mugsy.base_drink","label":"Base drink","helper":null,"descriptorID":null},{"id":"mugsy.added","label":"Added ingredient","helper":null,"descriptorID":"descriptor.dairy_ingredient"},{"id":"mugsy.smoothness","label":"Smoothness","helper":null,"descriptorID":"descriptor.texture.silky"},{"id":"mugsy.particles","label":"Particles","helper":null,"descriptorID":"descriptor.texture.gritty"},{"id":"mugsy.dryness","label":"Dryness","helper":null,"descriptorID":"descriptor.astringency.dry"},{"id":"mugsy.roast_sweet","label":"Sweet toast","helper":null,"descriptorID":"descriptor.sweet_browned"},{"id":"mugsy.roast_dark","label":"Dark roast","helper":null,"descriptorID":"descriptor.roast_smoke.charred"},{"id":"mugsy.marine","label":"Marine or brothy","helper":null,"descriptorID":"descriptor.fermented_savory"},{"id":"mugsy.fluid","label":"Fluid","helper":null,"descriptorID":null},{"id":"mugsy.coating","label":"Coating","helper":null,"descriptorID":"descriptor.texture.coating"},{"id":"mugsy.both","label":"Both","helper":null,"descriptorID":null}
+      ],
+      "descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":215
+    },
+    {
+      "id":"criterion.overall.enjoyment","title":"Your rating","prompt":"How was this drink for you?","helper":"This personal rating stands on its own. Sensory answers never calculate or change it.","accessibilityLabel":"Personal enjoyment rating from one to five stars in half-star steps","dimension":"personal_response","stage":"personal","measure":"overall_enjoyment","scaleID":"scale.personal_enjoyment_half_stars","options":[],"descriptorRootIDs":[],"depths":["quick","guided","deep"],"applicability":[],"evidenceSourceIDs":["source.iso.sensory","source.product.principles"],"order":900
+    },
+
+    {
+      "id":"criterion.espresso.crema","title":"Crema observation","prompt":"Notice the crema, then stir once if you want. Does the sip itself change?","helper":"Crema can affect aroma release and expectation. It is not a score of espresso quality.","accessibilityLabel":"Optional crema observation for espresso","dimension":"appearance","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"crema.change","label":"The sip changes","helper":null,"descriptorID":null},{"id":"crema.no_change","label":"No clear change","helper":null,"descriptorID":null},{"id":"crema.not_tried","label":"I did not compare","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":50
+    },
+    {
+      "id":"criterion.coffee.acidity_shape","title":"Shape of brightness","prompt":"Does the brighter side feel gentle, juicy, sharp, or not present?","helper":"This describes shape separately from sourness intensity or enjoyment.","accessibilityLabel":"Character of the coffee's brighter or sour side","dimension":"taste","stage":"first_sip","measure":"single_choice","scaleID":null,"options":[{"id":"acidity.gentle","label":"Gentle","helper":null,"descriptorID":null},{"id":"acidity.juicy","label":"Juicy","helper":null,"descriptorID":null},{"id":"acidity.sharp","label":"Sharp","helper":null,"descriptorID":null},{"id":"acidity.not_present","label":"Not present","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.sca.cva","source.product.principles"],"order":215
+    },
+    {
+      "id":"criterion.coffee.clarity","title":"Clarity","prompt":"How easy is it to distinguish the sensations?","helper":"Clear means easy to distinguish, not automatically better.","accessibilityLabel":"How easy the coffee's sensations are to distinguish","dimension":"integration","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"clarity.blended","label":"Blended together","helper":null,"descriptorID":null},{"id":"clarity.some","label":"Some are distinct","helper":null,"descriptorID":null},{"id":"clarity.clear","label":"Easy to distinguish","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.sca.cva","source.product.principles"],"order":705
+    },
+    {
+      "id":"criterion.coffee.roast","title":"Roast presence","prompt":"How strongly does roast lead the drink?","helper":"Roast can feel toasted, smoky, charred, or ashy. Stronger is not automatically better.","accessibilityLabel":"Roast flavor intensity; high is not automatically better","dimension":"flavor","stage":"flavor","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":["descriptor.roast_smoke"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.wcr.lexicon","source.product.principles"],"order":310
+    },
+    {
+      "id":"criterion.coffee.sediment","title":"Sediment or fines","prompt":"Do particles or sediment add to the drink, stay neutral, or distract?","helper":"Sediment can be expected in immersion coffee and is not inherently good or bad.","accessibilityLabel":"Personal response to coffee sediment or particles","dimension":"texture","stage":"mouthfeel","measure":"preference","scaleID":null,"options":[{"id":"sediment.liked","label":"Adds to it","helper":null,"descriptorID":"descriptor.texture.gritty"},{"id":"sediment.neutral","label":"Neutral","helper":null,"descriptorID":"descriptor.texture.gritty"},{"id":"sediment.not_for_me","label":"Distracting","helper":null,"descriptorID":"descriptor.texture.gritty"}],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[{"field":"preparation","operation":"equals","values":["immersion"],"negated":false}],"evidenceSourceIDs":["source.product.principles"],"order":415
+    },
+    {
+      "id":"criterion.americano.dilution","title":"Water and coffee","prompt":"Does it feel intentionally light, open, diluted, or thinner than you wanted?","helper":"Strength and water-coffee integration are separate from quality.","accessibilityLabel":"How water and coffee feel together in an Americano","dimension":"integration","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"americano.open","label":"Open and clear","helper":null,"descriptorID":null},{"id":"americano.joined","label":"Joined","helper":null,"descriptorID":null},{"id":"americano.diluted","label":"Diluted","helper":null,"descriptorID":null},{"id":"americano.thin","label":"Thinner than I wanted","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[{"field":"preparation","operation":"equals","values":["americano"],"negated":false}],"evidenceSourceIDs":["source.product.principles"],"order":706
+    },
+    {
+      "id":"criterion.cold.extraction_identity","title":"Cold drink style","prompt":"How was this drink prepared?","helper":"Cold-extracted and hot-brewed-then-chilled drinks can taste different. If unknown, that is useful context.","accessibilityLabel":"Confirm how the cold coffee was prepared","dimension":"identity","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"cold.cold_extracted","label":"Cold-extracted","helper":null,"descriptorID":null},{"id":"cold.hot_chilled","label":"Hot-brewed, then chilled","helper":null,"descriptorID":null},{"id":"cold.concentrate","label":"Concentrate plus water or milk","helper":null,"descriptorID":null},{"id":"cold.unknown","label":"Not sure","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.cold_brew"],"order":20
+    },
+    {
+      "id":"criterion.cold.ice_change","title":"As ice melts","prompt":"What changes as the ice melts?","helper":"Dilution can change strength, sweetness, aroma, and texture without one required direction.","accessibilityLabel":"Changes as ice melts into the drink","dimension":"temperature_change","stage":"temperature","measure":"multiple_choice","scaleID":null,"options":[{"id":"ice.strength","label":"Strength","helper":null,"descriptorID":null},{"id":"ice.sweetness","label":"Sweetness","helper":null,"descriptorID":null},{"id":"ice.aroma","label":"Aroma","helper":null,"descriptorID":null},{"id":"ice.texture","label":"Texture","helper":null,"descriptorID":null},{"id":"ice.nothing_named","label":"Nothing I can name","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[{"field":"temperature","operation":"one_of","values":["iced","frozen"],"negated":false}],"evidenceSourceIDs":["source.cold_brew","source.product.principles"],"order":610
+    },
+
+    {
+      "id":"criterion.milk.base_presence","title":"Base drink presence","prompt":"How clearly does the coffee or tea base come through?","helper":"A base can intentionally lead, share the drink, or sit quietly. Stronger is not automatically better.","accessibilityLabel":"Intensity of the base drink through milk and additions","dimension":"flavor","stage":"flavor","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.milk_coffee","source.product.principles"],"order":320
+    },
+    {
+      "id":"criterion.milk.sweetness","title":"Milk sweetness","prompt":"How strong is the sweetness you associate with the milk?","helper":"Record confirmed sweetener separately. Milk sweetness and added sweetness can overlap in perception.","accessibilityLabel":"Milk sweetness intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":["descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.milk_coffee"],"order":205
+    },
+    {
+      "id":"criterion.milk.foam","title":"Foam texture","prompt":"How does the foam feel?","helper":"Fine, creamy, airy, coarse, stable, and fading are observations, not automatic quality scores.","accessibilityLabel":"Select one or more foam textures","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[{"id":"foam.fine","label":"Fine","helper":"Small, even bubbles.","descriptorID":"descriptor.texture.fine_foam"},{"id":"foam.creamy","label":"Creamy","helper":null,"descriptorID":"descriptor.texture.creamy"},{"id":"foam.airy","label":"Airy","helper":null,"descriptorID":"descriptor.texture.airy"},{"id":"foam.coarse","label":"Coarse bubbles","helper":null,"descriptorID":null},{"id":"foam.stable","label":"Stable","helper":null,"descriptorID":null},{"id":"foam.fading","label":"Fades quickly","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.milk_coffee","source.matcha","source.product.principles"],"order":430
+    },
+
+    {
+      "id":"criterion.matcha.color","title":"Matcha color","prompt":"How would you describe the color?","helper":"Color is an observation. It does not determine whether you will enjoy the matcha.","accessibilityLabel":"Describe matcha color without assigning a quality score","dimension":"appearance","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"matcha_color.bright","label":"Bright green","helper":null,"descriptorID":null},{"id":"matcha_color.deep","label":"Deep green","helper":null,"descriptorID":null},{"id":"matcha_color.yellow_green","label":"Yellow-green","helper":null,"descriptorID":null},{"id":"matcha_color.olive","label":"Olive or muted","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.matcha"],"order":30
+    },
+    {
+      "id":"criterion.matcha.dispersion","title":"Dispersion","prompt":"Does the matcha stay even, clump, or settle?","helper":"Matcha is a suspension. Stirring or whisking can change what you observe.","accessibilityLabel":"How evenly matcha powder stays suspended","dimension":"appearance","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"dispersion.even","label":"Even","helper":null,"descriptorID":null},{"id":"dispersion.small_clumps","label":"Small clumps","helper":null,"descriptorID":null},{"id":"dispersion.settling","label":"Settling","helper":null,"descriptorID":null},{"id":"dispersion.separated","label":"Clearly separated","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.matcha"],"order":40
+    },
+    {
+      "id":"criterion.matcha.texture","title":"Powder texture","prompt":"Does the suspension feel silky, fine, chalky, or gritty?","helper":"These can coexist. Texture, bitterness, and dry grip are separate.","accessibilityLabel":"Select one or more matcha powder textures","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[{"id":"matcha_texture.silky","label":"Silky","helper":null,"descriptorID":"descriptor.texture.silky"},{"id":"matcha_texture.fine","label":"Fine","helper":null,"descriptorID":"descriptor.texture.fine_foam"},{"id":"matcha_texture.chalky","label":"Chalky","helper":null,"descriptorID":"descriptor.texture.chalky"},{"id":"matcha_texture.gritty","label":"Gritty","helper":null,"descriptorID":"descriptor.texture.gritty"}],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.matcha"],"order":405
+    },
+    {
+      "id":"criterion.matcha.foam","title":"Matcha foam","prompt":"What is the foam like, if there is any?","helper":"Foam amount, bubble size, stability, and personal enjoyment are separate.","accessibilityLabel":"Describe matcha foam","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[{"id":"matcha_foam.none","label":"Little or none","helper":null,"descriptorID":null},{"id":"matcha_foam.fine","label":"Fine bubbles","helper":null,"descriptorID":"descriptor.texture.fine_foam"},{"id":"matcha_foam.airy","label":"Airy","helper":null,"descriptorID":"descriptor.texture.airy"},{"id":"matcha_foam.stable","label":"Stays","helper":null,"descriptorID":null},{"id":"matcha_foam.fades","label":"Fades","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.texture"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.matcha"],"order":435
+    },
+    {
+      "id":"criterion.powder.dispersion","title":"Powder dispersion","prompt":"Does the powder stay even, clump, or settle?","helper":"A powdered drink is a suspension. This observation is separate from how much you enjoy it.","accessibilityLabel":"How evenly the drink's powder stays suspended","dimension":"appearance","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"powder_dispersion.even","label":"Even","helper":null,"descriptorID":null},{"id":"powder_dispersion.small_clumps","label":"Small clumps","helper":null,"descriptorID":null},{"id":"powder_dispersion.settling","label":"Settling","helper":null,"descriptorID":null},{"id":"powder_dispersion.separated","label":"Clearly separated","helper":null,"descriptorID":null}],"descriptorRootIDs":[],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles","source.hojicha"],"order":42
+    },
+    {
+      "id":"criterion.powder.texture","title":"Powder texture","prompt":"Does the suspension feel silky, fine, chalky, or gritty?","helper":"Texture, bitterness, and dry grip are separate observations.","accessibilityLabel":"Select one or more powdered drink textures","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[{"id":"powder_texture.silky","label":"Silky","helper":null,"descriptorID":"descriptor.texture.silky"},{"id":"powder_texture.fine","label":"Fine","helper":null,"descriptorID":"descriptor.texture.fine_foam"},{"id":"powder_texture.chalky","label":"Chalky","helper":null,"descriptorID":"descriptor.texture.chalky"},{"id":"powder_texture.gritty","label":"Gritty","helper":null,"descriptorID":"descriptor.texture.gritty"}],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles","source.hojicha"],"order":407
+    },
+
+    {
+      "id":"criterion.hojicha.roast_style","title":"Hojicha roast","prompt":"Where does the roast sit?","helper":"Roast can bring sweet, nutty, woody, green, smoky, or charred impressions. Darker is not automatically better.","accessibilityLabel":"Choose the hojicha roast character","dimension":"flavor","stage":"flavor","measure":"single_choice","scaleID":null,"options":[{"id":"hojicha_roast.gentle","label":"Gentle toast","helper":null,"descriptorID":"descriptor.roast_smoke.toasted"},{"id":"hojicha_roast.clear","label":"Clear roast","helper":null,"descriptorID":"descriptor.roast_smoke.roasty"},{"id":"hojicha_roast.dark","label":"Dark char","helper":null,"descriptorID":"descriptor.roast_smoke.charred"},{"id":"hojicha_roast.unsure","label":"Not sure","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.roast_smoke","descriptor.grain_malt","descriptor.nut_cocoa","descriptor.green_botanical","descriptor.earth_wood"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.hojicha"],"order":305
+    },
+    {
+      "id":"criterion.hojicha.green_roast_balance","title":"Green and roast relationship","prompt":"Do green, woody, and roasted sides share the sip, or does one lead?","helper":"Leaf and powdered hojicha can express these differently.","accessibilityLabel":"Relationship between green woody and roasted hojicha character","dimension":"integration","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"hojicha_balance.shared","label":"They share it","helper":null,"descriptorID":null},{"id":"hojicha_balance.green","label":"Green leads","helper":null,"descriptorID":"descriptor.green_botanical"},{"id":"hojicha_balance.roast","label":"Roast leads","helper":null,"descriptorID":"descriptor.roast_smoke"},{"id":"hojicha_balance.wood","label":"Wood leads","helper":null,"descriptorID":"descriptor.earth_wood"}],"descriptorRootIDs":["descriptor.roast_smoke","descriptor.green_botanical","descriptor.earth_wood"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.hojicha"],"order":708
+    },
+
+    {
+      "id":"criterion.tea.style","title":"Tea style","prompt":"Which broad style leads this tea?","helper":"Style helps Mugshot show relevant possibilities. It does not set one ideal.","accessibilityLabel":"Choose the broad tea style","dimension":"identity","stage":"appearance","measure":"single_choice","scaleID":null,"options":[{"id":"tea_style.fresh","label":"Fresh or green","helper":null,"descriptorID":"descriptor.green_botanical"},{"id":"tea_style.floral","label":"Floral","helper":null,"descriptorID":"descriptor.floral"},{"id":"tea_style.fruity","label":"Fruity","helper":null,"descriptorID":"descriptor.fruit"},{"id":"tea_style.malty","label":"Malty or grain-like","helper":null,"descriptorID":"descriptor.grain_malt"},{"id":"tea_style.roasted","label":"Roasted or deep","helper":null,"descriptorID":"descriptor.roast_smoke"},{"id":"tea_style.ingredient","label":"Ingredient-led","helper":null,"descriptorID":"descriptor.dairy_ingredient"}],"descriptorRootIDs":["descriptor.green_botanical","descriptor.floral","descriptor.fruit","descriptor.grain_malt","descriptor.roast_smoke","descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.green_tea","source.oolong","source.white_tea","source.herbal"],"order":25
+    },
+    {
+      "id":"criterion.tea.infusion_change","title":"Across the cup","prompt":"Compared with the first sip, what is different now?","helper":"Aroma, bitterness, and dry grip can follow different timelines. No change is a valid answer.","accessibilityLabel":"Changes between the first and later sips of tea","dimension":"temperature_change","stage":"temperature","measure":"multiple_choice","scaleID":null,"options":[{"id":"tea_change.aroma","label":"Aroma","helper":null,"descriptorID":null},{"id":"tea_change.bitterness","label":"Bitterness","helper":null,"descriptorID":null},{"id":"tea_change.dry_grip","label":"Dry grip","helper":null,"descriptorID":"descriptor.astringency"},{"id":"tea_change.body","label":"Body","helper":null,"descriptorID":null},{"id":"tea_change.none","label":"Nothing clear","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.astringency"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.astringency","source.iso.tea","source.product.principles"],"order":605
+    },
+    {
+      "id":"criterion.herbal.ingredient_identity","title":"Botanical identity","prompt":"Which ingredient or botanical feels clearest?","helper":"Herbal infusion is not one flavor family. Use the actual ingredient name whenever you can.","accessibilityLabel":"Record the clearest botanical or ingredient","dimension":"identity","stage":"flavor","measure":"own_words","scaleID":null,"options":[],"descriptorRootIDs":["descriptor.floral","descriptor.green_botanical","descriptor.spice","descriptor.fruit","descriptor.earth_wood"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.herbal"],"order":290
+    },
+    {
+      "id":"criterion.milk_tea.addin_texture","title":"Add-in texture","prompt":"How do pearls, jelly, cream, or another add-in feel?","helper":"Name the add-in first. Its texture and your preference stay separate from the tea itself.","accessibilityLabel":"Texture of milk tea pearls jelly cream or another add-in","dimension":"texture","stage":"mouthfeel","measure":"multiple_choice","scaleID":null,"options":[{"id":"addin.chewy","label":"Chewy","helper":null,"descriptorID":null},{"id":"addin.bouncy","label":"Bouncy","helper":null,"descriptorID":null},{"id":"addin.soft","label":"Soft","helper":null,"descriptorID":null},{"id":"addin.firm","label":"Firm","helper":null,"descriptorID":null},{"id":"addin.jelly","label":"Jelly-like","helper":null,"descriptorID":null},{"id":"addin.creamy","label":"Creamy","helper":null,"descriptorID":"descriptor.texture.creamy"}],"descriptorRootIDs":["descriptor.texture"],"depths":["guided","deep"],"applicability":[{"field":"addition","operation":"exists","values":[],"negated":false}],"evidenceSourceIDs":["source.product.principles"],"order":440
+    },
+
+    {
+      "id":"criterion.addition.provenance","title":"What was added","prompt":"Which parts came from milk, sweetener, flavor, or another addition?","helper":"Keeping additions explicit prevents a vanilla syrup from becoming evidence that the base coffee or tea had inherent vanilla notes.","accessibilityLabel":"Confirm which flavors and sensations came from additions","dimension":"identity","stage":"appearance","measure":"multiple_choice","scaleID":null,"options":[{"id":"addition.milk","label":"Milk","helper":null,"descriptorID":"descriptor.dairy_ingredient.dairy"},{"id":"addition.sweetener","label":"Sweetener","helper":null,"descriptorID":"descriptor.dairy_ingredient.syrup"},{"id":"addition.flavor","label":"Flavor or fruit","helper":null,"descriptorID":"descriptor.dairy_ingredient.fruit"},{"id":"addition.foam","label":"Foam or cream","helper":null,"descriptorID":"descriptor.texture.airy"},{"id":"addition.topping","label":"Topping or add-in","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":10
+    },
+    {
+      "id":"criterion.addition.sweetness","title":"Added sweetness","prompt":"How strong is the added sweetness?","helper":"This stays separate from the drink's inherent sweet impression and from whether you like it.","accessibilityLabel":"Added sweetness intensity; high is not automatically better","dimension":"taste","stage":"first_sip","measure":"intensity","scaleID":"scale.intensity_3","options":[],"descriptorRootIDs":["descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":225
+    },
+    {
+      "id":"criterion.addition.integration","title":"Ingredient integration","prompt":"Do the base drink, milk, sweetness, and flavors work together for you?","helper":"A flavor-led drink can be intentional. This asks how the parts relate, not whether the base dominates.","accessibilityLabel":"How the base drink and confirmed additions fit together","dimension":"integration","stage":"structure","measure":"single_choice","scaleID":null,"options":[{"id":"ingredient_integration.base_led","label":"Base-led","helper":null,"descriptorID":null},{"id":"ingredient_integration.joined","label":"Integrated","helper":null,"descriptorID":null},{"id":"ingredient_integration.milk_led","label":"Milk-led","helper":null,"descriptorID":null},{"id":"ingredient_integration.flavor_led","label":"Flavor-led","helper":null,"descriptorID":null},{"id":"ingredient_integration.separate","label":"Disconnected","helper":null,"descriptorID":null}],"descriptorRootIDs":["descriptor.dairy_ingredient"],"depths":["guided","deep"],"applicability":[],"evidenceSourceIDs":["source.milk_coffee","source.product.principles"],"order":702
+    },
+    {
+      "id":"criterion.addition.coating","title":"Sweetener or sauce finish","prompt":"Does the added sweetness or sauce leave a coating or long aftertaste?","helper":"Record what remains, then separately decide whether it worked for you.","accessibilityLabel":"Coating or aftertaste from sweetener or sauce","dimension":"finish","stage":"finish","measure":"single_choice","scaleID":null,"options":[{"id":"addition_finish.clean","label":"Quick and clean","helper":null,"descriptorID":"descriptor.finish.fades"},{"id":"addition_finish.light","label":"Light coating","helper":null,"descriptorID":"descriptor.texture.coating"},{"id":"addition_finish.long","label":"Long coating","helper":null,"descriptorID":"descriptor.finish.lingers"},{"id":"addition_finish.builds","label":"Builds across sips","helper":null,"descriptorID":"descriptor.finish.builds"}],"descriptorRootIDs":["descriptor.texture","descriptor.finish"],"depths":["deep"],"applicability":[],"evidenceSourceIDs":["source.product.principles"],"order":520
+    }
+  ],
+  "packs": [
+    {
+      "id":"pack.universal","kind":"base","title":"Universal Lens","family":"universal","priority":0,"applicability":[],
+      "criterionIDs":["criterion.own_words","criterion.aroma.before","criterion.mugsy.leading","criterion.taste.sweetness","criterion.taste.sourness","criterion.taste.bitterness","criterion.taste.umami","criterion.taste.saltiness","criterion.flavor.web","criterion.body.weight","criterion.texture.motion","criterion.astringency.grip","criterion.finish.remains","criterion.finish.duration","criterion.temperature.change","criterion.structure.integration","criterion.structure.balance","criterion.unexpected.notes","criterion.confidence","criterion.preference.leading_sensation","criterion.quality.style","criterion.overall.enjoyment"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.roast_smoke","descriptor.green_botanical","descriptor.spice"],
+      "explanation":"The universal offline Lens separates aroma, taste, texture, finish, confidence, and personal enjoyment without assuming a drink style.",
+      "evidenceSourceIDs":["source.product.principles","source.iso.sensory","source.retronasal","source.astringency"]
+    },
+    {
+      "id":"pack.coffee.espresso","kind":"base","title":"Espresso Lens","family":"espresso","priority":100,"applicability":[],
+      "criterionIDs":["criterion.espresso.crema","criterion.coffee.acidity_shape","criterion.coffee.clarity","criterion.coffee.roast","criterion.americano.dilution"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.grain_malt","descriptor.roast_smoke","descriptor.fermented_savory"],
+      "explanation":"Shown because the confirmed drink is espresso or an espresso-and-water preparation. Crema remains an observation, not a quality proxy.",
+      "evidenceSourceIDs":["source.sca.cva","source.wcr.lexicon","source.product.principles"]
+    },
+    {
+      "id":"pack.coffee.brewed","kind":"base","title":"Brewed Coffee Lens","family":"brewed_coffee","priority":100,"applicability":[],
+      "criterionIDs":["criterion.coffee.acidity_shape","criterion.coffee.clarity","criterion.coffee.roast","criterion.coffee.sediment"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.roast_smoke","descriptor.green_botanical","descriptor.fermented_savory"],
+      "explanation":"Shown because the confirmed drink is brewed coffee. The prompts describe the sip without diagnosing extraction from one sensation.",
+      "evidenceSourceIDs":["source.sca.cva","source.wcr.lexicon","source.temperature","source.product.principles"]
+    },
+    {
+      "id":"pack.coffee.pour_over","kind":"base","title":"Pour-over Lens","family":"brewed_coffee","priority":220,
+      "applicability":[{"field":"preparation","operation":"equals","values":["pour_over"],"negated":false}],
+      "criterionIDs":["criterion.coffee.acidity_shape","criterion.coffee.clarity","criterion.coffee.roast"],
+      "suppressedCriterionIDs":["criterion.coffee.sediment"],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.grain_malt","descriptor.green_botanical"],
+      "explanation":"Shown because the confirmed preparation is pour-over. Clarity means sensations are easy to distinguish, not that the drink is objectively better.",
+      "evidenceSourceIDs":["source.sca.cva","source.wcr.lexicon","source.temperature","source.product.principles"]
+    },
+    {
+      "id":"pack.coffee.cold_brew","kind":"base","title":"Cold Brew Lens","family":"brewed_coffee","priority":230,
+      "applicability":[{"field":"preparation","operation":"equals","values":["cold_brew"],"negated":false}],
+      "criterionIDs":["criterion.cold.extraction_identity","criterion.coffee.acidity_shape","criterion.coffee.clarity","criterion.coffee.roast"],
+      "suppressedCriterionIDs":["criterion.espresso.crema","criterion.coffee.sediment"],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.roast_smoke","descriptor.fermented_savory"],
+      "explanation":"Shown because this is cold brew. Mugshot records extraction style and dilution instead of assuming cold brew must be sweeter or less acidic.",
+      "evidenceSourceIDs":["source.cold_brew","source.product.principles"]
+    },
+    {
+      "id":"pack.coffee.milk","kind":"base","title":"Milk Coffee Lens","family":"milk_coffee","priority":200,"applicability":[],
+      "criterionIDs":["criterion.addition.provenance","criterion.milk.sweetness","criterion.milk.base_presence","criterion.milk.foam","criterion.addition.integration","criterion.addition.coating","criterion.coffee.roast"],
+      "suppressedCriterionIDs":["criterion.espresso.crema","criterion.coffee.sediment"],
+      "descriptorRootIDs":["descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.grain_malt","descriptor.roast_smoke","descriptor.dairy_ingredient","descriptor.fruit","descriptor.spice"],
+      "explanation":"Shown because this is a milk coffee. Coffee presence, milk, foam, sweetness, additions, and integration remain separate observations.",
+      "evidenceSourceIDs":["source.milk_coffee","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.matcha","kind":"base","title":"Matcha Lens","family":"matcha","priority":200,"applicability":[],
+      "criterionIDs":["criterion.matcha.color","criterion.matcha.dispersion","criterion.matcha.texture","criterion.matcha.foam","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.green_botanical","descriptor.floral","descriptor.fermented_savory","descriptor.grain_malt","descriptor.nut_cocoa"],
+      "explanation":"Shown because this is straight matcha. Color, aroma, umami, bitterness, dry grip, suspension, foam, texture, and enjoyment remain distinct.",
+      "evidenceSourceIDs":["source.matcha","source.astringency","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.matcha_latte","kind":"base","title":"Matcha Latte Lens","family":"matcha_latte","priority":220,"applicability":[],
+      "criterionIDs":["criterion.addition.provenance","criterion.matcha.color","criterion.matcha.dispersion","criterion.matcha.texture","criterion.matcha.foam","criterion.milk.base_presence","criterion.milk.sweetness","criterion.milk.foam","criterion.addition.integration","criterion.addition.coating"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.green_botanical","descriptor.floral","descriptor.sweet_browned","descriptor.dairy_ingredient","descriptor.fruit","descriptor.spice","descriptor.nut_cocoa"],
+      "explanation":"Shown because this is a matcha latte. Matcha character, milk, sweetness, added flavor, texture, and integration are recorded independently.",
+      "evidenceSourceIDs":["source.matcha","source.milk_coffee","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.hojicha_leaf","kind":"base","title":"Leaf Hojicha Lens","family":"hojicha_leaf","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.hojicha.roast_style","criterion.hojicha.green_roast_balance","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.roast_smoke","descriptor.grain_malt","descriptor.nut_cocoa","descriptor.green_botanical","descriptor.earth_wood","descriptor.sweet_browned"],
+      "explanation":"Shown because this is steeped hojicha leaf. Roast, green and woody character, body, dry grip, and finish can vary by style.",
+      "evidenceSourceIDs":["source.hojicha","source.iso.tea","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.hojicha_powder","kind":"base","title":"Powdered Hojicha Lens","family":"hojicha_powder","priority":210,"applicability":[],
+      "criterionIDs":["criterion.powder.dispersion","criterion.hojicha.roast_style","criterion.powder.texture","criterion.hojicha.green_roast_balance"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.roast_smoke","descriptor.grain_malt","descriptor.nut_cocoa","descriptor.green_botanical","descriptor.earth_wood","descriptor.sweet_browned"],
+      "explanation":"Shown because this is powdered hojicha. Dispersion, particles, body, roast, bitterness, and dry grip remain separate.",
+      "evidenceSourceIDs":["source.hojicha","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.hojicha_latte","kind":"base","title":"Hojicha Latte Lens","family":"hojicha_latte","priority":220,"applicability":[],
+      "criterionIDs":["criterion.addition.provenance","criterion.powder.dispersion","criterion.hojicha.roast_style","criterion.powder.texture","criterion.milk.base_presence","criterion.milk.sweetness","criterion.milk.foam","criterion.addition.integration","criterion.addition.coating"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.roast_smoke","descriptor.grain_malt","descriptor.nut_cocoa","descriptor.green_botanical","descriptor.sweet_browned","descriptor.dairy_ingredient","descriptor.earth_wood"],
+      "explanation":"Shown because this is a hojicha latte. Roast, tea presence, milk, sweetness, powder texture, and additions are recorded separately.",
+      "evidenceSourceIDs":["source.hojicha","source.milk_coffee","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.green","kind":"base","title":"Green Tea Lens","family":"green_tea","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.green_botanical","descriptor.floral","descriptor.fruit","descriptor.grain_malt","descriptor.sweet_browned"],
+      "explanation":"Shown because this is green tea. Fresh, steamed, pan-fired, floral, marine, umami, bitter, and drying impressions are possibilities, not requirements.",
+      "evidenceSourceIDs":["source.green_tea","source.iso.tea","source.astringency"]
+    },
+    {
+      "id":"pack.tea.black","kind":"base","title":"Black Tea Lens","family":"black_tea","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.grain_malt","descriptor.sweet_browned","descriptor.spice","descriptor.earth_wood","descriptor.roast_smoke"],
+      "explanation":"Shown because this is black tea. Malt, fruit, floral, sweet, bitter, drying, body, and finish observations remain distinct.",
+      "evidenceSourceIDs":["source.iso.tea","source.astringency","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.white","kind":"base","title":"White Tea Lens","family":"white_tea","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.green_botanical","descriptor.sweet_browned","descriptor.grain_malt"],
+      "explanation":"Shown because this is white tea. Subtle is not the same as absent, and aged or mature-leaf styles can be fuller.",
+      "evidenceSourceIDs":["source.white_tea","source.iso.tea","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.oolong","kind":"base","title":"Oolong Tea Lens","family":"oolong_tea","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.tea.infusion_change","criterion.coffee.roast"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.fruit","descriptor.floral","descriptor.roast_smoke","descriptor.sweet_browned","descriptor.nut_cocoa","descriptor.green_botanical","descriptor.grain_malt"],
+      "explanation":"Shown because this is oolong. Fresh floral, honeyed fruit, and roasted styles are all legitimate starting points.",
+      "evidenceSourceIDs":["source.oolong","source.iso.tea","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.herbal","kind":"base","title":"Herbal Infusion Lens","family":"herbal_infusion","priority":200,"applicability":[],
+      "criterionIDs":["criterion.tea.style","criterion.herbal.ingredient_identity","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.floral","descriptor.green_botanical","descriptor.spice","descriptor.fruit","descriptor.earth_wood","descriptor.sweet_browned","descriptor.fermented_savory"],
+      "explanation":"Shown because this is an herbal infusion. Mugshot asks for the actual botanical before suggesting ingredient-relevant language.",
+      "evidenceSourceIDs":["source.herbal","source.product.principles"]
+    },
+    {
+      "id":"pack.tea.milk","kind":"base","title":"Milk Tea Lens","family":"milk_tea","priority":220,"applicability":[],
+      "criterionIDs":["criterion.addition.provenance","criterion.tea.style","criterion.milk.base_presence","criterion.milk.sweetness","criterion.milk.foam","criterion.milk_tea.addin_texture","criterion.addition.integration","criterion.addition.coating","criterion.tea.infusion_change"],
+      "suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.grain_malt","descriptor.floral","descriptor.roast_smoke","descriptor.spice","descriptor.dairy_ingredient","descriptor.sweet_browned","descriptor.fruit"],
+      "explanation":"Shown because this is milk tea. Tea presence, milk, sweetness, add-in texture, coating, and integration remain separate.",
+      "evidenceSourceIDs":["source.iso.tea","source.milk_coffee","source.herbal","source.product.principles"]
+    },
+
+    {
+      "id":"overlay.temperature.iced","kind":"overlay","title":"Iced or Frozen Overlay","family":null,"priority":300,
+      "applicability":[{"field":"temperature","operation":"one_of","values":["iced","frozen"],"negated":false}],
+      "criterionIDs":["criterion.cold.ice_change"],"suppressedCriterionIDs":[],"descriptorRootIDs":[],
+      "explanation":"Shown because the confirmed drink is iced or frozen; dilution and temperature change are factual context, not quality judgments.",
+      "evidenceSourceIDs":["source.cold_brew","source.temperature","source.product.principles"]
+    },
+    {
+      "id":"overlay.milk","kind":"overlay","title":"Milk Overlay","family":null,"priority":290,
+      "applicability":[{"field":"milk","operation":"exists","values":[],"negated":false}],
+      "criterionIDs":["criterion.addition.provenance","criterion.milk.base_presence","criterion.milk.sweetness","criterion.milk.foam","criterion.addition.integration"],"suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.dairy_ingredient","descriptor.texture"],
+      "explanation":"Shown because milk was confirmed. Mugshot keeps milk character and base-drink character separate.",
+      "evidenceSourceIDs":["source.milk_coffee","source.product.principles"]
+    },
+    {
+      "id":"overlay.sweetened","kind":"overlay","title":"Sweetener Overlay","family":null,"priority":285,
+      "applicability":[{"field":"addition","operation":"contains","values":["sugar","sweet","honey","maple","syrup","agave"],"negated":false}],
+      "criterionIDs":["criterion.addition.provenance","criterion.addition.sweetness","criterion.addition.integration","criterion.addition.coating"],"suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.sweet_browned","descriptor.dairy_ingredient","descriptor.texture","descriptor.finish"],
+      "explanation":"Shown because a sweetener was confirmed. Added sweetness remains distinct from the base drink's sweet impression.",
+      "evidenceSourceIDs":["source.product.principles"]
+    },
+    {
+      "id":"overlay.flavored","kind":"overlay","title":"Flavor Addition Overlay","family":null,"priority":280,
+      "applicability":[{"field":"flavor","operation":"exists","values":[],"negated":false}],
+      "criterionIDs":["criterion.addition.provenance","criterion.milk.base_presence","criterion.addition.integration","criterion.addition.coating"],"suppressedCriterionIDs":[],
+      "descriptorRootIDs":["descriptor.dairy_ingredient","descriptor.fruit","descriptor.floral","descriptor.spice","descriptor.sweet_browned"],
+      "explanation":"Shown because a flavor was confirmed. Ingredient provenance prevents an added flavor from being mislabeled as an inherent base-drink note.",
+      "evidenceSourceIDs":["source.product.principles"]
+    },
+    {
+      "id":"overlay.powdered","kind":"overlay","title":"Powdered Preparation Overlay","family":null,"priority":270,
+      "applicability":[{"field":"preparation","operation":"equals","values":["whisked_powder"],"negated":false}],
+      "criterionIDs":[],"suppressedCriterionIDs":[],"descriptorRootIDs":["descriptor.texture"],
+      "explanation":"Shown because the drink uses suspended powder. Particle texture and settling remain independent from taste and enjoyment.",
+      "evidenceSourceIDs":["source.matcha","source.hojicha","source.product.principles"]
+    }
+  ]
+}

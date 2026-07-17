@@ -342,6 +342,7 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let likeCount: Int
     let currentUserHasLiked: Bool
     let privateNote: String?
+    let sensorySnapshot: SipSensorySnapshot?
 
     init(
         summary: RemoteVisitSummary,
@@ -349,7 +350,8 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         comments: [RemoteVisitComment],
         likeCount: Int,
         currentUserHasLiked: Bool,
-        privateNote: String? = nil
+        privateNote: String? = nil,
+        sensorySnapshot: SipSensorySnapshot? = nil
     ) {
         self.summary = summary
         self.photos = photos
@@ -357,6 +359,7 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         self.likeCount = likeCount
         self.currentUserHasLiked = currentUserHasLiked
         self.privateNote = privateNote
+        self.sensorySnapshot = sensorySnapshot
     }
 
     var id: UUID { summary.id }

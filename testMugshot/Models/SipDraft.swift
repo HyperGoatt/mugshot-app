@@ -127,6 +127,12 @@ struct SipDraft: Identifiable, Codable, Equatable {
     var guidedStep: SipGuidedStep?
     var memoryDetailsExpanded: Bool?
     var drinkAnalysis: DrinkAnalysis?
+    /// Immutable, versioned Tasting Lens 2.0 result. This remains separate
+    /// from legacy criterion scores and from the user's independent stars.
+    var sensorySnapshot: SipSensorySnapshot?
+    /// Autosaved, mutable Lens work. This is never published and is cleared
+    /// only after an immutable snapshot is completed.
+    var sensorySessionDraft: TastingLensSessionDraft?
 
     init(
         id: UUID = UUID(),
@@ -159,7 +165,9 @@ struct SipDraft: Identifiable, Codable, Equatable {
         composerExperience: SipComposerExperience? = nil,
         guidedStep: SipGuidedStep? = nil,
         memoryDetailsExpanded: Bool? = nil,
-        drinkAnalysis: DrinkAnalysis? = nil
+        drinkAnalysis: DrinkAnalysis? = nil,
+        sensorySnapshot: SipSensorySnapshot? = nil,
+        sensorySessionDraft: TastingLensSessionDraft? = nil
     ) {
         self.id = id
         self.ownerUserID = ownerUserID
@@ -192,10 +200,15 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.guidedStep = guidedStep
         self.memoryDetailsExpanded = memoryDetailsExpanded
         self.drinkAnalysis = drinkAnalysis
+        self.sensorySnapshot = sensorySnapshot
+        self.sensorySessionDraft = sensorySessionDraft
     }
 
     var ratingsDictionary: [String: Double] {
-        ratingCriteria.reduce(into: [:]) { result, criterion in
+        // Tasting Lens 2.0 responses have typed scale semantics and must never
+        // be flattened into the legacy name-to-star-score dictionary.
+        guard sensorySnapshot == nil else { return [:] }
+        return ratingCriteria.reduce(into: [:]) { result, criterion in
             let name = criterion.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard criterion.isRelevant, !name.isEmpty,
                   criterion.score >= 0.5, criterion.score <= 5 else { return }
@@ -218,12 +231,13 @@ struct SipDraft: Identifiable, Codable, Equatable {
             ? cafe != nil
             : locationName.remoteTrimmedNonEmpty != nil
         let hasDrink = drinkName.remoteTrimmedNonEmpty != nil
-        return hasContext && hasDrink && resolvedOverallScore >= 0.5 && resolvedOverallScore <= 5
+        let hasRatingPath = resolvedOverallScore >= 0.5 && resolvedOverallScore <= 5
+            && (captureMode == .quickSip || sensorySnapshot != nil)
+        return hasContext && hasDrink && hasRatingPath
     }
 
     var resolvedOverallScore: Double {
-        guard captureMode == .addDetails else { return overallScore }
-        return ratingTemplateSnapshot.calculateOverallScore(ratings: ratingsDictionary)
+        overallScore
     }
 
     var resolvedGuidedStep: SipGuidedStep { guidedStep ?? .context }
@@ -249,7 +263,8 @@ struct SipDraft: Identifiable, Codable, Equatable {
             socialCaption.remoteTrimmedNonEmpty != nil || privateNotes.remoteTrimmedNonEmpty != nil ||
             !localPhotoNames.isEmpty || ratingCriteria.contains(where: { $0.score > 0 }) ||
             brewDetails.hasStructuredData || orderNotes.remoteTrimmedNonEmpty != nil ||
-            !tags.isEmpty || !companions.isEmpty || guidedStep != nil || drinkAnalysis != nil
+            !tags.isEmpty || !companions.isEmpty || guidedStep != nil || drinkAnalysis != nil ||
+            sensorySnapshot != nil || sensorySessionDraft != nil
     }
 
     mutating func applyContextDefaults(using preferences: CafeVisibilityPreferenceStore) {

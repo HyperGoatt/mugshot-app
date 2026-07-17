@@ -210,6 +210,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let privateNote: String?
     let photos: [SipDetailPhotoSource]
     let ratings: [SipDetailRatingItem]
+    let sensorySnapshot: SipSensorySnapshot?
     let visitFacts: [SipDetailVisitFact]
     let reactions: [SipDetailReactionSummary]
     let comments: [SipDetailCommentModel]
@@ -224,7 +225,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
         if caption != nil { sections.append(.note) }
         if !capabilities.dockActions.isEmpty { sections.append(.actions) }
         if !reactions.isEmpty { sections.append(.friendsNoticed) }
-        if score > 0 || !ratings.isEmpty { sections.append(.taste) }
+        if score > 0 || !ratings.isEmpty || sensorySnapshot != nil { sections.append(.taste) }
         if !visitFacts.isEmpty { sections.append(.visitDetails) }
         if capabilities.isOwner, privateNote != nil { sections.append(.privateNote) }
         if capabilities.canComment || !comments.isEmpty { sections.append(.conversation) }
@@ -281,6 +282,7 @@ enum SipDetailPresentationAdapter {
             ratings: visit.orderedRatingScores.map {
                 SipDetailRatingItem(name: $0.name, score: $0.score)
             },
+            sensorySnapshot: isOwner ? detail.sensorySnapshot : nil,
             visitFacts: remoteVisitFacts(detail),
             reactions: reactionSummaries,
             comments: detail.comments.map { comment in
@@ -361,6 +363,7 @@ enum SipDetailPresentationAdapter {
             privateNote: isOwner ? visit.notes?.remoteTrimmedNonEmpty : nil,
             photos: orderedPhotos.map(SipDetailPhotoSource.local),
             ratings: ratings.isEmpty ? fallbackRatings : ratings,
+            sensorySnapshot: isOwner ? visit.sensorySnapshot : nil,
             visitFacts: localVisitFacts(visit: visit, cafe: cafe),
             reactions: [],
             comments: comments.map { comment in
@@ -597,10 +600,11 @@ struct SipDetailScreen: View {
                     .padding(.top, 26)
             }
 
-            if presentation.content.score > 0 || !presentation.content.ratings.isEmpty {
+            if presentation.content.score > 0 || !presentation.content.ratings.isEmpty || presentation.content.sensorySnapshot != nil {
                 SipTasteSnapshotSection(
                     score: presentation.content.score,
                     ratings: presentation.content.ratings,
+                    sensorySnapshot: presentation.content.sensorySnapshot,
                     isExpanded: $isTasteExpanded,
                     revealProgress: tasteReveal
                 )
@@ -1048,6 +1052,7 @@ private struct SipFriendsNoticedSection: View {
 private struct SipTasteSnapshotSection: View {
     let score: Double
     let ratings: [SipDetailRatingItem]
+    let sensorySnapshot: SipSensorySnapshot?
     @Binding var isExpanded: Bool
     let revealProgress: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1066,7 +1071,7 @@ private struct SipTasteSnapshotSection: View {
                 Text("Taste snapshot")
                     .font(.system(.title3, design: .default, weight: .bold))
                 Spacer()
-                Text(String(format: "%.1f overall", score))
+                Text(String(format: "%.1f personal", score))
                     .font(.system(.callout, design: .default, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
                     .padding(.horizontal, 11)
@@ -1074,7 +1079,51 @@ private struct SipTasteSnapshotSection: View {
                     .background(Color.mugshotMint.opacity(0.28), in: Capsule())
             }
 
-            if isExpanded {
+            if let sensorySnapshot {
+                if let ownWords = sensorySnapshot.ownWords.remoteTrimmedNonEmpty {
+                    Text("“\(ownWords)”")
+                        .font(.system(.body, design: .serif, weight: .regular))
+                        .foregroundStyle(Color.espressoBrown)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 13)
+                } else if !descriptorPreview.isEmpty {
+                    Text(descriptorPreview.joined(separator: " · "))
+                        .font(.system(.footnote, design: .default, weight: .semibold))
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 13)
+                }
+
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(meaningfulResponses) { response in
+                            SipSensoryResponseDetail(response: response)
+                            if response.id != meaningfulResponses.last?.id {
+                                Divider().foregroundStyle(Color.mugshotLine)
+                            }
+                        }
+
+                        Label(
+                            "High intensity is not automatically better. Uncertainty never changes your stars.",
+                            systemImage: "equal.circle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        Text("\(sensorySnapshot.depth.title) Lens · vocabulary \(sensorySnapshot.bundleContentVersion)")
+                            .font(.caption2)
+                            .foregroundStyle(Color.tertiaryText)
+                    }
+                    .padding(.top, 16)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            } else if isExpanded {
+                Text("Legacy tasting criteria")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.tertiaryText)
+                    .padding(.top, 14)
+
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                     ForEach(ratings) { rating in
                         VStack(alignment: .leading, spacing: 8) {
@@ -1103,13 +1152,16 @@ private struct SipTasteSnapshotSection: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if !ratings.isEmpty {
+            if hasExpandableDetails {
                 Button {
                     withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
                         isExpanded.toggle()
                     }
                 } label: {
-                    Label(isExpanded ? "Hide details" : "View breakdown", systemImage: isExpanded ? "chevron.up" : "chevron.down")
+                    Label(
+                        isExpanded ? "Hide details" : (sensorySnapshot == nil ? "View legacy breakdown" : "View sensory trail"),
+                        systemImage: isExpanded ? "chevron.up" : "chevron.down"
+                    )
                         .font(.system(.footnote, design: .default, weight: .semibold))
                         .foregroundStyle(Color.mugshotSage)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
@@ -1123,6 +1175,91 @@ private struct SipTasteSnapshotSection: View {
         .foregroundStyle(Color.espressoBrown)
         .padding(.bottom, 4)
         .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+    }
+
+    private var meaningfulResponses: [SipSensoryResponseSnapshot] {
+        sensorySnapshot?.responses.filter {
+            $0.state != .notAsked && $0.state != .skipped
+        } ?? []
+    }
+
+    private var descriptorPreview: [String] {
+        Array(meaningfulResponses.flatMap(\.descriptors).map(\.displayedTitle).sensoryUnique.prefix(4))
+    }
+
+    private var hasExpandableDetails: Bool {
+        sensorySnapshot != nil ? !meaningfulResponses.isEmpty : !ratings.isEmpty
+    }
+}
+
+private struct SipSensoryResponseDetail: View {
+    let response: SipSensoryResponseSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(response.displayedCriterionTitle)
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Color.espressoBrown)
+                Spacer(minLength: 10)
+                Text(stateLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(response.state == .observed ? Color.mugshotSage : Color.tertiaryText)
+            }
+
+            if !detailParts.isEmpty {
+                Text(detailParts.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var stateLabel: String {
+        switch response.state {
+        case .notAsked: return "Unanswered"
+        case .skipped: return "Skipped"
+        case .notPresent: return "Not present"
+        case .unsure: return "Not sure yet"
+        case .observed: return "Observed"
+        case .notRelevant: return "Not relevant"
+        }
+    }
+
+    private var detailParts: [String] {
+        var parts = response.descriptors.map(\.displayedTitle)
+        parts.append(contentsOf: response.selectedChoices.map(\.displayedLabel))
+        if let customText = response.customText?.remoteTrimmedNonEmpty {
+            parts.append(customText)
+        }
+        if let intensity = response.intensity {
+            let label = response.displayedScaleAnchors
+                .first(where: { $0.value == intensity.level })?.displayedLabel
+                ?? "Intensity \(intensity.level)"
+            parts.append(label)
+        }
+        if let duration = response.duration {
+            parts.append(duration.title)
+        }
+        if let preference = response.preference {
+            parts.append(preference.title)
+        }
+        if let quality = response.qualityImpression {
+            parts.append("Personal style impression \(quality.value) of 5")
+        }
+        if let confidence = response.confidence {
+            parts.append(confidence.title)
+        }
+        return parts.sensoryUnique
+    }
+}
+
+private extension Array where Element == String {
+    var sensoryUnique: [String] {
+        var seen: Set<String> = []
+        return filter { seen.insert($0).inserted }
     }
 }
 
@@ -1397,6 +1534,7 @@ private struct SipDetailComposerBar: View {
 
 struct SipDetailLoadingView: View {
     @State private var shimmerOffset: CGFloat = -1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 18) {
@@ -1424,8 +1562,12 @@ struct SipDetailLoadingView: View {
         .ignoresSafeArea(edges: .top)
         .accessibilityLabel("Loading sip")
         .onAppear {
-            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
-                shimmerOffset = 1
+            if reduceMotion {
+                shimmerOffset = 0
+            } else {
+                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                    shimmerOffset = 1
+                }
             }
         }
     }
@@ -1456,27 +1598,30 @@ struct SipDetailErrorView: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
-            Spacer()
-            Image(systemName: "exclamationmark.icloud")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(Color.red.opacity(0.78))
-            Text("Couldn’t load this sip")
-                .font(.system(.title2, design: .default, weight: .bold))
-                .foregroundStyle(Color.espressoBrown)
-            Text(message)
-                .font(.body)
-                .foregroundStyle(Color.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
-            Button("Try again", action: onRetry)
-                .buttonStyle(PrimaryButtonStyle())
-                .frame(minHeight: 50)
-            Button("Close", action: onClose)
-                .font(.system(.body, design: .default, weight: .semibold))
-                .foregroundStyle(Color.mugshotSage)
-                .frame(minHeight: 44)
-            Spacer()
+        ScrollView {
+            VStack(spacing: 18) {
+                Image(systemName: "exclamationmark.icloud")
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(Color.red.opacity(0.78))
+                Text("Couldn’t load this sip")
+                    .font(.system(.title2, design: .default, weight: .bold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message)
+                    .font(.body)
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+                Button("Try again", action: onRetry)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .frame(minHeight: 50)
+                Button("Close", action: onClose)
+                    .font(.system(.body, design: .default, weight: .semibold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .frame(minHeight: 44)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.creamWhite)
@@ -1735,6 +1880,7 @@ private extension SipDetailPresentation {
                 SipDetailRatingItem(name: "Taste", score: 3),
                 SipDetailRatingItem(name: "Ambiance", score: 4)
             ],
+            sensorySnapshot: nil,
             visitFacts: [
                 SipDetailVisitFact(label: "With", value: "Amanda", systemImage: "person.2"),
                 SipDetailVisitFact(label: "Address", value: "11 Cannon St", systemImage: "mappin"),

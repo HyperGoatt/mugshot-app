@@ -1246,7 +1246,8 @@ struct RemoteVisitDetailView: View {
             comments: detail.comments,
             likeCount: state.likeCount,
             currentUserHasLiked: state.currentUserHasLiked,
-            privateNote: detail.privateNote
+            privateNote: detail.privateNote,
+            sensorySnapshot: detail.sensorySnapshot
         )
     }
 }

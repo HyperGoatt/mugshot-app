@@ -97,6 +97,7 @@ struct SipDetailPresentationTests {
             privateNote: privateNote,
             photos: [],
             ratings: ratings,
+            sensorySnapshot: nil,
             visitFacts: visitFacts,
             reactions: reactions,
             comments: [],

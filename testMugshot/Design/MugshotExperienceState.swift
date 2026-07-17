@@ -7,6 +7,14 @@ import SwiftUI
 
 enum MugshotUserFacingError {
     static func message(for error: Error, context: Context) -> String {
+        if let pendingError = error as? PendingVisitSubmissionStoreError {
+            return pendingError.localizedDescription
+        }
+
+        if let uploadError = error as? VisitPhotoUploadError {
+            return uploadError.localizedDescription
+        }
+
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost:
@@ -24,8 +32,12 @@ enum MugshotUserFacingError {
         }
 
         switch context {
+        case .sipSave:
+            return "We couldn’t finish this save. Your sip is still here—try again."
+        case .tastingLensSnapshot:
+            return "We couldn’t save the Tasting Lens record. Your sip and tasting answers are still here—try again."
         case .photoUpload:
-            return "We couldn’t add that photo. Your sip is still here—try again or remove the photo."
+            return "We couldn’t upload the photo. Your sip and photo are still here—try again."
         case .social:
             return "We couldn’t save that change. Please try again."
         case .cafeSearch:
@@ -39,13 +51,45 @@ enum MugshotUserFacingError {
         }
     }
 
-    enum Context {
+    enum Context: Equatable {
+        case sipSave
+        case tastingLensSnapshot
         case photoUpload
         case social
         case cafeSearch
         case location
         case account
         case loading
+    }
+}
+
+enum SipRemoteSaveOperation: Equatable {
+    case preparing
+    case creatingVisit
+    case savingTastingLens
+    case uploadingPhotos
+    case finalizing
+
+    var errorContext: MugshotUserFacingError.Context {
+        switch self {
+        case .savingTastingLens:
+            return .tastingLensSnapshot
+        case .uploadingPhotos:
+            return .photoUpload
+        case .preparing, .creatingVisit, .finalizing:
+            return .sipSave
+        }
+    }
+
+    var recoveryMessage: String {
+        switch self {
+        case .savingTastingLens:
+            return "Your sip and Tasting Lens answers are safe. Retry continues the same save."
+        case .uploadingPhotos:
+            return "Your sip and photos are safe. Retry continues the same upload."
+        case .preparing, .creatingVisit, .finalizing:
+            return "Your sip is safe. Retry continues the same save without making a duplicate."
+        }
     }
 }
 

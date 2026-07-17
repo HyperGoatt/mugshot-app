@@ -245,10 +245,16 @@ final class VisitService {
         }
 
         let privateNote: String?
+        let sensorySnapshot: SipSensorySnapshot?
         if currentUserId == row.userId {
             privateNote = try await fetchPrivateNote(visitId: visitId, userId: row.userId)
+            sensorySnapshot = try await SensorySnapshotService(client: client).fetchSnapshot(
+                visitID: visitId,
+                userID: row.userId
+            )
         } else {
             privateNote = nil
+            sensorySnapshot = nil
         }
 
         return RemoteVisitDetail(
@@ -259,7 +265,8 @@ final class VisitService {
             currentUserHasLiked: currentUserId.map { userId in
                 likes.contains { $0.userId == userId }
             } ?? false,
-            privateNote: privateNote
+            privateNote: privateNote,
+            sensorySnapshot: sensorySnapshot
         )
     }
 

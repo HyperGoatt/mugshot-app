@@ -187,6 +187,22 @@ struct testMugshotTests {
             context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
         }
         let userId = UUID()
+        let sensorySnapshot = SipSensorySnapshot(
+            bundleID: "mugshot.sensory.en-US",
+            bundleContentVersion: "2026.07.16.1",
+            identity: SensoryDrinkIdentity(
+                rawName: "Latte",
+                family: .milkCoffee,
+                preparation: .latte,
+                confidence: 1,
+                provenance: .user,
+                userConfirmed: true
+            ),
+            depth: .guided,
+            ownWords: "Silky and cocoa-like",
+            responses: [],
+            personalEnjoyment: PersonalEnjoymentRating(value: 4.5)
+        )
         let record = try store.prepare(
             userId: userId,
             cafe: Cafe(name: "Durable Cafe"),
@@ -197,7 +213,9 @@ struct testMugshotTests {
             notes: nil,
             visibility: .friends,
             ratings: ["Taste": 4],
+            overallScore: 4.5,
             ratingTemplate: RatingTemplate(),
+            sensorySnapshot: sensorySnapshot,
             images: [image],
             posterPhotoIndex: 0
         )
@@ -208,6 +226,8 @@ struct testMugshotTests {
         #expect(restoredStore.load(userId: UUID()) == nil)
         #expect(try restoredStore.loadImages(for: restored).count == 1)
         #expect(restored.objectPaths.count == 1)
+        #expect(restored.sensorySnapshot == sensorySnapshot)
+        #expect(restored.resolvedOverallScore == 4.5)
 
         restoredStore.remove(restored)
         #expect(restoredStore.load(userId: userId) == nil)
@@ -1038,6 +1058,30 @@ struct testMugshotTests {
         #expect(upload.contains("sip"))
     }
 
+    @Test func remoteSaveErrorsNameTheFailedStageAndKeepRetryCopyAccurate() {
+        let rawFailure = NSError(
+            domain: "test",
+            code: 404,
+            userInfo: [NSLocalizedDescriptionKey: "relation missing"]
+        )
+        let snapshot = MugshotUserFacingError.message(
+            for: rawFailure,
+            context: SipRemoteSaveOperation.savingTastingLens.errorContext
+        )
+        let photo = MugshotUserFacingError.message(
+            for: rawFailure,
+            context: SipRemoteSaveOperation.uploadingPhotos.errorContext
+        )
+
+        #expect(snapshot.contains("Tasting Lens"))
+        #expect(snapshot.contains("tasting answers"))
+        #expect(!snapshot.localizedCaseInsensitiveContains("photo"))
+        #expect(photo.localizedCaseInsensitiveContains("photo"))
+        #expect(SipRemoteSaveOperation.savingTastingLens.recoveryMessage.contains("Tasting Lens"))
+        #expect(SipRemoteSaveOperation.uploadingPhotos.recoveryMessage.contains("photos"))
+        #expect(SipRemoteSaveOperation.finalizing.errorContext == .sipSave)
+    }
+
     @Test func presentationNormalizesCafeNamesAndUnratedScores() {
         let cafe = Cafe(name: "  BLUE   BOTTLE COFFEE ", averageRating: 0)
         #expect(cafe.consumerDisplayName == "Blue Bottle Coffee")
@@ -1160,6 +1204,9 @@ struct testMugshotTests {
 
     @Test func naturalLanguageDrinkAnalysisDefaultsToHotAndKeepsOrderEvidenceSeparate() {
         let analysis = DrinkAnalysisParser.analyze("Strawberry matcha with oat milk")
+        let matchaLatte = DrinkAnalysisParser.analyze("Iced strawberry matcha latte with oat milk")
+        let hojichaLatte = DrinkAnalysisParser.analyze("Hojicha latte with macadamia milk")
+        let chaiLatte = DrinkAnalysisParser.analyze("Dirty chai latte with whole milk")
         let hotLatteWithColdFoam = DrinkAnalysisParser.analyze("Vanilla latte with cold foam")
 
         #expect(analysis.rawDrinkName == "Strawberry matcha with oat milk")
@@ -1171,6 +1218,13 @@ struct testMugshotTests {
         #expect(analysis.orderPreferenceSignals.contains("chooses_fruit_flavors"))
         #expect(analysis.orderPreferenceSignals.contains("chooses_sweet_flavors"))
         #expect(!analysis.orderPreferenceSignals.contains("tastes_sweet"))
+        #expect(matchaLatte.family == .matcha)
+        #expect(matchaLatte.preparation == .latte)
+        #expect(hojichaLatte.family == .hojicha)
+        #expect(hojichaLatte.preparation == .latte)
+        #expect(hojichaLatte.milk == "macadamia milk")
+        #expect(chaiLatte.family == .chai)
+        #expect(chaiLatte.preparation == .latte)
         #expect(hotLatteWithColdFoam.temperature == .hot)
     }
 
@@ -1234,7 +1288,7 @@ struct testMugshotTests {
         #expect(unknown.estimatedCaffeineMilligrams == nil)
     }
 
-    @Test func tastingLensReplacesQuickScoreAndExcludesIrrelevantCriteria() {
+    @Test func tastingLensKeepsPersonalStarsIndependentFromLegacyCriteria() {
         var draft = SipDraft(
             captureMode: .addDetails,
             context: .cafe,
@@ -1255,19 +1309,43 @@ struct testMugshotTests {
             ]
         )
 
-        #expect(abs(draft.resolvedOverallScore - (14.0 / 3.0)) < 0.000_001)
+        #expect(draft.resolvedOverallScore == 1)
         #expect(draft.ratingsDictionary["Value"] == nil)
+        #expect(!draft.hasRequiredCore, "A new guided lens save requires a typed sensory snapshot.")
+
+        draft.sensorySnapshot = SipSensorySnapshot(
+            bundleID: "mugshot.sensory.en-US",
+            bundleContentVersion: "2026.07.16.1",
+            identity: SensoryDrinkIdentity(
+                rawName: "Cortado",
+                family: .milkCoffee,
+                preparation: .cortado,
+                confidence: 1,
+                provenance: .user,
+                userConfirmed: true
+            ),
+            depth: .guided,
+            ownWords: "Dense and roasty",
+            responses: [],
+            personalEnjoyment: PersonalEnjoymentRating(value: 1)
+        )
         #expect(draft.hasRequiredCore)
+        #expect(draft.ratingsDictionary.isEmpty, "Typed observations must not be flattened into legacy star criteria.")
 
         draft.ratingCriteria[0].score = 0
         draft.ratingCriteria[1].score = 0
+        #expect(draft.resolvedOverallScore == 1)
+
+        draft.overallScore = 0
         #expect(!draft.hasRequiredCore)
     }
 
     @Test func halfStepRatingMapsTheTrailingHalfOfTheFifthStarToFive() {
         #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 10, starWidth: 40) == 4.5)
         #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 30, starWidth: 40) == 5)
+        #expect(HalfStepStarRating.ratingValue(starIndex: 1, tapX: 10, starWidth: 40) == 1)
         #expect(HalfStepStarRating.ratingValue(starIndex: 1, tapX: 30, starWidth: 40) == 1)
+        #expect(TastingLensEnjoymentRating.ratingValue(starIndex: 1, tapX: 10, starWidth: 40) == 1)
     }
 
     @Test func servingVolumeIsSeparateFromExtractionYieldAndSurvivesDraftEncoding() throws {

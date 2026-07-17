@@ -84,10 +84,6 @@ final class VisitPhotoUploadService {
         }
 
         do {
-            if replacingExisting {
-                _ = try? await storage.remove(paths: paths)
-            }
-
             for (image, path) in zip(uploadImages, paths) {
                 let data = try jpegData(for: image)
 
@@ -97,7 +93,7 @@ final class VisitPhotoUploadService {
                     options: FileOptions(
                         cacheControl: "31536000",
                         contentType: "image/jpeg",
-                        upsert: false
+                        upsert: replacingExisting
                     )
                 )
 

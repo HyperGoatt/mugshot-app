@@ -29,7 +29,11 @@ begin
     ('phase_6_owner_data_export', array['20260714180000','20260714055538']),
     ('harden_owner_data_export_invoker', array['20260714181000','20260714061539']),
     ('followup_discovery_feed_companions', array['20260714190000','20260714151316']),
-    ('fix_visit_companion_visibility_policy', array['20260714200000','20260714185446'])
+    ('fix_visit_companion_visibility_policy', array['20260714200000','20260714185446']),
+    ('tasting_lens_2_core', array['20260717114908']),
+    ('tasting_lens_2_security', array['20260717114953']),
+    ('tasting_lens_2_export', array['20260717115015']),
+    ('tasting_lens_2_indexes', array['20260717115054'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -242,6 +246,47 @@ begin
     where namespace.nspname = 'public' and procedure.proname = 'build_owner_data_export'
       and procedure.prosecdef
   ) then raise exception 'owner data export bypasses caller RLS'; end if;
+
+  if to_regclass('public.visit_sensory_snapshots') is null
+     or to_regclass('public.visit_sensory_public_projections') is null
+     or to_regclass('public.tasting_lens_preferences') is null
+     or to_regclass('public.tasting_lens_corrections') is null then
+    raise exception 'Tasting Lens storage contract is incomplete';
+  end if;
+  if not (select relrowsecurity and relforcerowsecurity
+          from pg_class where oid='public.visit_sensory_snapshots'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.visit_sensory_public_projections'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.tasting_lens_preferences'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.tasting_lens_corrections'::regclass) then
+    raise exception 'Tasting Lens RLS is not enabled and forced';
+  end if;
+  if has_table_privilege('anon','public.visit_sensory_snapshots','SELECT')
+     or has_table_privilege('authenticated','public.visit_sensory_snapshots','UPDATE')
+     or has_table_privilege('authenticated','public.visit_sensory_snapshots','DELETE')
+     or not has_table_privilege('authenticated','public.visit_sensory_snapshots','SELECT')
+     or not has_table_privilege('authenticated','public.visit_sensory_snapshots','INSERT') then
+    raise exception 'immutable sensory snapshot grants are incorrect';
+  end if;
+  if has_table_privilege('anon','public.tasting_lens_corrections','SELECT')
+     or has_table_privilege('authenticated','public.tasting_lens_corrections','UPDATE')
+     or has_table_privilege('authenticated','public.tasting_lens_corrections','DELETE')
+     or not has_table_privilege('authenticated','public.tasting_lens_corrections','SELECT')
+     or not has_table_privilege('authenticated','public.tasting_lens_corrections','INSERT') then
+    raise exception 'append-only sensory correction grants are incorrect';
+  end if;
+  if (select count(*) from pg_policies
+      where schemaname='public' and tablename='visit_sensory_snapshots') <> 2
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='visit_sensory_public_projections') <> 4
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='tasting_lens_preferences') <> 4
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='tasting_lens_corrections') <> 2 then
+    raise exception 'Tasting Lens policy set is incomplete';
+  end if;
 
   if to_regclass('public.visit_companions') is null then
     raise exception 'visit_companions table is missing';
