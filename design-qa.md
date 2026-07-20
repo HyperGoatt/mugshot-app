@@ -275,3 +275,66 @@ final result: passed
 - The original pending save lives on the user's physical device. Its server-side prerequisites and retry contract are repaired, but the final tap on that device cannot be observed from the Simulator.
 
 final result: passed; original-device retry confirmation remains observational
+
+---
+
+# Mugshot V3 UI Lab Design QA
+
+**Final result:** passed
+
+## Comparison target
+
+- Source visual truth:
+  - docs/product-research/mugshot-v3/references/approved-v3-five-screen-direction.png
+  - docs/product-research/mugshot-v3/references/cafe-reflection-direction.png
+- Rendered implementation:
+  - docs/product-research/mugshot-v3/ui-lab/01-setup.jpg
+  - docs/product-research/mugshot-v3/ui-lab/02-sip.jpg
+  - docs/product-research/mugshot-v3/ui-lab/03-cafe.jpg
+  - docs/product-research/mugshot-v3/ui-lab/04-publish.jpg
+  - docs/product-research/mugshot-v3/ui-lab/05-passport.jpg
+- Viewport: iPhone 17 Pro Simulator; XcodeBuildMCP optimized captures at 368 x 800 pixels.
+- State: populated Cafe fixture for an Iced Orange Creamsicle at The Daily, using 2.5 Sip, 3.5 Cafe, and 3.0 Mugshot scores.
+
+The two complete reference boards and all five final Simulator captures were opened together in one comparison input. The setup, sip, cafe, publish, and passport captures are each focused phone-size comparisons; separate crops were not needed because typography, controls, photos, criteria, and supporting copy remained legible at the captured resolution.
+
+## Required fidelity surfaces
+
+- **Fonts and typography:** The implementation preserves the approved editorial serif hierarchy with Mugshot's iOS system-serif modifier. Small controls use the existing system sans-serif. The expected Source Serif 4-to-system-serif platform difference is intentional and does not change hierarchy or wrapping materially.
+- **Spacing and layout rhythm:** Cream canvas, restrained card borders, rounded image masks, compact criteria, and bottom actions track the source. The extra back control and n-of-5 menu are intentional DEBUG-only review chrome; they will not define production navigation. All content remains scrollable above the sticky action.
+- **Colors and visual tokens:** The implementation uses the existing Mugshot cream, foam, sage, mint, sand, line, and espresso tokens. Selection, score, and confidence treatments match the source's quiet sage emphasis.
+- **Image quality and asset fidelity:** All drink and place imagery is raster source material in the asset catalog. The final hero is a project-bound ImageGen edit with natural orange peel, creamsicle marbling, and a wide-card crop that reads correctly at setup and publish sizes. No placeholder drawing or inline vector approximation is used.
+- **Copy and content:** Titles, journal/private distinction, advisory criteria language, blended score, audience framing, evidence counts, confidence language, and non-radar Taste Passport identity all follow the locked interview record.
+
+## Interaction evidence
+
+- Opened the lab from Settings > Developer.
+- Completed Setup -> Sip -> Cafe -> Publish -> Taste Passport once.
+- Switched Cafe to Home and verified the surface changed to "Would you make it again?", then returned to Cafe.
+- Opened Mugsy coaching, advanced from the first to the second prompt, and verified the prompt state advanced without changing the journal text.
+- Exercised the publish action and verified it landed on Taste Passport.
+- The final Debug build and launch passed. Four focused fixture tests passed, covering advisory scoring, Home scoring, raw-note visibility constraints, and human-language importance weights. Runtime logs contained no fatal error, assertion failure, crash, uncaught exception, or app-termination signal during the checked journey.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 - Hero did not communicate orange creamsicle clearly.** The first asset read as a generic iced latte, while the source used visible orange garnish and cream/orange movement.
+  - Fix: generated a non-destructive V2 hero edit with thin orange-peel curls, a small orange segment, and subtle creamsicle marbling; updated the lab to use V3OrangeCreamsicleHeroV2.
+- **P2 - Criterion rows were materially taller than the source.** Only one criterion appeared above the action, making optional depth feel longer and more work-like.
+  - Fix: changed the criterion component to a compact shared-card row with title, small half-star rating, human-language importance, pin, and remove controls on one line.
+
+### Pass 2
+
+- **P2 - Cafe journal height hid the suggestions that the approved source kept visible.**
+  - Fix: tightened only the context journal to a 106-point minimum while preserving room for two lines of raw thought and the Mugsy prompt affordance.
+
+### Pass 3
+
+- Rebuilt and recaptured the revised Cafe state.
+- No actionable P0, P1, or P2 mismatch remained.
+
+## Follow-up polish
+
+- **P3:** The DEBUG-only back button and step menu add review chrome above the source composition. Keep them in the lab for fast navigation; omit or redesign them when the flow is mapped into production navigation.
+- **P3:** The Passport uses a restrained map-memory card instead of the source's decorative route and stamp illustration. The city-memory meaning is preserved; a bespoke illustration can be added later if alpha feedback shows it materially improves delight.

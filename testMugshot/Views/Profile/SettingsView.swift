@@ -323,6 +323,34 @@ struct SettingsView: View {
                 .foregroundColor(.tertiaryText)
 
             NavigationLink {
+                LogASipV3LabView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "rectangle.stack.badge.play.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                        .frame(width: 34, height: 34)
+                        .background(Color.mugshotSage.opacity(0.16))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Log a Sip V3 UI Lab")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                        Text("Five-screen visual prototype with fixture data")
+                            .font(.system(size: 12))
+                            .foregroundColor(.tertiaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.tertiaryText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 46)
+
+            NavigationLink {
                 MugsyStudioView()
             } label: {
                 HStack(spacing: 12) {
