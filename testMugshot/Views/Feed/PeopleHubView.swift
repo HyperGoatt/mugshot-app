@@ -417,7 +417,7 @@ private struct PublicProfileView: View {
                         stats: MugshotPassportStats(
                             sips: payload.stats.visibleVisits,
                             cafes: payload.stats.cafes,
-                            homeSips: payload.stats.homeSips ?? payload.visits.filter { $0.journalContext != .cafe }.count,
+                            homeSips: payload.stats.homeSips ?? payload.visits.filter { $0.journalContext == .home }.count,
                             averageRating: payload.visits.isEmpty
                                 ? nil
                                 : payload.visits.reduce(0) { $0 + $1.overallScore } / Double(payload.visits.count)
@@ -573,6 +573,7 @@ private struct PublicProfileView: View {
             cafes: Array(Dictionary(grouping: cafes, by: \.id).values.compactMap { $0.first }),
             highlightedCafe: nil,
             friendCounts: [:],
+            pinScores: [:],
             showsFriendContext: false,
             showsUserLocation: false,
             trackingMode: .constant(.none),
@@ -627,7 +628,7 @@ private struct PublicProfileView: View {
             switch selectedSipFilter {
             case .all: return true
             case .cafe: return visit.journalContext == .cafe
-            case .home: return visit.journalContext != .cafe
+            case .home: return visit.journalContext == .home
             }
         }
     }

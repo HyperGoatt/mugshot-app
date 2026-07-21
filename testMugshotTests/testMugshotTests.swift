@@ -250,6 +250,60 @@ struct testMugshotTests {
         #expect(store.pendingPaths(userId: UUID()).isEmpty)
     }
 
+    @Test func privateVisitPhotoReferencesRoundTripWithoutExpiringURLs() throws {
+        let path = "71500ca8-a989-4416-b716-c160325c79ba/4b37b6e8-62c3-4016-8163-28cdb804e792/photo one.jpg"
+        let reference = try #require(VisitPhotoStorageReference(
+            bucketName: VisitPhotoStorageReference.privateBucketName,
+            objectPath: path
+        ))
+
+        #expect(
+            reference.storedValue ==
+                "mugshot-storage://visit-photos-private/71500ca8-a989-4416-b716-c160325c79ba/4b37b6e8-62c3-4016-8163-28cdb804e792/photo%20one.jpg"
+        )
+        #expect(VisitPhotoStorageReference(storedValue: reference.storedValue) == reference)
+        #expect(
+            VisitPhotoStorageLocation(storedValue: reference.storedValue) ==
+                VisitPhotoStorageLocation(
+                    bucketName: VisitPhotoStorageReference.privateBucketName,
+                    objectPath: path
+                )
+        )
+        #expect(
+            VisitPhotoStorageReference(
+                bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+                objectPath: path
+            ) == nil
+        )
+        #expect(
+            VisitPhotoStorageReference(
+                storedValue: "mugshot-storage://visit-photos-private/../escape.jpg"
+            ) == nil
+        )
+    }
+
+    @Test func visitMediaCleanupQueuePreservesPrivateAndLegacyBuckets() throws {
+        let suite = "VisitMediaCleanupBucketTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = VisitMediaCleanupStore(defaults: defaults)
+        let userId = UUID()
+        let legacy = VisitPhotoStorageLocation(
+            bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+            objectPath: "owner/visit/legacy.jpg"
+        )
+        let privatePhoto = VisitPhotoStorageLocation(
+            bucketName: VisitPhotoStorageReference.privateBucketName,
+            objectPath: "owner/visit/private.jpg"
+        )
+
+        store.enqueue([legacy, privatePhoto, privatePhoto], userId: userId)
+
+        #expect(Set(store.pendingLocations(userId: userId)) == Set([legacy, privatePhoto]))
+        store.remove([privatePhoto], userId: userId)
+        #expect(store.pendingLocations(userId: userId) == [legacy])
+    }
+
     @MainActor
     @Test func mapSearchCorrectsCommonPlaceTyposWithoutChangingGoodQueries() {
         #expect(MapSearchService.correctedSearchQuery("cofee shop") == "coffee shop")
@@ -438,9 +492,156 @@ struct testMugshotTests {
         #expect(snapshot.pins.count == 2)
         #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.visitCount == 2)
         #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.averageScore == 4.5)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.score?.source == .sip)
         #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.isFavorite == true)
         #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.visitCount == 0)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.score == nil)
         #expect(snapshot.pins.contains(where: { $0.cafe.id == inactiveCafe.id }) == false)
+    }
+
+    @Test func mapPinsPreferCafeEvidenceAndBalanceSipFallbackByPhysicalSession() {
+        let sharedSession = UUID()
+        let sipFallback = MapPinScoreResolver.resolve(
+            sips: [
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: sharedSession),
+                MapSipScoreSeed(overallScore: 1, cafeSessionID: sharedSession),
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
+            ],
+            cafeSummary: nil,
+            audience: .personal
+        )
+
+        #expect(sipFallback?.source == .sip)
+        #expect(sipFallback?.value == 4)
+        #expect(sipFallback?.sipCount == 3)
+        #expect(sipFallback?.physicalSessionCount == 2)
+        #expect(sipFallback?.evidenceDescription == "3 sips across 2 visits")
+
+        let cafeID = UUID()
+        let cafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: cafeID,
+            scope: "personal",
+            physicalSessionCount: 1,
+            ratedSessionCount: 1,
+            contributorCount: 1,
+            averageCafeRating: 2.5,
+            latestNextMove: "come_back_try_another",
+            relationshipStageValue: "first_impression",
+            communityThresholdMet: true
+        )
+        let cafeFirst = MapPinScoreResolver.resolve(
+            sips: [
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
+            ],
+            cafeSummary: cafeSummary,
+            audience: .personal
+        )
+
+        #expect(cafeFirst?.source == .cafe)
+        #expect(cafeFirst?.value == 2.5)
+        #expect(cafeFirst?.relationshipStage == .firstImpression)
+        #expect(cafeFirst?.pinUseTitle == "Pin uses your Cafe average")
+        #expect(cafeFirst?.evidenceDescription == "First impression · 1 rated Cafe Session")
+    }
+
+    @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
+        #expect(
+            MapDiscoveryScope.available(isAuthenticated: true) ==
+                [.visited, .friends, .favorites, .wantToTry, .all]
+        )
+        #expect(
+            MapDiscoveryScope.available(isAuthenticated: false) ==
+                [.visited, .favorites, .wantToTry, .all]
+        )
+    }
+
+    @Test func mapPinRatingBandsUseClassicTrafficLightThresholds() {
+        #expect(MapPinRatingBand(score: 5) == .high)
+        #expect(MapPinRatingBand(score: 4) == .high)
+        #expect(MapPinRatingBand(score: 3.9) == .middle)
+        #expect(MapPinRatingBand(score: 3) == .middle)
+        #expect(MapPinRatingBand(score: 2.9) == .low)
+        #expect(MapPinRatingBand(score: 0) == .unrated)
+        #expect(MapPinRatingBand(score: nil) == .unrated)
+    }
+
+    @Test func mapPinPresentationKeepsScorePrimaryAndUsesStateBadgesOnlyInAll() {
+        let cafe = Cafe(
+            name: "Mugshot Test Cafe",
+            isFavorite: true,
+            wantToTry: true,
+            visitCount: 2
+        )
+        let score = MapPinScore(
+            value: 4.25,
+            source: .cafe,
+            audience: .personal,
+            ratedCafeSessionCount: 2,
+            physicalSessionCount: 2,
+            sipCount: 0,
+            contributorCount: 1,
+            relationshipStage: .emergingView
+        )
+
+        let all = MapPinPresentation.resolve(
+            scope: .all,
+            cafe: cafe,
+            pinScore: score,
+            friendCount: 3
+        )
+        #expect(all.primaryKind == .journal)
+        #expect(all.scoreText == "4.2")
+        #expect(all.ratingBand == .high)
+        #expect(all.showsFavoriteBadge)
+        #expect(all.showsWantToTryBadge)
+        #expect(all.showsFriendsBadge)
+
+        let favorite = MapPinPresentation.resolve(
+            scope: .favorites,
+            cafe: cafe,
+            pinScore: score,
+            friendCount: 3
+        )
+        #expect(favorite.primaryKind == .favorite)
+        #expect(!favorite.hasStateBadges)
+
+        let friends = MapPinPresentation.resolve(
+            scope: .friends,
+            cafe: cafe,
+            pinScore: nil,
+            friendCount: 3
+        )
+        #expect(friends.primaryKind == .friends)
+        #expect(friends.scoreText == nil)
+        #expect(friends.ratingBand == .unrated)
+        #expect(friends.friendCount == 3)
+    }
+
+    @Test func friendMapSipSummaryPreservesItsSourceAndEvidence() throws {
+        let cafeID = UUID()
+        let json = """
+        {
+          "cafe_id":"\(cafeID.uuidString)",
+          "average_sip_rating":3.875,
+          "sip_count":3,
+          "physical_session_count":2,
+          "contributor_count":1
+        }
+        """
+        let summary = try JSONDecoder().decode(
+            RemoteFriendMapSipSummary.self,
+            from: Data(json.utf8)
+        )
+
+        #expect(summary.mapPinScore?.source == .sip)
+        #expect(summary.mapPinScore?.audience == .friends)
+        #expect(summary.mapPinScore?.value == 3.875)
+        #expect(summary.mapPinScore?.pinUseTitle == "Pin uses friends’ Sip fallback")
+        #expect(
+            summary.mapPinScore?.evidenceDescription ==
+                "3 sips across 2 visits · 1 friend"
+        )
     }
 
     @Test func mapPinsDoNotRenderUnratedLegacyVisitsAsCafeMarkers() {
@@ -600,11 +801,21 @@ struct testMugshotTests {
         #expect(row.createdAtDate > Date(timeIntervalSince1970: 0))
     }
 
-    @Test func remoteVisitSummaryUsesCraftLocationWhenCafeIsMissing() {
+    @Test func remoteVisitSummaryUsesContextLocationAndHidesStaleCafeAddress() {
+        let staleCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Stale Cafe",
+            address: "123 Private Way",
+            city: "Charleston, SC",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
         let row = SupabaseVisitRow(
             id: UUID(),
             userId: UUID(),
-            cafeId: nil,
+            cafeId: staleCafe.id,
             drinkType: "Tea",
             drinkTypeCustom: nil,
             drinkSubtype: "Jasmine",
@@ -621,10 +832,10 @@ struct testMugshotTests {
             createdAt: "2026-07-01T12:34:56Z"
         )
 
-        let summary = RemoteVisitSummary(visit: row, cafe: nil)
+        let summary = RemoteVisitSummary(visit: row, cafe: staleCafe)
 
         #expect(summary.locationTitle == "Kitchen counter")
-        #expect(summary.locationSubtitle == "Charleston, SC")
+        #expect(summary.locationSubtitle == nil)
         #expect(row.backendVisibilityLabel == "Private")
     }
 
@@ -655,9 +866,16 @@ struct testMugshotTests {
                 SupabaseVisitPhotoRow(
                     id: UUID(),
                     visitId: row.id,
-                    photoURL: "https://example.com/second.jpg",
+                    photoURL: "https://example.com/poster.jpg",
                     sortOrder: 2,
                     createdAt: "2026-07-01T12:36:56Z"
+                ),
+                SupabaseVisitPhotoRow(
+                    id: UUID(),
+                    visitId: row.id,
+                    photoURL: "https://example.com/second.jpg",
+                    sortOrder: 3,
+                    createdAt: "2026-07-01T12:37:56Z"
                 ),
                 SupabaseVisitPhotoRow(
                     id: UUID(),
@@ -859,6 +1077,43 @@ struct testMugshotTests {
         #expect(categoryScores[0]["weight"] as? Double == 2)
     }
 
+    @Test func nonCafeVisitInsertDropsStaleCafeAssociation() throws {
+        let remoteCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Should Not Persist",
+            address: "123 Cafe Way",
+            city: "Charleston, SC",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let insert = try SupabaseVisitInsert.make(
+            userId: UUID(),
+            remoteCafe: remoteCafe,
+            entryContext: .elsewhere,
+            locationName: "Window seat on the Coast Starlight",
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Train coffee",
+            caption: "A moving memory",
+            notes: nil,
+            visibility: .friends,
+            ratings: ["Taste": 3],
+            ratingTemplate: RatingTemplate(categories: [
+                RatingCategory(name: "Taste", weight: 1)
+            ])
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(insert)) as? [String: Any]
+        )
+
+        #expect(object["cafe_id"] == nil)
+        #expect(object["context_type"] as? String == "Elsewhere")
+        #expect(object["location_name"] as? String == "Window seat on the Coast Starlight")
+        #expect(object["city_state"] == nil)
+    }
+
     @Test func visitInsertPayloadMapsCustomDrinkAndRejectsMissingRating() throws {
         let userId = UUID()
         let remoteCafe = SupabaseCafeSummary(
@@ -1056,6 +1311,69 @@ struct testMugshotTests {
         )
         #expect(!upload.contains("endpoint"))
         #expect(upload.contains("sip"))
+
+        let missingCafeSessionsCapability = MugshotUserFacingError.message(
+            for: NSError(
+                domain: "PostgREST",
+                code: 404,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Could not find the function public.get_cafe_sessions_capability_v1"
+                ]
+            ),
+            context: .loading
+        )
+        #expect(!missingCafeSessionsCapability.contains("session ended"))
+        #expect(missingCafeSessionsCapability.contains("load"))
+
+        let expiredJWT = MugshotUserFacingError.message(
+            for: NSError(
+                domain: "Auth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "JWT expired"]
+            ),
+            context: .loading
+        )
+        #expect(expiredJWT.contains("session ended"))
+    }
+
+    @Test func visitQueriesFallBackOnlyForMissingCafeSessionColumns() {
+        let missingColumn = NSError(
+            domain: "PostgREST",
+            code: 400,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Could not find the 'cafe_session_id' column of 'visits' in the schema cache"
+            ]
+        )
+        #expect(VisitSchemaCompatibility.isMissingCafeSessionColumn(missingColumn))
+
+        let expiredSession = NSError(
+            domain: "Auth",
+            code: 401,
+            userInfo: [NSLocalizedDescriptionKey: "JWT expired"]
+        )
+        #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(expiredSession))
+
+        let unrelatedMissingColumn = NSError(
+            domain: "PostgREST",
+            code: 400,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Could not find the 'poster_photo_url' column of 'visits' in the schema cache"
+            ]
+        )
+        #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(unrelatedMissingColumn))
+    }
+
+    @Test func v3ProjectionRequestsBatchEveryVisitWithoutDuplicates() {
+        let identifiers = (0..<205).map { _ in UUID() }
+        let batches = VisitService.v3ProjectionBatches(
+            visitIDs: identifiers + [identifiers[20], identifiers[140]]
+        )
+
+        #expect(batches.map(\.count) == [100, 100, 5])
+        #expect(batches.flatMap { $0 } == identifiers)
     }
 
     @Test func remoteSaveErrorsNameTheFailedStageAndKeepRetryCopyAccurate() {
@@ -1085,7 +1403,7 @@ struct testMugshotTests {
     @Test func presentationNormalizesCafeNamesAndUnratedScores() {
         let cafe = Cafe(name: "  BLUE   BOTTLE COFFEE ", averageRating: 0)
         #expect(cafe.consumerDisplayName == "Blue Bottle Coffee")
-        #expect(cafe.consumerScoreLabel == "Unrated")
+        #expect(cafe.consumerScoreLabel == "Cafe not rated")
 
         let remoteCafe = SupabaseCafeSummary(
             id: UUID(),
@@ -1780,6 +2098,55 @@ struct testMugshotTests {
         #expect(stats.topCafes.first?.cafe.id == cafeId)
         #expect(stats.topCafes.first?.visitCount == 2)
         #expect(stats.topCafes.first?.posterPhotoURL == "https://example.com/a.jpg")
+
+        let cafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: cafeId,
+            scope: "personal",
+            physicalSessionCount: 3,
+            ratedSessionCount: 3,
+            contributorCount: 1,
+            averageCafeRating: 2,
+            latestNextMove: "come_back_try_another",
+            relationshipStageValue: "trend",
+            communityThresholdMet: true
+        )
+        let otherCafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: otherCafeId,
+            scope: "personal",
+            physicalSessionCount: 1,
+            ratedSessionCount: 1,
+            contributorCount: 1,
+            averageCafeRating: 5,
+            latestNextMove: "come_back_for_this",
+            relationshipStageValue: "first_impression",
+            communityThresholdMet: true
+        )
+
+        let cafeExperienceRanking = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: [cafeSummary, otherCafeSummary]
+        )
+        #expect(cafeExperienceRanking.basis == .cafeExperience)
+        #expect(cafeExperienceRanking.entries.map(\.cafe.id) == [otherCafeId, cafeId])
+        #expect(cafeExperienceRanking.entries.first?.score == 5)
+        #expect(cafeExperienceRanking.entries.first?.ratedCafeSessionCount == 1)
+
+        let partiallyRated = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: [otherCafeSummary]
+        )
+        #expect(partiallyRated.basis == .cafeExperience)
+        #expect(partiallyRated.entries.map(\.cafe.id) == [otherCafeId])
+
+        let sipAverageFallback = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: []
+        )
+        #expect(sipAverageFallback.basis == .sipAverageLegacy)
+        #expect(sipAverageFallback.entries.first?.cafe.id == cafeId)
+        #expect(sipAverageFallback.entries.first?.score == 4.5)
     }
 
     @Test func settingsLegalAndMugsyPresenceAreCovered() {
@@ -2273,7 +2640,7 @@ struct testMugshotTests {
         #expect(MapDiscoveryScope.visited.sections(isAuthenticated: true).isEmpty)
         #expect(MapDiscoveryScope.all.sections(isAuthenticated: true) == [.nearby, .lovedByFriends, .trending])
         #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
-        #expect(MapDiscoveryScope.available(isAuthenticated: false) == [.all, .favorites, .wantToTry, .visited])
+        #expect(MapDiscoveryScope.available(isAuthenticated: false) == [.visited, .favorites, .wantToTry, .all])
     }
 
     @Test func mapDiscoveryRadiusUsesAZeroToFiftyMileControl() {

@@ -195,6 +195,96 @@ final class CafeVisibilityPreferenceStore {
     }
 }
 
+enum CafeSessionContinuationStage: String, Codable {
+    case completion
+    case activeAdditionalSip
+}
+
+/// Durable handoff between a completed cafe-session sip and the optional
+/// "Add another sip" action. This is deliberately separate from the sip
+/// draft: secondary sips carry only a compact session reference so Cafe Pulse
+/// is never duplicated into each drink.
+struct CafeSessionContinuationRecord: Codable, Equatable {
+    var ownerUserID: UUID?
+    var session: CafeSessionDraft
+    var cafe: Cafe
+    var summary: SipCompletionSnapshot
+    var stage: CafeSessionContinuationStage
+    var activeDraftID: UUID?
+    var updatedAt: Date
+}
+
+struct SipCompletionSnapshot: Codable, Equatable {
+    let drinkName: String
+    let locationName: String
+    let context: JournalEntryContext
+    let score: Double
+    let visibility: VisitVisibility
+    let usedTastingLens: Bool
+    let hasPhoto: Bool
+    let hasThought: Bool
+    let hasPrivateNote: Bool
+    let hasBrewDetails: Bool
+    let isCafeSession: Bool
+    let cafeRating: Double?
+    let nextMove: CafeNextMoveKind
+}
+
+final class CafeSessionContinuationStore {
+    static let shared = CafeSessionContinuationStore()
+
+    private let defaults: UserDefaults
+    private let keyPrefix = "MugshotCafeSessionContinuation.v1."
+    private let expirationInterval: TimeInterval
+
+    init(
+        defaults: UserDefaults = .standard,
+        expirationInterval: TimeInterval = 24 * 60 * 60
+    ) {
+        self.defaults = defaults
+        self.expirationInterval = expirationInterval
+    }
+
+    func save(_ record: CafeSessionContinuationRecord) throws {
+        defaults.set(
+            try JSONEncoder.mugshotDraftEncoder.encode(record),
+            forKey: storageKey(record.ownerUserID)
+        )
+    }
+
+    func load(ownerUserID: UUID?, now: Date = .now) -> CafeSessionContinuationRecord? {
+        let key = storageKey(ownerUserID)
+        guard let data = defaults.data(forKey: key),
+              let record = try? JSONDecoder.mugshotDraftDecoder.decode(
+                CafeSessionContinuationRecord.self,
+                from: data
+              ) else {
+            return nil
+        }
+        guard now.timeIntervalSince(record.updatedAt) <= expirationInterval else {
+            defaults.removeObject(forKey: key)
+            return nil
+        }
+        return record
+    }
+
+    func remove(ownerUserID: UUID?) {
+        defaults.removeObject(forKey: storageKey(ownerUserID))
+    }
+
+#if DEBUG
+    func removeAllForTesting() {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+#endif
+
+    private func storageKey(_ ownerUserID: UUID?) -> String {
+        keyPrefix + (ownerUserID?.uuidString.lowercased() ?? "anonymous")
+    }
+}
+
 private extension JSONEncoder {
     static var mugshotDraftEncoder: JSONEncoder {
         let encoder = JSONEncoder()

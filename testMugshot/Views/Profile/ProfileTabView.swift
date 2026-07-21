@@ -91,9 +91,9 @@ private struct LegacyProfileTabView: View {
 
     private var homeExperimentCount: Int {
         if authModel.authenticatedUser != nil {
-            return remoteProfileVisits.filter { $0.visit.journalContext != .cafe }.count
+            return remoteProfileVisits.filter { $0.visit.journalContext == .home }.count
         }
-        return dataManager.appData.visits.filter { $0.context != .cafe }.count
+        return dataManager.appData.visits.filter { $0.context == .home }.count
     }
 
     var body: some View {
@@ -225,12 +225,12 @@ private struct LegacyProfileTabView: View {
 
     private var statsStrip: some View {
         HStack(spacing: 8) {
-            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
+            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Sips")
             MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
             MugshotStatPill(
                 icon: "star.fill",
                 value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
-                label: "Avg"
+                label: "Sip avg"
             )
             MugshotStatPill(icon: "house.fill", value: "\(homeExperimentCount)", label: "Home")
         }
@@ -635,7 +635,7 @@ struct CoffeeJourneyView: View {
                     )
 
                     identityTile(
-                        title: "Favorite cafe",
+                        title: "Cafe in sip history",
                         value: topCafeName ?? "Still exploring",
                         icon: "mappin.circle.fill"
                     )
@@ -1000,7 +1000,9 @@ struct RemoteVisitSummaryCard: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
             } else {
-                RemoteVisitNoPhotoThumbnail()
+                RemoteVisitNoPhotoThumbnail(
+                    usesMugsyFallback: visit.usesMugsyPhotoFallback
+                )
             }
         }
     }
@@ -1009,7 +1011,7 @@ struct RemoteVisitSummaryCard: View {
         HStack(spacing: 4) {
             Image(systemName: "star.fill")
                 .font(.system(size: 11))
-            Text(String(format: "%.1f", visit.visit.overallScore))
+            Text(String(format: "%.1f", visit.displayedMugshotScore))
                 .font(.system(size: 12, weight: .bold))
         }
         .foregroundColor(hasPhoto ? .creamWhite : .espressoBrown)
@@ -1049,13 +1051,25 @@ struct RemoteVisitSummaryCard: View {
 }
 
 struct RemoteVisitNoPhotoThumbnail: View {
+    var usesMugsyFallback = false
+
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.4))
+            if usesMugsyFallback {
+                MugsyModelView(configuration: MugsyModelConfiguration(
+                    expression: .curious,
+                    prop: .camera,
+                    pose: .leaningLeft
+                ))
+                .frame(width: 44, height: 44)
+                .accessibilityHidden(true)
+            } else {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.espressoBrown.opacity(0.4))
+            }
 
-            Text("No photo")
+            Text(usesMugsyFallback ? "Missed photo" : "No photo")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(.espressoBrown.opacity(0.55))
                 .lineLimit(1)
@@ -1142,8 +1156,8 @@ struct RemoteTopCafeCard: View {
                 }
 
                 HStack(spacing: 8) {
-                    Label(String(format: "%.1f", topCafe.averageScore), systemImage: "star.fill")
-                    Label("\(topCafe.visitCount)", systemImage: "cup.and.saucer.fill")
+                    Label("Sip avg \(String(format: "%.1f", topCafe.averageScore))", systemImage: "star.fill")
+                    Label("\(topCafe.visitCount) sips", systemImage: "cup.and.saucer.fill")
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.espressoBrown.opacity(0.68))

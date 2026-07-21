@@ -21,6 +21,7 @@ enum SipGuidedStep: String, Codable, CaseIterable {
     case context
     case drink
     case rating
+    case cafePulse = "cafe_pulse"
     /// Keeps the legacy raw value so in-progress drafts saved on the former
     /// optional-details step restore into the new audience step.
     case audience = "memory"
@@ -30,7 +31,8 @@ enum SipGuidedStep: String, Codable, CaseIterable {
         case .context: return 1
         case .drink: return 2
         case .rating: return 3
-        case .audience: return 4
+        case .cafePulse: return 4
+        case .audience: return 5
         }
     }
 }

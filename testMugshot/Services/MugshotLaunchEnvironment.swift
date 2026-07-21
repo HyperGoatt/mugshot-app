@@ -10,6 +10,8 @@ enum MugshotLaunchEnvironment {
     static let isUITestingSignedOut = arguments.contains("--ui-testing-signed-out")
     static let shouldResetUITestState = arguments.contains("--ui-testing-reset")
     static let shouldSeedUITestPhoto = arguments.contains("--ui-testing-seed-photo")
+    static let shouldSeedUITestMapSearchRecent = arguments.contains("--ui-testing-seed-map-search-recent")
+    static let shouldSeedUITestV3LabParity = arguments.contains("--ui-testing-seed-v3-lab-parity")
 
     static func prepareDebugFailureHooks() {
         if arguments.contains("--debug-reset-failure-hooks") {

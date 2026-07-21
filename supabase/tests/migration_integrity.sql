@@ -33,7 +33,10 @@ begin
     ('tasting_lens_2_core', array['20260717114908']),
     ('tasting_lens_2_security', array['20260717114953']),
     ('tasting_lens_2_export', array['20260717115015']),
-    ('tasting_lens_2_indexes', array['20260717115054'])
+    ('tasting_lens_2_indexes', array['20260717115054']),
+    ('cafe_sessions_and_pulse', array['20260717142724']),
+    ('private_visit_photo_storage', array['20260717150000']),
+    ('session_balanced_map_pin_scores', array['20260717185855'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -214,6 +217,43 @@ begin
       and policyname='View photos based on completed visit visibility'
       and cmd='SELECT'
   ) then raise exception 'visit-photo visibility policy is missing'; end if;
+  if not exists (
+    select 1
+    from storage.buckets
+    where id='visit-photos-private'
+      and not public
+      and file_size_limit=10485760
+      and allowed_mime_types @> array['image/jpeg','image/png','image/gif','image/webp','image/heic']
+  ) then raise exception 'private visit-photo bucket contract is incomplete'; end if;
+  if (
+    select count(*)
+    from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname in (
+        'Owners upload private visit photos',
+        'Owners update private visit photos',
+        'Owners delete private visit photos',
+        'Visit audiences read private visit photos',
+        'Anonymous viewers read Everyone private visit photos'
+      )
+  ) <> 5 then raise exception 'private visit-photo policies are incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='Visit audiences read private visit photos'
+      and cmd='SELECT'
+      and qual ilike '%can_view_visit_photo_object%'
+  ) then raise exception 'private visit-photo audience policy is incomplete'; end if;
+  if not has_function_privilege(
+       'anon',
+       'public.can_view_visit_photo_object(text)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.can_view_visit_photo_object(text)',
+       'EXECUTE'
+     ) then raise exception 'visit-photo audience helper grants are incomplete'; end if;
 
   if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then
@@ -327,6 +367,18 @@ begin
   if has_function_privilege('anon','public.get_public_profile(uuid)','EXECUTE')
      or not has_function_privilege('authenticated','public.get_public_profile(uuid)','EXECUTE') then
     raise exception 'public profile RPC grants are incorrect';
+  end if;
+  if has_function_privilege(
+       'anon',
+       'public.get_friend_map_sip_summaries_v1(uuid[])',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.get_friend_map_sip_summaries_v1(uuid[])',
+       'EXECUTE'
+     ) then
+    raise exception 'friend map Sip summary RPC grants are incorrect';
   end if;
 end $$;
 

@@ -694,7 +694,10 @@ struct FeedTabView: View {
             socialState: socialState,
             rankingScore: visit.rankingScore,
             recommendationReason: visit.recommendationReason,
-            recommendationReasonType: visit.recommendationReasonType
+            recommendationReasonType: visit.recommendationReasonType,
+            sessionSipCount: visit.sessionSipCount,
+            cafePulseProjection: visit.cafePulseProjection,
+            v3FeedProjection: visit.v3FeedProjection
         )
     }
 }
@@ -717,6 +720,14 @@ struct RemoteFeedVisitCard: View {
 
     private var hasPhoto: Bool {
         visit.visit.posterPhotoURL != nil
+    }
+
+    private var displayedScore: Double {
+        visit.v3FeedProjection?.mugshotScore ?? visit.visit.overallScore
+    }
+
+    private var usesMugsyPhotoFallback: Bool {
+        visit.v3FeedProjection?.usesMugsyPhotoFallback == true
     }
 
     private var posterHeight: CGFloat {
@@ -796,7 +807,7 @@ struct RemoteFeedVisitCard: View {
                             placeholderSystemName: "photo.on.rectangle"
                         )
                     } else {
-                        RemoteFeedNoPhotoPoster()
+                        RemoteFeedNoPhotoPoster(usesMugsyFallback: usesMugsyPhotoFallback)
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -804,11 +815,11 @@ struct RemoteFeedVisitCard: View {
 
                 locationOverlay
 
-                if visit.visit.overallScore > 0 {
+                if displayedScore > 0 {
                     VStack {
                         HStack {
                             Spacer()
-                            MugshotRatingBadge(score: visit.visit.overallScore, onPhoto: true)
+                            MugshotRatingBadge(score: displayedScore, onPhoto: true)
                                 .padding(12)
                         }
                         Spacer()
@@ -825,7 +836,7 @@ struct RemoteFeedVisitCard: View {
     private var locationOverlay: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Label(visit.locationTitle, systemImage: visit.cafe == nil ? "house.fill" : "mappin.circle.fill")
+                Label(visit.locationTitle, systemImage: visit.visit.journalContext.systemImage)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.creamWhite)
                     .lineLimit(2)
@@ -864,6 +875,37 @@ struct RemoteFeedVisitCard: View {
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if visit.additionalSessionSipCount > 0 {
+                Label(
+                    "+\(visit.additionalSessionSipCount) more \(visit.additionalSessionSipCount == 1 ? "sip" : "sips") this visit",
+                    systemImage: "cup.and.saucer.fill"
+                )
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.mugshotSage)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(Color.mugshotMint.opacity(0.28), in: Capsule())
+            }
+
+            if let projection = visit.cafePulseProjection {
+                HStack(spacing: 8) {
+                    if projection.includesCafeRating,
+                       let cafeRating = projection.cafeRating {
+                        Label(
+                            "Cafe \(String(format: "%.1f", cafeRating))",
+                            systemImage: "storefront.fill"
+                        )
+                    }
+                    if projection.includesNextMove,
+                       let nextMove = projection.nextMove {
+                        Label(nextMove.title, systemImage: "arrow.triangle.branch")
+                    }
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.roastBrown)
+                .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let caption = consumerPreviewCaption(visit.visit.caption) {
                 Text(caption)
@@ -922,17 +964,19 @@ struct RemoteFeedVisitCard: View {
             .accessibilityLabel("Comment, \(visit.socialState.commentCount) comments")
             .accessibilityHint("Opens visit details and the comment field")
 
-            Button(action: onSaveCafe) {
-                socialActionLabel(
-                    value: nil,
-                    systemImage: isCafeSaved ? "bookmark.fill" : "bookmark",
-                    isActive: isCafeSaved
-                )
+            if visit.visit.journalContext == .cafe, visit.cafe != nil {
+                Button(action: onSaveCafe) {
+                    socialActionLabel(
+                        value: nil,
+                        systemImage: isCafeSaved ? "bookmark.fill" : "bookmark",
+                        isActive: isCafeSaved
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isSocialActionInFlight)
+                .accessibilityLabel(isCafeSaved ? "Cafe saved" : "Save cafe")
+                .accessibilityHint(isCafeSaved ? "This cafe is in Saved" : "Adds this cafe to Saved")
             }
-            .buttonStyle(.plain)
-            .disabled(isSocialActionInFlight)
-            .accessibilityLabel(isCafeSaved ? "Cafe saved" : "Save cafe")
-            .accessibilityHint(isCafeSaved ? "This cafe is in Saved" : "Adds this cafe to Saved")
 
             Spacer(minLength: 0)
 
@@ -961,7 +1005,7 @@ struct RemoteFeedVisitCard: View {
     }
 
     private var scoreBadge: some View {
-        MugshotRatingBadge(score: visit.visit.overallScore)
+        MugshotRatingBadge(score: displayedScore)
     }
 
     private func socialActionLabel(value: Int?, systemImage: String, isActive: Bool) -> some View {
@@ -1011,15 +1055,30 @@ extension RemoteVisitSummary {
 }
 
 struct RemoteFeedNoPhotoPoster: View {
+    var usesMugsyFallback = false
+
     var body: some View {
         VStack(spacing: 10) {
             Spacer(minLength: 20)
 
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundColor(.roastBrown.opacity(0.42))
+            if usesMugsyFallback {
+                MugsyAnimatedView(
+                    configuration: MugsyModelConfiguration(
+                        expression: .curious,
+                        prop: .camera,
+                        pose: .leaningLeft
+                    ),
+                    action: .resting
+                )
+                .frame(width: 76, height: 78)
+                .accessibilityHidden(true)
+            } else {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 38, weight: .semibold))
+                    .foregroundColor(.roastBrown.opacity(0.42))
+            }
 
-            Text("Taste memory")
+            Text(usesMugsyFallback ? "Oops, missed the photo" : "Taste memory")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondaryText)
 
@@ -1077,6 +1136,18 @@ struct VisitCard: View {
 
     private var localPosterHeight: CGFloat {
         visit.photos.isEmpty ? 178 : 260
+    }
+
+    private var localDisplayedScore: Double {
+        visit.v3Reflection?.mugshotScore ?? visit.overallScore
+    }
+
+    private var additionalSessionSipCount: Int {
+        guard let sessionID = visit.cafeSessionID else { return 0 }
+        return max(
+            dataManager.appData.visits.filter { $0.cafeSessionID == sessionID }.count - 1,
+            0
+        )
     }
     
     var body: some View {
@@ -1140,7 +1211,9 @@ struct VisitCard: View {
                     if !visit.photos.isEmpty {
                         PosterImageView(visit: visit)
                     } else {
-                        RemoteFeedNoPhotoPoster()
+                        RemoteFeedNoPhotoPoster(
+                            usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto
+                        )
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -1148,7 +1221,13 @@ struct VisitCard: View {
 
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Label(cafe?.consumerDisplayName ?? "Cafe", systemImage: "mappin.circle.fill")
+                        Label(
+                            visit.context == .cafe
+                                ? cafe?.consumerDisplayName ?? "Cafe"
+                                : visit.locationName?.remoteTrimmedNonEmpty
+                                    ?? visit.context.locationFallback,
+                            systemImage: visit.context.systemImage
+                        )
                             .font(.system(size: 12, weight: .bold))
                             .foregroundColor(.creamWhite)
                             .lineLimit(2)
@@ -1178,11 +1257,11 @@ struct VisitCard: View {
                 )
                 .padding(12)
 
-                if visit.overallScore > 0 {
+                if localDisplayedScore > 0 {
                     VStack {
                         HStack {
                             Spacer()
-                            MugshotRatingBadge(score: visit.overallScore, onPhoto: true)
+                            MugshotRatingBadge(score: localDisplayedScore, onPhoto: true)
                                 .padding(12)
                         }
                         Spacer()
@@ -1203,6 +1282,18 @@ struct VisitCard: View {
                 .foregroundColor(.espressoBrown)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if additionalSessionSipCount > 0 {
+                Label(
+                    "+\(additionalSessionSipCount) more \(additionalSessionSipCount == 1 ? "sip" : "sips") this visit",
+                    systemImage: "cup.and.saucer.fill"
+                )
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.mugshotSage)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(Color.mugshotMint.opacity(0.28), in: Capsule())
+            }
 
             if let caption = consumerPreviewCaption(visit.caption) {
                 MentionText(text: caption, mentions: visit.mentions)
@@ -1668,7 +1759,7 @@ struct VisitDetailView: View {
                         isCommentFocused = true
                     }
 
-                        if cafe != nil {
+                        if visit.context == .cafe, cafe != nil {
                             SipActionButton(
                             title: cafe?.isFavorite == true ? "Saved" : "Save",
                             value: nil,

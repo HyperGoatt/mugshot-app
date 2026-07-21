@@ -132,6 +132,7 @@ final class CafeStateService {
             .select("cafe_id")
             .eq("user_id", value: userId.uuidString)
             .eq("upload_state", value: VisitUploadState.complete.rawValue)
+            .or("context_type.eq.Cafe,context_type.is.null")
             .in("cafe_id", values: cafeIds.map(\.uuidString))
             .execute()
             .value

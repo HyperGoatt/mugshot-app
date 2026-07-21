@@ -125,7 +125,36 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     ) async -> MKMapItem? {
         let request = MKLocalSearch.Request(completion: completion)
         request.region = region
-        let searchID = beginImmediateSearch(rawQuery: completion.title, region: region)
+        return await resolve(
+            request: request,
+            query: completion.title,
+            region: region
+        )
+    }
+
+    /// Resolves a previously selected place directly instead of replaying its
+    /// query and asking the person to choose the same suggestion again.
+    func resolve(
+        recent: MapSearchRecent,
+        region: MKCoordinateRegion
+    ) async -> MKMapItem? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = recent.query
+        request.region = region
+        request.resultTypes = [.address, .pointOfInterest]
+        return await resolve(
+            request: request,
+            query: recent.query,
+            region: region
+        )
+    }
+
+    private func resolve(
+        request: MKLocalSearch.Request,
+        query: String,
+        region: MKCoordinateRegion
+    ) async -> MKMapItem? {
+        let searchID = beginImmediateSearch(rawQuery: query, region: region)
         let search = MKLocalSearch(request: request)
         currentSearch = search
 
@@ -134,12 +163,12 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             guard searchID == activeSearchID else { return nil }
             let rankedItems = Array(
                 Self.ranked(
-                    Self.credibleResults(response.mapItems, query: completion.title, region: region),
-                    query: completion.title,
+                    Self.credibleResults(response.mapItems, query: query, region: region),
+                    query: query,
                     region: region
                 ).prefix(15)
             )
-            finish(items: rankedItems, query: completion.title, region: region)
+            finish(items: rankedItems, query: query, region: region)
             if let first = rankedItems.first { recordRecent(first) }
             return rankedItems.first
         } catch is CancellationError {

@@ -313,6 +313,7 @@ struct TastingLensSelectionChip: View {
     var systemImage: String?
     var isSelected = false
     var isEnabled = true
+    var accessibilityIdentifier: String?
     var action: () -> Void
 
     var body: some View {
@@ -349,6 +350,24 @@ struct TastingLensSelectionChip: View {
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .modifier(
+            TastingLensSelectionChipAccessibilityIdentifier(
+                identifier: accessibilityIdentifier
+            )
+        )
+    }
+}
+
+private struct TastingLensSelectionChipAccessibilityIdentifier: ViewModifier {
+    let identifier: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 

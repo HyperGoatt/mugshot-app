@@ -11,6 +11,7 @@ enum SipComposerSource: String, Codable, CaseIterable {
     case saved
     case cafeDetail
     case repeatSip
+    case addAnotherSip
     case brewAgain
     case widget
     case appShortcut
@@ -33,6 +34,60 @@ enum SipDraftUploadState: String, Codable {
     case prepared
     case uploading
     case failed
+}
+
+enum SipV3ComposerStep: String, Codable, CaseIterable, Identifiable {
+    case setup
+    case sip
+    case context
+    case publish
+
+    var id: String { rawValue }
+}
+
+enum SipPhotoFallback: String, Codable, Equatable {
+    case mugsyMissedPhoto = "mugsy_missed_photo"
+}
+
+enum HomeMakeAgain: String, Codable, CaseIterable, Identifiable {
+    case yes
+    case withATweak = "with_a_tweak"
+    case notThisVersion = "not_this_version"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .yes: return "Yes"
+        case .withATweak: return "With a tweak"
+        case .notThisVersion: return "Not this one"
+        }
+    }
+}
+
+enum SipCriterionImportance: String, Codable, CaseIterable, Identifiable {
+    case most
+    case more
+    case normal
+    case less
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    var weight: Double {
+        switch self {
+        case .less: return 0.5
+        case .normal: return 1
+        case .more: return 1.5
+        case .most: return 2.25
+        }
+    }
+
+    init(weight: Double) {
+        self = Self.allCases.min { lhs, rhs in
+            abs(lhs.weight - weight) < abs(rhs.weight - weight)
+        } ?? .normal
+    }
 }
 
 enum SipPublicationRequirement: Equatable {
@@ -61,6 +116,7 @@ struct SipRatingCriterionSnapshot: Identifiable, Codable, Equatable {
     var weight: Double
     var sortOrder: Int
     var relevanceOverride: Bool?
+    var isPinned: Bool?
 
     init(
         id: UUID = UUID(),
@@ -68,7 +124,8 @@ struct SipRatingCriterionSnapshot: Identifiable, Codable, Equatable {
         score: Double = 0,
         weight: Double = 1,
         sortOrder: Int,
-        relevanceOverride: Bool? = nil
+        relevanceOverride: Bool? = nil,
+        isPinned: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -76,11 +133,31 @@ struct SipRatingCriterionSnapshot: Identifiable, Codable, Equatable {
         self.weight = weight
         self.sortOrder = sortOrder
         self.relevanceOverride = relevanceOverride
+        self.isPinned = isPinned
     }
 
     var isRelevant: Bool {
         get { relevanceOverride ?? true }
         set { relevanceOverride = newValue }
+    }
+
+    var importance: SipCriterionImportance {
+        get { SipCriterionImportance(weight: weight) }
+        set { weight = newValue.weight }
+    }
+
+    static func weightedSuggestion(
+        for criteria: [SipRatingCriterionSnapshot]
+    ) -> Double? {
+        let rated = criteria.filter {
+            $0.isRelevant && (0.5...5).contains($0.score)
+        }
+        let totalWeight = rated.reduce(0) { $0 + max($1.weight, 0.01) }
+        guard totalWeight > 0 else { return nil }
+        let weightedTotal = rated.reduce(0) {
+            $0 + ($1.score * max($1.weight, 0.01))
+        }
+        return ((weightedTotal / totalWeight) * 10).rounded() / 10
     }
 }
 
@@ -100,7 +177,13 @@ struct SipDraft: Identifiable, Codable, Equatable {
     var updatedAt: Date
     var captureMode: SipCaptureMode
     var launchContext: SipComposerLaunchContext
-    var context: JournalEntryContext
+    var context: JournalEntryContext {
+        didSet {
+            if !context.supportsCafeSession {
+                clearCafeSession()
+            }
+        }
+    }
     var cafe: Cafe?
     var locationName: String
     var drinkType: DrinkType
@@ -133,6 +216,35 @@ struct SipDraft: Identifiable, Codable, Equatable {
     /// Autosaved, mutable Lens work. This is never published and is cleared
     /// only after an immutable snapshot is completed.
     var sensorySessionDraft: TastingLensSessionDraft?
+    /// The primary sip owns the full mutable session draft. Additional sips
+    /// carry only `cafeSessionReference`, so Cafe Pulse is never duplicated.
+    var cafeSessionDraft: CafeSessionDraft?
+    var cafeSessionReference: CafeSessionReference?
+    var cafeSessionSipOrder: Int?
+    var cafeSessionSipRole: CafeSessionSipRole?
+    var sipReorderIntention: SipReorderIntention?
+    var v3Step: SipV3ComposerStep?
+    private var v3ContextNotes: String?
+    private var v3RawNoteVisibility: VisitVisibility?
+    var contextScore: Double?
+    private var v3ContextRatingCriteria: [SipRatingCriterionSnapshot]?
+    var photoFallback: SipPhotoFallback?
+    var homeMakeAgain: HomeMakeAgain?
+
+    var contextNotes: String {
+        get { v3ContextNotes ?? "" }
+        set { v3ContextNotes = newValue }
+    }
+
+    var rawNoteVisibility: VisitVisibility {
+        get { v3RawNoteVisibility ?? .private }
+        set { v3RawNoteVisibility = newValue }
+    }
+
+    var contextRatingCriteria: [SipRatingCriterionSnapshot] {
+        get { v3ContextRatingCriteria ?? [] }
+        set { v3ContextRatingCriteria = newValue }
+    }
 
     init(
         id: UUID = UUID(),
@@ -167,7 +279,19 @@ struct SipDraft: Identifiable, Codable, Equatable {
         memoryDetailsExpanded: Bool? = nil,
         drinkAnalysis: DrinkAnalysis? = nil,
         sensorySnapshot: SipSensorySnapshot? = nil,
-        sensorySessionDraft: TastingLensSessionDraft? = nil
+        sensorySessionDraft: TastingLensSessionDraft? = nil,
+        cafeSessionDraft: CafeSessionDraft? = nil,
+        cafeSessionReference: CafeSessionReference? = nil,
+        cafeSessionSipOrder: Int? = nil,
+        cafeSessionSipRole: CafeSessionSipRole? = nil,
+        sipReorderIntention: SipReorderIntention? = nil,
+        v3Step: SipV3ComposerStep? = nil,
+        contextNotes: String = "",
+        rawNoteVisibility: VisitVisibility = .private,
+        contextScore: Double? = nil,
+        contextRatingCriteria: [SipRatingCriterionSnapshot] = [],
+        photoFallback: SipPhotoFallback? = nil,
+        homeMakeAgain: HomeMakeAgain? = nil
     ) {
         self.id = id
         self.ownerUserID = ownerUserID
@@ -202,6 +326,26 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.drinkAnalysis = drinkAnalysis
         self.sensorySnapshot = sensorySnapshot
         self.sensorySessionDraft = sensorySessionDraft
+        if context.supportsCafeSession {
+            self.cafeSessionDraft = cafeSessionDraft
+            self.cafeSessionReference = cafeSessionReference
+            self.cafeSessionSipOrder = cafeSessionSipOrder
+            self.cafeSessionSipRole = cafeSessionSipRole
+            self.sipReorderIntention = sipReorderIntention
+        } else {
+            self.cafeSessionDraft = nil
+            self.cafeSessionReference = nil
+            self.cafeSessionSipOrder = nil
+            self.cafeSessionSipRole = nil
+            self.sipReorderIntention = nil
+        }
+        self.v3Step = v3Step
+        self.v3ContextNotes = contextNotes
+        self.v3RawNoteVisibility = rawNoteVisibility
+        self.contextScore = contextScore
+        self.v3ContextRatingCriteria = contextRatingCriteria
+        self.photoFallback = photoFallback
+        self.homeMakeAgain = homeMakeAgain
     }
 
     var ratingsDictionary: [String: Double] {
@@ -244,6 +388,23 @@ struct SipDraft: Identifiable, Codable, Equatable {
 
     var isMemoryExpanded: Bool { memoryDetailsExpanded ?? false }
 
+    var isEligibleForCafeSession: Bool { context == .cafe && cafe != nil }
+
+    var cafeSessionID: UUID? {
+        cafeSessionDraft?.id ?? cafeSessionReference?.id
+    }
+
+    var cafeSessionReturnIntention: CafeReturnIntention? {
+        cafeSessionDraft?.returnIntention ?? cafeSessionReference?.returnIntention
+    }
+
+    var cafeNextMove: CafeNextMove {
+        CafeNextMove(
+            returnIntention: cafeSessionReturnIntention,
+            reorderIntention: sipReorderIntention
+        )
+    }
+
     mutating func refreshDrinkAnalysis() {
         drinkAnalysis = DrinkAnalysisParser.analyze(
             drinkName,
@@ -264,16 +425,61 @@ struct SipDraft: Identifiable, Codable, Equatable {
             !localPhotoNames.isEmpty || ratingCriteria.contains(where: { $0.score > 0 }) ||
             brewDetails.hasStructuredData || orderNotes.remoteTrimmedNonEmpty != nil ||
             !tags.isEmpty || !companions.isEmpty || guidedStep != nil || drinkAnalysis != nil ||
-            sensorySnapshot != nil || sensorySessionDraft != nil
+            sensorySnapshot != nil || sensorySessionDraft != nil ||
+            cafeSessionDraft != nil || cafeSessionReference != nil ||
+            sipReorderIntention != nil || v3Step != nil ||
+            contextNotes.remoteTrimmedNonEmpty != nil || contextScore != nil ||
+            !contextRatingCriteria.isEmpty || photoFallback != nil || homeMakeAgain != nil
     }
 
     mutating func applyContextDefaults(using preferences: CafeVisibilityPreferenceStore) {
         switch context {
         case .cafe:
             visibility = preferences.defaultCafeVisibility
-        case .home, .recipe:
+        case .home, .elsewhere, .recipe:
             visibility = .private
+            clearCafeSession()
         }
+    }
+
+    /// Changes the V3 reflection context without carrying place-specific
+    /// evidence into a different kind of memory.
+    mutating func selectV3Context(
+        _ selectedContext: JournalEntryContext,
+        using preferences: CafeVisibilityPreferenceStore = .shared
+    ) {
+        let normalizedContext: JournalEntryContext = selectedContext == .recipe
+            ? .home
+            : selectedContext
+        let currentContext: JournalEntryContext = context == .recipe ? .home : context
+        guard normalizedContext != currentContext else { return }
+
+        context = normalizedContext
+        contextNotes = ""
+        contextScore = nil
+        contextRatingCriteria = []
+        homeMakeAgain = nil
+
+        switch normalizedContext {
+        case .cafe:
+            locationName = ""
+        case .home, .recipe:
+            cafe = nil
+            locationName = "Home"
+        case .elsewhere:
+            cafe = nil
+            locationName = ""
+        }
+
+        applyContextDefaults(using: preferences)
+    }
+
+    mutating func clearCafeSession() {
+        cafeSessionDraft = nil
+        cafeSessionReference = nil
+        cafeSessionSipOrder = nil
+        cafeSessionSipRole = nil
+        sipReorderIntention = nil
     }
 
     mutating func refreshRatingCriteria(from template: RatingTemplate) {
@@ -323,6 +529,37 @@ struct SipDraft: Identifiable, Codable, Equatable {
             brewDetails: prior.brewDetails
         )
         return repeated
+    }
+
+    static func additionalSip(
+        in session: inout CafeSessionDraft,
+        cafe: Cafe,
+        ownerUserID: UUID?,
+        now: Date = .now
+    ) -> SipDraft {
+        let draftID = UUID()
+        if session.ownerUserID == nil {
+            session.ownerUserID = ownerUserID
+        }
+        let order = session.registerAdditionalSipDraft(draftID, now: now)
+        return SipDraft(
+            id: draftID,
+            ownerUserID: session.ownerUserID,
+            createdAt: now,
+            updatedAt: now,
+            launchContext: SipComposerLaunchContext(
+                source: .addAnotherSip,
+                preselectedCafe: cafe,
+                sourceVisitID: session.primaryVisitID
+            ),
+            context: .cafe,
+            cafe: cafe,
+            locationName: cafe.consumerDisplayName,
+            visibility: session.visibility,
+            cafeSessionReference: session.reference,
+            cafeSessionSipOrder: order,
+            cafeSessionSipRole: .secondary
+        )
     }
 
     static func brewAgain(

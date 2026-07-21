@@ -16,6 +16,7 @@ struct LogVisitView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
+    @AppStorage(RoadmapFeatureFlags.cafeSessionsAndPulse) private var cafeSessionsAndPulse = true
 
     @StateObject private var composerModel: SipComposerModel
     @State private var photoImages: [UIImage] = []
@@ -27,18 +28,36 @@ struct LogVisitView: View {
     @State private var showPhotoLibrary = false
     @State private var showCameraPermissionRecovery = false
     @State private var showTextOnlyConfirmation = false
+    @State private var showDiscardPendingConfirmation = false
     @State private var confirmedTextOnlyEveryone = false
     @State private var isSaving = false
     @State private var showSavedConfirmation = false
     @State private var completionSummary: SipCompletionSummary?
+    @State private var v3CompletionSummary: LogASipV3PassportSummary?
+    @State private var completedRemoteVisit: RemoteVisitSummary?
+    @State private var completedLocalVisit: Visit?
+    @State private var publishedCompletionRecord: V3PublishedCompletionRecord?
+    @State private var isLoadingPublishedVisit = false
+    @State private var completionStatusMessage: String?
+    @State private var showPublishedMugshot = false
+    @State private var completedCafeSession: CafeSessionDraft?
+    @State private var completedSessionCafe: Cafe?
+    @State private var activeContinuationSession: CafeSessionDraft?
     @State private var errorMessage: String?
     @State private var pendingSubmission: PendingVisitSubmissionRecord?
+    @State private var conflictingPendingSubmission: PendingVisitSubmissionRecord?
+    @State private var pendingRecoveryNeedsPhotoRepair = false
     @State private var uploadRecoveryMessage: String?
     @State private var servingVolumeUnit: ServingVolumeUnit = .preferredForCurrentLocale
     @State private var isAddingCustomTag = false
     @State private var customTagText = ""
     @State private var showCompanionPicker = false
     @State private var showPhotoOrganizer = false
+    @State private var photoOrganizerOriginalImages: [UIImage]?
+    @State private var photoOrganizerOriginalPosterIndex: Int?
+    @State private var remoteCafeSessionsAvailable = false
+    @State private var cafeLearningSignals: [CafePreferenceSignal] = []
+    @State private var v3Step: SipV3ComposerStep
 
     @StateObject private var searchService = MapSearchService()
     @StateObject private var locationManager = LocationManager()
@@ -50,6 +69,12 @@ struct LogVisitView: View {
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
+    /// Local `Visit` predates non-cafe contexts and still requires an ID. This
+    /// sentinel deliberately has no matching `Cafe`, so Home and Elsewhere
+    /// memories never manufacture cafes or affect cafe stats.
+    private static let localNonCafeContextID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000003"
+    )!
 
     private var composerExperience: SipComposerExperience {
 #if DEBUG
@@ -73,6 +98,18 @@ struct LogVisitView: View {
         return dataManager.appData.visits
             .filter { $0.userId == userID }
             .compactMap(\.sensorySnapshot)
+    }
+
+    private var cafeSessionsEnabled: Bool {
+        guard cafeSessionsAndPulse else { return false }
+        return authModel.authenticatedUser == nil || remoteCafeSessionsAvailable
+    }
+
+    private var shouldOfferCafePulse: Bool {
+        cafeSessionsEnabled &&
+            draft.context == .cafe &&
+            draft.cafe != nil &&
+            draft.launchContext.source != .addAnotherSip
     }
 
     /// Required product state drives the vessel. Optional photos and notes add
@@ -113,6 +150,7 @@ struct LogVisitView: View {
         let restoredImages = initialDraft.flatMap { SipDraftStore.shared.load(id: $0.id)?.images } ?? []
         _photoImages = State(initialValue: restoredImages)
         _showPhotoSourceDialog = State(initialValue: initialDraft?.launchContext.source == .camera)
+        _v3Step = State(initialValue: initialDraft?.v3Step ?? .setup)
         _composerModel = StateObject(wrappedValue: SipComposerModel(
             draft: initialDraft ?? Self.initialDraft(
                 dataManager: dataManager,
@@ -139,41 +177,16 @@ struct LogVisitView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.creamWhite.ignoresSafeArea()
-                composerBodyContent
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { cancelComposer() }
-                        .foregroundColor(.espressoBrown)
-                        .accessibilityHint("Keeps this sip as a draft")
-                }
+        observedComposer
+            .background(Color.creamWhite.ignoresSafeArea())
+    }
 
-                ToolbarItem(placement: .principal) {
-                    Text("LOG A SIP")
-                        .font(.system(size: 12, weight: .bold))
-                        .tracking(1.5)
-                        .foregroundColor(.roastBrown)
-                }
+    private var navigationComposer: some View {
+        composerBodyContent
+    }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Label("Draft saved", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.iconOnly)
-                        .foregroundColor(.mugshotSage)
-                        .accessibilityLabel("Draft saved automatically")
-                }
-            }
-            .toolbarBackground(Color.creamWhite, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar(showSavedConfirmation ? .hidden : .visible, for: .navigationBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !showSavedConfirmation {
-                    composerFooter
-                }
-            }
+    private var presentedComposer: some View {
+        navigationComposer
             .fullScreenCover(isPresented: $showTastingLens2) {
                 TastingLens2ComposerContainer(
                     analysis: draft.drinkAnalysis,
@@ -211,16 +224,19 @@ struct LogVisitView: View {
                     }
                 )
             }
-            .confirmationDialog(
-                "Add a photo",
-                isPresented: $showPhotoSourceDialog,
-                titleVisibility: .visible
-            ) {
-                Button("Take Photo") { requestCamera() }
-                Button("Choose from Library") { showPhotoLibrary = true }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Photos are optional for Private and Friends sips.")
+            .sheet(isPresented: $isCafeSearchActive) {
+                CafeSearchSheet(
+                    searchText: $searchText,
+                    searchService: searchService,
+                    dataManager: dataManager,
+                    selectedCafe: $composerModel.draft.cafe,
+                    region: $cafeSearchRegion,
+                    searchAreaDescription: searchAreaDescription,
+                    locationActionTitle: locationActionTitle,
+                    onLocationAction: useCurrentLocation
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showCamera) {
                 CameraCaptureView(
@@ -243,7 +259,7 @@ struct LogVisitView: View {
                     maximumSelectionCount: max(1, 10 - photoImages.count)
                 )
             }
-            .sheet(isPresented: $showPhotoOrganizer, onDismiss: persistDraft) {
+            .sheet(isPresented: $showPhotoOrganizer, onDismiss: finishOrganizingPhotos) {
                 SipPhotoOrganizer(
                     images: $photoImages,
                     posterPhotoIndex: $composerModel.draft.posterPhotoIndex,
@@ -251,6 +267,41 @@ struct LogVisitView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(isPresented: $showPublishedMugshot, onDismiss: {
+                finishSuccessfulSave()
+            }) {
+                if let completedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: completedRemoteVisit.id,
+                        initialSummary: completedRemoteVisit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager,
+                        justPosted: true,
+                        presentationMode: .postSave
+                    )
+                } else if let completedLocalVisit {
+                    VisitDetailView(
+                        visit: completedLocalVisit,
+                        dataManager: dataManager,
+                        presentationMode: .postSave
+                    )
+                }
+            }
+    }
+
+    private var alertedComposer: some View {
+        presentedComposer
+            .confirmationDialog(
+                "Add a photo",
+                isPresented: $showPhotoSourceDialog,
+                titleVisibility: .visible
+            ) {
+                Button("Take Photo") { requestCamera() }
+                Button("Choose from Library") { showPhotoLibrary = true }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Photos are optional for Private and Friends sips.")
             }
             .alert("Camera access is off", isPresented: $showCameraPermissionRecovery) {
                 Button("Choose from Library") { showPhotoLibrary = true }
@@ -272,7 +323,26 @@ struct LogVisitView: View {
             } message: {
                 Text("Everyone posts usually include a photo. Confirm that you want this tasting note to be text only.")
             }
+            .confirmationDialog(
+                "Discard the earlier interrupted save?",
+                isPresented: $showDiscardPendingConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Discard Earlier Save", role: .destructive) {
+                    discardConflictingPendingSubmission()
+                }
+                Button("Keep It", role: .cancel) {}
+            } message: {
+                Text("This keeps the draft on screen and permanently removes the protected retry copy.")
+            }
+    }
+
+    private var observedComposer: some View {
+        alertedComposer
             .onAppear { restoreDraftIfNeeded() }
+            .task(id: authModel.authenticatedUser?.id) {
+                await refreshCafeSessionsCapability()
+            }
             .onChange(of: draft) { _, _ in persistDraft() }
             .onChange(of: draft.drinkName) { _, _ in refreshDrinkAnalysis() }
             .onChange(of: draft.brewDetails.servingVolumeMilliliters) { _, _ in refreshDrinkAnalysis() }
@@ -288,64 +358,129 @@ struct LogVisitView: View {
             }
             .onChange(of: draft.visibility) { _, _ in
                 confirmedTextOnlyEveryone = false
+                constrainRawNoteVisibility()
+                if draft.cafeSessionDraft != nil {
+                    draft.cafeSessionDraft?.visibility = draft.visibility
+                }
+            }
+            .onChange(of: draft.cafe?.id) { oldCafeID, newCafeID in
+                guard oldCafeID != newCafeID else { return }
+                resetCafeSessionForSelectedCafe()
+            }
+            .onChange(of: v3Step) { _, step in
+                if draft.v3Step != step { draft.v3Step = step }
+            }
+            .onChange(of: draft.ratingCriteria) { _, criteria in
+                PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedSipScope)
+            }
+            .onChange(of: draft.contextRatingCriteria) { _, criteria in
+                PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedContextScope)
             }
             .onChange(of: locationManager.location) { _, location in
                 if let location { updateSearchRegion(for: location) }
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, userID in
-                guard let userID else { return }
-                if draft.ownerUserID == nil { draft.ownerUserID = userID }
-                if let pending = PendingVisitSubmissionStore.shared.load(userId: userID) {
-                    pendingSubmission = pending
-                    uploadRecoveryMessage = "An earlier save was interrupted. Retry continues the same sip without making a duplicate."
+                guard let userID else {
+                    pendingSubmission = nil
+                    conflictingPendingSubmission = nil
+                    return
                 }
+                if explicitLaunchDraft == nil,
+                   !showSavedConfirmation,
+                   restorePublishedV3CompletionIfNeeded() {
+                    return
+                }
+                if draft.ownerUserID == nil { draft.ownerUserID = userID }
+                if draft.cafeSessionDraft != nil {
+                    draft.cafeSessionDraft?.ownerUserID = userID
+                }
+                reconcilePendingSubmission(for: userID)
             }
-        }
-        .background(Color.creamWhite.ignoresSafeArea())
     }
 
     @ViewBuilder
     private var composerBodyContent: some View {
-        if showSavedConfirmation {
-            savedConfirmation
-        } else {
-            Group {
-                if composerExperience == .longForm {
-                    longFormComposer
-                } else {
-                    guidedComposer
-                }
-            }
+        activeComposer
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-        }
+    }
+
+    private var activeComposer: some View {
+        LogASipV3ProductionView(
+            draft: $composerModel.draft,
+            photoImages: $photoImages,
+            step: $v3Step,
+            isSaving: isSaving,
+            isRecoveryLocked: pendingSubmission != nil || isSaving,
+            statusMessage: errorMessage ?? uploadRecoveryMessage,
+            isOpeningPublishedMugshot: isLoadingPublishedVisit,
+            completionStatusMessage: completionStatusMessage,
+            completion: showSavedConfirmation ? v3CompletionSummary : nil,
+            canUseLastSipSetup: !RecentCriterionSetupStore.shared
+                .names(scope: pinnedSipScope).isEmpty,
+            canUseLastContextSetup: !RecentCriterionSetupStore.shared
+                .names(scope: pinnedContextScope).isEmpty,
+            onCancel: cancelComposer,
+            onAddPhoto: { showPhotoSourceDialog = true },
+            onOrganizePhotos: beginOrganizingPhotos,
+            onChooseCafe: {
+                initializeLocationIfAvailable()
+                isCafeSearchActive = true
+            },
+            onInviteFriends: { showCompanionPicker = true },
+            onRepairProtectedSave: pendingRecoveryNeedsPhotoRepair
+                ? { showPhotoSourceDialog = true }
+                : nil,
+            onDiscardProtectedSave: pendingRecoveryNeedsPhotoRepair
+                || conflictingPendingSubmission != nil
+                ? prepareProtectedSaveForDiscard
+                : nil,
+            onUseLastSipSetup: useLastSipCriteriaSetup,
+            onUseLastContextSetup: useLastContextCriteriaSetup,
+            onPublish: saveSip,
+            onViewPublishedMugshot: viewPublishedMugshot,
+            onFinish: finishSuccessfulSave,
+            onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
+        )
     }
 
     private var longFormComposer: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                composerHeader
-                contextCard
-                locationCard
-                drinkCard
-                overallRatingCard
-                addToMemoryCard
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 16) {
+                    composerHeader
+                    contextCard
+                    locationCard
+                    drinkCard
+                    overallRatingCard
+                    if shouldOfferCafePulse {
+                        cafePulseEditor(presentation: .compact)
+                            .id("long-form-cafe-pulse")
+                    }
+                    addToMemoryCard
 
-                if draft.isMemoryExpanded {
-                    memoryCard
-                    detailContent
-                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-                    visibilityCard
+                    if draft.isMemoryExpanded {
+                        memoryCard
+                        detailContent
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+                        visibilityCard
+                    }
+
+                    recoveryAndValidationContent
                 }
-
-                recoveryAndValidationContent
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
+                .containerRelativeFrame(.horizontal)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 28)
-            .containerRelativeFrame(.horizontal)
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: currentCafePulseStepID) { oldStepID, newStepID in
+                guard shouldOfferCafePulse, oldStepID != newStepID else { return }
+                withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
+                    proxy.scrollTo("long-form-cafe-pulse", anchor: .top)
+                }
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
     }
 
     private var guidedComposer: some View {
@@ -354,51 +489,7 @@ struct LogVisitView: View {
                 guidedHeader
                 guidedProgress
 
-                switch draft.resolvedGuidedStep {
-                case .context:
-                    contextCard
-                    locationCard
-                case .drink:
-                    drinkCard
-                    if draft.drinkName.remoteTrimmedNonEmpty != nil {
-                        memoryCard
-                        if draft.context == .cafe {
-                            guidedCafeContextCard
-                        }
-                    }
-                case .rating:
-                    if draft.launchContext.source == .repeatSip || draft.launchContext.source == .brewAgain {
-                        repeatedSipContext
-                    }
-                    overallRatingCard
-                case .audience:
-                    visibilityCard
-                    Button {
-                        withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
-                            draft.memoryDetailsExpanded = !draft.isMemoryExpanded
-                        }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "note.text.badge.plus")
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Serving details or a private note")
-                                    .font(.system(size: 14, weight: .bold))
-                                Text("Optional and never required to publish")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.secondaryText)
-                            }
-                            Spacer()
-                            Image(systemName: draft.isMemoryExpanded ? "chevron.up" : "chevron.down")
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-
-                    if draft.isMemoryExpanded {
-                        guidedDetailContent
-                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-                    }
-                }
+                guidedStepContent
 
                 recoveryAndValidationContent
             }
@@ -408,7 +499,100 @@ struct LogVisitView: View {
             .containerRelativeFrame(.horizontal)
         }
         .scrollDismissesKeyboard(.interactively)
-        .id(draft.resolvedGuidedStep)
+        .id(guidedScrollIdentity)
+    }
+
+    /// The iOS 27 beta runtime can overflow while resolving one generic SwiftUI
+    /// type containing every guided branch. Erase only the selected step so the
+    /// runtime never has to materialize that combined metadata graph.
+    private var guidedStepContent: AnyView {
+        switch draft.resolvedGuidedStep {
+        case .context:
+            AnyView(guidedContextStep)
+        case .drink:
+            AnyView(guidedDrinkStep)
+        case .rating:
+            AnyView(guidedRatingStep)
+        case .cafePulse:
+            AnyView(guidedCafePulseStep)
+        case .audience:
+            AnyView(guidedAudienceStep)
+        }
+    }
+
+    private var guidedContextStep: some View {
+        Group {
+            contextCard
+            locationCard
+        }
+    }
+
+    @ViewBuilder
+    private var guidedDrinkStep: some View {
+        drinkCard
+        if draft.drinkName.remoteTrimmedNonEmpty != nil {
+            memoryCard
+            if draft.context == .cafe {
+                guidedCafeContextCard
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var guidedRatingStep: some View {
+        if draft.launchContext.source == .repeatSip || draft.launchContext.source == .brewAgain {
+            repeatedSipContext
+        }
+        overallRatingCard
+    }
+
+    private var guidedCafePulseStep: some View {
+        Group {
+            cafePulseEditor(presentation: .guided)
+            Button {
+                draft.cafeSessionDraft?.experienceDraft = nil
+                draft.cafeSessionDraft?.returnIntention = nil
+                draft.cafeSessionDraft?.repeatComparison = nil
+                draft.cafeSessionDraft?.shareProjection = CafeExperienceShareProjection()
+                draft.sipReorderIntention = nil
+                moveToGuidedStep(.audience)
+            } label: {
+                Text("Save just the sip")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityHint("Keeps this as a cafe visit without adding a Cafe Pulse rating")
+        }
+    }
+
+    @ViewBuilder
+    private var guidedAudienceStep: some View {
+        visibilityCard
+        Button {
+            withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
+                draft.memoryDetailsExpanded = !draft.isMemoryExpanded
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "note.text.badge.plus")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Serving details or a private note")
+                        .font(.system(size: 14, weight: .bold))
+                    Text("Optional and never required to publish")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                }
+                Spacer()
+                Image(systemName: draft.isMemoryExpanded ? "chevron.up" : "chevron.down")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(SecondaryButtonStyle())
+
+        if draft.isMemoryExpanded {
+            guidedDetailContent
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+        }
     }
 
     private var repeatedSipContext: some View {
@@ -508,15 +692,19 @@ struct LogVisitView: View {
 
     private var guidedProgress: some View {
         HStack(spacing: 7) {
-            ForEach(SipGuidedStep.allCases, id: \.self) { step in
+            ForEach(guidedSteps, id: \.self) { step in
                 Capsule()
-                    .fill(step.number <= draft.resolvedGuidedStep.number ? Color.mugshotSage : Color.sandBeige)
+                    .fill(
+                        (guidedSteps.firstIndex(of: step) ?? 0) <= guidedCurrentStepIndex
+                            ? Color.mugshotSage
+                            : Color.sandBeige
+                    )
                     .frame(height: 6)
                     .animation(reduceMotion ? nil : DesignSystem.Motion.base, value: draft.resolvedGuidedStep)
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(draft.resolvedGuidedStep.number) of 4")
+        .accessibilityLabel("Step \(guidedCurrentStepIndex + 1) of \(guidedSteps.count)")
         .accessibilityRespondsToUserInteraction(false)
     }
 
@@ -598,7 +786,7 @@ struct LogVisitView: View {
     }
 
     private var overallRatingCard: some View {
-        SipComposerCard(step: "03", title: "How was it?", subtitle: ratingSubtitle) {
+        SipComposerCard(step: "03", title: "How was the sip?", subtitle: ratingSubtitle) {
             ratingModeControl
 
             if draft.captureMode == .quickSip {
@@ -618,6 +806,103 @@ struct LogVisitView: View {
                 personalRatingContent
             }
         }
+    }
+
+    private func cafePulseEditor(
+        presentation: CafePulsePresentationStyle
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !cafeLearningSignals.isEmpty {
+                cafeLearningContext
+            }
+            CafePulseCaptureView(
+                draft: cafeExperienceDraftBinding,
+                returnIntention: cafeReturnIntentionBinding,
+                sipReorderIntention: $composerModel.draft.sipReorderIntention,
+                repeatComparison: cafeRepeatComparisonBinding,
+                shareProjection: cafeShareProjectionBinding,
+                presentation: presentation,
+                showsRepeatComparison: true
+            )
+        }
+    }
+
+    private var cafeLearningContext: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("What Mugshot is learning", systemImage: "sparkles")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.espressoBrown)
+
+            ForEach(cafeLearningSignals.prefix(2)) { signal in
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: signal.direction == .lifted
+                        ? "arrow.up.right.circle.fill"
+                        : "arrow.down.right.circle.fill")
+                        .foregroundColor(.mugshotSage)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(signal.title) \(signal.direction == .lifted ? "often lifts your visits" : "has detracted before")")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Text("\(signal.strength == .established ? "Established" : "Emerging") · \(signal.supportSessionCount) visits across \(signal.distinctCafeCount) cafes")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondaryText)
+                    }
+                }
+            }
+
+            Text("Only explicit Lifted or Detracted observations count. Low stars, private notes, staff, people, and demographics are never inferred.")
+                .font(.system(size: 10))
+                .foregroundColor(.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(Color.mugshotMint.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+    }
+
+    private var cafeExperienceDraftBinding: Binding<CafeExperienceDraft> {
+        Binding(
+            get: {
+                draft.cafeSessionDraft?.experienceDraft ?? CafeExperienceDraft()
+            },
+            set: { value in
+                ensureCafeSessionDraft()
+                draft.cafeSessionDraft?.experienceDraft = value
+            }
+        )
+    }
+
+    private var cafeReturnIntentionBinding: Binding<CafeReturnIntention?> {
+        Binding(
+            get: { draft.cafeSessionDraft?.returnIntention },
+            set: { value in
+                ensureCafeSessionDraft()
+                draft.cafeSessionDraft?.returnIntention = value
+            }
+        )
+    }
+
+    private var cafeRepeatComparisonBinding: Binding<CafeRepeatComparison?> {
+        Binding(
+            get: { draft.cafeSessionDraft?.repeatComparison },
+            set: { value in
+                ensureCafeSessionDraft()
+                draft.cafeSessionDraft?.repeatComparison = value
+            }
+        )
+    }
+
+    private var cafeShareProjectionBinding: Binding<CafeExperienceShareProjection> {
+        Binding(
+            get: {
+                draft.cafeSessionDraft?.shareProjection
+                    ?? CafeExperienceShareProjection()
+            },
+            set: { value in
+                ensureCafeSessionDraft()
+                draft.cafeSessionDraft?.shareProjection = value
+            }
+        )
     }
 
     @ViewBuilder
@@ -813,6 +1098,13 @@ struct LogVisitView: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .disabled(!canEditPhotos)
+                .opacity(canEditPhotos ? 1 : 0.55)
+                .accessibilityHint(
+                    canEditPhotos
+                        ? "Adds another photo to this sip"
+                        : "Finish retrying the uploaded sip before changing photos"
+                )
 
                 TextField("One-line thought", text: $composerModel.draft.socialCaption, axis: .vertical)
                     .lineLimit(1...2)
@@ -857,6 +1149,7 @@ struct LogVisitView: View {
                                     }
                                     .offset(x: 5, y: -5)
                                     .accessibilityLabel("Remove photo \(index + 1)")
+                                    .disabled(!canEditPhotos)
                                 }
                         }
                     }
@@ -865,17 +1158,28 @@ struct LogVisitView: View {
 
                 if photoImages.count > 1 {
                     Button {
-                        showPhotoOrganizer = true
+                        beginOrganizingPhotos()
                     } label: {
                         Label("Choose cover and reorder", systemImage: "rectangle.2.swap")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.mugshotSage)
                     }
                     .buttonStyle(.plain)
+                    .disabled(!canEditPhotos)
+                    .opacity(canEditPhotos ? 1 : 0.55)
                     .accessibilityHint("Opens photo order and cover controls")
                 }
             }
         }
+    }
+
+    private var canEditPhotos: Bool {
+        guard !isSaving else { return false }
+        guard let pendingSubmission else { return true }
+        return pendingSubmission.canResume(
+            with: draft,
+            authenticatedUserID: pendingSubmission.userId
+        ) && pendingSubmission.phase < .photosUploaded
     }
 
     private var guidedCafeContextCard: some View {
@@ -1056,7 +1360,7 @@ struct LogVisitView: View {
         switch draft.context {
         case .cafe:
             cafeDetailsCard
-        case .home:
+        case .home, .elsewhere:
             homeDetailsCard(includeRecipe: false)
         case .recipe:
             homeDetailsCard(includeRecipe: true)
@@ -1296,10 +1600,24 @@ struct LogVisitView: View {
             summary.map {
                 MugshotCompletionFact(
                     icon: "star.fill",
-                    label: "Rating",
+                    label: "The Sip",
                     value: String(format: "%.1f", $0.score)
                 )
             },
+            summary?.isCafeSession == true ? summary.map {
+                MugshotCompletionFact(
+                    icon: "storefront.fill",
+                    label: "The Cafe",
+                    value: $0.cafeRating.map { String(format: "%.1f", $0) } ?? "Not rated"
+                )
+            } : nil,
+            summary?.isCafeSession == true ? summary.map {
+                MugshotCompletionFact(
+                    icon: "arrow.triangle.branch",
+                    label: "Next move",
+                    value: $0.nextMove.title
+                )
+            } : nil,
             summary?.isDetailedMemory == true ? summary.map {
                 MugshotCompletionFact(
                     icon: $0.visibilityIcon,
@@ -1328,17 +1646,31 @@ struct LogVisitView: View {
                     )
                 ),
                 mugsyAction: .celebrating,
-                eyebrow: summary?.isDetailedMemory == true ? "Memory saved" : "Sip saved",
-                title: summary?.drinkName ?? "Sip remembered",
-                message: summary?.completionMessage
+                eyebrow: summary?.isCafeSession == true ? "Cafe visit saved" : (summary?.isDetailedMemory == true ? "Memory saved" : "Sip saved"),
+                title: summary?.isCafeSession == true ? "Your Mugshot" : (summary?.drinkName ?? "Sip remembered"),
+                message: summary?.isCafeSession == true
+                    ? "The sip and the cafe remain two independent truths. Your Next Move comes only from what you said you would do again."
+                    : summary?.completionMessage
                     ?? "Your rating is saved in Journal and ready whenever you want to add more.",
                 facts: facts,
                 celebrates: true
             )
 
-            Button("View in Journal", action: finishSuccessfulSave)
+            if summary?.isCafeSession == true, completedCafeSession != nil {
+                Button(action: addAnotherSipToCompletedSession) {
+                    Label("Add another sip", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
                 .buttonStyle(PrimaryButtonStyle())
-                .accessibilityHint("Closes the composer and opens your saved coffee memories")
+
+                Button("Finish in Journal", action: finishSuccessfulSave)
+                    .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityHint("Closes the composer and opens your saved cafe visit")
+            } else {
+                Button("View in Journal", action: finishSuccessfulSave)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityHint("Closes the composer and opens your saved coffee memories")
+            }
         }
         .padding(28)
     }
@@ -1347,13 +1679,21 @@ struct LogVisitView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "arrow.clockwise.circle.fill")
                 .foregroundColor(.mugshotSage)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text("Your sip is safe")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.espressoBrown)
                 Text(message)
                     .font(.system(size: 12))
                     .foregroundColor(.secondaryText)
+                if conflictingPendingSubmission != nil {
+                    Button("Discard earlier save") {
+                        showDiscardPendingConfirmation = true
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+                    .buttonStyle(.plain)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1386,6 +1726,7 @@ struct LogVisitView: View {
         switch draft.context {
         case .cafe: return "Attach the real place so Map and discovery stay useful."
         case .home: return "A single brew attempt, kept independent in your history."
+        case .elsewhere: return "Name the setting without sharing an exact location."
         case .recipe: return "A sip plus a versioned blueprint you can brew again."
         }
     }
@@ -1394,7 +1735,8 @@ struct LogVisitView: View {
         switch draft.resolvedGuidedStep {
         case .context: return "Where did this happen?"
         case .drink: return "Name the sip."
-        case .rating: return "Make it yours."
+        case .rating: return "Rate the sip."
+        case .cafePulse: return "How was the cafe?"
         case .audience: return "Who should see this sip?"
         }
     }
@@ -1404,6 +1746,7 @@ struct LogVisitView: View {
         case .context: return "Start with Cafe or Home. Recipes live inside Home when you need one."
         case .drink: return "Use the order name you will recognize later."
         case .rating: return "Choose one quick score or open your personal tasting lens."
+        case .cafePulse: return "Keep the place experience independent from the drink."
         case .audience: return "Choose the journal audience. Private notes stay private in every setting."
         }
     }
@@ -1417,7 +1760,7 @@ struct LogVisitView: View {
     private var visibilitySubtitle: String {
         switch draft.context {
         case .cafe: return "Cafe sips remember your last audience choice."
-        case .home, .recipe: return "Home sips begin Private every time."
+        case .home, .elsewhere, .recipe: return "Personal contexts begin Private every time."
         }
     }
 
@@ -1427,6 +1770,7 @@ struct LogVisitView: View {
 
     private var saveButtonTitle: String {
         if isSaving { return photoImages.isEmpty ? "Saving sip…" : "Saving photos…" }
+        if conflictingPendingSubmission != nil { return "Earlier sip protected" }
         if pendingSubmission != nil { return "Retry same sip" }
         if uploadRecoveryMessage != nil { return "Retry save" }
         return "Save sip"
@@ -1503,15 +1847,21 @@ struct LogVisitView: View {
         guard !didRestoreDraft else { return }
         didRestoreDraft = true
 
+        if explicitLaunchDraft == nil, restorePublishedV3CompletionIfNeeded() {
+            return
+        }
+
         if explicitLaunchDraft == nil,
            let stored = SipDraftStore.shared.load(),
            shouldResume(stored.draft) {
             suppressContextDefaults = true
             draft = stored.draft
             photoImages = stored.images
+            v3Step = stored.draft.v3Step ?? .setup
             DispatchQueue.main.async { suppressContextDefaults = false }
         } else {
             draft.ownerUserID = authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
         }
 #if DEBUG
         if MugshotLaunchEnvironment.shouldSeedUITestPhoto, photoImages.isEmpty {
@@ -1523,22 +1873,621 @@ struct LogVisitView: View {
             photoImages = [fixturePhoto]
         }
 #endif
-        draft.composerExperience = composerExperience
-        if draft.guidedStep == nil { draft.guidedStep = .context }
-        refreshDrinkAnalysis()
-
         if draft.uploadState == .failed, uploadRecoveryMessage == nil {
             uploadRecoveryMessage = "Your last save was interrupted. Retry continues the same sip and photos."
         }
 
-        if let userID = authModel.authenticatedUser?.id,
-           let pending = PendingVisitSubmissionStore.shared.load(userId: userID) {
-            pendingSubmission = pending
-            uploadRecoveryMessage = "An earlier save was interrupted. Retry continues the same sip without making a duplicate."
+        if let userID = authModel.authenticatedUser?.id {
+            reconcilePendingSubmission(for: userID)
         }
 
+        // Restore the durable Cafe Session handoff before adding guided-flow
+        // scaffold state. A fresh `.context` step is not user-entered content
+        // and must not prevent the completion handoff from reopening.
+        restoreCafeSessionContinuationIfNeeded()
+        guard !showSavedConfirmation else { return }
+        draft.composerExperience = composerExperience
+        draft.v3Step = v3Step
+        if draft.guidedStep == nil { draft.guidedStep = .context }
+        applyPinnedCriteria()
+        refreshDrinkAnalysis()
         initializeLocationIfAvailable()
         persistDraft()
+    }
+
+    @discardableResult
+    private func restorePublishedV3CompletionIfNeeded() -> Bool {
+        let ownerUserID = authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        guard let record = V3PublishedCompletionStore.shared.load(
+            ownerUserID: ownerUserID,
+            onExpired: { expiredRecord in
+                if let storedDraft = SipDraftStore.shared.load(
+                    id: expiredRecord.visitID
+                ) {
+                    SipDraftStore.shared.remove(storedDraft.draft)
+                }
+            }
+        ) else {
+            return false
+        }
+        guard let stored = SipDraftStore.shared.load(id: record.visitID),
+              stored.draft.ownerUserID == nil
+                || stored.draft.ownerUserID == record.ownerUserID else {
+            V3PublishedCompletionStore.shared.remove(ownerUserID: ownerUserID)
+            return false
+        }
+
+        suppressContextDefaults = true
+        draft = stored.draft
+        photoImages = stored.images
+        v3Step = .publish
+        publishedCompletionRecord = record
+        completionStatusMessage = nil
+        completedRemoteVisit = nil
+        completedLocalVisit = record.isRemote ? nil : dataManager.getVisit(id: record.visitID)
+
+        if let continuation = CafeSessionContinuationStore.shared.load(
+            ownerUserID: ownerUserID
+        ), continuation.stage == .completion {
+            completedCafeSession = continuation.session
+            completedSessionCafe = continuation.cafe
+            completionSummary = SipCompletionSummary(snapshot: continuation.summary)
+        } else {
+            completedCafeSession = nil
+            completedSessionCafe = nil
+            completionSummary = makeCompletionSummary(
+                from: stored.draft,
+                session: nil
+            )
+        }
+
+        let coverImage = stored.images.isEmpty
+            ? nil
+            : stored.images[min(
+                max(stored.draft.posterPhotoIndex, 0),
+                stored.images.count - 1
+            )]
+        v3CompletionSummary = makeV3PassportSummary(
+            from: stored.draft,
+            coverImage: coverImage,
+            knownMemoryCount: record.isRemote
+                ? nil
+                : knownLocalMemoryCount(for: stored.draft)
+        )
+        showSavedConfirmation = true
+        pendingSubmission = nil
+        conflictingPendingSubmission = nil
+        uploadRecoveryMessage = nil
+
+        if let ownerUserID,
+           let pending = PendingVisitSubmissionStore.shared.load(userId: ownerUserID),
+           pending.id == record.visitID {
+            PendingVisitSubmissionStore.shared.remove(pending)
+        }
+
+        DispatchQueue.main.async { suppressContextDefaults = false }
+        if record.isRemote, let ownerUserID {
+            Task {
+                await loadPublishedRemoteVisit(
+                    record: record,
+                    ownerUserID: ownerUserID,
+                    openAfterLoad: false
+                )
+            }
+        }
+        return true
+    }
+
+    private func restoreCafeSessionContinuationIfNeeded() {
+        let ownerUserID = draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        guard var continuation = CafeSessionContinuationStore.shared.load(
+            ownerUserID: ownerUserID
+        ) else {
+            return
+        }
+
+        if continuation.stage == .activeAdditionalSip,
+           continuation.activeDraftID == draft.id,
+           draft.cafeSessionID == continuation.session.id {
+            activeContinuationSession = continuation.session
+            return
+        }
+
+        guard explicitLaunchDraft == nil,
+              preselectedCafe == nil,
+              pendingSubmission == nil,
+              conflictingPendingSubmission == nil,
+              !draft.hasMeaningfulContent,
+              photoImages.isEmpty else {
+            return
+        }
+
+        if let abandonedDraftID = continuation.activeDraftID {
+            continuation.session.sipDraftIDs.removeAll { $0 == abandonedDraftID }
+            continuation.session.updatedAt = .now
+        }
+        continuation.stage = .completion
+        continuation.activeDraftID = nil
+        continuation.updatedAt = .now
+        try? CafeSessionContinuationStore.shared.save(continuation)
+        completedCafeSession = continuation.session
+        completedSessionCafe = continuation.cafe
+        completionSummary = SipCompletionSummary(snapshot: continuation.summary)
+        showSavedConfirmation = true
+    }
+
+    private func reconcilePendingSubmission(for userID: UUID) {
+        let pendingStore = PendingVisitSubmissionStore.shared
+        guard let pending = pendingStore.load(userId: userID) else {
+            pendingSubmission = nil
+            conflictingPendingSubmission = nil
+            pendingRecoveryNeedsPhotoRepair = false
+            return
+        }
+
+        guard pending.hasValidRetryPayload else {
+            pendingSubmission = nil
+            conflictingPendingSubmission = pending
+            pendingRecoveryNeedsPhotoRepair = false
+            uploadRecoveryMessage = pending.retryPayloadIssue?.localizedDescription
+                ?? "An earlier save needs to be discarded before this draft can publish."
+            return
+        }
+
+        if pending.canResume(with: draft, authenticatedUserID: userID) {
+            if let reconstructedDraft = reconstructDraft(
+                from: pending,
+                authenticatedUserID: userID
+            ) {
+                routeToPendingSubmission(
+                    pending,
+                    recoveredDraft: reconstructedDraft,
+                    fallbackImages: photoImages,
+                    userID: userID
+                )
+            } else if pendingHasMissingLocalPhotos(pending) {
+                bindPendingSubmission(pending, fallbackImages: [])
+                pendingRecoveryNeedsPhotoRepair = true
+                v3Step = .publish
+                draft.v3Step = .publish
+                uploadRecoveryMessage = "One protected photo is missing. Replace the photos, or discard this interrupted save and keep editing the journal entry."
+            } else {
+                pendingSubmission = nil
+                conflictingPendingSubmission = pending
+                pendingRecoveryNeedsPhotoRepair = false
+                uploadRecoveryMessage = "An earlier save is protected, but its retry copy could not be restored. Discard it before publishing this draft."
+            }
+            return
+        }
+
+        if let matchingStoredDraft = SipDraftStore.shared.load(id: pending.id),
+           pending.canResume(
+               with: matchingStoredDraft.draft,
+               authenticatedUserID: userID
+           ) {
+            if pendingHasMissingLocalPhotos(pending) {
+                routeToPendingSubmission(
+                    pending,
+                    recoveredDraft: matchingStoredDraft.draft,
+                    fallbackImages: [],
+                    userID: userID
+                )
+                pendingRecoveryNeedsPhotoRepair = true
+                uploadRecoveryMessage = "One protected photo is missing. Replace the photos, or discard this interrupted save and keep editing the journal entry."
+                return
+            }
+            routeToPendingSubmission(
+                pending,
+                recoveredDraft: matchingStoredDraft.draft,
+                fallbackImages: matchingStoredDraft.images,
+                userID: userID
+            )
+            return
+        }
+
+        if let reconstructedDraft = reconstructDraft(
+            from: pending,
+            authenticatedUserID: userID
+        ) {
+            routeToPendingSubmission(
+                pending,
+                recoveredDraft: reconstructedDraft,
+                fallbackImages: [],
+                userID: userID
+            )
+            return
+        }
+
+        pendingSubmission = nil
+        conflictingPendingSubmission = pending
+        pendingRecoveryNeedsPhotoRepair = false
+        uploadRecoveryMessage = "An earlier save is protected, but its retry copy could not be restored. Keep it, or discard it before saving this draft."
+    }
+
+    private func pendingHasMissingLocalPhotos(
+        _ pending: PendingVisitSubmissionRecord
+    ) -> Bool {
+        guard pending.phase < .photosUploaded,
+              !pending.localPhotoNames.isEmpty else {
+            return false
+        }
+        return (try? PendingVisitSubmissionStore.shared.loadImages(for: pending).count)
+            != pending.localPhotoNames.count
+    }
+
+    private func routeToPendingSubmission(
+        _ pending: PendingVisitSubmissionRecord,
+        recoveredDraft: SipDraft,
+        fallbackImages: [UIImage],
+        userID: UUID
+    ) {
+        if draft.id != pending.id,
+           draft.hasMeaningfulContent || !photoImages.isEmpty {
+            _ = try? SipDraftStore.shared.save(draft, images: photoImages)
+        }
+
+        suppressContextDefaults = true
+        draft = recoveredDraft
+        draft.ownerUserID = userID
+        draft.v3Step = .publish
+        v3Step = .publish
+        bindPendingSubmission(pending, fallbackImages: fallbackImages)
+        DispatchQueue.main.async { suppressContextDefaults = false }
+        persistDraft()
+    }
+
+    private func reconstructDraft(
+        from pending: PendingVisitSubmissionRecord,
+        authenticatedUserID: UUID
+    ) -> SipDraft? {
+        guard pending.userId == authenticatedUserID else { return nil }
+        if pending.resolvedEntryContext == .cafe, pending.cafe == nil {
+            return nil
+        }
+        if pending.phase < .photosUploaded,
+           !pending.localPhotoNames.isEmpty,
+           (try? PendingVisitSubmissionStore.shared.loadImages(for: pending).count)
+            != pending.localPhotoNames.count {
+            return nil
+        }
+
+        let ratingCriteria = pending.ratingTemplate.categories.enumerated().map {
+            index,
+            category in
+            SipRatingCriterionSnapshot(
+                id: category.id,
+                name: category.name,
+                score: pending.ratings[category.name] ?? 0,
+                weight: category.weight,
+                sortOrder: index
+            )
+        }
+        let possibleSessionState = reconstructedCafeSessionState(
+            from: pending,
+            authenticatedUserID: authenticatedUserID
+        )
+        let sessionState: (
+            draft: CafeSessionDraft?,
+            reference: CafeSessionReference?
+        )
+        if pending.cafeSession != nil {
+            guard let possibleSessionState else { return nil }
+            sessionState = possibleSessionState
+        } else {
+            sessionState = (nil, nil)
+        }
+        let details = pending.resolvedBrewDetails
+
+        return SipDraft(
+            id: pending.id,
+            ownerUserID: authenticatedUserID,
+            createdAt: pending.createdAt,
+            updatedAt: .now,
+            captureMode: pending.sensorySnapshot == nil ? .quickSip : .addDetails,
+            launchContext: SipComposerLaunchContext(
+                source: pending.cafeSession?.sipRole == .secondary
+                    ? .addAnotherSip
+                    : .centralAdd,
+                preselectedCafe: pending.cafe
+            ),
+            context: pending.resolvedEntryContext,
+            cafe: pending.cafe,
+            locationName: pending.locationName?.remoteTrimmedNonEmpty
+                ?? pending.cafe?.consumerDisplayName
+                ?? pending.resolvedEntryContext.locationFallback,
+            drinkType: pending.drinkType,
+            customDrinkType: pending.customDrinkType ?? "",
+            drinkName: pending.drinkSubtype,
+            overallScore: pending.resolvedOverallScore,
+            socialCaption: pending.caption,
+            privateNotes: pending.notes ?? "",
+            visibility: pending.visibility,
+            ratingCriteria: ratingCriteria,
+            orderNotes: details.orderNotes ?? "",
+            tags: details.tags ?? [],
+            companions: details.companions ?? [],
+            taggedCompanions: pending.taggedCompanions,
+            brewMethod: pending.brewMethod ?? "",
+            equipment: pending.equipment ?? "",
+            brewDetails: details,
+            localPhotoNames: [],
+            posterPhotoIndex: pending.posterPhotoIndex,
+            uploadState: .failed,
+            composerExperience: composerExperience,
+            guidedStep: .audience,
+            memoryDetailsExpanded: true,
+            sensorySnapshot: pending.sensorySnapshot,
+            cafeSessionDraft: sessionState.draft,
+            cafeSessionReference: sessionState.reference,
+            cafeSessionSipOrder: pending.cafeSession?.sipOrder,
+            cafeSessionSipRole: pending.cafeSession?.sipRole,
+            sipReorderIntention: pending.cafeSession?.reorderIntention,
+            v3Step: .publish,
+            contextNotes: pending.v3Reflection?.contextRawNote ?? "",
+            rawNoteVisibility: pending.v3Reflection?.rawNoteVisibility ?? .private,
+            contextScore: pending.v3Reflection?.contextScore,
+            contextRatingCriteria: pending.v3Reflection?.contextCriteria ?? [],
+            photoFallback: pending.v3Reflection?.photoFallback,
+            homeMakeAgain: pending.v3Reflection?.homeMakeAgain
+        )
+    }
+
+    private func reconstructedCafeSessionState(
+        from pending: PendingVisitSubmissionRecord,
+        authenticatedUserID: UUID
+    ) -> (draft: CafeSessionDraft?, reference: CafeSessionReference?)? {
+        guard let link = pending.cafeSession else {
+            return (nil, nil)
+        }
+        guard pending.resolvedEntryContext == .cafe,
+              let cafe = pending.cafe else {
+            return nil
+        }
+
+        switch link.sipRole {
+        case .primary:
+            let experienceDraft = link.experienceSnapshot.map { snapshot in
+                CafeExperienceDraft(
+                    schemaVersion: snapshot.schemaVersion,
+                    depth: snapshot.depth,
+                    ownWords: snapshot.ownWords ?? "",
+                    cafeRating: snapshot.cafeRating,
+                    visitContext: snapshot.visitContext,
+                    observations: snapshot.observations,
+                    privateNotes: snapshot.privateNotes ?? "",
+                    updatedAt: snapshot.createdAt
+                )
+            }
+            return (
+                CafeSessionDraft(
+                    id: link.sessionID,
+                    ownerUserID: authenticatedUserID,
+                    cafeID: cafe.id,
+                    startedAt: link.startedAt,
+                    status: .active,
+                    visibility: pending.visibility,
+                    primarySipDraftID: pending.id,
+                    returnIntention: link.returnIntention,
+                    repeatComparison: link.repeatComparison,
+                    experienceDraft: experienceDraft,
+                    shareProjection: link.shareProjection
+                ),
+                nil
+            )
+        case .secondary:
+            return (
+                nil,
+                CafeSessionReference(
+                    id: link.sessionID,
+                    ownerUserID: authenticatedUserID,
+                    cafeID: cafe.id,
+                    startedAt: link.startedAt,
+                    visibility: pending.visibility,
+                    primaryVisitID: nil,
+                    returnIntention: link.returnIntention
+                )
+            )
+        }
+    }
+
+    private func bindPendingSubmission(
+        _ pending: PendingVisitSubmissionRecord,
+        fallbackImages: [UIImage]? = nil
+    ) {
+        if draft.ownerUserID == nil {
+            draft.ownerUserID = pending.userId
+        }
+        pendingSubmission = pending
+        conflictingPendingSubmission = nil
+        pendingRecoveryNeedsPhotoRepair = false
+        if let frozenImages = try? PendingVisitSubmissionStore.shared.loadImages(for: pending) {
+            photoImages = frozenImages
+            draft.localPhotoNames = []
+            draft.posterPhotoIndex = pending.posterPhotoIndex
+        } else if let fallbackImages {
+            photoImages = fallbackImages
+        }
+        uploadRecoveryMessage = "An earlier save was interrupted. Retry continues the same sip without making a duplicate."
+    }
+
+    private func discardConflictingPendingSubmission() {
+        guard let conflictingPendingSubmission else { return }
+        PendingVisitSubmissionStore.shared.remove(conflictingPendingSubmission)
+        scheduleObsoletePhotoCleanup(
+            conflictingPendingSubmission.objectPaths,
+            userID: conflictingPendingSubmission.userId
+        )
+        if conflictingPendingSubmission.phase >= .visitCreated {
+            let visitID = conflictingPendingSubmission.id
+            let userID = conflictingPendingSubmission.userId
+            Task {
+                guard let client = try? SupabaseClientProvider.shared.client() else { return }
+                try? await VisitService(client: client).deleteVisit(
+                    visitId: visitID,
+                    userId: userID
+                )
+            }
+        }
+        self.conflictingPendingSubmission = nil
+        pendingSubmission = nil
+        pendingRecoveryNeedsPhotoRepair = false
+        uploadRecoveryMessage = nil
+        errorMessage = nil
+    }
+
+    private func prepareProtectedSaveForDiscard() {
+        if conflictingPendingSubmission == nil, let pendingSubmission {
+            conflictingPendingSubmission = pendingSubmission
+            self.pendingSubmission = nil
+        }
+        pendingRecoveryNeedsPhotoRepair = false
+        showDiscardPendingConfirmation = conflictingPendingSubmission != nil
+    }
+
+    @MainActor
+    private func refreshCafeSessionsCapability() async {
+        guard cafeSessionsAndPulse else {
+            remoteCafeSessionsAvailable = false
+            if draft.resolvedGuidedStep == .cafePulse {
+                draft.guidedStep = .audience
+            }
+            return
+        }
+        guard authModel.authenticatedUser != nil else {
+            remoteCafeSessionsAvailable = false
+            if let userID = dataManager.appData.currentUser?.id {
+                cafeLearningSignals = CafeExperienceLearningEngine().learnedSignals(
+                    userID: userID,
+                    snapshots: dataManager.appData.cafeSessions.compactMap(\.experienceSnapshot)
+                )
+            }
+            ensureCafeSessionDraft()
+            return
+        }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = CafeSessionService(client: client)
+            _ = try await service.capability()
+            remoteCafeSessionsAvailable = true
+            ensureCafeSessionDraft()
+            if let userID = authModel.authenticatedUser?.id,
+               let snapshots = try? await service.fetchOwnSnapshots(userID: userID) {
+                cafeLearningSignals = CafeExperienceLearningEngine().learnedSignals(
+                    userID: userID,
+                    snapshots: snapshots
+                )
+            }
+        } catch {
+            // Capability gating is deliberately quiet: an older backend keeps
+            // the proven sip-only composer instead of exposing an unsavable
+            // Cafe Pulse journey.
+            remoteCafeSessionsAvailable = false
+            cafeLearningSignals = []
+            if draft.resolvedGuidedStep == .cafePulse {
+                draft.guidedStep = .audience
+            }
+        }
+    }
+
+    private func resetCafeSessionForSelectedCafe() {
+        guard draft.context == .cafe, draft.launchContext.source != .addAnotherSip else {
+            return
+        }
+        draft.clearCafeSession()
+        ensureCafeSessionDraft()
+    }
+
+    private func ensureCafeSessionDraft() {
+        guard shouldOfferCafePulse, let cafe = draft.cafe else { return }
+        if draft.cafeSessionDraft?.cafeID != cafe.id {
+            draft.cafeSessionDraft = CafeSessionDraft(
+                ownerUserID: draft.ownerUserID
+                    ?? authModel.authenticatedUser?.id
+                    ?? dataManager.appData.currentUser?.id,
+                cafeID: cafe.id,
+                startedAt: draft.createdAt,
+                visibility: draft.visibility,
+                primarySipDraftID: draft.id
+            )
+        }
+        draft.cafeSessionDraft?.ownerUserID = draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        draft.cafeSessionDraft?.visibility = draft.visibility
+        draft.cafeSessionSipOrder = 0
+        draft.cafeSessionSipRole = .primary
+    }
+
+    private var pinnedOwnerScope: String {
+        (draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id)?.uuidString.lowercased()
+            ?? "anonymous"
+    }
+
+    private var pinnedSipScope: String { "\(pinnedOwnerScope).sip" }
+
+    private var pinnedContextScope: String {
+        "\(pinnedOwnerScope).context.\(draft.context.rawValue.lowercased())"
+    }
+
+    private func applyPinnedCriteria() {
+        var sipCriteria = draft.ratingCriteria
+        PinnedCriterionStore.shared.applyPins(to: &sipCriteria, scope: pinnedSipScope)
+        draft.ratingCriteria = sipCriteria
+
+        var contextCriteria = draft.contextRatingCriteria
+        PinnedCriterionStore.shared.applyPins(to: &contextCriteria, scope: pinnedContextScope)
+        draft.contextRatingCriteria = contextCriteria
+    }
+
+    private func useLastSipCriteriaSetup() {
+        var criteria = draft.ratingCriteria
+        RecentCriterionSetupStore.shared.apply(to: &criteria, scope: pinnedSipScope)
+        PinnedCriterionStore.shared.applyPins(to: &criteria, scope: pinnedSipScope)
+        draft.ratingCriteria = criteria
+        MugshotHaptic.softImpact.play()
+    }
+
+    private func useLastContextCriteriaSetup() {
+        var criteria = draft.contextRatingCriteria
+        RecentCriterionSetupStore.shared.apply(to: &criteria, scope: pinnedContextScope)
+        PinnedCriterionStore.shared.applyPins(to: &criteria, scope: pinnedContextScope)
+        draft.contextRatingCriteria = criteria
+        MugshotHaptic.softImpact.play()
+    }
+
+    private func constrainRawNoteVisibility() {
+        guard visibilityRank(draft.rawNoteVisibility) > visibilityRank(draft.visibility) else { return }
+        draft.rawNoteVisibility = draft.visibility
+    }
+
+    private func visibilityRank(_ visibility: VisitVisibility) -> Int {
+        switch visibility {
+        case .private: return 0
+        case .friends: return 1
+        case .everyone: return 2
+        }
+    }
+
+    private func synchronizeV3CafeExperience() {
+        guard draft.context == .cafe else { return }
+        ensureCafeSessionDraft()
+        guard draft.cafeSessionDraft != nil else { return }
+        if draft.cafeSessionDraft?.experienceDraft == nil {
+            draft.cafeSessionDraft?.experienceDraft = CafeExperienceDraft()
+        }
+        draft.cafeSessionDraft?.experienceDraft?.depth = .quick
+        draft.cafeSessionDraft?.experienceDraft?.cafeRating = draft.contextScore
+            .flatMap { CafeExperienceRating(value: $0) }
+        draft.cafeSessionDraft?.experienceDraft?.ratingCriteria = draft.contextRatingCriteria
+        draft.cafeSessionDraft?.experienceDraft?.privateNotes = draft.contextNotes
+        draft.cafeSessionDraft?.experienceDraft?.updatedAt = .now
+        draft.cafeSessionDraft?.shareProjection.includesCafeRating = draft.contextScore != nil
     }
 
     private func shouldResume(_ storedDraft: SipDraft) -> Bool {
@@ -1574,7 +2523,23 @@ struct LogVisitView: View {
     }
 
     private func saveSip() {
+        guard !isSaving else { return }
+        synchronizeV3CafeExperience()
+        if shouldOfferCafePulse {
+            ensureCafeSessionDraft()
+        }
         SipSaveDiagnostics.record(.requested, draftID: draft.id, visitID: pendingSubmission?.id)
+        if conflictingPendingSubmission != nil {
+            errorMessage = PendingVisitSubmissionStoreError
+                .submissionIdentityMismatch
+                .localizedDescription
+            SipSaveDiagnostics.record(
+                .validationBlocked,
+                draftID: draft.id,
+                visitID: conflictingPendingSubmission?.id
+            )
+            return
+        }
         errorMessage = validationMessage
         guard errorMessage == nil else {
             SipSaveDiagnostics.record(.validationBlocked, draftID: draft.id, visitID: pendingSubmission?.id)
@@ -1583,7 +2548,7 @@ struct LogVisitView: View {
 
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
-            photoCount: photoImages.count,
+            photoCount: publicationVisualCount,
             socialCaption: draft.socialCaption,
             confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
         ) == .needsTextOnlyConfirmation {
@@ -1611,6 +2576,7 @@ struct LogVisitView: View {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
         }
 
+        isSaving = true
         if let authenticatedUser = authModel.authenticatedUser {
             Task { await saveRemote(authenticatedUser: authenticatedUser) }
         } else {
@@ -1628,10 +2594,29 @@ struct LogVisitView: View {
             return "Choose a cafe before saving this sip."
         }
         if draft.context != .cafe && draft.locationName.remoteTrimmedNonEmpty == nil {
-            return "Name this home context before saving."
+            return draft.context == .elsewhere
+                ? "Name this setting before saving."
+                : "Name this home context before saving."
         }
         if draft.drinkName.remoteTrimmedNonEmpty == nil {
             return "Add the drink you want to remember."
+        }
+        if photoImages.isEmpty, draft.photoFallback == nil {
+            return "Add a photo, or deliberately choose I missed the photo."
+        }
+        if draft.socialCaption.remoteTrimmedNonEmpty == nil {
+            return "Write the caption your friends will see."
+        }
+        if draft.socialCaption.count > 80 {
+            return "Keep the caption to 80 characters or fewer."
+        }
+        if draft.privateNotes.v3DatabaseCharacterCount
+            > V3VisitReflection.rawNoteCharacterLimit {
+            return "Keep your sip journal note to 10,000 characters or fewer."
+        }
+        if draft.contextNotes.v3DatabaseCharacterCount
+            > V3VisitReflection.rawNoteCharacterLimit {
+            return "Keep your context journal note to 10,000 characters or fewer."
         }
         if draft.captureMode == .addDetails && draft.sensorySnapshot == nil {
             return "Finish or switch from Tasting Lens before saving this sip."
@@ -1639,9 +2624,13 @@ struct LogVisitView: View {
         if draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5 {
             return "Add your personal How was it? rating."
         }
+        if draft.context == .cafe,
+           !(1...5).contains(draft.contextScore ?? 0) {
+            return "Add your cafe score before publishing this Mugshot."
+        }
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
-            photoCount: photoImages.count,
+            photoCount: publicationVisualCount,
             socialCaption: draft.socialCaption,
             confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
         ) == .needsTextOrPhoto {
@@ -1653,43 +2642,75 @@ struct LogVisitView: View {
         return nil
     }
 
+    private var publicationVisualCount: Int {
+        if !photoImages.isEmpty { return photoImages.count }
+        return draft.photoFallback == nil ? 0 : 1
+    }
+
     private func saveLocal() {
         guard let userID = dataManager.appData.currentUser?.id else { return }
         isSaving = true
         SipSaveDiagnostics.record(.localSaveStarted, draftID: draft.id)
+        let cafeSessionLink = makePendingCafeSessionLink(userID: userID)
 
-        let cafe = draft.cafe ?? dataManager.findOrCreateCafe(
-            named: draft.locationName.remoteTrimmedNonEmpty ?? draft.context.locationFallback
-        )
-        let photoPaths = photoImages.enumerated().map { index, image in
-            let path = "photo_\(UUID().uuidString)_\(index)"
-            PhotoCache.shared.store(image, forKey: path)
-            return path
+        do {
+            let cafe = draft.context == .cafe
+                ? draft.cafe ?? dataManager.findOrCreateCafe(named: "Cafe")
+                : nil
+            let photoPaths = try photoImages.enumerated().map { index, image in
+                let path = "photo_\(draft.id.uuidString.lowercased())_\(index)"
+                try PhotoCache.shared.storeDurably(image, forKey: path)
+                return path
+            }
+            let visit = Visit(
+                id: draft.id,
+                cafeId: cafe?.id ?? Self.localNonCafeContextID,
+                userId: userID,
+                drinkType: draft.drinkType,
+                customDrinkType: draft.drinkType == .other ? draft.customDrinkType : nil,
+                caption: draft.socialCaption,
+                notes: draft.privateNotes.remoteTrimmedNonEmpty,
+                context: draft.context,
+                locationName: draft.context == .cafe ? draft.cafe?.name : draft.locationName,
+                brewMethod: draft.brewMethod.remoteTrimmedNonEmpty,
+                equipment: draft.equipment.remoteTrimmedNonEmpty,
+                brewDetails: submissionBrewDetails,
+                drinkAnalysis: draft.drinkAnalysis,
+                sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
+                photos: photoPaths,
+                posterPhotoIndex: draft.posterPhotoIndex,
+                ratings: draft.ratingsDictionary,
+                ratingCriteria: draft.ratingCriteria,
+                overallScore: draft.resolvedOverallScore,
+                cafeSessionID: cafeSessionLink?.sessionID,
+                cafeSessionSipOrder: cafeSessionLink?.sipOrder,
+                cafeSessionSipRole: cafeSessionLink?.sipRole,
+                sipReorderIntention: cafeSessionLink?.reorderIntention,
+                v3Reflection: V3VisitReflection.make(visitID: draft.id, from: draft),
+                visibility: draft.visibility,
+                mentions: MentionParser.parseMentions(from: draft.socialCaption)
+            )
+            dataManager.upsertVisit(visit)
+            if let cafeSessionLink, let cafe {
+                persistLocalCafeSession(
+                    cafeSessionLink,
+                    visitID: visit.id,
+                    cafeID: cafe.id,
+                    userID: userID
+                )
+            }
+            try completeSuccessfulSave(visitID: visit.id, localVisit: visit)
+        } catch {
+            isSaving = false
+            draft.uploadState = .failed
+            persistDraft()
+            uploadRecoveryMessage = "Your journal entry is safe. Retry finishes this same Mugshot without making a duplicate."
+            errorMessage = MugshotUserFacingError.message(
+                for: error,
+                context: .sipSave
+            )
+            SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: draft.id)
         }
-        let visit = Visit(
-            cafeId: cafe.id,
-            userId: userID,
-            drinkType: draft.drinkType,
-            customDrinkType: draft.drinkType == .other ? draft.customDrinkType : nil,
-            caption: draft.socialCaption,
-            notes: draft.privateNotes.remoteTrimmedNonEmpty,
-            context: draft.context,
-            locationName: draft.context == .cafe ? draft.cafe?.name : draft.locationName,
-            brewMethod: draft.brewMethod.remoteTrimmedNonEmpty,
-            equipment: draft.equipment.remoteTrimmedNonEmpty,
-            brewDetails: submissionBrewDetails,
-            drinkAnalysis: draft.drinkAnalysis,
-            sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
-            photos: photoPaths,
-            posterPhotoIndex: draft.posterPhotoIndex,
-            ratings: draft.ratingsDictionary,
-            ratingCriteria: draft.ratingCriteria,
-            overallScore: draft.resolvedOverallScore,
-            visibility: draft.visibility,
-            mentions: MentionParser.parseMentions(from: draft.socialCaption)
-        )
-        dataManager.addVisit(visit)
-        completeSuccessfulSave(visitID: visit.id)
     }
 
     @MainActor
@@ -1702,15 +2723,30 @@ struct LogVisitView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
+            let cafeSessionService = CafeSessionService(client: client)
             let pendingStore = PendingVisitSubmissionStore.shared
             var submission: PendingVisitSubmissionRecord
+            var savedVisit: RemoteVisitSummary?
+            var remoteCafeExperienceSnapshot: CafeExperienceSnapshot?
 
-            if let pendingSubmission {
-                submission = pendingSubmission
+            if let storedPending = pendingStore.load(userId: authenticatedUser.id) {
+                guard storedPending.canResume(
+                    with: draft,
+                    authenticatedUserID: authenticatedUser.id
+                ) else {
+                    conflictingPendingSubmission = storedPending
+                    pendingSubmission = nil
+                    throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+                }
+                submission = storedPending
+                self.pendingSubmission = storedPending
+                conflictingPendingSubmission = nil
             } else {
+                self.pendingSubmission = nil
                 submission = try pendingStore.prepare(
+                    visitId: draft.id,
                     userId: authenticatedUser.id,
-                    cafe: draft.cafe,
+                    cafe: draft.context == .cafe ? draft.cafe : nil,
                     entryContext: draft.context,
                     locationName: draft.locationName,
                     drinkType: draft.drinkType,
@@ -1726,6 +2762,9 @@ struct LogVisitView: View {
                     overallScore: draft.resolvedOverallScore,
                     ratingTemplate: draft.ratingTemplateSnapshot,
                     sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
+                    v3Reflection: V3VisitReflection.make(visitID: draft.id, from: draft),
+                    taggedCompanions: draft.taggedCompanions,
+                    cafeSession: makePendingCafeSessionLink(userID: authenticatedUser.id),
                     images: photoImages,
                     posterPhotoIndex: draft.posterPhotoIndex
                 )
@@ -1735,7 +2774,7 @@ struct LogVisitView: View {
 
             if submission.phase == .prepared {
                 saveOperation = .creatingVisit
-                _ = try await service.createVisit(
+                savedVisit = try await service.createVisit(
                     visitId: submission.id,
                     userId: submission.userId,
                     cafe: submission.cafe,
@@ -1759,6 +2798,59 @@ struct LogVisitView: View {
                 try pendingStore.save(submission)
                 self.pendingSubmission = submission
                 SipSaveDiagnostics.record(.visitCreated, draftID: draft.id, visitID: submission.id)
+            }
+
+            if submission.phase >= .visitCreated,
+               let v3Reflection = submission.v3Reflection {
+                _ = try await V3VisitReflectionService(client: client).upsert(
+                    v3Reflection.privateUploadProjection
+                )
+            }
+
+            if submission.phase >= .visitCreated,
+               let session = submission.cafeSession {
+                let visit: RemoteVisitSummary
+                if let savedVisit {
+                    visit = savedVisit
+                } else {
+                    visit = try await service.fetchOwnedVisitSummary(
+                        visitId: submission.id,
+                        userId: submission.userId
+                    )
+                }
+                guard let remoteCafeID = visit.visit.cafeId else {
+                    throw CafeSessionServiceError.missingRemoteCafe
+                }
+                try await cafeSessionService.ensureSession(
+                    sessionID: session.sessionID,
+                    remoteCafeID: remoteCafeID,
+                    startedAt: session.startedAt,
+                    context: session.visitContext,
+                    visibility: .private
+                )
+                try await cafeSessionService.attachVisit(
+                    sessionID: session.sessionID,
+                    visitID: submission.id,
+                    order: session.sipOrder,
+                    role: session.sipRole
+                )
+                if session.sipRole == .primary {
+                    if let snapshot = session.experienceSnapshot {
+                        let reboundSnapshot = snapshot.rebindingCafeID(remoteCafeID)
+                        remoteCafeExperienceSnapshot = reboundSnapshot
+                        try await cafeSessionService.recordExperience(
+                            reboundSnapshot,
+                            primaryReorderIntention: session.reorderIntention
+                        )
+                    } else if session.returnIntention != nil || session.reorderIntention != nil {
+                        try await cafeSessionService.recordIntentions(
+                            sessionID: session.sessionID,
+                            visitID: submission.id,
+                            returnIntention: session.returnIntention,
+                            reorderIntention: session.reorderIntention
+                        )
+                    }
+                }
             }
 
             // The immutable private Taste Snapshot belongs to the visit, not to
@@ -1826,14 +2918,51 @@ struct LogVisitView: View {
                 photoURLs: urls,
                 posterPhotoIndex: submission.posterPhotoIndex
             )
-            _ = try await service.finalizeVisit(
-                visitId: submission.id,
-                userId: submission.userId,
-                visibility: submission.visibility
-            )
+            let finalizedVisit: RemoteVisitSummary
+            if let session = submission.cafeSession {
+                try await cafeSessionService.finalizeSipUpload(
+                    sessionID: session.sessionID,
+                    visitID: submission.id
+                )
+                switch session.sipRole {
+                case .primary:
+                    try await cafeSessionService.publishSession(
+                        sessionID: session.sessionID,
+                        visibility: submission.visibility,
+                        snapshot: remoteCafeExperienceSnapshot
+                            ?? session.experienceSnapshot,
+                        sharing: session.shareProjection
+                    )
+                case .secondary:
+                    try await cafeSessionService.appendSip(
+                        sessionID: session.sessionID,
+                        visitID: submission.id,
+                        order: session.sipOrder,
+                        reorderIntention: session.reorderIntention
+                    )
+                }
+                finalizedVisit = try await service.fetchOwnedVisitSummary(
+                    visitId: submission.id,
+                    userId: submission.userId
+                )
+            } else {
+                finalizedVisit = try await service.finalizeVisit(
+                    visitId: submission.id,
+                    userId: submission.userId,
+                    visibility: submission.visibility
+                )
+            }
+
+            // The database refuses to expose journal writing more broadly
+            // than the visit itself. Promote the requested raw-note audience
+            // only after the canonical visit audience is final, so an
+            // interrupted upload remains private and a retry stays safe.
+            if let v3Reflection = submission.v3Reflection {
+                _ = try await V3VisitReflectionService(client: client).upsert(v3Reflection)
+            }
             SipSaveDiagnostics.record(.visitFinalized, draftID: draft.id, visitID: submission.id)
 
-            if let taggedCompanions = draft.taggedCompanions {
+            if let taggedCompanions = submission.taggedCompanions {
                 try? await SocialDiscoveryService(client: client).setCompanions(
                     taggedCompanions.map(\.userID),
                     for: submission.id
@@ -1859,11 +2988,19 @@ struct LogVisitView: View {
                 )
             }
 
+            dataManager.noteJournalMutation()
+            let ownerSipCount = try? await service.fetchOwnerSipCount(
+                userId: submission.userId
+            )
+            try completeSuccessfulSave(
+                visitID: submission.id,
+                remoteVisit: finalizedVisit,
+                knownRemoteMemoryCount: ownerSipCount
+            )
             pendingStore.remove(submission)
             self.pendingSubmission = nil
+            conflictingPendingSubmission = nil
             uploadRecoveryMessage = nil
-            dataManager.noteJournalMutation()
-            completeSuccessfulSave(visitID: submission.id)
         } catch {
             isSaving = false
             SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: pendingSubmission?.id)
@@ -1878,6 +3015,18 @@ struct LogVisitView: View {
                     )
                 }
                 uploadRecoveryMessage = saveOperation.recoveryMessage
+                if let frozenDraft = reconstructDraft(
+                    from: pendingSubmission,
+                    authenticatedUserID: pendingSubmission.userId
+                ) {
+                    routeToPendingSubmission(
+                        pendingSubmission,
+                        recoveredDraft: frozenDraft,
+                        fallbackImages: photoImages,
+                        userID: pendingSubmission.userId
+                    )
+                    v3Step = .publish
+                }
             }
             errorMessage = MugshotUserFacingError.message(
                 for: error,
@@ -1887,51 +3036,466 @@ struct LogVisitView: View {
     }
 
     @MainActor
-    private func completeSuccessfulSave(visitID: UUID) {
-        isSaving = false
+    private func completeSuccessfulSave(
+        visitID: UUID,
+        remoteVisit: RemoteVisitSummary? = nil,
+        localVisit: Visit? = nil,
+        knownRemoteMemoryCount: Int? = nil
+    ) throws {
         SipSaveDiagnostics.record(.completed, draftID: draft.id, visitID: visitID)
+        let completedDraft = draft
+        let selectedCoverImage = photoImages.isEmpty
+            ? nil
+            : photoImages[min(max(draft.posterPhotoIndex, 0), photoImages.count - 1)]
+        let continuationOwnerUserID = draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
         if draft.context == .cafe {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
         }
-        completionSummary = SipCompletionSummary(
-            drinkName: draft.drinkName.remoteTrimmedNonEmpty ?? "Saved sip",
-            locationName: draft.context == .cafe
-                ? draft.cafe?.consumerDisplayName ?? "Cafe"
-                : draft.locationName.remoteTrimmedNonEmpty ?? draft.context.locationFallback,
-            context: draft.context,
-            score: draft.resolvedOverallScore,
-            visibility: draft.visibility,
-            usedTastingLens: draft.captureMode == .addDetails,
-            hasPhoto: !photoImages.isEmpty,
-            hasThought: draft.socialCaption.remoteTrimmedNonEmpty != nil,
-            hasPrivateNote: draft.privateNotes.remoteTrimmedNonEmpty != nil,
-            hasBrewDetails: draft.brewMethod.remoteTrimmedNonEmpty != nil
-                || draft.equipment.remoteTrimmedNonEmpty != nil
-                || !draft.tags.isEmpty
-                || !draft.companions.isEmpty
-                || draft.orderNotes.remoteTrimmedNonEmpty != nil
+        var sessionForContinuation = draft.cafeSessionDraft
+        if sessionForContinuation == nil,
+           activeContinuationSession?.id == draft.cafeSessionID {
+            sessionForContinuation = activeContinuationSession
+        }
+        if var sessionForContinuation {
+            if sessionForContinuation.primaryVisitID == nil {
+                sessionForContinuation.primaryVisitID = visitID
+            }
+            sessionForContinuation.status = .complete
+            sessionForContinuation.updatedAt = .now
+            completedCafeSession = sessionForContinuation
+            completedSessionCafe = draft.cafe
+        } else {
+            completedCafeSession = nil
+            completedSessionCafe = nil
+        }
+        activeContinuationSession = nil
+
+        let completedSummary = makeCompletionSummary(
+            from: draft,
+            session: sessionForContinuation
         )
-        SipDraftStore.shared.remove(draft)
-        var replacement = Self.initialDraft(
-            dataManager: dataManager,
-            preselectedCafe: nil,
-            ownerUserID: authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+        RecentCriterionSetupStore.shared.remember(
+            completedDraft.ratingCriteria,
+            scope: pinnedSipScope
         )
-        replacement.composerExperience = composerExperience
-        composerModel.draft = replacement
-        photoImages.removeAll()
+        RecentCriterionSetupStore.shared.remember(
+            completedDraft.contextRatingCriteria,
+            scope: pinnedContextScope
+        )
+        completionSummary = completedSummary
+        v3CompletionSummary = makeV3PassportSummary(
+            from: completedDraft,
+            coverImage: selectedCoverImage,
+            knownMemoryCount: localVisit != nil
+                ? knownLocalMemoryCount(for: completedDraft)
+                : knownRemoteMemoryCount
+        )
+        completedRemoteVisit = remoteVisit
+        completedLocalVisit = localVisit
+        if let sessionForContinuation,
+           let completedSessionCafe {
+            try? CafeSessionContinuationStore.shared.save(
+                CafeSessionContinuationRecord(
+                    ownerUserID: continuationOwnerUserID,
+                    session: sessionForContinuation,
+                    cafe: completedSessionCafe,
+                    summary: completedSummary.snapshot,
+                    stage: .completion,
+                    activeDraftID: nil,
+                    updatedAt: .now
+                )
+            )
+        } else {
+            CafeSessionContinuationStore.shared.remove(
+                ownerUserID: continuationOwnerUserID
+            )
+        }
+        let durableCompletedDraft = try SipDraftStore.shared.save(
+            completedDraft,
+            images: photoImages
+        )
+        composerModel.draft = durableCompletedDraft
+        let completionRecord = V3PublishedCompletionRecord(
+            ownerUserID: continuationOwnerUserID,
+            visitID: visitID,
+            isRemote: remoteVisit != nil,
+            updatedAt: .now
+        )
+        try V3PublishedCompletionStore.shared.save(completionRecord)
+        publishedCompletionRecord = completionRecord
         searchText = ""
         isCafeSearchActive = false
         confirmedTextOnlyEveryone = false
         showTextOnlyConfirmation = false
         pendingSubmission = nil
+        conflictingPendingSubmission = nil
         uploadRecoveryMessage = nil
+        completionStatusMessage = nil
         showSavedConfirmation = true
+        v3Step = .publish
+        isSaving = false
+    }
+
+    private func addAnotherSipToCompletedSession() {
+        guard var session = completedCafeSession,
+              let cafe = completedSessionCafe
+                ?? dataManager.getCafe(id: session.cafeID)
+                ?? explicitLaunchDraft?.cafe
+                ?? preselectedCafe else {
+            finishSuccessfulSave()
+            return
+        }
+        let priorCompletionSummary = completionSummary
+        clearPublishedCompletionHandoff()
+        let nextDraft = SipDraft.additionalSip(
+            in: &session,
+            cafe: cafe,
+            ownerUserID: authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
+        var configuredDraft = nextDraft
+        configuredDraft.composerExperience = composerExperience
+        configuredDraft.guidedStep = .drink
+        activeContinuationSession = session
+        completedCafeSession = nil
+        completedSessionCafe = nil
+        completionSummary = nil
+        v3CompletionSummary = nil
+        completedRemoteVisit = nil
+        completedLocalVisit = nil
+        isLoadingPublishedVisit = false
+        completionStatusMessage = nil
+        configuredDraft.v3Step = .setup
+        composerModel.draft = configuredDraft
+        photoImages.removeAll()
+        searchText = ""
+        isCafeSearchActive = false
+        confirmedTextOnlyEveryone = false
+        showSavedConfirmation = false
+        v3Step = .setup
+        persistDraft()
+        let ownerUserID = configuredDraft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        if let priorCompletionSummary {
+            try? CafeSessionContinuationStore.shared.save(
+                CafeSessionContinuationRecord(
+                    ownerUserID: ownerUserID,
+                    session: session,
+                    cafe: cafe,
+                    summary: priorCompletionSummary.snapshot,
+                    stage: .activeAdditionalSip,
+                    activeDraftID: configuredDraft.id,
+                    updatedAt: .now
+                )
+            )
+        }
+        MugshotHaptic.softImpact.play()
     }
 
     private func finishSuccessfulSave() {
+        let ownerUserID = draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        clearPublishedCompletionHandoff(ownerUserID: ownerUserID)
+        CafeSessionContinuationStore.shared.remove(ownerUserID: ownerUserID)
         tabCoordinator.selectedTab = 4
         dismiss()
+    }
+
+    private func clearPublishedCompletionHandoff(ownerUserID explicitOwnerUserID: UUID? = nil) {
+        let ownerUserID = explicitOwnerUserID
+            ?? publishedCompletionRecord?.ownerUserID
+            ?? draft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        let record = publishedCompletionRecord
+            ?? V3PublishedCompletionStore.shared.load(ownerUserID: ownerUserID)
+        if let record,
+           let storedDraft = SipDraftStore.shared.load(id: record.visitID) {
+            SipDraftStore.shared.remove(storedDraft.draft)
+        }
+        V3PublishedCompletionStore.shared.remove(ownerUserID: ownerUserID)
+        publishedCompletionRecord = nil
+    }
+
+    private func viewPublishedMugshot() {
+        guard completedRemoteVisit != nil || completedLocalVisit != nil else {
+            guard let record = publishedCompletionRecord,
+                  record.isRemote,
+                  let ownerUserID = record.ownerUserID
+                    ?? authModel.authenticatedUser?.id else {
+                completionStatusMessage = "Your Mugshot is safely published. Open it from Journal."
+                return
+            }
+            Task {
+                await loadPublishedRemoteVisit(
+                    record: record,
+                    ownerUserID: ownerUserID,
+                    openAfterLoad: true
+                )
+            }
+            return
+        }
+        showPublishedMugshot = true
+    }
+
+    @MainActor
+    private func loadPublishedRemoteVisit(
+        record: V3PublishedCompletionRecord,
+        ownerUserID: UUID,
+        openAfterLoad: Bool
+    ) async {
+        guard !isLoadingPublishedVisit else { return }
+        isLoadingPublishedVisit = true
+        completionStatusMessage = nil
+        defer { isLoadingPublishedVisit = false }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let service = VisitService(client: client)
+            async let visitRequest = service.fetchOwnedVisitSummary(
+                visitId: record.visitID,
+                userId: ownerUserID
+            )
+            async let countRequest = try? service.fetchOwnerSipCount(userId: ownerUserID)
+            let visit = try await visitRequest
+            let memoryCount = await countRequest
+            guard publishedCompletionRecord?.visitID == record.visitID,
+                  showSavedConfirmation else {
+                return
+            }
+            completedRemoteVisit = visit
+            if let stored = SipDraftStore.shared.load(id: record.visitID) {
+                let coverImage = stored.images.isEmpty
+                    ? nil
+                    : stored.images[min(
+                        max(stored.draft.posterPhotoIndex, 0),
+                        stored.images.count - 1
+                    )]
+                v3CompletionSummary = makeV3PassportSummary(
+                    from: stored.draft,
+                    coverImage: coverImage,
+                    knownMemoryCount: memoryCount
+                )
+            }
+            if openAfterLoad {
+                showPublishedMugshot = true
+            }
+        } catch {
+            guard publishedCompletionRecord?.visitID == record.visitID else { return }
+            completionStatusMessage = "Your Mugshot is safely published. Reconnect to open it here."
+        }
+    }
+
+    private func makeCompletionSummary(
+        from completedDraft: SipDraft,
+        session: CafeSessionDraft?
+    ) -> SipCompletionSummary {
+        SipCompletionSummary(
+            drinkName: completedDraft.drinkName.remoteTrimmedNonEmpty ?? "Saved sip",
+            locationName: completedDraft.context == .cafe
+                ? completedDraft.cafe?.consumerDisplayName ?? "Cafe"
+                : completedDraft.locationName.remoteTrimmedNonEmpty
+                    ?? completedDraft.context.locationFallback,
+            context: completedDraft.context,
+            score: completedDraft.resolvedOverallScore,
+            visibility: completedDraft.visibility,
+            usedTastingLens: completedDraft.captureMode == .addDetails,
+            hasPhoto: !photoImages.isEmpty,
+            hasThought: completedDraft.socialCaption.remoteTrimmedNonEmpty != nil,
+            hasPrivateNote: completedDraft.privateNotes.remoteTrimmedNonEmpty != nil,
+            hasBrewDetails: completedDraft.brewMethod.remoteTrimmedNonEmpty != nil
+                || completedDraft.equipment.remoteTrimmedNonEmpty != nil
+                || !completedDraft.tags.isEmpty
+                || !completedDraft.companions.isEmpty
+                || completedDraft.orderNotes.remoteTrimmedNonEmpty != nil,
+            isCafeSession: completedDraft.cafeSessionID != nil,
+            cafeRating: session?.experienceDraft?.cafeRating?.value,
+            nextMove: completedDraft.cafeNextMove.kind
+        )
+    }
+
+    private func makeV3PassportSummary(
+        from completedDraft: SipDraft,
+        coverImage: UIImage?,
+        knownMemoryCount: Int?
+    ) -> LogASipV3PassportSummary {
+        let isHome = completedDraft.context == .home || completedDraft.context == .recipe
+        let contextScore = isHome ? nil : completedDraft.contextScore
+        let sipScore = completedDraft.resolvedOverallScore
+        let mugshotScore = V3VisitReflection.deriveMugshotScore(
+            sipScore: sipScore,
+            contextScore: contextScore
+        )
+        let contextName: String
+        switch completedDraft.context {
+        case .cafe:
+            contextName = completedDraft.cafe?.consumerDisplayName ?? "Cafe"
+        case .home, .recipe:
+            contextName = completedDraft.locationName.remoteTrimmedNonEmpty ?? "Home"
+        case .elsewhere:
+            contextName = completedDraft.locationName.remoteTrimmedNonEmpty ?? "Elsewhere"
+        }
+
+        var seenCriteria = Set<String>()
+        let criteria = (completedDraft.ratingCriteria + completedDraft.contextRatingCriteria)
+            .filter { $0.score > 0 }
+            .compactMap { criterion -> String? in
+                let normalized = criterion.name
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                guard !normalized.isEmpty, seenCriteria.insert(normalized).inserted else {
+                    return nil
+                }
+                return criterion.name
+            }
+
+        let contextLabel = completedDraft.context == .cafe ? "Cafe" : "Setting"
+        let scoreEvidence: String
+        if let contextScore {
+            scoreEvidence = String(
+                format: "Sip %.1f and %@ %.1f blend to a %.1f Mugshot.",
+                sipScore,
+                contextLabel,
+                contextScore,
+                mugshotScore
+            )
+        } else {
+            scoreEvidence = String(
+                format: "Sip %.1f is this memory’s Mugshot score; no second score was required.",
+                sipScore
+            )
+        }
+
+        let evidence = [
+            LogASipV3PassportEvidence(
+                id: "latest-memory",
+                title: "A new memory",
+                detail: "\(completedDraft.drinkName) at \(contextName)",
+                systemImage: "camera.fill"
+            ),
+            LogASipV3PassportEvidence(
+                id: "score-evidence",
+                title: "Your scoring evidence",
+                detail: scoreEvidence,
+                systemImage: "star.bubble.fill"
+            )
+        ]
+
+        let identityDetail = criteria.isEmpty
+            ? "This memory adds one honest data point. Mugshot waits for repeated evidence before calling anything a pattern."
+            : "\(criteria.prefix(2).joined(separator: " and ")) shaped this memory. Mugshot will wait for repetition before turning that into a taste pattern."
+
+        return LogASipV3PassportSummary(
+            displayName: dataManager.appData.currentUser?.displayNameOrUsername ?? "You",
+            drinkName: completedDraft.drinkName,
+            contextName: contextName,
+            createdAt: completedDraft.createdAt,
+            sipScore: sipScore,
+            contextScore: contextScore,
+            mugshotScore: mugshotScore,
+            identityTitle: "Your Mugshot Passport is forming",
+            identityDetail: identityDetail,
+            memoryCount: knownMemoryCount ?? 0,
+            criteria: Array(criteria.prefix(8)),
+            evidence: evidence,
+            coverImage: coverImage
+        )
+    }
+
+    private func knownLocalMemoryCount(for completedDraft: SipDraft) -> Int {
+        let userID = completedDraft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        let localMemories = dataManager.appData.visits.filter { visit in
+            userID == nil || visit.userId == userID
+        }
+        return localMemories.contains(where: { $0.id == completedDraft.id })
+            ? localMemories.count
+            : localMemories.count + 1
+    }
+
+    private func makePendingCafeSessionLink(userID: UUID) -> PendingCafeSessionLink? {
+        guard draft.context == .cafe,
+              let sessionID = draft.cafeSessionID,
+              let role = draft.cafeSessionSipRole,
+              let order = draft.cafeSessionSipOrder else {
+            return nil
+        }
+
+        if var session = draft.cafeSessionDraft {
+            session.ownerUserID = userID
+            session.visibility = draft.visibility
+            return PendingCafeSessionLink(
+                sessionID: session.id,
+                startedAt: session.startedAt,
+                sipOrder: order,
+                sipRole: role,
+                visitContext: session.experienceDraft?.visitContext ?? CafeVisitContext(),
+                returnIntention: session.returnIntention,
+                reorderIntention: draft.sipReorderIntention,
+                repeatComparison: session.repeatComparison,
+                experienceSnapshot: session.makeSnapshot(),
+                shareProjection: session.shareProjection
+            )
+        }
+
+        guard let reference = draft.cafeSessionReference,
+              reference.id == sessionID else {
+            return nil
+        }
+        return PendingCafeSessionLink(
+            sessionID: reference.id,
+            startedAt: reference.startedAt,
+            sipOrder: order,
+            sipRole: role,
+            visitContext: CafeVisitContext(),
+            returnIntention: reference.returnIntention,
+            reorderIntention: draft.sipReorderIntention,
+            repeatComparison: nil,
+            experienceSnapshot: nil,
+            shareProjection: CafeExperienceShareProjection()
+        )
+    }
+
+    private func persistLocalCafeSession(
+        _ link: PendingCafeSessionLink,
+        visitID: UUID,
+        cafeID: UUID,
+        userID: UUID
+    ) {
+        if var existing = dataManager.getCafeSession(id: link.sessionID) {
+            if !existing.visitIDs.contains(visitID) {
+                existing.visitIDs.append(visitID)
+            }
+            if link.sipRole == .primary {
+                existing.primaryVisitID = visitID
+            }
+            existing.status = .complete
+            existing.endedAt = .now
+            existing.visibility = draft.visibility
+            existing.returnIntention = link.returnIntention ?? existing.returnIntention
+            existing.experienceSnapshot = link.experienceSnapshot ?? existing.experienceSnapshot
+            dataManager.upsertCafeSession(existing)
+            return
+        }
+
+        dataManager.upsertCafeSession(CafeSession(
+            id: link.sessionID,
+            ownerUserID: userID,
+            cafeID: cafeID,
+            startedAt: link.startedAt,
+            endedAt: .now,
+            status: .complete,
+            visibility: draft.visibility,
+            primaryVisitID: link.sipRole == .primary ? visitID : nil,
+            visitIDs: [visitID],
+            returnIntention: link.returnIntention,
+            experienceSnapshot: link.experienceSnapshot
+        ))
     }
 
     private var submissionBrewDetails: BrewDetails {
@@ -1955,7 +3519,10 @@ struct LogVisitView: View {
         case .context: return
         case .drink: prior = .context
         case .rating: prior = .drink
-        case .audience: prior = .rating
+        case .cafePulse:
+            if moveToPriorCafePulseStep() { return }
+            prior = .rating
+        case .audience: prior = guidedSteps.contains(.cafePulse) ? .cafePulse : .rating
         }
         moveToGuidedStep(prior)
     }
@@ -1969,6 +3536,9 @@ struct LogVisitView: View {
             guard draft.drinkName.remoteTrimmedNonEmpty != nil else { return }
             moveToGuidedStep(.rating)
         case .rating:
+            moveToGuidedStep(guidedSteps.contains(.cafePulse) ? .cafePulse : .audience)
+        case .cafePulse:
+            if moveToNextCafePulseStep() { return }
             moveToGuidedStep(.audience)
         case .audience:
             saveSip()
@@ -1994,6 +3564,7 @@ struct LogVisitView: View {
         case .rating:
             return draft.resolvedOverallScore >= 0.5 && draft.resolvedOverallScore <= 5
                 && (draft.captureMode == .quickSip || draft.sensorySnapshot != nil)
+        case .cafePulse: return true
         case .audience: return draft.hasRequiredCore
         }
     }
@@ -2001,7 +3572,11 @@ struct LogVisitView: View {
     private var guidedPrimaryTitle: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "Continue"
-        case .rating: return "Choose audience"
+        case .rating: return guidedSteps.contains(.cafePulse) ? "Reflect on the cafe" : "Choose audience"
+        case .cafePulse:
+            return cafePulseJourneyPlan.isLastStep(currentCafePulseStepID)
+                ? "Choose audience"
+                : "Continue"
         case .audience: return saveButtonTitle
         }
     }
@@ -2009,7 +3584,11 @@ struct LogVisitView: View {
     private var guidedPrimaryIcon: String {
         switch draft.resolvedGuidedStep {
         case .context, .drink: return "arrow.right"
-        case .rating: return "person.2.fill"
+        case .rating: return guidedSteps.contains(.cafePulse) ? "building.2.fill" : "person.2.fill"
+        case .cafePulse:
+            return cafePulseJourneyPlan.isLastStep(currentCafePulseStepID)
+                ? "person.2.fill"
+                : "arrow.right"
         case .audience: return "checkmark"
         }
     }
@@ -2024,10 +3603,75 @@ struct LogVisitView: View {
         case .drink: return "Mugshot will organize this in the background."
         case .rating:
             return draft.captureMode == .addDetails
-                ? "Your observations and personal stars are separate. Next, choose the audience."
-                : "Your score is ready. Next, decide who can see the sip."
+                ? "Your observations and personal stars are separate."
+                : "Your sip score is ready."
+        case .cafePulse:
+            let index = cafePulseJourneyPlan.resolvedIndex(for: currentCafePulseStepID)
+            return "Cafe Pulse step \(index + 1) of \(cafePulseJourneyPlan.steps.count) · Cafe stars never change sip stars."
         case .audience: return "Serving details and private notes are optional."
         }
+    }
+
+    private var cafePulseJourneyPlan: CafePulseJourneyPlan {
+        let experience = draft.cafeSessionDraft?.experienceDraft ?? CafeExperienceDraft()
+        return CafePulseJourneyPlan.make(
+            depth: experience.depth,
+            context: experience.visitContext,
+            showsRepeatComparison: true
+        )
+    }
+
+    private var currentCafePulseStepID: String? {
+        draft.cafeSessionDraft?.experienceDraft?.journeyStepID
+    }
+
+    @discardableResult
+    private func moveToNextCafePulseStep() -> Bool {
+        guard let next = cafePulseJourneyPlan.step(after: currentCafePulseStepID) else {
+            return false
+        }
+        setCafePulseJourneyStep(next.id)
+        return true
+    }
+
+    @discardableResult
+    private func moveToPriorCafePulseStep() -> Bool {
+        guard let prior = cafePulseJourneyPlan.step(before: currentCafePulseStepID) else {
+            return false
+        }
+        setCafePulseJourneyStep(prior.id)
+        return true
+    }
+
+    private func setCafePulseJourneyStep(_ stepID: String) {
+        ensureCafeSessionDraft()
+        if draft.cafeSessionDraft?.experienceDraft == nil {
+            draft.cafeSessionDraft?.experienceDraft = CafeExperienceDraft()
+        }
+        withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
+            draft.cafeSessionDraft?.experienceDraft?.journeyStepID = stepID
+            draft.cafeSessionDraft?.experienceDraft?.updatedAt = .now
+        }
+        MugshotHaptic.softImpact.play()
+    }
+
+    private var guidedSteps: [SipGuidedStep] {
+        if shouldOfferCafePulse {
+            return [.context, .drink, .rating, .cafePulse, .audience]
+        }
+        return [.context, .drink, .rating, .audience]
+    }
+
+    private var guidedScrollIdentity: String {
+        if draft.resolvedGuidedStep == .cafePulse {
+            return "\(SipGuidedStep.cafePulse.rawValue)-\(currentCafePulseStepID ?? "start")"
+        }
+        return draft.resolvedGuidedStep.rawValue
+    }
+
+    private var guidedCurrentStepIndex: Int {
+        guidedSteps.firstIndex(of: draft.resolvedGuidedStep)
+            ?? max(guidedSteps.count - 1, 0)
     }
 
     private func addTag(_ rawTag: String) {
@@ -2052,13 +3696,42 @@ struct LogVisitView: View {
     }
 
     private func appendPhotos(_ images: [UIImage]) {
+        guard canEditPhotos else {
+            errorMessage = PendingVisitSubmissionStoreError
+                .mediaAlreadyUploaded
+                .localizedDescription
+            return
+        }
+        let previousImages = photoImages
+        let previousLocalNames = draft.localPhotoNames
+        let previousPosterPhotoIndex = draft.posterPhotoIndex
+        let previousPhotoFallback = draft.photoFallback
         let remaining = max(0, 10 - photoImages.count)
         photoImages.append(contentsOf: images.prefix(remaining))
+        if !images.isEmpty { draft.photoFallback = nil }
+        guard commitPendingPhotoPlanIfNeeded() else {
+            photoImages = previousImages
+            draft.localPhotoNames = previousLocalNames
+            draft.posterPhotoIndex = previousPosterPhotoIndex
+            draft.photoFallback = previousPhotoFallback
+            return
+        }
+        confirmedTextOnlyEveryone = false
         persistDraft()
     }
 
     private func removePhoto(at index: Int) {
-        guard photoImages.indices.contains(index) else { return }
+        guard canEditPhotos, photoImages.indices.contains(index) else {
+            if !canEditPhotos {
+                errorMessage = PendingVisitSubmissionStoreError
+                    .mediaAlreadyUploaded
+                    .localizedDescription
+            }
+            return
+        }
+        let previousImages = photoImages
+        let previousLocalNames = draft.localPhotoNames
+        let previousPosterPhotoIndex = draft.posterPhotoIndex
         let removedPoster = draft.posterPhotoIndex == index
         photoImages.remove(at: index)
         if draft.localPhotoNames.indices.contains(index) {
@@ -2071,7 +3744,117 @@ struct LogVisitView: View {
         } else {
             draft.posterPhotoIndex = min(draft.posterPhotoIndex, max(photoImages.count - 1, 0))
         }
+        guard commitPendingPhotoPlanIfNeeded() else {
+            photoImages = previousImages
+            draft.localPhotoNames = previousLocalNames
+            draft.posterPhotoIndex = previousPosterPhotoIndex
+            return
+        }
+        confirmedTextOnlyEveryone = false
         persistDraft()
+    }
+
+    private func finishOrganizingPhotos() {
+        let imagesChanged = photoOrganizerOriginalImages.map { original in
+            original.count != photoImages.count
+                || !zip(original, photoImages).allSatisfy { pair in
+                    pair.0 === pair.1
+                }
+        } ?? false
+        let posterChanged = photoOrganizerOriginalPosterIndex.map {
+            $0 != draft.posterPhotoIndex
+        } ?? false
+        photoOrganizerOriginalImages = nil
+        photoOrganizerOriginalPosterIndex = nil
+
+        guard imagesChanged || posterChanged else {
+            persistDraft()
+            return
+        }
+        guard commitPendingPhotoPlanIfNeeded() else {
+            restoreFrozenPendingPhotos()
+            return
+        }
+        persistDraft()
+    }
+
+    private func beginOrganizingPhotos() {
+        guard canEditPhotos else {
+            errorMessage = PendingVisitSubmissionStoreError
+                .mediaAlreadyUploaded
+                .localizedDescription
+            return
+        }
+        photoOrganizerOriginalImages = photoImages
+        photoOrganizerOriginalPosterIndex = draft.posterPhotoIndex
+        showPhotoOrganizer = true
+    }
+
+    @discardableResult
+    private func commitPendingPhotoPlanIfNeeded() -> Bool {
+        guard let pendingSubmission else { return true }
+        guard pendingSubmission.canResume(
+            with: draft,
+            authenticatedUserID: pendingSubmission.userId
+        ) else {
+            conflictingPendingSubmission = pendingSubmission
+            self.pendingSubmission = nil
+            errorMessage = PendingVisitSubmissionStoreError
+                .submissionIdentityMismatch
+                .localizedDescription
+            return false
+        }
+
+        do {
+            let replacement = try PendingVisitSubmissionStore.shared.replaceImages(
+                for: pendingSubmission,
+                images: photoImages,
+                posterPhotoIndex: draft.posterPhotoIndex
+            )
+            self.pendingSubmission = replacement.record
+            pendingRecoveryNeedsPhotoRepair = false
+            scheduleObsoletePhotoCleanup(
+                replacement.obsoleteObjectPaths,
+                userID: replacement.record.userId
+            )
+            uploadRecoveryMessage = "Your photo changes are ready. Retry continues this same sip without making a duplicate."
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = MugshotUserFacingError.message(
+                for: error,
+                context: .photoUpload
+            )
+            return false
+        }
+    }
+
+    private func restoreFrozenPendingPhotos() {
+        guard let pendingSubmission,
+              let images = try? PendingVisitSubmissionStore.shared.loadImages(
+                for: pendingSubmission
+              ) else {
+            return
+        }
+        photoImages = images
+        draft.localPhotoNames = []
+        draft.posterPhotoIndex = pendingSubmission.posterPhotoIndex
+        persistDraft()
+    }
+
+    private func scheduleObsoletePhotoCleanup(_ paths: [String], userID: UUID) {
+        guard !paths.isEmpty else { return }
+        let cleanupStore = VisitMediaCleanupStore.shared
+        cleanupStore.enqueue(paths, userId: userID)
+        Task {
+            guard let client = try? SupabaseClientProvider.shared.client() else { return }
+            do {
+                try await VisitPhotoUploadService(client: client).deletePhotos(at: paths)
+                cleanupStore.remove(paths, userId: userID)
+            } catch {
+                // Durable cleanup remains queued for the existing launch retry.
+            }
+        }
     }
 
     private func requestCamera() {
@@ -2221,6 +4004,75 @@ private struct SipCompletionSummary {
     let hasThought: Bool
     let hasPrivateNote: Bool
     let hasBrewDetails: Bool
+    let isCafeSession: Bool
+    let cafeRating: Double?
+    let nextMove: CafeNextMoveKind
+
+    init(
+        drinkName: String,
+        locationName: String,
+        context: JournalEntryContext,
+        score: Double,
+        visibility: VisitVisibility,
+        usedTastingLens: Bool,
+        hasPhoto: Bool,
+        hasThought: Bool,
+        hasPrivateNote: Bool,
+        hasBrewDetails: Bool,
+        isCafeSession: Bool,
+        cafeRating: Double?,
+        nextMove: CafeNextMoveKind
+    ) {
+        self.drinkName = drinkName
+        self.locationName = locationName
+        self.context = context
+        self.score = score
+        self.visibility = visibility
+        self.usedTastingLens = usedTastingLens
+        self.hasPhoto = hasPhoto
+        self.hasThought = hasThought
+        self.hasPrivateNote = hasPrivateNote
+        self.hasBrewDetails = hasBrewDetails
+        self.isCafeSession = isCafeSession
+        self.cafeRating = cafeRating
+        self.nextMove = nextMove
+    }
+
+    init(snapshot: SipCompletionSnapshot) {
+        self.init(
+            drinkName: snapshot.drinkName,
+            locationName: snapshot.locationName,
+            context: snapshot.context,
+            score: snapshot.score,
+            visibility: snapshot.visibility,
+            usedTastingLens: snapshot.usedTastingLens,
+            hasPhoto: snapshot.hasPhoto,
+            hasThought: snapshot.hasThought,
+            hasPrivateNote: snapshot.hasPrivateNote,
+            hasBrewDetails: snapshot.hasBrewDetails,
+            isCafeSession: snapshot.isCafeSession,
+            cafeRating: snapshot.cafeRating,
+            nextMove: snapshot.nextMove
+        )
+    }
+
+    var snapshot: SipCompletionSnapshot {
+        SipCompletionSnapshot(
+            drinkName: drinkName,
+            locationName: locationName,
+            context: context,
+            score: score,
+            visibility: visibility,
+            usedTastingLens: usedTastingLens,
+            hasPhoto: hasPhoto,
+            hasThought: hasThought,
+            hasPrivateNote: hasPrivateNote,
+            hasBrewDetails: hasBrewDetails,
+            isCafeSession: isCafeSession,
+            cafeRating: cafeRating,
+            nextMove: nextMove
+        )
+    }
 
     var detailHighlights: [String] {
         [
@@ -2247,6 +4099,7 @@ private struct SipCompletionSummary {
         switch context {
         case .cafe: return "Cafe"
         case .home: return "Brewed at"
+        case .elsewhere: return "Setting"
         case .recipe: return "Recipe"
         }
     }

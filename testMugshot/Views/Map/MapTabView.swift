@@ -25,11 +25,11 @@ enum MapDiscoveryRadius {
 }
 
 enum MapDiscoveryScope: String, CaseIterable, Identifiable {
-    case all = "All"
+    case visited = "Visited"
     case friends = "Friends"
     case favorites = "Favorites"
     case wantToTry = "Want to Try"
-    case visited = "Visited"
+    case all = "All"
 
     var id: String { rawValue }
 
@@ -66,7 +66,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     }
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
-        isAuthenticated ? allCases : [.all, .favorites, .wantToTry, .visited]
+        isAuthenticated ? allCases : [.visited, .favorites, .wantToTry, .all]
     }
 }
 
@@ -88,14 +88,16 @@ struct MapTabView: View {
     @State private var hasInitializedLocation = false
     @State private var showLocationMessage = false
     @State private var remoteStateError: String?
-    @State private var remoteMapPins: [Cafe] = []
+    @State private var remoteMapPins: [RemoteMapPin] = []
     @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
-    @State private var discoveryScope: MapDiscoveryScope = .all
+    @State private var discoveryScope: MapDiscoveryScope = .visited
     @State private var discoveryMode: MapDiscoveryMode = .map
     @State private var discoveryRadiusMiles = 10.0
     @State private var discoveryMapCafes: [Cafe] = []
     @State private var discoveryCafesByID: [UUID: DiscoveryCafe] = [:]
+    @State private var friendCafeSummariesByID: [UUID: RemoteCafeExperienceSummary] = [:]
+    @State private var friendSipSummariesByID: [UUID: RemoteFriendMapSipSummary] = [:]
     @State private var friendPreviewCafe: Cafe?
     @State private var userTrackingMode: MKUserTrackingMode = .none
     
@@ -144,7 +146,9 @@ struct MapTabView: View {
                 cafes: displayedMapCafes,
                 highlightedCafe: showCafeDetail || friendPreviewCafe != nil ? selectedCafe : nil,
                 friendCounts: friendCountsByCafeID,
+                pinScores: displayedPinScoresByCafeID,
                 showsFriendContext: discoveryScope == .friends,
+                scope: discoveryScope,
                 showsUserLocation: locationAccessAuthorized,
                 trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
@@ -209,14 +213,15 @@ struct MapTabView: View {
                 }
             }
             
-            VStack(spacing: 0) {
-                // Location message banner
-                if showLocationMessage {
-                    LocationBanner()
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
+            if !showCafeDetail && friendPreviewCafe == nil {
+                VStack(spacing: 0) {
+                    // Location message banner
+                    if showLocationMessage {
+                        LocationBanner()
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                 if let remoteStateError {
                     HStack(spacing: 10) {
@@ -243,6 +248,7 @@ struct MapTabView: View {
                             .foregroundColor(.espressoBrown.opacity(0.6))
                         
                         TextField("Search places", text: $searchText)
+                            .accessibilityIdentifier("map.search.query")
                             .foregroundColor(.inputText)
                             .tint(.mugshotSage)
                             .accentColor(.mugshotSage)
@@ -254,7 +260,6 @@ struct MapTabView: View {
                                     searchService.search(query: newValue, region: region ?? defaultRegion)
                                 } else {
                                     searchService.cancelSearch()
-                                    isSearchActive = isSearchFieldFocused
                                 }
                             }
                             .onTapGesture {
@@ -300,6 +305,7 @@ struct MapTabView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
                         .transition(.opacity)
+                        .accessibilityIdentifier("map.search.cancel")
                     }
                 }
                 .padding(.horizontal, 16)
@@ -343,6 +349,7 @@ struct MapTabView: View {
                         isSearchActive: $isSearchActive,
                         isSearchFieldFocused: $isSearchFieldFocused
                     )
+                    .accessibilityIdentifier("map.search.results")
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
@@ -369,6 +376,8 @@ struct MapTabView: View {
                         .padding(.bottom, 188)
                     }
                 }
+                }
+                .transition(.opacity)
             }
             
             // Ratings Legend - sticky at bottom above tab bar
@@ -390,9 +399,11 @@ struct MapTabView: View {
                         cafe: cafe,
                         dataManager: dataManager,
                         isPresented: $showCafeDetail,
+                        initialPinScore: pinScoresByCafeID[cafe.id],
                         onLogVisitRequested: onLogVisitRequested // Pass the closure
                     )
                 }
+                .accessibilityIdentifier("map.cafeDetail.sheet")
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if let cafe = friendPreviewCafe,
                       let discoveryCafe = discoveryCafesByID[cafe.id] {
@@ -400,7 +411,7 @@ struct MapTabView: View {
                     Spacer()
                     FriendCafePeekSheet(
                         cafe: cafe,
-                        friendAverage: discoveryCafe.averageRating,
+                        pinScore: friendPinScoresByCafeID[cafe.id],
                         friends: discoveryCafe.friends,
                         onDismiss: {
                             friendPreviewCafe = nil
@@ -478,9 +489,12 @@ struct MapTabView: View {
         // saved-cafe states, never the public feed or stale local cache.
         let source: [Cafe]
         if authModel.authenticatedUser == nil {
+            let localEligibleCafes = dataManager.appData.cafes.filter {
+                $0.visitCount > 0 || $0.isFavorite || $0.wantToTry
+            }
             switch discoveryScope {
             case .all:
-                source = discoveryMapCafes
+                source = localEligibleCafes + discoveryMapCafes
             case .favorites:
                 source = dataManager.appData.cafes.filter(\.isFavorite)
             case .wantToTry:
@@ -493,13 +507,13 @@ struct MapTabView: View {
         } else {
             switch discoveryScope {
             case .all:
-                source = remoteMapPins + discoveryMapCafes
+                source = remoteMapPins.map(\.localCafe) + discoveryMapCafes
             case .favorites:
-                source = remoteMapPins.filter(\.isFavorite)
+                source = remoteMapPins.filter(\.isFavorite).map(\.localCafe)
             case .wantToTry:
-                source = remoteMapPins.filter(\.wantToTry)
+                source = remoteMapPins.filter(\.wantToTry).map(\.localCafe)
             case .visited:
-                source = remoteMapPins.filter { $0.visitCount > 0 }
+                source = remoteMapPins.filter { $0.visitCount > 0 }.map(\.localCafe)
             case .friends:
                 source = discoveryMapCafes
             }
@@ -512,8 +526,67 @@ struct MapTabView: View {
         }
     }
 
+    private var personalPinScoresByCafeID: [UUID: MapPinScore] {
+        guard authModel.authenticatedUser != nil else {
+            return localPinScoresByCafeID
+        }
+        return Dictionary(
+            uniqueKeysWithValues: remoteMapPins.compactMap { pin in
+                pin.score.map { (pin.id, $0) }
+            }
+        )
+    }
+
+    private var localPinScoresByCafeID: [UUID: MapPinScore] {
+        let visits = dataManager.appData.visits.filter {
+            $0.context == .cafe && $0.overallScore > 0
+        }
+        return Dictionary(grouping: visits, by: \.cafeId).compactMapValues { cafeVisits in
+            MapPinScoreResolver.sessionBalancedSipScore(
+                cafeVisits.map {
+                    MapSipScoreSeed(
+                        overallScore: $0.overallScore,
+                        cafeSessionID: $0.cafeSessionID
+                    )
+                },
+                audience: .personal
+            )
+        }
+    }
+
+    private var friendPinScoresByCafeID: [UUID: MapPinScore] {
+        discoveryCafesByID.reduce(into: [:]) { result, entry in
+            let cafeID = entry.key
+            if let summary = friendCafeSummariesByID[cafeID],
+               let cafeScore = MapPinScoreResolver.resolve(
+                   sips: [],
+                   cafeSummary: summary,
+                   audience: .friends,
+                   contributorCount: summary.contributorCount
+               ) {
+                result[cafeID] = cafeScore
+            } else if let sipScore = friendSipSummariesByID[cafeID]?.mapPinScore {
+                result[cafeID] = sipScore
+            }
+        }
+    }
+
+    /// All, Favorites, Want to Try, and Visited are personal map views.
+    /// Friend and discovery eligibility can add neutral pins to All, but never
+    /// lends those pins somebody else's score.
+    private var pinScoresByCafeID: [UUID: MapPinScore] {
+        discoveryScope == .friends
+            ? friendPinScoresByCafeID
+            : personalPinScoresByCafeID
+    }
+
+    private var displayedPinScoresByCafeID: [UUID: MapPinScore] {
+        let displayedIDs = Set(displayedMapCafes.map(\.id))
+        return pinScoresByCafeID.filter { displayedIDs.contains($0.key) }
+    }
+
     private var friendCountsByCafeID: [UUID: Int] {
-        guard discoveryScope == .friends else { return [:] }
+        guard discoveryScope == .friends || discoveryScope == .all else { return [:] }
         return discoveryCafesByID.mapValues(\.friendCount)
     }
 
@@ -571,6 +644,8 @@ struct MapTabView: View {
                 remoteMapPins = []
                 discoveryMapCafes = discovery.map(\.localCafe)
                 discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
+                friendCafeSummariesByID = [:]
+                friendSipSummariesByID = [:]
                 remoteStateError = nil
                 hasLoadedRemoteMapPins = true
                 remoteMapPinUserId = nil
@@ -579,6 +654,8 @@ struct MapTabView: View {
                 remoteMapPins = []
                 discoveryMapCafes = []
                 discoveryCafesByID = [:]
+                friendCafeSummariesByID = [:]
+                friendSipSummariesByID = [:]
                 remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
                 hasLoadedRemoteMapPins = false
                 remoteMapPinUserId = nil
@@ -596,7 +673,8 @@ struct MapTabView: View {
             let snapshot = try await PerformanceMonitor.measure("Map initial data") {
                 try await MapPinService(
                     visitService: VisitService(client: client),
-                    cafeStateService: CafeStateService(client: client)
+                    cafeStateService: CafeStateService(client: client),
+                    cafeSessionService: CafeSessionService(client: client)
                 ).fetchSnapshot(userId: userId)
             }
 
@@ -605,9 +683,28 @@ struct MapTabView: View {
                 isAuthenticated: true
             )
 
-            remoteMapPins = snapshot.pins.map(\.localCafe)
+            let friendCafeIDs = discoveryScope == .friends
+                ? discovery.map(\.id)
+                : []
+            let cafeSessionService = CafeSessionService(client: client)
+            async let cafeSummariesRequest: [RemoteCafeExperienceSummary] = cafeSessionService
+                .fetchCafeSummaries(cafeIDs: friendCafeIDs, scope: .friends)
+            async let sipSummariesRequest: [RemoteFriendMapSipSummary]? = try? cafeSessionService
+                .fetchFriendMapSipSummaries(cafeIDs: friendCafeIDs)
+            let (friendCafeSummaries, friendSipSummaries) = try await (
+                cafeSummariesRequest,
+                sipSummariesRequest
+            )
+
+            remoteMapPins = snapshot.pins
             discoveryMapCafes = discovery.map(\.localCafe)
             discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
+            friendCafeSummariesByID = Dictionary(
+                uniqueKeysWithValues: friendCafeSummaries.map { ($0.cafeID, $0) }
+            )
+            friendSipSummariesByID = Dictionary(
+                uniqueKeysWithValues: (friendSipSummaries ?? []).map { ($0.cafeID, $0) }
+            )
             // Keep the rest of the personal library in sync without using it
             // as the map's source of truth.
             dataManager.applyRemoteCafeStates(snapshot.cafeStates)
@@ -618,6 +715,8 @@ struct MapTabView: View {
             guard !Task.isCancelled else { return }
             remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
             hasLoadedRemoteMapPins = false
+            friendCafeSummariesByID = [:]
+            friendSipSummariesByID = [:]
         }
     }
 
@@ -662,6 +761,98 @@ struct MapTabView: View {
     }
 }
 
+// MARK: - Map Pin Presentation
+
+enum MapPinRatingBand: String, Equatable {
+    case high
+    case middle
+    case low
+    case unrated
+
+    init(score: Double?) {
+        guard let score, score > 0, score.isFinite else {
+            self = .unrated
+            return
+        }
+        if score >= 4 {
+            self = .high
+        } else if score >= 3 {
+            self = .middle
+        } else {
+            self = .low
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .high: .mapPinHigh
+        case .middle: .mapPinMiddle
+        case .low: .mapPinLow
+        case .unrated: .mugshotMint
+        }
+    }
+
+    var usesDarkForeground: Bool {
+        self == .middle || self == .unrated
+    }
+}
+
+enum MapPinPrimaryKind: String, Equatable {
+    case journal
+    case friends
+    case favorite
+    case wantToTry
+}
+
+struct MapPinPresentation: Equatable {
+    let primaryKind: MapPinPrimaryKind
+    let score: Double?
+    let friendCount: Int
+    let showsFavoriteBadge: Bool
+    let showsWantToTryBadge: Bool
+    let showsFriendsBadge: Bool
+
+    var ratingBand: MapPinRatingBand {
+        MapPinRatingBand(score: score)
+    }
+
+    var scoreText: String? {
+        score.map { String(format: "%.1f", $0) }
+    }
+
+    var hasStateBadges: Bool {
+        showsFavoriteBadge || showsWantToTryBadge || showsFriendsBadge
+    }
+
+    static func resolve(
+        scope: MapDiscoveryScope,
+        cafe: Cafe,
+        pinScore: MapPinScore?,
+        friendCount: Int
+    ) -> MapPinPresentation {
+        let primaryKind: MapPinPrimaryKind
+        switch scope {
+        case .friends:
+            primaryKind = .friends
+        case .favorites:
+            primaryKind = .favorite
+        case .wantToTry:
+            primaryKind = .wantToTry
+        case .visited, .all:
+            primaryKind = .journal
+        }
+
+        return MapPinPresentation(
+            primaryKind: primaryKind,
+            score: pinScore?.value,
+            friendCount: max(friendCount, 0),
+            showsFavoriteBadge: scope == .all && cafe.isFavorite,
+            showsWantToTryBadge: scope == .all && cafe.wantToTry,
+            showsFriendsBadge: scope == .all && friendCount > 0
+        )
+    }
+}
+
 // MARK: - Map View Representable (to hide POIs)
 
 struct MapViewRepresentable: UIViewRepresentable {
@@ -669,7 +860,9 @@ struct MapViewRepresentable: UIViewRepresentable {
     let cafes: [Cafe]
     let highlightedCafe: Cafe?
     let friendCounts: [UUID: Int]
+    let pinScores: [UUID: MapPinScore]
     let showsFriendContext: Bool
+    var scope: MapDiscoveryScope = .all
     let showsUserLocation: Bool
     @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
@@ -721,13 +914,17 @@ struct MapViewRepresentable: UIViewRepresentable {
         let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
         let currentCafeIds = Set(displayedCafes.map { $0.id })
 
-        let friendPresentationChanged = context.coordinator.lastFriendCounts != friendCounts
+        let pinPresentationChanged = context.coordinator.lastFriendCounts != friendCounts
+            || context.coordinator.lastPinScores != pinScores
             || context.coordinator.lastShowsFriendContext != showsFriendContext
-        if friendPresentationChanged {
+            || context.coordinator.lastScope != scope
+        if pinPresentationChanged {
             mapView.removeAnnotations(existingAnnotations)
             mapView.addAnnotations(displayedCafes.map { CafeAnnotation(cafe: $0) })
             context.coordinator.lastFriendCounts = friendCounts
+            context.coordinator.lastPinScores = pinScores
             context.coordinator.lastShowsFriendContext = showsFriendContext
+            context.coordinator.lastScope = scope
             return
         }
         
@@ -763,12 +960,16 @@ struct MapViewRepresentable: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapViewRepresentable
         var lastFriendCounts: [UUID: Int]
+        var lastPinScores: [UUID: MapPinScore]
         var lastShowsFriendContext: Bool
+        var lastScope: MapDiscoveryScope
 
         init(parent: MapViewRepresentable) {
             self.parent = parent
             lastFriendCounts = parent.friendCounts
+            lastPinScores = parent.pinScores
             lastShowsFriendContext = parent.showsFriendContext
+            lastScope = parent.scope
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -788,9 +989,14 @@ struct MapViewRepresentable: UIViewRepresentable {
             guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
             
             let cafe = cafeAnnotation.cafe
-            let identifier = parent.showsFriendContext
-                ? "FriendCafePin"
-                : cafe.isFavorite ? "FavoritePin" : (cafe.wantToTry ? "WantToTryPin" : "CafePin")
+            let pinScore = parent.pinScores[cafe.id]
+            let presentation = MapPinPresentation.resolve(
+                scope: parent.scope,
+                cafe: cafe,
+                pinScore: pinScore,
+                friendCount: parent.friendCounts[cafe.id] ?? 0
+            )
+            let identifier = "MugshotMapPin-\(presentation.primaryKind.rawValue)-\(presentation.hasStateBadges)"
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
             
             if annotationView == nil {
@@ -802,31 +1008,8 @@ struct MapViewRepresentable: UIViewRepresentable {
                 annotationView?.annotation = annotation
             }
             
-            let pinSize: CGFloat = parent.showsFriendContext ? 44 : 36
-            let containerView = UIView(frame: CGRect(x: 0, y: 0, width: pinSize, height: pinSize))
-            containerView.backgroundColor = .clear
-            
-            if parent.showsFriendContext {
-                containerView.addSubview(
-                    createFriendPin(
-                        size: pinSize,
-                        rating: cafe.averageRating,
-                        friendCount: parent.friendCounts[cafe.id] ?? 0
-                    )
-                )
-            } else if cafe.wantToTry {
-                // Want to Try: Blue bookmark icon
-                let bookmarkView = createBookmarkPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(bookmarkView)
-            } else if cafe.isFavorite {
-                // Favorite: Heart icon with rating color
-                let heartView = createHeartPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(heartView)
-            } else {
-                // Default: Rating-colored circle
-                let circleView = createDefaultPin(size: pinSize, rating: cafe.averageRating)
-                containerView.addSubview(circleView)
-            }
+            let containerView = createPinContainer(presentation)
+            let pinSize = containerView.bounds.width
             
             // Clear existing subviews
             annotationView?.subviews.forEach { $0.removeFromSuperview() }
@@ -835,38 +1018,113 @@ struct MapViewRepresentable: UIViewRepresentable {
             annotationView?.centerOffset = CGPoint(x: 0, y: -pinSize / 2)
             annotationView?.isAccessibilityElement = true
             annotationView?.accessibilityTraits = .button
+            annotationView?.accessibilityIdentifier = "map.pin.\(cafe.id.uuidString)"
             if parent.showsFriendContext {
-                let friendCount = parent.friendCounts[cafe.id] ?? 0
-                annotationView?.accessibilityLabel = "\(cafe.name), friend average \(String(format: "%.1f", cafe.averageRating)), \(friendCount) \(friendCount == 1 ? "friend" : "friends")"
+                let friendCount = presentation.friendCount
+                let scoreDescription = pinScore?.accessibilityLabel ?? "Cafe not rated by friends"
+                annotationView?.accessibilityLabel = "\(cafe.name), \(scoreDescription), \(friendCount) \(friendCount == 1 ? "friend" : "friends")"
                 annotationView?.accessibilityHint = "Shows the friends who visited"
             } else {
-                annotationView?.accessibilityLabel = cafe.name
+                let scoreDescription = pinScore.map { ", \($0.accessibilityLabel)" } ?? ", Not rated"
+                var stateDescriptions: [String] = []
+                if cafe.isFavorite { stateDescriptions.append("Favorite") }
+                if cafe.wantToTry { stateDescriptions.append("Want to Try") }
+                if presentation.showsFriendsBadge {
+                    stateDescriptions.append(
+                        "\(presentation.friendCount) \(presentation.friendCount == 1 ? "friend visited" : "friends visited")"
+                    )
+                }
+                let stateDescription = stateDescriptions.isEmpty
+                    ? ""
+                    : ", " + stateDescriptions.joined(separator: ", ")
+                annotationView?.accessibilityLabel = cafe.name + scoreDescription + stateDescription
                 annotationView?.accessibilityHint = "Shows cafe details"
             }
             
             return annotationView
         }
-        
-        private func createDefaultPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor = rating > 0 ? ratingColor(rating) : UIColor(Color.mugshotSage)
-            
+
+        private func createPinContainer(_ presentation: MapPinPresentation) -> UIView {
+            if presentation.primaryKind == .friends {
+                return createFriendPin(size: 48, presentation: presentation)
+            }
+
+            let primarySize: CGFloat = 38
+            let canvasSize: CGFloat = presentation.hasStateBadges ? 52 : primarySize
+            let primaryOrigin = (canvasSize - primarySize) / 2
+            let container = UIView(
+                frame: CGRect(x: 0, y: 0, width: canvasSize, height: canvasSize)
+            )
+            container.backgroundColor = .clear
+
+            let primaryView: UIView
+            switch presentation.primaryKind {
+            case .journal:
+                primaryView = createDefaultPin(size: primarySize, presentation: presentation)
+            case .favorite:
+                primaryView = createHeartPin(size: primarySize, presentation: presentation)
+            case .wantToTry:
+                primaryView = createBookmarkPin(size: primarySize, presentation: presentation)
+            case .friends:
+                preconditionFailure("Friend pins use their dedicated layout")
+            }
+            primaryView.frame.origin = CGPoint(x: primaryOrigin, y: primaryOrigin)
+            container.addSubview(primaryView)
+
+            if presentation.showsFavoriteBadge {
+                container.addSubview(
+                    createStateBadge(
+                        systemName: "heart.fill",
+                        frame: CGRect(x: 0, y: 0, width: 18, height: 18)
+                    )
+                )
+            }
+            if presentation.showsWantToTryBadge {
+                container.addSubview(
+                    createStateBadge(
+                        systemName: "bookmark.fill",
+                        frame: CGRect(x: canvasSize - 18, y: 0, width: 18, height: 18)
+                    )
+                )
+            }
+            if presentation.showsFriendsBadge {
+                container.addSubview(
+                    createStateBadge(
+                        systemName: "person.2.fill",
+                        frame: CGRect(
+                            x: canvasSize - 18,
+                            y: canvasSize - 18,
+                            width: 18,
+                            height: 18
+                        )
+                    )
+                )
+            }
+            return container
+        }
+
+        private func createDefaultPin(
+            size: CGFloat,
+            presentation: MapPinPresentation
+        ) -> UIView {
             let pinView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            pinView.backgroundColor = pinColor
+            pinView.backgroundColor = pinColor(presentation.ratingBand)
             pinView.layer.cornerRadius = size / 2
             pinView.layer.borderWidth = 2
             pinView.layer.borderColor = UIColor.white.cgColor
-            
-            if rating > 0 {
-                let scoreLabel = UILabel()
-                scoreLabel.text = String(format: "%.1f", rating)
-                scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-                scoreLabel.textColor = .white
-                scoreLabel.textAlignment = .center
-                scoreLabel.frame = pinView.bounds
-                pinView.addSubview(scoreLabel)
+
+            if let scoreText = presentation.scoreText {
+                pinView.addSubview(
+                    createScoreLabel(
+                        text: scoreText,
+                        frame: pinView.bounds,
+                        band: presentation.ratingBand,
+                        fontSize: 12
+                    )
+                )
             } else {
                 let imageView = UIImageView(image: UIImage(systemName: "cup.and.saucer.fill"))
-                imageView.tintColor = .white
+                imageView.tintColor = foregroundColor(presentation.ratingBand)
                 imageView.contentMode = .scaleAspectFit
                 imageView.frame = pinView.bounds.insetBy(dx: 9, dy: 9)
                 pinView.addSubview(imageView)
@@ -874,104 +1132,151 @@ struct MapViewRepresentable: UIViewRepresentable {
             return pinView
         }
 
-        private func createFriendPin(size: CGFloat, rating: Double, friendCount: Int) -> UIView {
+        private func createFriendPin(
+            size: CGFloat,
+            presentation: MapPinPresentation
+        ) -> UIView {
             let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            let ratingCircle = UIView(frame: CGRect(x: 0, y: 5, width: 38, height: 38))
-            ratingCircle.backgroundColor = ratingColor(rating)
-            ratingCircle.layer.cornerRadius = 19
+            let ratingCircle = UIView(frame: CGRect(x: 1, y: 6, width: 40, height: 40))
+            ratingCircle.backgroundColor = pinColor(presentation.ratingBand)
+            ratingCircle.layer.cornerRadius = 20
             ratingCircle.layer.borderWidth = 2
             ratingCircle.layer.borderColor = UIColor.white.cgColor
 
-            let scoreLabel = UILabel(frame: ratingCircle.bounds)
-            scoreLabel.text = rating > 0 ? String(format: "%.1f", rating) : "–"
-            scoreLabel.font = .systemFont(ofSize: 11, weight: .bold)
-            scoreLabel.textColor = .white
-            scoreLabel.textAlignment = .center
-            ratingCircle.addSubview(scoreLabel)
-
-            let countBadge = UILabel(frame: CGRect(x: 27, y: 0, width: 19, height: 19))
-            countBadge.text = friendCount > 9 ? "9+" : "\(friendCount)"
-            countBadge.font = .systemFont(ofSize: 9, weight: .bold)
-            countBadge.textColor = UIColor(Color.espressoBrown)
-            countBadge.textAlignment = .center
-            countBadge.backgroundColor = UIColor(Color.foamWhite)
-            countBadge.layer.cornerRadius = 9.5
-            countBadge.layer.masksToBounds = true
-            countBadge.layer.borderWidth = 1
-            countBadge.layer.borderColor = UIColor(Color.mugshotSage.opacity(0.35)).cgColor
+            if let scoreText = presentation.scoreText {
+                ratingCircle.addSubview(
+                    createScoreLabel(
+                        text: scoreText,
+                        frame: CGRect(x: 0, y: 6, width: 40, height: 22),
+                        band: presentation.ratingBand,
+                        fontSize: 12
+                    )
+                )
+                let friendsGlyph = UIImageView(image: UIImage(systemName: "person.2.fill"))
+                friendsGlyph.tintColor = foregroundColor(presentation.ratingBand)
+                friendsGlyph.contentMode = .scaleAspectFit
+                friendsGlyph.frame = CGRect(x: 14, y: 28, width: 12, height: 8)
+                ratingCircle.addSubview(friendsGlyph)
+            } else {
+                let friendsGlyph = UIImageView(image: UIImage(systemName: "person.2.fill"))
+                friendsGlyph.tintColor = foregroundColor(presentation.ratingBand)
+                friendsGlyph.contentMode = .scaleAspectFit
+                friendsGlyph.frame = ratingCircle.bounds.insetBy(dx: 10, dy: 12)
+                ratingCircle.addSubview(friendsGlyph)
+            }
 
             container.addSubview(ratingCircle)
-            container.addSubview(countBadge)
+            if presentation.friendCount > 0 {
+                let countBadge = UILabel(frame: CGRect(x: 29, y: 0, width: 19, height: 19))
+                countBadge.text = presentation.friendCount > 9
+                    ? "9+"
+                    : "\(presentation.friendCount)"
+                countBadge.font = .systemFont(ofSize: 9, weight: .bold)
+                countBadge.textColor = UIColor(Color.espressoBrown)
+                countBadge.textAlignment = .center
+                countBadge.backgroundColor = UIColor(Color.foamWhite)
+                countBadge.layer.cornerRadius = 9.5
+                countBadge.layer.masksToBounds = true
+                countBadge.layer.borderWidth = 1
+                countBadge.layer.borderColor = UIColor(Color.mugshotSage.opacity(0.35)).cgColor
+                container.addSubview(countBadge)
+            }
             return container
         }
         
-        private func createHeartPin(size: CGFloat, rating: Double) -> UIView {
-            let pinColor = ratingColor(rating)
-            
+        private func createHeartPin(
+            size: CGFloat,
+            presentation: MapPinPresentation
+        ) -> UIView {
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
-            
-            // Heart shape using SF Symbol
             let heartImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            let heartImage = UIImage(systemName: "heart.fill")
-            heartImageView.image = heartImage
-            heartImageView.tintColor = pinColor
+            heartImageView.image = UIImage(systemName: "heart.fill")
+            heartImageView.tintColor = pinColor(presentation.ratingBand)
             heartImageView.contentMode = .scaleAspectFit
-            
-            // Score label centered on heart
-            let scoreLabel = UILabel()
-            if rating > 0 {
-                scoreLabel.text = String(format: "%.1f", rating)
-            } else {
-                scoreLabel.text = "–"
-            }
-            scoreLabel.font = .systemFont(ofSize: 10, weight: .bold)
-            scoreLabel.textColor = .white
-            scoreLabel.textAlignment = .center
-            scoreLabel.frame = CGRect(x: 0, y: size * 0.3, width: size, height: size * 0.4)
-            
             containerView.addSubview(heartImageView)
-            containerView.addSubview(scoreLabel)
-            
+
+            if let scoreText = presentation.scoreText {
+                containerView.addSubview(
+                    createScoreLabel(
+                        text: scoreText,
+                        frame: CGRect(x: 0, y: size * 0.26, width: size, height: size * 0.42),
+                        band: presentation.ratingBand,
+                        fontSize: 10
+                    )
+                )
+            }
             return containerView
         }
         
-        private func createBookmarkPin(size: CGFloat, rating: Double) -> UIView {
+        private func createBookmarkPin(
+            size: CGFloat,
+            presentation: MapPinPresentation
+        ) -> UIView {
             let containerView = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             containerView.backgroundColor = .clear
-            
             let bookmarkImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            let bookmarkImage = UIImage(systemName: "bookmark.fill")
-            bookmarkImageView.image = bookmarkImage
-            bookmarkImageView.tintColor = UIColor(Color.mugshotSage)
+            bookmarkImageView.image = UIImage(systemName: "bookmark.fill")
+            bookmarkImageView.tintColor = pinColor(presentation.ratingBand)
             bookmarkImageView.contentMode = .scaleAspectFit
-            
-            // Score label if rating exists
-            if rating > 0 {
-                let scoreLabel = UILabel()
-                scoreLabel.text = String(format: "%.1f", rating)
-                scoreLabel.font = .systemFont(ofSize: 10, weight: .bold)
-                scoreLabel.textColor = .white
-                scoreLabel.textAlignment = .center
-                scoreLabel.frame = CGRect(x: 0, y: size * 0.25, width: size, height: size * 0.4)
-                containerView.addSubview(scoreLabel)
-            }
-            
             containerView.addSubview(bookmarkImageView)
-            
+
+            if let scoreText = presentation.scoreText {
+                containerView.addSubview(
+                    createScoreLabel(
+                        text: scoreText,
+                        frame: CGRect(x: 0, y: size * 0.18, width: size, height: size * 0.44),
+                        band: presentation.ratingBand,
+                        fontSize: 10
+                    )
+                )
+            }
             return containerView
         }
 
-        private func ratingColor(_ rating: Double) -> UIColor {
-            if rating >= 4.0 {
-                return UIColor(Color.mugshotSage)
-            } else if rating >= 3.0 {
-                return UIColor(Color.mugshotMatcha)
-            } else if rating > 0 {
-                return UIColor(Color(hex: "B04A2F"))
-            } else {
-                return UIColor(Color.mugshotLatte)
-            }
+        private func createScoreLabel(
+            text: String,
+            frame: CGRect,
+            band: MapPinRatingBand,
+            fontSize: CGFloat
+        ) -> UILabel {
+            let scoreLabel = UILabel(frame: frame)
+            scoreLabel.text = text
+            scoreLabel.font = .systemFont(ofSize: fontSize, weight: .bold)
+            scoreLabel.textColor = foregroundColor(band)
+            scoreLabel.textAlignment = .center
+            scoreLabel.adjustsFontSizeToFitWidth = true
+            scoreLabel.minimumScaleFactor = 0.82
+            return scoreLabel
+        }
+
+        private func createStateBadge(systemName: String, frame: CGRect) -> UIView {
+            let badge = UIView(frame: frame)
+            badge.backgroundColor = UIColor(Color.foamWhite)
+            badge.layer.cornerRadius = frame.width / 2
+            badge.layer.borderWidth = 1.5
+            badge.layer.borderColor = UIColor.white.cgColor
+            badge.layer.shadowColor = UIColor.black.cgColor
+            badge.layer.shadowOpacity = 0.14
+            badge.layer.shadowRadius = 2
+            badge.layer.shadowOffset = CGSize(width: 0, height: 1)
+
+            let imageView = UIImageView(image: UIImage(systemName: systemName))
+            imageView.tintColor = UIColor(Color.espressoBrown)
+            imageView.contentMode = .scaleAspectFit
+            imageView.frame = badge.bounds.insetBy(dx: 4, dy: 4)
+            badge.addSubview(imageView)
+            return badge
+        }
+
+        private func pinColor(_ band: MapPinRatingBand) -> UIColor {
+            UIColor(band.color)
+        }
+
+        private func foregroundColor(_ band: MapPinRatingBand) -> UIColor {
+            band.usesDarkForeground
+                ? UIColor(Color.espressoBrown)
+                : UIColor(Color.foamWhite)
         }
         
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
@@ -1032,18 +1337,22 @@ struct RatingsLegend: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(showsFriendContext ? "Friends' average ratings" : "Your ratings")
+            Text(showsFriendContext ? "Friends’ ratings" : "Your ratings")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown)
+
+            Text("Cafe average when available · Sip average otherwise")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.tertiaryText)
             
             HStack(spacing: 16) {
-                LegendItem(color: .mugshotSage, text: "≥ 4.0", accessibilityText: "High", accessibilityValueText: "4.0 or higher")
-                LegendItem(color: .mugshotMatcha, text: "3.0–3.9", accessibilityText: "Mid", accessibilityValueText: "3.0 to 3.9")
-                LegendItem(color: Color(hex: "B04A2F"), text: "< 3.0", accessibilityText: "Low", accessibilityValueText: "Below 3.0")
+                LegendItem(color: .mapPinHigh, text: "≥ 4.0", accessibilityText: "High", accessibilityValueText: "4.0 or higher")
+                LegendItem(color: .mapPinMiddle, text: "3.0–3.9", accessibilityText: "Mid", accessibilityValueText: "3.0 to 3.9")
+                LegendItem(color: .mapPinLow, text: "< 3.0", accessibilityText: "Low", accessibilityValueText: "Below 3.0")
                 LegendItem(icon: "bookmark.fill", color: .mugshotSage, text: "Want to try", accessibilityText: "Want to try")
             }
             
-            Text(showsFriendContext ? "Tap a pin to see which friends visited." : "Tap pins for details.")
+            Text("Tap a pin to see its source and evidence.")
                 .font(.system(size: 10))
                 .foregroundColor(.tertiaryText)
         }
@@ -1331,7 +1640,7 @@ struct MapDiscoveryFilterBar: View {
 
 private struct FriendCafePeekSheet: View {
     let cafe: Cafe
-    let friendAverage: Double?
+    let pinScore: MapPinScore?
     let friends: [DiscoveryCafeFriend]
     let onDismiss: () -> Void
     let onRevealCafe: () -> Void
@@ -1356,9 +1665,9 @@ private struct FriendCafePeekSheet: View {
 
                 Spacer(minLength: 8)
 
-                if let friendAverage, friendAverage > 0 {
-                    MugshotRatingBadge(score: friendAverage)
-                        .accessibilityLabel(String(format: "Friend average %.1f", friendAverage))
+                if let pinScore {
+                    MugshotRatingBadge(score: pinScore.value, label: pinScore.sourceLabel)
+                        .accessibilityLabel(pinScore.accessibilityLabel)
                 }
 
                 Button(action: onDismiss) {
@@ -1369,6 +1678,15 @@ private struct FriendCafePeekSheet: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.tertiaryText)
                 .accessibilityLabel("Close friend cafe preview")
+            }
+
+            if let pinScore {
+                Label(pinScore.evidenceDescription, systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                    .accessibilityLabel(
+                        "\(pinScore.accessibilityLabel). \(pinScore.evidenceDescription)"
+                    )
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1384,7 +1702,7 @@ private struct FriendCafePeekSheet: View {
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.espressoBrown)
                                 .lineLimit(1)
-                            Text(String(format: "%.1f · %d sip%@", friend.averageRating, friend.sipCount, friend.sipCount == 1 ? "" : "s"))
+                            Text("\(friend.sipCount) \(friend.sipCount == 1 ? "sip" : "sips")")
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.secondaryText)
                                 .lineLimit(1)
@@ -1435,6 +1753,7 @@ struct CafeDetailSheet: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @Binding var isPresented: Bool
+    let initialPinScore: MapPinScore?
     var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
     @State private var showLogVisit = false
     @State private var showFullDetails = false
@@ -1445,6 +1764,7 @@ struct CafeDetailSheet: View {
     @State private var isLoadingRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
+    @State private var cafeExperienceSummary: RemoteCafeExperienceSummary?
     
     // Get current cafe state from dataManager to reflect real-time changes
     var currentCafe: Cafe? {
@@ -1460,12 +1780,62 @@ struct CafeDetailSheet: View {
     }
 
     private var displayedVisitCount: Int {
-        max(displayCafe.visitCount, visits.count, remoteVisits.count)
+        let legacyRemoteCount = remoteVisits.filter { $0.visit.cafeSessionID == nil }.count
+        if let cafeExperienceSummary {
+            return cafeExperienceSummary.physicalSessionCount + legacyRemoteCount
+        }
+        return max(displayCafe.visitCount, visits.count, remoteVisits.count)
     }
 
-    private var displayedScore: Double {
-        if displayCafe.averageRating > 0 { return displayCafe.averageRating }
-        return RemoteCafeVisitStats.calculate(from: remoteVisits).averageScore
+    private var displayedCafeScore: Double? {
+        cafeExperienceSummary?.averageCafeRating
+    }
+
+    private var displayedSipScore: Double? {
+        if !remoteVisits.isEmpty {
+            return MapPinScoreResolver.sessionBalancedSipScore(
+                remoteVisits.map {
+                    MapSipScoreSeed(
+                        overallScore: $0.visit.overallScore,
+                        cafeSessionID: $0.visit.cafeSessionID
+                    )
+                },
+                audience: .personal
+            )?.value
+        }
+        return MapPinScoreResolver.sessionBalancedSipScore(
+            visits.map {
+                MapSipScoreSeed(
+                    overallScore: $0.overallScore,
+                    cafeSessionID: $0.cafeSessionID
+                )
+            },
+            audience: .personal
+        )?.value
+    }
+
+    private var displayedPinScore: MapPinScore? {
+        let sipSeeds: [MapSipScoreSeed]
+        if !remoteVisits.isEmpty {
+            sipSeeds = remoteVisits.map {
+                MapSipScoreSeed(
+                    overallScore: $0.visit.overallScore,
+                    cafeSessionID: $0.visit.cafeSessionID
+                )
+            }
+        } else {
+            sipSeeds = visits.map {
+                MapSipScoreSeed(
+                    overallScore: $0.overallScore,
+                    cafeSessionID: $0.cafeSessionID
+                )
+            }
+        }
+        return MapPinScoreResolver.resolve(
+            sips: sipSeeds,
+            cafeSummary: cafeExperienceSummary,
+            audience: .personal
+        ) ?? initialPinScore
     }
     
     var body: some View {
@@ -1489,6 +1859,8 @@ struct CafeDetailSheet: View {
                         .foregroundColor(.espressoBrown.opacity(0.48))
                         .frame(width: 36, height: 36)
                 }
+                .accessibilityIdentifier("map.cafeDetail.close")
+                .accessibilityLabel("Close cafe card")
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -1592,16 +1964,32 @@ struct CafeDetailSheet: View {
     }
 
     private var mapSheetStats: some View {
-        HStack(spacing: 10) {
+        let columns = [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+        return LazyVGrid(columns: columns, spacing: 10) {
             mapSheetStatCard(
-                title: "Average",
-                value: displayedScore > 0 ? String(format: "%.1f", displayedScore) : "Unrated",
+                title: "Cafe average",
+                value: displayedCafeScore.map { String(format: "%.1f", $0) } ?? "Not rated",
+                systemImage: "storefront.fill"
+            )
+
+            mapSheetStatCard(
+                title: "Cafe visits",
+                value: "\(displayedVisitCount)",
+                systemImage: "mappin.and.ellipse"
+            )
+
+            mapSheetStatCard(
+                title: "Sip average",
+                value: displayedSipScore.map { String(format: "%.1f", $0) } ?? "Unrated",
                 systemImage: "star.fill"
             )
 
             mapSheetStatCard(
-                title: "Visits",
-                value: "\(displayedVisitCount)",
+                title: "Sips logged",
+                value: "\(max(visits.count, remoteVisits.count))",
                 systemImage: "cup.and.saucer.fill"
             )
         }
@@ -1628,6 +2016,9 @@ struct CafeDetailSheet: View {
                 title: visits.isEmpty ? "Your relationship" : "Your history",
                 subtitle: relationshipSubtitle
             )
+            if let displayedPinScore {
+                mapSheetPinEvidence(displayedPinScore)
+            }
             mapSheetStats
             if displayCafe.isFavorite || displayCafe.wantToTry {
                 HStack(spacing: 8) {
@@ -1642,6 +2033,28 @@ struct CafeDetailSheet: View {
         }
         .padding(14)
         .background(Color.sandBeige.opacity(0.4), in: RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+    }
+
+    private func mapSheetPinEvidence(_ score: MapPinScore) -> some View {
+        HStack(spacing: 12) {
+            MugshotRatingBadge(score: score.value, label: score.sourceLabel)
+                .accessibilityLabel(score.accessibilityLabel)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(score.pinUseTitle)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text(score.evidenceDescription)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondaryText)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(11)
+        .background(Color.foamWhite.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var relationshipSubtitle: String {
@@ -1703,7 +2116,7 @@ struct CafeDetailSheet: View {
     @ViewBuilder
     private var mapSheetRecentVisits: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Visits")
+            Text("Recent sips")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.espressoBrown)
 
@@ -1715,11 +2128,11 @@ struct CafeDetailSheet: View {
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.roastBrown.opacity(0.42))
 
-                    Text("No visits here yet")
+                    Text("No sips here yet")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
 
-                    Text("Log this cafe to add it to your taste journal.")
+                    Text("Log a sip here to add it to your journal.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondaryText)
                         .multilineTextAlignment(.center)
@@ -1759,6 +2172,7 @@ struct CafeDetailSheet: View {
     private func loadRemoteCafeVisits() async {
         guard let remoteCafeID = displayCafe.remoteCafeId else {
             remoteVisits = []
+            cafeExperienceSummary = nil
             remoteVisitError = nil
             return
         }
@@ -1767,11 +2181,28 @@ struct CafeDetailSheet: View {
         remoteVisitError = nil
         do {
             let client = try SupabaseClientProvider.shared.client()
-            remoteVisits = try await VisitService(client: client).fetchVisibleCafeVisits(
-                cafeId: remoteCafeID,
-                currentUserId: authModel.authenticatedUser?.id,
-                limit: 5
-            )
+            let visitService = VisitService(client: client)
+            if let userID = authModel.authenticatedUser?.id {
+                async let visitsRequest = visitService.fetchCafeVisits(
+                    cafeId: remoteCafeID,
+                    userId: userID,
+                    limit: 200
+                )
+                async let summaryRequest = CafeSessionService(client: client).fetchCafeSummary(
+                    cafeID: remoteCafeID,
+                    scope: .personal
+                )
+                let (visits, summary) = try await (visitsRequest, summaryRequest)
+                remoteVisits = visits
+                cafeExperienceSummary = summary
+            } else {
+                remoteVisits = try await visitService.fetchVisibleCafeVisits(
+                    cafeId: remoteCafeID,
+                    currentUserId: nil,
+                    limit: 5
+                )
+                cafeExperienceSummary = nil
+            }
             isLoadingRemoteVisits = false
         } catch is CancellationError {
             return
@@ -2017,6 +2448,9 @@ struct SearchResultsList: View {
     @Binding var showCafeDetail: Bool
     @Binding var isSearchActive: Bool
     var isSearchFieldFocused: FocusState<Bool>.Binding
+    var onSelectCafe: ((Cafe) -> Void)? = nil
+    @State private var resolvingRecentID: MapSearchRecent.ID?
+    @State private var selectionResolutionTask: Task<Void, Never>?
     
     var body: some View {
         ZStack {
@@ -2037,6 +2471,12 @@ struct SearchResultsList: View {
                 .fill(Color.mugshotLine)
                 .frame(height: 1)
         }
+        .onDisappear {
+            selectionResolutionTask?.cancel()
+            selectionResolutionTask = nil
+            resolvingRecentID = nil
+            searchService.cancelSearch()
+        }
     }
 
     private var discoveryLanding: some View {
@@ -2055,16 +2495,22 @@ struct SearchResultsList: View {
 
                         ForEach(searchService.recents) { recent in
                             Button {
-                                searchText = recent.query
-                                searchService.search(query: recent.query, region: region, immediately: true)
+                                selectRecent(recent)
                             } label: {
                                 SearchLandingRow(
                                     icon: "clock.arrow.circlepath",
                                     title: recent.title,
-                                    subtitle: recent.subtitle
+                                    subtitle: recent.subtitle,
+                                    isLoading: resolvingRecentID == recent.id
                                 )
                             }
                             .buttonStyle(.plain)
+                            .disabled(resolvingRecentID != nil)
+                            .accessibilityIdentifier(
+                                onSelectCafe == nil
+                                    ? "map.search.recent.\(recent.id)"
+                                    : "logASipV3.cafeSearch.recent.\(recent.id)"
+                            )
                         }
                     }
                 }
@@ -2092,8 +2538,14 @@ struct SearchResultsList: View {
                 )
                 let savedPlaces = Array(dataManager.appData.cafes
                     .filter { cafe in
-                        guard cafe.isFavorite || cafe.wantToTry || cafe.visitCount > 0,
-                              let location = cafe.location else { return false }
+                        guard cafe.isFavorite || cafe.wantToTry || cafe.visitCount > 0 else {
+                            return false
+                        }
+
+                        // A composer can select any saved journal cafe, including
+                        // manually created places that do not have coordinates yet.
+                        guard onSelectCafe == nil else { return true }
+                        guard let location = cafe.location else { return false }
                         return CLLocation(
                             latitude: location.latitude,
                             longitude: location.longitude
@@ -2104,7 +2556,13 @@ struct SearchResultsList: View {
                     VStack(alignment: .leading, spacing: 4) {
                         SearchSectionTitle(title: "Your places", subtitle: "From your Mugshot journal")
                         ForEach(savedPlaces) { cafe in
-                            LocalCafeRow(cafe: cafe) { selectLocalCafe(cafe) }
+                            LocalCafeRow(
+                                cafe: cafe,
+                                accessibilityIdentifier: onSelectCafe == nil
+                                    ? "map.search.local.\(cafe.id.uuidString)"
+                                    : "logASipV3.cafeSearch.local.\(cafe.id.uuidString)",
+                                onTap: { selectLocalCafe(cafe) }
+                            )
                         }
                     }
                 }
@@ -2136,15 +2594,7 @@ struct SearchResultsList: View {
 
                     ForEach(searchService.completions.prefix(4), id: \.self) { completion in
                         SearchCompletionRow(completion: completion) {
-                            searchText = completion.title
-                            Task {
-                                if let mapItem = await searchService.resolve(
-                                    completion: completion,
-                                    region: region
-                                ) {
-                                    handleSearchResult(mapItem)
-                                }
-                            }
+                            selectCompletion(completion)
                         }
                     }
                 }
@@ -2280,12 +2730,99 @@ struct SearchResultsList: View {
         searchService.search(query: query, region: region, immediately: true)
     }
 
-    private func selectLocalCafe(_ cafe: Cafe) {
-        selectedCafe = cafe
-        showCafeDetail = true
-        isSearchActive = false
+    private func selectRecent(_ recent: MapSearchRecent) {
+        guard resolvingRecentID == nil else { return }
         isSearchFieldFocused.wrappedValue = false
-        if let location = cafe.location {
+
+        if let cafe = matchingLocalCafe(for: recent) {
+            completeSelection(of: cafe, centeredAt: cafe.location)
+            return
+        }
+
+        resolvingRecentID = recent.id
+        selectionResolutionTask?.cancel()
+        selectionResolutionTask = Task { @MainActor in
+            let mapItem = await searchService.resolve(recent: recent, region: region)
+            guard !Task.isCancelled, resolvingRecentID == recent.id else { return }
+            resolvingRecentID = nil
+            if let mapItem {
+                handleSearchResult(mapItem)
+            }
+        }
+    }
+
+    private func selectCompletion(_ completion: MKLocalSearchCompletion) {
+        resolvingRecentID = nil
+        isSearchFieldFocused.wrappedValue = false
+        selectionResolutionTask?.cancel()
+        selectionResolutionTask = Task { @MainActor in
+            guard let mapItem = await searchService.resolve(
+                completion: completion,
+                region: region
+            ), !Task.isCancelled else {
+                return
+            }
+            handleSearchResult(mapItem)
+        }
+    }
+
+    private func matchingLocalCafe(for recent: MapSearchRecent) -> Cafe? {
+        let recentName = normalizedPlaceName(recent.title)
+        let nameMatches = dataManager.appData.cafes.filter {
+            normalizedPlaceName($0.consumerDisplayName) == recentName
+        }
+        guard !nameMatches.isEmpty else { return nil }
+
+        let recentAddressTokens = Set(normalizedPlaceText(recent.subtitle).split(separator: " "))
+        guard !recentAddressTokens.isEmpty else {
+            return nameMatches.count == 1 ? nameMatches[0] : nil
+        }
+
+        let rankedMatches = nameMatches
+            .map { cafe in
+                let cafeAddressTokens = Set(normalizedPlaceText(cafe.address).split(separator: " "))
+                return (cafe, cafeAddressTokens.intersection(recentAddressTokens).count)
+            }
+            .sorted { $0.1 > $1.1 }
+        guard let best = rankedMatches.first, best.1 > 0 else { return nil }
+        if rankedMatches.count > 1, rankedMatches[1].1 == best.1 { return nil }
+        return best.0
+    }
+
+    private func normalizedPlaceName(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    private func normalizedPlaceText(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .joined(separator: " ")
+    }
+
+    private func selectLocalCafe(_ cafe: Cafe) {
+        completeSelection(of: cafe, centeredAt: cafe.location)
+    }
+    
+    private func handleSearchResult(_ mapItem: MKMapItem) {
+        guard let location = mapItem.placemark.location?.coordinate else { return }
+        
+        // Find or create cafe
+        let cafe = dataManager.findOrCreateCafe(from: mapItem)
+        searchService.recordRecent(mapItem)
+        completeSelection(of: cafe, centeredAt: location)
+    }
+
+    private func completeSelection(
+        of cafe: Cafe,
+        centeredAt location: CLLocationCoordinate2D?
+    ) {
+        selectedCafe = cafe
+        if let location {
             withAnimation {
                 region = MKCoordinateRegion(
                     center: location,
@@ -2293,32 +2830,21 @@ struct SearchResultsList: View {
                 )
             }
         }
-        Task { await hydrateSelectedCafe(cafe) }
-    }
-    
-    private func handleSearchResult(_ mapItem: MKMapItem) {
-        guard let location = mapItem.placemark.location?.coordinate else { return }
-        
-        // Center map on result
-        withAnimation {
-            region = MKCoordinateRegion(
-                center: location,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-        }
-        
-        // Find or create cafe
-        let cafe = dataManager.findOrCreateCafe(from: mapItem)
-        searchService.recordRecent(mapItem)
-        
-        // Show pin card
-        selectedCafe = cafe
-        showCafeDetail = true
-        isSearchActive = false
+
+        // Clear the discovery surface before presenting the destination. The
+        // map then remains the sole background behind its cafe card, while the
+        // composer dismisses its picker with the same selected value.
+        selectionResolutionTask?.cancel()
+        selectionResolutionTask = nil
+        resolvingRecentID = nil
         isSearchFieldFocused.wrappedValue = false
         searchText = ""
         searchService.cancelSearch()
+        isSearchActive = false
+        showCafeDetail = onSelectCafe == nil
+
         Task { await hydrateSelectedCafe(cafe) }
+        onSelectCafe?(cafe)
     }
 
     @MainActor
@@ -2344,11 +2870,8 @@ struct SearchResultsList: View {
         Button("Use \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\" as a cafe") {
             let name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return }
-            selectedCafe = dataManager.findOrCreateCafe(named: name)
-            showCafeDetail = true
-            isSearchActive = false
-            searchText = ""
-            searchService.cancelSearch()
+            let cafe = dataManager.findOrCreateCafe(named: name)
+            completeSelection(of: cafe, centeredAt: cafe.location)
         }
         .font(.system(size: 14, weight: .semibold))
         .foregroundColor(.mugshotSage)
@@ -2377,6 +2900,14 @@ private struct SearchLandingRow: View {
     let icon: String
     let title: String
     let subtitle: String
+    let isLoading: Bool
+
+    init(icon: String, title: String, subtitle: String, isLoading: Bool = false) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.isLoading = isLoading
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -2398,9 +2929,15 @@ private struct SearchLandingRow: View {
                 }
             }
             Spacer()
-            Image(systemName: "arrow.up.left")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.tertiaryText)
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Opening cafe")
+            } else {
+                Image(systemName: "arrow.up.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.tertiaryText)
+            }
         }
         .contentShape(Rectangle())
         .padding(.vertical, 8)
@@ -2527,6 +3064,7 @@ struct SearchResultRow: View {
 
 struct LocalCafeRow: View {
     let cafe: Cafe
+    let accessibilityIdentifier: String
     let onTap: () -> Void
     
     var body: some View {
@@ -2564,6 +3102,7 @@ struct LocalCafeRow: View {
             .background(Color.foamWhite)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
         Divider()
             .padding(.leading)
     }

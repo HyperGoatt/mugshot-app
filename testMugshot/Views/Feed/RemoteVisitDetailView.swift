@@ -570,7 +570,7 @@ struct RemoteVisitDetailView: View {
 
     @ViewBuilder
     private func ownerNotesSection(_ detail: RemoteVisitDetail) -> some View {
-        if isOwnVisit(detail),
+        if isOwnVisit(detail), detail.v3Reflection == nil,
            let notes = detail.privateNote?.remoteTrimmedNonEmpty {
             SipPrivateNotePanel(text: notes)
         }
@@ -1186,11 +1186,13 @@ struct RemoteVisitDetailView: View {
                 userId: currentUserId,
                 update: update
             )
-            try await service.updatePrivateNote(
-                visitId: visitId,
-                userId: currentUserId,
-                note: notes
-            )
+            if detail?.v3Reflection == nil {
+                try await service.updatePrivateNote(
+                    visitId: visitId,
+                    userId: currentUserId,
+                    note: notes
+                )
+            }
             self.detail = try await service.fetchVisitDetail(
                 visitId: summary.id,
                 currentUserId: currentUserId
@@ -1240,14 +1242,19 @@ struct RemoteVisitDetailView: View {
                 socialState: state,
                 rankingScore: detail.summary.rankingScore,
                 recommendationReason: detail.summary.recommendationReason,
-                recommendationReasonType: detail.summary.recommendationReasonType
+                recommendationReasonType: detail.summary.recommendationReasonType,
+                sessionSipCount: detail.summary.sessionSipCount,
+                cafePulseProjection: detail.summary.cafePulseProjection,
+                v3FeedProjection: detail.summary.v3FeedProjection
             ),
             photos: detail.photos,
             comments: detail.comments,
             likeCount: state.likeCount,
             currentUserHasLiked: state.currentUserHasLiked,
             privateNote: detail.privateNote,
-            sensorySnapshot: detail.sensorySnapshot
+            sensorySnapshot: detail.sensorySnapshot,
+            cafeSessionSummary: detail.cafeSessionSummary,
+            v3Reflection: detail.v3Reflection
         )
     }
 }
@@ -1469,7 +1476,7 @@ struct RemotePhotoImageView: View {
             } else {
                 placeholder
                     .overlay {
-                        if !didFail, url != nil {
+                        if !didFail, hasPhotoReference {
                             ProgressView()
                                 .tint(.mugshotSage)
                         }
@@ -1481,8 +1488,9 @@ struct RemotePhotoImageView: View {
         .task(id: urlString) {
             image = nil
             didFail = false
-            guard let url else { return }
+            guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
             do {
+                let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
                 image = try await RemoteImagePipeline.shared.image(for: url)
             } catch is CancellationError {
                 return
@@ -1492,8 +1500,8 @@ struct RemotePhotoImageView: View {
         }
     }
 
-    private var url: URL? {
-        urlString.flatMap(URL.init(string:))
+    private var hasPhotoReference: Bool {
+        urlString?.remoteTrimmedNonEmpty != nil
     }
 
     private var placeholder: some View {
@@ -1585,7 +1593,7 @@ struct EditRemoteVisitView: View {
         self.currentUserId = currentUserId
         self.onSave = onSave
         _caption = State(initialValue: detail.summary.visit.caption)
-        _notes = State(initialValue: detail.privateNote ?? "")
+        _notes = State(initialValue: detail.v3Reflection == nil ? detail.privateNote ?? "" : "")
         _visibility = State(initialValue: VisitVisibility.supabaseValue(detail.summary.visit.visibility))
     }
 
@@ -1614,12 +1622,25 @@ struct EditRemoteVisitView: View {
                             .remoteVisitEditField()
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Private note")
+                    if detail.v3Reflection == nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            MugshotSectionTitle(title: "Private note")
 
-                        TextField("Only visible to you", text: $notes, axis: .vertical)
-                            .lineLimit(3...6)
-                            .remoteVisitEditField()
+                            TextField("Only visible to you", text: $notes, axis: .vertical)
+                                .lineLimit(3...6)
+                                .remoteVisitEditField()
+                        }
+                    } else {
+                        Label(
+                            "Raw journal notes are read-only here for this release.",
+                            systemImage: "lock.doc.fill"
+                        )
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.secondaryText)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.sandBeige.opacity(0.42))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control))
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -2284,11 +2305,15 @@ struct SipShareButton: View {
             return await PhotoCache.shared.image(forKey: localPhotoPath)
         }
         guard let remotePhotoURL = payload.remotePhotoURL,
-              let url = URL(string: remotePhotoURL),
-              let (data, _) = try? await URLSession.shared.data(from: url) else {
+              let url = try? await VisitPhotoAccessService.shared.resolvedURL(
+                for: remotePhotoURL
+              ) else {
             return nil
         }
-        return UIImage(data: data)
+        return try? await RemoteImagePipeline.shared.image(
+            for: url,
+            maxPixelSize: 2_000
+        )
     }
 }
 
@@ -2328,7 +2353,13 @@ private struct MugshotSipShareCard: View {
                             .foregroundColor(.espressoBrown)
                             .lineLimit(2)
                         Spacer(minLength: 8)
-                        MugshotRatingBadge(score: payload.rating)
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("MUGSHOT")
+                                .font(.system(size: 9, weight: .black))
+                                .tracking(1.2)
+                                .foregroundColor(.mugshotSage)
+                            MugshotRatingBadge(score: payload.rating)
+                        }
                     }
 
                     if let caption = payload.publicCaption?.remoteTrimmedNonEmpty {

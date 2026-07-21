@@ -186,7 +186,7 @@ struct JournalReflectionDetailView: View {
                 .font(.system(size: 32, weight: .bold, design: .serif))
                 .foregroundColor(.espressoBrown)
             if let average = reflection.averageRating {
-                Text("Your journal average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
+                Text("Your sip average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
                     .font(.system(size: 14))
                     .foregroundColor(.secondaryText)
             }
@@ -327,7 +327,7 @@ struct JournalReflectionDetailView: View {
             reflectionRow("Recipes practiced", "\(reflection.recipeCount)", "book.pages.fill")
             reflectionRow("Meaningful memories", "\(reflection.meaningfulMemoryCount)", "heart.text.square.fill")
             if let favoriteCafe = reflection.favoriteCafe {
-                reflectionRow("Favorite cafe", favoriteCafe, "sparkles")
+                reflectionRow("Cafe in your sip story", favoriteCafe, "sparkles")
             }
             if !reflection.neighborhoods.isEmpty {
                 reflectionRow("Places explored", reflection.neighborhoods.joined(separator: " · "), "mappin.and.ellipse")

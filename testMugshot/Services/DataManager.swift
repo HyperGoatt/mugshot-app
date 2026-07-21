@@ -165,6 +165,7 @@ class DataManager: ObservableObject {
         guard MugshotLaunchEnvironment.isUITesting else { return }
 
         let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+        let mapSearchRecentsKey = "MugshotMapSearchRecents.v1"
 
         if reset {
             appData = AppData()
@@ -173,11 +174,18 @@ class DataManager: ObservableObject {
             defaults.removeObject(forKey: userDataKey(userID))
             UserDefaults.standard.removeObject(forKey: CafeVisibilityPreferenceStore.valueKey)
             SipDraftStore.shared.removeAllForTesting()
+            CafeSessionContinuationStore.shared.removeAllForTesting()
+            V3PublishedCompletionStore.shared.removeAllForTesting()
+            RecentCriterionSetupStore.shared.removeAllForTesting()
+            PinnedCriterionStore.shared.removeAllForTesting()
+            defaults.removeObject(forKey: mapSearchRecentsKey)
             MugshotLaunchEnvironment.resetDeterministicFailures()
         }
 
         let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
         if !reset, appData.currentUser?.id == userID {
+            seedUITestMapSearchRecentIfRequested(key: mapSearchRecentsKey)
+            seedUITestV3LabParityIfRequested(userID: userID)
             defaults.set(
                 SipComposerExperience.guided.rawValue,
                 forKey: SipComposerExperience.storageKey
@@ -204,11 +212,106 @@ class DataManager: ObservableObject {
             ratingTemplate: RatingTemplate(),
             hasCompletedOnboarding: true
         )
+        seedUITestMapSearchRecentIfRequested(key: mapSearchRecentsKey)
         defaults.set(
             SipComposerExperience.guided.rawValue,
             forKey: SipComposerExperience.storageKey
         )
         save()
+        seedUITestV3LabParityIfRequested(userID: userID)
+    }
+
+    private func seedUITestMapSearchRecentIfRequested(key: String) {
+        guard MugshotLaunchEnvironment.shouldSeedUITestMapSearchRecent else { return }
+
+        let recent = MapSearchRecent(
+            title: "Mugshot Test Cafe",
+            subtitle: "1 Test Street, Charleston, SC",
+            query: "Mugshot Test Cafe, 1 Test Street, Charleston, SC"
+        )
+        guard let encoded = try? JSONEncoder().encode([recent]) else { return }
+        defaults.set(encoded, forKey: key)
+    }
+
+    private func seedUITestV3LabParityIfRequested(userID: UUID) {
+        guard MugshotLaunchEnvironment.shouldSeedUITestV3LabParity,
+              let cafe = appData.cafes.first(where: {
+                  $0.id == UUID(uuidString: "00000000-0000-4000-8000-000000000002")
+              }) else {
+            return
+        }
+
+        let sipCriteria = [
+            SipRatingCriterionSnapshot(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000101")!,
+                name: "Body",
+                score: 1.5,
+                weight: SipCriterionImportance.more.weight,
+                sortOrder: 0,
+                isPinned: true
+            ),
+            SipRatingCriterionSnapshot(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000102")!,
+                name: "Presentation",
+                score: 4,
+                weight: SipCriterionImportance.less.weight,
+                sortOrder: 1,
+                isPinned: false
+            ),
+            SipRatingCriterionSnapshot(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000103")!,
+                name: "Orange balance",
+                score: 3,
+                weight: SipCriterionImportance.normal.weight,
+                sortOrder: 2,
+                isPinned: false
+            )
+        ]
+
+        let cafeCriteria = [
+            SipRatingCriterionSnapshot(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000201")!,
+                name: "Atmosphere",
+                score: 3,
+                weight: SipCriterionImportance.most.weight,
+                sortOrder: 0,
+                isPinned: true
+            ),
+            SipRatingCriterionSnapshot(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000202")!,
+                name: "Value",
+                score: 2,
+                weight: SipCriterionImportance.more.weight,
+                sortOrder: 1,
+                isPinned: true
+            )
+        ]
+
+        let draft = SipDraft(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000000100")!,
+            ownerUserID: userID,
+            context: .cafe,
+            cafe: cafe,
+            locationName: cafe.consumerDisplayName,
+            drinkName: "Iced Orange Creamsicle",
+            overallScore: 2.5,
+            socialCaption: "Still thinking about that creamsicle.",
+            privateNotes: "Orange arrives fast, then leaves a thin milky finish.",
+            visibility: .friends,
+            ratingCriteria: sipCriteria,
+            v3Step: .sip,
+            contextNotes: "Bright front room, calmer in the back.",
+            rawNoteVisibility: .private,
+            contextScore: 3.5,
+            contextRatingCriteria: cafeCriteria
+        )
+
+        let ownerScope = userID.uuidString.lowercased()
+        PinnedCriterionStore.shared.synchronize(sipCriteria, scope: "\(ownerScope).sip")
+        PinnedCriterionStore.shared.synchronize(cafeCriteria, scope: "\(ownerScope).context.cafe")
+        RecentCriterionSetupStore.shared.remember(sipCriteria, scope: "\(ownerScope).sip")
+        RecentCriterionSetupStore.shared.remember(cafeCriteria, scope: "\(ownerScope).context.cafe")
+        _ = try? SipDraftStore.shared.save(draft, images: [])
     }
 #endif
     
@@ -529,6 +632,29 @@ class DataManager: ObservableObject {
         
         save()
     }
+
+    /// Inserts a visit once or replaces every stale copy that shares its
+    /// stable identifier. This is the local recovery-safe counterpart to the
+    /// remote idempotent visit write.
+    func upsertVisit(_ visit: Visit) {
+        let matchingIndices = appData.visits.indices.filter {
+            appData.visits[$0].id == visit.id
+        }
+        let priorCafeIDs = Set(matchingIndices.map { appData.visits[$0].cafeId })
+
+        if let firstMatchingIndex = matchingIndices.first {
+            appData.visits.removeAll { $0.id == visit.id }
+            appData.visits.insert(
+                visit,
+                at: min(firstMatchingIndex, appData.visits.endIndex)
+            )
+        } else {
+            appData.visits.append(visit)
+        }
+
+        recalculateCafeStats(for: priorCafeIDs.union([visit.cafeId]))
+        save()
+    }
     
     func getVisit(id: UUID) -> Visit? {
         return appData.visits.first(where: { $0.id == id })
@@ -563,9 +689,50 @@ class DataManager: ObservableObject {
             }
             save()
         }
+
+    private func recalculateCafeStats(for cafeIDs: Set<UUID>) {
+        for cafeID in cafeIDs {
+            guard let cafeIndex = appData.cafes.firstIndex(where: { $0.id == cafeID }) else {
+                continue
+            }
+            let cafeVisits = appData.visits.filter {
+                $0.context == .cafe && $0.cafeId == cafeID
+            }
+            appData.cafes[cafeIndex].visitCount = cafeVisits.count
+            let totalRating = cafeVisits.reduce(0.0) { $0 + $1.overallScore }
+            appData.cafes[cafeIndex].averageRating = cafeVisits.isEmpty
+                ? 0
+                : totalRating / Double(cafeVisits.count)
+        }
+    }
     
     func getVisitsForCafe(_ cafeId: UUID) -> [Visit] {
         return appData.visits.filter { $0.cafeId == cafeId }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    // MARK: - Cafe Session Operations
+
+    func upsertCafeSession(_ session: CafeSession) {
+        if let index = appData.cafeSessions.firstIndex(where: { $0.id == session.id }) {
+            appData.cafeSessions[index] = session
+        } else {
+            appData.cafeSessions.append(session)
+        }
+        save()
+    }
+
+    func getCafeSession(id: UUID) -> CafeSession? {
+        appData.cafeSessions.first { $0.id == id }
+    }
+
+    func getCafeSessions(for cafeId: UUID) -> [CafeSession] {
+        appData.cafeSessions
+            .filter { $0.cafeID == cafeId }
+            .sorted { $0.startedAt > $1.startedAt }
+    }
+
+    func cafeRelationshipStats(for cafeId: UUID) -> CafeRelationshipStats {
+        CafeRelationshipStats(cafeID: cafeId, sessions: appData.cafeSessions)
     }
     
     // MARK: - Like Operations
@@ -592,7 +759,11 @@ class DataManager: ObservableObject {
     
     // MARK: - Feed Operations
     func getFeedVisits(scope: FeedScope, currentUserId: UUID) -> [Visit] {
-        let allVisits = appData.visits.sorted { $0.createdAt > $1.createdAt }
+        let allVisits = appData.visits
+            .filter {
+                $0.cafeSessionID == nil || $0.cafeSessionSipRole == .primary
+            }
+            .sorted { $0.createdAt > $1.createdAt }
         
         switch scope {
         case .ranked:

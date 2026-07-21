@@ -27,7 +27,21 @@ enum MugshotUserFacingError {
         }
 
         let lowercased = error.localizedDescription.lowercased()
-        if lowercased.contains("jwt") || lowercased.contains("session") || lowercased.contains("unauthorized") {
+        let authenticationFailureMarkers = [
+            "auth session missing",
+            "session_not_found",
+            "session expired",
+            "session_expired",
+            "refresh_token_not_found",
+            "refresh token not found",
+            "refresh_token_already_used",
+            "invalid_jwt",
+            "invalid jwt",
+            "bad_jwt",
+            "bad jwt",
+            "jwt expired"
+        ]
+        if authenticationFailureMarkers.contains(where: lowercased.contains) {
             return "Your session ended. Sign in again to continue."
         }
 
@@ -553,7 +567,7 @@ extension Cafe {
     }
 
     var consumerScoreLabel: String {
-        averageRating > 0 ? String(format: "%.1f", averageRating) : "Unrated"
+        averageRating > 0 ? String(format: "Sip avg %.1f", averageRating) : "Cafe not rated"
     }
 
     var consumerPlaceCategory: String? {

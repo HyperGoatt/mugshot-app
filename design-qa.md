@@ -149,6 +149,150 @@ final result: passed
 
 ---
 
+# Log a Sip V3 Production Criterion Parity QA
+
+## Comparison target
+
+- Reported production mismatch:
+  - `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-2ca422f8-757e-4a91-9f56-84df11d1de8c.png`
+- Approved UI Lab visual truth:
+  - `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-b76244ac-4d7e-47ab-b0e2-5495596fd9bf.png`
+  - `docs/product-research/mugshot-v3/production-parity/lab-sip.jpg`
+  - `docs/product-research/mugshot-v3/production-parity/lab-cafe.jpg`
+- Final production implementation:
+  - `docs/product-research/mugshot-v3/production-parity/production-sip.jpg`
+  - `docs/product-research/mugshot-v3/production-parity/production-cafe.jpg`
+- Full-view comparison evidence:
+  - `docs/product-research/mugshot-v3/production-parity/lab-vs-production-full.png`
+- Focused criterion comparison evidence:
+  - `docs/product-research/mugshot-v3/production-parity/lab-vs-production-criteria-focused.png`
+- Viewport: two separate iPhone 17 Pro Simulators on iOS 27, each captured at 368 x 800 pixels in light mode.
+- State: matching Iced Orange Creamsicle Cafe fixture. Sip uses Body 1.5/More/pinned, Presentation 4.0/Less, Orange balance 3.0/Normal, overall Sip 2.5, and advisory 2.4. Cafe uses Atmosphere 3.0/Most/pinned, Value 2.0/More/pinned, overall Cafe 3.5, and advisory 2.6.
+
+The UI Lab and production app were kept open on separate booted Simulators. Both Sip and Cafe captures were placed together in the same full-view and focused comparison inputs before the final assessment.
+
+## Required fidelity surfaces
+
+- **Fonts and typography:** Production and the UI Lab now render the promoted shared criterion components, so title, helper, numeric score, importance, suggestion, and advisory typography use the same system font, weight, size, and wrapping. The approved system-serif treatment elsewhere in the flow is unchanged.
+- **Spacing and layout rhythm:** Both surfaces use one grouped criterion card with zero row spacing, 12-point row padding, 48-point indented dividers, 36-point icon circles, 26-point star artwork on 44-point touch regions, stacked 27-point circular actions, and a 34-point importance capsule. The final captures preserve the same card width, row density, radii, dividers, suggestion rail, advisory card, and sticky action.
+- **Colors and visual tokens:** Lab and production share Mugshot cream, foam, sage, mint, sand, espresso, and line tokens directly. Pinned, selected, advisory, disabled, and unselected states use the same opacities and borders.
+- **Image quality and asset fidelity:** The compared region uses the same SF Symbols and code-native controls in both implementations; no emoji, placeholder drawing, handcrafted SVG, or substitute asset was introduced. Photo and Mugsy surfaces outside this focused change remain untouched.
+- **Copy and content:** Helper language, `Use last setup`, human importance labels, idea counts, advisory-score copy, and Sip/Cafe action copy match. Production catalogs now preserve the UI Lab's 24 Sip and 21 Cafe criteria in the same order, including the first visible Cafe chips: Atmosphere, Service, and Comfort.
+
+## Interaction and state evidence
+
+- Verified the production Sip-to-Cafe handoff with the durable `SipDraft` bindings; the same promoted row component renders `ratingCriteria` and `contextRatingCriteria` without an adapter copy.
+- Verified half-step criterion entry and fractional rendering, including an exact adopted decimal such as 2.4.
+- Verified human-language importance selection, pin/unpin persistence, removal confirmation, suggestion addition, `Use last setup`, and the advisory score remaining optional.
+- Verified the Mugsy prompt position is parent-owned when moving away and back.
+- Expanded production Mugsy coaching to eight observation-first prompts for Sip and eight for Cafe; the 24/21 criteria catalogs remain separate and intact.
+- Focused domain suite: 13 passed, 0 failed.
+- Focused production UI journey: 1 passed, 0 failed after exercising importance, pin, removal, suggestion counts, and Sip-to-Cafe navigation.
+- Final Debug Simulator build: passed.
+- Final dual-Simulator manual Sip and Cafe journey: passed.
+- Runtime log check found no app fatal error, assertion failure, uncaught exception, crash, or termination signal. The iOS 27 Simulator emitted its known duplicate WebKit accessibility-bundle runtime warning on both devices; it did not affect the app journey.
+
+## Comparison history
+
+### Pass 1
+
+- **P1 - Production criteria were materially taller than the approved UI Lab.** Each criterion had its own large card, large full-width stars, and a full-width importance bar, causing large blank regions and turning optional reflection into a much longer scroll.
+  - Fix: promoted the UI Lab fractional-star, compact criterion row, suggestion chip, and advisory card into shared production-safe components; production Sip and Cafe now bind their durable models directly into those components.
+- **P2 - Production pin, remove, importance, and suggestion treatments drifted from the approved controls.** Bare 44-point glyphs, the system-like full-width importance row, and different chip states did not match the Lab.
+  - Fix: wired the Lab's stacked 27-point circular actions, branded popover/capsule importance control, grouped dividers, icon resolution, chip states, and removal confirmation into both real surfaces.
+- **P2 - Supporting reflection chrome still differed.** The overall stars used discrete SF half-star symbols, the advisory card was flat, the sticky subtitle sat outside its action, and Cafe suggestion order differed.
+  - Fix: reused the Lab fractional-mask star rendering, advisory card, sticky action composition, and Sip/Cafe criterion catalogs.
+
+### Pass 2
+
+- Rebuilt and captured matching Sip and Cafe fixtures on two iPhone 17 Pro Simulators.
+- Opened the full-view and focused Lab-versus-production boards together.
+- No actionable P0, P1, or P2 visual mismatch remains in the shared reflection region.
+
+## Follow-up polish
+
+- **P3:** Production intentionally retains its real back button beside Close, while the DEBUG Lab uses review-only step navigation. This is host navigation, not criterion-component drift.
+- **P3:** Status-bar time and the exact scroll offset differ by a few pixels between independently controlled Simulators; component geometry and density match.
+
+final result: passed
+
+---
+
+# Mugshot V3 Production Composer Migration QA
+
+## Comparison target
+
+- Source visual truth:
+  - `docs/product-research/mugshot-v3/references/approved-v3-five-screen-direction.png`
+  - `docs/product-research/mugshot-v3/references/cafe-reflection-direction.png`
+  - `docs/product-research/mugshot-v3/ui-lab/01-setup.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab/02-sip.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab/03-cafe.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab/04-publish.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab/05-passport.jpg`
+- Rendered production implementation:
+  - `docs/product-research/mugshot-v3/production-migration/01-setup.png`
+  - `docs/product-research/mugshot-v3/production-migration/02-sip.png`
+  - `docs/product-research/mugshot-v3/production-migration/03-home.png`
+  - `docs/product-research/mugshot-v3/production-migration/04-publish.png`
+  - `docs/product-research/mugshot-v3/production-migration/05-passport.png`
+- Full-view comparison evidence: `docs/product-research/mugshot-v3/production-migration/full-comparison.png`
+- Focused comparison evidence: `docs/product-research/mugshot-v3/production-migration/focused-comparison.png`
+- Viewport: iPhone 17 Pro Simulator, 368 x 800 pixels.
+- State: production Home memory using the deliberate Mugsy missed-photo fallback, an authored Sip score, Home reflection, required caption, local publication, and first-memory Taste Passport.
+
+The approved UI Lab captures and production captures were combined into one same-viewport comparison image before review. The Sip and Publish surfaces were also combined into a focused comparison because those screens contain the densest typography, scoring, journal, and action hierarchy.
+
+## Required fidelity surfaces
+
+- **Fonts and typography:** Production uses the approved iOS system-serif display hierarchy and system sans-serif controls. Heading scale, weights, line lengths, supporting copy, and score hierarchy remain consistent with the approved UI Lab. The intentional Source Serif 4 design-to-system-serif code decision is preserved.
+- **Spacing and layout rhythm:** The composer is a full-screen journey with stable safe areas, cream canvas, restrained cards, quiet borders, aligned section spacing, and a persistent action above the home indicator. No visible overlap, clipping, or unusable control was found at 368 x 800.
+- **Colors and visual tokens:** Cream, foam, sage, mint, line, and espresso colors come from Mugshot's existing tokens. Selected context, progress, score, privacy, completion, and disabled-action states remain distinguishable without relying on color alone.
+- **Image quality and asset fidelity:** Production photo states use real user images. The no-photo path uses the established code-native Mugsy component and branded fallback surface instead of a generic placeholder. Hero masks, crops, and Passport background treatment remain sharp and correctly bounded.
+- **Copy and content:** Log a Sip, journal privacy, optional criteria, Home make-again reflection, required caption, Mugshot score, and Taste Passport language match the locked interview. The first-memory Passport intentionally says the identity is forming rather than inventing a pattern from one entry.
+- **Icons and accessibility:** System icons retain a consistent weight and alignment. Star inputs, context pills, navigation, publishing, and recovery controls expose labels and practical touch targets. The five-screen progress treatment has a published-state accessibility label.
+
+## Primary interactions tested
+
+- Opened the production composer from the real Add tab as a full-screen flow.
+- Selected Home, deliberately chose the Mugsy missed-photo fallback, and named the drink.
+- Entered the Sip surface, selected an honest score, and advanced to Home reflection.
+- Chose a make-again response, entered the required caption, and published the memory.
+- Reached Taste Passport, verified the published entry and score, and confirmed the visible `5 of 5` completion state.
+- Confirmed local draft/photo recovery primitives, V3 context serialization, feed projection batching, and non-cafe association behavior in focused tests.
+- Checked captured runtime logs for fatal errors, crashes, assertions, duplicate publication, data-loss messages, and app faults. The only match was a Simulator-runtime WebKit accessibility-class warning outside Mugshot.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 - Production described the approved five-screen journey as four steps.** Setup through Publish displayed `1 of 4` through `4 of 4`, while the locked flow includes Taste Passport as screen five.
+  - Fix: changed production progress to `1 of 5` through `4 of 5` and added the published Passport completion as `5 of 5`.
+
+### Pass 2
+
+- **P2 - iOS toolbar styling collapsed the Passport completion label to its icon.** The accessibility label was correct, but the visible `5 of 5` text was absent in the rendered capture.
+  - Fix: replaced the toolbar `Label` with an explicit checkmark-and-text stack, rebuilt, completed the full journey, and recaptured all five production states.
+
+### Pass 3
+
+- The final same-viewport full and focused comparisons show the five-screen count on every production surface.
+- Dynamic Home and first-memory Passport content differ intentionally from the populated Cafe fixture while preserving the approved structure, hierarchy, and Mugshot visual language.
+- No actionable P0, P1, or P2 finding remains.
+
+## Verification evidence
+
+- Debug production build and launch: passed.
+- Release Simulator build: passed.
+- Focused V3 domain, recovery, detail, context, and projection tests: passed.
+- Production Home -> Sip -> Context -> Publish -> Taste Passport UI journey: passed after the final visual fix.
+- Live Supabase V3 contract: passed; no V3 performance advisor finding.
+- Final source-and-production visual comparison: passed.
+
+final result: passed
+
+---
+
 # Tasting Lens 2.0 Design QA
 
 ## Scope

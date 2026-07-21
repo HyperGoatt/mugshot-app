@@ -8,26 +8,33 @@
 import Foundation
 import UIKit
 
+enum PhotoCacheError: LocalizedError, Equatable {
+    case jpegEncodingFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .jpegEncodingFailed:
+            return "Mugshot could not prepare this photo for durable storage."
+        }
+    }
+}
+
 final class PhotoCache: @unchecked Sendable {
     static let shared = PhotoCache()
     
     private let cache = NSCache<NSString, UIImage>()
     private let queue = DispatchQueue(label: "com.mugshot.photocache", attributes: .concurrent)
-    
-    // Directory for storing photos
-    private var photosDirectory: URL {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let photosPath = documentsPath.appendingPathComponent("VisitPhotos")
-        
-        // Create directory if it doesn't exist
-        if !FileManager.default.fileExists(atPath: photosPath.path) {
-            try? FileManager.default.createDirectory(at: photosPath, withIntermediateDirectories: true)
-        }
-        
-        return photosPath
-    }
-    
-    private init() {
+    private let fileManager: FileManager
+    private let photosDirectory: URL
+
+    init(
+        fileManager: FileManager = .default,
+        photosDirectory: URL? = nil
+    ) {
+        self.fileManager = fileManager
+        self.photosDirectory = photosDirectory
+            ?? fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("VisitPhotos", isDirectory: true)
         cache.totalCostLimit = 32 * 1_024 * 1_024
         cache.countLimit = 40
     }
@@ -37,14 +44,24 @@ final class PhotoCache: @unchecked Sendable {
         queue.async(flags: .barrier) {
             // Store in memory cache
             self.cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
-            
-            // Store on disk
-            let fileURL = self.photosDirectory.appendingPathComponent("\(key).jpg")
-            
-            // Compress and save image as JPEG
-            if let imageData = image.jpegData(compressionQuality: 0.8) {
-                try? imageData.write(to: fileURL)
+
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
+            try? self.persistJPEGData(imageData, forKey: key)
+        }
+    }
+
+    /// Persists a JPEG atomically before returning.
+    ///
+    /// Recovery-sensitive save paths can call this method before committing a
+    /// visit that references the key. The existing `store` API remains the
+    /// best-effort asynchronous option for non-blocking legacy paths.
+    func storeDurably(_ image: UIImage, forKey key: String) throws {
+        try queue.sync(flags: .barrier) {
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                throw PhotoCacheError.jpegEncodingFailed
             }
+            try persistJPEGData(imageData, forKey: key)
+            cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
         }
     }
     
@@ -57,9 +74,9 @@ final class PhotoCache: @unchecked Sendable {
             }
             
             // If not in memory, try to load from disk
-            let fileURL = photosDirectory.appendingPathComponent("\(key).jpg")
+            let fileURL = photoFileURL(forKey: key)
             
-            if FileManager.default.fileExists(atPath: fileURL.path),
+            if fileManager.fileExists(atPath: fileURL.path),
                let imageData = try? Data(contentsOf: fileURL),
                let image = UIImage(data: imageData) {
                 // Store in memory cache for future access
@@ -73,7 +90,7 @@ final class PhotoCache: @unchecked Sendable {
 
     func image(forKey key: String) async -> UIImage? {
         if let cached = cache.object(forKey: key as NSString) { return cached }
-        let fileURL = photosDirectory.appendingPathComponent("\(key).jpg")
+        let fileURL = photoFileURL(forKey: key)
         guard let image = await Task.detached(priority: .utility, operation: {
             UIImage(contentsOfFile: fileURL.path)
         }).value else { return nil }
@@ -93,9 +110,9 @@ final class PhotoCache: @unchecked Sendable {
         queue.async {
             for path in photoPaths {
                 // Load from disk if not in memory
-                let fileURL = self.photosDirectory.appendingPathComponent("\(path).jpg")
+                let fileURL = self.photoFileURL(forKey: path)
                 
-                if FileManager.default.fileExists(atPath: fileURL.path),
+                if self.fileManager.fileExists(atPath: fileURL.path),
                    let imageData = try? Data(contentsOf: fileURL),
                    let image = UIImage(data: imageData) {
                     // Store in memory cache
@@ -103,6 +120,18 @@ final class PhotoCache: @unchecked Sendable {
                 }
             }
         }
+    }
+
+    private func persistJPEGData(_ imageData: Data, forKey key: String) throws {
+        try fileManager.createDirectory(
+            at: photosDirectory,
+            withIntermediateDirectories: true
+        )
+        try imageData.write(to: photoFileURL(forKey: key), options: .atomic)
+    }
+
+    private func photoFileURL(forKey key: String) -> URL {
+        photosDirectory.appendingPathComponent("\(key).jpg")
     }
 }
 

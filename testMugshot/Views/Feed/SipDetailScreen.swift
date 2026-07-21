@@ -88,9 +88,11 @@ struct SipDetailMentionSuggestion: Identifiable, Equatable {
 
 enum SipDetailSection: String, CaseIterable, Equatable {
     case note
+    case rawNote
     case actions
     case friendsNoticed
     case taste
+    case contextEvidence
     case visitDetails
     case privateNote
     case conversation
@@ -205,11 +207,19 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let drinkName: String
     let locationName: String
     let locationSubtitle: String?
+    let locationSystemImage: String
+    /// The whole-memory score shown on the post.
     let score: Double
+    /// The independent drink score used inside Taste snapshot.
+    let sipScore: Double
     let caption: String?
+    let sharedRawNote: String?
     let privateNote: String?
     let photos: [SipDetailPhotoSource]
+    let usesMugsyPhotoFallback: Bool
     let ratings: [SipDetailRatingItem]
+    let contextRatingLabel: String?
+    let contextRatings: [SipDetailRatingItem]
     let sensorySnapshot: SipSensorySnapshot?
     let visitFacts: [SipDetailVisitFact]
     let reactions: [SipDetailReactionSummary]
@@ -223,9 +233,11 @@ struct SipDetailContentModel: Identifiable, Equatable {
     func visibleSections(capabilities: SipDetailCapabilities) -> [SipDetailSection] {
         var sections: [SipDetailSection] = []
         if caption != nil { sections.append(.note) }
+        if sharedRawNote != nil { sections.append(.rawNote) }
         if !capabilities.dockActions.isEmpty { sections.append(.actions) }
         if !reactions.isEmpty { sections.append(.friendsNoticed) }
-        if score > 0 || !ratings.isEmpty || sensorySnapshot != nil { sections.append(.taste) }
+        if sipScore > 0 || !ratings.isEmpty || sensorySnapshot != nil { sections.append(.taste) }
+        if !contextRatings.isEmpty { sections.append(.contextEvidence) }
         if !visitFacts.isEmpty { sections.append(.visitDetails) }
         if capabilities.isOwner, privateNote != nil { sections.append(.privateNote) }
         if capabilities.canComment || !comments.isEmpty { sections.append(.conversation) }
@@ -252,6 +264,13 @@ enum SipDetailPresentationAdapter {
         let isOwner = visit.userId == currentUserID
         let authorName = isOwner ? "Your sip" : detail.summary.authorDisplayName
         let caption = consumerCaption(visit.caption)
+        let rawNote = combinedRawNote(detail.v3Reflection, context: visit.journalContext)
+        let displayedScore = detail.v3Reflection?.mugshotScore
+            ?? detail.summary.v3FeedProjection?.mugshotScore
+            ?? visit.overallScore
+        let usesMugsyPhotoFallback = detail.v3Reflection.map {
+            $0.photoFallback == .mugsyMissedPhoto
+        } ?? detail.summary.usesMugsyPhotoFallback
         let reactionSummaries = Dictionary(grouping: reactions, by: \SipReactionRecord.reaction)
             .map { reaction, records in
                 SipDetailReactionSummary(
@@ -275,13 +294,27 @@ enum SipDetailPresentationAdapter {
             drinkName: visit.drinkDisplayName,
             locationName: detail.summary.locationTitle,
             locationSubtitle: detail.summary.locationSubtitle,
-            score: visit.overallScore,
+            locationSystemImage: visit.journalContext.systemImage,
+            score: displayedScore,
+            sipScore: detail.v3Reflection?.sipScore ?? visit.overallScore,
             caption: caption,
-            privateNote: isOwner ? detail.privateNote?.remoteTrimmedNonEmpty : nil,
+            sharedRawNote: rawNote,
+            privateNote: isOwner && detail.v3Reflection == nil
+                ? detail.privateNote?.remoteTrimmedNonEmpty
+                : nil,
             photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+            usesMugsyPhotoFallback: usesMugsyPhotoFallback,
             ratings: visit.orderedRatingScores.map {
                 SipDetailRatingItem(name: $0.name, score: $0.score)
             },
+            contextRatingLabel: detail.v3Reflection.map { _ in
+                contextRatingLabel(for: visit.journalContext)
+            },
+            contextRatings: detail.v3Reflection?.contextCriteria
+                .filter { $0.score > 0 }
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map { SipDetailRatingItem(name: $0.name, score: $0.score) }
+                ?? [],
             sensorySnapshot: isOwner ? detail.sensorySnapshot : nil,
             visitFacts: remoteVisitFacts(detail),
             reactions: reactionSummaries,
@@ -303,7 +336,7 @@ enum SipDetailPresentationAdapter {
                 authorName: detail.summary.authorDisplayName,
                 drinkName: visit.drinkDisplayName,
                 cafeName: detail.summary.locationTitle,
-                rating: visit.overallScore,
+                rating: displayedScore,
                 date: visit.createdAtDate,
                 publicCaption: caption,
                 remotePhotoURL: detail.photoURLs.first,
@@ -313,12 +346,12 @@ enum SipDetailPresentationAdapter {
 
         let capabilities = isOwner
             ? SipDetailCapabilities.owner(
-                hasCafe: detail.summary.cafe != nil,
+                hasCafe: visit.journalContext == .cafe && detail.summary.cafe != nil,
                 canComment: currentUserID != nil,
                 canRepeat: canRepeat
             )
             : SipDetailCapabilities.friend(
-                hasCafe: detail.summary.cafe != nil,
+                hasCafe: visit.journalContext == .cafe && detail.summary.cafe != nil,
                 canComment: currentUserID != nil,
                 canRecommend: canRecommend
             )
@@ -337,6 +370,8 @@ enum SipDetailPresentationAdapter {
         let authorDisplayName = user?.displayNameOrUsername ?? "Mugshot User"
         let caption = consumerCaption(visit.caption)
         let orderedPhotos = orderedLocalPhotos(visit)
+        let rawNote = combinedRawNote(visit.v3Reflection, context: visit.context)
+        let displayedScore = visit.v3Reflection?.mugshotScore ?? visit.overallScore
         let ratings = visit.ratingCriteria
             .sorted { $0.sortOrder < $1.sortOrder }
             .filter { $0.score > 0 }
@@ -357,12 +392,28 @@ enum SipDetailPresentationAdapter {
             locationName: visit.context == .cafe
                 ? (cafe?.consumerDisplayName ?? "Cafe")
                 : (visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback),
-            locationSubtitle: cafe?.address.remoteTrimmedNonEmpty,
-            score: visit.overallScore,
+            locationSubtitle: visit.context == .cafe
+                ? cafe?.address.remoteTrimmedNonEmpty
+                : nil,
+            locationSystemImage: visit.context.systemImage,
+            score: displayedScore,
+            sipScore: visit.v3Reflection?.sipScore ?? visit.overallScore,
             caption: caption,
-            privateNote: isOwner ? visit.notes?.remoteTrimmedNonEmpty : nil,
+            sharedRawNote: rawNote,
+            privateNote: isOwner && visit.v3Reflection == nil
+                ? visit.notes?.remoteTrimmedNonEmpty
+                : nil,
             photos: orderedPhotos.map(SipDetailPhotoSource.local),
+            usesMugsyPhotoFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto,
             ratings: ratings.isEmpty ? fallbackRatings : ratings,
+            contextRatingLabel: visit.v3Reflection.map { _ in
+                contextRatingLabel(for: visit.context)
+            },
+            contextRatings: visit.v3Reflection?.contextCriteria
+                .filter { $0.score > 0 }
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map { SipDetailRatingItem(name: $0.name, score: $0.score) }
+                ?? [],
             sensorySnapshot: isOwner ? visit.sensorySnapshot : nil,
             visitFacts: localVisitFacts(visit: visit, cafe: cafe),
             reactions: [],
@@ -383,8 +434,10 @@ enum SipDetailPresentationAdapter {
             sharePayload: SipShareCardPayload(
                 authorName: authorDisplayName,
                 drinkName: visit.journalDrinkName,
-                cafeName: cafe?.consumerDisplayName ?? visit.locationName ?? "Cafe",
-                rating: visit.overallScore,
+                cafeName: visit.context == .cafe
+                    ? (cafe?.consumerDisplayName ?? "Cafe")
+                    : (visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback),
+                rating: displayedScore,
                 date: visit.createdAt,
                 publicCaption: caption,
                 remotePhotoURL: nil,
@@ -394,13 +447,13 @@ enum SipDetailPresentationAdapter {
 
         let capabilities = isOwner
             ? SipDetailCapabilities.owner(
-                hasCafe: cafe != nil,
+                hasCafe: visit.context == .cafe && cafe != nil,
                 canComment: user != nil,
                 canRepeat: false,
                 canCorrectDrink: false
             )
             : SipDetailCapabilities.friend(
-                hasCafe: cafe != nil,
+                hasCafe: visit.context == .cafe && cafe != nil,
                 canComment: user != nil,
                 canRecommend: false
             )
@@ -414,6 +467,25 @@ enum SipDetailPresentationAdapter {
         let internalMarkers = ["smoke", "photo-required", "ui pass", "polish pass"]
         guard !internalMarkers.contains(where: trimmed.lowercased().contains) else { return nil }
         return trimmed
+    }
+
+    private static func combinedRawNote(
+        _ reflection: V3VisitReflection?,
+        context: JournalEntryContext
+    ) -> String? {
+        guard let reflection else { return nil }
+        var sections: [String] = []
+        if let sip = reflection.sipRawNote?.remoteTrimmedNonEmpty {
+            sections.append("Sip\n\(sip)")
+        }
+        if let contextNote = reflection.contextRawNote?.remoteTrimmedNonEmpty {
+            sections.append("\(contextRatingLabel(for: context))\n\(contextNote)")
+        }
+        return sections.joined(separator: "\n\n").remoteTrimmedNonEmpty
+    }
+
+    private static func contextRatingLabel(for context: JournalEntryContext) -> String {
+        context == .cafe ? "Cafe" : "Setting"
     }
 
     private static func audienceLabel(_ visibility: String) -> String {
@@ -440,6 +512,47 @@ enum SipDetailPresentationAdapter {
             value: visit.createdAtDate.formatted(date: .abbreviated, time: .omitted),
             systemImage: "calendar"
         ))
+        if let reflection = detail.v3Reflection {
+            facts.append(SipDetailVisitFact(
+                label: "Sip",
+                value: reflection.sipScore.formatted(.number.precision(.fractionLength(1))),
+                systemImage: "cup.and.saucer.fill"
+            ))
+            if let contextScore = reflection.contextScore {
+                facts.append(SipDetailVisitFact(
+                    label: contextRatingLabel(for: visit.journalContext),
+                    value: contextScore.formatted(.number.precision(.fractionLength(1))),
+                    systemImage: visit.journalContext == .cafe ? "storefront.fill" : "mappin.and.ellipse"
+                ))
+            }
+            facts.append(SipDetailVisitFact(
+                label: "Mugshot",
+                value: reflection.mugshotScore.formatted(.number.precision(.fractionLength(1))),
+                systemImage: "sparkles"
+            ))
+        }
+        if let session = detail.cafeSessionSummary {
+            facts.append(SipDetailVisitFact(
+                label: "This visit",
+                value: "\(session.sipCount) \(session.sipCount == 1 ? "sip" : "sips")",
+                systemImage: "cup.and.saucer.fill"
+            ))
+            if let cafeRating = session.cafeRating,
+               detail.v3Reflection?.contextScore == nil {
+                facts.append(SipDetailVisitFact(
+                    label: "The Cafe",
+                    value: cafeRating.formatted(.number.precision(.fractionLength(1))),
+                    systemImage: "storefront.fill"
+                ))
+            }
+            if let nextMove = session.nextMove {
+                facts.append(SipDetailVisitFact(
+                    label: "Next move",
+                    value: nextMove.title,
+                    systemImage: "arrow.triangle.branch"
+                ))
+            }
+        }
         if let order = structured.orderNotes?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Order", value: order, systemImage: "cup.and.saucer"))
         }
@@ -460,7 +573,8 @@ enum SipDetailPresentationAdapter {
         if let companions = visit.brewDetails.companions, !companions.isEmpty {
             facts.append(SipDetailVisitFact(label: "With", value: companions.joined(separator: ", "), systemImage: "person.2"))
         }
-        if let address = cafe?.address.remoteTrimmedNonEmpty {
+        if visit.context == .cafe,
+           let address = cafe?.address.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Address", value: address, systemImage: "mappin"))
         }
         facts.append(SipDetailVisitFact(
@@ -468,6 +582,25 @@ enum SipDetailPresentationAdapter {
             value: visit.createdAt.formatted(date: .abbreviated, time: .omitted),
             systemImage: "calendar"
         ))
+        if let reflection = visit.v3Reflection {
+            facts.append(SipDetailVisitFact(
+                label: "Sip",
+                value: reflection.sipScore.formatted(.number.precision(.fractionLength(1))),
+                systemImage: "cup.and.saucer.fill"
+            ))
+            if let contextScore = reflection.contextScore {
+                facts.append(SipDetailVisitFact(
+                    label: contextRatingLabel(for: visit.context),
+                    value: contextScore.formatted(.number.precision(.fractionLength(1))),
+                    systemImage: visit.context == .cafe ? "storefront.fill" : "mappin.and.ellipse"
+                ))
+            }
+            facts.append(SipDetailVisitFact(
+                label: "Mugshot",
+                value: reflection.mugshotScore.formatted(.number.precision(.fractionLength(1))),
+                systemImage: "sparkles"
+            ))
+        }
         if let method = visit.brewMethod?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Method", value: method, systemImage: "drop"))
         }
@@ -585,6 +718,12 @@ struct SipDetailScreen: View {
                     .padding(.top, 28)
             }
 
+            if let rawNote = presentation.content.sharedRawNote {
+                SipSharedRawNoteSection(text: rawNote)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 22)
+            }
+
             SipDetailActionDock(
                 actions: presentation.capabilities.dockActions,
                 model: presentation.content,
@@ -600,9 +739,9 @@ struct SipDetailScreen: View {
                     .padding(.top, 26)
             }
 
-            if presentation.content.score > 0 || !presentation.content.ratings.isEmpty || presentation.content.sensorySnapshot != nil {
+            if presentation.content.sipScore > 0 || !presentation.content.ratings.isEmpty || presentation.content.sensorySnapshot != nil {
                 SipTasteSnapshotSection(
-                    score: presentation.content.score,
+                    score: presentation.content.sipScore,
                     ratings: presentation.content.ratings,
                     sensorySnapshot: presentation.content.sensorySnapshot,
                     isExpanded: $isTasteExpanded,
@@ -614,6 +753,15 @@ struct SipDetailScreen: View {
                     guard isExpanded else { return }
                     revealTaste()
                 }
+            }
+
+            if !presentation.content.contextRatings.isEmpty {
+                SipContextCriteriaSection(
+                    label: presentation.content.contextRatingLabel ?? "Setting",
+                    ratings: presentation.content.contextRatings
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 28)
             }
 
             if !presentation.content.visitFacts.isEmpty {
@@ -707,6 +855,7 @@ private struct SipDetailHero: View {
         ZStack(alignment: .bottomLeading) {
             SipDetailPhotoPager(
                 photos: model.photos,
+                usesMugsyFallback: model.usesMugsyPhotoFallback,
                 selectedIndex: $selectedPhotoIndex,
                 onTap: onPhotoTap
             )
@@ -744,12 +893,17 @@ private struct SipDetailHero: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(alignment: .center, spacing: 12) {
-                    Label(model.locationName, systemImage: "mappin.circle.fill")
+                    Label(model.locationName, systemImage: model.locationSystemImage)
                         .font(.system(.subheadline, design: .default, weight: .bold))
                         .lineLimit(2)
                     Spacer(minLength: 8)
-                    MugshotRatingBadge(score: model.score, onPhoto: false)
-                        .background(Color.mugshotMint.opacity(0.76), in: Capsule())
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("MUGSHOT")
+                            .font(.system(size: 9, weight: .black))
+                            .tracking(1.2)
+                        MugshotRatingBadge(score: model.score, onPhoto: false)
+                            .background(Color.mugshotMint.opacity(0.76), in: Capsule())
+                    }
                 }
             }
             .foregroundStyle(.white)
@@ -760,19 +914,20 @@ private struct SipDetailHero: View {
         }
         .clipped()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.drinkName) at \(model.locationName), rated \(String(format: "%.1f", model.score))")
+        .accessibilityLabel("\(model.drinkName) at \(model.locationName), Mugshot score \(String(format: "%.1f", model.score))")
     }
 }
 
 private struct SipDetailPhotoPager: View {
     let photos: [SipDetailPhotoSource]
+    let usesMugsyFallback: Bool
     @Binding var selectedIndex: Int
     let onTap: (Int) -> Void
 
     var body: some View {
         Group {
             if photos.isEmpty {
-                SipDetailNoPhotoSurface()
+                SipDetailNoPhotoSurface(usesMugsyFallback: usesMugsyFallback)
             } else {
                 TabView(selection: $selectedIndex) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, source in
@@ -859,6 +1014,8 @@ struct SipDetailPhotoViewer: View {
 }
 
 private struct SipDetailNoPhotoSurface: View {
+    let usesMugsyFallback: Bool
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -867,10 +1024,23 @@ private struct SipDetailNoPhotoSurface: View {
                 endPoint: .bottomTrailing
             )
             VStack(spacing: 10) {
-                Image(systemName: "cup.and.saucer")
-                    .font(.system(size: 54, weight: .light))
-                Text("No photo added")
+                if usesMugsyFallback {
+                    MugsyModelView(configuration: MugsyModelConfiguration(
+                        expression: .curious,
+                        prop: .camera,
+                        pose: .leaningLeft
+                    ))
+                    .frame(width: 112, height: 112)
+                } else {
+                    Image(systemName: "cup.and.saucer")
+                        .font(.system(size: 54, weight: .light))
+                }
+                Text(usesMugsyFallback ? "Oops, missed the photo" : "No photo added")
                     .font(.system(.callout, design: .default, weight: .semibold))
+                if usesMugsyFallback {
+                    Text("Mugsy saved this memory a spot.")
+                        .font(.caption)
+                }
             }
             .foregroundStyle(Color.creamWhite.opacity(0.72))
             .padding(.bottom, 90)
@@ -1192,6 +1362,32 @@ private struct SipTasteSnapshotSection: View {
     }
 }
 
+private struct SipContextCriteriaSection: View {
+    let label: String
+    let ratings: [SipDetailRatingItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("\(label) · What shaped it")
+                .font(.system(.title3, design: .default, weight: .bold))
+
+            ForEach(ratings) { rating in
+                HStack(spacing: 12) {
+                    Text(rating.name)
+                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                    Spacer()
+                    Text(rating.score.formatted(.number.precision(.fractionLength(1))))
+                        .font(.system(.subheadline, design: .default, weight: .bold))
+                        .foregroundStyle(Color.mugshotSage)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(.bottom, 4)
+        .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+    }
+}
+
 private struct SipSensoryResponseDetail: View {
     let response: SipSensoryResponseSnapshot
 
@@ -1355,6 +1551,28 @@ private struct SipPrivateNoteSection: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.sandBeige.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SipSharedRawNoteSection: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Raw journal note", systemImage: "text.book.closed.fill")
+                .font(.system(.caption2, design: .default, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(1.2)
+                .foregroundStyle(Color.mugshotSage)
+            Text(text)
+                .font(.system(.title3, design: .serif, weight: .regular))
+                .foregroundStyle(Color.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.mugshotMint.opacity(0.18), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
@@ -1870,16 +2088,22 @@ private extension SipDetailPresentation {
             drinkName: "Iced Quad Shot Carmel Macchiato",
             locationName: "Babas on Cannon",
             locationSubtitle: "11 Cannon St, Charleston, SC",
+            locationSystemImage: JournalEntryContext.cafe.systemImage,
             score: 3,
+            sipScore: 3,
             caption: "Strong coffee and strong friends!",
+            sharedRawNote: nil,
             privateNote: "Order it with an extra shot next time.",
             photos: [],
+            usesMugsyPhotoFallback: false,
             ratings: [
                 SipDetailRatingItem(name: "Presentation", score: 3.5),
                 SipDetailRatingItem(name: "Value", score: 1.5),
                 SipDetailRatingItem(name: "Taste", score: 3),
                 SipDetailRatingItem(name: "Ambiance", score: 4)
             ],
+            contextRatingLabel: nil,
+            contextRatings: [],
             sensorySnapshot: nil,
             visitFacts: [
                 SipDetailVisitFact(label: "With", value: "Amanda", systemImage: "person.2"),

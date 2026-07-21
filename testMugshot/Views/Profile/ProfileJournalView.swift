@@ -18,6 +18,7 @@ struct JournalTabView: View {
     @State private var showOwnerProfile = false
     @State private var localDrafts: [SipDraft] = []
     @State private var tasteSignals: [RemoteTasteSignal] = []
+    @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
@@ -190,7 +191,8 @@ struct JournalTabView: View {
                 OwnerPassportProfileView(
                     dataManager: dataManager,
                     entries: journalEntries,
-                    identity: tasteIdentity
+                    identity: tasteIdentity,
+                    cafeExperienceSummaries: cafeExperienceSummaries
                 )
                 .environmentObject(authModel)
             }
@@ -495,10 +497,10 @@ struct JournalTabView: View {
             let visits = dataManager.appData.visits
             let uniqueCafes = Set(visits.filter { $0.context == .cafe }.map(\.cafeId)).count
             let averageScore = visits.isEmpty ? 0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
-            let average = averageScore > 0 ? String(format: "%.1f average", averageScore) : "taste still forming"
+            let average = averageScore > 0 ? String(format: "%.1f sip average", averageScore) : "taste still forming"
             return "\(visits.count) journal entries  ·  \(uniqueCafes) cafes  ·  \(average)"
         }
-        let average = profileStats.averageScore > 0 ? String(format: "%.1f average", profileStats.averageScore) : "taste still forming"
+        let average = profileStats.averageScore > 0 ? String(format: "%.1f sip average", profileStats.averageScore) : "taste still forming"
         return "\(profileStats.totalVisits) journal entries  ·  \(profileStats.totalCafes) cafes  ·  \(average)"
     }
 
@@ -507,6 +509,7 @@ struct JournalTabView: View {
         guard let userID = authModel.authenticatedUser?.id else {
             journalEntries = []
             tasteSignals = []
+            cafeExperienceSummaries = []
             isLoading = false
             loadError = nil
             return
@@ -518,8 +521,23 @@ struct JournalTabView: View {
             let client = try SupabaseClientProvider.shared.client()
             async let entriesRequest = JournalService(client: client).fetchEntries(userID: userID)
             async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
-            journalEntries = try await entriesRequest
-            tasteSignals = (try? await signalsRequest) ?? []
+            let loadedEntries = try await entriesRequest
+            let cafeIDs: [UUID] = Array(Set(loadedEntries.compactMap { entry -> UUID? in
+                guard entry.summary.visit.journalContext == .cafe else {
+                    return nil
+                }
+                return entry.summary.cafe?.id
+            }))
+            async let summariesRequest = CafeSessionService(client: client).fetchCafeSummaries(
+                cafeIDs: cafeIDs,
+                scope: .personal
+            )
+            let loadedSignals = (try? await signalsRequest) ?? []
+            let loadedCafeSummaries = (try? await summariesRequest) ?? []
+            guard !Task.isCancelled else { return }
+            journalEntries = loadedEntries
+            tasteSignals = loadedSignals
+            cafeExperienceSummaries = loadedCafeSummaries
             isLoading = false
         } catch is CancellationError {
             return
@@ -552,6 +570,7 @@ private struct OwnerPassportProfileView: View {
     @ObservedObject var dataManager: DataManager
     let entries: [JournalEntryProjection]
     let identity: TasteIdentitySummary
+    let cafeExperienceSummaries: [RemoteCafeExperienceSummary]
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var showEditProfile = false
     @State private var showSettings = false
@@ -560,8 +579,14 @@ private struct OwnerPassportProfileView: View {
     private var profile: SupabaseUserProfile? { authModel.profile }
     private var visits: [RemoteVisitSummary] { entries.map(\.summary) }
     private var stats: RemoteProfileStats { RemoteProfileStats.calculate(from: visits) }
-    private var homeCount: Int { visits.filter { $0.visit.journalContext != .cafe }.count }
+    private var homeCount: Int { visits.filter { $0.visit.journalContext == .home }.count }
     private var average: Double? { stats.totalVisits > 0 ? stats.averageScore : nil }
+    private var cafeRanking: RemoteProfileCafeRanking {
+        RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: cafeExperienceSummaries
+        )
+    }
 
     var body: some View {
         ScrollView {
@@ -608,6 +633,10 @@ private struct OwnerPassportProfileView: View {
                 }
                 .buttonStyle(SecondaryButtonStyle())
                 .padding(.horizontal, 16)
+
+                if !cafeRanking.entries.isEmpty {
+                    topCafesSection
+                }
 
                 if !visits.isEmpty {
                     MugshotSectionTitle(
@@ -656,6 +685,99 @@ private struct OwnerPassportProfileView: View {
                     dataManager: dataManager
                 )
             }
+        }
+    }
+
+    private var topCafesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MugshotSectionTitle(
+                title: "Top cafes",
+                subtitle: topCafesSubtitle
+            )
+
+            ForEach(cafeRanking.entries.prefix(5)) { entry in
+                ProfileTopCafeCard(
+                    entry: entry,
+                    basis: cafeRanking.basis
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var topCafesSubtitle: String {
+        switch cafeRanking.basis {
+        case .cafeExperience:
+            return "Ranked by your independent Cafe Pulse ratings."
+        case .sipAverageLegacy:
+            return "Sip average fallback · drink enjoyment, not a cafe rating."
+        }
+    }
+}
+
+private struct ProfileTopCafeCard: View {
+    let entry: RemoteProfileCafeRanking.Entry
+    let basis: RemoteProfileCafeRanking.Basis
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: entry.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill"
+            )
+            .frame(width: 68, height: 68)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: DesignSystem.Radius.control,
+                    style: .continuous
+                )
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.cafe.consumerDisplayName)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(2)
+
+                if !entry.cafe.displayLocation.isEmpty {
+                    Text(entry.cafe.displayLocation)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 9) {
+                    Label(scoreLabel, systemImage: "star.fill")
+                    Label(evidenceLabel, systemImage: "cup.and.saucer.fill")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .cardStyle()
+        .accessibilityElement(children: .combine)
+    }
+
+    private var scoreLabel: String {
+        let value = String(format: "%.1f", entry.score)
+        switch basis {
+        case .cafeExperience:
+            return "Cafe average \(value)"
+        case .sipAverageLegacy:
+            return "Sip average \(value)"
+        }
+    }
+
+    private var evidenceLabel: String {
+        switch basis {
+        case .cafeExperience:
+            let count = entry.ratedCafeSessionCount
+            return "\(count) cafe rating\(count == 1 ? "" : "s")"
+        case .sipAverageLegacy:
+            return "\(entry.sipCount) sip\(entry.sipCount == 1 ? "" : "s")"
         }
     }
 }
@@ -1073,11 +1195,19 @@ private struct RemoteJournalFeatureCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
+            Group {
+                if visit.visit.posterPhotoURL != nil {
+                    RemotePhotoImageView(
+                        urlString: visit.visit.posterPhotoURL,
+                        placeholderSystemName: "cup.and.saucer.fill",
+                        contentMode: .fill
+                    )
+                } else {
+                    RemoteVisitNoPhotoThumbnail(
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                    )
+                }
+            }
             .frame(width: 118, height: 205)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
 
@@ -1139,6 +1269,7 @@ private struct RemoteJournalFeatureCard: View {
         switch visit.visit.journalContext {
         case .cafe: return "Cafe Sip · \(visit.locationTitle)"
         case .home: return "Home Brew"
+        case .elsewhere: return visit.locationTitle
         case .recipe: return "Recipe"
         }
     }
@@ -1164,11 +1295,19 @@ struct RemoteJournalRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
+            Group {
+                if visit.visit.posterPhotoURL != nil {
+                    RemotePhotoImageView(
+                        urlString: visit.visit.posterPhotoURL,
+                        placeholderSystemName: "cup.and.saucer.fill",
+                        contentMode: .fill
+                    )
+                } else {
+                    RemoteVisitNoPhotoThumbnail(
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                    )
+                }
+            }
             .frame(width: 92, height: 96)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
 
@@ -1190,7 +1329,7 @@ struct RemoteJournalRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondaryText)
                     .lineLimit(1)
-                Label(String(format: "%.1f", visit.visit.overallScore), systemImage: "star.fill")
+                Label(String(format: "%.1f", visit.displayedMugshotScore), systemImage: "star.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.mugshotSage)
             }

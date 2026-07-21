@@ -181,7 +181,9 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
         remoteCafe.localCafe(
             isFavorite: isSaved,
             wantToTry: isSaved && !isVisited,
-            averageRating: averageRating ?? 0,
+            // Discovery v1's average is built from sip enjoyment. Keep the
+            // place unrated until a Cafe Pulse aggregate is available.
+            averageRating: 0,
             visitCount: visibleVisitCount
         )
     }
@@ -295,7 +297,9 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     }
 
     var cafe: Cafe? {
-        guard let cafeID, let cafeName else { return nil }
+        guard journalContext == .cafe,
+              let cafeID,
+              let cafeName else { return nil }
         return SupabaseCafeSummary(
             id: cafeID,
             name: cafeName,
@@ -310,7 +314,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     }
 
     func summary(profile: SupabaseUserProfile) -> RemoteVisitSummary {
-        let remoteCafe = cafeID.map { id in
+        let remoteCafe = journalContext == .cafe ? cafeID.map { id in
             SupabaseCafeSummary(
                 id: id,
                 name: cafeName ?? "Cafe",
@@ -322,7 +326,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
                 websiteURL: nil,
                 identityKey: identityKey
             )
-        }
+        } : nil
         let row = SupabaseVisitRow(
             id: id,
             userId: userID ?? profile.id,

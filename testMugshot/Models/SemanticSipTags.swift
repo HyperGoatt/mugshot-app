@@ -76,7 +76,11 @@ enum SemanticSipTagEngine {
         add("Creative flavor build", score: 80, when: flavorCount >= 2 || containsAny([" and ", " infused ", " flight "]))
         add("Matcha creation", score: 89, when: analysis?.family == .matcha && (flavorCount > 0 || containsAny(fruitTerms + dessertTerms)))
         add("Chilled ritual", score: 72, when: analysis.map { $0.temperature != .hot } ?? containsAny(["iced", "cold", "frozen"]))
-        add("Home experiment", score: 70, when: context != .cafe)
+        add(
+            "Home experiment",
+            score: 70,
+            when: context == .home || context == .recipe
+        )
 
         var seen = Set<String>()
         return candidates

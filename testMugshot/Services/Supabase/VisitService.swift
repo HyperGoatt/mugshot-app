@@ -13,6 +13,10 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, recipe_version_id, cafe_session_id, cafe_session_order, cafe_session_role, created_at
+    """
+
+    private let legacyVisitColumns = """
     id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, recipe_version_id, created_at
     """
 
@@ -43,15 +47,17 @@ final class VisitService {
         limit: Int = 10,
         includeSocialState: Bool = false
     ) async throws -> [RemoteVisitSummary] {
-        let rows: [SupabaseVisitRow] = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("user_id", value: userId.uuidString)
-            .eq("upload_state", value: VisitUploadState.complete.rawValue)
-            .order("created_at", ascending: false)
-            .limit(limit)
-            .execute()
-            .value
+        let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("user_id", value: userId.uuidString)
+                .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+        }
 
         return try await hydrate(
             rows: rows,
@@ -76,16 +82,19 @@ final class VisitService {
         userId: UUID,
         limit: Int = 10
     ) async throws -> [RemoteVisitSummary] {
-        let rows: [SupabaseVisitRow] = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("cafe_id", value: cafeId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .eq("upload_state", value: VisitUploadState.complete.rawValue)
-            .order("created_at", ascending: false)
-            .limit(limit)
-            .execute()
-            .value
+        let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("cafe_id", value: cafeId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .or("context_type.eq.Cafe,context_type.is.null")
+                .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+        }
 
         return try await hydrate(rows: rows, includeAuthors: false)
     }
@@ -95,16 +104,19 @@ final class VisitService {
         currentUserId: UUID?,
         limit: Int = 20
     ) async throws -> [RemoteVisitSummary] {
-        let rows: [SupabaseVisitRow] = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("cafe_id", value: cafeId.uuidString)
-            .eq("upload_state", value: VisitUploadState.complete.rawValue)
-            .order("created_at", ascending: false)
-            .order("id", ascending: false)
-            .limit(limit)
-            .execute()
-            .value
+        let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("cafe_id", value: cafeId.uuidString)
+                .or("context_type.eq.Cafe,context_type.is.null")
+                .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                .order("created_at", ascending: false)
+                .order("id", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+        }
 
         return try await hydrate(
             rows: rows,
@@ -115,19 +127,35 @@ final class VisitService {
     }
 
     func fetchMapVisitSeeds(userId: UUID) async throws -> [RemoteMapVisitSeed] {
-        let rows: [MapVisitRow] = try await client
-            .from("visits")
-            .select("cafe_id, overall_score")
-            .eq("user_id", value: userId.uuidString)
-            .eq("upload_state", value: VisitUploadState.complete.rawValue)
-            .not("cafe_id", operator: .is, value: "null")
-            .execute()
-            .value
-        let cafes = try await cafeService.fetchCafes(ids: rows.compactMap(\.cafeId))
+        let rows: [MapVisitRow] = try await withCafeSessionSchemaFallback { hasCafeSessions in
+            try await client
+                .from("visits")
+                .select(
+                    hasCafeSessions
+                        ? "cafe_id, overall_score, context_type, cafe_session_id"
+                        : "cafe_id, overall_score, context_type"
+                )
+                .eq("user_id", value: userId.uuidString)
+                .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                .not("cafe_id", operator: .is, value: "null")
+                .execute()
+                .value
+        }
+        let cafes = try await cafeService.fetchCafes(ids: rows.compactMap { row in
+            JournalEntryContext(backendValue: row.contextType) == .cafe
+                ? row.cafeId
+                : nil
+        })
         let cafesByID = Dictionary(uniqueKeysWithValues: cafes.map { ($0.id, $0) })
         return rows.compactMap { row in
-            guard let cafeId = row.cafeId, let cafe = cafesByID[cafeId] else { return nil }
-            return RemoteMapVisitSeed(cafe: cafe, overallScore: row.overallScore)
+            guard JournalEntryContext(backendValue: row.contextType) == .cafe,
+                  let cafeId = row.cafeId,
+                  let cafe = cafesByID[cafeId] else { return nil }
+            return RemoteMapVisitSeed(
+                cafe: cafe,
+                overallScore: row.overallScore,
+                cafeSessionID: row.cafeSessionID
+            )
         }
     }
 
@@ -168,12 +196,14 @@ final class VisitService {
         ).execute().value
         guard !references.isEmpty else { return [] }
 
-        let rows: [SupabaseVisitRow] = try await client
-            .from("visits")
-            .select(visitColumns)
-            .in("id", values: references.map { $0.visitID.uuidString })
-            .execute()
-            .value
+        let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .in("id", values: references.map { $0.visitID.uuidString })
+                .execute()
+                .value
+        }
         let summaries = try await hydrate(
             rows: rows,
             includeAuthors: true,
@@ -182,7 +212,10 @@ final class VisitService {
         )
         let summariesByID = Dictionary(uniqueKeysWithValues: summaries.map { ($0.id, $0) })
         return references.compactMap { reference in
-            guard let summary = summariesByID[reference.visitID] else { return nil }
+            guard let summary = summariesByID[reference.visitID],
+                  summary.visit.isCafeSessionPrimary else {
+                return nil
+            }
             return RemoteVisitSummary(
                 visit: summary.visit,
                 cafe: summary.cafe,
@@ -190,7 +223,10 @@ final class VisitService {
                 socialState: summary.socialState,
                 rankingScore: reference.feedScore,
                 recommendationReason: reference.rankingReason,
-                recommendationReasonType: reference.reasonType
+                recommendationReasonType: reference.reasonType,
+                sessionSipCount: summary.sessionSipCount,
+                cafePulseProjection: summary.cafePulseProjection,
+                v3FeedProjection: summary.v3FeedProjection
             )
         }
     }
@@ -199,13 +235,15 @@ final class VisitService {
         visitId: UUID,
         currentUserId: UUID?
     ) async throws -> RemoteVisitDetail {
-        let rows: [SupabaseVisitRow] = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("id", value: visitId.uuidString)
-            .limit(1)
-            .execute()
-            .value
+        let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("id", value: visitId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+        }
 
         guard let row = rows.first else {
             throw VisitServiceError.visitNotFound
@@ -233,12 +271,20 @@ final class VisitService {
             .order("created_at", ascending: true)
             .execute()
             .value
+        async let cafeSessionSummaryRequest = fetchCafeSessionSummaryIfPresent(
+            sessionID: row.journalContext == .cafe ? row.cafeSessionID : nil
+        )
+        async let v3ReflectionRequest: V3VisitReflection? = {
+            try? await V3VisitReflectionService(client: client).fetchVisible(visitID: visitId)
+        }()
 
-        let (summaries, photos, likes, comments) = try await (
+        let (summaries, photos, likes, comments, cafeSessionSummary, v3Reflection) = try await (
             summariesRequest,
             photosRequest,
             likesRequest,
-            commentsRequest
+            commentsRequest,
+            cafeSessionSummaryRequest,
+            v3ReflectionRequest
         )
         guard let summary = summaries.first else {
             throw VisitServiceError.visitNotFound
@@ -266,8 +312,18 @@ final class VisitService {
                 likes.contains { $0.userId == userId }
             } ?? false,
             privateNote: privateNote,
-            sensorySnapshot: sensorySnapshot
+            sensorySnapshot: sensorySnapshot,
+            cafeSessionSummary: cafeSessionSummary,
+            v3Reflection: v3Reflection
         )
+    }
+
+    private func fetchCafeSessionSummaryIfPresent(
+        sessionID: UUID?
+    ) async throws -> RemoteCafeSessionSummary? {
+        guard let sessionID else { return nil }
+        return try await CafeSessionService(client: client)
+            .fetchSessionSummary(sessionID: sessionID)
     }
 
     func fetchPrivateNote(visitId: UUID, userId: UUID) async throws -> String? {
@@ -391,15 +447,17 @@ final class VisitService {
         userId: UUID,
         update: SupabaseVisitUpdate
     ) async throws -> RemoteVisitSummary {
-        let row: SupabaseVisitRow = try await client
-            .from("visits")
-            .update(update)
-            .eq("id", value: visitId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .select(visitColumns)
-            .single()
-            .execute()
-            .value
+        let row: SupabaseVisitRow = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .update(update)
+                .eq("id", value: visitId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .select(columns)
+                .single()
+                .execute()
+                .value
+        }
 
         let summaries = try await hydrate(
             rows: [row],
@@ -460,7 +518,7 @@ final class VisitService {
             throw VisitServiceError.missingCafe
         }
         let remoteCafe: SupabaseCafeSummary?
-        if let cafe {
+        if entryContext == .cafe, let cafe {
             remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
         } else {
             remoteCafe = nil
@@ -488,13 +546,15 @@ final class VisitService {
 
         let row: SupabaseVisitRow
         do {
-            row = try await client
-                .from("visits")
-                .insert(payload)
-                .select(visitColumns)
-                .single()
-                .execute()
-                .value
+            row = try await withCompatibleVisitColumns { columns in
+                try await client
+                    .from("visits")
+                    .insert(payload)
+                    .select(columns)
+                    .single()
+                    .execute()
+                    .value
+            }
         } catch {
             // The insert may have committed immediately before a termination
             // or network failure. Reusing the client-generated visit id makes
@@ -548,14 +608,16 @@ final class VisitService {
             ) ?? photoURLs[0]
         )
 
-        let row: SupabaseVisitRow = try await client
-            .from("visits")
-            .update(update)
-            .eq("id", value: visitId.uuidString)
-            .select(visitColumns)
-            .single()
-            .execute()
-            .value
+        let row: SupabaseVisitRow = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .update(update)
+                .eq("id", value: visitId.uuidString)
+                .select(columns)
+                .single()
+                .execute()
+                .value
+        }
 
         let summaries = try await hydrate(rows: [row], includeAuthors: false)
         guard let summary = summaries.first else {
@@ -574,15 +636,17 @@ final class VisitService {
             visibility: visibility.supabaseValue,
             uploadState: VisitUploadState.complete.rawValue
         )
-        let row: SupabaseVisitRow = try await client
-            .from("visits")
-            .update(update)
-            .eq("id", value: visitId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .select(visitColumns)
-            .single()
-            .execute()
-            .value
+        let row: SupabaseVisitRow = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .update(update)
+                .eq("id", value: visitId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .select(columns)
+                .single()
+                .execute()
+                .value
+        }
 
         let summaries = try await hydrate(rows: [row], includeAuthors: false)
         guard let summary = summaries.first else {
@@ -602,13 +666,15 @@ final class VisitService {
     }
 
     private func fetchSavedVisitSummary(visitId: UUID) async throws -> RemoteVisitSummary {
-        let row: SupabaseVisitRow = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("id", value: visitId.uuidString)
-            .single()
-            .execute()
-            .value
+        let row: SupabaseVisitRow = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("id", value: visitId.uuidString)
+                .single()
+                .execute()
+                .value
+        }
 
         let summaries = try await hydrate(rows: [row], includeAuthors: false)
         guard let summary = summaries.first else {
@@ -618,18 +684,41 @@ final class VisitService {
         return summary
     }
 
-    private func fetchOwnedVisitSummary(visitId: UUID, userId: UUID) async throws -> RemoteVisitSummary {
-        let row: SupabaseVisitRow = try await client
-            .from("visits")
-            .select(visitColumns)
-            .eq("id", value: visitId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .single()
-            .execute()
-            .value
+    func fetchOwnedVisitSummary(visitId: UUID, userId: UUID) async throws -> RemoteVisitSummary {
+        let row: SupabaseVisitRow = try await withCompatibleVisitColumns { columns in
+            try await client
+                .from("visits")
+                .select(columns)
+                .eq("id", value: visitId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .single()
+                .execute()
+                .value
+        }
         let summaries = try await hydrate(rows: [row], includeAuthors: false)
         guard let summary = summaries.first else { throw VisitServiceError.visitNotFound }
         return summary
+    }
+
+    private func withCompatibleVisitColumns<Value>(
+        _ operation: (String) async throws -> Value
+    ) async throws -> Value {
+        try await withCafeSessionSchemaFallback { hasCafeSessions in
+            try await operation(hasCafeSessions ? visitColumns : legacyVisitColumns)
+        }
+    }
+
+    private func withCafeSessionSchemaFallback<Value>(
+        _ operation: (Bool) async throws -> Value
+    ) async throws -> Value {
+        do {
+            return try await operation(true)
+        } catch {
+            guard VisitSchemaCompatibility.isMissingCafeSessionColumn(error) else {
+                throw error
+            }
+            return try await operation(false)
+        }
     }
 
     private func hydrate(
@@ -640,34 +729,129 @@ final class VisitService {
     ) async throws -> [RemoteVisitSummary] {
         guard !rows.isEmpty else { return [] }
 
-        async let cafesRequest = cafeService.fetchCafes(ids: rows.compactMap(\.cafeId))
+        let cafeRows = rows.filter { $0.journalContext == .cafe }
+        async let cafesRequest = cafeService.fetchCafes(ids: cafeRows.compactMap(\.cafeId))
         async let profilesRequest = includeAuthors
             ? profileService.fetchProfiles(ids: rows.map(\.userId))
             : []
         async let socialStatesRequest = includeSocialState
             ? fetchSocialStates(visitIds: rows.map(\.id), currentUserId: currentUserId)
             : [:]
+        async let sessionSipCountsRequest = fetchVisibleSessionSipCounts(
+            sessionIDs: cafeRows.compactMap(\.cafeSessionID)
+        )
+        async let cafePulseProjectionsRequest = fetchVisibleCafePulseProjections(
+            sessionIDs: cafeRows.compactMap(\.cafeSessionID)
+        )
+        async let v3FeedProjectionsRequest = fetchVisibleV3FeedProjections(
+            visitIDs: rows.map(\.id)
+        )
 
-        let (cafes, profiles, socialStates) = try await (
+        let (
+            cafes,
+            profiles,
+            socialStates,
+            sessionSipCounts,
+            cafePulseProjections,
+            v3FeedProjections
+        ) = try await (
             cafesRequest,
             profilesRequest,
-            socialStatesRequest
+            socialStatesRequest,
+            sessionSipCountsRequest,
+            cafePulseProjectionsRequest,
+            v3FeedProjectionsRequest
         )
         let cafeCache = Dictionary(uniqueKeysWithValues: cafes.map { ($0.id, $0) })
         let profileCache = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
 
         return rows.map { row in
-            RemoteVisitSummary(
+            let cafeSessionID = row.journalContext == .cafe ? row.cafeSessionID : nil
+            return RemoteVisitSummary(
                 visit: row,
-                cafe: row.cafeId.flatMap { cafeCache[$0] },
+                cafe: row.journalContext == .cafe
+                    ? row.cafeId.flatMap { cafeCache[$0] }
+                    : nil,
                 author: includeAuthors ? profileCache[row.userId] : nil,
                 socialState: socialStates[row.id] ?? RemoteVisitSocialState(
                     likeCount: 0,
                     commentCount: 0,
                     currentUserHasLiked: false
-                )
+                ),
+                sessionSipCount: cafeSessionID.flatMap { sessionSipCounts[$0] } ?? 1,
+                cafePulseProjection: cafeSessionID.flatMap { cafePulseProjections[$0] },
+                v3FeedProjection: v3FeedProjections[row.id]
             )
         }
+    }
+
+    static func v3ProjectionBatches(visitIDs: [UUID]) -> [[UUID]] {
+        var seen = Set<UUID>()
+        let identifiers = visitIDs.filter { seen.insert($0).inserted }
+        return stride(from: 0, to: identifiers.count, by: 100).map { start in
+            Array(identifiers[start..<min(start + 100, identifiers.count)])
+        }
+    }
+
+    private func fetchVisibleV3FeedProjections(
+        visitIDs: some Collection<UUID>
+    ) async -> [UUID: RemoteVisitV3FeedProjection] {
+        let batches = Self.v3ProjectionBatches(visitIDs: Array(visitIDs))
+        guard !batches.isEmpty else { return [:] }
+        do {
+            var projections: [UUID: RemoteVisitV3FeedProjection] = [:]
+            for identifiers in batches {
+                let rows: [RemoteVisitV3FeedProjection] = try await client
+                    .rpc(
+                        "get_visit_v3_feed_projections_v1",
+                        params: V3FeedProjectionParameters(visitIDs: identifiers)
+                    )
+                    .execute()
+                    .value
+                for row in rows {
+                    projections[row.visitID] = row
+                }
+            }
+            return projections
+        } catch {
+            // Older backends keep the canonical sip score until the feed-safe
+            // V3 projection migration is available.
+            return [:]
+        }
+    }
+
+    private func fetchVisibleSessionSipCounts(
+        sessionIDs: some Collection<UUID>
+    ) async throws -> [UUID: Int] {
+        let identifiers = Array(Set(sessionIDs))
+        guard !identifiers.isEmpty else { return [:] }
+        let rows: [CafeSessionSipCountRow] = try await client
+            .from("visits")
+            .select("id, cafe_session_id")
+            .in("cafe_session_id", values: identifiers.map(\.uuidString))
+            .eq("upload_state", value: VisitUploadState.complete.rawValue)
+            .execute()
+            .value
+        return Dictionary(grouping: rows.compactMap { row in
+            row.cafeSessionID.map { ($0, row.id) }
+        }, by: \.0)
+        .mapValues(\.count)
+    }
+
+    private func fetchVisibleCafePulseProjections(
+        sessionIDs: some Collection<UUID>
+    ) async throws -> [UUID: RemoteCafePulseProjection] {
+        let identifiers = Array(Set(sessionIDs))
+        guard !identifiers.isEmpty else { return [:] }
+        let rows: [RemoteCafePulseProjection] = try await client
+            .from("cafe_experience_public_projections")
+            .select(
+                "session_id, includes_cafe_rating, includes_next_move, cafe_rating, next_move"
+            )
+            .in("session_id", values: identifiers.map(\.uuidString))
+            .execute()
+            .value
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.sessionID, $0) })
     }
 
     private func fetchSocialStates(
@@ -721,6 +905,14 @@ final class VisitService {
         }
     }
 
+}
+
+private struct V3FeedProjectionParameters: Encodable {
+    let visitIDs: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case visitIDs = "p_visit_ids"
+    }
 }
 
 private struct CreateCommentParameters: Encodable {
@@ -787,13 +979,48 @@ private struct VisitCommentSummaryRow: Decodable {
     }
 }
 
+private struct CafeSessionSipCountRow: Decodable {
+    let id: UUID
+    let cafeSessionID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case cafeSessionID = "cafe_session_id"
+    }
+}
+
 private struct MapVisitRow: Decodable {
     let cafeId: UUID?
     let overallScore: Double
+    let contextType: String?
+    let cafeSessionID: UUID?
 
     enum CodingKeys: String, CodingKey {
         case cafeId = "cafe_id"
         case overallScore = "overall_score"
+        case contextType = "context_type"
+        case cafeSessionID = "cafe_session_id"
+    }
+}
+
+enum VisitSchemaCompatibility {
+    static func isMissingCafeSessionColumn(_ error: Error) -> Bool {
+        let description = "\(error.localizedDescription) \(String(describing: error))"
+            .lowercased()
+        let names = [
+            "cafe_session_id",
+            "cafe_session_order",
+            "cafe_session_role"
+        ]
+        let missingSchemaMarkers = [
+            "does not exist",
+            "schema cache",
+            "could not find",
+            "pgrst204",
+            "42703"
+        ]
+        return names.contains(where: description.contains)
+            && missingSchemaMarkers.contains(where: description.contains)
     }
 }
 
@@ -900,10 +1127,11 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             throw VisitServiceError.missingRating
         }
 
+        let persistedCafe = entryContext == .cafe ? remoteCafe : nil
         return SupabaseVisitInsert(
             id: visitId,
             userId: userId,
-            cafeId: remoteCafe?.id,
+            cafeId: persistedCafe?.id,
             drinkType: drinkType == .other ? nil : drinkType.rawValue,
             drinkTypeCustom: drinkType == .other ? customDrinkType?.remoteTrimmedNonEmpty : nil,
             drinkSubtype: drinkSubtype?.remoteTrimmedNonEmpty,
@@ -913,8 +1141,10 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             ratings: cleanRatings,
             overallScore: overallScore,
             contextType: entryContext.rawValue,
-            locationName: remoteCafe?.name ?? locationName?.remoteTrimmedNonEmpty ?? entryContext.locationFallback,
-            cityState: remoteCafe?.city?.remoteTrimmedNonEmpty,
+            locationName: persistedCafe?.name
+                ?? locationName?.remoteTrimmedNonEmpty
+                ?? entryContext.locationFallback,
+            cityState: persistedCafe?.city?.remoteTrimmedNonEmpty,
             brewMethod: brewMethod?.remoteTrimmedNonEmpty,
             equipment: equipment?.remoteTrimmedNonEmpty,
             brewDetails: brewDetails,

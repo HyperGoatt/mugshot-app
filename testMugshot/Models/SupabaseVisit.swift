@@ -35,6 +35,9 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let equipment: String?
     let brewDetails: BrewDetails?
     let recipeVersionID: UUID?
+    let cafeSessionID: UUID?
+    let cafeSessionOrder: Int?
+    let cafeSessionRole: String?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -58,6 +61,9 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case equipment
         case brewDetails = "brew_details"
         case recipeVersionID = "recipe_version_id"
+        case cafeSessionID = "cafe_session_id"
+        case cafeSessionOrder = "cafe_session_order"
+        case cafeSessionRole = "cafe_session_role"
         case createdAt = "created_at"
     }
 
@@ -83,7 +89,10 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         createdAt: String,
         equipment: String? = nil,
         brewDetails: BrewDetails? = nil,
-        recipeVersionID: UUID? = nil
+        recipeVersionID: UUID? = nil,
+        cafeSessionID: UUID? = nil,
+        cafeSessionOrder: Int? = nil,
+        cafeSessionRole: String? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -106,6 +115,9 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         self.equipment = equipment
         self.brewDetails = brewDetails
         self.recipeVersionID = recipeVersionID
+        self.cafeSessionID = cafeSessionID
+        self.cafeSessionOrder = cafeSessionOrder
+        self.cafeSessionRole = cafeSessionRole
         self.createdAt = createdAt
     }
 
@@ -156,6 +168,10 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
             return .recipe
         }
         return JournalEntryContext(backendValue: contextType)
+    }
+
+    var isCafeSessionPrimary: Bool {
+        cafeSessionID == nil || cafeSessionRole == CafeSessionSipRole.primary.rawValue
     }
 
     var structuredBrewDetails: BrewDetails {
@@ -335,6 +351,26 @@ struct RemoteVisitSocialState: Equatable {
     let currentUserHasLiked: Bool
 }
 
+struct RemoteCafePulseProjection: Decodable, Equatable {
+    let sessionID: UUID
+    let includesCafeRating: Bool
+    let includesNextMove: Bool
+    let cafeRating: Double?
+    let nextMoveValue: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case includesCafeRating = "includes_cafe_rating"
+        case includesNextMove = "includes_next_move"
+        case cafeRating = "cafe_rating"
+        case nextMoveValue = "next_move"
+    }
+
+    var nextMove: CafeNextMoveKind? {
+        nextMoveValue.flatMap(CafeNextMoveKind.init(rawValue:))
+    }
+}
+
 struct RemoteVisitDetail: Identifiable, Equatable {
     let summary: RemoteVisitSummary
     let photos: [SupabaseVisitPhotoRow]
@@ -343,6 +379,8 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let currentUserHasLiked: Bool
     let privateNote: String?
     let sensorySnapshot: SipSensorySnapshot?
+    let cafeSessionSummary: RemoteCafeSessionSummary?
+    let v3Reflection: V3VisitReflection?
 
     init(
         summary: RemoteVisitSummary,
@@ -351,7 +389,9 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         likeCount: Int,
         currentUserHasLiked: Bool,
         privateNote: String? = nil,
-        sensorySnapshot: SipSensorySnapshot? = nil
+        sensorySnapshot: SipSensorySnapshot? = nil,
+        cafeSessionSummary: RemoteCafeSessionSummary? = nil,
+        v3Reflection: V3VisitReflection? = nil
     ) {
         self.summary = summary
         self.photos = photos
@@ -360,6 +400,8 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         self.currentUserHasLiked = currentUserHasLiked
         self.privateNote = privateNote
         self.sensorySnapshot = sensorySnapshot
+        self.cafeSessionSummary = cafeSessionSummary
+        self.v3Reflection = v3Reflection
     }
 
     var id: UUID { summary.id }
@@ -379,11 +421,7 @@ struct RemoteVisitDetail: Identifiable, Equatable {
             return storedPhotoURLs
         }
 
-        if storedPhotoURLs.contains(posterPhotoURL) {
-            return storedPhotoURLs
-        }
-
-        return [posterPhotoURL] + storedPhotoURLs
+        return [posterPhotoURL] + storedPhotoURLs.filter { $0 != posterPhotoURL }
     }
 
     var commentCount: Int {
@@ -417,6 +455,22 @@ private enum RemoteDateParser {
     }
 }
 
+struct RemoteVisitV3FeedProjection: Decodable, Equatable {
+    let visitID: UUID
+    let mugshotScore: Double
+    let photoFallbackValue: String?
+
+    enum CodingKeys: String, CodingKey {
+        case visitID = "visit_id"
+        case mugshotScore = "mugshot_score"
+        case photoFallbackValue = "photo_fallback"
+    }
+
+    var usesMugsyPhotoFallback: Bool {
+        photoFallbackValue == SipPhotoFallback.mugsyMissedPhoto.rawValue
+    }
+}
+
 struct RemoteVisitSummary: Identifiable, Equatable {
     let visit: SupabaseVisitRow
     let cafe: SupabaseCafeSummary?
@@ -425,6 +479,9 @@ struct RemoteVisitSummary: Identifiable, Equatable {
     let rankingScore: Double?
     let recommendationReason: String?
     let recommendationReasonType: String?
+    let sessionSipCount: Int
+    let cafePulseProjection: RemoteCafePulseProjection?
+    let v3FeedProjection: RemoteVisitV3FeedProjection?
 
     init(
         visit: SupabaseVisitRow,
@@ -437,7 +494,10 @@ struct RemoteVisitSummary: Identifiable, Equatable {
         ),
         rankingScore: Double? = nil,
         recommendationReason: String? = nil,
-        recommendationReasonType: String? = nil
+        recommendationReasonType: String? = nil,
+        sessionSipCount: Int = 1,
+        cafePulseProjection: RemoteCafePulseProjection? = nil,
+        v3FeedProjection: RemoteVisitV3FeedProjection? = nil
     ) {
         self.visit = visit
         self.cafe = cafe
@@ -446,25 +506,39 @@ struct RemoteVisitSummary: Identifiable, Equatable {
         self.rankingScore = rankingScore
         self.recommendationReason = recommendationReason
         self.recommendationReasonType = recommendationReasonType
+        self.sessionSipCount = max(sessionSipCount, 1)
+        self.cafePulseProjection = cafePulseProjection
+        self.v3FeedProjection = v3FeedProjection
     }
 
     var id: UUID { visit.id }
 
     var locationTitle: String {
-        if let cafe {
-            return cafe.consumerDisplayName
+        switch visit.journalContext {
+        case .cafe:
+            return cafe?.consumerDisplayName
+                ?? visit.locationName?.remoteTrimmedNonEmpty
+                ?? visit.contextDisplayName
+        case .home, .elsewhere, .recipe:
+            return visit.locationName?.remoteTrimmedNonEmpty
+                ?? visit.journalContext.locationFallback
         }
-        if let locationName = visit.locationName?.remoteTrimmedNonEmpty {
-            return locationName
-        }
-        return visit.contextDisplayName
     }
 
     var locationSubtitle: String? {
+        guard visit.journalContext == .cafe else { return nil }
         if let cafe, !cafe.displayLocation.isEmpty {
             return cafe.displayLocation
         }
         return visit.cityState?.remoteTrimmedNonEmpty
+    }
+
+    var displayedMugshotScore: Double {
+        v3FeedProjection?.mugshotScore ?? visit.overallScore
+    }
+
+    var usesMugsyPhotoFallback: Bool {
+        v3FeedProjection?.usesMugsyPhotoFallback == true
     }
 
     var authorDisplayName: String {
@@ -477,6 +551,10 @@ struct RemoteVisitSummary: Identifiable, Equatable {
 
     var authorInitial: String {
         String(authorUsername.prefix(1)).uppercased()
+    }
+
+    var additionalSessionSipCount: Int {
+        max(sessionSipCount - 1, 0)
     }
 }
 
@@ -501,16 +579,53 @@ struct RemoteProfileStats: Equatable {
         }
 
         let totalScore = visits.reduce(0.0) { $0 + $1.visit.overallScore }
-        let cafesById = Dictionary(grouping: visits.compactMap { visit -> RemoteVisitSummary? in
-            visit.cafe == nil ? nil : visit
-        }) { $0.cafe!.id }
+        let topCafes = legacyCafeSipAverages(from: visits)
 
-        let topCafes = cafesById.values.compactMap { cafeVisits -> RemoteTopCafe? in
+        let favoriteDrinkLabel = Dictionary(grouping: visits, by: { $0.visit.drinkDisplayName })
+            .mapValues(\.count)
+            .max {
+                if $0.value == $1.value {
+                    return $0.key > $1.key
+                }
+                return $0.value < $1.value
+            }?
+            .key
+
+        return RemoteProfileStats(
+            totalVisits: visits.count,
+            totalCafes: Set(visits.compactMap { visit in
+                visit.visit.journalContext == .cafe ? visit.cafe?.id : nil
+            }).count,
+            averageScore: totalScore / Double(visits.count),
+            favoriteDrinkLabel: favoriteDrinkLabel,
+            topCafes: Array(topCafes.prefix(10))
+        )
+    }
+
+    /// Legacy drink-enjoyment aggregates. These values may be shown only when
+    /// explicitly labeled as a Sip average; they are never cafe ratings.
+    static func legacyCafeSipAverages(
+        from visits: [RemoteVisitSummary]
+    ) -> [RemoteTopCafe] {
+        let cafesByID = Dictionary(
+            grouping: visits.compactMap { visit -> RemoteVisitSummary? in
+                guard visit.visit.journalContext == .cafe,
+                      visit.cafe != nil else {
+                    return nil
+                }
+                return visit
+            },
+            by: { $0.cafe!.id }
+        )
+
+        return cafesByID.values.compactMap { cafeVisits -> RemoteTopCafe? in
             guard let first = cafeVisits.first, let cafe = first.cafe else {
                 return nil
             }
 
-            let averageScore = cafeVisits.reduce(0.0) { $0 + $1.visit.overallScore } / Double(cafeVisits.count)
+            let averageScore = cafeVisits.reduce(0.0) {
+                $0 + $1.visit.overallScore
+            } / Double(cafeVisits.count)
             return RemoteTopCafe(
                 cafe: cafe,
                 visitCount: cafeVisits.count,
@@ -527,34 +642,122 @@ struct RemoteProfileStats: Equatable {
             }
             return $0.averageScore > $1.averageScore
         }
-
-        let favoriteDrinkLabel = Dictionary(grouping: visits, by: { $0.visit.drinkDisplayName })
-            .mapValues(\.count)
-            .max {
-                if $0.value == $1.value {
-                    return $0.key > $1.key
-                }
-                return $0.value < $1.value
-            }?
-            .key
-
-        return RemoteProfileStats(
-            totalVisits: visits.count,
-            totalCafes: Set(visits.compactMap { $0.cafe?.id }).count,
-            averageScore: totalScore / Double(visits.count),
-            favoriteDrinkLabel: favoriteDrinkLabel,
-            topCafes: Array(topCafes.prefix(10))
-        )
     }
 }
 
 struct RemoteTopCafe: Identifiable, Equatable {
     let cafe: SupabaseCafeSummary
     let visitCount: Int
+    /// Average enjoyment of the drinks logged here, not a cafe rating.
     let averageScore: Double
     let posterPhotoURL: String?
 
     var id: UUID { cafe.id }
+}
+
+/// Presentation-ready Top cafes with an explicit source of truth.
+///
+/// Once any independently rated Cafe Session exists, only cafe-experience
+/// ratings participate in Top cafes. Before that, the legacy fallback remains
+/// available but must be labeled as Sip average in the UI.
+struct RemoteProfileCafeRanking: Equatable {
+    enum Basis: Equatable {
+        case cafeExperience
+        case sipAverageLegacy
+    }
+
+    struct Entry: Identifiable, Equatable {
+        let cafe: SupabaseCafeSummary
+        let score: Double
+        let sipCount: Int
+        let ratedCafeSessionCount: Int
+        let physicalCafeSessionCount: Int
+        let posterPhotoURL: String?
+
+        var id: UUID { cafe.id }
+    }
+
+    let basis: Basis
+    let entries: [Entry]
+
+    static func calculate(
+        from visits: [RemoteVisitSummary],
+        cafeExperienceSummaries: [RemoteCafeExperienceSummary],
+        limit: Int = 10
+    ) -> RemoteProfileCafeRanking {
+        let sipAverages = RemoteProfileStats.legacyCafeSipAverages(from: visits)
+        let summariesByCafeID = cafeExperienceSummaries.reduce(
+            into: [UUID: RemoteCafeExperienceSummary]()
+        ) { result, summary in
+            result[summary.cafeID] = summary
+        }
+
+        let cafeExperienceEntries = sipAverages.compactMap {
+            aggregate -> Entry? in
+            guard let summary = summariesByCafeID[aggregate.cafe.id],
+                  summary.scope == CafeExperienceSummaryScope.personal.rawValue,
+                  summary.ratedSessionCount > 0,
+                  let averageCafeRating = summary.averageCafeRating,
+                  averageCafeRating.isFinite else {
+                return nil
+            }
+            return Entry(
+                cafe: aggregate.cafe,
+                score: averageCafeRating,
+                sipCount: aggregate.visitCount,
+                ratedCafeSessionCount: summary.ratedSessionCount,
+                physicalCafeSessionCount: summary.physicalSessionCount,
+                posterPhotoURL: aggregate.posterPhotoURL
+            )
+        }
+
+        if !cafeExperienceEntries.isEmpty {
+            return RemoteProfileCafeRanking(
+                basis: .cafeExperience,
+                entries: Array(
+                    ordered(cafeExperienceEntries).prefix(max(0, limit))
+                )
+            )
+        }
+
+        let legacyEntries = sipAverages.map {
+            Entry(
+                cafe: $0.cafe,
+                score: $0.averageScore,
+                sipCount: $0.visitCount,
+                ratedCafeSessionCount: 0,
+                physicalCafeSessionCount: 0,
+                posterPhotoURL: $0.posterPhotoURL
+            )
+        }
+        return RemoteProfileCafeRanking(
+            basis: .sipAverageLegacy,
+            entries: Array(ordered(legacyEntries).prefix(max(0, limit)))
+        )
+    }
+
+    private static func ordered(_ entries: [Entry]) -> [Entry] {
+        entries.sorted { lhs, rhs in
+            if abs(lhs.score - rhs.score) >= 0.0001 {
+                return lhs.score > rhs.score
+            }
+            if lhs.ratedCafeSessionCount != rhs.ratedCafeSessionCount {
+                return lhs.ratedCafeSessionCount > rhs.ratedCafeSessionCount
+            }
+            if lhs.physicalCafeSessionCount != rhs.physicalCafeSessionCount {
+                return lhs.physicalCafeSessionCount > rhs.physicalCafeSessionCount
+            }
+            if lhs.sipCount != rhs.sipCount {
+                return lhs.sipCount > rhs.sipCount
+            }
+            let leftName = lhs.cafe.consumerDisplayName.lowercased()
+            let rightName = rhs.cafe.consumerDisplayName.lowercased()
+            if leftName != rightName {
+                return leftName < rightName
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
 }
 
 struct RemoteCafeVisitStats: Equatable {

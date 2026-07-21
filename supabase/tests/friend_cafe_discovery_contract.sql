@@ -101,11 +101,117 @@ begin
 end $$;
 
 reset role;
+
+create temp table friend_cafe_session_target(session_id uuid);
+insert into friend_cafe_session_target values (gen_random_uuid());
+grant select on friend_cafe_session_target to authenticated;
+
+insert into public.cafe_sessions(
+  id,
+  user_id,
+  cafe_id,
+  status,
+  visibility,
+  started_at,
+  ended_at
+)
+select
+  session_id,
+  (select id from friend_cafe_users where n = 2),
+  (select cafe_id from friend_cafe_target),
+  'complete',
+  'friends',
+  now() - interval '1 hour',
+  now()
+from friend_cafe_session_target;
+
+insert into public.visits(
+  user_id,
+  cafe_id,
+  drink_type,
+  caption,
+  visibility,
+  ratings,
+  overall_score,
+  context_type,
+  brew_details,
+  upload_state,
+  cafe_session_id,
+  cafe_session_order,
+  cafe_session_role
+)
+values
+  (
+    (select id from friend_cafe_users where n = 2),
+    (select cafe_id from friend_cafe_target),
+    'Coffee',
+    'First sip in one physical session',
+    'friends',
+    '{"Overall":1.0}'::jsonb,
+    1.0,
+    'Cafe',
+    '{}'::jsonb,
+    'complete',
+    (select session_id from friend_cafe_session_target),
+    0,
+    'primary'
+  ),
+  (
+    (select id from friend_cafe_users where n = 2),
+    (select cafe_id from friend_cafe_target),
+    'Coffee',
+    'Second sip in the same physical session',
+    'friends',
+    '{"Overall":5.0}'::jsonb,
+    5.0,
+    'Cafe',
+    '{}'::jsonb,
+    'complete',
+    (select session_id from friend_cafe_session_target),
+    1,
+    'secondary'
+  );
+
+set local role authenticated;
+select set_config('request.jwt.claims', jsonb_build_object(
+  'sub', (select id from friend_cafe_users where n = 1),
+  'role', 'authenticated'
+)::text, true);
+
+do $$
+declare summary jsonb;
+begin
+  select value into summary
+  from jsonb_array_elements(
+    public.get_friend_map_sip_summaries_v1(
+      array[(select cafe_id from friend_cafe_target)]
+    )
+  );
+
+  -- The original 4.75 legacy sip is one visit. The 1.0 and 5.0 sips are
+  -- averaged to 3.0 inside their shared Cafe Session. The pin fallback is
+  -- therefore (4.75 + 3.0) / 2 = 3.875, not the raw three-sip average.
+  if abs((summary->>'average_sip_rating')::double precision - 3.875) > 0.0001 then
+    raise exception 'friend map Sip fallback is not session-balanced: %', summary;
+  end if;
+  if (summary->>'sip_count')::integer <> 3
+     or (summary->>'physical_session_count')::integer <> 2
+     or (summary->>'contributor_count')::integer <> 1 then
+    raise exception 'friend map Sip evidence counts are incorrect: %', summary;
+  end if;
+end $$;
+
+reset role;
 set local role anon;
 do $$ begin
   begin
     perform * from public.discover_friend_cafes(null, null, 25, 20, null, null);
     raise exception 'anonymous friend cafe discovery unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.get_friend_map_sip_summaries_v1(array[gen_random_uuid()]);
+    raise exception 'anonymous friend map Sip summary unexpectedly succeeded';
   exception when insufficient_privilege then null;
   end;
 end $$;

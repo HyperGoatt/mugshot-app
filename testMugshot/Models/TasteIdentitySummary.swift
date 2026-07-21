@@ -115,7 +115,7 @@ struct TasteIdentitySummary: Equatable {
     static func calculate(from visits: [RemoteVisitSummary]) -> TasteIdentitySummary {
         guard !visits.isEmpty else { return .empty }
 
-        let homeVisits = visits.filter { $0.visit.journalContext != .cafe }
+        let homeVisits = visits.filter { $0.visit.journalContext == .home }
         let cafeVisits = visits.filter { $0.visit.journalContext == .cafe }
         let topCafe = Dictionary(grouping: cafeVisits.compactMap(\.cafe), by: \.id)
             .values
@@ -258,7 +258,9 @@ struct TasteIdentitySummary: Equatable {
             lensDescriptor(signals: signals),
             ritualDescriptor(
                 contexts: visits.map { $0.visit.journalContext },
-                cafeIDs: visits.compactMap { $0.cafe?.id },
+                cafeIDs: visits.compactMap {
+                    $0.visit.journalContext == .cafe ? $0.cafe?.id : nil
+                },
                 companionCounts: visits.map { $0.visit.structuredBrewDetails.companions?.count ?? 0 }
             )
         ]
@@ -272,7 +274,9 @@ struct TasteIdentitySummary: Equatable {
             publicLensDescriptor(ratingNames: ratingNames),
             ritualDescriptor(
                 contexts: contexts,
-                cafeIDs: visits.compactMap(\.cafeID),
+                cafeIDs: visits.compactMap {
+                    $0.journalContext == .cafe ? $0.cafeID : nil
+                },
                 companionCounts: Array(repeating: 0, count: visits.count)
             )
         ]
@@ -371,7 +375,9 @@ struct TasteIdentitySummary: Equatable {
             "Detail-Driven",
             ritualDescriptor(
                 contexts: visits.map { $0.visit.journalContext },
-                cafeIDs: visits.compactMap { $0.cafe?.id },
+                cafeIDs: visits.compactMap {
+                    $0.visit.journalContext == .cafe ? $0.cafe?.id : nil
+                },
                 companionCounts: visits.map { $0.visit.structuredBrewDetails.companions?.count ?? 0 }
             )
         ]
@@ -393,7 +399,9 @@ struct TasteIdentitySummary: Equatable {
                 systemImage: "slider.horizontal.3"
             ))
         }
-        let cafeCount = Set(visits.compactMap(\.cafeID)).count
+        let cafeCount = Set(visits.compactMap {
+            $0.journalContext == .cafe ? $0.cafeID : nil
+        }).count
         patterns.append(TasteIdentityPattern(
             text: "Their visible journal spans \(cafeCount) \(cafeCount == 1 ? "cafe" : "cafes")",
             systemImage: "map.fill"

@@ -265,7 +265,8 @@ struct DiscoveryListView: View {
                     let client = try SupabaseClientProvider.shared.client()
                     let snapshot = try await MapPinService(
                         visitService: VisitService(client: client),
-                        cafeStateService: CafeStateService(client: client)
+                        cafeStateService: CafeStateService(client: client),
+                        cafeSessionService: CafeSessionService(client: client)
                     ).fetchSnapshot(userId: userID)
                     libraryCafes = cafes(for: discoveryScope, from: snapshot.pins.map(\.localCafe))
                     dataManager.applyRemoteCafeStates(snapshot.cafeStates)
