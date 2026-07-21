@@ -2,12 +2,15 @@
 import SwiftUI
 
 struct LogASipV3LabView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @State private var draft = V3LabDraft.fixture
     @State private var step: V3LabStep = .setup
     @State private var presentedSheet: V3LabSheet?
     @State private var sipCoachIndex = 0
     @State private var contextCoachIndex = 0
-    @State private var flavorDepth = 0
+    @State private var flavorPath: [V3LabFlavorNode] = []
+    @State private var selectedFlavorIDs: Set<String> = []
     @State private var newCriterionName = ""
 
     var body: some View {
@@ -24,6 +27,21 @@ struct LogASipV3LabView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 34, height: 34)
+                        .background(Color.foamWhite)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
+                }
+                .accessibilityLabel("Close Log a Sip")
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     ForEach(V3LabStep.allCases) { destination in
@@ -40,6 +58,10 @@ struct LogASipV3LabView: View {
                         withAnimation(DesignSystem.Motion.base) {
                             draft = .fixture
                             step = .setup
+                            sipCoachIndex = 0
+                            contextCoachIndex = 0
+                            flavorPath = []
+                            selectedFlavorIDs = []
                         }
                     }
                 } label: {
@@ -70,8 +92,8 @@ struct LogASipV3LabView: View {
         case .sip:
             V3LabSipScreen(
                 draft: $draft,
+                coachIndex: $sipCoachIndex,
                 onEditSetup: { move(to: .setup) },
-                onCoach: { presentedSheet = .coach(.sip) },
                 onExploreFlavors: { presentedSheet = .flavors },
                 onAddOwn: {
                     newCriterionName = ""
@@ -82,7 +104,7 @@ struct LogASipV3LabView: View {
         case .context:
             V3LabContextScreen(
                 draft: $draft,
-                onCoach: { presentedSheet = .coach(.context) },
+                coachIndex: $contextCoachIndex,
                 onAddOwn: {
                     newCriterionName = ""
                     presentedSheet = .addCriterion(.context)
@@ -97,7 +119,6 @@ struct LogASipV3LabView: View {
             )
         case .passport:
             V3LabTastePassportScreen(
-                draft: draft,
                 onWhy: { presentedSheet = .passportWhy },
                 onStartAnother: {
                     withAnimation(DesignSystem.Motion.base) {
@@ -114,22 +135,11 @@ struct LogASipV3LabView: View {
         switch sheet {
         case .photo:
             V3LabPhotoOptionsSheet(usesPlaceholder: $draft.didUsePlaceholder)
-        case .coach(let target):
-            if target == .sip {
-                V3LabCoachSheet(
-                    title: "Taste with Mugsy",
-                    prompts: V3LabCoachPrompt.sip,
-                    index: $sipCoachIndex
-                )
-            } else {
-                V3LabCoachSheet(
-                    title: draft.context == .home ? "Experiment with Mugsy" : "Notice the setting",
-                    prompts: V3LabCoachPrompt.forContext(draft.context),
-                    index: $contextCoachIndex
-                )
-            }
         case .flavors:
-            V3LabFlavorExplorerSheet(depth: $flavorDepth)
+            V3LabFlavorExplorerSheet(
+                path: $flavorPath,
+                selectedFlavorIDs: $selectedFlavorIDs
+            )
         case .addCriterion(let target):
             V3LabAddCriterionSheet(
                 name: $newCriterionName,
@@ -137,7 +147,7 @@ struct LogASipV3LabView: View {
                 onAdd: { addCustomCriterion(to: target) }
             )
         case .inviteFriends:
-            V3LabFriendPickerSheet(selectedCount: $draft.invitedFriendCount)
+            V3LabFriendPickerSheet(selectedIDs: $draft.invitedFriendIDs)
         case .passportWhy:
             V3LabPassportWhySheet()
         }
@@ -181,7 +191,6 @@ struct LogASipV3LabView: View {
 
 private enum V3LabSheet: Identifiable {
     case photo
-    case coach(V3LabCriterionTarget)
     case flavors
     case addCriterion(V3LabCriterionTarget)
     case inviteFriends
@@ -190,7 +199,6 @@ private enum V3LabSheet: Identifiable {
     var id: String {
         switch self {
         case .photo: return "photo"
-        case .coach(let target): return "coach-\(target.rawValue)"
         case .flavors: return "flavors"
         case .addCriterion(let target): return "criterion-\(target.rawValue)"
         case .inviteFriends: return "friends"
@@ -267,151 +275,106 @@ private struct V3LabPhotoOptionsSheet: View {
     }
 }
 
-private struct V3LabCoachPrompt: Identifiable {
-    let id: String
-    let prompt: String
-    let hint: String
-
-    static let sip: [V3LabCoachPrompt] = [
-        .init(id: "first", prompt: "What hits first?", hint: "Notice the opening second before naming a flavor."),
-        .init(id: "stays", prompt: "What stays after the sip?", hint: "Think about finish, texture, and what lingers."),
-        .init(id: "change", prompt: "How does it change?", hint: "A drink can become brighter, thinner, sweeter, or quieter."),
-        .init(id: "feeling", prompt: "What feeling does it leave?", hint: "Your experience matters more than a technical answer.")
-    ]
-
-    static func forContext(_ context: V3LabContext) -> [V3LabCoachPrompt] {
-        switch context {
-        case .cafe:
-            return [
-                .init(id: "arrival", prompt: "How did the room greet you?", hint: "Notice light, sound, movement, and how easy it felt to settle in."),
-                .init(id: "service", prompt: "How did the interaction feel?", hint: "Describe what happened without turning an employee into the review."),
-                .init(id: "value", prompt: "Did the experience feel worth it?", hint: "Value can include care, comfort, craft, and price."),
-                .init(id: "return", prompt: "What would bring you back?", hint: "Look for the part of the memory you would want again.")
-            ]
-        case .home:
-            return [
-                .init(id: "change", prompt: "What changed this time?", hint: "Name the smallest variable you remember."),
-                .init(id: "result", prompt: "What did that version make possible?", hint: "Describe the result without assuming one change caused it."),
-                .init(id: "next", prompt: "What is one next experiment?", hint: "Change one variable so tomorrow can teach you something.")
-            ]
-        case .elsewhere:
-            return [
-                .init(id: "place", prompt: "How did the setting change the sip?", hint: "A view, journey, person, or pause can shape the memory."),
-                .init(id: "sense", prompt: "What else could you hear or feel?", hint: "Let the setting be evidence, not merely a location."),
-                .init(id: "remember", prompt: "What will future you want to remember?", hint: "Keep the one detail that makes this moment distinct.")
-            ]
-        }
-    }
-}
-
-private struct V3LabCoachSheet: View {
-    let title: String
-    let prompts: [V3LabCoachPrompt]
-    @Binding var index: Int
-
-    var body: some View {
-        V3LabSheetShell(title: title, subtitle: "Mugsy helps you think. Your words stay yours.") {
-            HStack(alignment: .top, spacing: 14) {
-                MugsyModelView(configuration: MugsyModelConfiguration(expression: .curious, prop: .journalNotebook))
-                    .frame(width: 74, height: 74)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(prompts[safeIndex].prompt)
-                        .mugshotDisplay(size: 22)
-                        .foregroundColor(.espressoBrown)
-                    Text(prompts[safeIndex].hint)
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(14)
-            .background(Color.foamWhite)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                    .stroke(Color.mugshotLine, lineWidth: 1)
-            )
-
-            HStack {
-                Button("Back", systemImage: "chevron.left") {
-                    index = max(0, safeIndex - 1)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(safeIndex == 0)
-                Spacer()
-                Text("\(safeIndex + 1) of \(prompts.count)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.tertiaryText)
-                Spacer()
-                Button("Next", systemImage: "chevron.right") {
-                    index = min(prompts.count - 1, safeIndex + 1)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(safeIndex == prompts.count - 1)
-            }
-        }
-    }
-
-    private var safeIndex: Int {
-        min(max(index, 0), max(prompts.count - 1, 0))
-    }
-}
-
 private struct V3LabFlavorExplorerSheet: View {
-    @Binding var depth: Int
-
-    private let levels = [
-        ("Start broad", ["Fruity", "Sweet", "Roasted", "Other"]),
-        ("Fruity", ["Citrus", "Berry", "Stone fruit", "Tropical"]),
-        ("Citrus", ["Orange", "Lemon", "Grapefruit", "Lime"]),
-        ("Orange", ["Fresh orange", "Marmalade", "Orange blossom", "Candied peel"])
-    ]
+    @Binding var path: [V3LabFlavorNode]
+    @Binding var selectedFlavorIDs: Set<String>
 
     var body: some View {
         V3LabSheetShell(
             title: "Explore flavors",
-            subtitle: "Tap from broad to specific. This prototype demonstrates the interaction; the production taxonomy will use the licensed source of truth."
+            subtitle: "Start broad, then keep drilling until a word feels useful."
         ) {
-            Text(levels[safeDepth].0)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.mugshotSage)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(Array(levels[safeDepth].1.enumerated()), id: \.offset) { index, flavor in
+            if !path.isEmpty {
+                HStack(spacing: 8) {
                     Button {
-                        if index == 0, depth < levels.count - 1 {
-                            withAnimation(DesignSystem.Motion.base) { depth += 1 }
+                        withAnimation(DesignSystem.Motion.base) {
+                            _ = path.popLast()
                         }
                     } label: {
-                        Text(flavor)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(index == 0 ? Color.mugshotMint.opacity(0.30) : Color.foamWhite)
-                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
-                                    .stroke(Color.mugshotLine, lineWidth: 1)
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.mugshotSage)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            Text("Start")
+                            ForEach(path) { node in
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 7, weight: .bold))
+                                Text(node.title)
+                            }
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                    }
+                }
+            }
+
+            Text(path.last?.title ?? "What are you noticing?")
+                .mugshotDisplay(size: 21)
+                .foregroundColor(.espressoBrown)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(currentNodes) { node in
+                    Button {
+                        withAnimation(DesignSystem.Motion.base) {
+                            if node.isLeaf {
+                                if selectedFlavorIDs.contains(node.id) {
+                                    selectedFlavorIDs.remove(node.id)
+                                } else {
+                                    selectedFlavorIDs.insert(node.id)
+                                }
+                            } else {
+                                path.append(node)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 7) {
+                            Text(node.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 2)
+                            Image(systemName: node.isLeaf
+                                ? (selectedFlavorIDs.contains(node.id) ? "checkmark.circle.fill" : "circle")
+                                : "chevron.right"
                             )
+                            .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundColor(selectedFlavorIDs.contains(node.id) ? .foamWhite : .espressoBrown)
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(selectedFlavorIDs.contains(node.id) ? Color.mugshotSage : Color.foamWhite)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                                .stroke(Color.mugshotLine, lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
 
-            HStack {
-                Button("Start over") { depth = 0 }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                Spacer()
-                Text("\(safeDepth + 1) of \(levels.count)")
-                    .font(.system(size: 11))
-                    .foregroundColor(.tertiaryText)
+            if !selectedFlavorIDs.isEmpty {
+                Label(
+                    "\(selectedFlavorIDs.count) \(selectedFlavorIDs.count == 1 ? "note" : "notes") saved to this exploration",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.mugshotSage)
             }
+
+            Text("Adapted from Counter Culture Coffee's Taster's Flavor Wheel (2020). Changes made. For prototype evaluation only.")
+                .font(.system(size: 9))
+                .foregroundColor(.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var safeDepth: Int { min(max(depth, 0), levels.count - 1) }
+    private var currentNodes: [V3LabFlavorNode] {
+        path.last?.children ?? V3LabFlavorNode.explorerRoots
+    }
 }
 
 private struct V3LabAddCriterionSheet: View {
@@ -443,30 +406,29 @@ private struct V3LabAddCriterionSheet: View {
 }
 
 private struct V3LabFriendPickerSheet: View {
-    @Binding var selectedCount: Int
-
-    private let friends = ["Amanda", "Jake", "Sarah", "Jimmy"]
+    @Binding var selectedIDs: Set<String>
 
     var body: some View {
         V3LabSheetShell(
             title: "Invite friends",
             subtitle: "An invite creates a shared memory. It never publishes for them."
         ) {
-            ForEach(Array(friends.enumerated()), id: \.offset) { index, friend in
+            ForEach(V3LabFriend.recommended) { friend in
                 Button {
-                    selectedCount = selectedCount == index + 1 ? 0 : index + 1
+                    if selectedIDs.contains(friend.id) {
+                        selectedIDs.remove(friend.id)
+                    } else {
+                        selectedIDs.insert(friend.id)
+                    }
                 } label: {
                     HStack {
-                        Circle()
-                            .fill(Color.mugshotMint.opacity(0.38))
-                            .frame(width: 36, height: 36)
-                            .overlay(Text(String(friend.prefix(1))).font(.system(size: 13, weight: .bold)))
-                        Text(friend)
+                        MugshotAvatar(name: friend.name, size: 40, imageURL: friend.imageURL)
+                        Text(friend.name)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.espressoBrown)
                         Spacer()
-                        Image(systemName: index < selectedCount ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(index < selectedCount ? .mugshotSage : .tertiaryText)
+                        Image(systemName: selectedIDs.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(selectedIDs.contains(friend.id) ? .mugshotSage : .tertiaryText)
                     }
                 }
                 .buttonStyle(.plain)

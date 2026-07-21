@@ -338,3 +338,76 @@ The two complete reference boards and all five final Simulator captures were ope
 
 - **P3:** The DEBUG-only back button and step menu add review chrome above the source composition. Keep them in the lab for fast navigation; omit or redesign them when the flow is mapped into production navigation.
 - **P3:** The Passport uses a restrained map-memory card instead of the source's decorative route and stamp illustration. The city-memory meaning is preserved; a bespoke illustration can be added later if alpha feedback shows it materially improves delight.
+
+---
+
+# Mugshot V3 UI Lab Simulator-Feedback Revision QA
+
+## Comparison target
+
+- Source visual truth:
+  - `docs/product-research/mugshot-v3/references/approved-v3-five-screen-direction.png`
+  - `docs/product-research/mugshot-v3/references/cafe-reflection-direction.png`
+- Rendered implementation:
+  - `docs/product-research/mugshot-v3/ui-lab-v2/01-setup.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/02-sip.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/02b-sip-criteria.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/03-cafe.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/04-publish.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/04b-publish-controls.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/05-passport.jpg`
+  - `docs/product-research/mugshot-v3/ui-lab-v2/05b-passport-details.jpg`
+- Combined full-view evidence: `docs/product-research/mugshot-v3/ui-lab-v2/design-qa-comparison.png`
+- Viewport: iPhone 17 Pro Simulator; 368 x 800 pixel captures.
+- State: populated Cafe memory for an Iced Orange Creamsicle at The Daily, with a 2.5 Sip score, 3.5 Cafe score, exact 2.4 Sip criteria suggestion, and 3.0 Mugshot score.
+
+Both complete reference boards and all eight final Simulator captures were opened together in one comparison input. `02b-sip-criteria.jpg` and `04b-publish-controls.jpg` provide focused evidence for the two densest revised regions.
+
+## Required fidelity surfaces
+
+- **Typography:** Editorial system-serif headings preserve the Source Serif 4 design hierarchy intended for Figma while using the approved iOS system-serif implementation. Control copy remains compact system sans-serif.
+- **Spacing and layout:** The five full-screen surfaces retain the cream canvas, quiet cards, sticky primary action, and optional-depth hierarchy. The Setup surface owns cover selection; Publish no longer repeats it.
+- **Color and branding:** Mint cover state, sage score and action hierarchy, branded importance popovers, inline Mugsy coaching, and the generated archival city-map backdrop use existing Mugshot tokens consistently.
+- **Image quality:** Four current-memory photos render cleanly in the setup picker and Publish carousel. The Passport backdrop remains legible under live content without competing with the evidence cards.
+- **Copy and content:** Audience and raw-note visibility share one control language; raw-note visibility cannot exceed the post audience. Mugshot leads the score hierarchy, with Sip and Cafe nested as evidence.
+
+## Interaction evidence
+
+- Presented the DEBUG UI Lab with a full-screen cover from Settings and completed Setup -> Sip -> Cafe -> Publish -> Taste Passport.
+- Selected the cover in Setup and verified the mint/star treatment remains the source of truth on Publish.
+- Opened the inline Mugsy coach without presenting a bottom sheet.
+- Opened the flavor explorer and completed Flavor -> Fruit -> Citrus -> Orange, preserving the visible internal-prototype attribution.
+- Verified the criteria advisory remains exact at 2.4 while the user-owned Sip score stays 2.5 until explicitly adopted.
+- Verified 24 Sip suggestions and 21 Cafe suggestions, larger criterion stars, stacked pin/remove controls, branded importance choices, and removal confirmation.
+- Verified the Publish photo carousel, Mugshot-first score hierarchy, matched visibility selectors, and five recommended friend avatars plus the expanded picker affordance.
+- Published into Taste Passport and verified the optional `Pour another one` action leaves the completed-memory state visually primary.
+
+## Comparison history
+
+### Pass 1
+
+- **P1 - Taste Passport background overflowed its horizontal bounds.** The generated map backdrop expanded beyond the phone viewport and clipped content alignment.
+  - Fix: constrained the backdrop with a `GeometryReader`, explicit viewport sizing, and clipping before applying the safe-area treatment.
+- **P1 - Presenting a nested flavor sheet reset the UI Lab to Setup.** The full-screen host was attached to a transient Developer button subtree, so nested presentation rebuilt the lab state.
+  - Fix: moved the full-screen presentation host to the stable Settings root. Re-ran the Flavor -> Fruit -> Citrus -> Orange journey without losing the Sip surface.
+
+### Pass 2
+
+- **P2 - Half-star hit regions still followed the 26-point artwork.** The criteria looked larger but retained overly precise touch targets.
+  - Fix: expanded every rating star to a 44-point-high invisible gesture target while preserving the approved 26-point artwork and half-step selection.
+- **P2 - Caption was visually required but not behaviorally required.** Clearing it left Publish enabled.
+  - Fix: centralized the locked minimum validation, disabled Publish until the required fields are complete, and capped the caption at 80 characters.
+- **P2 - Mugsy's coach wiggle ignored Reduce Motion.**
+  - Fix: removed the spring, rotation, scaling, and prompt transition animations whenever Reduce Motion is enabled.
+- Rebuilt the full flow and recaptured the visually affected Sip and Cafe surfaces; the unchanged Setup, Publish, and Passport captures remained valid.
+- Confirmed the final Passport stays within the 368-point viewport and the nested flavor sheet preserves the active Sip state.
+- No actionable P0, P1, or P2 visual or interaction mismatch remained.
+
+## Verification evidence
+
+- Final Debug Simulator build and launch: passed.
+- Complete five-screen Simulator journey: passed.
+- Focused V3 fixture suite: 9 passed, 0 failed.
+- Full source-and-implementation visual comparison: passed.
+
+final result: passed

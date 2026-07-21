@@ -47,6 +47,7 @@ struct SettingsView: View {
     @State private var copiedSupportEmail = false
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
 #if DEBUG
+    @State private var showsLogASipV3Lab = false
     @AppStorage(SipComposerExperience.storageKey) private var sipComposerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
@@ -111,6 +112,13 @@ struct SettingsView: View {
                 Text("This permanently removes your profile, photos, visits, saved cafes, comments, and account data. This can’t be undone.")
             }
         }
+#if DEBUG
+        .fullScreenCover(isPresented: $showsLogASipV3Lab) {
+            NavigationStack {
+                LogASipV3LabView()
+            }
+        }
+#endif
     }
 
     private var usesPhase6Settings: Bool {
@@ -322,8 +330,8 @@ struct SettingsView: View {
                 .tracking(0.8)
                 .foregroundColor(.tertiaryText)
 
-            NavigationLink {
-                LogASipV3LabView()
+            Button {
+                showsLogASipV3Lab = true
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "rectangle.stack.badge.play.fill")

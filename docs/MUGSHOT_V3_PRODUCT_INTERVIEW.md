@@ -921,3 +921,22 @@ Future design or implementation work may test these decisions, but it should not
 3. the decision that changed,
 4. the new rule, and
 5. the person who approved it.
+
+# Post-interview UI Lab revision — July 20, 2026
+
+After testing the first V3 UI Lab in Simulator, Joe approved the following refinements for the visual prototype:
+
+1. **Presentation:** The eventual production Log a Sip composer is a true full-screen flow, not a slide-up card. The DEBUG lab should mirror that presentation.
+2. **Setup owns the cover:** Any photo can be selected as the cover on Setup. The active cover uses a mint border and cover/star treatment. Publish previews the photo carousel but does not contain a second cover selector.
+3. **Inline Mugsy coaching:** Mugsy appears beside the private journal as an animated, optional coach. Prompts and back/next controls live inside Mugsy's speech bubble; opening a separate coaching sheet is rejected.
+4. **Flavor exploration:** The Sip helper area includes an optional broad-to-specific Flavor, Body, and Character explorer. The internal prototype may evaluate the Counter Culture hierarchy with attribution, but commercial production requires permission or Mugshot's original licensed taxonomy and visuals.
+5. **Criteria depth:** Sip and context surfaces offer at least 20 relevant suggestions before "Add my own." Criterion stars are materially larger than the first prototype. Pin and remove controls are compact and stacked.
+6. **Importance interaction:** Importance uses the human-language order Most, More, Normal, Less in a Mugshot-branded popover, not a generic menu. Removing a criterion requires confirmation.
+7. **Exact advisory decimals:** Direct overall star taps remain half-step. A weighted criteria suggestion may be adopted at its exact one-decimal value, such as 2.4. The user's overall score always remains authoritative.
+8. **Publish score hierarchy:** Publish leads with the Mugshot score, then nests the smaller Sip and Cafe evidence underneath. The earlier side-by-side equation treatment is rejected.
+9. **Visibility consistency:** Audience and raw-note visibility use the same Private/Friends/Everyone control. A raw note can never be broader than the finished Mugshot.
+10. **Friend invitations:** Publish shows a compact recommended-friends strip with profile thumbnails and a plus action. Selecting friends creates invitations; it does not publish for them.
+11. **Taste Passport delight:** The approved non-radar city-and-passport direction remains. A bespoke cream, mint, and sage city-memory background, route, pins, and stamp motifs add delight without creating an expertise rank.
+12. **Completion choice:** Taste Passport includes a clear close route. "Pour another one" remains optional rather than the only way to leave the completion state.
+
+These are UI Lab decisions only. They do not authorize a migration of the production composer until the visual direction is reviewed again.

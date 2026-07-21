@@ -23,7 +23,7 @@ struct V3LabSetupScreen: View {
                 )
 
                 VStack(alignment: .leading, spacing: DesignSystem.Space.sm) {
-                    V3LabSectionHeader("Photos", subtitle: "Choose the first photo as your cover.")
+                    V3LabSectionHeader("Photos", subtitle: "Tap any photo to make it your cover.")
                     V3LabPhotoPicker(
                         coverIndex: $draft.coverIndex,
                         usesPlaceholder: draft.didUsePlaceholder,
@@ -134,8 +134,8 @@ struct V3LabSetupScreen: View {
 
 struct V3LabSipScreen: View {
     @Binding var draft: V3LabDraft
+    @Binding var coachIndex: Int
     let onEditSetup: () -> Void
-    let onCoach: () -> Void
     let onExploreFlavors: () -> Void
     let onAddOwn: () -> Void
     let onContinue: () -> Void
@@ -151,8 +151,13 @@ struct V3LabSipScreen: View {
                     title: "Just for my journal",
                     prompt: "What hit first? What stayed with you?",
                     text: $draft.sipNote,
-                    privacyLabel: "Private unless you choose otherwise",
-                    onCoach: onCoach
+                    privacyLabel: "Private unless you choose otherwise"
+                )
+
+                V3LabInlineMugsyCoach(
+                    prompts: V3LabCoachPrompt.sip,
+                    index: $coachIndex,
+                    onExploreFlavors: onExploreFlavors
                 )
 
                 scoreBlock
@@ -163,34 +168,9 @@ struct V3LabSipScreen: View {
                     V3LabScoreGuidanceCard(
                         suggestedScore: suggestion,
                         currentScore: draft.sipScore,
-                        onUse: { draft.sipScore = nearestHalf(suggestion) }
+                        onUse: { draft.sipScore = suggestion }
                     )
                 }
-
-                V3LabMugsyCoachRow(
-                    title: "Need a thought?",
-                    prompt: "Gentle prompts from Mugsy, only when you ask.",
-                    action: onCoach
-                )
-
-                Button(action: onExploreFlavors) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "leaf.fill")
-                            .foregroundColor(.mugshotSage)
-                        Text("Explore flavors")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.mugshotSage)
-                        Text("Taste ideas")
-                            .font(.system(size: 11))
-                            .foregroundColor(.tertiaryText)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.tertiaryText)
-                    }
-                    .padding(.horizontal, 4)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, DesignSystem.Space.md)
             .padding(.bottom, 116)
@@ -269,6 +249,16 @@ struct V3LabSipScreen: View {
             }
             .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
 
+            HStack {
+                Text("Suggested for this drink")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondaryText)
+                Spacer()
+                Text("\(V3LabSuggestion.sip.count) ideas")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(V3LabSuggestion.sip) { suggestion in
@@ -311,7 +301,7 @@ struct V3LabSipScreen: View {
 
 struct V3LabContextScreen: View {
     @Binding var draft: V3LabDraft
-    let onCoach: () -> Void
+    @Binding var coachIndex: Int
     let onAddOwn: () -> Void
     let onContinue: () -> Void
 
@@ -332,8 +322,12 @@ struct V3LabContextScreen: View {
                     prompt: contextPrompt,
                     text: $draft.contextNote,
                     privacyLabel: "Private unless you choose otherwise",
-                    minimumHeight: 106,
-                    onCoach: onCoach
+                    minimumHeight: 106
+                )
+
+                V3LabInlineMugsyCoach(
+                    prompts: V3LabCoachPrompt.forContext(draft.context),
+                    index: $coachIndex
                 )
 
                 if draft.context == .home {
@@ -346,16 +340,10 @@ struct V3LabContextScreen: View {
                         V3LabScoreGuidanceCard(
                             suggestedScore: suggestion,
                             currentScore: draft.contextScore,
-                            onUse: { draft.contextScore = nearestHalf(suggestion) }
+                            onUse: { draft.contextScore = suggestion }
                         )
                     }
                 }
-
-                V3LabMugsyCoachRow(
-                    title: draft.context == .home ? "Plan one tiny experiment" : "Notice one more thing",
-                    prompt: coachPrompt,
-                    action: onCoach
-                )
             }
             .padding(.horizontal, DesignSystem.Space.md)
             .padding(.bottom, 116)
@@ -390,7 +378,15 @@ struct V3LabContextScreen: View {
 
     private var contextCriteria: some View {
         VStack(alignment: .leading, spacing: 10) {
-            V3LabSectionHeader("What shaped it?", subtitle: "Optional")
+            HStack {
+                V3LabSectionHeader("What shaped it?", subtitle: "Optional")
+                Spacer()
+                Button("Use last setup") {
+                    restoreLastContextSetup()
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            }
 
             VStack(spacing: 0) {
                 ForEach($draft.contextCriteria) { $criterion in
@@ -403,6 +399,16 @@ struct V3LabContextScreen: View {
                 }
             }
             .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
+
+            HStack {
+                Text("Suggested for this \(draft.context.title.lowercased())")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondaryText)
+                Spacer()
+                Text("\(contextSuggestions.count) ideas")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -471,6 +477,15 @@ struct V3LabContextScreen: View {
         draft.context == .cafe ? V3LabSuggestion.cafe : V3LabSuggestion.elsewhere
     }
 
+    private func restoreLastContextSetup() {
+        for criterion in V3LabDraft.fixture.contextCriteria where !draft.contextCriteria.contains(where: { $0.id == criterion.id }) {
+            var blank = criterion
+            blank.rating = 0
+            blank.importance = .normal
+            draft.contextCriteria.append(blank)
+        }
+    }
+
     private var contextPrompt: String {
         switch draft.context {
         case .cafe: return "How did the room, service, and value feel?"
@@ -479,13 +494,6 @@ struct V3LabContextScreen: View {
         }
     }
 
-    private var coachPrompt: String {
-        switch draft.context {
-        case .cafe: return "Try atmosphere, comfort, presentation, or service."
-        case .home: return "Change one variable next time so the result can teach you something."
-        case .elsewhere: return "Think about the view, occasion, comfort, or company."
-        }
-    }
 }
 
 struct V3LabPublishScreen: View {
@@ -494,6 +502,7 @@ struct V3LabPublishScreen: View {
     let onPublish: () -> Void
 
     @State private var showsCriteria = false
+    @State private var previewIndex = 0
 
     var body: some View {
         ScrollView {
@@ -564,34 +573,93 @@ struct V3LabPublishScreen: View {
         .safeAreaInset(edge: .bottom) {
             V3LabBottomAction(
                 title: "Publish Mugshot",
-                subtitle: draft.audience == .private ? "Only you will see this." : "Ready for \(draft.audience.title.lowercased()).",
+                subtitle: publishSubtitle,
                 systemImage: "arrow.up.circle.fill",
+                isEnabled: draft.isReadyToPublish,
                 action: onPublish
             )
         }
         .onChange(of: draft.audience) { _, _ in
             draft.constrainRawNoteVisibility()
         }
+        .onAppear {
+            previewIndex = min(max(draft.coverIndex, 0), max(V3LabMedia.photos.count - 1, 0))
+        }
+        .onChange(of: draft.caption) { _, caption in
+            if caption.count > 80 {
+                draft.caption = String(caption.prefix(80))
+            }
+        }
+    }
+
+    private var publishSubtitle: String {
+        guard draft.isReadyToPublish else { return "Finish the required details to publish." }
+        return draft.audience == .private ? "Only you will see this." : "Ready for \(draft.audience.title.lowercased())."
     }
 
     private var coverCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
-                Image("V3OrangeCreamsicleHeroV2")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 190)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-                Label("Cover", systemImage: "photo")
-                    .font(.system(size: 11, weight: .semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                    .padding(10)
+                if draft.didUsePlaceholder {
+                    HStack(spacing: 14) {
+                        MugsyModelView(configuration: MugsyModelConfiguration(
+                            expression: .curious,
+                            prop: .camera,
+                            pose: .leaningLeft
+                        ))
+                        .frame(width: 104, height: 104)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Oops, missed the photo")
+                                .mugshotDisplay(size: 20)
+                            Text("Mugsy saved your memory a spot.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondaryText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 210)
+                    .background(Color.mugshotMint.opacity(0.18))
+                } else {
+                    TabView(selection: $previewIndex) {
+                        ForEach(Array(V3LabMedia.photos.enumerated()), id: \.offset) { index, imageName in
+                            Image(imageName)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 210)
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+                                .tag(index)
+                        }
+                    }
+                    .frame(height: 210)
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                    .indexViewStyle(.page(backgroundDisplayMode: .always))
+                }
+
+                if !draft.didUsePlaceholder, previewIndex == draft.coverIndex {
+                    Label("Cover", systemImage: "star.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.mugshotMint)
+                        .clipShape(Capsule())
+                        .padding(10)
+                }
+
+                if !draft.didUsePlaceholder {
+                    Text("\(previewIndex + 1) of \(V3LabMedia.photos.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.creamWhite)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.espressoBrown.opacity(0.72))
+                        .clipShape(Capsule())
+                        .frame(maxWidth: .infinity, alignment: .topTrailing)
+                        .padding(10)
+                }
             }
+            .frame(height: 210)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
 
             Text(draft.drinkName)
                 .font(.system(size: 14, weight: .semibold))
@@ -604,62 +672,44 @@ struct V3LabPublishScreen: View {
 
     private var publishControls: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 9) {
-                Label("Audience", systemImage: "person.2.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                MugshotSegmentedControl(
-                    options: V3LabAudience.allCases,
-                    selection: $draft.audience,
-                    title: { $0.title }
-                )
-            }
-            .padding(14)
-
-            Divider().padding(.leading, 44)
-
-            Menu {
-                ForEach(draft.allowedRawNoteVisibilities) { visibility in
-                    Button(visibility.title) {
-                        draft.rawNoteVisibility = visibility
-                    }
-                }
-            } label: {
-                V3LabPublishSettingRow(
-                    title: "Raw note",
-                    value: draft.rawNoteVisibility.title,
-                    systemImage: "lock.doc",
-                    action: nil
-                )
-            }
-
-            Divider().padding(.leading, 44)
-
-            V3LabPublishSettingRow(
-                title: "Invite friends",
-                value: draft.invitedFriendCount == 0 ? "None" : "\(draft.invitedFriendCount) selected",
-                systemImage: "person.badge.plus",
-                action: onInviteFriends
+            V3LabVisibilitySelector(
+                title: "Audience",
+                detail: "Who can see the finished Mugshot",
+                systemImage: "person.2.fill",
+                options: V3LabAudience.allCases,
+                selection: $draft.audience,
+                optionTitle: { $0.title }
             )
 
-            Divider().padding(.leading, 44)
+            Divider().padding(.leading, 54)
 
-            V3LabPublishSettingRow(
-                title: "Cover photo",
-                value: draft.coverIndex == 0 ? "First photo" : "Photo \(draft.coverIndex + 1)",
-                systemImage: "photo",
-                action: { draft.coverIndex = (draft.coverIndex + 1) % 3 }
+            V3LabVisibilitySelector(
+                title: "Raw note",
+                detail: "Never broader than your Mugshot",
+                systemImage: "lock.doc",
+                options: V3LabRawNoteVisibility.allCases,
+                selection: $draft.rawNoteVisibility,
+                optionTitle: { $0.title },
+                isEnabled: { $0.breadth <= draft.audience.breadth }
+            )
+
+            Divider().padding(.leading, 54)
+
+            V3LabFriendInviteStrip(
+                selectedIDs: $draft.invitedFriendIDs,
+                onShowAll: onInviteFriends
             )
         }
         .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
     }
 
     private func criteriaSummary(title: String, criteria: [V3LabCriterion]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let rated = criteria.filter { $0.rating > 0 }
+        return VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.tertiaryText)
-            Text(criteria.map { "\($0.title) \($0.rating.formatted(.number.precision(.fractionLength(1))))" }.joined(separator: "  ·  "))
+            Text(rated.map { "\($0.title) \($0.rating.formatted(.number.precision(.fractionLength(1))))" }.joined(separator: "  ·  "))
                 .font(.system(size: 12))
                 .foregroundColor(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -668,86 +718,125 @@ struct V3LabPublishScreen: View {
 }
 
 struct V3LabTastePassportScreen: View {
-    let draft: V3LabDraft
     let onWhy: () -> Void
     let onStartAnother: () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Space.lg) {
-                MugshotScreenHeader("Taste Passport", subtitle: "Built gently from memories you choose to keep") {
-                    ShareLink(item: "My Mugshot Taste Passport") {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.espressoBrown)
-                            .frame(width: 36, height: 36)
-                            .background(Color.foamWhite)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
-                    }
-                }
-
-                identityBlock
-                evidenceBlock
-                memoryPlaces
-                criteriaBlock
-
-                VStack(spacing: 0) {
-                    V3LabPublishSettingRow(
-                        title: "Why am I seeing this?",
-                        value: "",
-                        systemImage: "info.circle",
-                        action: onWhy
-                    )
-                    Divider().padding(.leading, 44)
-                    V3LabPublishSettingRow(
-                        title: "Passport",
-                        value: "Only me",
-                        systemImage: "lock",
-                        action: nil
-                    )
-                }
-                .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
-
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "leaf.fill")
-                        .foregroundColor(.mugshotSage)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Still learning from every memory")
-                            .font(.system(size: 14, weight: .semibold, design: .serif))
-                            .foregroundColor(.mugshotSage)
-                        Text("Four sips show a clue. More sips bring more clarity—never a permanent label.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.tertiaryText)
-                    }
-                }
+        ZStack {
+            GeometryReader { proxy in
+                Image("V3TastePassportBackdrop")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, DesignSystem.Space.md)
-            .padding(.bottom, 112)
-        }
-        .safeAreaInset(edge: .bottom) {
-            V3LabBottomAction(
-                title: "Log another sip",
-                subtitle: "Keep the ritual going when it feels right.",
-                systemImage: "plus",
-                action: onStartAnother
-            )
+            .ignoresSafeArea()
+
+            Color.creamWhite.opacity(0.52)
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignSystem.Space.lg) {
+                    MugshotScreenHeader("Taste Passport", subtitle: "Built gently from memories you choose to keep") {
+                        ShareLink(item: "My Mugshot Taste Passport") {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.espressoBrown)
+                                .frame(width: 36, height: 36)
+                                .background(Color.foamWhite.opacity(0.92))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
+                        }
+                    }
+
+                    identityBlock
+                    evidenceBlock
+                    memoryPlaces
+                    criteriaBlock
+
+                    VStack(spacing: 0) {
+                        V3LabPublishSettingRow(
+                            title: "Why am I seeing this?",
+                            value: "",
+                            systemImage: "info.circle",
+                            action: onWhy
+                        )
+                        Divider().padding(.leading, 44)
+                        V3LabPublishSettingRow(
+                            title: "Passport",
+                            value: "Only me",
+                            systemImage: "lock",
+                            action: nil
+                        )
+                    }
+                    .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
+
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "leaf.fill")
+                            .foregroundColor(.mugshotSage)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Still learning from every memory")
+                                .font(.system(size: 14, weight: .semibold, design: .serif))
+                                .foregroundColor(.mugshotSage)
+                            Text("Four sips show a clue. More sips bring more clarity—never a permanent label.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.tertiaryText)
+                        }
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Space.md)
+                .padding(.bottom, 112)
+            }
+            .safeAreaInset(edge: .bottom) {
+                V3LabBottomAction(
+                    title: "Pour another one",
+                    subtitle: "Optional—your finished memory is already safe.",
+                    systemImage: "plus",
+                    action: onStartAnother
+                )
+            }
         }
     }
 
     private var identityBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Your taste identity", systemImage: "leaf.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.mugshotSage)
-            Text("Bright-city wanderer")
-                .mugshotDisplay(size: 30)
-                .foregroundColor(.espressoBrown)
-            Text("Bright citrus keeps showing up, and quiet cafe corners lift the whole memory.")
-                .font(.system(size: 13))
-                .foregroundColor(.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Your taste identity", systemImage: "leaf.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+                Text("Bright-city wanderer")
+                    .mugshotDisplay(size: 29)
+                    .foregroundColor(.espressoBrown)
+                Text("Bright citrus keeps showing up, and quiet cafe corners lift the whole memory.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("4 SIPS · TAKING SHAPE")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.9)
+                    .foregroundColor(.mugshotSage)
+            }
+
+            ZStack {
+                Circle()
+                    .stroke(Color.mugshotSage.opacity(0.44), lineWidth: 1)
+                    .frame(width: 76, height: 76)
+                Circle()
+                    .stroke(Color.mugshotSage.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .frame(width: 62, height: 62)
+                Image(systemName: "mug.fill")
+                    .font(.system(size: 26))
+                    .foregroundColor(.mugshotSage)
+            }
         }
+        .padding(16)
+        .background(Color.foamWhite.opacity(0.88))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotMint.opacity(0.64), lineWidth: 1)
+        )
     }
 
     private var evidenceBlock: some View {
@@ -781,28 +870,42 @@ struct V3LabTastePassportScreen: View {
     }
 
     private var memoryPlaces: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "map.fill")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundColor(.mugshotSage)
-                .frame(width: 52, height: 52)
-                .background(Color.mugshotMint.opacity(0.22))
-                .clipShape(Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Memories across 6 places")
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                    .foregroundColor(.espressoBrown)
-                Text("Charleston · Vancouver · Home")
-                    .font(.system(size: 12))
-                    .foregroundColor(.tertiaryText)
+        ZStack(alignment: .leading) {
+            Image("V3TastePassportBackdrop")
+                .resizable()
+                .scaledToFill()
+                .frame(height: 132)
+                .clipped()
+                .opacity(0.82)
+                .accessibilityHidden(true)
+
+            HStack(spacing: 14) {
+                Image(systemName: "map.fill")
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundColor(.mugshotSage)
+                    .frame(width: 50, height: 50)
+                    .background(Color.foamWhite.opacity(0.90))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Memories across 6 places")
+                        .font(.system(size: 16, weight: .semibold, design: .serif))
+                        .foregroundColor(.espressoBrown)
+                    Text("Charleston · Vancouver · Home")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "mappin.and.ellipse")
+                    .foregroundColor(.mugshotSage)
             }
-            Spacer()
-            Image(systemName: "mappin.and.ellipse")
-                .foregroundColor(.mugshotSage)
+            .padding(14)
         }
-        .padding(14)
-        .background(Color.mugshotMint.opacity(0.10))
+        .frame(height: 132)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotMint.opacity(0.58), lineWidth: 1)
+        )
     }
 
     private var criteriaBlock: some View {
@@ -858,10 +961,6 @@ struct V3LabTastePassportScreen: View {
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Color.mugshotLine, lineWidth: 1))
     }
-}
-
-private func nearestHalf(_ value: Double) -> Double {
-    (value * 2).rounded() / 2
 }
 
 private func add(_ suggestion: V3LabSuggestion, to criteria: inout [V3LabCriterion]) {
