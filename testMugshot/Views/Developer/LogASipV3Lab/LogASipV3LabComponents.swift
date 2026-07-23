@@ -680,7 +680,7 @@ struct V3LabFriendInviteStrip: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 Spacer()
-                Text(selectedIDs.isEmpty ? "Shared memory" : "\(selectedIDs.count) invited")
+                Text(selectedIDs.isEmpty ? "Shared MugShot" : "\(selectedIDs.count) invited")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.mugshotSage)
             }

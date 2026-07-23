@@ -3,7 +3,9 @@ import SwiftUI
 import UIKit
 
 struct PrivacyVisibilitySettingsView: View {
-    @AppStorage(CafeVisibilityPreferenceStore.valueKey) private var cafeVisibility = VisitVisibility.friends.rawValue
+    @EnvironmentObject private var authModel: AppAuthModel
+    @State private var cafeVisibility = VisitVisibility.friends.rawValue
+    @State private var hasLoadedVisibility = false
 
     var body: some View {
         Form {
@@ -15,6 +17,7 @@ struct PrivacyVisibilitySettingsView: View {
                 }
                 Text("Mugshot remembers your latest Cafe audience. Everyone still requires a photo or intentional text-only confirmation.")
             }
+            TastePassportVisibilitySettingsSection()
             Section("Home and Recipe") {
                 LabeledContent("Default audience", value: "Private")
                 Text("Home and Recipe entries always begin Private. You make any sharing decision inside the sip composer.")
@@ -28,6 +31,21 @@ struct PrivacyVisibilitySettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Privacy and Visibility")
+        .task(id: authModel.authenticatedUser?.id) {
+            let scope = LocalAccountScope.forUserID(authModel.authenticatedUser?.id)
+            cafeVisibility = CafeVisibilityPreferenceStore.shared
+                .defaultCafeVisibility(in: scope)
+                .rawValue
+            hasLoadedVisibility = true
+        }
+        .onChange(of: cafeVisibility) { _, rawValue in
+            guard hasLoadedVisibility,
+                  let visibility = VisitVisibility(rawValue: rawValue) else { return }
+            CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(
+                visibility,
+                in: .forUserID(authModel.authenticatedUser?.id)
+            )
+        }
     }
 }
 
@@ -111,9 +129,11 @@ struct DataOwnershipSettingsView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var exportPackage: OwnerDataExportPackage?
+    @State private var preparedExportDirectory: URL?
     @State private var isPreparingExport = false
     @State private var exportError: String?
     @State private var showDeleteConfirmation = false
+    @State private var deletionVerification: AccountDeletionVerificationContext?
     @State private var isRetrying = false
 
     private var syncSnapshot: SyncHealthSnapshot {
@@ -124,7 +144,7 @@ struct DataOwnershipSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(syncSnapshot.title, systemImage: syncSnapshot.pendingItemCount == 0 ? "checkmark.icloud.fill" : "arrow.triangle.2.circlepath.icloud.fill")
+                    Label(syncSnapshot.title, systemImage: syncSnapshot.systemImage)
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.espressoBrown)
                     Text(syncSnapshot.detail)
@@ -143,7 +163,7 @@ struct DataOwnershipSettingsView: View {
                     Text("Your data")
                         .mugshotDisplay(size: 24)
                         .foregroundColor(.espressoBrown)
-                    Text("Export machine-readable journal data, recipes, TasteSignals, lists, friendships, preferences, media references, and available photos.")
+                    Text("Export machine-readable journal data, private notes, recipes, Taste Passport evidence, saved and collaborative lists, social and safety receipts, your appeal statements, preferences, pending MugShots, media references, and available photos.")
                         .font(.system(size: 14))
                         .foregroundColor(.secondaryText)
                     Button(isPreparingExport ? "Preparing export…" : "Prepare Mugshot export") { prepareExport() }
@@ -153,6 +173,12 @@ struct DataOwnershipSettingsView: View {
                         Text("Packaged \(exportPackage.packagedMediaCount) media files. \(exportPackage.unavailableMediaCount) unavailable files remain listed by reference in the JSON export.")
                             .font(.system(size: 12))
                             .foregroundColor(.tertiaryText)
+                        if exportPackage.completeness == .partial {
+                            Text("This export is partial: \(exportPackage.omittedCollections.joined(separator: ", ")).")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.roastBrown)
+                                .accessibilityLabel("Partial export. Missing: \(exportPackage.omittedCollections.joined(separator: ", "))")
+                        }
                     }
                     if let exportError {
                         Text(exportError)
@@ -172,7 +198,8 @@ struct DataOwnershipSettingsView: View {
                     .buttonStyle(SecondaryButtonStyle())
 
                     Button(role: .destructive) { showDeleteConfirmation = true } label: {
-                        Label("Delete Account", systemImage: "trash").frame(maxWidth: .infinity)
+                        Label("Delete Account", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(SecondaryButtonStyle())
                     .tint(.red)
@@ -182,33 +209,69 @@ struct DataOwnershipSettingsView: View {
         }
         .background(Color.creamWhite)
         .navigationTitle("Data, Backup, and Account")
-        .sheet(item: $exportPackage) { package in
+        .sheet(item: $exportPackage, onDismiss: discardPreparedExport) { package in
             ActivityShareView(items: package.shareURLs)
         }
+        .sheet(item: $deletionVerification) { context in
+            AccountDeletionVerificationView(
+                context: context,
+                dataManager: dataManager
+            )
+            .environmentObject(authModel)
+        }
+        .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+            discardPreparedExport()
+            showDeleteConfirmation = false
+            deletionVerification = nil
+        }
         .alert("Delete your account?", isPresented: $showDeleteConfirmation) {
-            Button("Delete Account", role: .destructive) {
-                Task { _ = await authModel.deleteAccount(dataManager: dataManager) }
+            Button("Verify and Delete", role: .destructive) {
+                deletionVerification = authModel.authenticatedUser.map {
+                    AccountDeletionVerificationContext(user: $0)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This permanently removes your account data and Storage photos. This can’t be undone.")
+            Text("You’ll verify with a fresh sign-in before anything is deleted. Deletion permanently removes your account and journal, then finishes stored-photo cleanup. Limited safety and deletion receipts may remain to prevent abuse and prove completion. This can’t be undone.")
         }
     }
 
     private func prepareExport() {
-        guard let client = try? SupabaseClientProvider.shared.client() else {
+        guard let expectedAccountID = authModel.authenticatedUser?.id,
+              let client = try? SupabaseClientProvider.shared.client() else {
             exportError = "Mugshot could not connect to your journal."
             return
         }
+        discardPreparedExport()
         isPreparingExport = true
         exportError = nil
         Task {
             do {
-                exportPackage = try await OwnerDataExportService(client: client).prepareExport()
+                let prepared = try await OwnerDataExportService(client: client).prepareExport()
+                guard authModel.authenticatedUser?.id == expectedAccountID else {
+                    try? FileManager.default.removeItem(at: prepared.directoryURL)
+                    isPreparingExport = false
+                    return
+                }
+                preparedExportDirectory = prepared.directoryURL
+                exportPackage = prepared
             } catch {
+                guard authModel.authenticatedUser?.id == expectedAccountID else {
+                    isPreparingExport = false
+                    return
+                }
                 exportError = "Mugshot couldn’t prepare the export. Your journal is unchanged—please try again."
             }
             isPreparingExport = false
+        }
+    }
+
+    private func discardPreparedExport() {
+        let directory = preparedExportDirectory ?? exportPackage?.directoryURL
+        exportPackage = nil
+        preparedExportDirectory = nil
+        if let directory {
+            try? FileManager.default.removeItem(at: directory)
         }
     }
 
@@ -229,28 +292,61 @@ struct SyncHealthSnapshot: Equatable {
     let pendingSubmissionCount: Int
     let analysisRetryCount: Int
     let mediaCleanupCount: Int
+    let localReadIssueCount: Int
 
-    init(userID: UUID?) {
-        draftCount = SipDraftStore.shared.allDrafts().count
+    init(
+        userID: UUID?,
+        draftStore: SipDraftStore = .shared,
+        pendingStore: PendingVisitSubmissionStore = .shared
+    ) {
+        let draftReport = draftStore.readReport(in: .forUserID(userID))
+        draftCount = draftReport.drafts.count
+        var readIssueCount = draftReport.issues.count
         guard let userID else {
             pendingSubmissionCount = 0
             analysisRetryCount = 0
             mediaCleanupCount = 0
+            localReadIssueCount = readIssueCount
             return
         }
-        pendingSubmissionCount = PendingVisitSubmissionStore.shared.load(userId: userID) == nil ? 0 : 1
+        do {
+            pendingSubmissionCount = try pendingStore.loadAll(userId: userID).count
+        } catch {
+            pendingSubmissionCount = 0
+            readIssueCount += 1
+        }
         analysisRetryCount = DrinkAnalysisRetryStore.shared.pendingVisitIDs(userId: userID).count
         mediaCleanupCount = VisitMediaCleanupStore.shared.pendingPaths(userId: userID).count
+        localReadIssueCount = readIssueCount
     }
 
     var pendingItemCount: Int { pendingSubmissionCount + analysisRetryCount + mediaCleanupCount }
-    var title: String { pendingItemCount == 0 ? "Cloud journal is up to date" : "Your journal has safe retry work" }
+    var hasLocalReadIssues: Bool { localReadIssueCount > 0 }
+    var systemImage: String {
+        if hasLocalReadIssues { return "exclamationmark.triangle.fill" }
+        return pendingItemCount == 0
+            ? "checkmark.icloud.fill"
+            : "arrow.triangle.2.circlepath.icloud.fill"
+    }
+    var title: String {
+        if hasLocalReadIssues { return "Local journal data needs attention" }
+        return pendingItemCount == 0
+            ? "Cloud journal is up to date"
+            : "Your journal has safe retry work"
+    }
     var detail: String {
         let draftText = draftCount == 1 ? "1 local draft" : "\(draftCount) local drafts"
-        guard pendingItemCount > 0 else {
-            return "Cloud-backed journal data is current. \(draftText) stay on this device until you publish or discard them."
+        if hasLocalReadIssues {
+            let verb = draftCount == 1 ? "is" : "are"
+            return "Mugshot couldn’t verify every local draft or protected MugShot. Stored data was left unchanged. Reopen the app and retry; if this remains, keep Mugshot installed so the data can be recovered. \(draftText) \(verb) readable."
         }
-        return "\(pendingItemCount) cloud items will retry without discarding your sip. \(draftText) remain available locally."
+        guard pendingItemCount > 0 else {
+            let verb = draftCount == 1 ? "stays" : "stay"
+            let pronoun = draftCount == 1 ? "it" : "them"
+            return "Cloud-backed journal data is current. \(draftText) \(verb) on this device until you publish or discard \(pronoun)."
+        }
+        let verb = draftCount == 1 ? "remains" : "remain"
+        return "\(pendingItemCount) cloud items will retry without discarding your sip. \(draftText) \(verb) available locally."
     }
 }
 

@@ -38,18 +38,27 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
 
     private let completer = MKLocalSearchCompleter()
     private let defaults: UserDefaults
-    private let recentsKey = "MugshotMapSearchRecents.v1"
+    private var scope: LocalAccountScope
     private var currentSearch: MKLocalSearch?
     private var pendingSearchTask: Task<Void, Never>?
     private var activeSearchID = UUID()
     private var lastRegion: MKCoordinateRegion?
     private var lastRawQuery = ""
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, scope: LocalAccountScope = .guest) {
         self.defaults = defaults
+        self.scope = scope
         super.init()
         completer.delegate = self
         completer.resultTypes = [.address, .pointOfInterest, .query]
+        loadRecents()
+    }
+
+    func activate(scope: LocalAccountScope) {
+        guard self.scope != scope else { return }
+        cancelSearch()
+        self.scope = scope
+        recents = []
         loadRecents()
     }
 
@@ -347,7 +356,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     private func loadRecents() {
-        guard let data = defaults.data(forKey: recentsKey),
+        guard let data = defaults.data(forKey: Self.recentsKey(for: scope)),
               let decoded = try? JSONDecoder().decode([MapSearchRecent].self, from: data) else {
             return
         }
@@ -356,8 +365,19 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
 
     private func persistRecents() {
         if let encoded = try? JSONEncoder().encode(recents) {
-            defaults.set(encoded, forKey: recentsKey)
+            defaults.set(encoded, forKey: Self.recentsKey(for: scope))
         }
+    }
+
+    nonisolated static func recentsKey(for scope: LocalAccountScope) -> String {
+        "MugshotMapSearchRecents.v2.\(scope.defaultsComponent)"
+    }
+
+    nonisolated static func removeRecents(
+        ownerUserID: UUID,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.removeObject(forKey: recentsKey(for: .user(ownerUserID)))
     }
 
     static func correctedSearchQuery(_ query: String) -> String {

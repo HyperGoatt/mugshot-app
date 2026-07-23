@@ -31,10 +31,8 @@ final class MapSearchRecentUITests: XCTestCase {
 
         let cafeSelector = element(Identifier.cafeSelector, in: app)
         reveal(cafeSelector, in: app)
-        cafeSelector.tap()
-
         let searchSheet = element(Identifier.cafeSearchSheet, in: app)
-        XCTAssertTrue(searchSheet.waitForExistence(timeout: 3))
+        openCafeSearch(from: cafeSelector, sheet: searchSheet, in: app)
         let recent = element(Identifier.cafeSearchRecent, in: app)
         XCTAssertTrue(recent.waitForExistence(timeout: 3))
 
@@ -120,6 +118,85 @@ final class MapSearchRecentUITests: XCTestCase {
     }
 
     @MainActor
+    private func openCafeSearch(
+        from selector: XCUIElement,
+        sheet: XCUIElement,
+        in app: XCUIApplication
+    ) {
+        dismissKeyboardIfNeeded(in: app)
+        positionAboveComposerFooter(selector, in: app)
+        selector.tap()
+        if !sheet.waitForExistence(timeout: 1) {
+            // XCTest can consume the first synthetic tap solely to end text-field
+            // editing. Reposition after the keyboard transition, then retry the
+            // same real user action instead of inserting text with Return.
+            XCTAssertTrue(
+                app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
+                "Expected tapping the cafe selector to end drink-name editing."
+            )
+            positionAboveComposerFooter(selector, in: app)
+            selector.tap()
+        }
+        XCTAssertTrue(sheet.waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    private func dismissKeyboardIfNeeded(in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+        // The composer also contains a horizontal photo strip. Drag the
+        // full-height vertical surface so SwiftUI's interactive keyboard
+        // dismissal receives the gesture instead of the photo scroller.
+        let scrollView = composerScrollView(in: app)
+        let start = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        let end = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.88))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(
+            keyboard.waitForNonExistence(timeout: 3),
+            "Expected the composer drag to dismiss the drink-name keyboard."
+        )
+    }
+
+    @MainActor
+    private func composerScrollView(in app: XCUIApplication) -> XCUIElement {
+        app.scrollViews.allElementsBoundByIndex.max { lhs, rhs in
+            lhs.frame.height < rhs.frame.height
+        } ?? app.scrollViews.firstMatch
+    }
+
+    @MainActor
+    private func positionAboveComposerFooter(
+        _ target: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 10
+    ) {
+        let footer = element("logASipV3.primaryAction", in: app)
+        XCTAssertTrue(target.waitForExistence(timeout: 3))
+        XCTAssertTrue(footer.waitForExistence(timeout: 3))
+
+        var swipes = 0
+        while swipes < maximumSwipes {
+            let targetFrame = target.frame
+            let isSafelyVisible = target.isHittable
+                && targetFrame.minY >= 112
+                && targetFrame.maxY <= footer.frame.minY - 8
+            if isSafelyVisible { break }
+            if targetFrame.maxY > footer.frame.minY - 8 {
+                composerScrollView(in: app).swipeUp()
+            } else {
+                composerScrollView(in: app).swipeDown()
+            }
+            swipes += 1
+        }
+        XCTAssertTrue(
+            target.isHittable
+                && target.frame.minY >= 112
+                && target.frame.maxY <= footer.frame.minY - 8,
+            "Expected \(target) to sit above the fixed composer action before tapping."
+        )
+    }
+
+    @MainActor
     private func reveal(
         _ element: XCUIElement,
         in app: XCUIApplication,
@@ -127,7 +204,7 @@ final class MapSearchRecentUITests: XCTestCase {
     ) {
         var swipes = 0
         while swipes < maximumSwipes, !element.isHittable {
-            app.scrollViews.firstMatch.swipeUp()
+            composerScrollView(in: app).swipeUp()
             swipes += 1
         }
         XCTAssertTrue(

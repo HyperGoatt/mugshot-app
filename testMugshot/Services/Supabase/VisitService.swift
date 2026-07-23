@@ -13,11 +13,11 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, recipe_version_id, cafe_session_id, cafe_session_order, cafe_session_role, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, recipe_version_id, cafe_session_id, cafe_session_order, cafe_session_role, created_at
     """
 
     private let legacyVisitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, brew_method, equipment, brew_details, recipe_version_id, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, recipe_version_id, created_at
     """
 
     private let photoColumns = """
@@ -70,7 +70,7 @@ final class VisitService {
     func fetchOwnerSipCount(userId: UUID) async throws -> Int {
         let response = try await client
             .from("visits")
-            .select(head: true, count: .exact)
+            .select("id", head: true, count: .exact)
             .eq("user_id", value: userId.uuidString)
             .eq("upload_state", value: VisitUploadState.complete.rawValue)
             .execute()
@@ -277,14 +277,61 @@ final class VisitService {
         async let v3ReflectionRequest: V3VisitReflection? = {
             try? await V3VisitReflectionService(client: client).fetchVisible(visitID: visitId)
         }()
+        async let recipeProjectionRequest: RemoteVisitRecipeProjection? = {
+            guard currentUserId != nil, row.recipeVersionID != nil else { return nil }
+            do {
+                return try await fetchRecipeProjection(visitId: visitId)
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return nil
+            }
+        }()
+        async let recipeIdentityProjectionRequest: RemoteVisitRecipeIdentityProjection? = {
+            guard currentUserId != nil, row.recipeVersionID != nil else { return nil }
+            do {
+                return try await fetchRecipeIdentityProjection(visitId: visitId)
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return nil
+            }
+        }()
+        async let sharedMugshotProjectionRequest: RemoteSharedMugshotProjection? = {
+            guard currentUserId != nil else { return nil }
+            do {
+                return try await fetchSharedMugshotProjection(visitId: visitId)
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return nil
+            }
+        }()
+        async let taggedAccountsRequest: [RemoteVisitTag] = {
+            guard currentUserId != nil else { return [] }
+            do {
+                return try await fetchVisibleVisitTags(visitId: visitId)
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return []
+            }
+        }()
 
-        let (summaries, photos, likes, comments, cafeSessionSummary, v3Reflection) = try await (
+        let (
+            summaries,
+            photos,
+            likes,
+            comments,
+            cafeSessionSummary,
+            v3Reflection,
+            recipeProjection,
+            recipeIdentityProjection,
+            sharedMugshotProjection,
+            taggedAccounts
+        ) = try await (
             summariesRequest,
             photosRequest,
             likesRequest,
             commentsRequest,
             cafeSessionSummaryRequest,
-            v3ReflectionRequest
+            v3ReflectionRequest,
+            recipeProjectionRequest,
+            recipeIdentityProjectionRequest,
+            sharedMugshotProjectionRequest,
+            taggedAccountsRequest
         )
         guard let summary = summaries.first else {
             throw VisitServiceError.visitNotFound
@@ -314,8 +361,58 @@ final class VisitService {
             privateNote: privateNote,
             sensorySnapshot: sensorySnapshot,
             cafeSessionSummary: cafeSessionSummary,
-            v3Reflection: v3Reflection
+            v3Reflection: v3Reflection,
+            recipeProjection: recipeProjection,
+            recipeIdentityProjection: recipeIdentityProjection,
+            sharedMugshotProjection: sharedMugshotProjection,
+            taggedAccounts: taggedAccounts
         )
+    }
+
+    func fetchRecipeProjection(
+        visitId: UUID
+    ) async throws -> RemoteVisitRecipeProjection? {
+        try await client.rpc(
+            "get_recipe_projection_for_visit_v1",
+            params: ["p_visit_id": visitId]
+        ).execute().value
+    }
+
+    func fetchRecipeProjection(
+        recipeVersionId: UUID
+    ) async throws -> RemoteVisitRecipeProjection? {
+        try await client.rpc(
+            "get_recipe_projection_v1",
+            params: ["p_recipe_version_id": recipeVersionId]
+        ).execute().value
+    }
+
+    func fetchRecipeIdentityProjection(
+        visitId: UUID
+    ) async throws -> RemoteVisitRecipeIdentityProjection? {
+        let rows: [RemoteVisitRecipeIdentityProjection] = try await client.rpc(
+            "get_recipe_identity_for_visit_v1",
+            params: ["p_visit_id": visitId]
+        ).execute().value
+        return rows.first
+    }
+
+    func fetchVisibleVisitTags(visitId: UUID) async throws -> [RemoteVisitTag] {
+        try await client.rpc(
+            "list_visible_visit_tags_v1",
+            params: ["p_visit_id": visitId]
+        ).execute().value
+    }
+
+    func fetchSharedMugshotProjection(
+        visitId: UUID
+    ) async throws -> RemoteSharedMugshotProjection? {
+        let projection: RemoteSharedMugshotProjection? = try await client.rpc(
+            "get_shared_memory_projection_v1",
+            params: ["p_visit_id": visitId]
+        ).execute().value
+        guard projection?.groupedContributions != nil else { return nil }
+        return projection
     }
 
     private func fetchCafeSessionSummaryIfPresent(
@@ -442,6 +539,34 @@ final class VisitService {
         )
     }
 
+    func updateComment(commentID: UUID, text: String) async throws {
+        guard let trimmedText = text.remoteTrimmedNonEmpty else {
+            throw VisitServiceError.emptyComment
+        }
+        try await client.rpc(
+            "update_comment_v1",
+            params: UpdateCommentParameters(
+                pCommentID: commentID,
+                pText: trimmedText
+            )
+        ).execute()
+    }
+
+    /// Soft-removes the comment through the caller-bound RPC. The next detail
+    /// reload is the source of truth and omits the tombstoned comment/thread.
+    func removeComment(
+        commentID: UUID,
+        reason: String = "removed_by_user"
+    ) async throws {
+        try await client.rpc(
+            "remove_comment_v1",
+            params: RemoveCommentParameters(
+                pCommentID: commentID,
+                pReason: reason
+            )
+        ).execute()
+    }
+
     func updateVisit(
         visitId: UUID,
         userId: UUID,
@@ -484,6 +609,44 @@ final class VisitService {
             .execute()
     }
 
+    /// Returns only the owner-visible upload state so recovery can reconcile
+    /// an ambiguous publication without hydrating any secondary resources.
+    func fetchOwnedVisitUploadState(
+        visitId: UUID,
+        userId: UUID
+    ) async throws -> VisitUploadState? {
+        let rows: [SupabaseOwnedVisitUploadStateRow] = try await client
+            .from("visits")
+            .select("id, upload_state")
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        guard let row = rows.first else { return nil }
+        guard let state = VisitUploadState(rawValue: row.uploadState) else {
+            throw VisitServiceError.invalidUploadState(row.uploadState)
+        }
+        return state
+    }
+
+    /// Deletes only a row that is still incomplete. The upload-state filter
+    /// closes the race between a discard reconciliation read and a concurrent
+    /// successful publication. Callers must fetch again and confirm absence
+    /// before removing the local recovery record.
+    func deleteOwnedIncompleteVisit(
+        visitId: UUID,
+        userId: UUID
+    ) async throws {
+        try await client
+            .from("visits")
+            .delete()
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .neq("upload_state", value: VisitUploadState.complete.rawValue)
+            .execute()
+    }
+
     func fetchVisitPhotoRows(visitId: UUID) async throws -> [SupabaseVisitPhotoRow] {
         try await client
             .from("visit_photos")
@@ -523,6 +686,22 @@ final class VisitService {
         } else {
             remoteCafe = nil
         }
+        let usesPrivateRecipePayload = entryContext == .recipe
+            || brewDetails.recipeName?.remoteTrimmedNonEmpty != nil
+        var visitBrewDetails = brewDetails
+        var visitBrewMethod = brewMethod
+        var visitEquipment = equipment
+        if usesPrivateRecipePayload {
+            // The socially readable visit row carries identity/display only.
+            // Full instructions are consumed from the owner-bound stage by
+            // the materialization trigger into recipe_versions.
+            visitBrewDetails = .empty
+            visitBrewDetails.recipeName = brewDetails.recipeName?.remoteTrimmedNonEmpty
+                ?? drinkSubtype?.remoteTrimmedNonEmpty
+            visitBrewDetails.recipeVersion = brewDetails.recipeVersion?.remoteTrimmedNonEmpty
+            visitBrewMethod = nil
+            visitEquipment = nil
+        }
         let payload = try SupabaseVisitInsert.make(
             visitId: visitId,
             userId: userId,
@@ -532,9 +711,10 @@ final class VisitService {
             drinkType: drinkType,
             customDrinkType: customDrinkType,
             drinkSubtype: drinkSubtype,
-            brewMethod: brewMethod,
-            equipment: equipment,
-            brewDetails: brewDetails,
+            brewMethod: visitBrewMethod,
+            equipment: visitEquipment,
+            brewDetails: visitBrewDetails,
+            recipePayloadContractVersion: usesPrivateRecipePayload ? 2 : nil,
             caption: caption,
             notes: notes,
             visibility: visibility,
@@ -543,6 +723,21 @@ final class VisitService {
             ratingTemplate: ratingTemplate,
             uploadState: uploadState
         )
+
+        if usesPrivateRecipePayload {
+            // Validate the safe social payload before creating an expiring
+            // private stage. The visit insert then consumes that stage in its
+            // materialization transaction.
+            _ = try await client.rpc(
+                "stage_visit_recipe_payload_v2",
+                params: StageVisitRecipePayloadParameters(
+                    visitID: visitId,
+                    brewDetails: brewDetails,
+                    brewMethod: brewMethod?.remoteTrimmedNonEmpty,
+                    equipment: equipment?.remoteTrimmedNonEmpty
+                )
+            ).execute()
+        }
 
         let row: SupabaseVisitRow
         do {
@@ -653,6 +848,33 @@ final class VisitService {
             throw VisitServiceError.visitNotFound
         }
         return summary
+    }
+
+    /// Commits the canonical visit row without hydrating photos, cafe data, or
+    /// social state. The caller can durably record the irreversible boundary
+    /// immediately after this request returns.
+    func finalizeVisitPublication(
+        visitId: UUID,
+        userId: UUID,
+        visibility: VisitVisibility
+    ) async throws {
+        let update = SupabaseVisitPublicationUpdate(
+            visibility: visibility.supabaseValue,
+            uploadState: VisitUploadState.complete.rawValue
+        )
+        let row: SupabaseOwnedVisitUploadStateRow = try await client
+            .from("visits")
+            .update(update)
+            .eq("id", value: visitId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .select("id, upload_state")
+            .single()
+            .execute()
+            .value
+        guard row.id == visitId,
+              row.uploadState == VisitUploadState.complete.rawValue else {
+            throw VisitServiceError.visitNotFound
+        }
     }
 
     func markVisitUploadFailed(visitId: UUID, userId: UUID) async throws {
@@ -929,6 +1151,26 @@ private struct CreateCommentParameters: Encodable {
     }
 }
 
+private struct UpdateCommentParameters: Encodable {
+    let pCommentID: UUID
+    let pText: String
+
+    enum CodingKeys: String, CodingKey {
+        case pCommentID = "p_comment_id"
+        case pText = "p_text"
+    }
+}
+
+private struct RemoveCommentParameters: Encodable {
+    let pCommentID: UUID
+    let pReason: String
+
+    enum CodingKeys: String, CodingKey {
+        case pCommentID = "p_comment_id"
+        case pReason = "p_reason"
+    }
+}
+
 struct RemoteFeedCursor: Equatable {
     let createdAt: String
     let id: UUID
@@ -1026,6 +1268,7 @@ enum VisitSchemaCompatibility {
 
 enum VisitServiceError: LocalizedError, Equatable {
     case visitNotFound
+    case invalidUploadState(String)
     case missingCafe
     case missingRating
     case emptyCaption
@@ -1035,6 +1278,8 @@ enum VisitServiceError: LocalizedError, Equatable {
         switch self {
         case .visitNotFound:
             return "Visit not found."
+        case .invalidUploadState:
+            return "Mugshot could not verify this visit's upload state."
         case .missingCafe:
             return "Choose a cafe before saving this journal entry."
         case .missingRating:
@@ -1065,6 +1310,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     let brewMethod: String?
     let equipment: String?
     let brewDetails: BrewDetails
+    let recipePayloadContractVersion: Int?
     let categoryScores: [SupabaseVisitCategoryScore]
 
     enum CodingKeys: String, CodingKey {
@@ -1085,6 +1331,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         case brewMethod = "brew_method"
         case equipment
         case brewDetails = "brew_details"
+        case recipePayloadContractVersion = "recipe_payload_contract_version"
         case categoryScores = "category_scores"
     }
 
@@ -1100,6 +1347,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         brewMethod: String? = nil,
         equipment: String? = nil,
         brewDetails: BrewDetails = .empty,
+        recipePayloadContractVersion: Int? = nil,
         caption: String,
         notes _: String?,
         visibility: VisitVisibility,
@@ -1148,6 +1396,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             brewMethod: brewMethod?.remoteTrimmedNonEmpty,
             equipment: equipment?.remoteTrimmedNonEmpty,
             brewDetails: brewDetails,
+            recipePayloadContractVersion: recipePayloadContractVersion,
             categoryScores: categoryScores(
                 ratings: cleanRatings,
                 ratingTemplate: ratingTemplate
@@ -1200,10 +1449,34 @@ private struct SupabaseVisitPublicationUpdate: Encodable {
     }
 }
 
+private struct StageVisitRecipePayloadParameters: Encodable {
+    let visitID: UUID
+    let brewDetails: BrewDetails
+    let brewMethod: String?
+    let equipment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case visitID = "p_visit_id"
+        case brewDetails = "p_brew_details"
+        case brewMethod = "p_brew_method"
+        case equipment = "p_equipment"
+    }
+}
+
 private struct SupabaseVisitUploadStateUpdate: Encodable {
     let uploadState: String
 
     enum CodingKeys: String, CodingKey {
+        case uploadState = "upload_state"
+    }
+}
+
+private struct SupabaseOwnedVisitUploadStateRow: Decodable {
+    let id: UUID
+    let uploadState: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
         case uploadState = "upload_state"
     }
 }

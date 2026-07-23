@@ -25,7 +25,8 @@ struct LogASipV3ProductionView: View {
     let onAddPhoto: () -> Void
     let onOrganizePhotos: () -> Void
     let onChooseCafe: () -> Void
-    let onInviteFriends: () -> Void
+    let onTagPeople: () -> Void
+    let onInviteSharedMemory: () -> Void
     let onRepairProtectedSave: (() -> Void)?
     let onDiscardProtectedSave: (() -> Void)?
     let onUseLastSipSetup: () -> Void
@@ -56,7 +57,8 @@ struct LogASipV3ProductionView: View {
         onAddPhoto: @escaping () -> Void,
         onOrganizePhotos: @escaping () -> Void,
         onChooseCafe: @escaping () -> Void,
-        onInviteFriends: @escaping () -> Void,
+        onTagPeople: @escaping () -> Void,
+        onInviteSharedMemory: @escaping () -> Void,
         onRepairProtectedSave: (() -> Void)? = nil,
         onDiscardProtectedSave: (() -> Void)? = nil,
         onUseLastSipSetup: @escaping () -> Void = {},
@@ -81,7 +83,8 @@ struct LogASipV3ProductionView: View {
         self.onAddPhoto = onAddPhoto
         self.onOrganizePhotos = onOrganizePhotos
         self.onChooseCafe = onChooseCafe
-        self.onInviteFriends = onInviteFriends
+        self.onTagPeople = onTagPeople
+        self.onInviteSharedMemory = onInviteSharedMemory
         self.onRepairProtectedSave = onRepairProtectedSave
         self.onDiscardProtectedSave = onDiscardProtectedSave
         self.onUseLastSipSetup = onUseLastSipSetup
@@ -179,7 +182,8 @@ struct LogASipV3ProductionView: View {
                 isSaving: isSaving,
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage,
-                onInviteFriends: onInviteFriends,
+                onTagPeople: onTagPeople,
+                onInviteSharedMemory: onInviteSharedMemory,
                 onRepairProtectedSave: onRepairProtectedSave,
                 onDiscardProtectedSave: onDiscardProtectedSave,
                 onPublish: onPublish
@@ -334,6 +338,13 @@ private struct LogASipV3SetupSurface: View {
         )
     }
 
+    private var recipeSelection: Binding<Bool> {
+        Binding(
+            get: { draft.context == .recipe },
+            set: { draft.context = $0 ? .recipe : .home }
+        )
+    }
+
     private var hasVisual: Bool {
         !photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto
     }
@@ -384,6 +395,25 @@ private struct LogASipV3SetupSurface: View {
                 }
             )
             .padding(.horizontal, DesignSystem.Space.md)
+
+            if draft.context == .home || draft.context == .recipe {
+                VStack(alignment: .leading, spacing: 8) {
+                    LogASipV3SectionHeader(
+                        title: "Home memory",
+                        subtitle: "A recipe keeps an independently shareable blueprint."
+                    )
+                    MugshotSegmentedControl(
+                        options: [false, true],
+                        selection: recipeSelection,
+                        title: { $0 ? "Recipe" : "One-time brew" },
+                        icon: { $0 ? "book.pages.fill" : "clock.arrow.circlepath" },
+                        accessibilityIdentifier: { value in
+                            value ? "logASipV3.home.recipe" : "logASipV3.home.oneTime"
+                        }
+                    )
+                }
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
 
             VStack(alignment: .leading, spacing: DesignSystem.Space.sm) {
                 LogASipV3SectionHeader(
@@ -772,7 +802,8 @@ private struct LogASipV3PublishSurface: View {
     let isSaving: Bool
     let isRecoveryLocked: Bool
     let statusMessage: String?
-    let onInviteFriends: () -> Void
+    let onTagPeople: () -> Void
+    let onInviteSharedMemory: () -> Void
     let onRepairProtectedSave: (() -> Void)?
     let onDiscardProtectedSave: (() -> Void)?
     let onPublish: () -> Void
@@ -791,6 +822,9 @@ private struct LogASipV3PublishSurface: View {
             && draft.overallScore > 0
             && hasRequiredContextScore
             && (!photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto)
+            && draft.recipePublicationRequirement == .ready
+            && ((draft.sharedMemoryInvitees ?? []).isEmpty || draft.visibility != .private)
+            && ((draft.sharedMemoryInvitees ?? []).isEmpty || draft.cafeSessionSipRole != .secondary)
     }
 
     private var contextScoreForBlend: Double? {
@@ -896,10 +930,34 @@ private struct LogASipV3PublishSurface: View {
 
                 Divider().padding(.leading, 54)
 
-                LogASipV3CompanionStrip(
-                    companions: draft.taggedCompanions ?? [],
-                    onInviteFriends: onInviteFriends
+                if draft.includesRecipeBlueprint {
+                    LogASipV3RecipeSharingControls(draft: $draft)
+                    Divider().padding(.leading, 54)
+                }
+
+                LogASipV3PeopleStrip(
+                    title: "Tag people",
+                    emptyDetail: "Attribute anyone without sharing ownership",
+                    populatedDetail: { "\($0) tagged" },
+                    systemImage: "person.crop.circle.badge.plus",
+                    people: draft.taggedCompanions ?? [],
+                    actionAccessibilityLabel: "Choose people to tag",
+                    action: onTagPeople
                 )
+
+                if draft.cafeSessionSipRole != .secondary {
+                    Divider().padding(.leading, 54)
+
+                    LogASipV3PeopleStrip(
+                        title: "Shared MugShot",
+                        emptyDetail: "Friends choose whether to co-own it",
+                        populatedDetail: { "\($0) invited after publishing" },
+                        systemImage: "person.2.badge.plus",
+                        people: draft.sharedMemoryInvitees ?? [],
+                        actionAccessibilityLabel: "Choose friends to invite to this shared MugShot",
+                        action: onInviteSharedMemory
+                    )
+                }
             }
             .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
             .padding(.horizontal, DesignSystem.Space.md)
@@ -925,6 +983,24 @@ private struct LogASipV3PublishSurface: View {
     private var publishSubtitle: String {
         if isSaving { return "Your draft stays protected until publishing finishes." }
         if isRecoveryLocked { return "Retry uses the protected copy so nothing changes mid-upload." }
+        switch draft.recipePublicationRequirement {
+        case .ready:
+            break
+        case .needsImmutableSource:
+            return "Reconnect this adaptation to its exact source recipe."
+        case .sourceCannotBePublic:
+            return "This source cannot share recipe instructions with Everyone."
+        case .needsRedistributionPermission:
+            return "Confirm that this recipe may be saved and adapted."
+        case .needsPublicReuseAcknowledgment:
+            return "Acknowledge public recipe reuse before publishing."
+        }
+        if !(draft.sharedMemoryInvitees ?? []).isEmpty, draft.visibility == .private {
+            return "Choose Friends or Everyone for shared MugShot invitations."
+        }
+        if !(draft.sharedMemoryInvitees ?? []).isEmpty, draft.cafeSessionSipRole == .secondary {
+            return "Send shared MugShot invitations from the primary cafe MugShot."
+        }
         guard isReadyToPublish else { return "Finish the required details to publish." }
         switch draft.visibility {
         case .private: return "Only you will see this."
@@ -2326,21 +2402,168 @@ private struct LogASipV3VisibilitySelector: View {
     }
 }
 
-private struct LogASipV3CompanionStrip: View {
-    let companions: [SipCompanion]
-    let onInviteFriends: () -> Void
+private struct LogASipV3RecipeSharingControls: View {
+    @Binding var draft: SipDraft
+
+    private var visibility: Binding<VisitVisibility> {
+        Binding(
+            get: { draft.recipePublication.visibility },
+            set: { value in
+                var contract = draft.recipePublication
+                contract.visibility = value
+                draft.recipePublication = contract
+            }
+        )
+    }
+
+    private var sourceKind: Binding<SipRecipeSourceKind> {
+        Binding(
+            get: { draft.recipePublication.sourceKind },
+            set: { value in
+                var contract = draft.recipePublication
+                contract.selectSource(value)
+                draft.recipePublication = contract
+            }
+        )
+    }
+
+    private var redistributionAllowed: Binding<Bool> {
+        Binding(
+            get: { draft.recipePublication.redistributionAllowed },
+            set: { value in
+                var contract = draft.recipePublication
+                contract.redistributionAllowed = value
+                if !value { contract.acknowledgesPublicReuse = false }
+                draft.recipePublication = contract
+            }
+        )
+    }
+
+    private var acknowledgesPublicReuse: Binding<Bool> {
+        Binding(
+            get: { draft.recipePublication.acknowledgesPublicReuse },
+            set: { value in
+                var contract = draft.recipePublication
+                contract.acknowledgesPublicReuse = value
+                draft.recipePublication = contract
+            }
+        )
+    }
+
+    private var availableSources: [SipRecipeSourceKind] {
+        SipRecipeSourceKind.allCases.filter {
+            $0 != .adapted
+                || draft.recipePublication.sourceRecipeVersionID != nil
+                || draft.recipePublication.sourceKind == .adapted
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LogASipV3VisibilitySelector(
+                title: "Recipe audience",
+                detail: "Set separately from the Mugshot",
+                systemImage: "book.pages.fill",
+                selection: visibility,
+                enabledOptions: VisitVisibility.allCases
+            )
+
+            Divider().padding(.leading, 54)
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundStyle(Color.mugshotSage)
+                        .frame(width: 32, height: 32)
+                        .background(Color.mugshotMint.opacity(0.22), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Recipe source and rights")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Keeps attribution attached to this exact version")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.tertiaryText)
+                    }
+                    Spacer()
+                }
+
+                Picker("Recipe source", selection: sourceKind) {
+                    ForEach(availableSources) { source in
+                        Text(source.title).tag(source)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.mugshotSage)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+
+                Toggle(isOn: redistributionAllowed) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Allow save and adapt")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Required before an original or adapted recipe can reach Everyone")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.tertiaryText)
+                    }
+                }
+                .tint(.mugshotSage)
+                .disabled(!draft.recipePublication.sourceKind.permitsRedistribution)
+
+                if draft.recipePublication.visibility == .everyone,
+                   draft.recipePublication.sourceKind.permitsRedistribution,
+                   draft.recipePublication.redistributionAllowed {
+                    Toggle(isOn: acknowledgesPublicReuse) {
+                        Text("I understand that anyone can save and adapt this exact public recipe.")
+                            .font(.system(size: 12, weight: .semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .tint(.mugshotSage)
+                }
+
+                if let guidance = requirementGuidance {
+                    Label(guidance, systemImage: "exclamationmark.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    private var requirementGuidance: String? {
+        switch draft.recipePublicationRequirement {
+        case .ready: return nil
+        case .needsImmutableSource:
+            return "Use Brew Again from the source recipe so Mugshot can preserve its exact attribution."
+        case .sourceCannotBePublic:
+            return "Purchased and external instructions can stay Private or Friends, but cannot be shared with Everyone."
+        case .needsRedistributionPermission:
+            return "Confirm save-and-adapt rights to use the Everyone recipe audience."
+        case .needsPublicReuseAcknowledgment:
+            return "Acknowledge how public recipe reuse works before publishing."
+        }
+    }
+}
+
+private struct LogASipV3PeopleStrip: View {
+    let title: String
+    let emptyDetail: String
+    let populatedDetail: (Int) -> String
+    let systemImage: String
+    let people: [SipCompanion]
+    let actionAccessibilityLabel: String
+    let action: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "person.2.badge.plus")
+            Image(systemName: systemImage)
                 .foregroundStyle(Color.mugshotSage)
                 .frame(width: 32, height: 32)
                 .background(Color.mugshotMint.opacity(0.22), in: Circle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Invite friends")
+                Text(title)
                     .font(.system(size: 13, weight: .bold))
-                Text(companions.isEmpty ? "Turn this into a shared memory" : "\(companions.count) added")
+                Text(people.isEmpty ? emptyDetail : populatedDetail(people.count))
                     .font(.system(size: 11))
                     .foregroundStyle(Color.tertiaryText)
             }
@@ -2348,11 +2571,11 @@ private struct LogASipV3CompanionStrip: View {
             Spacer(minLength: 4)
 
             HStack(spacing: -8) {
-                ForEach(companions.prefix(4)) { companion in
+                ForEach(people.prefix(4)) { companion in
                     LogASipV3Avatar(companion: companion)
                 }
 
-                Button(action: onInviteFriends) {
+                Button(action: action) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.espressoBrown)
@@ -2361,7 +2584,7 @@ private struct LogASipV3CompanionStrip: View {
                         .overlay(Circle().stroke(Color.foamWhite, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Choose friends")
+                .accessibilityLabel(actionAccessibilityLabel)
             }
         }
         .padding(14)

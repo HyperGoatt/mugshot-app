@@ -11,6 +11,9 @@ extension Color {
     // Mugshot Design handoff palette.
     static let mugshotMint = Color(hex: "A8CDB8")
     static let mugshotSage = Color(hex: "6E8F7C")
+    // Accessible text companion to mugshotSage. It keeps the same hue family
+    // while meeting 4.5:1 contrast on foam, cream, and sand surfaces.
+    static let mugshotSageText = Color(hex: "4D6F5D")
     static let mugshotMatcha = Color(hex: "8FAF6A")
     static let mugshotLatte = Color(hex: "DCC8A6")
     // Map ratings keep the familiar green/yellow/red meaning while using

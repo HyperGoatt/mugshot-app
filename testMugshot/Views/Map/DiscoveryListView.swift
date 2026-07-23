@@ -12,6 +12,7 @@ struct DiscoveryListView: View {
     @Binding var selectedMapCafe: Cafe?
     @Binding var showMapCafeDetail: Bool
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var cafesBySection: [DiscoverySection: [DiscoveryCafe]] = [:]
     @State private var libraryCafes: [Cafe] = []
@@ -108,7 +109,8 @@ struct DiscoveryListView: View {
                 CafeDetailView(
                     cafe: cafe,
                     dataManager: dataManager,
-                    onLogVisitRequested: onLogVisitRequested
+                    onLogVisitRequested: onLogVisitRequested,
+                    onAuthenticationRequired: onAuthenticationRequired
                 )
             }
             .task(id: "\(radiusMiles)-\(locationManager.location?.timestamp.timeIntervalSince1970 ?? 0)-\(discoveryScope.rawValue)-\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")") {
@@ -432,7 +434,9 @@ private struct DiscoveryCafeRow: View {
                         .foregroundColor(.espressoBrown)
                         .lineLimit(1)
                     Spacer()
-                    if let rating = cafe.averageRating { MugshotRatingBadge(score: rating) }
+                    if let rating = cafe.averageRating {
+                        MugshotRatingBadge(score: rating, label: "Cafe")
+                    }
                 }
                 Text(cafe.rankingReason)
                     .font(.system(size: 12, weight: .semibold))

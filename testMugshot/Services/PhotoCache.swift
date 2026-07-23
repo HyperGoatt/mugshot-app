@@ -20,21 +20,25 @@ enum PhotoCacheError: LocalizedError, Equatable {
 }
 
 final class PhotoCache: @unchecked Sendable {
-    static let shared = PhotoCache()
+    static let shared = PhotoCache(initialScope: .guest)
     
     private let cache = NSCache<NSString, UIImage>()
     private let queue = DispatchQueue(label: "com.mugshot.photocache", attributes: .concurrent)
     private let fileManager: FileManager
     private let photosDirectory: URL
+    private var activeScope: LocalAccountScope?
+    private var scopeGeneration: UInt = 0
 
     init(
         fileManager: FileManager = .default,
-        photosDirectory: URL? = nil
+        photosDirectory: URL? = nil,
+        initialScope: LocalAccountScope? = nil
     ) {
         self.fileManager = fileManager
         self.photosDirectory = photosDirectory
             ?? fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("VisitPhotos", isDirectory: true)
+        self.activeScope = initialScope
         cache.totalCostLimit = 32 * 1_024 * 1_024
         cache.countLimit = 40
     }
@@ -89,13 +93,52 @@ final class PhotoCache: @unchecked Sendable {
     }
 
     func image(forKey key: String) async -> UIImage? {
-        if let cached = cache.object(forKey: key as NSString) { return cached }
-        let fileURL = photoFileURL(forKey: key)
+        let lookup = queue.sync {
+            (
+                generation: scopeGeneration,
+                cached: cache.object(forKey: key as NSString),
+                fileURL: photoFileURL(forKey: key)
+            )
+        }
+        if let cached = lookup.cached { return cached }
         guard let image = await Task.detached(priority: .utility, operation: {
-            UIImage(contentsOfFile: fileURL.path)
+            UIImage(contentsOfFile: lookup.fileURL.path)
         }).value else { return nil }
-        cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
-        return image
+        return queue.sync(flags: .barrier) {
+            guard scopeGeneration == lookup.generation else { return nil }
+            cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
+            return image
+        }
+    }
+
+    /// Switches the cache boundary synchronously. Known legacy files are
+    /// copied into the new account scope, while unreferenced legacy files are
+    /// left untouched and inaccessible.
+    func activate(
+        scope: LocalAccountScope,
+        migratingKnownKeys knownKeys: Set<String> = []
+    ) throws {
+        try queue.sync(flags: .barrier) {
+            let targetDirectory = scopedDirectory(for: scope)
+            if !knownKeys.isEmpty {
+                try fileManager.createDirectory(
+                    at: targetDirectory,
+                    withIntermediateDirectories: true
+                )
+                for key in knownKeys {
+                    let source = legacyPhotoFileURL(forKey: key)
+                    let destination = photoFileURL(forKey: key, directory: targetDirectory)
+                    guard fileManager.fileExists(atPath: source.path),
+                          !fileManager.fileExists(atPath: destination.path) else { continue }
+                    try fileManager.copyItem(at: source, to: destination)
+                }
+            }
+
+            guard activeScope != scope else { return }
+            cache.removeAllObjects()
+            activeScope = scope
+            scopeGeneration &+= 1
+        }
     }
     
     // Clear memory cache (disk files remain)
@@ -103,6 +146,39 @@ final class PhotoCache: @unchecked Sendable {
         queue.async(flags: .barrier) {
             self.cache.removeAllObjects()
         }
+    }
+
+    /// Removes one account's scoped disk cache and only the legacy photo keys
+    /// proven to belong to that account. Guest and other-account caches remain.
+    func purge(ownerUserID: UUID, attributableLegacyKeys: Set<String> = []) throws {
+        try queue.sync(flags: .barrier) {
+            let scope = LocalAccountScope.user(ownerUserID)
+            let directory = scopedDirectory(for: scope)
+            if fileManager.fileExists(atPath: directory.path) {
+                try fileManager.removeItem(at: directory)
+            }
+            for key in attributableLegacyKeys where safeLegacyPhotoKey(key) {
+                let legacyURL = legacyPhotoFileURL(forKey: key)
+                if fileManager.fileExists(atPath: legacyURL.path) {
+                    try fileManager.removeItem(at: legacyURL)
+                }
+            }
+            if activeScope == scope {
+                cache.removeAllObjects()
+                activeScope = .guest
+                scopeGeneration &+= 1
+            }
+        }
+    }
+
+    private func safeLegacyPhotoKey(_ key: String) -> Bool {
+        !key.isEmpty
+            && key.count <= 240
+            && key != "."
+            && key != ".."
+            && !key.contains("/")
+            && !key.contains("\\")
+            && !key.contains(":")
     }
     
     // Preload images for visits when app starts
@@ -123,15 +199,41 @@ final class PhotoCache: @unchecked Sendable {
     }
 
     private func persistJPEGData(_ imageData: Data, forKey key: String) throws {
+        let directory = currentPhotosDirectory
         try fileManager.createDirectory(
-            at: photosDirectory,
+            at: directory,
             withIntermediateDirectories: true
         )
-        try imageData.write(to: photoFileURL(forKey: key), options: .atomic)
+        try imageData.write(to: photoFileURL(forKey: key, directory: directory), options: .atomic)
     }
 
     private func photoFileURL(forKey key: String) -> URL {
-        photosDirectory.appendingPathComponent("\(key).jpg")
+        photoFileURL(forKey: key, directory: currentPhotosDirectory)
+    }
+
+    private func photoFileURL(forKey key: String, directory: URL) -> URL {
+        directory.appendingPathComponent("\(key).jpg")
+    }
+
+    private func legacyPhotoFileURL(forKey key: String) -> URL {
+        photoFileURL(forKey: key, directory: photosDirectory)
+    }
+
+    private var currentPhotosDirectory: URL {
+        guard let activeScope else { return photosDirectory }
+        return scopedDirectory(for: activeScope)
+    }
+
+    private func scopedDirectory(for scope: LocalAccountScope) -> URL {
+        let v2Directory = photosDirectory.appendingPathComponent("v2", isDirectory: true)
+        switch scope {
+        case .guest:
+            return v2Directory.appendingPathComponent("guest", isDirectory: true)
+        case .user(let userID):
+            return v2Directory
+                .appendingPathComponent("users", isDirectory: true)
+                .appendingPathComponent(userID.uuidString.lowercased(), isDirectory: true)
+        }
     }
 }
 

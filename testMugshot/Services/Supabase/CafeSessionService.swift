@@ -356,6 +356,20 @@ final class CafeSessionService {
         .execute()
     }
 
+    func setAudience(
+        sessionID: UUID,
+        visibility: VisitVisibility
+    ) async throws {
+        try await client.rpc(
+            "set_cafe_session_audience_v1",
+            params: SetCafeSessionAudienceParameters(
+                sessionID: sessionID,
+                visibility: visibility.supabaseValue
+            )
+        )
+        .execute()
+    }
+
     func fetchSessionSummary(sessionID: UUID) async throws -> RemoteCafeSessionSummary {
         try await client.rpc(
             "get_cafe_session_summary_v1",
@@ -676,6 +690,16 @@ private struct FinalizeCafeSessionSipParameters: Encodable {
     enum CodingKeys: String, CodingKey {
         case sessionID = "p_session_id"
         case visitID = "p_visit_id"
+    }
+}
+
+private struct SetCafeSessionAudienceParameters: Encodable {
+    let sessionID: UUID
+    let visibility: String
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "p_session_id"
+        case visibility = "p_visibility"
     }
 }
 

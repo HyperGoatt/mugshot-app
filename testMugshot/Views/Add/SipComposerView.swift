@@ -51,7 +51,7 @@ struct LogVisitView: View {
     @State private var servingVolumeUnit: ServingVolumeUnit = .preferredForCurrentLocale
     @State private var isAddingCustomTag = false
     @State private var customTagText = ""
-    @State private var showCompanionPicker = false
+    @State private var peoplePickerMode: SipPeoplePickerMode?
     @State private var showPhotoOrganizer = false
     @State private var photoOrganizerOriginalImages: [UIImage]?
     @State private var photoOrganizerOriginalPosterIndex: Int?
@@ -91,6 +91,13 @@ struct LogVisitView: View {
 
     private var tastingLensUserID: UUID? {
         draft.ownerUserID ?? authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+    }
+
+    private var localAccountScope: LocalAccountScope {
+        .forUserID(
+            authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
     }
 
     private var tastingLensHistory: [SipSensorySnapshot] {
@@ -147,14 +154,20 @@ struct LogVisitView: View {
         self.dataManager = dataManager
         self.preselectedCafe = preselectedCafe
         self.explicitLaunchDraft = initialDraft
-        let restoredImages = initialDraft.flatMap { SipDraftStore.shared.load(id: $0.id)?.images } ?? []
+        let restoredImages = initialDraft.flatMap {
+            SipDraftStore.shared.load(
+                id: $0.id,
+                in: .forUserID($0.ownerUserID)
+            )?.images
+        } ?? []
         _photoImages = State(initialValue: restoredImages)
         _showPhotoSourceDialog = State(initialValue: initialDraft?.launchContext.source == .camera)
         _v3Step = State(initialValue: initialDraft?.v3Step ?? .setup)
         _composerModel = StateObject(wrappedValue: SipComposerModel(
             draft: initialDraft ?? Self.initialDraft(
                 dataManager: dataManager,
-                preselectedCafe: preselectedCafe
+                preselectedCafe: preselectedCafe,
+                ownerUserID: dataManager.appData.currentUser?.id
             )
         ))
     }
@@ -215,12 +228,20 @@ struct LogVisitView: View {
                     }
                 )
             }
-            .sheet(isPresented: $showCompanionPicker) {
+            .sheet(item: $peoplePickerMode) { mode in
                 SipCompanionPicker(
-                    selected: draft.taggedCompanions ?? [],
+                    mode: mode,
+                    selected: mode == .tag
+                        ? draft.taggedCompanions ?? []
+                        : draft.sharedMemoryInvitees ?? [],
                     onSave: { companions in
-                        draft.taggedCompanions = companions
-                        draft.companions = companions.map(\.displayName)
+                        switch mode {
+                        case .tag:
+                            draft.taggedCompanions = companions
+                            draft.companions = companions.map(\.displayName)
+                        case .sharedMemory:
+                            draft.sharedMemoryInvitees = companions
+                        }
                     }
                 )
             }
@@ -329,17 +350,20 @@ struct LogVisitView: View {
                 titleVisibility: .visible
             ) {
                 Button("Discard Earlier Save", role: .destructive) {
-                    discardConflictingPendingSubmission()
+                    Task { await discardConflictingPendingSubmission() }
                 }
                 Button("Keep It", role: .cancel) {}
             } message: {
-                Text("This keeps the draft on screen and permanently removes the protected retry copy.")
+                Text("Mugshot verifies any remote save before removing its protected retry copy. If verification is unavailable, the save stays protected.")
             }
     }
 
     private var observedComposer: some View {
         alertedComposer
-            .onAppear { restoreDraftIfNeeded() }
+            .onAppear {
+                activateLocalState()
+                restoreDraftIfNeeded()
+            }
             .task(id: authModel.authenticatedUser?.id) {
                 await refreshCafeSessionsCapability()
             }
@@ -380,6 +404,7 @@ struct LogVisitView: View {
                 if let location { updateSearchRegion(for: location) }
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, userID in
+                activateLocalState(scope: .forUserID(userID))
                 guard let userID else {
                     pendingSubmission = nil
                     conflictingPendingSubmission = nil
@@ -427,7 +452,8 @@ struct LogVisitView: View {
                 initializeLocationIfAvailable()
                 isCafeSearchActive = true
             },
-            onInviteFriends: { showCompanionPicker = true },
+            onTagPeople: { peoplePickerMode = .tag },
+            onInviteSharedMemory: { peoplePickerMode = .sharedMemory },
             onRepairProtectedSave: pendingRecoveryNeedsPhotoRepair
                 ? { showPhotoSourceDialog = true }
                 : nil,
@@ -1292,12 +1318,12 @@ struct LogVisitView: View {
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    Label("Who you shared it with", systemImage: "person.2.fill")
+                    Label("People tagged", systemImage: "person.crop.circle.badge.plus")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.espressoBrown)
                     Spacer()
                     Button {
-                        showCompanionPicker = true
+                        peoplePickerMode = .tag
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .bold))
@@ -1306,7 +1332,7 @@ struct LogVisitView: View {
                             .background(Color.mugshotMint.opacity(0.42), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Add friends you shared this sip with")
+                    .accessibilityLabel("Tag people in this Mugshot")
                 }
 
                 if let companions = draft.taggedCompanions, !companions.isEmpty {
@@ -1339,9 +1365,68 @@ struct LogVisitView: View {
                         }
                     }
                 } else {
-                    Text("Tap plus to choose from your friends. Mugshot stores the person—not just typed text.")
+                    Text("Search any Mugshot account. Tags add attribution, not shared ownership.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondaryText)
+                }
+            }
+
+            if draft.cafeSessionSipRole != .secondary {
+                Divider().overlay(Color.mugshotLine)
+
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Label("Shared MugShot", systemImage: "person.2.badge.plus")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                        Spacer()
+                        Button {
+                            peoplePickerMode = .sharedMemory
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 13, weight: .bold))
+                                .frame(width: 36, height: 36)
+                                .foregroundColor(.mugshotSage)
+                                .background(Color.mugshotMint.opacity(0.42), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Invite friends to this shared MugShot")
+                    }
+
+                    if let invitees = draft.sharedMemoryInvitees, !invitees.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(invitees) { invitee in
+                                    HStack(spacing: 7) {
+                                        MugshotAvatar(
+                                            name: invitee.displayName,
+                                            size: 28,
+                                            imageURL: invitee.avatarURL
+                                        )
+                                        Text(invitee.displayName)
+                                            .font(.system(size: 12, weight: .semibold))
+                                        Button {
+                                            removeSharedMemoryInvitee(invitee)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 13))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Remove \(invitee.displayName)")
+                                    }
+                                    .foregroundColor(.espressoBrown)
+                                    .padding(.leading, 5)
+                                    .padding(.trailing, 9)
+                                    .frame(minHeight: 40)
+                                    .background(Color.sandBeige.opacity(0.56), in: Capsule())
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Friends are invited after your post is safely published. Each person chooses whether to join.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondaryText)
+                    }
                 }
             }
         }
@@ -1852,7 +1937,7 @@ struct LogVisitView: View {
         }
 
         if explicitLaunchDraft == nil,
-           let stored = SipDraftStore.shared.load(),
+           let stored = SipDraftStore.shared.load(in: localAccountScope),
            shouldResume(stored.draft) {
             suppressContextDefaults = true
             draft = stored.draft
@@ -1895,6 +1980,26 @@ struct LogVisitView: View {
         persistDraft()
     }
 
+    private func activateLocalState(scope: LocalAccountScope? = nil) {
+        let resolvedScope = scope ?? localAccountScope
+        SipDraftStore.shared.activate(scope: resolvedScope)
+        CafeVisibilityPreferenceStore.shared.activate(scope: resolvedScope)
+        try? PhotoCache.shared.activate(
+            scope: resolvedScope,
+            migratingKnownKeys: knownLegacyPhotoKeys(for: resolvedScope)
+        )
+        searchService.activate(scope: resolvedScope)
+    }
+
+    private func knownLegacyPhotoKeys(for scope: LocalAccountScope) -> Set<String> {
+        guard let userID = scope.userID else { return [] }
+        return Set(
+            dataManager.appData.visits
+                .filter { $0.userId == userID }
+                .flatMap(\.photos)
+        )
+    }
+
     @discardableResult
     private func restorePublishedV3CompletionIfNeeded() -> Bool {
         let ownerUserID = authModel.authenticatedUser?.id
@@ -1903,15 +2008,29 @@ struct LogVisitView: View {
             ownerUserID: ownerUserID,
             onExpired: { expiredRecord in
                 if let storedDraft = SipDraftStore.shared.load(
-                    id: expiredRecord.visitID
+                    id: expiredRecord.visitID,
+                    in: .forUserID(expiredRecord.ownerUserID)
                 ) {
-                    SipDraftStore.shared.remove(storedDraft.draft)
+                    SipDraftStore.shared.remove(
+                        storedDraft.draft,
+                        in: .forUserID(expiredRecord.ownerUserID)
+                    )
                 }
             }
         ) else {
             return false
         }
-        guard let stored = SipDraftStore.shared.load(id: record.visitID),
+        if record.isRemote,
+           let recordOwnerUserID = record.ownerUserID,
+           let pending = PendingVisitSubmissionStore.shared.load(
+               visitId: record.visitID,
+               userId: recordOwnerUserID
+           ),
+           !pending.isPostPublicationSetupComplete {
+            return false
+        }
+        let recordScope = LocalAccountScope.forUserID(record.ownerUserID)
+        guard let stored = SipDraftStore.shared.load(id: record.visitID, in: recordScope),
               stored.draft.ownerUserID == nil
                 || stored.draft.ownerUserID == record.ownerUserID else {
             V3PublishedCompletionStore.shared.remove(ownerUserID: ownerUserID)
@@ -1961,8 +2080,10 @@ struct LogVisitView: View {
         uploadRecoveryMessage = nil
 
         if let ownerUserID,
-           let pending = PendingVisitSubmissionStore.shared.load(userId: ownerUserID),
-           pending.id == record.visitID {
+           let pending = PendingVisitSubmissionStore.shared.load(
+               visitId: record.visitID,
+               userId: ownerUserID
+           ), pending.isPostPublicationSetupComplete {
             PendingVisitSubmissionStore.shared.remove(pending)
         }
 
@@ -2000,7 +2121,7 @@ struct LogVisitView: View {
               preselectedCafe == nil,
               pendingSubmission == nil,
               conflictingPendingSubmission == nil,
-              !draft.hasMeaningfulContent,
+              !draft.hasDraftWorthyUserContent,
               photoImages.isEmpty else {
             return
         }
@@ -2021,10 +2142,44 @@ struct LogVisitView: View {
 
     private func reconcilePendingSubmission(for userID: UUID) {
         let pendingStore = PendingVisitSubmissionStore.shared
-        guard let pending = pendingStore.load(userId: userID) else {
+        let exactPending = pendingStore.load(visitId: draft.id, userId: userID)
+        let mayAdoptOldestPending = explicitLaunchDraft == nil
+            && preselectedCafe == nil
+            && !draft.hasDraftWorthyUserContent
+            && photoImages.isEmpty
+        let pending = exactPending
+            ?? (mayAdoptOldestPending ? pendingStore.load(userId: userID) : nil)
+
+        guard let pending else {
             pendingSubmission = nil
             conflictingPendingSubmission = nil
             pendingRecoveryNeedsPhotoRepair = false
+            uploadRecoveryMessage = nil
+            return
+        }
+
+        if pending.isRemoteFinalized {
+            let recovered = SipDraftStore.shared.load(
+                id: pending.id,
+                in: .user(userID)
+            ).map { ($0.draft, $0.images) }
+                ?? reconstructDraft(
+                    from: pending,
+                    authenticatedUserID: userID
+                ).map { ($0, []) }
+            guard let recovered else {
+                pendingSubmission = pending
+                conflictingPendingSubmission = nil
+                uploadRecoveryMessage = "Your Mugshot is published. Reconnect to finish its local handoff."
+                return
+            }
+            routeToPendingSubmission(
+                pending,
+                recoveredDraft: recovered.0,
+                fallbackImages: recovered.1,
+                userID: userID
+            )
+            uploadRecoveryMessage = "Your Mugshot is published. Finish the local handoff without publishing it again."
             return
         }
 
@@ -2063,7 +2218,10 @@ struct LogVisitView: View {
             return
         }
 
-        if let matchingStoredDraft = SipDraftStore.shared.load(id: pending.id),
+        if let matchingStoredDraft = SipDraftStore.shared.load(
+            id: pending.id,
+            in: .user(userID)
+        ),
            pending.canResume(
                with: matchingStoredDraft.draft,
                authenticatedUserID: userID
@@ -2110,8 +2268,7 @@ struct LogVisitView: View {
     private func pendingHasMissingLocalPhotos(
         _ pending: PendingVisitSubmissionRecord
     ) -> Bool {
-        guard pending.phase < .photosUploaded,
-              !pending.localPhotoNames.isEmpty else {
+        guard SipRemoteRecoveryPlanner.requiresLocalPhotosForRecovery(pending) else {
             return false
         }
         return (try? PendingVisitSubmissionStore.shared.loadImages(for: pending).count)
@@ -2125,8 +2282,12 @@ struct LogVisitView: View {
         userID: UUID
     ) {
         if draft.id != pending.id,
-           draft.hasMeaningfulContent || !photoImages.isEmpty {
-            _ = try? SipDraftStore.shared.save(draft, images: photoImages)
+           draft.hasDraftWorthyUserContent || !photoImages.isEmpty {
+            _ = try? SipDraftStore.shared.save(
+                draft,
+                images: photoImages,
+                in: .user(userID)
+            )
         }
 
         suppressContextDefaults = true
@@ -2210,12 +2371,14 @@ struct LogVisitView: View {
             tags: details.tags ?? [],
             companions: details.companions ?? [],
             taggedCompanions: pending.taggedCompanions,
+            sharedMemoryInvitees: pending.sharedMemoryInvitees,
+            recipePublication: pending.resolvedRecipePublication,
             brewMethod: pending.brewMethod ?? "",
             equipment: pending.equipment ?? "",
             brewDetails: details,
             localPhotoNames: [],
             posterPhotoIndex: pending.posterPhotoIndex,
-            uploadState: .failed,
+            uploadState: pending.isRemoteFinalized ? .local : .failed,
             composerExperience: composerExperience,
             guidedStep: .audience,
             memoryDetailsExpanded: true,
@@ -2313,25 +2476,97 @@ struct LogVisitView: View {
         uploadRecoveryMessage = "An earlier save was interrupted. Retry continues the same sip without making a duplicate."
     }
 
-    private func discardConflictingPendingSubmission() {
+    @MainActor
+    private func discardConflictingPendingSubmission() async {
         guard let conflictingPendingSubmission else { return }
-        PendingVisitSubmissionStore.shared.remove(conflictingPendingSubmission)
-        scheduleObsoletePhotoCleanup(
-            conflictingPendingSubmission.objectPaths,
-            userID: conflictingPendingSubmission.userId
-        )
-        if conflictingPendingSubmission.phase >= .visitCreated {
-            let visitID = conflictingPendingSubmission.id
-            let userID = conflictingPendingSubmission.userId
-            Task {
-                guard let client = try? SupabaseClientProvider.shared.client() else { return }
-                try? await VisitService(client: client).deleteVisit(
-                    visitId: visitID,
-                    userId: userID
+
+        switch SipRemoteRecoveryPlanner.discardPolicy(
+            for: conflictingPendingSubmission
+        ) {
+        case .preservePublished:
+            pendingSubmission = conflictingPendingSubmission
+            self.conflictingPendingSubmission = nil
+            routeToPublishedRecovery(conflictingPendingSubmission)
+            errorMessage = nil
+        case .removeLocalOnly:
+            removeConfirmedDiscard(conflictingPendingSubmission)
+        case .verifyRemoteThenDelete:
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let service = VisitService(client: client)
+                let remoteState = try await service.fetchOwnedVisitUploadState(
+                    visitId: conflictingPendingSubmission.id,
+                    userId: conflictingPendingSubmission.userId
                 )
+                if remoteState == .complete {
+                    try protectReconciledPublication(conflictingPendingSubmission)
+                    return
+                }
+                if remoteState != nil {
+                    try await service.deleteOwnedIncompleteVisit(
+                        visitId: conflictingPendingSubmission.id,
+                        userId: conflictingPendingSubmission.userId
+                    )
+                }
+                let stateAfterDelete = try await service.fetchOwnedVisitUploadState(
+                    visitId: conflictingPendingSubmission.id,
+                    userId: conflictingPendingSubmission.userId
+                )
+                switch stateAfterDelete {
+                case nil:
+                    removeConfirmedDiscard(conflictingPendingSubmission)
+                case .complete:
+                    try protectReconciledPublication(conflictingPendingSubmission)
+                case .uploading?, .failed?:
+                    uploadRecoveryMessage = "Mugshot could not confirm the interrupted remote save was removed. It remains protected; reconnect and try again."
+                    errorMessage = uploadRecoveryMessage
+                }
+            } catch {
+                uploadRecoveryMessage = "Mugshot could not verify the remote save. It remains protected; reconnect and try again."
+                errorMessage = uploadRecoveryMessage
             }
         }
-        self.conflictingPendingSubmission = nil
+    }
+
+    private func protectReconciledPublication(
+        _ record: PendingVisitSubmissionRecord
+    ) throws {
+        var finalized = record
+        finalized.remoteFinalizedAt = finalized.remoteFinalizedAt ?? .now
+        let store = PendingVisitSubmissionStore.shared
+        try store.save(finalized)
+        finalized = store.load(visitId: finalized.id, userId: finalized.userId)
+            ?? finalized
+        pendingSubmission = finalized
+        conflictingPendingSubmission = nil
+        routeToPublishedRecovery(finalized)
+        errorMessage = nil
+    }
+
+    private func routeToPublishedRecovery(
+        _ record: PendingVisitSubmissionRecord
+    ) {
+        if let recoveredDraft = reconstructDraft(
+            from: record,
+            authenticatedUserID: record.userId
+        ) {
+            routeToPendingSubmission(
+                record,
+                recoveredDraft: recoveredDraft,
+                fallbackImages: [],
+                userID: record.userId
+            )
+            v3Step = .publish
+        }
+        uploadRecoveryMessage = "Your MugShot is already published. Retry finishes its remaining setup without publishing it again."
+    }
+
+    private func removeConfirmedDiscard(
+        _ record: PendingVisitSubmissionRecord
+    ) {
+        PendingVisitSubmissionStore.shared.remove(record)
+        scheduleObsoletePhotoCleanup(record.objectPaths, userID: record.userId)
+        conflictingPendingSubmission = nil
         pendingSubmission = nil
         pendingRecoveryNeedsPhotoRepair = false
         uploadRecoveryMessage = nil
@@ -2339,6 +2574,11 @@ struct LogVisitView: View {
     }
 
     private func prepareProtectedSaveForDiscard() {
+        if let pendingSubmission,
+           SipRemoteRecoveryPlanner.discardPolicy(for: pendingSubmission) == .preservePublished {
+            uploadRecoveryMessage = "Your MugShot is already published. Retry finishes its remaining setup without publishing it again."
+            return
+        }
         if conflictingPendingSubmission == nil, let pendingSubmission {
             conflictingPendingSubmission = pendingSubmission
             self.pendingSubmission = nil
@@ -2504,9 +2744,13 @@ struct LogVisitView: View {
     }
 
     private func persistDraft() {
-        guard didRestoreDraft, draft.hasMeaningfulContent || !photoImages.isEmpty else { return }
+        guard didRestoreDraft, draft.hasDraftWorthyUserContent || !photoImages.isEmpty else { return }
         do {
-            let stored = try SipDraftStore.shared.save(draft, images: photoImages)
+            let stored = try SipDraftStore.shared.save(
+                draft,
+                images: photoImages,
+                in: localAccountScope
+            )
             if draft.localPhotoNames != stored.localPhotoNames {
                 draft.localPhotoNames = stored.localPhotoNames
                 draft.posterPhotoIndex = stored.posterPhotoIndex
@@ -2573,7 +2817,10 @@ struct LogVisitView: View {
 #endif
 
         if draft.context == .cafe {
-            CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
+            CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(
+                draft.visibility,
+                in: localAccountScope
+            )
         }
 
         isSaving = true
@@ -2627,6 +2874,26 @@ struct LogVisitView: View {
         if draft.context == .cafe,
            !(1...5).contains(draft.contextScore ?? 0) {
             return "Add your cafe score before publishing this Mugshot."
+        }
+        switch draft.recipePublicationRequirement {
+        case .ready:
+            break
+        case .needsImmutableSource:
+            return "This adapted recipe needs its exact Mugshot source before it can publish."
+        case .sourceCannotBePublic:
+            return "Purchased and external recipes cannot share instructions with Everyone."
+        case .needsRedistributionPermission:
+            return "Confirm that people may save and adapt this recipe before sharing it with Everyone."
+        case .needsPublicReuseAcknowledgment:
+            return "Acknowledge public recipe reuse before sharing these instructions with Everyone."
+        }
+        if !(draft.sharedMemoryInvitees ?? []).isEmpty,
+           draft.visibility == .private {
+            return "Choose Friends or Everyone before inviting people to a shared MugShot."
+        }
+        if !(draft.sharedMemoryInvitees ?? []).isEmpty,
+           draft.cafeSessionSipRole == .secondary {
+            return "Invite people from the primary cafe MugShot so the shared MugShot has one clear source."
         }
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
@@ -2718,6 +2985,7 @@ struct LogVisitView: View {
         isSaving = true
         errorMessage = nil
         var saveOperation = SipRemoteSaveOperation.preparing
+        var canonicalPublicationCommitted = false
         SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
 
         do {
@@ -2727,16 +2995,37 @@ struct LogVisitView: View {
             let pendingStore = PendingVisitSubmissionStore.shared
             var submission: PendingVisitSubmissionRecord
             var savedVisit: RemoteVisitSummary?
-            var remoteCafeExperienceSnapshot: CafeExperienceSnapshot?
 
-            if let storedPending = pendingStore.load(userId: authenticatedUser.id) {
-                guard storedPending.canResume(
-                    with: draft,
-                    authenticatedUserID: authenticatedUser.id
-                ) else {
-                    conflictingPendingSubmission = storedPending
-                    pendingSubmission = nil
-                    throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+            if let storedPending = pendingStore.load(
+                visitId: draft.id,
+                userId: authenticatedUser.id
+            ) {
+                if storedPending.isRemoteFinalized {
+                    guard SipRemoteRecoveryPlanner.action(
+                        for: storedPending,
+                        authenticatedUserID: authenticatedUser.id
+                    ) == .finishLocalCompletion else {
+                        throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+                    }
+                    if draft.id != storedPending.id {
+                        guard let recoveredDraft = reconstructDraft(
+                            from: storedPending,
+                            authenticatedUserID: authenticatedUser.id
+                        ) else {
+                            throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+                        }
+                        draft = recoveredDraft
+                        photoImages = []
+                    }
+                } else {
+                    guard storedPending.canResume(
+                        with: draft,
+                        authenticatedUserID: authenticatedUser.id
+                    ) else {
+                        conflictingPendingSubmission = storedPending
+                        pendingSubmission = nil
+                        throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+                    }
                 }
                 submission = storedPending
                 self.pendingSubmission = storedPending
@@ -2763,13 +3052,86 @@ struct LogVisitView: View {
                     ratingTemplate: draft.ratingTemplateSnapshot,
                     sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
                     v3Reflection: V3VisitReflection.make(visitID: draft.id, from: draft),
+                    recipePublication: draft.includesRecipeBlueprint
+                        ? draft.recipePublication
+                        : nil,
                     taggedCompanions: draft.taggedCompanions,
+                    sharedMemoryInvitees: draft.sharedMemoryInvitees,
                     cafeSession: makePendingCafeSessionLink(userID: authenticatedUser.id),
                     images: photoImages,
                     posterPhotoIndex: draft.posterPhotoIndex
                 )
                 self.pendingSubmission = submission
                 SipSaveDiagnostics.record(.submissionPrepared, draftID: draft.id, visitID: submission.id)
+            }
+
+            // A prior finalization request may have committed even when its
+            // response or the following local receipt write was interrupted.
+            // Reconcile the owner row before performing any other remote work.
+            if submission.hasAmbiguousRemoteFinalization {
+                saveOperation = .finalizing
+                let remoteState = try await service.fetchOwnedVisitUploadState(
+                    visitId: submission.id,
+                    userId: submission.userId
+                )
+                if remoteState == .complete {
+                    canonicalPublicationCommitted = true
+                    submission.remoteFinalizedAt = .now
+                    self.pendingSubmission = submission
+                    try pendingStore.save(submission)
+                    submission = pendingStore.load(
+                        visitId: submission.id,
+                        userId: submission.userId
+                    ) ?? submission
+                    self.pendingSubmission = submission
+                } else if remoteState == nil {
+                    // The owner query authoritatively confirmed there is no
+                    // remote row. Recreate the same stable visit ID and frozen
+                    // payload; the ambiguity marker remains fail-closed.
+                    submission.phase = .prepared
+                    submission.uploadedPhotoURLs = nil
+                    try pendingStore.save(submission)
+                    self.pendingSubmission = submission
+                }
+            }
+
+            if submission.isRemoteFinalized {
+                saveOperation = .finishingLocalCompletion
+                let postPublicationSetup = await finishPostPublicationSetup(
+                    for: submission,
+                    client: client
+                )
+                submission = postPublicationSetup.submission
+                self.pendingSubmission = submission
+                let finalizedVisit = try await service.fetchOwnedVisitSummary(
+                    visitId: submission.id,
+                    userId: submission.userId
+                )
+                let completionRecord = V3PublishedCompletionRecord(
+                    ownerUserID: submission.userId,
+                    visitID: submission.id,
+                    isRemote: true,
+                    updatedAt: .now
+                )
+                try V3PublishedCompletionStore.shared.save(completionRecord)
+                publishedCompletionRecord = completionRecord
+                dataManager.noteJournalMutation()
+                let ownerSipCount = try? await service.fetchOwnerSipCount(
+                    userId: submission.userId
+                )
+                try completeSuccessfulSave(
+                    visitID: submission.id,
+                    remoteVisit: finalizedVisit,
+                    knownRemoteMemoryCount: ownerSipCount
+                )
+                completionStatusMessage = postPublicationSetup.warning
+                if submission.isPostPublicationSetupComplete {
+                    pendingStore.remove(submission)
+                }
+                self.pendingSubmission = nil
+                conflictingPendingSubmission = nil
+                uploadRecoveryMessage = nil
+                return
             }
 
             if submission.phase == .prepared {
@@ -2798,13 +3160,6 @@ struct LogVisitView: View {
                 try pendingStore.save(submission)
                 self.pendingSubmission = submission
                 SipSaveDiagnostics.record(.visitCreated, draftID: draft.id, visitID: submission.id)
-            }
-
-            if submission.phase >= .visitCreated,
-               let v3Reflection = submission.v3Reflection {
-                _ = try await V3VisitReflectionService(client: client).upsert(
-                    v3Reflection.privateUploadProjection
-                )
             }
 
             if submission.phase >= .visitCreated,
@@ -2837,7 +3192,6 @@ struct LogVisitView: View {
                 if session.sipRole == .primary {
                     if let snapshot = session.experienceSnapshot {
                         let reboundSnapshot = snapshot.rebindingCafeID(remoteCafeID)
-                        remoteCafeExperienceSnapshot = reboundSnapshot
                         try await cafeSessionService.recordExperience(
                             reboundSnapshot,
                             primaryReorderIntention: session.reorderIntention
@@ -2918,56 +3272,63 @@ struct LogVisitView: View {
                 photoURLs: urls,
                 posterPhotoIndex: submission.posterPhotoIndex
             )
-            let finalizedVisit: RemoteVisitSummary
+
+            // Persist ambiguity protection before the first RPC that can make
+            // the visit complete. A timeout from that RPC is never treated as
+            // proof that publication failed.
+            if submission.finalizationRequestedAt == nil {
+                submission.finalizationRequestedAt = .now
+                try pendingStore.save(submission)
+                self.pendingSubmission = submission
+            }
+
             if let session = submission.cafeSession {
                 try await cafeSessionService.finalizeSipUpload(
                     sessionID: session.sessionID,
                     visitID: submission.id
                 )
-                switch session.sipRole {
-                case .primary:
-                    try await cafeSessionService.publishSession(
-                        sessionID: session.sessionID,
-                        visibility: submission.visibility,
-                        snapshot: remoteCafeExperienceSnapshot
-                            ?? session.experienceSnapshot,
-                        sharing: session.shareProjection
-                    )
-                case .secondary:
-                    try await cafeSessionService.appendSip(
-                        sessionID: session.sessionID,
-                        visitID: submission.id,
-                        order: session.sipOrder,
-                        reorderIntention: session.reorderIntention
-                    )
-                }
-                finalizedVisit = try await service.fetchOwnedVisitSummary(
-                    visitId: submission.id,
-                    userId: submission.userId
-                )
             } else {
-                finalizedVisit = try await service.finalizeVisit(
+                try await service.finalizeVisitPublication(
                     visitId: submission.id,
                     userId: submission.userId,
                     visibility: submission.visibility
                 )
             }
 
-            // The database refuses to expose journal writing more broadly
-            // than the visit itself. Promote the requested raw-note audience
-            // only after the canonical visit audience is final, so an
-            // interrupted upload remains private and a retry stays safe.
-            if let v3Reflection = submission.v3Reflection {
-                _ = try await V3VisitReflectionService(client: client).upsert(v3Reflection)
-            }
+            // This is the irreversible boundary. Update the in-memory record
+            // before the durable write so even a local persistence error can
+            // never enter the failed-upload or destructive-discard path.
+            canonicalPublicationCommitted = true
+            submission.remoteFinalizedAt = .now
+            self.pendingSubmission = submission
+            try pendingStore.save(submission)
+            submission = pendingStore.load(
+                visitId: submission.id,
+                userId: submission.userId
+            ) ?? submission
+            self.pendingSubmission = submission
             SipSaveDiagnostics.record(.visitFinalized, draftID: draft.id, visitID: submission.id)
 
-            if let taggedCompanions = submission.taggedCompanions {
-                try? await SocialDiscoveryService(client: client).setCompanions(
-                    taggedCompanions.map(\.userID),
-                    for: submission.id
-                )
-            }
+            let completionRecord = V3PublishedCompletionRecord(
+                ownerUserID: submission.userId,
+                visitID: submission.id,
+                isRemote: true,
+                updatedAt: .now
+            )
+            try V3PublishedCompletionStore.shared.save(completionRecord)
+            publishedCompletionRecord = completionRecord
+
+            let postPublicationSetup = await finishPostPublicationSetup(
+                for: submission,
+                client: client
+            )
+            submission = postPublicationSetup.submission
+            self.pendingSubmission = submission
+
+            let finalizedVisit = try await service.fetchOwnedVisitSummary(
+                visitId: submission.id,
+                userId: submission.userId
+            )
 
             DrinkAnalysisRetryStore.shared.enqueue(
                 visitId: submission.id,
@@ -2997,13 +3358,29 @@ struct LogVisitView: View {
                 remoteVisit: finalizedVisit,
                 knownRemoteMemoryCount: ownerSipCount
             )
-            pendingStore.remove(submission)
+            completionStatusMessage = postPublicationSetup.warning
+            if submission.isPostPublicationSetupComplete {
+                pendingStore.remove(submission)
+            }
             self.pendingSubmission = nil
             conflictingPendingSubmission = nil
             uploadRecoveryMessage = nil
         } catch {
             isSaving = false
             SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: pendingSubmission?.id)
+            if canonicalPublicationCommitted
+                || pendingSubmission?.isRemotePublicationProtected == true {
+                let publicationWasRecorded = pendingSubmission?.isRemoteFinalized == true
+                uploadRecoveryMessage = publicationWasRecorded
+                    ? SipRemoteSaveOperation.finishingLocalCompletion.recoveryMessage
+                    : "Mugshot could not verify the publication response. Your protected save was kept so Retry can check the server without creating a duplicate."
+                completionStatusMessage = publicationWasRecorded
+                    ? "Your MugShot is safely published. Mugshot will finish its remaining setup when you retry."
+                    : nil
+                errorMessage = completionStatusMessage
+                    ?? uploadRecoveryMessage
+                return
+            }
             draft.uploadState = .failed
             persistDraft()
             if let pendingSubmission {
@@ -3035,6 +3412,146 @@ struct LogVisitView: View {
         }
     }
 
+    /// Every projection and relationship is downstream of the durable
+    /// canonical-visit receipt. Each action receives its own durable receipt,
+    /// so a partial retry never republishes the visit or repeats completed work.
+    @MainActor
+    private func finishPostPublicationSetup(
+        for submission: PendingVisitSubmissionRecord,
+        client: SupabaseClient
+    ) async -> SipPostPublicationSetupResult {
+        guard let plan = SipPostPublicationSetupPlan.make(from: submission) else {
+            return SipPostPublicationSetupResult(
+                submission: submission,
+                warning: nil
+            )
+        }
+        let social = SocialDiscoveryService(client: client)
+        let cafeSessions = CafeSessionService(client: client)
+        let pendingStore = PendingVisitSubmissionStore.shared
+        var updatedSubmission = submission
+        var failedActions: [String] = []
+        var canonicalAudienceReady = true
+
+        if let session = plan.cafeSession {
+            do {
+                switch session.sipRole {
+                case .primary:
+                    try await cafeSessions.publishSession(
+                        sessionID: session.sessionID,
+                        visibility: submission.visibility,
+                        snapshot: session.experienceSnapshot,
+                        sharing: session.shareProjection
+                    )
+                case .secondary:
+                    try await cafeSessions.appendSip(
+                        sessionID: session.sessionID,
+                        visitID: submission.id,
+                        order: session.sipOrder,
+                        reorderIntention: session.reorderIntention
+                    )
+                }
+                var receipt = updatedSubmission
+                receipt.cafeSessionPublicationCompletedAt = .now
+                try pendingStore.save(receipt)
+                updatedSubmission = pendingStore.load(
+                    visitId: receipt.id,
+                    userId: receipt.userId
+                ) ?? receipt
+            } catch {
+                canonicalAudienceReady = false
+                failedActions.append("its cafe publication")
+            }
+        }
+
+        // A Cafe Session visit remains private until its session action
+        // succeeds. Do not expose a recipe or social projection ahead of that
+        // canonical audience; all skipped actions remain durably retryable.
+        guard canonicalAudienceReady else {
+            return SipPostPublicationSetupResult(
+                submission: updatedSubmission,
+                warning: "Your MugShot is safely saved. Mugshot will retry its cafe publication without creating a duplicate."
+            )
+        }
+
+        if let reflection = plan.v3Reflection {
+            do {
+                _ = try await V3VisitReflectionService(client: client).upsert(reflection)
+                var receipt = updatedSubmission
+                receipt.v3ReflectionCompletedAt = .now
+                try pendingStore.save(receipt)
+                updatedSubmission = pendingStore.load(
+                    visitId: receipt.id,
+                    userId: receipt.userId
+                ) ?? receipt
+            } catch {
+                failedActions.append("its reflection")
+            }
+        }
+
+        if let recipePublication = plan.recipePublication {
+            do {
+                _ = try await social.configureRecipePublication(
+                    for: plan.visitID,
+                    contract: recipePublication
+                )
+                var receipt = updatedSubmission
+                receipt.recipePublicationCompletedAt = .now
+                try pendingStore.save(receipt)
+                updatedSubmission = pendingStore.load(
+                    visitId: receipt.id,
+                    userId: receipt.userId
+                ) ?? receipt
+            } catch {
+                failedActions.append("its recipe sharing")
+            }
+        }
+
+        if let taggedUserIDs = plan.taggedUserIDs {
+            do {
+                try await social.setVisitTags(
+                    taggedUserIDs,
+                    for: plan.visitID
+                )
+                var receipt = updatedSubmission
+                receipt.visitTagsCompletedAt = .now
+                try pendingStore.save(receipt)
+                updatedSubmission = pendingStore.load(
+                    visitId: receipt.id,
+                    userId: receipt.userId
+                ) ?? receipt
+            } catch {
+                failedActions.append("its people tags")
+            }
+        }
+
+        if !plan.sharedMemoryInviteeIDs.isEmpty {
+            do {
+                _ = try await social.createSharedMemoryInvitations(
+                    for: plan.visitID,
+                    inviteeIDs: plan.sharedMemoryInviteeIDs
+                )
+                var receipt = updatedSubmission
+                receipt.sharedMemoryInvitationsCompletedAt = .now
+                try pendingStore.save(receipt)
+                updatedSubmission = pendingStore.load(
+                    visitId: receipt.id,
+                    userId: receipt.userId
+                ) ?? receipt
+            } catch {
+                failedActions.append("its shared MugShot invitations")
+            }
+        }
+
+        let warning = failedActions.isEmpty
+            ? nil
+            : "Your MugShot is safely published. Mugshot will retry \(failedActions.joined(separator: ", ")) without publishing a duplicate."
+        return SipPostPublicationSetupResult(
+            submission: updatedSubmission,
+            warning: warning
+        )
+    }
+
     @MainActor
     private func completeSuccessfulSave(
         visitID: UUID,
@@ -3051,7 +3568,10 @@ struct LogVisitView: View {
             ?? authModel.authenticatedUser?.id
             ?? dataManager.appData.currentUser?.id
         if draft.context == .cafe {
-            CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(draft.visibility)
+            CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(
+                draft.visibility,
+                in: .forUserID(continuationOwnerUserID)
+            )
         }
         var sessionForContinuation = draft.cafeSessionDraft
         if sessionForContinuation == nil,
@@ -3114,7 +3634,8 @@ struct LogVisitView: View {
         }
         let durableCompletedDraft = try SipDraftStore.shared.save(
             completedDraft,
-            images: photoImages
+            images: photoImages,
+            in: .forUserID(continuationOwnerUserID)
         )
         composerModel.draft = durableCompletedDraft
         let completionRecord = V3PublishedCompletionRecord(
@@ -3214,8 +3735,14 @@ struct LogVisitView: View {
         let record = publishedCompletionRecord
             ?? V3PublishedCompletionStore.shared.load(ownerUserID: ownerUserID)
         if let record,
-           let storedDraft = SipDraftStore.shared.load(id: record.visitID) {
-            SipDraftStore.shared.remove(storedDraft.draft)
+           let storedDraft = SipDraftStore.shared.load(
+               id: record.visitID,
+               in: .forUserID(record.ownerUserID)
+           ) {
+            SipDraftStore.shared.remove(
+                storedDraft.draft,
+                in: .forUserID(record.ownerUserID)
+            )
         }
         V3PublishedCompletionStore.shared.remove(ownerUserID: ownerUserID)
         publishedCompletionRecord = nil
@@ -3268,7 +3795,10 @@ struct LogVisitView: View {
                 return
             }
             completedRemoteVisit = visit
-            if let stored = SipDraftStore.shared.load(id: record.visitID) {
+            if let stored = SipDraftStore.shared.load(
+                id: record.visitID,
+                in: .forUserID(record.ownerUserID)
+            ) {
                 let coverImage = stored.images.isEmpty
                     ? nil
                     : stored.images[min(
@@ -3693,6 +4223,10 @@ struct LogVisitView: View {
     private func removeCompanion(_ companion: SipCompanion) {
         draft.taggedCompanions?.removeAll { $0.userID == companion.userID }
         draft.companions = draft.taggedCompanions?.map(\.displayName) ?? []
+    }
+
+    private func removeSharedMemoryInvitee(_ invitee: SipCompanion) {
+        draft.sharedMemoryInvitees?.removeAll { $0.userID == invitee.userID }
     }
 
     private func appendPhotos(_ images: [UIImage]) {
@@ -4329,17 +4863,46 @@ struct HalfStepStarRating: View {
     }
 }
 
+private enum SipPeoplePickerMode: String, Identifiable {
+    case tag
+    case sharedMemory
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .tag: return "Tag people"
+        case .sharedMemory: return "Invite to shared MugShot"
+        }
+    }
+
+    var searchPlaceholder: String {
+        switch self {
+        case .tag: return "Search Mugshot accounts"
+        case .sharedMemory: return "Search friends"
+        }
+    }
+}
+
 private struct SipCompanionPicker: View {
+    let mode: SipPeoplePickerMode
     let onSave: ([SipCompanion]) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var selected: [SipCompanion]
     @State private var suggestions: [SipCompanionSuggestion] = []
     @State private var friends: [SocialConnection] = []
+    @State private var accountMatches: [SipCompanion] = []
     @State private var query = ""
     @State private var isLoading = true
+    @State private var isSearching = false
     @State private var errorMessage: String?
 
-    init(selected: [SipCompanion], onSave: @escaping ([SipCompanion]) -> Void) {
+    init(
+        mode: SipPeoplePickerMode,
+        selected: [SipCompanion],
+        onSave: @escaping ([SipCompanion]) -> Void
+    ) {
+        self.mode = mode
         self.onSave = onSave
         _selected = State(initialValue: selected)
     }
@@ -4356,14 +4919,23 @@ private struct SipCompanionPicker: View {
                 avatarURL: friend.avatarURL
             )
         })
+        let knownIDs = Set(result.map(\.userID))
+        result.append(contentsOf: selected.filter { !knownIDs.contains($0.userID) })
         return result
     }
 
-    private var filteredFriends: [SipCompanion] {
-        guard let needle = query.remoteTrimmedNonEmpty?.localizedLowercase else { return allFriends }
-        return allFriends.filter {
-            $0.displayName.localizedLowercase.contains(needle)
-                || $0.username.localizedLowercase.contains(needle)
+    private var visiblePeople: [SipCompanion] {
+        guard let needle = query.remoteTrimmedNonEmpty?.localizedLowercase else {
+            return allFriends
+        }
+        switch mode {
+        case .tag:
+            return accountMatches
+        case .sharedMemory:
+            return allFriends.filter {
+                $0.displayName.localizedLowercase.contains(needle)
+                    || $0.username.localizedLowercase.contains(needle)
+            }
         }
     }
 
@@ -4379,7 +4951,7 @@ private struct SipCompanionPicker: View {
                     HStack(spacing: 9) {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.mugshotSage)
-                        TextField("Search friends", text: $query)
+                        TextField(mode.searchPlaceholder, text: $query)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
@@ -4393,18 +4965,20 @@ private struct SipCompanionPicker: View {
                     }
                 }
 
-                Section(query.isEmpty ? "All friends" : "Matches") {
-                    if isLoading {
+                Section(query.isEmpty
+                    ? (mode == .tag ? "People you know" : "All friends")
+                    : "Matches") {
+                    if isLoading || isSearching {
                         HStack(spacing: 10) {
                             ProgressView()
-                            Text("Opening your friends…")
+                            Text(isSearching ? "Searching Mugshot…" : "Opening your people…")
                                 .foregroundColor(.secondaryText)
                         }
-                    } else if filteredFriends.isEmpty {
-                        Text(query.isEmpty ? "Add friends before tagging company in a sip." : "No friends match that search.")
+                    } else if visiblePeople.isEmpty {
+                        Text(emptyMessage)
                             .foregroundColor(.secondaryText)
                     } else {
-                        ForEach(filteredFriends) { companion in
+                        ForEach(visiblePeople) { companion in
                             companionRow(companion)
                         }
                     }
@@ -4420,7 +4994,7 @@ private struct SipCompanionPicker: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.creamWhite)
-            .navigationTitle("Shared this sip")
+            .navigationTitle(mode.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -4435,7 +5009,19 @@ private struct SipCompanionPicker: View {
                 }
             }
             .task { await load() }
+            .task(id: query) { await searchAccountsIfNeeded() }
         }
+    }
+
+    private var emptyMessage: String {
+        if query.remoteTrimmedNonEmpty != nil {
+            return mode == .tag
+                ? "No Mugshot accounts match that search."
+                : "No friends match that search."
+        }
+        return mode == .tag
+            ? "Search for any Mugshot account to tag them."
+            : "Become friends before inviting someone to co-own a shared MugShot."
     }
 
     private func companionRow(_ companion: SipCompanion) -> some View {
@@ -4481,5 +5067,44 @@ private struct SipCompanionPicker: View {
         } catch {
             errorMessage = "Mugshot couldn’t open your friends just now."
         }
+    }
+
+    @MainActor
+    private func searchAccountsIfNeeded() async {
+        guard mode == .tag,
+              let trimmedQuery = query.remoteTrimmedNonEmpty else {
+            accountMatches = []
+            isSearching = false
+            return
+        }
+
+        isSearching = true
+        do {
+            try await Task.sleep(nanoseconds: 250_000_000)
+            try Task.checkCancellation()
+            let people = try await SocialDiscoveryService(
+                client: try SupabaseClientProvider.shared.client()
+            ).searchPeople(query: trimmedQuery)
+            try Task.checkCancellation()
+            accountMatches = people.compactMap { person in
+                guard person.friendshipState != .blocked,
+                      person.friendshipState != .self else {
+                    return nil
+                }
+                return SipCompanion(
+                    userID: person.id,
+                    displayName: person.displayName,
+                    username: person.username,
+                    avatarURL: person.avatarURL
+                )
+            }
+            errorMessage = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            accountMatches = []
+            errorMessage = "Mugshot couldn’t search accounts just now."
+        }
+        isSearching = false
     }
 }

@@ -128,35 +128,18 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testEveryoneTextOnlyGuardAndDraftRestoration() throws {
+    func testEveryoneAudienceAndDraftRestoration() throws {
         let app = launch(reset: true)
-        openHomeQuickSip(in: app, drinkName: "Draft restoration latte")
-        chooseQuickRating(in: app)
-
-        app.buttons["sipComposer.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
-
-        app.buttons["Everyone"].tap()
-        app.buttons["sipComposer.primaryAction"].tap()
-        XCTAssertTrue(
-            app.staticTexts["Add a one-line thought or photo before sharing this sip with Everyone."].waitForExistence(timeout: 2),
-            "Everyone must reject a textless, photo-less post."
+        openV3HomeDraftToPublish(
+            in: app,
+            drinkName: "Draft restoration latte",
+            caption: "A home sip worth remembering"
         )
 
-        app.buttons["Previous step"].tap()
-        app.buttons["Previous step"].tap()
-        let caption = app.textFields["sipComposer.socialCaption"]
-        XCTAssertTrue(caption.waitForExistence(timeout: 2))
-        caption.tap()
-        caption.typeText("A text-only sip worth remembering")
-        app.buttons["sipComposer.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Rate the sip."].waitForExistence(timeout: 2))
-        app.buttons["sipComposer.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 2))
-        app.buttons["sipComposer.primaryAction"].tap()
-
-        XCTAssertTrue(app.alerts["Publish without a photo?"].waitForExistence(timeout: 2))
-        app.alerts["Publish without a photo?"].buttons["Cancel"].tap()
+        let everyone = app.buttons["Everyone"].firstMatch
+        XCTAssertTrue(everyone.waitForExistence(timeout: 2))
+        everyone.tap()
+        XCTAssertTrue(everyone.isSelected)
 
         app.terminate()
         app.launchArguments = ["--ui-testing"]
@@ -165,15 +148,15 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Add"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 3),
-            "A meaningful draft should restore to its persisted guided step after relaunch."
+            app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3),
+            "A meaningful V3 draft should restore to its persisted publish step after relaunch."
         )
-        XCTAssertTrue(app.buttons["Everyone"].isSelected, "The selected audience should restore with the draft.")
-        app.buttons["Private"].tap()
-        XCTAssertTrue(app.buttons["Private"].isSelected)
-        app.buttons["Previous step"].tap()
-        app.buttons["Previous step"].tap()
-        XCTAssertEqual(app.textFields["sipComposer.socialCaption"].value as? String, "A text-only sip worth remembering")
+        XCTAssertTrue(app.buttons["Everyone"].firstMatch.isSelected, "The selected audience should restore with the draft.")
+        XCTAssertEqual(
+            v3Element("logASipV3.caption", in: app).value as? String,
+            "A home sip worth remembering"
+        )
+        XCTAssertTrue(v3Element("logASipV3.primaryAction", in: app).isEnabled)
     }
 
     @MainActor
@@ -472,10 +455,13 @@ final class testMugshotUITests: XCTestCase {
         let app = launch(reset: true, extraArguments: ["--ui-testing-interrupt-auth-once"])
         let drinkName = "Interrupted auth mocha"
 
-        openHomeQuickSip(in: app, drinkName: drinkName)
-        chooseQuickRating(in: app)
-        app.buttons["sipComposer.primaryAction"].tap()
-        app.buttons["sipComposer.primaryAction"].tap()
+        openV3HomeDraftToPublish(
+            in: app,
+            drinkName: drinkName,
+            caption: "A private draft that survives authentication changes"
+        )
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
+        tapV3PrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Sign back in to save. Your draft will stay here."].waitForExistence(timeout: 2))
 
         app.terminate()
@@ -484,44 +470,44 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(app.staticTexts["Who should see this sip?"].waitForExistence(timeout: 3))
-        app.buttons["Previous step"].tap()
-        app.buttons["Previous step"].tap()
-        XCTAssertTrue(app.textFields["sipComposer.drinkName"].waitForExistence(timeout: 2))
-        XCTAssertEqual(app.textFields["sipComposer.drinkName"].value as? String, drinkName)
-        app.buttons["sipComposer.primaryAction"].tap()
-        app.buttons["sipComposer.primaryAction"].tap()
-        app.buttons["sipComposer.primaryAction"].tap()
-        finishSuccessfulSip(in: app)
+        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
+        XCTAssertTrue(app.staticTexts[drinkName].exists)
+        XCTAssertEqual(
+            v3Element("logASipV3.caption", in: app).value as? String,
+            "A private draft that survives authentication changes"
+        )
+        tapV3PrimaryAction(in: app)
 
-        XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 5))
-        app.buttons["Journal"].tap()
-        let savedDrink = app.staticTexts[drinkName]
-        for _ in 0..<6 where !savedDrink.exists {
-            app.scrollViews.firstMatch.swipeUp()
-        }
-        XCTAssertTrue(savedDrink.waitForExistence(timeout: 3))
-        app.buttons["Open sip"].tap()
-        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
+        XCTAssertTrue(v3Element("logASipV3.passport", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Taste Passport"].exists)
+        XCTAssertTrue(app.staticTexts["Mugshot published"].exists)
     }
 
     @MainActor
     func testGuidedCoreStepsPassAccessibilityAudit() throws {
-        let app = launch(reset: true)
+        let app = launch(reset: true, extraArguments: ["--ui-testing-seed-photo"])
         app.buttons["Add"].tap()
-        XCTAssertTrue(app.staticTexts["Where did this happen?"].waitForExistence(timeout: 2))
+        let home = v3Element("logASipV3.context.home", in: app)
+        XCTAssertTrue(home.waitForExistence(timeout: 3))
+        home.tap()
+        XCTAssertTrue(v3Element("logASipV3.drinkName", in: app).exists)
         try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
 
-        app.buttons["Home"].tap()
-        app.buttons["sipComposer.primaryAction"].tap()
-        let drinkField = app.textFields["sipComposer.drinkName"]
-        XCTAssertTrue(drinkField.waitForExistence(timeout: 2))
-        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
-
+        let drinkField = v3Element("logASipV3.drinkName", in: app)
         drinkField.tap()
         drinkField.typeText("Accessibility audit cortado")
-        app.buttons["sipComposer.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Rate the sip."].waitForExistence(timeout: 2))
+        if !app.staticTexts["How was the sip?"].waitForExistence(timeout: 1) {
+            tapV3PrimaryAction(in: app)
+        }
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
+
+        let sipScore = v3Element("logASipV3.sipScore", in: app)
+        tapAfterRevealing(sipScore, in: app)
+        sipScore.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.5)).tap()
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Would you make it again?"].waitForExistence(timeout: 3))
         try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait])
     }
 
@@ -533,7 +519,7 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.textFields["Search places"].waitForExistence(timeout: 3))
         try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .textClipped, .trait]) { issue in
             if issue.element?.label == "Legal",
-               issue.detailedDescription.contains("MKAttributionLabel") {
+               issue.element?.elementType == .link {
                 return true
             }
             let elementDescription = issue.element.map {
@@ -579,6 +565,57 @@ final class testMugshotUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         return app
+    }
+
+    @MainActor
+    private func v3Element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    @MainActor
+    private func tapV3PrimaryAction(in app: XCUIApplication) {
+        let action = v3Element("logASipV3.primaryAction", in: app)
+        XCTAssertTrue(action.waitForExistence(timeout: 3))
+        XCTAssertTrue(action.isEnabled)
+        tapAfterRevealing(action, in: app)
+    }
+
+    @MainActor
+    private func openV3HomeDraftToPublish(
+        in app: XCUIApplication,
+        drinkName: String,
+        caption: String
+    ) {
+        app.buttons["Add"].tap()
+
+        let home = v3Element("logASipV3.context.home", in: app)
+        XCTAssertTrue(home.waitForExistence(timeout: 3))
+        home.tap()
+
+        let missedPhoto = v3Element("logASipV3.photoFallback.missed", in: app)
+        XCTAssertTrue(missedPhoto.waitForExistence(timeout: 2))
+        missedPhoto.tap()
+
+        let drinkField = v3Element("logASipV3.drinkName", in: app)
+        tapAfterRevealing(drinkField, in: app)
+        drinkField.typeText(drinkName)
+        if !app.staticTexts["How was the sip?"].waitForExistence(timeout: 1) {
+            tapV3PrimaryAction(in: app)
+        }
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 3))
+
+        let sipScore = v3Element("logASipV3.sipScore", in: app)
+        tapAfterRevealing(sipScore, in: app)
+        tapV3PrimaryAction(in: app)
+
+        XCTAssertTrue(app.staticTexts["Would you make it again?"].waitForExistence(timeout: 3))
+        tapAfterRevealing(v3Element("logASipV3.homeMakeAgain.yes", in: app), in: app)
+        tapV3PrimaryAction(in: app)
+
+        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
+        let captionField = v3Element("logASipV3.caption", in: app)
+        tapAfterRevealing(captionField, in: app)
+        captionField.typeText(caption)
     }
 
     @MainActor

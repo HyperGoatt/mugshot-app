@@ -72,6 +72,55 @@ struct SipDetailReactionSummary: Identifiable, Equatable {
     var id: String { title }
 }
 
+struct SipDetailCommentAction: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let isDestructive: Bool
+}
+
+enum SipDetailCommentActionPolicy {
+    static func actions(
+        commentOwnerID: UUID,
+        postOwnerID: UUID,
+        viewerID: UUID?
+    ) -> [SipDetailCommentAction] {
+        if commentOwnerID == viewerID {
+            return [
+                SipDetailCommentAction(
+                    id: "edit",
+                    title: "Edit comment",
+                    systemImage: "pencil",
+                    isDestructive: false
+                ),
+                SipDetailCommentAction(
+                    id: "remove",
+                    title: "Remove comment",
+                    systemImage: "trash",
+                    isDestructive: true
+                )
+            ]
+        }
+
+        var actions: [SipDetailCommentAction] = []
+        if postOwnerID == viewerID {
+            actions.append(SipDetailCommentAction(
+                id: "remove",
+                title: "Remove from your post",
+                systemImage: "trash",
+                isDestructive: true
+            ))
+        }
+        actions.append(SipDetailCommentAction(
+            id: "report",
+            title: "Report comment",
+            systemImage: "exclamationmark.bubble",
+            isDestructive: true
+        ))
+        return actions
+    }
+}
+
 struct SipDetailCommentModel: Identifiable, Equatable {
     let id: UUID
     let authorName: String
@@ -79,6 +128,25 @@ struct SipDetailCommentModel: Identifiable, Equatable {
     let text: String
     let timestamp: String
     let canReply: Bool
+    let actions: [SipDetailCommentAction]
+
+    init(
+        id: UUID,
+        authorName: String,
+        username: String,
+        text: String,
+        timestamp: String,
+        canReply: Bool,
+        actions: [SipDetailCommentAction] = []
+    ) {
+        self.id = id
+        self.authorName = authorName
+        self.username = username
+        self.text = text
+        self.timestamp = timestamp
+        self.canReply = canReply
+        self.actions = actions
+    }
 }
 
 struct SipDetailMentionSuggestion: Identifiable, Equatable {
@@ -89,6 +157,9 @@ struct SipDetailMentionSuggestion: Identifiable, Equatable {
 enum SipDetailSection: String, CaseIterable, Equatable {
     case note
     case rawNote
+    case sharedMugshot
+    case recipe
+    case taggedPeople
     case actions
     case friendsNoticed
     case taste
@@ -96,6 +167,72 @@ enum SipDetailSection: String, CaseIterable, Equatable {
     case visitDetails
     case privateNote
     case conversation
+}
+
+struct SipDetailSharedMugshotContribution: Identifiable, Equatable {
+    let visitID: UUID
+    let personName: String
+    let username: String
+    let avatarURL: String?
+    let drinkName: String
+    let caption: String?
+    let score: Double
+    let posterPhotoURL: String?
+    let isCurrentPost: Bool
+
+    var id: UUID { visitID }
+}
+
+struct SipDetailSharedMugshotModel: Equatable {
+    let locationLabel: String?
+    let contributions: [SipDetailSharedMugshotContribution]
+}
+
+enum SipDetailRecipeAccessState: Equatable {
+    case available
+    case locked
+}
+
+enum SipDetailRecipeAction: Equatable {
+    case brewAgain
+    case saveAndAdapt
+}
+
+struct SipDetailRecipeModel: Identifiable, Equatable {
+    let id: UUID
+    let recipeIdentityID: UUID?
+    let recipeVersionID: UUID?
+    let name: String
+    let versionLabel: String?
+    let creatorName: String
+    let creatorUsername: String
+    let accessState: SipDetailRecipeAccessState
+    let visibility: String?
+    let sourceKind: String?
+    let brewMethod: String?
+    let equipment: String?
+    let details: BrewDetails?
+    let canSaveAndAdapt: Bool
+    let canBrewAgain: Bool
+
+    var suggestedAdaptationName: String {
+        let base = name.remoteTrimmedNonEmpty ?? "Saved recipe"
+        let suffix = " Adaptation"
+        guard base.count + suffix.count <= 120 else {
+            return String(base.prefix(120 - suffix.count)) + suffix
+        }
+        return base + suffix
+    }
+}
+
+struct SipDetailTaggedAccount: Identifiable, Equatable {
+    let userID: UUID
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+    let isCurrentUser: Bool
+
+    var id: UUID { userID }
 }
 
 enum SipDetailAction: String, CaseIterable, Identifiable, Equatable {
@@ -149,6 +286,21 @@ enum SipDetailAction: String, CaseIterable, Identifiable, Equatable {
     }
 }
 
+enum SipDetailInteractionGate {
+    static func requiresAuthentication(
+        for action: SipDetailAction,
+        currentUserID: UUID?
+    ) -> Bool {
+        guard currentUserID == nil else { return false }
+        switch action {
+        case .like, .comment, .saveCafe, .recommend, .report, .block:
+            return true
+        case .share, .more, .edit, .correctDrink, .repeatSip, .delete:
+            return false
+        }
+    }
+}
+
 struct SipDetailCapabilities: Equatable {
     let isOwner: Bool
     let dockActions: [SipDetailAction]
@@ -182,16 +334,30 @@ struct SipDetailCapabilities: Equatable {
     static func friend(
         hasCafe: Bool,
         canComment: Bool,
-        canRecommend: Bool
+        canRecommend: Bool,
+        canShareExternally: Bool
     ) -> SipDetailCapabilities {
         var dock: [SipDetailAction] = [.like, .comment]
         if hasCafe { dock.append(.saveCafe) }
-        dock.append(canRecommend ? .recommend : .share)
+        if canRecommend {
+            dock.append(.recommend)
+        } else if canShareExternally {
+            dock.append(.share)
+        }
+        if dock.count < 4 {
+            dock.append(.more)
+        }
+
+        var menu: [SipDetailAction] = []
+        if canRecommend && canShareExternally {
+            menu.append(.share)
+        }
+        menu.append(contentsOf: [.report, .block])
 
         return SipDetailCapabilities(
             isOwner: false,
             dockActions: Array(dock.prefix(4)),
-            menuActions: [.report, .block],
+            menuActions: menu,
             canComment: canComment
         )
     }
@@ -215,6 +381,9 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let caption: String?
     let sharedRawNote: String?
     let privateNote: String?
+    let sharedMugshot: SipDetailSharedMugshotModel?
+    let recipe: SipDetailRecipeModel?
+    let taggedAccounts: [SipDetailTaggedAccount]
     let photos: [SipDetailPhotoSource]
     let usesMugsyPhotoFallback: Bool
     let ratings: [SipDetailRatingItem]
@@ -234,6 +403,9 @@ struct SipDetailContentModel: Identifiable, Equatable {
         var sections: [SipDetailSection] = []
         if caption != nil { sections.append(.note) }
         if sharedRawNote != nil { sections.append(.rawNote) }
+        if sharedMugshot != nil { sections.append(.sharedMugshot) }
+        if recipe != nil { sections.append(.recipe) }
+        if !taggedAccounts.isEmpty { sections.append(.taggedPeople) }
         if !capabilities.dockActions.isEmpty { sections.append(.actions) }
         if !reactions.isEmpty { sections.append(.friendsNoticed) }
         if sipScore > 0 || !ratings.isEmpty || sensorySnapshot != nil { sections.append(.taste) }
@@ -302,6 +474,24 @@ enum SipDetailPresentationAdapter {
             privateNote: isOwner && detail.v3Reflection == nil
                 ? detail.privateNote?.remoteTrimmedNonEmpty
                 : nil,
+            sharedMugshot: sharedMugshotModel(
+                detail.sharedMugshotProjection,
+                currentVisitID: detail.id
+            ),
+            recipe: remoteRecipeModel(
+                detail,
+                isOwner: isOwner,
+                canRepeat: canRepeat
+            ),
+            taggedAccounts: detail.taggedAccounts.map { tag in
+                SipDetailTaggedAccount(
+                    userID: tag.userID,
+                    displayName: tag.personLabel,
+                    username: "@\(tag.username)",
+                    avatarURL: tag.avatarURL,
+                    isCurrentUser: tag.userID == currentUserID
+                )
+            },
             photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
             usesMugsyPhotoFallback: usesMugsyPhotoFallback,
             ratings: visit.orderedRatingScores.map {
@@ -325,7 +515,12 @@ enum SipDetailPresentationAdapter {
                     username: "@\(comment.authorUsername)",
                     text: comment.comment.text,
                     timestamp: SipDetailFormat.relative(comment.comment.createdAtDate),
-                    canReply: comment.comment.parentCommentId == nil
+                    canReply: currentUserID != nil && comment.comment.parentCommentId == nil,
+                    actions: SipDetailCommentActionPolicy.actions(
+                        commentOwnerID: comment.comment.userId,
+                        postOwnerID: visit.userId,
+                        viewerID: currentUserID
+                    )
                 )
             },
             isLiked: detail.currentUserHasLiked,
@@ -353,7 +548,8 @@ enum SipDetailPresentationAdapter {
             : SipDetailCapabilities.friend(
                 hasCafe: visit.journalContext == .cafe && detail.summary.cafe != nil,
                 canComment: currentUserID != nil,
-                canRecommend: canRecommend
+                canRecommend: canRecommend,
+                canShareExternally: visit.visibility.lowercased() == "everyone"
             )
 
         return SipDetailPresentation(content: content, capabilities: capabilities)
@@ -403,6 +599,13 @@ enum SipDetailPresentationAdapter {
             privateNote: isOwner && visit.v3Reflection == nil
                 ? visit.notes?.remoteTrimmedNonEmpty
                 : nil,
+            sharedMugshot: nil,
+            recipe: localRecipeModel(
+                visit,
+                creatorName: authorDisplayName,
+                creatorUsername: "@\(user?.username ?? "user")"
+            ),
+            taggedAccounts: [],
             photos: orderedPhotos.map(SipDetailPhotoSource.local),
             usesMugsyPhotoFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto,
             ratings: ratings.isEmpty ? fallbackRatings : ratings,
@@ -455,7 +658,8 @@ enum SipDetailPresentationAdapter {
             : SipDetailCapabilities.friend(
                 hasCafe: visit.context == .cafe && cafe != nil,
                 canComment: user != nil,
-                canRecommend: false
+                canRecommend: false,
+                canShareExternally: visit.visibility == .everyone
             )
 
         return SipDetailPresentation(content: content, capabilities: capabilities)
@@ -497,9 +701,93 @@ enum SipDetailPresentationAdapter {
         }
     }
 
+    private static func remoteRecipeModel(
+        _ detail: RemoteVisitDetail,
+        isOwner: Bool,
+        canRepeat: Bool
+    ) -> SipDetailRecipeModel? {
+        let visit = detail.summary.visit
+        guard let referencedVersionID = visit.recipeVersionID else { return nil }
+
+        if let projection = detail.recipeProjection {
+            let owner = projection.owner
+            return SipDetailRecipeModel(
+                id: projection.recipeVersionID,
+                recipeIdentityID: projection.recipeIdentityID,
+                recipeVersionID: projection.recipeVersionID,
+                name: projection.recipeName,
+                versionLabel: projection.versionLabel?.remoteTrimmedNonEmpty
+                    ?? "Version \(projection.versionNumber)",
+                creatorName: owner?.personLabel ?? detail.summary.authorDisplayName,
+                creatorUsername: "@\(owner?.username ?? detail.summary.authorUsername)",
+                accessState: .available,
+                visibility: audienceLabel(projection.visibilityValue),
+                sourceKind: projection.sourceKindValue
+                    .replacingOccurrences(of: "_", with: " ")
+                    .capitalized,
+                brewMethod: projection.brewMethod?.remoteTrimmedNonEmpty,
+                equipment: projection.equipment?.remoteTrimmedNonEmpty,
+                details: projection.resolvedBrewDetails,
+                canSaveAndAdapt: !isOwner && projection.canSaveAndAdapt,
+                canBrewAgain: isOwner && canRepeat
+            )
+        }
+
+        // The identity-only RPC is deliberately separate from the protected
+        // blueprint projection. Never fall back to visit brew payload when
+        // the caller-bound full projection is unavailable.
+        let identity = detail.recipeIdentityProjection
+        return SipDetailRecipeModel(
+            id: referencedVersionID,
+            recipeIdentityID: identity?.recipeIdentityID,
+            recipeVersionID: referencedVersionID,
+            name: identity?.recipeName.remoteTrimmedNonEmpty ?? "Private recipe",
+            versionLabel: identity?.versionLabel?.remoteTrimmedNonEmpty
+                ?? identity.map { "Version \($0.versionNumber)" },
+            creatorName: identity?.ownerLabel ?? detail.summary.authorDisplayName,
+            creatorUsername: "@\(identity?.ownerUsername ?? detail.summary.authorUsername)",
+            accessState: .locked,
+            visibility: nil,
+            sourceKind: nil,
+            brewMethod: nil,
+            equipment: nil,
+            details: nil,
+            canSaveAndAdapt: false,
+            canBrewAgain: false
+        )
+    }
+
+    private static func localRecipeModel(
+        _ visit: Visit,
+        creatorName: String,
+        creatorUsername: String
+    ) -> SipDetailRecipeModel? {
+        guard visit.context == .recipe else { return nil }
+        let identityID = visit.brewDetails.recipeIdentityID
+        return SipDetailRecipeModel(
+            id: identityID ?? visit.id,
+            recipeIdentityID: identityID,
+            recipeVersionID: nil,
+            name: visit.brewDetails.recipeName?.remoteTrimmedNonEmpty ?? "Saved recipe",
+            versionLabel: visit.brewDetails.recipeVersion?.remoteTrimmedNonEmpty,
+            creatorName: creatorName,
+            creatorUsername: creatorUsername,
+            accessState: .available,
+            visibility: nil,
+            sourceKind: nil,
+            brewMethod: visit.brewMethod?.remoteTrimmedNonEmpty,
+            equipment: visit.equipment?.remoteTrimmedNonEmpty,
+            details: visit.brewDetails,
+            canSaveAndAdapt: false,
+            canBrewAgain: false
+        )
+    }
+
     private static func remoteVisitFacts(_ detail: RemoteVisitDetail) -> [SipDetailVisitFact] {
         let visit = detail.summary.visit
-        let structured = visit.structuredBrewDetails
+        let structured = visit.recipeVersionID == nil
+            ? visit.structuredBrewDetails
+            : BrewDetails.empty
         var facts: [SipDetailVisitFact] = []
         if let companions = structured.companions, !companions.isEmpty {
             facts.append(SipDetailVisitFact(label: "With", value: companions.joined(separator: ", "), systemImage: "person.2"))
@@ -559,10 +847,12 @@ enum SipDetailPresentationAdapter {
         if let additions = structured.additions?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Additions", value: additions, systemImage: "plus.circle"))
         }
-        if let brewMethod = visit.brewMethod?.remoteTrimmedNonEmpty {
+        if visit.recipeVersionID == nil,
+           let brewMethod = visit.brewMethod?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Method", value: brewMethod, systemImage: "drop"))
         }
-        if let equipment = visit.equipment?.remoteTrimmedNonEmpty {
+        if visit.recipeVersionID == nil,
+           let equipment = visit.equipment?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Equipment", value: equipment, systemImage: "wrench.and.screwdriver"))
         }
         return facts
@@ -620,6 +910,32 @@ enum SipDetailPresentationAdapter {
         }
         return ordered
     }
+
+    private static func sharedMugshotModel(
+        _ projection: RemoteSharedMugshotProjection?,
+        currentVisitID: UUID
+    ) -> SipDetailSharedMugshotModel? {
+        guard let projection,
+              let contributions = projection.groupedContributions else {
+            return nil
+        }
+        return SipDetailSharedMugshotModel(
+            locationLabel: projection.locationLabel?.remoteTrimmedNonEmpty,
+            contributions: contributions.map { contribution in
+                SipDetailSharedMugshotContribution(
+                    visitID: contribution.visitID,
+                    personName: contribution.personLabel,
+                    username: "@\(contribution.username)",
+                    avatarURL: contribution.avatarURL,
+                    drinkName: contribution.drink,
+                    caption: contribution.caption?.remoteTrimmedNonEmpty,
+                    score: contribution.overallScore,
+                    posterPhotoURL: contribution.posterPhotoURL,
+                    isCurrentPost: contribution.visitID == currentVisitID
+                )
+            }
+        )
+    }
 }
 
 // MARK: - Shared Immersive Pour screen
@@ -631,13 +947,18 @@ struct SipDetailScreen: View {
     @Binding var toolbarProgress: CGFloat
     let commentFocus: FocusState<Bool>.Binding
     let isWorking: Bool
+    let statusMessage: String?
     let mentionSuggestions: [SipDetailMentionSuggestion]
     let onAction: (SipDetailAction) -> Void
     let onSubmitComment: () -> Void
     let onReply: (UUID) -> Void
+    let onCommentAction: (UUID, SipDetailCommentAction) -> Void
     let onCancelReply: () -> Void
     let onSelectMention: (UUID) -> Void
     let onPhotoTap: (Int) -> Void
+    let onRecipeAction: (SipDetailRecipeAction) -> Void
+    let onTaggedAccount: (UUID) -> Void
+    let onRemoveOwnTag: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -724,6 +1045,33 @@ struct SipDetailScreen: View {
                     .padding(.top, 22)
             }
 
+            if let sharedMugshot = presentation.content.sharedMugshot {
+                SipSharedMugshotSection(model: sharedMugshot)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 24)
+            }
+
+            if let recipe = presentation.content.recipe {
+                SipDetailRecipeSection(
+                    model: recipe,
+                    isWorking: isWorking,
+                    onAction: onRecipeAction
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 24)
+            }
+
+            if !presentation.content.taggedAccounts.isEmpty {
+                SipDetailTaggedPeopleSection(
+                    accounts: presentation.content.taggedAccounts,
+                    isWorking: isWorking,
+                    onOpenProfile: onTaggedAccount,
+                    onRemoveOwnTag: onRemoveOwnTag
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 24)
+            }
+
             SipDetailActionDock(
                 actions: presentation.capabilities.dockActions,
                 model: presentation.content,
@@ -732,6 +1080,12 @@ struct SipDetailScreen: View {
             )
             .padding(.horizontal, 18)
             .padding(.top, presentation.content.caption == nil ? 26 : 22)
+
+            if let statusMessage {
+                SipDetailStatusBanner(message: statusMessage)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 16)
+            }
 
             if !presentation.content.reactions.isEmpty {
                 SipFriendsNoticedSection(reactions: presentation.content.reactions)
@@ -788,7 +1142,8 @@ struct SipDetailScreen: View {
                         onReply(commentID)
                         focusComposer(proxy: proxy)
                     },
-                    onCompose: { focusComposer(proxy: proxy) }
+                    onCompose: { focusComposer(proxy: proxy) },
+                    onCommentAction: onCommentAction
                 )
                 .padding(.horizontal, 22)
                 .padding(.top, 30)
@@ -811,6 +1166,10 @@ struct SipDetailScreen: View {
 
     private func handle(_ action: SipDetailAction, proxy: ScrollViewProxy) {
         if action == .comment {
+            guard presentation.capabilities.canComment else {
+                onAction(.comment)
+                return
+            }
             focusComposer(proxy: proxy)
             return
         }
@@ -841,6 +1200,380 @@ struct SipDetailScreen: View {
                 tasteReveal = 1
             }
         }
+    }
+}
+
+private struct SipDetailStatusBanner: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "info.circle.fill")
+            .font(.system(.footnote, design: .default, weight: .semibold))
+            .foregroundStyle(Color.espressoBrown)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(13)
+            .background(
+                Color.sandBeige.opacity(0.72),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(message)
+            .accessibilityIdentifier("sip.detail.status")
+    }
+}
+
+private struct SipSharedMugshotSection: View {
+    let model: SipDetailSharedMugshotModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "person.2.wave.2.fill")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .frame(width: 38, height: 38)
+                    .background(Color.mugshotMint.opacity(0.34), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Shared MugShot")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.espressoBrown)
+                    Text(model.locationLabel?.remoteTrimmedNonEmpty
+                         ?? "One moment, independently remembered")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                }
+            }
+
+            VStack(spacing: 10) {
+                ForEach(model.contributions) { contribution in
+                    HStack(spacing: 11) {
+                        PhotoThumbnailView(
+                            photoPath: contribution.posterPhotoURL,
+                            size: 54
+                        )
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(contribution.personName)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.espressoBrown)
+                                if contribution.isCurrentPost {
+                                    Text("This post")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(Color.mugshotSage)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(Color.mugshotMint.opacity(0.34), in: Capsule())
+                                }
+                            }
+                            Text("\(contribution.drinkName) · \(contribution.score.formatted(.number.precision(.fractionLength(1))))")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.secondaryText)
+                            if let caption = contribution.caption {
+                                Text(caption)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.secondaryText)
+                                    .lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "\(contribution.personName), \(contribution.drinkName), score \(contribution.score.formatted(.number.precision(.fractionLength(1))))"
+                    )
+                }
+            }
+
+            Text("Each person keeps their own post and audience. This grouped view only includes MugShots you can already see.")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sip.detail.sharedMugshot")
+    }
+}
+
+private struct SipDetailRecipeSection: View {
+    let model: SipDetailRecipeModel
+    let isWorking: Bool
+    let onAction: (SipDetailRecipeAction) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: model.accessState == .locked ? "lock.fill" : "book.pages.fill")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .frame(width: 38, height: 38)
+                    .background(Color.mugshotMint.opacity(0.34), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.espressoBrown)
+                    HStack(spacing: 5) {
+                        if let version = model.versionLabel {
+                            Text(version)
+                        }
+                        Text("by \(model.creatorUsername)")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondaryText)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if model.accessState == .locked {
+                lockedContent
+            } else {
+                availableContent
+            }
+
+            if model.canBrewAgain {
+                recipeButton(
+                    title: "Brew Again",
+                    systemImage: "arrow.clockwise.circle.fill",
+                    action: .brewAgain
+                )
+            } else if model.canSaveAndAdapt {
+                recipeButton(
+                    title: "Save & Adapt",
+                    systemImage: "square.and.pencil",
+                    action: .saveAndAdapt
+                )
+            }
+        }
+        .padding(16)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sip.detail.recipe")
+    }
+
+    private var lockedContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Private blueprint", systemImage: "lock.shield.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.espressoBrown)
+            Text("You can see which recipe inspired this MugShot, but its method, equipment, quantities, and steps stay private.")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.sandBeige.opacity(0.66), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var availableContent: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            if model.visibility != nil || model.sourceKind != nil {
+                HStack(spacing: 8) {
+                    if let visibility = model.visibility {
+                        recipeChip(visibility, systemImage: "eye.fill")
+                    }
+                    if let sourceKind = model.sourceKind {
+                        recipeChip(sourceKind, systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                }
+            }
+
+            if let method = model.brewMethod {
+                detailLine("Method", method)
+            }
+            if let equipment = model.equipment {
+                detailLine("Equipment", equipment)
+            }
+            if let details = model.details {
+                if let extraction = details.extractionSummary {
+                    detailLine("Extraction", extraction)
+                }
+                if let beans = details.beans?.remoteTrimmedNonEmpty {
+                    detailLine("Beans", beans)
+                }
+                if let origin = details.beanOrigin?.remoteTrimmedNonEmpty {
+                    detailLine("Origin", origin)
+                }
+                if let roast = details.roastLevel?.remoteTrimmedNonEmpty {
+                    detailLine("Roast", roast)
+                }
+                if let grind = details.grindSetting?.remoteTrimmedNonEmpty {
+                    detailLine("Grind", grind)
+                }
+                if let temperature = details.waterTemperatureCelsius {
+                    detailLine("Water", String(format: "%.0f°C", temperature))
+                }
+                if let waterNotes = details.waterNotes?.remoteTrimmedNonEmpty {
+                    detailLine("Water notes", waterNotes)
+                }
+                if let additions = details.additions?.remoteTrimmedNonEmpty {
+                    detailLine("Additions", additions)
+                }
+                if let servingVolume = details.servingVolumeMilliliters {
+                    detailLine("Serving", String(format: "%.0f ml", servingVolume))
+                }
+                if let shotCount = details.espressoShotCount {
+                    detailLine("Espresso", "\(shotCount) \(shotCount == 1 ? "shot" : "shots")")
+                }
+                if let steps = details.steps?.filter({ $0.instruction.remoteTrimmedNonEmpty != nil }),
+                   !steps.isEmpty {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("Instructions")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color.tertiaryText)
+                        ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                            HStack(alignment: .top, spacing: 9) {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color.foamWhite)
+                                    .frame(width: 22, height: 22)
+                                    .background(Color.mugshotSage, in: Circle())
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(step.instruction)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(Color.espressoBrown)
+                                    if let duration = step.durationSeconds {
+                                        Text("\(duration) sec")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(Color.tertiaryText)
+                                    }
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Step \(index + 1), \(step.instruction)")
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+        }
+    }
+
+    private func recipeChip(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Color.espressoBrown)
+            .padding(.horizontal, 9)
+            .frame(minHeight: 32)
+            .background(Color.mugshotMint.opacity(0.28), in: Capsule())
+    }
+
+    private func detailLine(_ label: String, _ value: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(label)
+                    .frame(width: 82, alignment: .leading)
+                Text(value)
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                Text(value)
+            }
+        }
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(Color.espressoBrown)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label), \(value)")
+    }
+
+    private func recipeButton(
+        title: String,
+        systemImage: String,
+        action: SipDetailRecipeAction
+    ) -> some View {
+        Button {
+            onAction(action)
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 48)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .disabled(isWorking)
+    }
+}
+
+private struct SipDetailTaggedPeopleSection: View {
+    let accounts: [SipDetailTaggedAccount]
+    let isWorking: Bool
+    let onOpenProfile: (UUID) -> Void
+    let onRemoveOwnTag: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label("People tagged", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.espressoBrown)
+                Text("Tags credit people without changing who owns this MugShot or who can see it.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach(accounts) { account in
+                HStack(spacing: 10) {
+                    Button {
+                        onOpenProfile(account.userID)
+                    } label: {
+                        HStack(spacing: 10) {
+                            MugshotAvatar(
+                                name: account.displayName,
+                                size: 38,
+                                imageURL: account.avatarURL
+                            )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.displayName)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.espressoBrown)
+                                Text(account.username)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.secondaryText)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens this Mugshot profile")
+
+                    if account.isCurrentUser {
+                        Button("Remove tag", role: .destructive) {
+                            onRemoveOwnTag()
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                        .buttonStyle(.bordered)
+                        .disabled(isWorking)
+                        .accessibilityHint("Removes your name without changing this post's audience")
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sip.detail.taggedPeople")
     }
 }
 
@@ -1582,6 +2315,7 @@ private struct SipConversationSection: View {
     let canComment: Bool
     let onReply: (UUID) -> Void
     let onCompose: () -> Void
+    let onCommentAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1604,7 +2338,11 @@ private struct SipConversationSection: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(comments) { comment in
-                        SipDetailCommentRow(comment: comment, onReply: onReply)
+                        SipDetailCommentRow(
+                            comment: comment,
+                            onReply: onReply,
+                            onAction: onCommentAction
+                        )
                         if comment.id != comments.last?.id {
                             Divider().foregroundStyle(Color.mugshotLine)
                         }
@@ -1640,6 +2378,7 @@ private struct SipConversationSection: View {
 private struct SipDetailCommentRow: View {
     let comment: SipDetailCommentModel
     let onReply: (UUID) -> Void
+    let onAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -1652,6 +2391,24 @@ private struct SipDetailCommentRow: View {
                     Text(comment.timestamp)
                         .font(.caption2)
                         .foregroundStyle(Color.tertiaryText)
+                    Spacer(minLength: 8)
+                    if !comment.actions.isEmpty {
+                        Menu {
+                            ForEach(comment.actions) { action in
+                                Button(role: action.isDestructive ? .destructive : nil) {
+                                    onAction(comment.id, action)
+                                } label: {
+                                    Label(action.title, systemImage: action.systemImage)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .bold))
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Actions for \(comment.authorName)’s comment")
+                    }
                 }
                 Text(comment.text)
                     .font(.body)
@@ -1848,6 +2605,7 @@ struct SipDetailErrorView: View {
 
 struct SipDeleteConfirmationSheet: View {
     let isDeleting: Bool
+    let errorMessage: String?
     let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -1866,6 +2624,13 @@ struct SipDeleteConfirmationSheet: View {
                 .foregroundStyle(Color.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(.footnote, design: .default, weight: .semibold))
+                    .foregroundStyle(Color.red)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("sip.delete.error")
+            }
             Button(role: .destructive, action: onDelete) {
                 HStack {
                     if isDeleting { ProgressView().tint(.white) }
@@ -1896,23 +2661,31 @@ struct SipDeleteConfirmationSheet: View {
     }
 }
 
+enum SipDetailEditSaveResult: Equatable {
+    case success
+    case failure(String)
+}
+
 struct SipDetailEditForm: View {
     let summary: SipDetailContentModel
+    let allowsPrivateNoteEditing: Bool
     @State private var publicNote: String
     @State private var privateNote: String
     @State private var visibility: VisitVisibility
     @State private var isSaving = false
     @State private var errorMessage: String?
-    let onSave: (String, String, VisitVisibility) async -> Bool
+    let onSave: (String, String, VisitVisibility) async -> SipDetailEditSaveResult
 
     @Environment(\.dismiss) private var dismiss
 
     init(
         summary: SipDetailContentModel,
         initialVisibility: VisitVisibility,
-        onSave: @escaping (String, String, VisitVisibility) async -> Bool
+        allowsPrivateNoteEditing: Bool,
+        onSave: @escaping (String, String, VisitVisibility) async -> SipDetailEditSaveResult
     ) {
         self.summary = summary
+        self.allowsPrivateNoteEditing = allowsPrivateNoteEditing
         self.onSave = onSave
         _publicNote = State(initialValue: summary.caption ?? "")
         _privateNote = State(initialValue: summary.privateNote ?? "")
@@ -1935,12 +2708,21 @@ struct SipDetailEditForm: View {
 
                     Divider().padding(.vertical, 20)
 
-                    editSection(
-                        title: "Private note",
-                        helper: "Only visible to you",
-                        placeholder: "Only visible to you",
-                        text: $privateNote
-                    )
+                    if allowsPrivateNoteEditing {
+                        editSection(
+                            title: "Private note",
+                            helper: "Only visible to you",
+                            placeholder: "Only visible to you",
+                            text: $privateNote
+                        )
+                    } else {
+                        Label(
+                            "Your structured journal notes stay unchanged in this editor.",
+                            systemImage: "lock.fill"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondaryText)
+                    }
 
                     Divider().padding(.vertical, 20)
 
@@ -2029,12 +2811,13 @@ struct SipDetailEditForm: View {
         Task { @MainActor in
             isSaving = true
             errorMessage = nil
-            let didSave = await onSave(publicNote, privateNote, visibility)
+            let result = await onSave(publicNote, privateNote, visibility)
             isSaving = false
-            if didSave {
+            switch result {
+            case .success:
                 dismiss()
-            } else {
-                errorMessage = "Could not save sip edits."
+            case .failure(let message):
+                errorMessage = message
             }
         }
     }
@@ -2094,6 +2877,9 @@ private extension SipDetailPresentation {
             caption: "Strong coffee and strong friends!",
             sharedRawNote: nil,
             privateNote: "Order it with an extra shot next time.",
+            sharedMugshot: nil,
+            recipe: nil,
+            taggedAccounts: [],
             photos: [],
             usesMugsyPhotoFallback: false,
             ratings: [
@@ -2150,13 +2936,18 @@ private struct SipDetailPreviewHost: View {
                 toolbarProgress: $progress,
                 commentFocus: $commentFocus,
                 isWorking: false,
+                statusMessage: nil,
                 mentionSuggestions: [],
                 onAction: { _ in },
                 onSubmitComment: {},
                 onReply: { _ in },
+                onCommentAction: { _, _ in },
                 onCancelReply: {},
                 onSelectMention: { _ in },
-                onPhotoTap: { _ in }
+                onPhotoTap: { _ in },
+                onRecipeAction: { _ in },
+                onTaggedAccount: { _ in },
+                onRemoveOwnTag: {}
             )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

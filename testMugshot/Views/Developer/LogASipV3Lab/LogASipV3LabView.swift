@@ -411,7 +411,7 @@ private struct V3LabFriendPickerSheet: View {
     var body: some View {
         V3LabSheetShell(
             title: "Invite friends",
-            subtitle: "An invite creates a shared memory. It never publishes for them."
+            subtitle: "An invite creates a shared MugShot. It never publishes for them."
         ) {
             ForEach(V3LabFriend.recommended) { friend in
                 Button {

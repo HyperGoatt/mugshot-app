@@ -191,7 +191,6 @@ struct JournalTabView: View {
                 OwnerPassportProfileView(
                     dataManager: dataManager,
                     entries: journalEntries,
-                    identity: tasteIdentity,
                     cafeExperienceSummaries: cafeExperienceSummaries
                 )
                 .environmentObject(authModel)
@@ -209,7 +208,7 @@ struct JournalTabView: View {
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
                         onRepeat: { detail in
-                            launchComposer(from: detail.summary)
+                            launchComposer(from: detail)
                         }
                     )
                 }
@@ -241,7 +240,9 @@ struct JournalTabView: View {
                 )
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
-                localDrafts = SipDraftStore.shared.allDrafts().sorted { $0.updatedAt > $1.updatedAt }
+                localDrafts = SipDraftStore.shared
+                    .allDrafts(in: localAccountScope)
+                    .sorted { $0.updatedAt > $1.updatedAt }
                 await loadJournal()
             }
         }
@@ -284,7 +285,7 @@ struct JournalTabView: View {
                     .buttonStyle(.plain)
 
                     Button(role: .destructive) {
-                        SipDraftStore.shared.remove(draft)
+                        SipDraftStore.shared.remove(draft, in: localAccountScope)
                         localDrafts.removeAll { $0.id == draft.id }
                     } label: {
                         Image(systemName: "trash")
@@ -297,6 +298,13 @@ struct JournalTabView: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    private var localAccountScope: LocalAccountScope {
+        .forUserID(
+            authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
     }
 
     private func onThisSipCard(_ entry: JournalEntryProjection) -> some View {
@@ -333,12 +341,12 @@ struct JournalTabView: View {
         .accessibilityHint("Opens this memory")
     }
 
-    private func launchComposer(from summary: RemoteVisitSummary) {
+    private func launchComposer(from detail: RemoteVisitDetail) {
         selectedRemoteVisit = nil
         let userID = authModel.authenticatedUser?.id
-        let draft = summary.visit.journalContext == .recipe
-            ? SipDraft.brewAgain(from: summary, ownerUserID: userID)
-            : SipDraft.repeatSip(from: summary, ownerUserID: userID)
+        let draft = detail.summary.visit.journalContext == .recipe
+            ? SipDraft.brewAgain(from: detail, ownerUserID: userID)
+            : SipDraft.repeatSip(from: detail.summary, ownerUserID: userID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onComposeDraft(draft)
         }
@@ -569,18 +577,15 @@ struct JournalTabView: View {
 private struct OwnerPassportProfileView: View {
     @ObservedObject var dataManager: DataManager
     let entries: [JournalEntryProjection]
-    let identity: TasteIdentitySummary
     let cafeExperienceSummaries: [RemoteCafeExperienceSummary]
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var showEditProfile = false
     @State private var showSettings = false
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var passportState: TastePassportLoadState = .loading
 
     private var profile: SupabaseUserProfile? { authModel.profile }
     private var visits: [RemoteVisitSummary] { entries.map(\.summary) }
-    private var stats: RemoteProfileStats { RemoteProfileStats.calculate(from: visits) }
-    private var homeCount: Int { visits.filter { $0.visit.journalContext == .home }.count }
-    private var average: Double? { stats.totalVisits > 0 ? stats.averageScore : nil }
     private var cafeRanking: RemoteProfileCafeRanking {
         RemoteProfileCafeRanking.calculate(
             from: visits,
@@ -591,26 +596,19 @@ private struct OwnerPassportProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                MugshotScreenHeader("Profile", subtitle: "Your public-facing coffee identity") {
+                MugshotScreenHeader("Profile", subtitle: "Your coffee identity and its audience") {
                     MugshotIconButton(systemName: "gearshape.fill", size: 36) {
                         showSettings = true
                     }
                     .accessibilityLabel("Settings")
                 }
 
-                MugshotPassportCard(
-                    displayName: profile?.displayName ?? dataManager.appData.currentUser?.displayNameOrUsername ?? "Mugshot User",
-                    username: profile?.username ?? dataManager.appData.currentUser?.username ?? "user",
-                    avatarURL: profile?.avatarURL,
-                    bannerURL: profile?.bannerURL,
-                    identity: identity,
-                    stats: MugshotPassportStats(
-                        sips: stats.totalVisits,
-                        cafes: stats.totalCafes,
-                        homeSips: homeCount,
-                        averageRating: average
-                    ),
-                    allowsSharing: true
+                TastePassportProjectionSection(
+                    state: passportState,
+                    context: .owner,
+                    onRetry: {
+                        Task { await loadPassport() }
+                    }
                 )
                 .padding(.horizontal, 16)
 
@@ -661,6 +659,13 @@ private struct OwnerPassportProfileView: View {
         .background(Color.creamWhite)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .task(id: authModel.authenticatedUser?.id) {
+            await loadPassport()
+        }
+        .onChange(of: showSettings) { _, isPresented in
+            guard !isPresented else { return }
+            Task { await loadPassport() }
+        }
         .sheet(isPresented: $showEditProfile) {
             if let profile {
                 EditProfileView(profile: profile, dataManager: dataManager)
@@ -685,6 +690,30 @@ private struct OwnerPassportProfileView: View {
                     dataManager: dataManager
                 )
             }
+        }
+    }
+
+    @MainActor
+    private func loadPassport() async {
+        guard let userID = authModel.authenticatedUser?.id else {
+            passportState = .failed("Sign in to view your Taste Passport.")
+            return
+        }
+        passportState = .loading
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let access = try await TastePassportService(client: client)
+                .fetchPassport(userID: userID)
+            guard authModel.authenticatedUser?.id == userID,
+                  !Task.isCancelled else { return }
+            passportState = .loaded(access)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard authModel.authenticatedUser?.id == userID else { return }
+            passportState = .failed(
+                MugshotUserFacingError.message(for: error, context: .loading)
+            )
         }
     }
 
@@ -916,7 +945,7 @@ private struct JournalArchiveView: View {
                         onRepeat: { detail in
                             selectedVisit = nil
                             let draft = detail.summary.visit.journalContext == .recipe
-                                ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
+                                ? SipDraft.brewAgain(from: detail, ownerUserID: currentUserID)
                                 : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
                             dismiss()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {

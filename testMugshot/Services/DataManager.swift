@@ -68,6 +68,13 @@ class DataManager: ObservableObject {
         save()
     }
 
+    /// Selects only the proven account's existing local snapshot. This is used
+    /// when session refresh is temporarily unavailable, before a remote profile
+    /// can be bootstrapped. It never relabels guest or another account's data.
+    func preserveAuthenticatedAccountScope(userID: UUID) {
+        activateUserStorage(userId: userID)
+    }
+
     func prepareGuestSession() {
         guard storageScope != .guest else { return }
 
@@ -103,14 +110,28 @@ class DataManager: ObservableObject {
         }
     }
 
-    func clearLocalReleaseState() {
-        if case .user(let userId) = storageScope {
-            defaults.removeObject(forKey: userDataKey(userId))
+    /// Removes only one authenticated account's local snapshot. Guest data and
+    /// every other signed-in account remain intact on a shared device.
+    func clearLocalReleaseState(for userID: UUID) {
+        defaults.removeObject(forKey: userDataKey(userID))
+
+        let isActiveDeletedAccount: Bool
+        switch storageScope {
+        case .user(let activeUserID):
+            isActiveDeletedAccount = activeUserID == userID
+        case .legacy:
+            isActiveDeletedAccount = appData.currentUser?.id == userID
+            if isActiveDeletedAccount {
+                defaults.removeObject(forKey: dataKey)
+            }
+        case .guest:
+            isActiveDeletedAccount = false
         }
-        appData = AppData()
+
+        guard isActiveDeletedAccount else { return }
+        appData = loadAppData(forKey: guestDataKey) ?? AppData()
         storageScope = .guest
-        defaults.removeObject(forKey: dataKey)
-        defaults.removeObject(forKey: guestDataKey)
+        noteJournalMutation()
     }
 
     private var activeStorageKey: String {
@@ -127,9 +148,26 @@ class DataManager: ObservableObject {
     private func activateUserStorage(userId: UUID) {
         switch storageScope {
         case .legacy:
-            if appData.currentUser?.id != userId,
-               let stored = loadAppData(forKey: userDataKey(userId)) {
-                appData = stored
+            if let legacyOwnerID = appData.currentUser?.id {
+                if legacyOwnerID != userId {
+                    // A legacy payload with a different explicit owner belongs
+                    // to that owner. Preserve it in their account scope and
+                    // never relabel it as the account now authenticating on
+                    // this device.
+                    persist(appData, forKey: userDataKey(legacyOwnerID))
+                    appData = loadAppData(forKey: userDataKey(userId)) ?? AppData()
+                } else if persist(appData, forKey: userDataKey(userId)) {
+                    // An explicitly owned legacy payload is now durably scoped
+                    // to that account. Remove the legacy copy so account
+                    // deletion cannot reveal it again on a later launch.
+                    defaults.removeObject(forKey: dataKey)
+                }
+            } else {
+                // An ownerless legacy payload is not proof that it belongs to
+                // the first account that authenticates after upgrade. Leave
+                // the original legacy key intact for support recovery and
+                // start this account from only its proven snapshot.
+                appData = loadAppData(forKey: userDataKey(userId)) ?? AppData()
             }
         case .guest:
             persist(appData, forKey: guestDataKey)
@@ -147,9 +185,11 @@ class DataManager: ObservableObject {
         userDataKeyPrefix + userId.uuidString.lowercased()
     }
 
-    private func persist(_ value: AppData, forKey key: String) {
-        guard let encoded = try? JSONEncoder().encode(value) else { return }
+    @discardableResult
+    private func persist(_ value: AppData, forKey key: String) -> Bool {
+        guard let encoded = try? JSONEncoder().encode(value) else { return false }
         defaults.set(encoded, forKey: key)
+        return true
     }
 
     private func loadAppData(forKey key: String) -> AppData? {
@@ -165,7 +205,10 @@ class DataManager: ObservableObject {
         guard MugshotLaunchEnvironment.isUITesting else { return }
 
         let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
-        let mapSearchRecentsKey = "MugshotMapSearchRecents.v1"
+        let mapSearchScope: LocalAccountScope = MugshotLaunchEnvironment.isUITestingSignedOut
+            ? .guest
+            : .user(userID)
+        let mapSearchRecentsKey = MapSearchService.recentsKey(for: mapSearchScope)
 
         if reset {
             appData = AppData()
@@ -173,6 +216,12 @@ class DataManager: ObservableObject {
             defaults.removeObject(forKey: guestDataKey)
             defaults.removeObject(forKey: userDataKey(userID))
             UserDefaults.standard.removeObject(forKey: CafeVisibilityPreferenceStore.valueKey)
+            UserDefaults.standard.removeObject(
+                forKey: CafeVisibilityPreferenceStore.storageKey(for: .guest)
+            )
+            UserDefaults.standard.removeObject(
+                forKey: CafeVisibilityPreferenceStore.storageKey(for: .user(userID))
+            )
             SipDraftStore.shared.removeAllForTesting()
             CafeSessionContinuationStore.shared.removeAllForTesting()
             V3PublishedCompletionStore.shared.removeAllForTesting()
@@ -311,7 +360,7 @@ class DataManager: ObservableObject {
         PinnedCriterionStore.shared.synchronize(cafeCriteria, scope: "\(ownerScope).context.cafe")
         RecentCriterionSetupStore.shared.remember(sipCriteria, scope: "\(ownerScope).sip")
         RecentCriterionSetupStore.shared.remember(cafeCriteria, scope: "\(ownerScope).context.cafe")
-        _ = try? SipDraftStore.shared.save(draft, images: [])
+        _ = try? SipDraftStore.shared.save(draft, images: [], in: .user(userID))
     }
 #endif
     

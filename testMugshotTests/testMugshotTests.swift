@@ -14,6 +14,76 @@ import Testing
 
 struct testMugshotTests {
 
+    @Test func guestIntroductionOnlyAppearsForAnUnintroducedGuest() {
+        #expect(MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: false,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: true,
+            hasAuthenticatedNavigation: false,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: true,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: false,
+            isUITesting: true
+        ))
+    }
+
+    @Test func authCallbackRoutingSeparatesRecoveryFromOrdinaryDeepLinks() throws {
+        let confirmation = try #require(URL(string: "mugshot://auth/callback?code=confirmation-code"))
+        let recovery = try #require(URL(string: "mugshot://auth/recovery?code=recovery-code"))
+        let sipShortcut = try #require(URL(string: "mugshot://sip/camera"))
+        let untrustedScheme = try #require(URL(string: "https://auth/recovery?code=recovery-code"))
+
+        #expect(MugshotAuthCallbackRoute.resolve(confirmation) == .confirmation)
+        #expect(MugshotAuthCallbackRoute.resolve(recovery) == .passwordRecovery)
+        #expect(MugshotAuthCallbackRoute.resolve(sipShortcut) == nil)
+        #expect(MugshotAuthCallbackRoute.resolve(untrustedScheme) == nil)
+    }
+
+    @Test func authCallbackQueueDefersColdLinksAndConsumesEachLinkOnce() throws {
+        let coldURL = try #require(URL(
+            string: "mugshot://auth/recovery?code=one-time-recovery-code"
+        ))
+        let warmURL = try #require(URL(
+            string: "mugshot://auth/callback?code=one-time-confirmation-code"
+        ))
+        var queue = MugshotAuthCallbackQueue()
+
+        let acceptedColdURL = queue.enqueue(coldURL)
+        #expect(acceptedColdURL)
+        #expect(queue.pendingCount == 1)
+        #expect(queue.nextIfReady(false) == nil)
+        #expect(queue.nextIfReady(true) == coldURL)
+        #expect(queue.isProcessing)
+        #expect(queue.nextIfReady(true) == nil)
+
+        queue.retryCurrentCallback()
+        #expect(!queue.isProcessing)
+        #expect(queue.pendingCount == 1)
+        #expect(queue.nextIfReady(true) == coldURL)
+
+        queue.completeCurrentCallback()
+        #expect(!queue.isProcessing)
+        let acceptedDuplicateURL = queue.enqueue(coldURL)
+        #expect(acceptedDuplicateURL)
+        #expect(queue.pendingCount == 0)
+
+        let acceptedWarmURL = queue.enqueue(warmURL)
+        #expect(acceptedWarmURL)
+        #expect(queue.nextIfReady(true) == warmURL)
+        queue.completeCurrentCallback()
+        #expect(queue.nextIfReady(true) == nil)
+    }
+
     @Test func ritualSnapshotCelebratesSupportedMilestonesWithoutPunishingRest() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
@@ -1731,6 +1801,26 @@ struct testMugshotTests {
         #expect(recipe.visibility == .private)
     }
 
+    @Test func composerWorkflowScaffoldingDoesNotCreateAnUntitledDraft() {
+        let untouchedDraft = SipDraft(
+            composerExperience: .guided,
+            guidedStep: .context,
+            v3Step: .setup
+        )
+
+        #expect(!untouchedDraft.hasDraftWorthyUserContent)
+
+        let preselectedCafeDraft = SipDraft(
+            launchContext: SipComposerLaunchContext(source: .cafeDetail),
+            cafe: Cafe(name: "Mugshot Test Cafe"),
+            composerExperience: .guided,
+            guidedStep: .context,
+            v3Step: .setup
+        )
+
+        #expect(preselectedCafeDraft.hasDraftWorthyUserContent)
+    }
+
     @Test func everyonePublicationRequiresMediaOrIntentionalTextOnlyConfirmation() {
         #expect(
             SipPublicationPolicy.requirement(
@@ -1932,6 +2022,7 @@ struct testMugshotTests {
 
     @Test func remoteRecipeBrewAgainReferencesExactRecipeAndCreatesPrivateAttempt() {
         let recipeIdentityID = UUID()
+        let recipeVersionID = UUID()
         let row = SupabaseVisitRow(
             id: UUID(),
             userId: UUID(),
@@ -1958,10 +2049,35 @@ struct testMugshotTests {
                 recipeIdentityID: recipeIdentityID,
                 steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
             ),
-            recipeVersionID: UUID()
+            recipeVersionID: recipeVersionID
         )
         let summary = RemoteVisitSummary(visit: row, cafe: nil)
-        let attempt = SipDraft.brewAgain(from: summary, ownerUserID: UUID())
+        let projection = RemoteVisitRecipeProjection(
+            recipeIdentityID: recipeIdentityID,
+            recipeVersionID: recipeVersionID,
+            recipeName: "Bright V60",
+            versionNumber: 3,
+            versionLabel: "v3",
+            visibilityValue: "private",
+            sourceKindValue: "original",
+            sourceRecipeVersionID: nil,
+            brewMethod: "V60",
+            equipment: "Kettle and scale",
+            brewDetails: BrewDetails(
+                beans: "Ethiopia Hambela",
+                steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
+            ),
+            canSaveAndAdapt: false
+        )
+        let detail = RemoteVisitDetail(
+            summary: summary,
+            photos: [],
+            comments: [],
+            likeCount: 0,
+            currentUserHasLiked: false,
+            recipeProjection: projection
+        )
+        let attempt = SipDraft.brewAgain(from: detail, ownerUserID: UUID())
 
         #expect(attempt.context == .home)
         #expect(attempt.visibility == .private)

@@ -115,10 +115,9 @@ struct V3VisitReflection: Codable, Equatable {
         (value * 10).rounded() / 10
     }
 
-    /// Keeps journal writing private while a visit is still being uploaded.
-    /// The save pipeline writes this projection before publication, then
-    /// promotes the user's intended raw-note audience after the canonical
-    /// visit audience has been finalized.
+    /// A compatibility projection for legacy callers that explicitly stage a
+    /// private reflection. The canonical composer now writes the intended
+    /// reflection only after its durable visit-finalization receipt.
     var privateUploadProjection: Self {
         var projection = self
         projection.rawNoteVisibility = .private

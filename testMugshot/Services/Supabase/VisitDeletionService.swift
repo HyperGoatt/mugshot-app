@@ -77,6 +77,10 @@ final class VisitMediaCleanupStore {
         }
     }
 
+    func removeAll(userId: UUID) {
+        defaults.removeObject(forKey: key(userId))
+    }
+
     private func key(_ userId: UUID) -> String {
         keyPrefix + userId.uuidString.lowercased()
     }

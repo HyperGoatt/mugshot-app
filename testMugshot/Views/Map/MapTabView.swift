@@ -73,6 +73,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
@@ -120,7 +121,8 @@ struct MapTabView: View {
                 searchText: $searchText,
                 selectedMapCafe: $selectedCafe,
                 showMapCafeDetail: $showCafeDetail,
-                onLogVisitRequested: onLogVisitRequested
+                onLogVisitRequested: onLogVisitRequested,
+                onAuthenticationRequired: onAuthenticationRequired
             )
         }
     }
@@ -400,7 +402,8 @@ struct MapTabView: View {
                         dataManager: dataManager,
                         isPresented: $showCafeDetail,
                         initialPinScore: pinScoresByCafeID[cafe.id],
-                        onLogVisitRequested: onLogVisitRequested // Pass the closure
+                        onLogVisitRequested: onLogVisitRequested,
+                        onAuthenticationRequired: onAuthenticationRequired
                     )
                 }
                 .accessibilityIdentifier("map.cafeDetail.sheet")
@@ -425,6 +428,9 @@ struct MapTabView: View {
                 }
             }
         }
+        .task(id: localAccountScope.defaultsComponent) {
+            searchService.activate(scope: localAccountScope)
+        }
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(discoveryScope.rawValue)-\(discoveryRadiusMiles)") {
             await loadRemoteMapPins()
         }
@@ -447,6 +453,13 @@ struct MapTabView: View {
     private var locationAccessAuthorized: Bool {
         locationManager.authorizationStatus == .authorizedWhenInUse
             || locationManager.authorizationStatus == .authorizedAlways
+    }
+
+    private var localAccountScope: LocalAccountScope {
+        .forUserID(
+            authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
     }
 
     private func initializeLocationIfNeeded() {
@@ -1755,6 +1768,7 @@ struct CafeDetailSheet: View {
     @Binding var isPresented: Bool
     let initialPinScore: MapPinScore?
     var onLogVisitRequested: ((Cafe) -> Void)? = nil // Optional closure for navigation
+    var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @State private var showLogVisit = false
     @State private var showFullDetails = false
     @State private var selectedVisit: Visit?
@@ -1897,7 +1911,8 @@ struct CafeDetailSheet: View {
             CafeDetailView(
                 cafe: cafe,
                 dataManager: dataManager,
-                onLogVisitRequested: onLogVisitRequested
+                onLogVisitRequested: onLogVisitRequested,
+                onAuthenticationRequired: onAuthenticationRequired
             )
         }
         .navigationDestination(
@@ -1921,7 +1936,8 @@ struct CafeDetailSheet: View {
                     visitId: visit.id,
                     initialSummary: visit,
                     currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+                    dataManager: dataManager,
+                    onAuthenticationRequired: onAuthenticationRequired
                 )
             }
         }

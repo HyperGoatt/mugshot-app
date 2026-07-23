@@ -60,6 +60,11 @@ final class PinnedCriterionStore {
             .sorted()
     }
 
+    func removeAll(ownerUserID: UUID) {
+        let prefix = ownerUserID.uuidString.lowercased() + "."
+        save(records.filter { !$0.scope.hasPrefix(prefix) })
+    }
+
 #if DEBUG
     func removeAllForTesting() {
         defaults.removeObject(forKey: key)
@@ -135,6 +140,11 @@ final class RecentCriterionSetupStore {
                 isPinned: false
             ))
         }
+    }
+
+    func removeAll(ownerUserID: UUID) {
+        let prefix = ownerUserID.uuidString.lowercased() + "."
+        save(records.filter { !$0.scope.hasPrefix(prefix) })
     }
 
 #if DEBUG

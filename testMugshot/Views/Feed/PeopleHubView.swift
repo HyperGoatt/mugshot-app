@@ -331,9 +331,23 @@ struct PeopleProfileRoute: Identifiable, Hashable {
         default: state = .none
         }
     }
+
+    init(
+        id: UUID,
+        displayName: String,
+        username: String,
+        relationshipID: UUID? = nil,
+        state: FriendshipState = .none
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.username = username
+        self.relationshipID = relationshipID
+        self.state = state
+    }
 }
 
-private struct PublicProfileView: View {
+struct PublicProfileView: View {
     let route: PeopleProfileRoute
     @ObservedObject var dataManager: DataManager
     let onRelationshipChanged: () async -> Void
@@ -343,7 +357,12 @@ private struct PublicProfileView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var reportReason: ReportReason?
+    @State private var reportDetailsRequest: SafetyReportDetailsRequest?
+    @State private var failedReportReceipt: SafetyReportReceipt?
+    @State private var showBlockConfirmation = false
+    @State private var safetyStatus: String?
     @State private var compatibility: FriendCompatibility?
+    @State private var passportState: TastePassportLoadState = .loading
     @State private var selectedSipFilter: PublicSipFilter = .all
     @State private var selectedVisit: RemoteVisitSummary?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
@@ -371,7 +390,10 @@ private struct PublicProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { safetyToolbar }
-            .task { await load() }
+            .task(id: authModel.authenticatedUser?.id) { await load() }
+            .onChange(of: authModel.authenticatedUser?.id) { _, accountID in
+                resetForAccountChange(accountID: accountID)
+            }
             .navigationDestination(
                 isPresented: Binding(
                     get: { selectedVisit != nil },
@@ -388,10 +410,39 @@ private struct PublicProfileView: View {
                 }
             }
             .alert("Report this profile?", isPresented: reportIsPresented) {
-                Button("Report", role: .destructive) { Task { await report() } }
+                Button("Report", role: .destructive) { confirmSelectedReport() }
                 Button("Cancel", role: .cancel) { reportReason = nil }
             } message: {
-                Text("The report will be reviewed. It does not automatically remove content.")
+                Text("Send this concern using the reason you selected.")
+            }
+            .sheet(item: $reportDetailsRequest) { request in
+                SafetyReportDetailsSheet(targetLabel: request.target.reportLabel) { details in
+                    Task { await report(reason: .other, details: details) }
+                }
+            }
+            .alert("Block @\(route.username)?", isPresented: $showBlockConfirmation) {
+                Button("Block · Keep Recipe Copies", role: .destructive) {
+                    Task { await block(removeSavedRecipeCopies: false) }
+                }
+                Button("Block · Remove Recipe Copies", role: .destructive) {
+                    Task { await block(removeSavedRecipeCopies: true) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(SocialSafetyCopy.blockConsequences)
+            }
+            .alert(
+                "Report not confirmed",
+                isPresented: Binding(
+                    get: { failedReportReceipt != nil },
+                    set: { if !$0 { failedReportReceipt = nil } }
+                ),
+                presenting: failedReportReceipt
+            ) { receipt in
+                Button("Retry") { Task { await submitPreparedReport(receipt) } }
+                Button("Not now", role: .cancel) {}
+            } message: { _ in
+                Text(SocialSafetyCopy.reportFailed)
             }
     }
 
@@ -399,6 +450,15 @@ private struct PublicProfileView: View {
         ScrollView {
             VStack(spacing: 18) {
                 profileHeader
+
+                if let safetyStatus {
+                    MugshotStatusCard(
+                        title: "Safety update",
+                        message: safetyStatus,
+                        systemImage: "checkmark.shield.fill"
+                    )
+                    .padding(.horizontal)
+                }
 
                 if let payload {
                     HStack(spacing: 10) {
@@ -408,20 +468,12 @@ private struct PublicProfileView: View {
                     }
                     .padding(.horizontal)
 
-                    MugshotPassportCard(
-                        displayName: payload.profile.displayName,
-                        username: payload.profile.username,
-                        avatarURL: payload.profile.avatarURL,
-                        bannerURL: payload.profile.bannerURL,
-                        identity: TasteIdentitySummary.publicPassport(from: payload.visits),
-                        stats: MugshotPassportStats(
-                            sips: payload.stats.visibleVisits,
-                            cafes: payload.stats.cafes,
-                            homeSips: payload.stats.homeSips ?? payload.visits.filter { $0.journalContext == .home }.count,
-                            averageRating: payload.visits.isEmpty
-                                ? nil
-                                : payload.visits.reduce(0) { $0 + $1.overallScore } / Double(payload.visits.count)
-                        )
+                    TastePassportProjectionSection(
+                        state: passportState,
+                        context: .viewer(displayName: payload.profile.displayName),
+                        onRetry: {
+                            Task { await loadPassport() }
+                        }
                     )
                     .padding(.horizontal)
 
@@ -449,6 +501,16 @@ private struct PublicProfileView: View {
                     if !payload.visits.isEmpty {
                         visibleVisits(payload.visits)
                     }
+                } else if state == .blocked {
+                    MugshotStatusCard(
+                        title: "Account blocked",
+                        message: "This profile and your shared social activity are hidden. Your private journal is unchanged.",
+                        systemImage: "hand.raised.fill"
+                    )
+                    .padding(.horizontal)
+
+                    relationshipButton
+                        .padding(.horizontal)
                 } else if let errorMessage {
                     MugshotStatusCard(title: "Profile unavailable", message: errorMessage, systemImage: "person.slash")
                         .padding(.horizontal)
@@ -522,15 +584,20 @@ private struct PublicProfileView: View {
 
     @ToolbarContentBuilder
     private var safetyToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                ForEach(ReportReason.allCases) { reason in
-                    Button("Report: \(reason.title)", role: .destructive) { reportReason = reason }
-                }
-                if state != .blocked {
-                    Button("Block user", role: .destructive) { Task { await block() } }
-                }
-            } label: { Image(systemName: "ellipsis.circle") }
+        if state != .self && state != .blocked {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(ReportReason.allCases) { reason in
+                        Button("Report: \(reason.title)", role: .destructive) {
+                            reportReason = reason
+                        }
+                    }
+                    Button("Block user", role: .destructive) {
+                        showBlockConfirmation = true
+                    }
+                } label: { Image(systemName: "ellipsis.circle") }
+                .accessibilityLabel("Profile safety actions")
+            }
         }
     }
 
@@ -656,56 +723,118 @@ private struct PublicProfileView: View {
     }
 
     @MainActor private func load() async {
+        guard let expectedAccountID = authModel.authenticatedUser?.id else {
+            resetForAccountChange(accountID: nil)
+            errorMessage = "Sign in to view profiles."
+            return
+        }
         do {
             let socialService = try service()
-            payload = try await socialService.publicProfile(userID: route.id)
-            state = payload?.friendshipState ?? state
+            let loadedPayload = try await socialService.publicProfile(userID: route.id)
+            guard authModel.authenticatedUser?.id == expectedAccountID,
+                  !Task.isCancelled else { return }
+            payload = loadedPayload
+            await loadPassport(expectedAccountID: expectedAccountID)
+            guard authModel.authenticatedUser?.id == expectedAccountID,
+                  !Task.isCancelled else { return }
+            state = loadedPayload.friendshipState
             if phase4LightweightFriends && state == .friends {
-                compatibility = try? await socialService.compatibility(with: route.id)
+                let loadedCompatibility = try? await socialService.compatibility(with: route.id)
+                guard authModel.authenticatedUser?.id == expectedAccountID,
+                      !Task.isCancelled else { return }
+                compatibility = loadedCompatibility
             } else {
                 compatibility = nil
             }
             errorMessage = nil
-        } catch { errorMessage = MugshotUserFacingError.message(for: error, context: .loading) }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            if state == .blocked {
+                passportState = .loaded(.hidden)
+            }
+            errorMessage = MugshotUserFacingError.message(for: error, context: .loading)
+        }
     }
 
     @MainActor private func relationshipAction() async {
-        guard !isWorking else { return }
+        guard let expectedAccountID = authModel.authenticatedUser?.id,
+              !isWorking else { return }
         isWorking = true
-        defer { isWorking = false }
+        defer {
+            if authModel.authenticatedUser?.id == expectedAccountID {
+                isWorking = false
+            }
+        }
         do {
             let service = try service()
             switch state {
             case .none:
-                try await service.sendFriendRequest(to: route.id); state = .outgoing
+                try await service.sendFriendRequest(to: route.id)
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                state = .outgoing
             case .incoming:
                 guard let requestID = try await requestID(kind: "incoming", service: service) else { return }
-                try await service.respond(to: requestID, accept: true); state = .friends
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                try await service.respond(to: requestID, accept: true)
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                state = .friends
             case .outgoing:
                 guard let requestID = try await requestID(kind: "outgoing", service: service) else { return }
-                try await service.cancel(requestID: requestID); state = .none
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                try await service.cancel(requestID: requestID)
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                state = .none
             case .friends:
-                try await service.removeFriend(userID: route.id); state = .none
+                try await service.removeFriend(userID: route.id)
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                state = .none
             case .blocked:
-                try await service.unblock(userID: route.id); state = .none
+                try await SocialSafetyService(
+                    client: try SupabaseClientProvider.shared.client()
+                ).unblock(
+                    userID: route.id,
+                    expectedAccountID: expectedAccountID
+                )
+                guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+                state = .none
+                safetyStatus = "@\(route.username) is unblocked. Removed social activity was not restored."
+                dataManager.noteJournalMutation()
             case .self: break
             }
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             await onRelationshipChanged()
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             await load()
-        } catch { errorMessage = MugshotUserFacingError.message(for: error, context: .social) }
+        } catch {
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            errorMessage = MugshotUserFacingError.message(for: error, context: .social)
+        }
     }
 
     @MainActor private func declineRequest() async {
+        guard let expectedAccountID = authModel.authenticatedUser?.id else { return }
         isWorking = true
-        defer { isWorking = false }
+        defer {
+            if authModel.authenticatedUser?.id == expectedAccountID {
+                isWorking = false
+            }
+        }
         do {
             let service = try service()
             guard let requestID = try await requestID(kind: "incoming", service: service) else { return }
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             try await service.respond(to: requestID, accept: false)
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             state = .none
             await onRelationshipChanged()
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             await load()
-        } catch { errorMessage = MugshotUserFacingError.message(for: error, context: .social) }
+        } catch {
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            errorMessage = MugshotUserFacingError.message(for: error, context: .social)
+        }
     }
 
     private func requestID(kind: String, service: SocialDiscoveryService) async throws -> UUID? {
@@ -713,20 +842,150 @@ private struct PublicProfileView: View {
         return try await service.connections(kind: kind).first(where: { $0.userID == route.id })?.relationshipID
     }
 
-    @MainActor private func block() async {
-        do { try await service().block(userID: route.id); state = .blocked; payload = nil; await onRelationshipChanged() }
-        catch { errorMessage = MugshotUserFacingError.message(for: error, context: .social) }
+    @MainActor private func block(removeSavedRecipeCopies: Bool) async {
+        guard let expectedAccountID = authModel.authenticatedUser?.id else {
+            errorMessage = "Sign in to block an account."
+            return
+        }
+        isWorking = true
+        defer {
+            if authModel.authenticatedUser?.id == expectedAccountID {
+                isWorking = false
+            }
+        }
+        do {
+            _ = try await SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            ).block(
+                userID: route.id,
+                expectedAccountID: expectedAccountID,
+                removeSavedRecipeCopies: removeSavedRecipeCopies
+            )
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            state = .blocked
+            payload = nil
+            compatibility = nil
+            passportState = .loaded(.hidden)
+            errorMessage = nil
+            safetyStatus = "@\(route.username) is blocked."
+            dataManager.noteJournalMutation()
+            await onRelationshipChanged()
+        } catch {
+            guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            let message = MugshotUserFacingError.message(for: error, context: .social)
+            errorMessage = message
+            safetyStatus = message
+        }
     }
 
-    @MainActor private func report() async {
+    private func confirmSelectedReport() {
         guard let reportReason else { return }
-        defer { self.reportReason = nil }
-        do { try await service().report(reason: reportReason, details: nil, userID: route.id) }
-        catch { errorMessage = MugshotUserFacingError.message(for: error, context: .social) }
+        self.reportReason = nil
+        if reportReason == .other {
+            reportDetailsRequest = SafetyReportDetailsRequest(target: .user(route.id))
+        } else {
+            Task { await report(reason: reportReason, details: nil) }
+        }
+    }
+
+    @MainActor private func report(reason: ReportReason, details: String?) async {
+        guard let accountID = authModel.authenticatedUser?.id else {
+            errorMessage = "Sign in to report a profile."
+            return
+        }
+        reportDetailsRequest = nil
+        do {
+            let service = SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            )
+            let receipt = try service.prepareReport(
+                accountID: accountID,
+                target: .user(route.id),
+                reason: reason,
+                details: details
+            )
+            await submitPreparedReport(receipt)
+        } catch {
+            errorMessage = MugshotUserFacingError.message(for: error, context: .social)
+        }
+    }
+
+    @MainActor private func submitPreparedReport(_ receipt: SafetyReportReceipt) async {
+        guard authModel.authenticatedUser?.id == receipt.accountID else {
+            errorMessage = "Sign in to the account that started this report before retrying."
+            return
+        }
+        isWorking = true
+        safetyStatus = SocialSafetyCopy.reportPending
+        failedReportReceipt = nil
+        do {
+            let outcome = try await SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            ).submit(receipt)
+            guard authModel.authenticatedUser?.id == receipt.accountID else { return }
+            isWorking = false
+            switch outcome {
+            case .submitted:
+                safetyStatus = SocialSafetyCopy.reportSubmitted
+            case .failed(let failedReceipt):
+                safetyStatus = SocialSafetyCopy.reportFailed
+                failedReportReceipt = failedReceipt
+            }
+        } catch {
+            guard authModel.authenticatedUser?.id == receipt.accountID else { return }
+            isWorking = false
+            safetyStatus = nil
+            let message = MugshotUserFacingError.message(for: error, context: .social)
+            errorMessage = message
+            if (error as? SocialSafetyServiceError) != .accountScopeChanged {
+                failedReportReceipt = receipt
+            }
+        }
     }
 
     private func service() throws -> SocialDiscoveryService {
         SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
+    }
+
+    @MainActor
+    private func loadPassport(expectedAccountID: UUID? = nil) async {
+        guard let activeAccountID = authModel.authenticatedUser?.id,
+              expectedAccountID == nil || expectedAccountID == activeAccountID else {
+            passportState = .loaded(.hidden)
+            return
+        }
+        passportState = .loading
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let access = try await TastePassportService(client: client)
+                .fetchPassport(userID: route.id)
+            guard authModel.authenticatedUser?.id == activeAccountID,
+                  !Task.isCancelled else { return }
+            passportState = .loaded(access)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard authModel.authenticatedUser?.id == activeAccountID else { return }
+            passportState = .failed(
+                MugshotUserFacingError.message(for: error, context: .loading)
+            )
+        }
+    }
+
+    @MainActor
+    private func resetForAccountChange(accountID: UUID?) {
+        payload = nil
+        compatibility = nil
+        passportState = accountID == nil ? .loaded(.hidden) : .loading
+        selectedVisit = nil
+        reportReason = nil
+        reportDetailsRequest = nil
+        failedReportReceipt = nil
+        showBlockConfirmation = false
+        safetyStatus = nil
+        errorMessage = nil
+        isWorking = false
+        state = .none
     }
 }
 

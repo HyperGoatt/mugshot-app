@@ -15,6 +15,10 @@ enum MugshotUserFacingError {
             return uploadError.localizedDescription
         }
 
+        if let passportError = error as? TastePassportContractError {
+            return passportError.localizedDescription
+        }
+
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost:
@@ -83,6 +87,7 @@ enum SipRemoteSaveOperation: Equatable {
     case savingTastingLens
     case uploadingPhotos
     case finalizing
+    case finishingLocalCompletion
 
     var errorContext: MugshotUserFacingError.Context {
         switch self {
@@ -90,7 +95,7 @@ enum SipRemoteSaveOperation: Equatable {
             return .tastingLensSnapshot
         case .uploadingPhotos:
             return .photoUpload
-        case .preparing, .creatingVisit, .finalizing:
+        case .preparing, .creatingVisit, .finalizing, .finishingLocalCompletion:
             return .sipSave
         }
     }
@@ -103,6 +108,8 @@ enum SipRemoteSaveOperation: Equatable {
             return "Your sip and photos are safe. Retry continues the same upload."
         case .preparing, .creatingVisit, .finalizing:
             return "Your sip is safe. Retry continues the same save without making a duplicate."
+        case .finishingLocalCompletion:
+            return "Your Mugshot is published. Reconnect to finish its local handoff."
         }
     }
 }
@@ -487,7 +494,7 @@ struct MugshotLegacySipHero: View {
                 Spacer()
 
                 if let score, score > 0 {
-                    MugshotRatingBadge(score: score)
+                    MugshotRatingBadge(score: score, label: "Sip")
                 }
             }
 

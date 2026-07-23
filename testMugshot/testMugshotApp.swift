@@ -10,6 +10,7 @@ import UIKit
 
 @main
 struct testMugshotApp: App {
+    @UIApplicationDelegateAdaptor(MugshotNotificationAppDelegate.self) private var notificationDelegate
     @StateObject private var dataManager: DataManager
     
     init() {

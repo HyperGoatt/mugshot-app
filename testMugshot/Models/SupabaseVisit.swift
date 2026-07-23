@@ -164,7 +164,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
 
     var journalContext: JournalEntryContext {
         if JournalEntryContext(backendValue: contextType) == .home,
-           brewDetails?.recipeName?.remoteTrimmedNonEmpty != nil {
+           recipeVersionID != nil {
             return .recipe
         }
         return JournalEntryContext(backendValue: contextType)
@@ -371,6 +371,219 @@ struct RemoteCafePulseProjection: Decodable, Equatable {
     }
 }
 
+/// Caller-bound, allowlisted recipe payload returned only by
+/// `get_recipe_projection_for_visit_v1`. Social visit rows never populate this
+/// type from raw `visits.brew_details`.
+struct RemoteVisitRecipeProjection: Decodable, Equatable {
+    let recipeIdentityID: UUID
+    let recipeVersionID: UUID
+    let recipeName: String
+    let versionNumber: Int
+    let versionLabel: String?
+    let visibilityValue: String
+    let sourceKindValue: String
+    let sourceRecipeVersionID: UUID?
+    let owner: RemoteRecipeOwnerProjection?
+    let brewMethod: String?
+    let equipment: String?
+    let brewDetails: BrewDetails
+    let canSaveAndAdapt: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case recipeIdentityID = "recipe_identity_id"
+        case recipeVersionID = "recipe_version_id"
+        case recipeName = "recipe_name"
+        case versionNumber = "version_number"
+        case versionLabel = "version_label"
+        case visibilityValue = "visibility"
+        case sourceKindValue = "source_kind"
+        case sourceRecipeVersionID = "source_recipe_version_id"
+        case owner
+        case brewMethod = "brew_method"
+        case equipment
+        case brewDetails = "brew_details"
+        case canSaveAndAdapt = "can_save_and_adapt"
+    }
+
+    init(
+        recipeIdentityID: UUID,
+        recipeVersionID: UUID,
+        recipeName: String,
+        versionNumber: Int,
+        versionLabel: String?,
+        visibilityValue: String,
+        sourceKindValue: String,
+        sourceRecipeVersionID: UUID?,
+        owner: RemoteRecipeOwnerProjection? = nil,
+        brewMethod: String?,
+        equipment: String?,
+        brewDetails: BrewDetails,
+        canSaveAndAdapt: Bool
+    ) {
+        self.recipeIdentityID = recipeIdentityID
+        self.recipeVersionID = recipeVersionID
+        self.recipeName = recipeName
+        self.versionNumber = versionNumber
+        self.versionLabel = versionLabel
+        self.visibilityValue = visibilityValue
+        self.sourceKindValue = sourceKindValue
+        self.sourceRecipeVersionID = sourceRecipeVersionID
+        self.owner = owner
+        self.brewMethod = brewMethod
+        self.equipment = equipment
+        self.brewDetails = brewDetails
+        self.canSaveAndAdapt = canSaveAndAdapt
+    }
+
+    var resolvedBrewDetails: BrewDetails {
+        var details = brewDetails
+        details.recipeIdentityID = recipeIdentityID
+        details.recipeName = recipeName
+        details.recipeVersion = versionLabel?.remoteTrimmedNonEmpty
+            ?? "Version \(versionNumber)"
+        return details
+    }
+}
+
+struct RemoteRecipeOwnerProjection: Decodable, Equatable {
+    let id: UUID
+    let displayName: String?
+    let username: String
+    let avatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case username
+        case avatarURL = "avatar_url"
+    }
+
+    var personLabel: String {
+        displayName?.remoteTrimmedNonEmpty ?? "@\(username)"
+    }
+}
+
+struct RemoteVisitRecipeIdentityProjection: Decodable, Equatable {
+    let recipeIdentityID: UUID
+    let recipeVersionID: UUID
+    let recipeName: String
+    let versionNumber: Int
+    let versionLabel: String?
+    let ownerID: UUID
+    let ownerDisplayName: String?
+    let ownerUsername: String
+    let ownerAvatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case recipeIdentityID = "recipe_identity_id"
+        case recipeVersionID = "recipe_version_id"
+        case recipeName = "recipe_name"
+        case versionNumber = "version_number"
+        case versionLabel = "version_label"
+        case ownerID = "owner_id"
+        case ownerDisplayName = "owner_display_name"
+        case ownerUsername = "owner_username"
+        case ownerAvatarURL = "owner_avatar_url"
+    }
+
+    var ownerLabel: String {
+        ownerDisplayName?.remoteTrimmedNonEmpty ?? "@\(ownerUsername)"
+    }
+}
+
+/// Viewer-safe identity projection for ordinary post tags. The backing RPC
+/// already applies post visibility, profile visibility, blocking, and active
+/// enforcement before a row reaches the client.
+struct RemoteVisitTag: Decodable, Identifiable, Equatable {
+    let userID: UUID
+    let displayName: String?
+    let username: String
+    let avatarURL: String?
+    let taggedAt: String
+
+    var id: UUID { userID }
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case displayName = "display_name"
+        case username
+        case avatarURL = "avatar_url"
+        case taggedAt = "tagged_at"
+    }
+
+    var personLabel: String {
+        displayName?.remoteTrimmedNonEmpty ?? "@\(username)"
+    }
+}
+
+/// Caller-bound shared presentation. The server returns nil when fewer than
+/// two independently visible contributions remain. The client repeats that
+/// minimum defensively so malformed or stale payloads never imply hidden
+/// participants.
+struct RemoteSharedMugshotProjection: Decodable, Identifiable, Equatable {
+    let sharedMugshotID: UUID
+    let contextType: String
+    let cafeID: UUID?
+    let locationLabel: String?
+    let occurredAt: String
+    let contributions: [RemoteSharedMugshotContribution]
+
+    var id: UUID { sharedMugshotID }
+
+    enum CodingKeys: String, CodingKey {
+        case sharedMugshotID = "shared_memory_id"
+        case contextType = "context_type"
+        case cafeID = "cafe_id"
+        case locationLabel = "location_label"
+        case occurredAt = "occurred_at"
+        case contributions
+    }
+
+    var groupedContributions: [RemoteSharedMugshotContribution]? {
+        var seenVisitIDs: Set<UUID> = []
+        var seenUserIDs: Set<UUID> = []
+        let unique = contributions.filter { contribution in
+            seenVisitIDs.insert(contribution.visitID).inserted
+                && seenUserIDs.insert(contribution.userID).inserted
+        }
+        return unique.count >= 2 ? unique : nil
+    }
+}
+
+struct RemoteSharedMugshotContribution: Decodable, Identifiable, Equatable {
+    let visitID: UUID
+    let userID: UUID
+    let displayName: String?
+    let username: String
+    let avatarURL: String?
+    let caption: String?
+    let drink: String
+    let overallScore: Double
+    let posterPhotoURL: String?
+    let visibility: String
+    let createdAt: String
+
+    var id: UUID { visitID }
+
+    enum CodingKeys: String, CodingKey {
+        case visitID = "visit_id"
+        case userID = "user_id"
+        case displayName = "display_name"
+        case username
+        case avatarURL = "avatar_url"
+        case caption
+        case drink
+        case overallScore = "overall_score"
+        case posterPhotoURL = "poster_photo_url"
+        case visibility
+        case createdAt = "created_at"
+    }
+
+    var personLabel: String {
+        displayName?.remoteTrimmedNonEmpty ?? "@\(username)"
+    }
+}
+
 struct RemoteVisitDetail: Identifiable, Equatable {
     let summary: RemoteVisitSummary
     let photos: [SupabaseVisitPhotoRow]
@@ -381,6 +594,10 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let sensorySnapshot: SipSensorySnapshot?
     let cafeSessionSummary: RemoteCafeSessionSummary?
     let v3Reflection: V3VisitReflection?
+    let recipeProjection: RemoteVisitRecipeProjection?
+    let recipeIdentityProjection: RemoteVisitRecipeIdentityProjection?
+    let sharedMugshotProjection: RemoteSharedMugshotProjection?
+    let taggedAccounts: [RemoteVisitTag]
 
     init(
         summary: RemoteVisitSummary,
@@ -391,7 +608,11 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         privateNote: String? = nil,
         sensorySnapshot: SipSensorySnapshot? = nil,
         cafeSessionSummary: RemoteCafeSessionSummary? = nil,
-        v3Reflection: V3VisitReflection? = nil
+        v3Reflection: V3VisitReflection? = nil,
+        recipeProjection: RemoteVisitRecipeProjection? = nil,
+        recipeIdentityProjection: RemoteVisitRecipeIdentityProjection? = nil,
+        sharedMugshotProjection: RemoteSharedMugshotProjection? = nil,
+        taggedAccounts: [RemoteVisitTag] = []
     ) {
         self.summary = summary
         self.photos = photos
@@ -402,6 +623,10 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         self.sensorySnapshot = sensorySnapshot
         self.cafeSessionSummary = cafeSessionSummary
         self.v3Reflection = v3Reflection
+        self.recipeProjection = recipeProjection
+        self.recipeIdentityProjection = recipeIdentityProjection
+        self.sharedMugshotProjection = sharedMugshotProjection
+        self.taggedAccounts = taggedAccounts
     }
 
     var id: UUID { summary.id }

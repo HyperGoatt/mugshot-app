@@ -133,17 +133,21 @@ actor VisitPhotoAccessService {
     private var signedURLCache: [String: SignedURLCacheEntry] = [:]
 
     func resolvedURL(for storedValue: String) async throws -> URL {
-        let location: VisitPhotoStorageLocation
-        if let storedLocation = VisitPhotoStorageLocation(storedValue: storedValue) {
-            location = storedLocation
-        } else {
-            guard let legacyURL = URL(string: storedValue),
-                  let scheme = legacyURL.scheme?.lowercased(),
+        guard let privateReference = VisitPhotoStorageReference(storedValue: storedValue) else {
+            guard let publicURL = URL(string: storedValue),
+                  let scheme = publicURL.scheme?.lowercased(),
                   scheme == "https" || scheme == "http" else {
                 throw VisitPhotoAccessError.invalidReference
             }
-            return legacyURL
+            // Historical photos already carry durable public-bucket URLs.
+            // Re-signing them adds an authenticated request that can race a
+            // sign-out even though the object itself remains publicly readable.
+            return publicURL
         }
+        let location = VisitPhotoStorageLocation(
+            bucketName: privateReference.bucketName,
+            objectPath: privateReference.objectPath
+        )
 
         let client = try SupabaseClientProvider.shared.client()
         let accountScope = client.auth.currentUser?.id.uuidString.lowercased() ?? "anon"

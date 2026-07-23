@@ -728,7 +728,8 @@ struct CafeDetailView: View {
                         visitId: visit.id,
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
-                        dataManager: dataManager
+                        dataManager: dataManager,
+                        onAuthenticationRequired: onAuthenticationRequired
                     )
                     .onDisappear { Task { await loadRemoteVisits() } }
                 }

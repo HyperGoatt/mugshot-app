@@ -263,6 +263,20 @@ struct LegacyLogVisitView: View {
                     Text("Allow Camera access in Settings to take a new sip photo, or choose one from your library.")
                 }
                 .onAppear {
+                    let scope = LocalAccountScope.forUserID(
+                        authModel.authenticatedUser?.id
+                            ?? dataManager.appData.currentUser?.id
+                    )
+                    searchService.activate(scope: scope)
+                    CafeVisibilityPreferenceStore.shared.activate(scope: scope)
+                    try? PhotoCache.shared.activate(
+                        scope: scope,
+                        migratingKnownKeys: Set(
+                            dataManager.appData.visits
+                                .filter { $0.userId == scope.userID }
+                                .flatMap(\.photos)
+                        )
+                    )
                     if let cafe = preselectedCafe {
                         selectedCafe = cafe
                     }

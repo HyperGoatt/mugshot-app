@@ -449,7 +449,7 @@ struct MugshotFilterChip: View {
 struct MugshotRatingBadge: View {
     let score: Double
     var onPhoto = false
-    var label: String? = "Sip"
+    var label: String? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -470,7 +470,7 @@ struct MugshotRatingBadge: View {
         .accessibilityLabel(
             String(
                 format: "%@ rated %.1f out of 5",
-                label ?? "Sip",
+                label ?? "MugShot",
                 score
             )
         )

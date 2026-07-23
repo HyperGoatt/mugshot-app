@@ -116,9 +116,8 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         type("Iced latte", into: Identifier.drinkName, in: app)
         let cafeSelector = element(Identifier.cafeSelector, in: app)
         reveal(cafeSelector, in: app)
-        cafeSelector.tap()
+        openCafeSearch(from: cafeSelector, in: app)
 
-        XCTAssertTrue(element(Identifier.cafeSearchSheet, in: app).waitForExistence(timeout: 3))
         XCTAssertTrue(
             element(Identifier.cafeSearchQuery, in: app).exists || app.textFields["Search places"].exists
         )
@@ -128,7 +127,11 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
 
         XCTAssertTrue(cafeSelector.waitForExistence(timeout: 3))
         XCTAssertEqual(cafeSelector.value as? String, "Mugshot Test Cafe")
-        XCTAssertEqual(element(Identifier.drinkName, in: app).value as? String, "Iced latte")
+        XCTAssertEqual(
+            (element(Identifier.drinkName, in: app).value as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            "Iced latte"
+        )
         XCTAssertTrue(element("logASipV3.photos.thumbnail.0", in: app).exists)
 
         let primaryAction = element(Identifier.primaryAction, in: app)
@@ -171,10 +174,11 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         XCTAssertEqual(bodyPin.value as? String, "Not pinned")
 
         let removePresentation = element("logASipV3.sip.criterion.presentation.remove", in: app)
-        reveal(removePresentation, in: app)
-        removePresentation.tap()
-        XCTAssertTrue(app.alerts.buttons["Remove"].waitForExistence(timeout: 2))
-        app.alerts.buttons["Remove"].tap()
+        tapAboveComposerFooter(removePresentation, in: app)
+        XCTAssertTrue(app.staticTexts["Remove Presentation?"].waitForExistence(timeout: 3))
+        let confirmRemoval = app.buttons["Remove"]
+        XCTAssertTrue(confirmRemoval.waitForExistence(timeout: 2))
+        confirmRemoval.tap()
         XCTAssertFalse(element("logASipV3.sip.criterion.presentation.rating", in: app).exists)
         XCTAssertTrue(app.staticTexts["24 ideas"].exists)
         attachScreenshot(named: "criteria-parity-sip", app: app)
@@ -228,6 +232,88 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     }
 
     @MainActor
+    private func openCafeSearch(from selector: XCUIElement, in app: XCUIApplication) {
+        let sheet = element(Identifier.cafeSearchSheet, in: app)
+        dismissKeyboardIfNeeded(in: app)
+        positionAboveComposerFooter(selector, in: app)
+        selector.tap()
+        if !sheet.waitForExistence(timeout: 1) {
+            // XCTest can consume the first synthetic tap solely to end text-field
+            // editing. Reposition after the keyboard transition, then retry the
+            // same real user action instead of inserting text with Return.
+            XCTAssertTrue(
+                app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
+                "Expected tapping the cafe selector to end drink-name editing."
+            )
+            positionAboveComposerFooter(selector, in: app)
+            selector.tap()
+        }
+        XCTAssertTrue(sheet.waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    private func dismissKeyboardIfNeeded(in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+        // The composer also contains a horizontal photo strip. Drag the
+        // full-height vertical surface so SwiftUI's interactive keyboard
+        // dismissal receives the gesture instead of the photo scroller.
+        let scrollView = composerScrollView(in: app)
+        let start = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        let end = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.88))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(
+            keyboard.waitForNonExistence(timeout: 3),
+            "Expected the composer drag to dismiss the drink-name keyboard."
+        )
+    }
+
+    @MainActor
+    private func composerScrollView(in app: XCUIApplication) -> XCUIElement {
+        app.scrollViews.allElementsBoundByIndex.max { lhs, rhs in
+            lhs.frame.height < rhs.frame.height
+        } ?? app.scrollViews.firstMatch
+    }
+
+    @MainActor
+    private func tapAboveComposerFooter(_ target: XCUIElement, in app: XCUIApplication) {
+        positionAboveComposerFooter(target, in: app)
+        target.tap()
+    }
+
+    @MainActor
+    private func positionAboveComposerFooter(
+        _ target: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 10
+    ) {
+        let footer = element(Identifier.primaryAction, in: app)
+        XCTAssertTrue(target.waitForExistence(timeout: 3))
+        XCTAssertTrue(footer.waitForExistence(timeout: 3))
+
+        var swipes = 0
+        while swipes < maximumSwipes {
+            let targetFrame = target.frame
+            let isSafelyVisible = target.isHittable
+                && targetFrame.minY >= 112
+                && targetFrame.maxY <= footer.frame.minY - 8
+            if isSafelyVisible { break }
+            if targetFrame.maxY > footer.frame.minY - 8 {
+                composerScrollView(in: app).swipeUp()
+            } else {
+                composerScrollView(in: app).swipeDown()
+            }
+            swipes += 1
+        }
+        XCTAssertTrue(
+            target.isHittable
+                && target.frame.minY >= 112
+                && target.frame.maxY <= footer.frame.minY - 8,
+            "Expected \(target) to sit above the fixed composer action before tapping."
+        )
+    }
+
+    @MainActor
     private func reveal(
         _ element: XCUIElement,
         in app: XCUIApplication,
@@ -235,7 +321,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     ) {
         var swipes = 0
         while swipes < maximumSwipes, !element.isHittable {
-            app.scrollViews.firstMatch.swipeUp()
+            composerScrollView(in: app).swipeUp()
             swipes += 1
         }
         XCTAssertTrue(

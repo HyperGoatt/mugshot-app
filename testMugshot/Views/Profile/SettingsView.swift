@@ -3,8 +3,60 @@
 //  testMugshot
 //
 
+import AuthenticationServices
 import SwiftUI
 import UIKit
+
+struct AccountDeletionVerificationContext: Identifiable, Equatable {
+    let accountID: UUID
+    let email: String?
+    let providers: Set<MugshotAuthProvider>
+
+    private init(
+        accountID: UUID,
+        email: String?,
+        providers: Set<MugshotAuthProvider>
+    ) {
+        self.accountID = accountID
+        self.email = email
+        self.providers = providers
+    }
+
+    init(user: AuthenticatedUser) {
+        self.init(
+            accountID: user.id,
+            email: user.email,
+            providers: user.providers
+        )
+    }
+
+    var id: UUID { accountID }
+
+    var canVerifyWithPassword: Bool {
+        providers.contains(.email) || (providers.isEmpty && email != nil)
+    }
+
+    var canVerifyWithApple: Bool {
+        providers.contains(.apple) || providers.isEmpty
+    }
+
+    var canVerifyWithGoogle: Bool {
+        providers.contains(.google)
+    }
+
+    var verificationMethodCount: Int {
+        [canVerifyWithPassword, canVerifyWithApple, canVerifyWithGoogle]
+            .filter { $0 }
+            .count
+    }
+
+    var accountLabel: String {
+        if let email, !email.isEmpty { return email }
+        if canVerifyWithGoogle { return "Google account" }
+        if canVerifyWithApple { return "Apple account" }
+        return "Mugshot account"
+    }
+}
 
 enum SettingsDestination: CaseIterable {
     case about
@@ -44,6 +96,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var showDeleteConfirmation = false
+    @State private var deletionVerification: AccountDeletionVerificationContext?
     @State private var copiedSupportEmail = false
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnitPreferenceRaw = DistanceUnitPreference.automatic.rawValue
 #if DEBUG
@@ -99,17 +152,27 @@ struct SettingsView: View {
                 }
             }
             .alert("Delete your account?", isPresented: $showDeleteConfirmation) {
-                Button("Delete Account", role: .destructive) {
-                    Task {
-                        let deleted = await authModel.deleteAccount(dataManager: dataManager)
-                        if deleted {
-                            dismiss()
-                        }
+                Button("Verify and Delete", role: .destructive) {
+                    deletionVerification = authModel.authenticatedUser.map {
+                        AccountDeletionVerificationContext(user: $0)
                     }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently removes your profile, photos, visits, saved cafes, comments, and account data. This can’t be undone.")
+                Text("You’ll verify with a fresh sign-in before anything is deleted. Deletion permanently removes your account and journal, then finishes stored-photo cleanup. Limited safety and deletion receipts may remain to prevent abuse and prove completion. This can’t be undone.")
+            }
+            .sheet(item: $deletionVerification) { context in
+                AccountDeletionVerificationView(
+                    context: context,
+                    dataManager: dataManager
+                )
+                .environmentObject(authModel)
+            }
+            .onChange(of: authModel.authenticatedUser?.id) { _, accountID in
+                if accountID == nil {
+                    deletionVerification = nil
+                    dismiss()
+                }
             }
         }
 #if DEBUG
@@ -167,6 +230,22 @@ struct SettingsView: View {
                 }
             }
 
+            settingsGroup("Safety and Account Status") {
+                NavigationLink {
+                    EnforcementCenterView()
+                        .environmentObject(authModel)
+                } label: {
+                    settingsRow("Safety and Account Status", systemImage: "checkmark.shield.fill")
+                }
+                Divider().padding(.leading, 60)
+                NavigationLink {
+                    BlockedUsersSettingsView(dataManager: dataManager)
+                        .environmentObject(authModel)
+                } label: {
+                    settingsRow("Blocked Accounts", systemImage: "hand.raised.fill")
+                }
+            }
+
             settingsGroup("Map, Location, and Distance Units") {
                 NavigationLink { MapLocationSettingsView() } label: {
                     settingsRow("Map and Location", systemImage: "location.fill")
@@ -174,6 +253,10 @@ struct SettingsView: View {
             }
 
             settingsGroup("Notifications and Recaps") {
+                NavigationLink { NotificationSettingsView() } label: {
+                    settingsRow("Activity and Push", systemImage: "bell.badge.fill")
+                }
+                Divider().padding(.leading, 60)
                 NavigationLink { ReflectionPreferencesView() } label: {
                     settingsRow("Reflections and Recaps", systemImage: "calendar.badge.clock")
                 }
@@ -753,12 +836,285 @@ private struct PolicyDocumentView: View {
     }
 }
 
+struct AccountDeletionVerificationView: View {
+    let context: AccountDeletionVerificationContext
+    @ObservedObject var dataManager: DataManager
+
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authModel: AppAuthModel
+    @FocusState private var passwordIsFocused: Bool
+    @State private var password = ""
+    @State private var appleNonce: String?
+    @State private var isWorking = false
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: "person.badge.shield.checkmark.fill")
+                            .font(.system(size: 34, weight: .semibold))
+                            .foregroundColor(.roastBrown)
+                            .accessibilityHidden(true)
+                        Text("Verify it’s you")
+                            .mugshotDisplay(size: 30)
+                            .foregroundColor(.espressoBrown)
+                        Text("Mugshot will first create a one-time security challenge. A fresh sign-in then authorizes deletion for this account only.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Account to delete")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.tertiaryText)
+                            .textCase(.uppercase)
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.mugshotSage)
+                                .accessibilityHidden(true)
+                            Text(context.accountLabel)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.espressoBrown)
+                                .lineLimit(2)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
+                        .background(Color.sandBeige.opacity(0.58))
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: DesignSystem.Radius.control,
+                                style: .continuous
+                            )
+                        )
+                        .privacySensitive()
+                        .accessibilityLabel("Locked account, \(context.accountLabel)")
+                    }
+
+                    if context.canVerifyWithPassword,
+                       let email = context.email,
+                       !email.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Password")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.espressoBrown)
+                            SecureField("Password for \(email)", text: $password)
+                                .textContentType(.password)
+                                .focused($passwordIsFocused)
+                                .submitLabel(.continue)
+                                .mugshotFormField()
+                                .privacySensitive()
+                                .accessibilityIdentifier("accountDeletionPassword")
+                                .onSubmit(submitPassword)
+
+                            Button(role: .destructive, action: submitPassword) {
+                                HStack(spacing: 8) {
+                                    if isWorking {
+                                        ProgressView()
+                                            .tint(.red)
+                                    }
+                                    Label("Verify and Delete Account", systemImage: "trash")
+                                        .foregroundColor(.red)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(!canSubmitPassword)
+                            .opacity(canSubmitPassword ? 1 : 0.55)
+                            .accessibilityHint("Permanently deletes the locked account after a fresh sign-in")
+                        }
+
+                    }
+
+                    if context.verificationMethodCount > 1 {
+                        HStack(spacing: 10) {
+                            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+                            Text("or use another sign-in method")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.tertiaryText)
+                            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+                        }
+                    }
+
+                    if context.canVerifyWithGoogle {
+                        MugshotGoogleSignInButton(
+                            title: "Verify with Google",
+                            isDisabled: isWorking
+                        ) {
+                            performDeletion {
+                                await authModel.deleteAccountWithGoogle(
+                                    dataManager: dataManager
+                                )
+                            }
+                        }
+                        .accessibilityHint("Verifies this account and then permanently deletes it")
+                    }
+
+                    if context.canVerifyWithApple {
+                        SignInWithAppleButton(.continue) { request in
+                            prepareAppleRequest(request)
+                        } onCompletion: { result in
+                            handleAppleAuthorization(result)
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 50)
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: DesignSystem.Radius.control,
+                                style: .continuous
+                            )
+                        )
+                        .disabled(isWorking)
+                        .accessibilityHint("Verifies this account and then permanently deletes it")
+                    }
+
+                    if let message {
+                        Text(message)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.red.opacity(0.9))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.red.opacity(0.07))
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: DesignSystem.Radius.control,
+                                    style: .continuous
+                                )
+                            )
+                            .accessibilityIdentifier("accountDeletionError")
+                    }
+
+                    Text("Nothing is deleted if verification is canceled, expires, uses another account, or cannot be confirmed. Mugshot does not store the password or provider credential used for this check.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Delete Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isWorking)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isWorking)
+        .onChange(of: authModel.authenticatedUser?.id) { _, accountID in
+            if accountID == nil {
+                dismiss()
+            } else if accountID != context.accountID {
+                message = "The signed-in account changed. Nothing was deleted."
+            }
+        }
+    }
+
+    private var canSubmitPassword: Bool {
+        password.count >= 6 && !isWorking
+    }
+
+    private func submitPassword() {
+        guard canSubmitPassword else { return }
+        let submittedPassword = password
+        password = ""
+        performDeletion {
+            await authModel.deleteAccount(
+                password: submittedPassword,
+                dataManager: dataManager
+            )
+        }
+    }
+
+    private func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
+        do {
+            let nonce = try AppleSignInNonce.random()
+            appleNonce = nonce
+            message = nil
+            request.requestedScopes = [.email]
+            request.nonce = AppleSignInNonce.sha256(nonce)
+        } catch {
+            appleNonce = nil
+            message = "Mugshot couldn’t prepare Apple verification. Nothing was deleted. Try again."
+        }
+    }
+
+    private func handleAppleAuthorization(
+        _ result: Result<ASAuthorization, Error>
+    ) {
+        switch result {
+        case .failure(let error):
+            appleNonce = nil
+            if (error as? ASAuthorizationError)?.code == .canceled {
+                message = "Verification was canceled. Nothing was deleted."
+            } else {
+                message = "Apple verification couldn’t be completed. Nothing was deleted. Try again."
+            }
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8),
+                  let nonce = appleNonce else {
+                appleNonce = nil
+                message = "Apple verification returned an invalid credential. Nothing was deleted. Try again."
+                return
+            }
+            appleNonce = nil
+            performDeletion {
+                await authModel.deleteAccountWithApple(
+                    idToken: idToken,
+                    nonce: nonce,
+                    dataManager: dataManager
+                )
+            }
+        }
+    }
+
+    private func performDeletion(
+        _ operation: @escaping () async -> Bool
+    ) {
+        guard !isWorking else { return }
+        isWorking = true
+        message = nil
+        passwordIsFocused = false
+        Task {
+            let deleted = await operation()
+            isWorking = false
+            if deleted {
+                dismiss()
+            } else if authModel.authenticatedUser?.id == context.accountID {
+                message = accountDeletionFailureMessage
+            }
+        }
+    }
+
+    private var accountDeletionFailureMessage: String {
+        if let profileUpdateError = authModel.profileUpdateError {
+            return profileUpdateError
+        }
+        switch authModel.status {
+        case .sessionUnavailable(let message),
+             .failed(let message),
+             .signedOut(let message?):
+            return message
+        default:
+            return "Mugshot couldn’t complete account deletion. Nothing unconfirmed was cleared; try again or contact support."
+        }
+    }
+}
+
 private enum PrivacyDocument {
     static let sections = [
         ("Effective date", "This summary applies to the current Mugshot app release. The full, current policy is always available from the link below."),
-        ("What Mugshot stores", "Your account profile, saved cafes, visit photos, captions, private notes, ratings, likes, and comments are stored to provide your journal."),
-        ("How it is used", "Your information is used to save your Mugshot, display only the visits you choose to share, and keep your profile and cafe library in sync."),
-        ("Your choices", "You can edit your profile, choose each visit’s audience, sign out, contact support, or permanently delete your account from Settings.")
+        ("What Mugshot stores", "Mugshot stores your profile, journal, photos, private notes, ratings, recipes, saved cafes and lists, social interactions, activity history, and safety reports to provide the app."),
+        ("How it is used", "Your information keeps your journal in sync and shows each post, recipe, Taste Passport, list, and social interaction only to its permitted audience. Private journal notes are not used as social copy."),
+        ("Your choices", "You can manage post, recipe, and Taste Passport audiences; push preferences; blocked accounts; appeals; data export; sign-out; and account deletion from Settings."),
+        ("Deletion and safety records", "Deleting your account removes your profile, journal, media, social access, and account access. Limited safety evidence and deletion receipts may remain in restricted records to prevent abuse and prove completion.")
     ]
 }
 

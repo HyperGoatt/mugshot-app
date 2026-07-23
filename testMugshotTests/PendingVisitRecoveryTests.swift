@@ -190,6 +190,68 @@ struct PendingVisitRecoveryTests {
         #expect(decodedLegacy.taggedCompanions == nil)
     }
 
+    @Test func remoteFinalizationReceiptIsBackwardCompatibleAndChangesRecoveryOnly() throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+
+        let userID = UUID()
+        var pending = try fixture.store.prepare(
+            userId: userID,
+            cafe: nil,
+            entryContext: .home,
+            locationName: "Home",
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Cortado",
+            caption: "Published once",
+            notes: nil,
+            visibility: .friends,
+            ratings: ["Taste": 4],
+            overallScore: 4,
+            ratingTemplate: RatingTemplate(),
+            images: [],
+            posterPhotoIndex: 0
+        )
+
+        let legacyEncoded = try JSONEncoder().encode(pending)
+        var legacyObject = try #require(
+            JSONSerialization.jsonObject(with: legacyEncoded) as? [String: Any]
+        )
+        legacyObject.removeValue(forKey: "remoteFinalizedAt")
+        let decodedLegacy = try JSONDecoder().decode(
+            PendingVisitSubmissionRecord.self,
+            from: JSONSerialization.data(withJSONObject: legacyObject)
+        )
+        #expect(!decodedLegacy.isRemoteFinalized)
+        #expect(
+            SipRemoteRecoveryPlanner.action(
+                for: decodedLegacy,
+                authenticatedUserID: userID
+            ) == .retryRemotePublication
+        )
+
+        pending.remoteFinalizedAt = Date(timeIntervalSince1970: 1_234)
+        try fixture.store.save(pending)
+        let finalized = try #require(fixture.store.load(userId: userID))
+
+        #expect(finalized.isRemoteFinalized)
+        #expect(finalized.remoteFinalizedAt == pending.remoteFinalizedAt)
+        #expect(
+            SipRemoteRecoveryPlanner.action(
+                for: finalized,
+                authenticatedUserID: userID
+            ) == .finishLocalCompletion
+        )
+        #expect(
+            SipRemoteRecoveryPlanner.action(
+                for: finalized,
+                authenticatedUserID: UUID()
+            ) == .accountMismatch
+        )
+        #expect(!SipRemoteRecoveryPlanner.canDestructivelyDiscard(finalized))
+        #expect(!SipRemoteRecoveryPlanner.requiresLocalPhotosForRecovery(finalized))
+    }
+
     @Test func retryPayloadRejectsAnyRawNoteAboveTheDatabaseLimit() throws {
         let fixture = try makeStore()
         defer { fixture.cleanup() }

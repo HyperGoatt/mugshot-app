@@ -50,6 +50,9 @@ private final class RemoteFeedMemoryCache {
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    var onComposeDraft: ((SipDraft) -> Void)? = nil
+    var activityUnreadCount = 0
+    var onActivityRequested: (() -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
@@ -98,6 +101,9 @@ struct FeedTabView: View {
             VStack(spacing: 0) {
                 MugshotScreenHeader("Feed", subtitle: feedSubtitle) {
                     HStack(spacing: 8) {
+                        ActivityBellButton(unreadCount: activityUnreadCount) {
+                            onActivityRequested?()
+                        }
                         MugshotIconButton(systemName: "person.2.fill", size: 36) {
                             isPeopleHubPresented = true
                         }
@@ -234,7 +240,11 @@ struct FeedTabView: View {
                         visitId: visit.id,
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
-                        dataManager: dataManager
+                        dataManager: dataManager,
+                        onComposeDraft: { draft in
+                            selectedRemoteVisit = nil
+                            onComposeDraft?(draft)
+                        }
                     )
                     .onDisappear {
                         Task { await loadRemoteFeedIfNeeded(forceRefresh: true) }
@@ -1438,10 +1448,12 @@ struct VisitDetailView: View {
             toolbarProgress: $toolbarProgress,
             commentFocus: $isCommentFocused,
             isWorking: false,
+            statusMessage: nil,
             mentionSuggestions: [],
             onAction: perform,
             onSubmitComment: addComment,
             onReply: { _ in },
+            onCommentAction: { _, _ in },
             onCancelReply: {},
             onSelectMention: { _ in },
             onPhotoTap: { index in
@@ -1451,7 +1463,10 @@ struct VisitDetailView: View {
                     photos: photos,
                     initialIndex: index
                 )
-            }
+            },
+            onRecipeAction: { _ in },
+            onTaggedAccount: { _ in },
+            onRemoveOwnTag: {}
         )
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
@@ -1464,11 +1479,12 @@ struct VisitDetailView: View {
             SipDetailEditForm(
                 summary: sharedPresentation.content,
                 initialVisibility: visit.visibility,
+                allowsPrivateNoteEditing: visit.v3Reflection == nil,
                 onSave: saveLocalVisitEdits
             )
         }
         .sheet(isPresented: $showDeleteAlert) {
-            SipDeleteConfirmationSheet(isDeleting: false) {
+            SipDeleteConfirmationSheet(isDeleting: false, errorMessage: nil) {
                 dataManager.deleteVisit(id: visit.id)
                 dismiss()
             }
@@ -1559,14 +1575,14 @@ struct VisitDetailView: View {
         caption: String,
         notes: String,
         visibility: VisitVisibility
-    ) async -> Bool {
+    ) async -> SipDetailEditSaveResult {
         var updated = visit
         updated.caption = caption
         updated.notes = notes.remoteTrimmedNonEmpty
         updated.visibility = visibility
         dataManager.updateVisit(updated)
         visit = updated
-        return true
+        return .success
     }
 
     private var isOwnVisit: Bool {

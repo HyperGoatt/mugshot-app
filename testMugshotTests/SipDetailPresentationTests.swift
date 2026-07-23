@@ -3,17 +3,58 @@ import Testing
 @testable import testMugshot
 
 struct SipDetailPresentationTests {
+    @Test func guestSocialActionsRequireAuthenticationBeforeInteraction() {
+        let protectedActions: [SipDetailAction] = [
+            .like, .comment, .saveCafe, .recommend, .report, .block
+        ]
+        for action in protectedActions {
+            #expect(
+                SipDetailInteractionGate.requiresAuthentication(
+                    for: action,
+                    currentUserID: nil
+                )
+            )
+            #expect(
+                !SipDetailInteractionGate.requiresAuthentication(
+                    for: action,
+                    currentUserID: UUID()
+                )
+            )
+        }
+
+        #expect(
+            !SipDetailInteractionGate.requiresAuthentication(
+                for: .share,
+                currentUserID: nil
+            )
+        )
+    }
+
     @Test func friendHierarchyKeepsFourPrimaryActionsReachable() {
         let capabilities = SipDetailCapabilities.friend(
             hasCafe: true,
             canComment: true,
-            canRecommend: true
+            canRecommend: true,
+            canShareExternally: true
         )
 
         #expect(capabilities.isOwner == false)
         #expect(capabilities.dockActions == [.like, .comment, .saveCafe, .recommend])
         #expect(capabilities.dockActions.count == 4)
-        #expect(capabilities.menuActions == [.report, .block])
+        #expect(capabilities.menuActions == [.share, .report, .block])
+    }
+
+    @Test func friendsOnlyViewerCannotExportSomeoneElsesPost() {
+        let capabilities = SipDetailCapabilities.friend(
+            hasCafe: false,
+            canComment: true,
+            canRecommend: false,
+            canShareExternally: false
+        )
+
+        #expect(!capabilities.dockActions.contains(.share))
+        #expect(!capabilities.menuActions.contains(.share))
+        #expect(capabilities.dockActions == [.like, .comment, .more])
     }
 
     @Test func ownerHierarchyKeepsDestructiveActionLast() {
@@ -209,6 +250,235 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.sharedRawNote == "Sip\nSweet opening.\n\nCafe\nQuiet back room.")
     }
 
+    @Test func authorizedRecipeProjectionDrivesBlueprintAndReusableAction() {
+        let postOwnerID = UUID()
+        let recipeOwnerID = UUID()
+        let viewerID = UUID()
+        let recipeIdentityID = UUID()
+        let recipeVersionID = UUID()
+        let taggedFriendID = UUID()
+        let row = SupabaseVisitRow(
+            id: UUID(),
+            userId: postOwnerID,
+            cafeId: nil,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "V60",
+            caption: "Dialed in.",
+            notes: nil,
+            visibility: "everyone",
+            ratings: ["Taste": 4.6],
+            overallScore: 4.6,
+            posterPhotoURL: nil,
+            contextType: "Recipe",
+            locationName: "Home",
+            cityState: nil,
+            brewMethod: "Untrusted visit method",
+            createdAt: "2026-07-21T12:00:00Z",
+            equipment: "Untrusted visit equipment",
+            brewDetails: BrewDetails(
+                beans: "Untrusted visit beans",
+                steps: [BrewRecipeStep(instruction: "Untrusted visit step")]
+            ),
+            recipeVersionID: recipeVersionID
+        )
+        let projection = RemoteVisitRecipeProjection(
+            recipeIdentityID: recipeIdentityID,
+            recipeVersionID: recipeVersionID,
+            recipeName: "Summer V60",
+            versionNumber: 4,
+            versionLabel: "v4",
+            visibilityValue: "everyone",
+            sourceKindValue: "adapted",
+            sourceRecipeVersionID: UUID(),
+            owner: RemoteRecipeOwnerProjection(
+                id: recipeOwnerID,
+                displayName: "Recipe Maker",
+                username: "maker",
+                avatarURL: nil
+            ),
+            brewMethod: "Projected V60",
+            equipment: "Projected dripper",
+            brewDetails: BrewDetails(
+                beans: "Projected beans",
+                doseGrams: 18,
+                yieldGrams: 300,
+                steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
+            ),
+            canSaveAndAdapt: true
+        )
+        let detail = RemoteVisitDetail(
+            summary: RemoteVisitSummary(visit: row, cafe: nil),
+            photos: [],
+            comments: [],
+            likeCount: 0,
+            currentUserHasLiked: false,
+            recipeProjection: projection,
+            taggedAccounts: [
+                RemoteVisitTag(
+                    userID: viewerID,
+                    displayName: "Viewer",
+                    username: "viewer",
+                    avatarURL: nil,
+                    taggedAt: "2026-07-21T12:01:00Z"
+                ),
+                RemoteVisitTag(
+                    userID: taggedFriendID,
+                    displayName: nil,
+                    username: "friend",
+                    avatarURL: nil,
+                    taggedAt: "2026-07-21T12:02:00Z"
+                )
+            ]
+        )
+
+        let presentation = SipDetailPresentationAdapter.remote(
+            detail: detail,
+            currentUserID: viewerID,
+            reactions: [],
+            isCafeSaved: false,
+            canRecommend: false,
+            canRepeat: false,
+            replyingToUsername: nil
+        )
+
+        #expect(presentation.content.recipe?.accessState == .available)
+        #expect(presentation.content.recipe?.name == "Summer V60")
+        #expect(presentation.content.recipe?.creatorUsername == "@maker")
+        #expect(presentation.content.recipe?.brewMethod == "Projected V60")
+        #expect(presentation.content.recipe?.equipment == "Projected dripper")
+        #expect(presentation.content.recipe?.details?.beans == "Projected beans")
+        #expect(presentation.content.recipe?.details?.steps?.first?.instruction == "Bloom for 45 seconds")
+        #expect(presentation.content.recipe?.canSaveAndAdapt == true)
+        #expect(presentation.content.recipe?.canBrewAgain == false)
+        #expect(presentation.content.taggedAccounts.count == 2)
+        #expect(presentation.content.taggedAccounts.first?.isCurrentUser == true)
+        #expect(presentation.content.visibleSections(capabilities: presentation.capabilities).contains(.recipe))
+        #expect(presentation.content.visibleSections(capabilities: presentation.capabilities).contains(.taggedPeople))
+        #expect(!presentation.content.visitFacts.contains { $0.value.contains("Untrusted") })
+    }
+
+    @Test func inaccessibleRecipeRendersIdentityOnlyWithoutVisitPayloadFallback() {
+        let postOwnerID = UUID()
+        let viewerID = UUID()
+        let recipeIdentityID = UUID()
+        let recipeVersionID = UUID()
+        let row = SupabaseVisitRow(
+            id: UUID(),
+            userId: postOwnerID,
+            cafeId: nil,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "Espresso",
+            caption: "Private dial-in.",
+            notes: nil,
+            visibility: "friends",
+            ratings: [:],
+            overallScore: 4,
+            posterPhotoURL: nil,
+            contextType: "Recipe",
+            locationName: "Home",
+            cityState: nil,
+            brewMethod: "Secret method",
+            createdAt: "2026-07-21T12:00:00Z",
+            equipment: "Secret machine",
+            brewDetails: BrewDetails(
+                beans: "Secret beans",
+                steps: [BrewRecipeStep(instruction: "Secret step")],
+                additions: "Secret additions"
+            ),
+            recipeVersionID: recipeVersionID
+        )
+        let identity = RemoteVisitRecipeIdentityProjection(
+            recipeIdentityID: recipeIdentityID,
+            recipeVersionID: recipeVersionID,
+            recipeName: "House Espresso",
+            versionNumber: 7,
+            versionLabel: "v7",
+            ownerID: postOwnerID,
+            ownerDisplayName: "Amanda",
+            ownerUsername: "amanda",
+            ownerAvatarURL: nil
+        )
+        let detail = RemoteVisitDetail(
+            summary: RemoteVisitSummary(visit: row, cafe: nil),
+            photos: [],
+            comments: [],
+            likeCount: 0,
+            currentUserHasLiked: false,
+            recipeProjection: nil,
+            recipeIdentityProjection: identity
+        )
+
+        let presentation = SipDetailPresentationAdapter.remote(
+            detail: detail,
+            currentUserID: viewerID,
+            reactions: [],
+            isCafeSaved: false,
+            canRecommend: false,
+            canRepeat: false,
+            replyingToUsername: nil
+        )
+
+        #expect(presentation.content.recipe?.accessState == .locked)
+        #expect(presentation.content.recipe?.name == "House Espresso")
+        #expect(presentation.content.recipe?.versionLabel == "v7")
+        #expect(presentation.content.recipe?.creatorUsername == "@amanda")
+        #expect(presentation.content.recipe?.brewMethod == nil)
+        #expect(presentation.content.recipe?.equipment == nil)
+        #expect(presentation.content.recipe?.details == nil)
+        #expect(presentation.content.recipe?.canSaveAndAdapt == false)
+        #expect(!presentation.content.visitFacts.contains { fact in
+            fact.value.contains("Secret")
+        })
+    }
+
+    @Test func recipeOwnerKeepsBrewAgainInsteadOfSaveAndAdapt() {
+        let ownerID = UUID()
+        let recipeVersionID = UUID()
+        let row = SupabaseVisitRow(
+            id: UUID(), userId: ownerID, cafeId: nil,
+            drinkType: "Coffee", drinkTypeCustom: nil, drinkSubtype: "Aeropress",
+            caption: "", notes: nil, visibility: "everyone", ratings: [:],
+            overallScore: 4, posterPhotoURL: nil, contextType: "Recipe",
+            locationName: "Home", cityState: nil, brewMethod: nil,
+            createdAt: "2026-07-21T12:00:00Z", recipeVersionID: recipeVersionID
+        )
+        let projection = RemoteVisitRecipeProjection(
+            recipeIdentityID: UUID(),
+            recipeVersionID: recipeVersionID,
+            recipeName: "Daily Aeropress",
+            versionNumber: 1,
+            versionLabel: nil,
+            visibilityValue: "everyone",
+            sourceKindValue: "original",
+            sourceRecipeVersionID: nil,
+            brewMethod: "Aeropress",
+            equipment: "Aeropress",
+            brewDetails: .empty,
+            canSaveAndAdapt: true
+        )
+        let detail = RemoteVisitDetail(
+            summary: RemoteVisitSummary(visit: row, cafe: nil),
+            photos: [], comments: [], likeCount: 0,
+            currentUserHasLiked: false,
+            recipeProjection: projection
+        )
+
+        let presentation = SipDetailPresentationAdapter.remote(
+            detail: detail,
+            currentUserID: ownerID,
+            reactions: [],
+            isCafeSaved: false,
+            canRecommend: false,
+            canRepeat: true,
+            replyingToUsername: nil
+        )
+
+        #expect(presentation.content.recipe?.canBrewAgain == true)
+        #expect(presentation.content.recipe?.canSaveAndAdapt == false)
+    }
+
     private func makeContent(
         caption: String? = "Bright, balanced, and worth another visit.",
         privateNote: String? = nil,
@@ -232,6 +502,9 @@ struct SipDetailPresentationTests {
             caption: caption,
             sharedRawNote: nil,
             privateNote: privateNote,
+            sharedMugshot: nil,
+            recipe: nil,
+            taggedAccounts: [],
             photos: [],
             usesMugsyPhotoFallback: false,
             ratings: ratings,
