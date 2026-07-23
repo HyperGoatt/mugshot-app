@@ -30,9 +30,9 @@ Phase 0 is complete under Mugshot's risk-based roadmap policy. Exit-gate rows ar
 - Supabase project: `quskamnfwglctqewwfln`
 - Migrations:
   - `20260713231635_add_drink_analysis_retry_metadata_and_backfill`
-  - `20260714013618_harden_visit_photo_storage_contract` (live version; repository file `20260714013429`)
-  - `20260714013836_optimize_visit_photo_storage_policies` (live version; repository file `20260714013809`)
-  - `20260714025602_allow_owner_visit_photo_cleanup` (live version; repository file `20260714030200`)
+  - `20260714013618_harden_visit_photo_storage_contract`
+  - `20260714013836_optimize_visit_photo_storage_policies`
+  - `20260714025602_allow_owner_visit_photo_cleanup`
 - Edge Function: `analyze-drink`, deployed version 1
 - JWT verification: enabled
 - Live authenticated analysis check: `complete`, parser `edge-rules-2`, caffeine coverage `estimated`

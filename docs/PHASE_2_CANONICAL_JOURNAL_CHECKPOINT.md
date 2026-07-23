@@ -18,15 +18,10 @@ Phase 2 advances because the primary Journal, detail, Repeat Sip, Brew Again, dr
 
 ## Database contracts
 
-Repository migrations:
+Repository and live migrations:
 
-- `20260714110000_phase_2_canonical_journal.sql`
-- `20260714114000_harden_phase_2_journal_contracts.sql`
-
-Live migration versions:
-
-- `20260714042024_phase_2_canonical_journal`
-- `20260714043328_harden_phase_2_journal_contracts`
+- `20260714042024_phase_2_canonical_journal.sql`
+- `20260714043328_harden_phase_2_journal_contracts.sql`
 
 The migrations add:
 

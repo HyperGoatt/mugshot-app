@@ -649,7 +649,7 @@ Relevant code evidence:
 - Tasting Lens rows and criterion editor: [`SipComposerView.swift`](../testMugshot/Views/Add/SipComposerView.swift);
 - device-local template persistence: [`DataManager.swift`](../testMugshot/Services/DataManager.swift);
 - remote flattening into name/score/weight: [`VisitService.swift`](../testMugshot/Services/Supabase/VisitService.swift);
-- current taste-graph aggregation: [`20260714130000_phase_3_explainable_taste_graph.sql`](../supabase/migrations/20260714130000_phase_3_explainable_taste_graph.sql).
+- current taste-graph aggregation: [`20260714044901_phase_3_explainable_taste_graph.sql`](../supabase/migrations/20260714044901_phase_3_explainable_taste_graph.sql).
 
 Visual evidence:
 

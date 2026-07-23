@@ -940,3 +940,31 @@ After testing the first V3 UI Lab in Simulator, Joe approved the following refin
 12. **Completion choice:** Taste Passport includes a clear close route. "Pour another one" remains optional rather than the only way to leave the completion state.
 
 These are UI Lab decisions only. They do not authorize a migration of the production composer until the visual direction is reviewed again.
+
+# Post-audit alpha decision round — July 21, 2026
+
+After reviewing the comprehensive alpha-readiness audit, Joe approved the recommended alpha defaults with the following clarifications. This section is newer than the eight-round interview and supersedes any conflicting rule above.
+
+## Evidence and owner
+
+- **Evidence:** the July 21, 2026 end-user alpha-readiness audit, its signed-in and fresh-install runtime evidence, and the follow-up decision interview in the active Codex task.
+- **Decision owner:** Joe Rosso.
+- **Environment constraint:** the connected Supabase project contains valuable pre-alpha memories from Joe, Amanda, and other testers. Treat it as production-like. Preserve existing data, use additive and backward-compatible migrations, avoid destructive resets or speculative backfills, and require an explicit impact review before applying a production-affecting migration or deploying an Edge Function.
+
+## Superseding product rules
+
+1. **Taste Passport visibility:** Taste Passport is a distinctive social identity surface and defaults to `Everyone`. The owner can change it independently to `Friends` or `Private`. It must not become an expertise rank or consumption leaderboard, and its claims remain cautious, evidence-backed, and explainable. This replaces the earlier private-only Passport rule.
+2. **Independent recipe visibility:** Recipe visibility is fully modeled independently from post visibility in alpha. It supports `Private`, `Friends`, and `Everyone`, defaults to `Private`, and is enforced by viewer-specific projections. A post may identify a private recipe without revealing protected ingredients, quantities, equipment details, steps, or private source content.
+3. **Ordinary tagging:** An author may tag another account on any Mugshot without prior consent, like an ordinary social tag. Tagged users need notification, visibility, self-removal, and block enforcement. A tag does not make the tagged person an author or participant in a shared Mugshot.
+4. **Shared Mugshot participation:** Joining a shared Mugshot requires an invitation and explicit acceptance. Each participant owns their contribution and audience. Rejecting or leaving removes shared presentation without deleting another person's private journal memory.
+5. **Friends and Everyone remain available:** Reporting, enforcement, coherent blocking, comment ownership controls, and durable evidence are alpha requirements rather than later public-scale work. The alpha has a human operator; report states remain operationally honest and must not promise an unavailable response time.
+6. **External sharing:** System sharing is limited to a post's author or to posts whose audience is `Everyone`. Friends-visible and Private posts do not leave the app through another viewer's share action.
+7. **Notifications:** The all-friends publish-notification experiment remains required for alpha. Delivery includes permission education, device-token lifecycle, activity history, deep links, category controls, and truthful fallback behavior.
+8. **Collaborative cafe lists:** Private custom lists and collaborative cafe lists are alpha features. Collaboration includes hydrated cafe identity, inviter and role clarity, accepted editor permissions, item actions, invitations, membership lifecycle, leaving, deletion, ownership transfer, and coherent notifications.
+9. **Guest and onboarding:** Guest Map and Saved exploration remain. A brief contextual Mugsy introduction explains the journal-first ritual, personal score meaning, privacy, and how the first pin appears. Feed, Add, and Journal use the value-led sign-in sheet.
+10. **Account and recovery:** Email/password remains supported only with password reset and verification resend. Auth restoration distinguishes signed-out from recoverable outage/offline state. Account deletion must be complete and retryable; otherwise the UI must accurately describe a support-assisted path. Export must not claim completeness until its archive includes current V3, social, safety, collaboration, pending, and media data.
+11. **Zero-loss publishing:** Multiple pending Mugshots, idempotent retry, automatic reconnection retry, accurate pending/published/failed states, and remote-success reconciliation remain external-alpha gates.
+12. **Implementation authority:** Codex may implement and verify these decisions autonomously in focused milestones, create temporary data only in an isolated development environment, clean that data afterward, and prepare clean local commits on a `codex/` branch. Production-affecting database or Edge Function deployment still requires explicit approval.
+13. **Enforcement transparency:** A person affected by an active moderation action can see the action, its scope, its expiry when applicable, and a safe reason; they can submit one durable appeal per action. Reporter identity, reviewer identity, evidence, and internal notes remain private. Reporters receive an honest generic review-complete outcome rather than details about another person's account action.
+14. **Restricted-account continuity:** A content or account restriction must not lock someone out of their private Journal, owner export, deletion, or appeal routes. Deleting reported content or deleting an account must not erase the durable safety record needed for review and abuse prevention.
+15. **Safety-data retention:** Account deletion copy must disclose that limited safety and deletion-receipt records may be retained. The exact retention schedule remains a policy decision for beta; alpha surfaces must not claim immediate erasure of records that the service actually retains.
