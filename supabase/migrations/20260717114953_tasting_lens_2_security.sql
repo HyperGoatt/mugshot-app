@@ -110,4 +110,4 @@ create policy "Owners read Tasting Lens corrections"
 create policy "Owners append Tasting Lens corrections"
   on public.tasting_lens_corrections
   for insert to authenticated
-  with check ((select auth.uid()) = user_id);
+  with check ((select auth.uid()) = user_id);;

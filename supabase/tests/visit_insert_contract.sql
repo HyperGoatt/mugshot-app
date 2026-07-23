@@ -26,7 +26,6 @@ select set_config(
 create temp table inserted_visit (
   id uuid,
   user_id uuid,
-  notes text,
   visibility text,
   upload_state text
 );
@@ -62,7 +61,9 @@ values (
   'Home',
   '{}'::jsonb
   )
-  returning id, user_id, notes, visibility, upload_state
+  -- Raw legacy notes are deliberately not selectable from visits. The app
+  -- only needs the safe identity/state fields from INSERT ... RETURNING.
+  returning id, user_id, visibility, upload_state
 )
 insert into inserted_visit
 select * from created;
@@ -70,9 +71,6 @@ select * from created;
 do $$ begin
   if (select count(*) from inserted_visit) <> 1 then
     raise exception 'owner insert returning did not return exactly one visit';
-  end if;
-  if (select notes from inserted_visit) is not null then
-    raise exception 'legacy private note leaked onto the social visit row';
   end if;
   if not exists (
     select 1

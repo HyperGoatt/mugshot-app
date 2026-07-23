@@ -450,3 +450,4 @@ alter table public.cafe_experience_public_projections
       and cafe_rating * 10 = trunc(cafe_rating * 10)
     )
   );
+;

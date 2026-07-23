@@ -32,7 +32,6 @@ as $$
     else 'not_sure_yet'
   end;
 $$;
-
 create or replace function public.cafe_dimension_ids_are_valid(p_ids text[])
 returns boolean
 language sql
@@ -56,7 +55,6 @@ as $$
       from unnest(p_ids) dimension_id
     );
 $$;
-
 create or replace function public.cafe_context_overlays_are_valid(
   p_overlays text[]
 )
@@ -75,7 +73,6 @@ as $$
       from unnest(p_overlays) overlay
     );
 $$;
-
 create or replace function public.cafe_descriptor_ids_are_valid(p_ids text[])
 returns boolean
 language sql
@@ -97,7 +94,6 @@ as $$
         '^cafe\.descriptor\.[a-z0-9][a-z0-9_.-]{0,107}$'
     );
 $$;
-
 create or replace function public.cafe_pulse_responses_are_valid(p_responses jsonb)
 returns boolean
 language plpgsql
@@ -172,7 +168,6 @@ exception
     return false;
 end;
 $$;
-
 revoke all on function public.derive_cafe_next_move(text, text)
   from public, anon, authenticated;
 revoke all on function public.cafe_dimension_ids_are_valid(text[])
@@ -183,7 +178,6 @@ revoke all on function public.cafe_descriptor_ids_are_valid(text[])
   from public, anon, authenticated;
 revoke all on function public.cafe_pulse_responses_are_valid(jsonb)
   from public, anon, authenticated;
-
 grant execute on function public.derive_cafe_next_move(text, text)
   to authenticated, service_role;
 grant execute on function public.cafe_dimension_ids_are_valid(text[])
@@ -194,7 +188,6 @@ grant execute on function public.cafe_descriptor_ids_are_valid(text[])
   to service_role;
 grant execute on function public.cafe_pulse_responses_are_valid(jsonb)
   to service_role;
-
 create table public.cafe_sessions (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -234,19 +227,16 @@ create table public.cafe_sessions (
     status in ('draft', 'active') or ended_at is not null
   )
 );
-
 alter table public.visits
   add column if not exists cafe_session_id uuid,
   add column if not exists cafe_session_order smallint,
   add column if not exists cafe_session_role text;
-
 alter table public.visits
   add constraint visits_cafe_session_id_fkey
   foreign key (cafe_session_id)
   references public.cafe_sessions(id)
   on delete no action
   deferrable initially deferred;
-
 alter table public.visits
   add constraint visits_cafe_session_fields_coherent
   check (
@@ -264,23 +254,18 @@ alter table public.visits
       and lower(btrim(context_type)) is not distinct from 'cafe'
     )
   );
-
 alter table public.visits
   add constraint visits_session_identity_unique
   unique (id, cafe_session_id, user_id);
-
 create unique index visits_cafe_session_order_unique
   on public.visits(cafe_session_id, cafe_session_order)
   where cafe_session_id is not null;
-
 create unique index visits_cafe_session_primary_unique
   on public.visits(cafe_session_id)
   where cafe_session_role = 'primary';
-
 create index visits_cafe_session_owner_idx
   on public.visits(cafe_session_id, user_id, cafe_session_order)
   where cafe_session_id is not null;
-
 create table public.cafe_sip_intentions (
   visit_id uuid primary key,
   session_id uuid not null,
@@ -300,7 +285,6 @@ create table public.cafe_sip_intentions (
     on delete cascade
     deferrable initially deferred
 );
-
 create table public.cafe_experience_snapshots (
   session_id uuid primary key,
   snapshot_id uuid not null unique,
@@ -413,7 +397,6 @@ create table public.cafe_experience_snapshots (
     )
   )
 );
-
 create table public.cafe_experience_corrections (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -439,7 +422,6 @@ create table public.cafe_experience_corrections (
   constraint cafe_experience_corrections_metadata_object
     check (jsonb_typeof(metadata) = 'object')
 );
-
 create table public.cafe_experience_public_projections (
   session_id uuid primary key,
   snapshot_id uuid,
@@ -515,7 +497,6 @@ create table public.cafe_experience_public_projections (
   constraint cafe_experience_public_projection_descriptors_valid
     check (public.cafe_descriptor_ids_are_valid(descriptor_ids))
 );
-
 create table public.cafe_experience_signals (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -570,7 +551,6 @@ create table public.cafe_experience_signals (
     )
   )
 );
-
 create table public.cafe_experience_signal_evidence (
   signal_id uuid not null,
   session_id uuid not null,
@@ -633,7 +613,6 @@ create table public.cafe_experience_signal_evidence (
     )
   )
 );
-
 create index cafe_sessions_owner_cafe_history_idx
   on public.cafe_sessions(user_id, cafe_id, started_at desc, id desc)
   where status in ('active', 'complete');
@@ -703,7 +682,6 @@ create index cafe_experience_signal_evidence_session_snapshot_idx
   );
 create index cafe_experience_signal_evidence_cafe_fk_idx
   on public.cafe_experience_signal_evidence(cafe_id);
-
 create trigger set_cafe_sessions_updated_at
   before update on public.cafe_sessions
   for each row execute function public.set_updated_at();
@@ -716,7 +694,6 @@ create trigger set_cafe_experience_projection_updated_at
 create trigger set_cafe_experience_signals_updated_at
   before update on public.cafe_experience_signals
   for each row execute function public.set_updated_at();
-
 create or replace function public.reject_cafe_experience_history_mutation()
 returns trigger
 language plpgsql
@@ -727,18 +704,14 @@ begin
     using errcode = '55000';
 end;
 $$;
-
 revoke all on function public.reject_cafe_experience_history_mutation()
   from public, anon, authenticated;
-
 create trigger keep_cafe_experience_snapshots_immutable
   before update on public.cafe_experience_snapshots
   for each row execute function public.reject_cafe_experience_history_mutation();
-
 create trigger keep_cafe_experience_corrections_immutable
   before update on public.cafe_experience_corrections
   for each row execute function public.reject_cafe_experience_history_mutation();
-
 create or replace function public.enforce_cafe_session_visit_contract()
 returns trigger
 language plpgsql
@@ -789,10 +762,8 @@ begin
   return new;
 end;
 $$;
-
 revoke all on function public.enforce_cafe_session_visit_contract()
   from public, anon, authenticated;
-
 create trigger enforce_cafe_session_visit_contract
   before insert or update of
     cafe_session_id,
@@ -804,7 +775,6 @@ create trigger enforce_cafe_session_visit_contract
     visibility
   on public.visits
   for each row execute function public.enforce_cafe_session_visit_contract();
-
 create or replace function public.reconcile_cafe_session_after_visit_delete()
 returns trigger
 language plpgsql
@@ -890,14 +860,11 @@ begin
   return old;
 end;
 $$;
-
 revoke all on function public.reconcile_cafe_session_after_visit_delete()
   from public, anon, authenticated;
-
 create trigger reconcile_cafe_session_after_visit_delete
   after delete on public.visits
   for each row execute function public.reconcile_cafe_session_after_visit_delete();
-
 alter table public.cafe_sessions enable row level security;
 alter table public.cafe_sessions force row level security;
 alter table public.cafe_sip_intentions enable row level security;
@@ -912,7 +879,6 @@ alter table public.cafe_experience_signals enable row level security;
 alter table public.cafe_experience_signals force row level security;
 alter table public.cafe_experience_signal_evidence enable row level security;
 alter table public.cafe_experience_signal_evidence force row level security;
-
 revoke all on table public.cafe_sessions
   from public, anon, authenticated;
 revoke all on table public.cafe_sip_intentions
@@ -927,7 +893,6 @@ revoke all on table public.cafe_experience_signals
   from public, anon, authenticated;
 revoke all on table public.cafe_experience_signal_evidence
   from public, anon, authenticated;
-
 grant select on table public.cafe_sessions to authenticated;
 grant select on table public.cafe_sip_intentions to authenticated;
 grant select on table public.cafe_experience_snapshots to authenticated;
@@ -937,7 +902,6 @@ grant select on table public.cafe_experience_public_projections
 grant select on table public.cafe_experience_signals to authenticated;
 grant select on table public.cafe_experience_signal_evidence
   to authenticated;
-
 -- Existing app builds retain their full legacy visit write contract, while
 -- session linkage remains RPC-only. Removing the table-level write grants is
 -- necessary because a table-level grant overrides column-level restrictions.
@@ -1000,7 +964,6 @@ grant update (
   brew_details,
   recipe_version_id
 ) on table public.visits to authenticated;
-
 grant select, insert, update, delete
   on table public.cafe_sessions,
     public.cafe_sip_intentions,
@@ -1010,27 +973,22 @@ grant select, insert, update, delete
     public.cafe_experience_signals,
     public.cafe_experience_signal_evidence
   to service_role;
-
 create policy "Owners read cafe sessions"
   on public.cafe_sessions
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create policy "Owners read cafe sip intentions"
   on public.cafe_sip_intentions
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create policy "Owners read full Cafe Pulse snapshots"
   on public.cafe_experience_snapshots
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create policy "Owners read Cafe Pulse corrections"
   on public.cafe_experience_corrections
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create policy "Visible primary sips expose only Cafe Pulse projections"
   on public.cafe_experience_public_projections
   for select to authenticated
@@ -1038,17 +996,14 @@ create policy "Visible primary sips expose only Cafe Pulse projections"
     primary_visit_id is not null
     and public.can_view_visit(primary_visit_id, (select auth.uid()))
   );
-
 create policy "Owners read cafe experience signals"
   on public.cafe_experience_signals
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create policy "Owners read cafe experience signal evidence"
   on public.cafe_experience_signal_evidence
   for select to authenticated
   using ((select auth.uid()) = user_id);
-
 create or replace function public.get_cafe_sessions_capability_v1()
 returns jsonb
 language sql
@@ -1074,7 +1029,6 @@ as $$
   )
   where (select auth.uid()) is not null;
 $$;
-
 create or replace function public.ensure_cafe_session_v1(
   p_session_id uuid,
   p_cafe_id uuid,
@@ -1163,7 +1117,6 @@ begin
   return target;
 end;
 $$;
-
 create or replace function public.attach_visit_to_cafe_session_v1(
   p_session_id uuid,
   p_visit_id uuid,
@@ -1280,7 +1233,6 @@ begin
   return target_visit;
 end;
 $$;
-
 create or replace function public.finalize_cafe_session_sip_v1(
   p_session_id uuid,
   p_visit_id uuid
@@ -1337,7 +1289,6 @@ begin
   return target_visit;
 end;
 $$;
-
 create or replace function public.set_cafe_session_intentions_v1(
   p_session_id uuid,
   p_visit_id uuid,
@@ -1442,7 +1393,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.record_cafe_experience_v1(
   p_session_id uuid,
   p_snapshot_id uuid,
@@ -1605,7 +1555,6 @@ begin
   return existing;
 end;
 $$;
-
 create or replace function public.publish_cafe_session_v1(
   p_session_id uuid,
   p_visibility text,
@@ -1799,7 +1748,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.append_cafe_session_sip_v1(
   p_session_id uuid,
   p_visit_id uuid,
@@ -1918,7 +1866,6 @@ begin
   return target_visit;
 end;
 $$;
-
 create or replace function public.set_cafe_session_audience_v1(
   p_session_id uuid,
   p_visibility text
@@ -1969,7 +1916,6 @@ begin
   return target;
 end;
 $$;
-
 create or replace function public.append_cafe_experience_correction_v1(
   p_correction_id uuid,
   p_snapshot_id uuid,
@@ -2029,7 +1975,6 @@ begin
   return target;
 end;
 $$;
-
 create or replace function public.set_cafe_experience_signal_owner_state_v1(
   p_signal_id uuid,
   p_owner_state text,
@@ -2066,7 +2011,6 @@ begin
   return target;
 end;
 $$;
-
 create or replace function public.abandon_cafe_session_v1(
   p_session_id uuid
 )
@@ -2117,7 +2061,6 @@ begin
   return target;
 end;
 $$;
-
 create or replace function public.delete_cafe_session_sip_v1(
   p_session_id uuid,
   p_visit_id uuid
@@ -2181,7 +2124,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.get_cafe_session_summary_v1(
   p_session_id uuid
 )
@@ -2313,7 +2255,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.get_cafe_experience_summary_v1(
   p_cafe_id uuid,
   p_scope text default 'personal'
@@ -2497,7 +2438,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.get_cafe_experience_summaries_v1(
   p_cafe_ids uuid[],
   p_scope text default 'personal'
@@ -2544,7 +2484,6 @@ begin
   return result;
 end;
 $$;
-
 create or replace function public.build_owner_data_export_v2()
 returns jsonb
 language plpgsql
@@ -2626,7 +2565,6 @@ begin
     );
 end;
 $$;
-
 revoke all on function public.get_cafe_sessions_capability_v1()
   from public, anon, authenticated;
 revoke all on function public.ensure_cafe_session_v1(
@@ -2710,7 +2648,6 @@ revoke all on function public.get_cafe_experience_summaries_v1(uuid[], text)
   from public, anon, authenticated;
 revoke all on function public.build_owner_data_export_v2()
   from public, anon, authenticated;
-
 grant execute on function public.get_cafe_sessions_capability_v1()
   to authenticated;
 grant execute on function public.ensure_cafe_session_v1(
@@ -2796,7 +2733,6 @@ grant execute on function public.get_cafe_experience_summaries_v1(
 ) to authenticated;
 grant execute on function public.build_owner_data_export_v2()
   to authenticated;
-
 -- A Cafe Session is one feed story. Secondary sips remain available from the
 -- session detail and drink history, but cannot become duplicate feed roots.
 create or replace function public.ranked_feed(
@@ -2960,7 +2896,6 @@ as $$
     scored.id desc
   limit least(greatest(coalesce(p_limit, 20), 1), 50);
 $$;
-
 revoke all on function public.ranked_feed(
   text,
   double precision,

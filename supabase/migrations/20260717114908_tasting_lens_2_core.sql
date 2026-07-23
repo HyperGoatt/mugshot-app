@@ -147,4 +147,4 @@ create table public.tasting_lens_corrections (
 );
 
 create index tasting_lens_corrections_owner_snapshot_idx
-  on public.tasting_lens_corrections(user_id, snapshot_id, created_at desc);
+  on public.tasting_lens_corrections(user_id, snapshot_id, created_at desc);;

@@ -4,9 +4,7 @@
 
 alter view public.notifications_with_actor
   set (security_invoker = true);
-
 alter view public.feedback_posts_with_counts
   set (security_invoker = true);
-
 alter view public.feedback_comments_with_author
   set (security_invoker = true);

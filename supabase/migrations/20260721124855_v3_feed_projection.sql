@@ -43,4 +43,4 @@ grant execute on function public.get_visit_v3_feed_projections_v1(uuid[])
 comment on function public.get_visit_v3_feed_projections_v1(uuid[]) is
   'Caller-bound, feed-safe V3 score and Mugsy placeholder projection.';
 
-commit;
+commit;;

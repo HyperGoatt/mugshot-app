@@ -33,8 +33,12 @@ alter policy "Friends can read friends visits"
     )
   );
 
-alter policy "Likes visible based on visit visibility and friendships"
+drop policy if exists "Likes visible when visit is visible" on public.likes;
+drop policy if exists "Likes visible based on visit visibility and friendships"
+  on public.likes;
+create policy "Likes visible based on visit visibility and friendships"
   on public.likes
+  for select
   using (
     (select auth.uid()) = user_id
     or exists (
@@ -58,8 +62,12 @@ alter policy "Likes visible based on visit visibility and friendships"
     )
   );
 
-alter policy "Comments visible based on visit visibility and friendships"
+drop policy if exists "Comments visible when visit is visible" on public.comments;
+drop policy if exists "Comments visible based on visit visibility and friendships"
+  on public.comments;
+create policy "Comments visible based on visit visibility and friendships"
   on public.comments
+  for select
   using (
     (select auth.uid()) = user_id
     or exists (
@@ -85,4 +93,4 @@ alter policy "Comments visible based on visit visibility and friendships"
 
 alter policy "Users can view their own cafe states"
   on public.user_cafe_states
-  using ((select auth.uid()) = user_id);
+  using ((select auth.uid()) = user_id);;

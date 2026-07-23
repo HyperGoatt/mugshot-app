@@ -10,26 +10,26 @@ begin
     ('discovery_social_expansion', array['20260712214406']),
     ('complete_push_quarantine', array['20260712214646']),
     ('phase_two_journal_data', array['20260713035201']),
-    ('separate_visit_private_notes', array['20260713152500','20260713205511']),
-    ('add_visit_drink_analysis', array['20260713191000','20260713205518']),
+    ('separate_visit_private_notes', array['20260713205511']),
+    ('add_visit_drink_analysis', array['20260713205518']),
     ('add_drink_analysis_retry_metadata_and_backfill', array['20260713231635']),
-    ('harden_visit_photo_storage_contract', array['20260714013429','20260714013618']),
-    ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836']),
-    ('phase_2_canonical_journal', array['20260714110000','20260714042024']),
-    ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328']),
-    ('phase_3_explainable_taste_graph', array['20260714130000','20260714044901']),
-    ('refine_taste_graph_recommendation_reasons', array['20260714133000','20260714045207']),
-    ('phase_4_lightweight_friends', array['20260714150000','20260714050516']),
-    ('refine_cafe_list_invitation_visibility', array['20260714153000','20260714051041']),
-    ('expose_caller_bound_phase_4_policies', array['20260714160000','20260714051404']),
-    ('close_phase_4_direct_mutations', array['20260714161500','20260714051432']),
-    ('sanitize_shared_recipe_payloads', array['20260714163000','20260714051603']),
-    ('add_cafe_list_reordering', array['20260714164500','20260714052754']),
-    ('phase_5_reflection_preferences', array['20260714170000','20260714053353']),
-    ('phase_6_owner_data_export', array['20260714180000','20260714055538']),
-    ('harden_owner_data_export_invoker', array['20260714181000','20260714061539']),
-    ('followup_discovery_feed_companions', array['20260714190000','20260714151316']),
-    ('fix_visit_companion_visibility_policy', array['20260714200000','20260714185446']),
+    ('harden_visit_photo_storage_contract', array['20260714013618']),
+    ('optimize_visit_photo_storage_policies', array['20260714013836']),
+    ('phase_2_canonical_journal', array['20260714042024']),
+    ('harden_phase_2_journal_contracts', array['20260714043328']),
+    ('phase_3_explainable_taste_graph', array['20260714044901']),
+    ('refine_taste_graph_recommendation_reasons', array['20260714045207']),
+    ('phase_4_lightweight_friends', array['20260714050516']),
+    ('refine_cafe_list_invitation_visibility', array['20260714051041']),
+    ('expose_caller_bound_phase_4_policies', array['20260714051404']),
+    ('close_phase_4_direct_mutations', array['20260714051432']),
+    ('sanitize_shared_recipe_payloads', array['20260714051603']),
+    ('add_cafe_list_reordering', array['20260714052754']),
+    ('phase_5_reflection_preferences', array['20260714053353']),
+    ('phase_6_owner_data_export', array['20260714055538']),
+    ('harden_owner_data_export_invoker', array['20260714061539']),
+    ('followup_discovery_feed_companions', array['20260714151316']),
+    ('fix_visit_companion_visibility_policy', array['20260714185446']),
     ('tasting_lens_2_core', array['20260717114908']),
     ('tasting_lens_2_security', array['20260717114953']),
     ('tasting_lens_2_export', array['20260717115015']),
@@ -45,6 +45,32 @@ begin
   );
   if missing_migrations is not null then
     raise exception 'missing live migrations: %', missing_migrations;
+  end if;
+
+  if exists (
+    select 1
+    from pg_policies policy
+    where concat_ws(' ', policy.qual, policy.with_check) ilike '%private.%'
+  ) then
+    raise exception 'an RLS policy calls a sealed private helper directly';
+  end if;
+
+  if has_function_privilege(
+       'anon',
+       'public.can_write_account_storage(uuid)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.can_write_account_storage(uuid)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'anon',
+       'public.is_live_account(uuid)',
+       'EXECUTE'
+     ) then
+    raise exception 'caller-bound Storage wrapper grants are incorrect';
   end if;
 
   if to_regclass('public.comment_mentions') is null then
@@ -63,22 +89,16 @@ begin
       and grantee in ('anon','authenticated')
   ) then raise exception 'legacy device table remains client accessible'; end if;
 
-  if not exists (
+  if exists (
     select 1 from pg_trigger
     where tgrelid='public.notifications'::regclass
-      and tgname='on_notification_insert' and tgenabled='D'
-  ) then raise exception 'legacy push trigger is not disabled'; end if;
+      and tgname='on_notification_insert'
+      and not tgisinternal
+  ) then raise exception 'legacy push trigger remains installed'; end if;
 
-  if has_function_privilege('anon','public.send_push_notification_trigger()','EXECUTE')
-     or has_function_privilege('authenticated','public.send_push_notification_trigger()','EXECUTE') then
-    raise exception 'legacy push function remains callable';
+  if to_regprocedure('public.send_push_notification_trigger()') is not null then
+    raise exception 'legacy push function remains installed';
   end if;
-
-  if not exists (
-    select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname='send_push_notification_trigger'
-      and p.proconfig @> array['search_path=""']
-  ) then raise exception 'legacy push function search path is not quarantined'; end if;
 
   if exists (
     select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -348,7 +368,7 @@ begin
     where schemaname='public' and tablename='visit_companions'
       and policyname='Visible sip companions'
       and qual ilike '%can_view_visit%'
-      and qual ilike '%is_blocked_between%'
+      and qual ilike '%can_view_user%'
       and qual not ilike '%private.%'
   ) then raise exception 'visit companion policy bypasses caller-bound visibility wrappers'; end if;
   if has_function_privilege('anon','public.set_visit_companions(uuid,uuid[])','EXECUTE')

@@ -40,4 +40,4 @@ end;
 $$;
 
 revoke all on function public.build_owner_data_export() from public, anon;
-grant execute on function public.build_owner_data_export() to authenticated;
+grant execute on function public.build_owner_data_export() to authenticated;;

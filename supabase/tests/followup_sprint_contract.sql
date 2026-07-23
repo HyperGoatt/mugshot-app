@@ -2,7 +2,18 @@ begin;
 
 create temp table sprint_users as
 select id, row_number() over (order by id) n
-from (select id from public.users order by id limit 3) users;
+from (
+  select profile.id
+  from public.users profile
+  join auth.users account on account.id = profile.id
+  where account.deleted_at is null
+    and not private.has_active_moderation_action(
+      'user', profile.id, array['account_suspended']::text[]
+    )
+    and not private.account_deletion_active_as(profile.id)
+  order by profile.id
+  limit 3
+) users;
 grant select on sprint_users to authenticated, anon;
 
 do $$ begin
@@ -19,8 +30,7 @@ end $$;
 create temp table expected_public_cafe_counts as
 select cafe_id, count(*)::bigint visible_visit_count
 from public.visits
-where visibility = 'everyone'
-  and upload_state = 'complete'
+where private.is_public_visit_discoverable_v3(id)
   and cafe_id is not null
 group by cafe_id;
 grant select on expected_public_cafe_counts to anon;
@@ -43,6 +53,110 @@ begin
   end loop;
 end $$;
 reset role;
+
+-- A signed-out cafe aggregate, cover, and drink disappear atomically while
+-- its only post or author is enforced, then return after revocation.
+create temp table sprint_public_projection_target(cafe_id uuid, visit_id uuid, cover text);
+with cafe as (
+  insert into public.cafes(name, address, latitude, longitude, identity_key)
+  values (
+    'Projection Cafe ' || gen_random_uuid()::text,
+    '1 Projection Way',
+    11.12345,
+    22.54321,
+    'temporary'
+  )
+  returning id
+), visit as (
+  insert into public.visits(
+    user_id, cafe_id, drink_type, drink_subtype, caption, visibility,
+    ratings, overall_score, context_type, brew_details, upload_state,
+    poster_photo_url
+  )
+  select
+    (select id from sprint_users where n = 1),
+    cafe.id,
+    'Coffee',
+    'Projection cortado',
+    'Projection contract',
+    'everyone',
+    '{"Overall":4.6}'::jsonb,
+    4.6,
+    'Cafe',
+    '{}'::jsonb,
+    'complete',
+    'https://example.invalid/projection-cover.jpg'
+  from cafe
+  returning id, cafe_id, poster_photo_url
+)
+insert into sprint_public_projection_target
+select cafe_id, id, poster_photo_url from visit;
+grant select on sprint_public_projection_target to anon;
+
+set local role anon;
+do $$
+declare discovered record;
+begin
+  select * into discovered
+  from public.discover_public_cafes(
+    'nearby', 11.12345, 22.54321, 1, 50, null, null
+  )
+  where cafe_id = (select cafe_id from sprint_public_projection_target);
+  if discovered.cafe_id is null
+     or discovered.visible_visit_count <> 1
+     or discovered.recent_cover <>
+       (select cover from sprint_public_projection_target) then
+    raise exception 'eligible signed-out projection fixture is incomplete';
+  end if;
+end;
+$$;
+reset role;
+
+insert into private.moderation_actions(
+  subject_kind, subject_id, action_kind, reason_code
+) values (
+  'user', (select id from sprint_users where n = 1),
+  'account_suspended', 'public_projection_contract'
+);
+set local role anon;
+do $$ begin
+  if exists (
+    select 1 from public.discover_public_cafes(
+      'nearby', 11.12345, 22.54321, 1, 50, null, null
+    )
+    where cafe_id = (select cafe_id from sprint_public_projection_target)
+  ) then
+    raise exception 'suspended author still drives signed-out Map discovery';
+  end if;
+end $$;
+reset role;
+delete from private.moderation_actions
+where subject_kind = 'user'
+  and subject_id = (select id from sprint_users where n = 1)
+  and reason_code = 'public_projection_contract';
+
+insert into private.moderation_actions(
+  subject_kind, subject_id, action_kind, reason_code
+) values (
+  'visit', (select visit_id from sprint_public_projection_target),
+  'content_hidden', 'public_projection_contract'
+);
+set local role anon;
+do $$ begin
+  if exists (
+    select 1 from public.discover_public_cafes(
+      'nearby', 11.12345, 22.54321, 1, 50, null, null
+    )
+    where cafe_id = (select cafe_id from sprint_public_projection_target)
+  ) then
+    raise exception 'hidden post still drives signed-out Map discovery';
+  end if;
+end $$;
+reset role;
+delete from private.moderation_actions
+where subject_kind = 'visit'
+  and subject_id = (select visit_id from sprint_public_projection_target)
+  and reason_code = 'public_projection_contract';
 
 delete from public.user_blocks
 where blocker_id in (select id from sprint_users) and blocked_id in (select id from sprint_users);
@@ -125,6 +239,43 @@ do $$ begin
     raise exception 'non-friend companion unexpectedly succeeded';
   exception when sqlstate '42501' then null;
   end;
+end $$;
+
+reset role;
+insert into private.moderation_actions(
+  subject_kind, subject_id, action_kind, reason_code
+) values (
+  'user', (select id from sprint_users where n = 2),
+  'account_suspended', 'companion_projection_contract'
+);
+set local role authenticated;
+select set_config('request.jwt.claims', jsonb_build_object(
+  'sub', (select id from sprint_users where n=1), 'role', 'authenticated'
+)::text, true);
+do $$ begin
+  if exists (
+    select 1 from public.companion_suggestions(10)
+    where user_id = (select id from sprint_users where n = 2)
+  ) then
+    raise exception 'suspended companion remained selectable';
+  end if;
+end $$;
+reset role;
+delete from private.moderation_actions
+where subject_kind = 'user'
+  and subject_id = (select id from sprint_users where n = 2)
+  and reason_code = 'companion_projection_contract';
+set local role authenticated;
+select set_config('request.jwt.claims', jsonb_build_object(
+  'sub', (select id from sprint_users where n=1), 'role', 'authenticated'
+)::text, true);
+do $$ begin
+  if not exists (
+    select 1 from public.companion_suggestions(10)
+    where user_id = (select id from sprint_users where n = 2)
+  ) then
+    raise exception 'companion did not return after suspension revocation';
+  end if;
 end $$;
 
 -- Friends and Everyone retain strict reverse chronological order. Your Mix

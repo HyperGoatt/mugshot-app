@@ -11,3 +11,4 @@ do $$ declare p record; begin
     execute format('drop policy if exists %I on public.user_devices',p.policyname);
   end loop;
 end $$;
+;

@@ -15,3 +15,4 @@ create policy "Visible visits"
     (select auth.uid()) = user_id
     or public.can_view_visit(id, (select auth.uid()))
   );
+;

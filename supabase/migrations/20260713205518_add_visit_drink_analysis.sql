@@ -210,3 +210,4 @@ revoke all on function public.request_visit_drink_analysis_correction(uuid, json
   from public, anon;
 grant execute on function public.request_visit_drink_analysis_correction(uuid, jsonb)
   to authenticated;
+;

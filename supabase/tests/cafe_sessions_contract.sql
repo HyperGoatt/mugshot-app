@@ -956,12 +956,12 @@ begin
 
   exported := public.build_owner_data_export_v2();
   if (exported ->> 'schema_version')::integer <> 2
-     or jsonb_typeof(exported -> 'cafe_sessions') <> 'array'
-     or jsonb_typeof(exported -> 'cafe_experience_snapshots') <> 'array'
+     or jsonb_typeof(exported #> '{cafe_experience,sessions}') <> 'array'
+     or jsonb_typeof(exported #> '{cafe_experience,snapshots}') <> 'array'
      or not exists (
        select 1
        from jsonb_array_elements(
-         exported -> 'cafe_experience_snapshots'
+         exported #> '{cafe_experience,snapshots}'
        ) entry
        where entry ->> 'snapshot_id' = (
          select snapshot_id::text from cafe_sessions_test_context

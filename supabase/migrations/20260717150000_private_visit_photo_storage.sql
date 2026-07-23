@@ -9,7 +9,6 @@
 -- supported clients resolve signed URLs.
 
 begin;
-
 -- Storage policies cannot depend on the caller being able to select the
 -- underlying visits row. This caller-bound helper performs the same canonical
 -- audience check without accepting a spoofable viewer id. Its only anon-true
@@ -41,10 +40,8 @@ as $$
       )
   );
 $$;
-
 revoke all on function public.can_view_visit_photo_object(text) from public;
 grant execute on function public.can_view_visit_photo_object(text) to anon, authenticated;
-
 drop policy if exists "View photos based on completed visit visibility" on storage.objects;
 create policy "View photos based on completed visit visibility"
   on storage.objects
@@ -57,7 +54,6 @@ create policy "View photos based on completed visit visibility"
       or public.can_view_visit_photo_object(name)
     )
   );
-
 insert into storage.buckets (
   id,
   name,
@@ -78,7 +74,6 @@ set
   public = excluded.public,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
-
 drop policy if exists "Owners upload private visit photos" on storage.objects;
 create policy "Owners upload private visit photos"
   on storage.objects
@@ -95,7 +90,6 @@ create policy "Owners upload private visit photos"
         and visit.user_id = (select auth.uid())
     )
   );
-
 drop policy if exists "Owners update private visit photos" on storage.objects;
 create policy "Owners update private visit photos"
   on storage.objects
@@ -116,7 +110,6 @@ create policy "Owners update private visit photos"
         and visit.user_id = (select auth.uid())
     )
   );
-
 drop policy if exists "Owners delete private visit photos" on storage.objects;
 create policy "Owners delete private visit photos"
   on storage.objects
@@ -126,7 +119,6 @@ create policy "Owners delete private visit photos"
     bucket_id = 'visit-photos-private'
     and lower((storage.foldername(name))[1]) = (select lower(auth.uid()::text))
   );
-
 -- The owner-folder branch also keeps orphan metadata readable after a visit is
 -- deleted, allowing the durable media cleanup queue to finish. Everyone else
 -- must pass the exact same visit-level audience and block checks as the feed.
@@ -142,7 +134,6 @@ create policy "Visit audiences read private visit photos"
       or public.can_view_visit_photo_object(name)
     )
   );
-
 -- Signed-out discovery may sign media only for complete Everyone visits.
 -- Keeping this separate avoids invoking authenticated-only helper functions
 -- while the request is running as anon.
@@ -155,5 +146,4 @@ create policy "Anonymous viewers read Everyone private visit photos"
     bucket_id = 'visit-photos-private'
     and public.can_view_visit_photo_object(name)
   );
-
 commit;

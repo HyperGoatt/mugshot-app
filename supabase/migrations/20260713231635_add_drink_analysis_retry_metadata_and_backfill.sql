@@ -1,3 +1,4 @@
+
 alter table public.visit_drink_analyses
   add column if not exists attempt_count integer not null default 0,
   add column if not exists last_attempt_at timestamptz,
@@ -181,3 +182,4 @@ set parser_version = 'sql-backfill-1',
     updated_at = now()
 from calculated
 where analysis.visit_id = calculated.visit_id;
+;

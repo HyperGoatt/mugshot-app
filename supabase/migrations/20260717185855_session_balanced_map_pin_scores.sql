@@ -3,7 +3,6 @@
 -- shared friend Cafe Pulse rating exists.
 
 begin;
-
 create or replace function public.get_friend_map_sip_summaries_v1(
   p_cafe_ids uuid[]
 )
@@ -87,10 +86,8 @@ begin
   return result;
 end;
 $$;
-
 revoke all on function public.get_friend_map_sip_summaries_v1(uuid[])
   from public, anon, authenticated;
 grant execute on function public.get_friend_map_sip_summaries_v1(uuid[])
   to authenticated;
-
 commit;

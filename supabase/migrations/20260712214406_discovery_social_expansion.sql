@@ -571,3 +571,4 @@ create policy "Visible likes" on public.likes for select to authenticated using 
   public.can_view_visit(visit_id,(select auth.uid()))
   and not public.is_blocked_between((select auth.uid()),user_id)
 );
+;

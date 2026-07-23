@@ -101,4 +101,4 @@ alter table public.cafes
   drop constraint if exists cafes_identity_key_key;
 
 alter table public.cafes
-  add constraint cafes_identity_key_key unique (identity_key);
+  add constraint cafes_identity_key_key unique (identity_key);;

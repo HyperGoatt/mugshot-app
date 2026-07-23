@@ -22,7 +22,7 @@ select
   candidate.stranger_id,
   ids.snapshot_id,
   ids.correction_id,
-  public.can_view_visit(candidate.visit_id, candidate.stranger_id),
+  private.can_view_visit_as(candidate.visit_id, candidate.stranger_id),
   fixture.identity,
   '[]'::jsonb,
   jsonb_build_object(

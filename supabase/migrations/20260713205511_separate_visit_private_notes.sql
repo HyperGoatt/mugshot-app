@@ -102,3 +102,4 @@ revoke all on function public.route_legacy_visit_private_note() from authenticat
 create trigger route_legacy_visit_private_note
   before insert or update of notes on public.visits
   for each row execute function public.route_legacy_visit_private_note();
+;

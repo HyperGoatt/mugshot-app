@@ -102,3 +102,4 @@ comment on function public.get_public_profile(uuid) is
   'Caller-bound public profile with exact Cafe, Home, Recipe, and Elsewhere context semantics.';
 
 commit;
+;
