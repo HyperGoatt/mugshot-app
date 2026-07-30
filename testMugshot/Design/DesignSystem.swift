@@ -301,6 +301,7 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
     @Binding var selection: Option
     let title: (Option) -> String
     var icon: ((Option) -> String?)? = nil
+    var accessibilityIdentifier: ((Option) -> String?)? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -330,6 +331,7 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selection == option ? .isSelected : [])
+                .accessibilityIdentifier(accessibilityIdentifier?(option) ?? "")
             }
         }
         .padding(4)
@@ -447,9 +449,14 @@ struct MugshotFilterChip: View {
 struct MugshotRatingBadge: View {
     let score: Double
     var onPhoto = false
+    var label: String? = nil
 
     var body: some View {
         HStack(spacing: 4) {
+            if let label {
+                Text(label)
+                    .font(.system(size: 11, weight: .bold))
+            }
             Image(systemName: "star.fill")
                 .font(.system(size: 11, weight: .semibold))
             Text(String(format: "%.1f", score))
@@ -460,7 +467,13 @@ struct MugshotRatingBadge: View {
         .padding(.vertical, 6)
         .background(onPhoto ? Color.espressoBrown.opacity(0.72) : Color.mugshotMint.opacity(0.38))
         .clipShape(Capsule())
-        .accessibilityLabel(String(format: "Rated %.1f out of 5", score))
+        .accessibilityLabel(
+            String(
+                format: "%@ rated %.1f out of 5",
+                label ?? "MugShot",
+                score
+            )
+        )
     }
 }
 

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SavedTabView: View {
     @ObservedObject var dataManager: DataManager
+    var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedSection: SavedSection = .cafes
@@ -32,7 +33,7 @@ struct SavedTabView: View {
     }
     
     enum SortOption: String, CaseIterable {
-        case score = "By Score"
+        case score = "By Sip History"
         case date = "By Date"
         case name = "By Name"
 
@@ -175,10 +176,11 @@ struct SavedTabView: View {
                             )
                         } else if filteredAndSortedCafes.isEmpty {
                             SavedEmptyStateView(
-                                asset: mugsyAsset(for: selectedTab),
+                                placement: mugsyPlacement(for: selectedTab),
                                 title: emptyTitle,
                                 message: emptyMessage
                             )
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
                         } else {
                             ForEach(filteredAndSortedCafes) { cafe in
                                 CafeCard(
@@ -187,25 +189,20 @@ struct SavedTabView: View {
                                     showWantToTryTag: selectedTab == .wantToTry,
                                     communityImageURL: remoteCafeCoverURLs[cafe.remoteCafeId ?? cafe.id],
                                     onLogVisit: {
-                                        guard authModel.authenticatedUser != nil else {
-                                            onAuthenticationRequired?(
-                                                "Keep this sip in your journal",
-                                                "Sign in to log this saved cafe. Your guest saves will remain on this device."
-                                            )
-                                            return
-                                        }
-                                        activeSheet = .logVisit(cafe)
+                                        onLogVisitRequested?(cafe)
                                     },
                                     onShowDetails: {
                                         activeSheet = .cafeDetail(cafe)
                                     }
                                 )
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                             }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
                     .padding(.bottom, 116)
+                    .animation(MugshotMotion.response, value: filteredAndSortedCafes.count)
                 }
             }
             .background(Color.creamWhite)
@@ -218,12 +215,11 @@ struct SavedTabView: View {
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
-            case .logVisit(let cafe):
-                LogVisitView(dataManager: dataManager, preselectedCafe: cafe)
             case .cafeDetail(let cafe):
                 CafeDetailView(
                     cafe: cafe,
                     dataManager: dataManager,
+                    onLogVisitRequested: onLogVisitRequested,
                     onAuthenticationRequired: onAuthenticationRequired
                 )
             }
@@ -328,36 +324,33 @@ struct SavedTabView: View {
         }
     }
 
-    private func mugsyAsset(for tab: SavedTab) -> MugsyEmptyStateAsset {
+    private func mugsyPlacement(for tab: SavedTab) -> MugsyPlacement {
         switch tab {
         case .favorites:
-            return .noFavorites
+            return .savedFavorites
         case .wantToTry:
-            return .noWishlist
+            return .savedWishlist
         case .allCafes:
-            return .noCafes
+            return .savedCafes
         }
     }
 }
 
 struct SavedEmptyStateView: View {
-    let asset: MugsyEmptyStateAsset
+    let placement: MugsyPlacement
     let title: String
     let message: String
 
     var body: some View {
-        MugsyEmptyStateView(asset: asset, title: title, message: message)
+        MugsyEmptyStateView(placement: placement, title: title, message: message)
     }
 }
 
 enum SavedSheet: Identifiable {
-    case logVisit(Cafe)
     case cafeDetail(Cafe)
 
     var id: String {
         switch self {
-        case .logVisit(let cafe):
-            return "log-\(cafe.id.uuidString)"
         case .cafeDetail(let cafe):
             return "detail-\(cafe.id.uuidString)"
         }
@@ -443,7 +436,7 @@ struct CafeCard: View {
 
                         HStack(spacing: 8) {
                             cafePill(
-                                "\(displayedVisitCount) \(displayedVisitCount == 1 ? "visit" : "visits")",
+                                "\(displayedVisitCount) \(displayedVisitCount == 1 ? "sip" : "sips")",
                                 systemImage: "cup.and.saucer.fill"
                             )
 
@@ -458,7 +451,7 @@ struct CafeCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
-                "\(cafe.consumerDisplayName), \(cafe.consumerScoreLabel), \(displayedVisitCount) visits"
+                "\(cafe.consumerDisplayName), \(cafe.consumerScoreLabel), \(displayedVisitCount) sips"
             )
             .accessibilityHint("Opens cafe details")
 
@@ -466,7 +459,7 @@ struct CafeCard: View {
                 .padding(.horizontal, 12)
 
             Button(action: onLogVisit) {
-                Label("Log a visit", systemImage: "plus.circle.fill")
+                Label("Log a Sip", systemImage: "plus.circle.fill")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.espressoBrown)
                     .frame(maxWidth: .infinity)
@@ -474,7 +467,7 @@ struct CafeCard: View {
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
-            .accessibilityHint("Opens a new visit with this cafe selected")
+            .accessibilityHint("Opens a new sip with this cafe selected")
             .padding(.vertical, 10)
         }
         .cardStyle(radius: DesignSystem.Radius.card)
@@ -597,6 +590,7 @@ private struct CommunityDrinkCount: Identifiable {
 struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
+    var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) var dismiss
@@ -608,6 +602,9 @@ struct CafeDetailView: View {
     @State private var remoteVisitError: String?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var friendUserIDs: Set<UUID> = []
+    @State private var cafeExperienceSummary: RemoteCafeExperienceSummary?
+    @State private var isLoadingCafeExperienceSummary = false
+    @State private var cafeExperienceSummaryError: String?
 
     var currentCafe: Cafe {
         dataManager.getCafe(id: cafe.id) ?? cafe
@@ -625,24 +622,6 @@ struct CafeDetailView: View {
         signedInRemoteCafeId != nil
     }
 
-    private var displayedAverageRating: Double {
-        guard shouldShowRemoteVisits else {
-            return currentCafe.averageRating
-        }
-
-        let stats = RemoteCafeVisitStats.calculate(from: remoteVisits)
-        return stats.visitCount == 0 ? currentCafe.averageRating : stats.averageScore
-    }
-
-    private var displayedVisitCount: Int {
-        guard shouldShowRemoteVisits else {
-            return currentCafe.visitCount
-        }
-
-        let stats = RemoteCafeVisitStats.calculate(from: remoteVisits)
-        return stats.visitCount == 0 ? max(currentCafe.visitCount, visits.count) : stats.visitCount
-    }
-    
     var visits: [Visit] {
         dataManager.getVisitsForCafe(currentCafe.id)
     }
@@ -700,8 +679,11 @@ struct CafeDetailView: View {
                         cafeSummarySection
                             .padding(.horizontal)
                         .padding(.top, 20)
-                        
-                        detailStatsSection
+
+                        detailPrimaryAction
+                            .padding(.horizontal)
+
+                        personalRelationshipSection
                             .padding(.horizontal)
 
                         if shouldShowRemoteVisits && !remoteVisits.isEmpty {
@@ -709,10 +691,10 @@ struct CafeDetailView: View {
                                 .padding(.horizontal)
                         }
 
-                        detailActionsSection
-                            .padding(.horizontal)
-                        
                         recentVisitsSection
+
+                        detailUtilitiesSection
+                            .padding(.horizontal)
                     }
                     .padding(.bottom, 20)
                 }
@@ -727,21 +709,36 @@ struct CafeDetailView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showLogVisit) {
+            .sheet(isPresented: $showLogVisit, onDismiss: {
+                Task {
+                    await loadRemoteVisits()
+                    await loadCafeExperienceSummary()
+                }
+            }) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
             }
-            .fullScreenCover(item: $selectedRemoteVisit, onDismiss: {
-                Task { await loadRemoteVisits() }
-            }) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedRemoteVisit != nil },
+                    set: { if !$0 { selectedRemoteVisit = nil } }
                 )
+            ) {
+                if let visit = selectedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager,
+                        onAuthenticationRequired: onAuthenticationRequired
+                    )
+                    .onDisappear { Task { await loadRemoteVisits() } }
+                }
             }
             .task(id: remoteVisitTaskID) {
                 await loadRemoteVisits()
+            }
+            .task(id: remoteVisitTaskID) {
+                await loadCafeExperienceSummary()
             }
         }
     }
@@ -790,44 +787,217 @@ struct CafeDetailView: View {
     }
 
     private var detailStatsSection: some View {
-        HStack(spacing: 10) {
-            detailStatCard(
-                title: "Average",
-                value: String(format: "%.1f", displayedAverageRating),
-                systemImage: "star.fill"
+        VStack(alignment: .leading, spacing: 12) {
+            relationshipTruthHeader(
+                title: "The Cafe",
+                systemImage: "storefront.fill"
             )
 
-            detailStatCard(
-                title: "Visits",
-                value: "\(displayedVisitCount)",
+            HStack(spacing: 10) {
+                detailStatCard(
+                    title: "Cafe average",
+                    value: cafeAverageDisplayValue,
+                    systemImage: "star.fill"
+                )
+
+                detailStatCard(
+                    title: "Physical visits",
+                    value: cafePhysicalVisitDisplayValue,
+                    systemImage: "door.left.hand.open"
+                )
+            }
+            .redacted(
+                reason: isLoadingCafeExperienceSummary && cafeExperienceSummary == nil
+                    ? .placeholder
+                    : []
+            )
+
+            if let summary = cafeExperienceSummary {
+                cafeRelationshipEvidence(summary)
+            }
+
+            if let cafeExperienceSummaryError {
+                Label(cafeExperienceSummaryError, systemImage: "exclamationmark.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.tertiaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+                .overlay(Color.mugshotLine)
+
+            relationshipTruthHeader(
+                title: "The Sip",
                 systemImage: "cup.and.saucer.fill"
             )
+
+            HStack(spacing: 10) {
+                detailStatCard(
+                    title: "Sip average",
+                    value: personalAverageRating.map { String(format: "%.1f", $0) } ?? "—",
+                    systemImage: "star.fill"
+                )
+
+                detailStatCard(
+                    title: "Your sips",
+                    value: "\(personalSipCount)",
+                    systemImage: "cup.and.saucer.fill"
+                )
+            }
         }
     }
 
-    private var detailActionsSection: some View {
+    private var detailPrimaryAction: some View {
+        Button {
+            if let onLogVisitRequested {
+                onLogVisitRequested(currentCafe)
+                return
+            }
+            guard authModel.authenticatedUser != nil else {
+                onAuthenticationRequired?(
+                    "Keep this sip in your journal",
+                    "Sign in to log this cafe. You can still favorite it or save it to try while browsing as a guest."
+                )
+                return
+            }
+            showLogVisit = true
+        } label: {
+            Label("Log a Sip", systemImage: "plus.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+    }
+
+    private var personalRelationshipSection: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            MugshotSectionTitle(
+                title: "Your Mugshot",
+                subtitle: personalRelationshipSubtitle
+            )
+
+            detailStatsSection
+
+            if currentCafe.isFavorite || currentCafe.wantToTry {
+                HStack(spacing: 8) {
+                    if currentCafe.isFavorite {
+                        relationshipPill("Favorite", systemImage: "heart.fill")
+                    }
+                    if currentCafe.wantToTry {
+                        relationshipPill("Want to Try", systemImage: "bookmark.fill")
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .cardStyle()
+    }
+
+    private var ownRemoteVisits: [RemoteVisitSummary] {
+        guard let userID = authModel.authenticatedUser?.id else { return [] }
+        return remoteVisits.filter { $0.visit.userId == userID }
+    }
+
+    private var personalSipCount: Int {
+        max(visits.count, ownRemoteVisits.count)
+    }
+
+    private var cafeAverageDisplayValue: String {
+        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
+            return "4.5"
+        }
+        if cafeExperienceSummaryError != nil, cafeExperienceSummary == nil {
+            return "Unavailable"
+        }
+        guard let summary = cafeExperienceSummary,
+              summary.ratedSessionCount > 0,
+              let average = summary.averageCafeRating else {
+            return "Cafe not rated yet"
+        }
+        return String(format: "%.1f", average)
+    }
+
+    private var cafePhysicalVisitDisplayValue: String {
+        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
+            return "2"
+        }
+        return cafeExperienceSummary.map { "\($0.physicalSessionCount)" } ?? "—"
+    }
+
+    private var personalAverageRating: Double? {
+        let remoteScores = ownRemoteVisits.map(\.visit.overallScore).filter { $0 > 0 }
+        if !remoteScores.isEmpty {
+            return remoteScores.reduce(0, +) / Double(remoteScores.count)
+        }
+        let localScores = visits.map(\.overallScore).filter { $0 > 0 }
+        guard !localScores.isEmpty else { return nil }
+        return localScores.reduce(0, +) / Double(localScores.count)
+    }
+
+    private var personalRelationshipSubtitle: String {
+        let remoteDate = ownRemoteVisits.map(\.visit.createdAtDate).max()
+        let localDate = visits.map(\.createdAt).max()
+        if let latest = [remoteDate, localDate].compactMap({ $0 }).max() {
+            return "Last remembered \(latest.formatted(date: .abbreviated, time: .omitted))"
+        }
+        if currentCafe.wantToTry {
+            return "Saved for a future coffee run"
+        }
+        if currentCafe.isFavorite {
+            return "One of your favorite cafes"
+        }
+        return "New to you — log a sip or save it for later"
+    }
+
+    private func relationshipTruthHeader(title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 14, weight: .bold))
+            .foregroundColor(.espressoBrown)
+    }
+
+    @ViewBuilder
+    private func cafeRelationshipEvidence(_ summary: RemoteCafeExperienceSummary) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if summary.relationshipStage != .unrated {
+                relationshipPill(
+                    summary.relationshipStage.title,
+                    systemImage: "chart.line.uptrend.xyaxis"
+                )
+            }
+
+            if let nextMove = summary.nextMove {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.turn.up.right")
+                    Text("Next move")
+                        .foregroundColor(.tertiaryText)
+                    Text(nextMove.title)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.espressoBrown)
+                }
+                .font(.system(size: 12))
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func relationshipPill(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.roastBrown)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(Color.sandBeige.opacity(0.7), in: Capsule())
+    }
+
+    private var detailUtilitiesSection: some View {
         let columns = [
             GridItem(.flexible(), spacing: 10),
             GridItem(.flexible(), spacing: 10)
         ]
 
-        return VStack(spacing: 12) {
-            Button {
-                guard authModel.authenticatedUser != nil else {
-                    onAuthenticationRequired?(
-                        "Keep this sip in your journal",
-                        "Sign in to log this cafe. You can still favorite it or save it to try while browsing as a guest."
-                    )
-                    return
-                }
-                showLogVisit = true
-            } label: {
-                Label("Log Visit", systemImage: "plus.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-
+        return VStack(alignment: .leading, spacing: 12) {
+            MugshotSectionTitle(title: "Cafe actions")
             LazyVGrid(columns: columns, spacing: 10) {
                 detailActionButton(
                     title: "Favorite",
@@ -878,7 +1048,7 @@ struct CafeDetailView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             MugshotSectionTitle(
-                title: "Community favorites",
+                title: friendVisits == 0 ? "Community favorites" : "Friends at this cafe",
                 subtitle: friendVisits == 0 ? "Top drinks from visible sips" : "\(friendVisits) friends have shared sips here"
             )
             ScrollView(.horizontal, showsIndicators: false) {
@@ -912,6 +1082,8 @@ struct CafeDetailView: View {
             Text(value)
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(.espressoBrown)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -954,7 +1126,7 @@ struct CafeDetailView: View {
 
     private var localRecentVisitsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Visits")
+            Text("Recent sips")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.espressoBrown)
                 .padding(.horizontal)
@@ -971,21 +1143,19 @@ struct CafeDetailView: View {
     private var remoteRecentVisitsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Recent Visits")
+                Text("Recent sips")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.espressoBrown)
 
                 Spacer()
-
-                if isLoadingRemoteVisits {
-                    ProgressView()
-                    .tint(.mugshotSage)
-                }
             }
             .padding(.horizontal)
             .padding(.top, 8)
 
-            if let remoteVisitError {
+            if isLoadingRemoteVisits && remoteVisits.isEmpty {
+                MugshotLoadingState(layout: .journal, count: 2)
+                    .padding(.horizontal)
+            } else if let remoteVisitError {
                 Text(remoteVisitError)
                     .font(.system(size: 13))
                     .foregroundColor(.red.opacity(0.82))
@@ -1086,6 +1256,37 @@ struct CafeDetailView: View {
         }
     }
 
+    @MainActor
+    private func loadCafeExperienceSummary() async {
+        guard let remoteCafeID = signedInRemoteCafeId else {
+            cafeExperienceSummary = nil
+            cafeExperienceSummaryError = nil
+            isLoadingCafeExperienceSummary = false
+            return
+        }
+
+        if cafeExperienceSummary?.cafeID != remoteCafeID {
+            cafeExperienceSummary = nil
+        }
+        cafeExperienceSummaryError = nil
+        isLoadingCafeExperienceSummary = true
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let summary = try await CafeSessionService(client: client).fetchCafeSummary(
+                cafeID: remoteCafeID,
+                scope: .personal
+            )
+            guard !Task.isCancelled else { return }
+            cafeExperienceSummary = summary
+            isLoadingCafeExperienceSummary = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            cafeExperienceSummaryError = "Cafe relationship could not refresh."
+            isLoadingCafeExperienceSummary = false
+        }
+    }
+
     private func toggleFavorite() {
         updateCafeState(
             isFavorite: !currentCafe.isFavorite,
@@ -1107,6 +1308,24 @@ struct CafeDetailView: View {
             isFavorite: isFavorite,
             wantToTry: wantToTry
         )
+        if previousCafe.isFavorite != isFavorite {
+            MugshotAnalytics.shared.capture(
+                .cafeStateChanged(
+                    state: .favorite,
+                    action: isFavorite ? .added : .removed,
+                    surface: .saved
+                )
+            )
+        }
+        if previousCafe.wantToTry != wantToTry {
+            MugshotAnalytics.shared.capture(
+                .cafeStateChanged(
+                    state: .wantToTry,
+                    action: wantToTry ? .added : .removed,
+                    surface: .saved
+                )
+            )
+        }
 
         guard let userId = authModel.authenticatedUser?.id else {
             return
@@ -1258,7 +1477,7 @@ struct VisitRow: View {
             )
         }
         .buttonStyle(.plain)
-        .fullScreenCover(isPresented: $showVisitDetail) {
+        .navigationDestination(isPresented: $showVisitDetail) {
             VisitDetailView(visit: visit, dataManager: dataManager)
         }
     }

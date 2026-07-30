@@ -150,7 +150,7 @@ struct MugshotPassportCard: View {
                 passportStat("Cafes", value: "\(stats.cafes)")
                 passportStat("Home", value: "\(stats.homeSips)")
                 passportStat(
-                    "Average",
+                    "Sip average",
                     value: stats.averageRating.map { String(format: "%.1f", $0) } ?? "—"
                 )
             }

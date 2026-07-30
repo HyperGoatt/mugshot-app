@@ -3,14 +3,18 @@ import Foundation
 enum JournalEntryContext: String, Codable, CaseIterable, Identifiable {
     case cafe = "Cafe"
     case home = "Home"
+    case elsewhere = "Elsewhere"
     case recipe = "Recipe"
 
     var id: String { rawValue }
+
+    var supportsCafeSession: Bool { self == .cafe }
 
     var systemImage: String {
         switch self {
         case .cafe: return "mappin.and.ellipse"
         case .home: return "house.fill"
+        case .elsewhere: return "mappin.and.ellipse"
         case .recipe: return "book.pages.fill"
         }
     }
@@ -19,6 +23,7 @@ enum JournalEntryContext: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .cafe: return "Cafe"
         case .home: return "Home Brew"
+        case .elsewhere: return "Elsewhere"
         case .recipe: return "Home Recipe"
         }
     }
@@ -26,6 +31,7 @@ enum JournalEntryContext: String, Codable, CaseIterable, Identifiable {
     init(backendValue: String?) {
         switch backendValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "home", "home brew": self = .home
+        case "elsewhere": self = .elsewhere
         case "recipe": self = .recipe
         default: self = .cafe
         }

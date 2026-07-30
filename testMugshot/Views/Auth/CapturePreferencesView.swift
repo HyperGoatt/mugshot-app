@@ -29,6 +29,7 @@ struct CapturePreferencesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
                     header
+                    preferenceImpactPreview
                     drinkSection
                     habitSection
                     discoverySection
@@ -47,6 +48,9 @@ struct CapturePreferencesView: View {
                         Button("Skip for now") {
                             Task {
                                 if await authModel.skipCapturePreferences() {
+                                    MugshotAnalytics.shared.capture(
+                                        .capturePreferencesSkipped
+                                    )
                                     dismiss()
                                 }
                             }
@@ -71,7 +75,15 @@ struct CapturePreferencesView: View {
             }
         }
         .interactiveDismissDisabled(authModel.isSavingCapturePreferences)
-        .onAppear(perform: loadStoredPreferences)
+        .onAppear {
+            loadStoredPreferences()
+            MugshotAnalytics.shared.capture(
+                .capturePreferencesViewed(allowsSkipping: allowsSkipping)
+            )
+            MugshotAnalytics.shared.capture(
+                .screenViewed(.capturePreferences, source: .sheet)
+            )
+        }
     }
 
     private var header: some View {
@@ -94,6 +106,7 @@ struct CapturePreferencesView: View {
                 ForEach(drinkFamilies, id: \.self) { family in
                     selectionChip(
                         title: family,
+                        systemImage: drinkIcon(for: family),
                         isSelected: usualDrinkFamilies.contains(family)
                     ) {
                         toggle(family, in: &usualDrinkFamilies)
@@ -137,6 +150,13 @@ struct CapturePreferencesView: View {
                     setupCompletedAt: authModel.capturePreferences.setupCompletedAt
                 )
                 if await authModel.saveCapturePreferences(preferences) {
+                    MugshotAnalytics.shared.capture(
+                        .capturePreferencesCompleted(
+                            selectedDrinkFamilyCount: usualDrinkFamilies.count,
+                            selectedDiscoveryIntentCount: discoveryIntents.count,
+                            hasHabit: cafeHomeHabit != nil
+                        )
+                    )
                     dismiss()
                 }
             }
@@ -185,9 +205,99 @@ struct CapturePreferencesView: View {
         .cardStyle()
     }
 
-    private func selectionChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private var preferenceImpactPreview: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: impactIcon)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.foamWhite)
+                .frame(width: 48, height: 48)
+                .background(Color.mugshotSage, in: Circle())
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("YOUR FIRST MUGSHOT")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.1)
+                    .foregroundColor(.mugshotSage)
+                Text(impactTitle)
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundColor(.espressoBrown)
+                Text(impactMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Color.mugshotMint.opacity(0.42), Color.sandBeige.opacity(0.58)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
+                .stroke(Color.mugshotSage.opacity(0.18), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var impactTitle: String {
+        if discoveryIntents.contains("nearby") { return "Map starts with nearby cafes" }
+        if discoveryIntents.contains("friends") { return "Your Mix starts with trusted finds" }
+        if discoveryIntents.contains("taste") { return "Journal starts building your taste story" }
+        if discoveryIntents.contains("home") { return "Home brew details stay close" }
+        return "A calm, open-ended coffee journal"
+    }
+
+    private var impactMessage: String {
+        var details: [String] = []
+        if !usualDrinkFamilies.isEmpty {
+            details.append("Familiar drinks: \(usualDrinkFamilies.sorted().joined(separator: ", "))")
+        }
+        if let cafeHomeHabit {
+            let habit = habits.first(where: { $0.id == cafeHomeHabit })?.title ?? cafeHomeHabit
+            details.append(habit)
+        }
+        return details.isEmpty
+            ? "Choose only what feels useful. Mugshot will explain every recommendation from real journal evidence."
+            : details.joined(separator: " · ")
+    }
+
+    private var impactIcon: String {
+        if discoveryIntents.contains("nearby") { return "map.fill" }
+        if discoveryIntents.contains("friends") { return "person.2.fill" }
+        if discoveryIntents.contains("taste") { return "sparkles" }
+        if discoveryIntents.contains("home") { return "house.fill" }
+        return "book.closed.fill"
+    }
+
+    private func drinkIcon(for family: String) -> String {
+        switch family {
+        case "Coffee": return "cup.and.saucer.fill"
+        case "Tea": return "mug.fill"
+        case "Matcha": return "leaf.fill"
+        default: return "ellipsis.circle.fill"
+        }
+    }
+
+    private func selectionChip(
+        title: String,
+        systemImage: String? = nil,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Text(title)
+            HStack(spacing: 7) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 12, weight: .bold))
+                }
+                Text(title)
+            }
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(isSelected ? .foamWhite : .espressoBrown)
                 .frame(maxWidth: .infinity, minHeight: 44)

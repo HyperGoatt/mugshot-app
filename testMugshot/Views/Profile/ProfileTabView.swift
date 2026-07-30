@@ -91,9 +91,9 @@ private struct LegacyProfileTabView: View {
 
     private var homeExperimentCount: Int {
         if authModel.authenticatedUser != nil {
-            return remoteProfileVisits.filter { $0.visit.journalContext != .cafe }.count
+            return remoteProfileVisits.filter { $0.visit.journalContext == .home }.count
         }
-        return dataManager.appData.visits.filter { $0.context != .cafe }.count
+        return dataManager.appData.visits.filter { $0.context == .home }.count
     }
 
     var body: some View {
@@ -225,12 +225,12 @@ private struct LegacyProfileTabView: View {
 
     private var statsStrip: some View {
         HStack(spacing: 8) {
-            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Logs")
+            MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Sips")
             MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
             MugshotStatPill(
                 icon: "star.fill",
                 value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
-                label: "Avg"
+                label: "Sip avg"
             )
             MugshotStatPill(icon: "house.fill", value: "\(homeExperimentCount)", label: "Home")
         }
@@ -635,7 +635,7 @@ struct CoffeeJourneyView: View {
                     )
 
                     identityTile(
-                        title: "Favorite cafe",
+                        title: "Cafe in sip history",
                         value: topCafeName ?? "Still exploring",
                         icon: "mappin.circle.fill"
                     )
@@ -733,16 +733,30 @@ struct RecentVisitsView: View {
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
             await loadRemoteVisits()
         }
-        .sheet(item: $selectedVisit) { visit in
-            VisitDetailView(visit: visit, dataManager: dataManager)
-        }
-        .fullScreenCover(item: $selectedRemoteVisit) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVisit != nil },
+                set: { if !$0 { selectedVisit = nil } }
             )
+        ) {
+            if let visit = selectedVisit {
+                VisitDetailView(visit: visit, dataManager: dataManager)
+            }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedRemoteVisit != nil },
+                set: { if !$0 { selectedRemoteVisit = nil } }
+            )
+        ) {
+            if let visit = selectedRemoteVisit {
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
         }
     }
 
@@ -788,7 +802,7 @@ struct RecentVisitsView: View {
             )
         } else if remoteVisits.isEmpty {
             ProfileEmptyStateCard(
-                asset: .noCafes,
+                placement: .journalEmpty,
                 systemImage: "cup.and.saucer.fill",
                 title: "No visits yet",
                 message: "Save a real visit from Add. It will appear here, open in detail, and persist after relaunch."
@@ -811,7 +825,7 @@ struct RecentVisitsView: View {
     private var localContent: some View {
         if localVisits.isEmpty {
             ProfileEmptyStateCard(
-                asset: .noCafes,
+                placement: .journalEmpty,
                 systemImage: "cup.and.saucer.fill",
                 title: "No local visits yet",
                 message: "Log a visit to start filling your taste journal."
@@ -860,26 +874,26 @@ struct RecentVisitsView: View {
 }
 
 struct ProfileEmptyStateCard: View {
-    let asset: MugsyEmptyStateAsset?
+    let placement: MugsyPlacement?
     let systemImage: String
     let title: String
     let message: String
 
     init(
-        asset: MugsyEmptyStateAsset? = nil,
+        placement: MugsyPlacement? = nil,
         systemImage: String,
         title: String,
         message: String
     ) {
-        self.asset = asset
+        self.placement = placement
         self.systemImage = systemImage
         self.title = title
         self.message = message
     }
 
     var body: some View {
-        if let asset {
-            MugsyEmptyStateView(asset: asset, title: title, message: message)
+        if let placement {
+            MugsyEmptyStateView(placement: placement, title: title, message: message)
         } else {
         VStack(spacing: 10) {
             Image(systemName: systemImage)
@@ -986,7 +1000,9 @@ struct RemoteVisitSummaryCard: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
             } else {
-                RemoteVisitNoPhotoThumbnail()
+                RemoteVisitNoPhotoThumbnail(
+                    usesMugsyFallback: visit.usesMugsyPhotoFallback
+                )
             }
         }
     }
@@ -995,7 +1011,7 @@ struct RemoteVisitSummaryCard: View {
         HStack(spacing: 4) {
             Image(systemName: "star.fill")
                 .font(.system(size: 11))
-            Text(String(format: "%.1f", visit.visit.overallScore))
+            Text(String(format: "%.1f", visit.displayedMugshotScore))
                 .font(.system(size: 12, weight: .bold))
         }
         .foregroundColor(hasPhoto ? .creamWhite : .espressoBrown)
@@ -1035,13 +1051,25 @@ struct RemoteVisitSummaryCard: View {
 }
 
 struct RemoteVisitNoPhotoThumbnail: View {
+    var usesMugsyFallback = false
+
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.4))
+            if usesMugsyFallback {
+                MugsyModelView(configuration: MugsyModelConfiguration(
+                    expression: .curious,
+                    prop: .camera,
+                    pose: .leaningLeft
+                ))
+                .frame(width: 44, height: 44)
+                .accessibilityHidden(true)
+            } else {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.espressoBrown.opacity(0.4))
+            }
 
-            Text("No photo")
+            Text(usesMugsyFallback ? "Missed photo" : "No photo")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(.espressoBrown.opacity(0.55))
                 .lineLimit(1)
@@ -1070,7 +1098,7 @@ struct TopCafesView: View {
             if let remoteStats {
                 if remoteStats.topCafes.isEmpty {
                     ProfileEmptyStateCard(
-                        asset: .noCafes,
+                        placement: .savedCafes,
                         systemImage: "cup.and.saucer.fill",
                         title: "No top cafes yet",
                         message: "Your highest-rated visits will rank your cafes here."
@@ -1082,7 +1110,7 @@ struct TopCafesView: View {
                 }
             } else if topCafes.isEmpty {
                 ProfileEmptyStateCard(
-                    asset: .noCafes,
+                    placement: .savedCafes,
                     systemImage: "cup.and.saucer.fill",
                     title: "No cafes yet",
                     message: "Log visits to rank your cafes."
@@ -1128,8 +1156,8 @@ struct RemoteTopCafeCard: View {
                 }
 
                 HStack(spacing: 8) {
-                    Label(String(format: "%.1f", topCafe.averageScore), systemImage: "star.fill")
-                    Label("\(topCafe.visitCount)", systemImage: "cup.and.saucer.fill")
+                    Label("Sip avg \(String(format: "%.1f", topCafe.averageScore))", systemImage: "star.fill")
+                    Label("\(topCafe.visitCount) sips", systemImage: "cup.and.saucer.fill")
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.espressoBrown.opacity(0.68))
@@ -1152,11 +1180,11 @@ struct FavoritesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if favorites.isEmpty {
-                Text("No favorites yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    placement: .savedFavorites,
+                    title: "No favorites yet",
+                    message: "Favorite a cafe to keep it close."
+                )
             } else {
                 ForEach(favorites) { cafe in
                     CafeCard(
@@ -1182,11 +1210,11 @@ struct WishlistView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if wishlist.isEmpty {
-                Text("No wishlist items yet")
-                    .font(.system(size: 14))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
+                MugsyEmptyStateView(
+                    placement: .savedWishlist,
+                    title: "No Wishlist cafes yet",
+                    message: "Mark a cafe when it catches your curiosity."
+                )
             } else {
                 ForEach(wishlist) { cafe in
                     CafeCard(

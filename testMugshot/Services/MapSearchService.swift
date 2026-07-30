@@ -38,18 +38,27 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
 
     private let completer = MKLocalSearchCompleter()
     private let defaults: UserDefaults
-    private let recentsKey = "MugshotMapSearchRecents.v1"
+    private var scope: LocalAccountScope
     private var currentSearch: MKLocalSearch?
     private var pendingSearchTask: Task<Void, Never>?
     private var activeSearchID = UUID()
     private var lastRegion: MKCoordinateRegion?
     private var lastRawQuery = ""
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, scope: LocalAccountScope = .guest) {
         self.defaults = defaults
+        self.scope = scope
         super.init()
         completer.delegate = self
         completer.resultTypes = [.address, .pointOfInterest, .query]
+        loadRecents()
+    }
+
+    func activate(scope: LocalAccountScope) {
+        guard self.scope != scope else { return }
+        cancelSearch()
+        self.scope = scope
+        recents = []
         loadRecents()
     }
 
@@ -125,7 +134,36 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     ) async -> MKMapItem? {
         let request = MKLocalSearch.Request(completion: completion)
         request.region = region
-        let searchID = beginImmediateSearch(rawQuery: completion.title, region: region)
+        return await resolve(
+            request: request,
+            query: completion.title,
+            region: region
+        )
+    }
+
+    /// Resolves a previously selected place directly instead of replaying its
+    /// query and asking the person to choose the same suggestion again.
+    func resolve(
+        recent: MapSearchRecent,
+        region: MKCoordinateRegion
+    ) async -> MKMapItem? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = recent.query
+        request.region = region
+        request.resultTypes = [.address, .pointOfInterest]
+        return await resolve(
+            request: request,
+            query: recent.query,
+            region: region
+        )
+    }
+
+    private func resolve(
+        request: MKLocalSearch.Request,
+        query: String,
+        region: MKCoordinateRegion
+    ) async -> MKMapItem? {
+        let searchID = beginImmediateSearch(rawQuery: query, region: region)
         let search = MKLocalSearch(request: request)
         currentSearch = search
 
@@ -134,12 +172,12 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             guard searchID == activeSearchID else { return nil }
             let rankedItems = Array(
                 Self.ranked(
-                    Self.credibleResults(response.mapItems, query: completion.title, region: region),
-                    query: completion.title,
+                    Self.credibleResults(response.mapItems, query: query, region: region),
+                    query: query,
                     region: region
                 ).prefix(15)
             )
-            finish(items: rankedItems, query: completion.title, region: region)
+            finish(items: rankedItems, query: query, region: region)
             if let first = rankedItems.first { recordRecent(first) }
             return rankedItems.first
         } catch is CancellationError {
@@ -318,7 +356,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     private func loadRecents() {
-        guard let data = defaults.data(forKey: recentsKey),
+        guard let data = defaults.data(forKey: Self.recentsKey(for: scope)),
               let decoded = try? JSONDecoder().decode([MapSearchRecent].self, from: data) else {
             return
         }
@@ -327,8 +365,19 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
 
     private func persistRecents() {
         if let encoded = try? JSONEncoder().encode(recents) {
-            defaults.set(encoded, forKey: recentsKey)
+            defaults.set(encoded, forKey: Self.recentsKey(for: scope))
         }
+    }
+
+    nonisolated static func recentsKey(for scope: LocalAccountScope) -> String {
+        "MugshotMapSearchRecents.v2.\(scope.defaultsComponent)"
+    }
+
+    nonisolated static func removeRecents(
+        ownerUserID: UUID,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.removeObject(forKey: recentsKey(for: .user(ownerUserID)))
     }
 
     static func correctedSearchQuery(_ query: String) -> String {

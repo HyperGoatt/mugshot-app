@@ -1,5 +1,3 @@
--- Mugshot App Store polish: prevent incomplete photo submissions from becoming visible.
-
 alter table public.visits
   add column if not exists upload_state text not null default 'complete';
 
@@ -50,4 +48,4 @@ create policy "Friends can read friends visits"
           and f.friend_user_id = visits.user_id
       )
     )
-  );
+  );;

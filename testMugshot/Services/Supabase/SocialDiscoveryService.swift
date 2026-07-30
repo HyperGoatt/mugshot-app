@@ -30,11 +30,93 @@ final class SocialDiscoveryService {
         ).execute().value
     }
 
-    func setCompanions(_ userIDs: [UUID], for visitID: UUID) async throws {
+    /// Ordinary attribution. This does not grant post access or shared
+    /// ownership and intentionally does not require the tagged account's
+    /// consent.
+    func setVisitTags(_ userIDs: [UUID], for visitID: UUID) async throws {
         try await client.rpc(
-            "set_visit_companions",
-            params: VisitCompanionParameters(pVisitID: visitID, pCompanionUserIDs: userIDs)
+            "set_visit_tags_v1",
+            params: VisitTagParameters(pVisitID: visitID, pTaggedUserIDs: userIDs)
         ).execute()
+    }
+
+    /// Creates pending co-ownership invitations only after the source post is
+    /// complete. Invitees remain independent until they explicitly accept.
+    @discardableResult
+    func createSharedMemoryInvitations(
+        for visitID: UUID,
+        inviteeIDs: [UUID]
+    ) async throws -> UUID {
+        try await client.rpc(
+            "create_shared_memory_invitations_v1",
+            params: SharedMemoryInvitationParameters(
+                pVisitID: visitID,
+                pInviteeIDs: inviteeIDs
+            )
+        ).execute().value
+    }
+
+    /// Resolves only the viewer-safe recipe reference, then applies immutable
+    /// provenance before widening the recipe's independent audience. The
+    /// client never reads raw recipe instructions to perform this handoff.
+    @discardableResult
+    func configureRecipePublication(
+        for visitID: UUID,
+        contract: SipRecipePublicationContract
+    ) async throws -> UUID {
+        guard contract.requirement == .ready else {
+            throw SocialDiscoveryServiceError.invalidRecipePublicationContract
+        }
+        let reference: RecipeProjectionReference? = try await client.rpc(
+            "get_recipe_projection_for_visit_v1",
+            params: ["p_visit_id": visitID]
+        ).execute().value
+        guard let recipeVersionID = reference?.recipeVersionID else {
+            throw SocialDiscoveryServiceError.recipeProjectionUnavailable
+        }
+
+        try await client.rpc(
+            "configure_recipe_source_rights_v1",
+            params: RecipeSourceRightsParameters(
+                pRecipeVersionID: recipeVersionID,
+                pSourceKind: contract.sourceKind.rawValue,
+                pRedistributionAllowed: contract.redistributionAllowed
+                    && contract.sourceKind.permitsRedistribution,
+                pSourceRecipeVersionID: contract.sourceRecipeVersionID
+            )
+        ).execute()
+        try await client.rpc(
+            "set_recipe_visibility_v1",
+            params: RecipeVisibilityParameters(
+                pRecipeVersionID: recipeVersionID,
+                pVisibility: contract.visibility.supabaseValue,
+                pAcknowledgesPublicReuse: contract.acknowledgesPublicReuse
+            )
+        ).execute()
+        return recipeVersionID
+    }
+
+    /// Saves an immutable, private, attributed copy of a reusable recipe.
+    /// The server resolves and copies the allowlisted source payload; the
+    /// client sends only the source version and the viewer's chosen label.
+    @discardableResult
+    func saveRecipeAdaptation(
+        sourceRecipeVersionID: UUID,
+        name: String,
+        versionLabel: String = "Adapted"
+    ) async throws -> UUID {
+        guard let cleanName = name.remoteTrimmedNonEmpty,
+              cleanName.count <= 120 else {
+            throw SocialDiscoveryServiceError.invalidRecipeAdaptationName
+        }
+        return try await client.rpc(
+            "save_recipe_adaptation_v1",
+            params: SaveRecipeAdaptationParameters(
+                pSourceRecipeVersionID: sourceRecipeVersionID,
+                pName: cleanName,
+                pVersionLabel: versionLabel
+            )
+        ).execute().value
     }
 
     func discovery(
@@ -69,6 +151,25 @@ final class SocialDiscoveryService {
             "discover_public_cafes",
             params: DiscoveryParameters(
                 pSection: section.rawValue,
+                pLatitude: location?.coordinate.latitude,
+                pLongitude: location?.coordinate.longitude,
+                pRadiusKM: radiusKM,
+                pLimit: limit,
+                pAfterScore: after?.rankingScore,
+                pAfterID: after?.id
+            )
+        ).execute().value
+    }
+
+    func friendCafeDiscovery(
+        location: CLLocation?,
+        radiusKM: Double,
+        limit: Int = 20,
+        after: DiscoveryCafe? = nil
+    ) async throws -> [DiscoveryCafe] {
+        try await client.rpc(
+            "discover_friend_cafes",
+            params: FriendCafeDiscoveryParameters(
                 pLatitude: location?.coordinate.latitude,
                 pLongitude: location?.coordinate.longitude,
                 pRadiusKM: radiusKM,
@@ -141,37 +242,6 @@ final class SocialDiscoveryService {
             .value
     }
 
-    func cafeListItems(listID: UUID) async throws -> [CafeListItemRecord] {
-        try await client
-            .from("cafe_list_items")
-            .select("id,list_id,cafe_id,position,contributor_id,note,created_at")
-            .eq("list_id", value: listID.uuidString)
-            .order("position", ascending: true)
-            .order("created_at", ascending: true)
-            .execute()
-            .value
-    }
-
-    func cafeListMembers(listID: UUID) async throws -> [CafeListMemberRecord] {
-        try await client
-            .from("cafe_list_members")
-            .select("list_id,user_id,role,invitation_status,invited_by,created_at,accepted_at")
-            .eq("list_id", value: listID.uuidString)
-            .order("created_at", ascending: true)
-            .execute()
-            .value
-    }
-
-    func cafeListMemberships(userID: UUID) async throws -> [CafeListMemberRecord] {
-        try await client
-            .from("cafe_list_members")
-            .select("list_id,user_id,role,invitation_status,invited_by,created_at,accepted_at")
-            .eq("user_id", value: userID.uuidString)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-    }
-
     func createCafeList(
         title: String,
         description: String? = nil,
@@ -187,22 +257,22 @@ final class SocialDiscoveryService {
         ).execute().value
     }
 
-    func addCafe(_ cafeID: UUID, to listID: UUID, note: String? = nil) async throws -> CafeListItemRecord {
+    func addCafe(_ cafeID: UUID, to listID: UUID, note: String? = nil) async throws {
         try await client.rpc(
-            "add_cafe_list_item",
+            "add_cafe_list_item_v2",
             params: AddCafeListItemParameters(pListID: listID, pCafeID: cafeID, pNote: note)
-        ).execute().value
+        ).execute()
     }
 
     func removeCafeListItem(_ itemID: UUID) async throws {
         try await client.rpc("remove_cafe_list_item", params: ["p_item_id": itemID]).execute()
     }
 
-    func moveCafeListItem(_ itemID: UUID, to position: Int) async throws -> CafeListItemRecord {
+    func moveCafeListItem(_ itemID: UUID, to position: Int) async throws {
         try await client.rpc(
-            "move_cafe_list_item",
+            "move_cafe_list_item_v2",
             params: MoveCafeListItemParameters(pItemID: itemID, pPosition: position)
-        ).execute().value
+        ).execute()
     }
 
     func inviteFriend(_ userID: UUID, to listID: UUID, role: String) async throws -> CafeListMemberRecord {
@@ -287,6 +357,9 @@ final class SocialDiscoveryService {
 
 enum SocialDiscoveryServiceError: Error {
     case compatibilityUnavailable
+    case invalidRecipePublicationContract
+    case invalidRecipeAdaptationName
+    case recipeProjectionUnavailable
 }
 
 private struct PeopleSearchParameters: Encodable {
@@ -311,6 +384,24 @@ private struct DiscoveryParameters: Encodable {
     let pAfterID: UUID?
     enum CodingKeys: String, CodingKey {
         case pSection = "p_section"
+        case pLatitude = "p_latitude"
+        case pLongitude = "p_longitude"
+        case pRadiusKM = "p_radius_km"
+        case pLimit = "p_limit"
+        case pAfterScore = "p_after_score"
+        case pAfterID = "p_after_id"
+    }
+}
+
+private struct FriendCafeDiscoveryParameters: Encodable {
+    let pLatitude: Double?
+    let pLongitude: Double?
+    let pRadiusKM: Double
+    let pLimit: Int
+    let pAfterScore: Double?
+    let pAfterID: UUID?
+
+    enum CodingKeys: String, CodingKey {
         case pLatitude = "p_latitude"
         case pLongitude = "p_longitude"
         case pRadiusKM = "p_radius_km"
@@ -423,11 +514,62 @@ private struct ToggleReactionParameters: Encodable {
     }
 }
 
-private struct VisitCompanionParameters: Encodable {
+private struct VisitTagParameters: Encodable {
     let pVisitID: UUID
-    let pCompanionUserIDs: [UUID]
+    let pTaggedUserIDs: [UUID]
     enum CodingKeys: String, CodingKey {
         case pVisitID = "p_visit_id"
-        case pCompanionUserIDs = "p_companion_user_ids"
+        case pTaggedUserIDs = "p_tagged_user_ids"
+    }
+}
+
+private struct SharedMemoryInvitationParameters: Encodable {
+    let pVisitID: UUID
+    let pInviteeIDs: [UUID]
+    enum CodingKeys: String, CodingKey {
+        case pVisitID = "p_visit_id"
+        case pInviteeIDs = "p_invitee_ids"
+    }
+}
+
+private struct RecipeProjectionReference: Decodable {
+    let recipeVersionID: UUID
+    enum CodingKeys: String, CodingKey {
+        case recipeVersionID = "recipe_version_id"
+    }
+}
+
+private struct SaveRecipeAdaptationParameters: Encodable {
+    let pSourceRecipeVersionID: UUID
+    let pName: String
+    let pVersionLabel: String
+    enum CodingKeys: String, CodingKey {
+        case pSourceRecipeVersionID = "p_source_recipe_version_id"
+        case pName = "p_name"
+        case pVersionLabel = "p_version_label"
+    }
+}
+
+private struct RecipeSourceRightsParameters: Encodable {
+    let pRecipeVersionID: UUID
+    let pSourceKind: String
+    let pRedistributionAllowed: Bool
+    let pSourceRecipeVersionID: UUID?
+    enum CodingKeys: String, CodingKey {
+        case pRecipeVersionID = "p_recipe_version_id"
+        case pSourceKind = "p_source_kind"
+        case pRedistributionAllowed = "p_redistribution_allowed"
+        case pSourceRecipeVersionID = "p_source_recipe_version_id"
+    }
+}
+
+private struct RecipeVisibilityParameters: Encodable {
+    let pRecipeVersionID: UUID
+    let pVisibility: String
+    let pAcknowledgesPublicReuse: Bool
+    enum CodingKeys: String, CodingKey {
+        case pRecipeVersionID = "p_recipe_version_id"
+        case pVisibility = "p_visibility"
+        case pAcknowledgesPublicReuse = "p_acknowledges_public_reuse"
     }
 }

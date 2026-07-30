@@ -1,6 +1,8 @@
 .DS_Store
 xcuserdata/
 DerivedData/
+.codex/
+qa/pglite/node_modules/
 
 # Local Supabase client configuration. This file may contain client-safe
 # publishable values, but it should stay local per project/developer.

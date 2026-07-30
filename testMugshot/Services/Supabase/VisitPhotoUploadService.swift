@@ -8,16 +8,22 @@ import Supabase
 import UIKit
 
 struct UploadedVisitPhotos: Equatable {
-    let publicURLs: [String]
+    let attachmentReferences: [String]
     let objectPaths: [String]
     let posterPhotoIndex: Int
 
+    /// Compatibility alias for pending submission records created before
+    /// private Storage references replaced public URLs.
+    var publicURLs: [String] {
+        attachmentReferences
+    }
+
     var posterPhotoURL: String? {
-        guard publicURLs.indices.contains(posterPhotoIndex) else {
-            return publicURLs.first
+        guard attachmentReferences.indices.contains(posterPhotoIndex) else {
+            return attachmentReferences.first
         }
 
-        return publicURLs[posterPhotoIndex]
+        return attachmentReferences[posterPhotoIndex]
     }
 }
 
@@ -51,7 +57,7 @@ struct VisitPhotoUploadPlan {
 
 final class VisitPhotoUploadService {
     private let client: SupabaseClient
-    private let bucketName = "visit-photos"
+    private let bucketName = VisitPhotoStorageReference.privateBucketName
     private let maxUploadBytes = 9_500_000
 
     init(client: SupabaseClient) {
@@ -67,11 +73,15 @@ final class VisitPhotoUploadService {
         replacingExisting: Bool = false
     ) async throws -> UploadedVisitPhotos {
         guard !images.isEmpty else {
-            return UploadedVisitPhotos(publicURLs: [], objectPaths: [], posterPhotoIndex: 0)
+            return UploadedVisitPhotos(
+                attachmentReferences: [],
+                objectPaths: [],
+                posterPhotoIndex: 0
+            )
         }
 
         let storage = client.storage.from(bucketName)
-        var publicURLs: [String] = []
+        var attachmentReferences: [String] = []
         var objectPaths: [String] = []
         let uploadImages = Array(images.prefix(VisitPhotoUploadPlan.maxPhotoCount))
         let paths = plannedObjectPaths ?? VisitPhotoUploadPlan.objectPaths(
@@ -84,10 +94,6 @@ final class VisitPhotoUploadService {
         }
 
         do {
-            if replacingExisting {
-                _ = try? await storage.remove(paths: paths)
-            }
-
             for (image, path) in zip(uploadImages, paths) {
                 let data = try jpegData(for: image)
 
@@ -97,12 +103,18 @@ final class VisitPhotoUploadService {
                     options: FileOptions(
                         cacheControl: "31536000",
                         contentType: "image/jpeg",
-                        upsert: false
+                        upsert: replacingExisting
                     )
                 )
 
                 objectPaths.append(path)
-                publicURLs.append(try storage.getPublicURL(path: path).absoluteString)
+                guard let reference = VisitPhotoStorageReference(
+                    bucketName: bucketName,
+                    objectPath: path
+                ) else {
+                    throw VisitPhotoUploadError.invalidUploadPlan
+                }
+                attachmentReferences.append(reference.storedValue)
             }
         } catch {
             if !objectPaths.isEmpty {
@@ -111,17 +123,29 @@ final class VisitPhotoUploadService {
             throw error
         }
 
-        let safePosterIndex = publicURLs.indices.contains(posterPhotoIndex) ? posterPhotoIndex : 0
+        let safePosterIndex = attachmentReferences.indices.contains(posterPhotoIndex)
+            ? posterPhotoIndex
+            : 0
         return UploadedVisitPhotos(
-            publicURLs: publicURLs,
+            attachmentReferences: attachmentReferences,
             objectPaths: objectPaths,
             posterPhotoIndex: safePosterIndex
         )
     }
 
     func deletePhotos(at objectPaths: [String]) async throws {
-        guard !objectPaths.isEmpty else { return }
-        try await client.storage.from(bucketName).remove(paths: objectPaths)
+        try await deletePhotos(at: objectPaths.map {
+            VisitPhotoStorageLocation(bucketName: bucketName, objectPath: $0)
+        })
+    }
+
+    func deletePhotos(at locations: [VisitPhotoStorageLocation]) async throws {
+        let locationsByBucket = Dictionary(grouping: Set(locations), by: \.bucketName)
+        for (bucketName, bucketLocations) in locationsByBucket {
+            try await client.storage.from(bucketName).remove(
+                paths: bucketLocations.map(\.objectPath).sorted()
+            )
+        }
     }
 
     private func jpegData(for image: UIImage) throws -> Data {

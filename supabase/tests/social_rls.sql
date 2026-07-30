@@ -105,8 +105,14 @@ select public.submit_report(
   (select id from social_test_ids where n=3),null,null
 );
 do $$ begin
-  if (select count(*) from public.reports where details='transactional RLS test') <> 1 then
-    raise exception 'caller-bound report was not visible to its reporter';
+  if (
+    select count(*)
+    from public.list_my_report_receipts_v1(50, null, null) receipt
+    where receipt.target_kind = 'user'
+      and receipt.target_id = (select id from social_test_ids where n=3)
+      and receipt.reason = 'spam'::public.report_reason
+  ) <> 1 then
+    raise exception 'caller-bound safe report receipt was unavailable';
   end if;
 end $$;
 
@@ -120,7 +126,7 @@ begin
     begin
       perform public.create_comment(v_visit,'RLS nested reply',v_reply,'{}'::uuid[]);
       raise exception 'nested reply unexpectedly succeeded';
-    exception when sqlstate '23514' then null;
+    exception when sqlstate '42501' then null;
     end;
     perform public.submit_report('other'::public.report_reason,'transactional comment report',null,null,v_root);
   end if;

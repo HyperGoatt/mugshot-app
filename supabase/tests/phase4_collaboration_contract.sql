@@ -38,6 +38,7 @@ select public.respond_friend_request((
 ), true);
 
 reset role;
+select set_config('request.jwt.claims', '{}'::jsonb::text, true);
 create temp table phase4_targets(visit_id uuid, private_visit_id uuid, recipe_version_id uuid);
 grant select on phase4_targets to authenticated;
 do $$
@@ -66,7 +67,7 @@ create temp table phase4_list as
 select (public.create_cafe_list('Phase 4 contract', 'transactional test', 'invited')).id;
 grant select on phase4_list to authenticated;
 
-select public.add_cafe_list_item(
+select public.add_cafe_list_item_v2(
   (select id from phase4_list),
   (select id from public.cafes order by id limit 1),
   'First stop'
@@ -152,30 +153,33 @@ do $$ begin
 end $$;
 
 -- Accepted editors can add, and contributor attribution remains caller-bound.
-select public.add_cafe_list_item(
+select public.add_cafe_list_item_v2(
   (select id from phase4_list),
   (select id from public.cafes order by id offset 1 limit 1),
   null
 );
 do $$ begin
-  if not exists(
-    select 1 from public.cafe_list_items
-    where list_id=(select id from phase4_list)
-      and contributor_id=(select id from phase4_users where n=2)
+  if not exists (
+    select 1
+    from jsonb_array_elements(
+      public.get_cafe_list_v2((select id from phase4_list)) -> 'items'
+    ) item
+    where item #>> '{contributor,user_id}' =
+      (select id::text from phase4_users where n=2)
   ) then raise exception 'editor contributor attribution was not caller-bound'; end if;
 end $$;
 
-select public.move_cafe_list_item(
+select public.move_cafe_list_item_v2(
   (select id from public.cafe_list_items
    where list_id=(select id from phase4_list)
-     and contributor_id=(select id from phase4_users where n=2)),
+     and cafe_id=(select id from public.cafes order by id offset 1 limit 1)),
   0
 );
 do $$ begin
   if not exists(
     select 1 from public.cafe_list_items
     where list_id=(select id from phase4_list)
-      and contributor_id=(select id from phase4_users where n=2)
+      and cafe_id=(select id from public.cafes order by id offset 1 limit 1)
       and position=0
   ) then raise exception 'editor could not reorder list items'; end if;
   if (select count(distinct position) from public.cafe_list_items

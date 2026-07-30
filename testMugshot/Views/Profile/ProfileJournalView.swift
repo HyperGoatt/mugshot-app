@@ -6,6 +6,7 @@ struct JournalTabView: View {
     let onComposeDraft: (SipDraft) -> Void
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
+    @StateObject private var passportRouter = JournalPassportRouter.shared
 
     @State private var selectedFilter: JournalFilter = .all
     @State private var activeProfileSheet: ProfileSheet?
@@ -18,6 +19,7 @@ struct JournalTabView: View {
     @State private var showOwnerProfile = false
     @State private var localDrafts: [SipDraft] = []
     @State private var tasteSignals: [RemoteTasteSignal] = []
+    @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
@@ -99,6 +101,13 @@ struct JournalTabView: View {
         Array(filteredVisits.prefix(4))
     }
 
+    private var ritualDates: [Date] {
+        if authModel.authenticatedUser != nil {
+            return journalEntries.map(\.date)
+        }
+        return dataManager.appData.visits.map(\.date)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -123,6 +132,10 @@ struct JournalTabView: View {
                         .foregroundColor(.secondaryText)
                         .padding(.horizontal, 16)
                         .padding(.top, 2)
+
+                    MugshotRitualCard(dates: ritualDates)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
 
                     if phase2CanonicalJournal, !localDrafts.isEmpty {
                         draftSection
@@ -162,6 +175,7 @@ struct JournalTabView: View {
                 }
             }
             .background(Color.creamWhite)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
                 switch sheet {
                 case .editProfile:
@@ -178,27 +192,42 @@ struct JournalTabView: View {
                 OwnerPassportProfileView(
                     dataManager: dataManager,
                     entries: journalEntries,
-                    identity: tasteIdentity
+                    cafeExperienceSummaries: cafeExperienceSummaries
                 )
                 .environmentObject(authModel)
             }
-            .fullScreenCover(item: $selectedRemoteVisit) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: authModel.authenticatedUser?.id,
-                    dataManager: dataManager,
-                    onRepeat: { detail in
-                        launchComposer(from: detail.summary)
-                    }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedRemoteVisit != nil },
+                    set: { if !$0 { selectedRemoteVisit = nil } }
                 )
+            ) {
+                if let visit = selectedRemoteVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: authModel.authenticatedUser?.id,
+                        dataManager: dataManager,
+                        onRepeat: { detail in
+                            launchComposer(from: detail)
+                        }
+                    )
+                }
             }
-            .fullScreenCover(item: $selectedLocalVisit) { visit in
-                VisitDetailView(visit: visit, dataManager: dataManager)
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedLocalVisit != nil },
+                    set: { if !$0 { selectedLocalVisit = nil } }
+                )
+            ) {
+                if let visit = selectedLocalVisit {
+                    VisitDetailView(visit: visit, dataManager: dataManager)
+                }
             }
             .sheet(item: $selectedReflection) { reflection in
                 JournalReflectionDetailView(
                     reflection: reflection,
+                    entries: journalEntries,
                     milestones: JournalReflectionEngine.milestones(entries: journalEntries)
                 )
             }
@@ -212,10 +241,24 @@ struct JournalTabView: View {
                 )
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
-                localDrafts = SipDraftStore.shared.allDrafts().sorted { $0.updatedAt > $1.updatedAt }
+                localDrafts = SipDraftStore.shared
+                    .allDrafts(in: localAccountScope)
+                    .sorted { $0.updatedAt > $1.updatedAt }
                 await loadJournal()
             }
+            .onAppear {
+                openRequestedPassport()
+            }
+            .onChange(of: passportRouter.requestID) { _, _ in
+                openRequestedPassport()
+            }
         }
+    }
+
+    private func openRequestedPassport() {
+        guard let requestID = passportRouter.requestID else { return }
+        showOwnerProfile = true
+        passportRouter.consume(requestID)
     }
 
     private var draftSection: some View {
@@ -255,7 +298,7 @@ struct JournalTabView: View {
                     .buttonStyle(.plain)
 
                     Button(role: .destructive) {
-                        SipDraftStore.shared.remove(draft)
+                        SipDraftStore.shared.remove(draft, in: localAccountScope)
                         localDrafts.removeAll { $0.id == draft.id }
                     } label: {
                         Image(systemName: "trash")
@@ -268,6 +311,13 @@ struct JournalTabView: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    private var localAccountScope: LocalAccountScope {
+        .forUserID(
+            authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
     }
 
     private func onThisSipCard(_ entry: JournalEntryProjection) -> some View {
@@ -304,12 +354,12 @@ struct JournalTabView: View {
         .accessibilityHint("Opens this memory")
     }
 
-    private func launchComposer(from summary: RemoteVisitSummary) {
+    private func launchComposer(from detail: RemoteVisitDetail) {
         selectedRemoteVisit = nil
         let userID = authModel.authenticatedUser?.id
-        let draft = summary.visit.journalContext == .recipe
-            ? SipDraft.brewAgain(from: summary, ownerUserID: userID)
-            : SipDraft.repeatSip(from: summary, ownerUserID: userID)
+        let draft = detail.summary.visit.journalContext == .recipe
+            ? SipDraft.brewAgain(from: detail, ownerUserID: userID)
+            : SipDraft.repeatSip(from: detail.summary, ownerUserID: userID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onComposeDraft(draft)
         }
@@ -430,14 +480,8 @@ struct JournalTabView: View {
                 }
                 .padding(.horizontal, 16)
             } else if isLoading && remoteVisits.isEmpty {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("Opening your journal…")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondaryText)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 36)
+                MugshotLoadingState(layout: .journal, count: 3)
+                    .padding(.horizontal, 16)
             } else if !recentVisits.isEmpty {
                 VStack(spacing: 12) {
                     ForEach(recentVisits) { visit in
@@ -474,10 +518,10 @@ struct JournalTabView: View {
             let visits = dataManager.appData.visits
             let uniqueCafes = Set(visits.filter { $0.context == .cafe }.map(\.cafeId)).count
             let averageScore = visits.isEmpty ? 0 : visits.reduce(0.0) { $0 + $1.overallScore } / Double(visits.count)
-            let average = averageScore > 0 ? String(format: "%.1f average", averageScore) : "taste still forming"
+            let average = averageScore > 0 ? String(format: "%.1f sip average", averageScore) : "taste still forming"
             return "\(visits.count) journal entries  ·  \(uniqueCafes) cafes  ·  \(average)"
         }
-        let average = profileStats.averageScore > 0 ? String(format: "%.1f average", profileStats.averageScore) : "taste still forming"
+        let average = profileStats.averageScore > 0 ? String(format: "%.1f sip average", profileStats.averageScore) : "taste still forming"
         return "\(profileStats.totalVisits) journal entries  ·  \(profileStats.totalCafes) cafes  ·  \(average)"
     }
 
@@ -486,6 +530,7 @@ struct JournalTabView: View {
         guard let userID = authModel.authenticatedUser?.id else {
             journalEntries = []
             tasteSignals = []
+            cafeExperienceSummaries = []
             isLoading = false
             loadError = nil
             return
@@ -497,8 +542,23 @@ struct JournalTabView: View {
             let client = try SupabaseClientProvider.shared.client()
             async let entriesRequest = JournalService(client: client).fetchEntries(userID: userID)
             async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
-            journalEntries = try await entriesRequest
-            tasteSignals = (try? await signalsRequest) ?? []
+            let loadedEntries = try await entriesRequest
+            let cafeIDs: [UUID] = Array(Set(loadedEntries.compactMap { entry -> UUID? in
+                guard entry.summary.visit.journalContext == .cafe else {
+                    return nil
+                }
+                return entry.summary.cafe?.id
+            }))
+            async let summariesRequest = CafeSessionService(client: client).fetchCafeSummaries(
+                cafeIDs: cafeIDs,
+                scope: .personal
+            )
+            let loadedSignals = (try? await signalsRequest) ?? []
+            let loadedCafeSummaries = (try? await summariesRequest) ?? []
+            guard !Task.isCancelled else { return }
+            journalEntries = loadedEntries
+            tasteSignals = loadedSignals
+            cafeExperienceSummaries = loadedCafeSummaries
             isLoading = false
         } catch is CancellationError {
             return
@@ -530,41 +590,38 @@ struct JournalTabView: View {
 private struct OwnerPassportProfileView: View {
     @ObservedObject var dataManager: DataManager
     let entries: [JournalEntryProjection]
-    let identity: TasteIdentitySummary
+    let cafeExperienceSummaries: [RemoteCafeExperienceSummary]
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var showEditProfile = false
     @State private var showSettings = false
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var passportState: TastePassportLoadState = .loading
 
     private var profile: SupabaseUserProfile? { authModel.profile }
     private var visits: [RemoteVisitSummary] { entries.map(\.summary) }
-    private var stats: RemoteProfileStats { RemoteProfileStats.calculate(from: visits) }
-    private var homeCount: Int { visits.filter { $0.visit.journalContext != .cafe }.count }
-    private var average: Double? { stats.totalVisits > 0 ? stats.averageScore : nil }
+    private var cafeRanking: RemoteProfileCafeRanking {
+        RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: cafeExperienceSummaries
+        )
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                MugshotScreenHeader("Profile", subtitle: "Your public-facing coffee identity") {
+                MugshotScreenHeader("Profile", subtitle: "Your coffee identity and its audience") {
                     MugshotIconButton(systemName: "gearshape.fill", size: 36) {
                         showSettings = true
                     }
                     .accessibilityLabel("Settings")
                 }
 
-                MugshotPassportCard(
-                    displayName: profile?.displayName ?? dataManager.appData.currentUser?.displayNameOrUsername ?? "Mugshot User",
-                    username: profile?.username ?? dataManager.appData.currentUser?.username ?? "user",
-                    avatarURL: profile?.avatarURL,
-                    bannerURL: profile?.bannerURL,
-                    identity: identity,
-                    stats: MugshotPassportStats(
-                        sips: stats.totalVisits,
-                        cafes: stats.totalCafes,
-                        homeSips: homeCount,
-                        averageRating: average
-                    ),
-                    allowsSharing: true
+                TastePassportProjectionSection(
+                    state: passportState,
+                    context: .owner,
+                    onRetry: {
+                        Task { await loadPassport() }
+                    }
                 )
                 .padding(.horizontal, 16)
 
@@ -588,6 +645,10 @@ private struct OwnerPassportProfileView: View {
                 .buttonStyle(SecondaryButtonStyle())
                 .padding(.horizontal, 16)
 
+                if !cafeRanking.entries.isEmpty {
+                    topCafesSection
+                }
+
                 if !visits.isEmpty {
                     MugshotSectionTitle(
                         title: "Your visible profile",
@@ -610,6 +671,14 @@ private struct OwnerPassportProfileView: View {
         }
         .background(Color.creamWhite)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .task(id: authModel.authenticatedUser?.id) {
+            await loadPassport()
+        }
+        .onChange(of: showSettings) { _, isPresented in
+            guard !isPresented else { return }
+            Task { await loadPassport() }
+        }
         .sheet(isPresented: $showEditProfile) {
             if let profile {
                 EditProfileView(profile: profile, dataManager: dataManager)
@@ -620,13 +689,137 @@ private struct OwnerPassportProfileView: View {
             SettingsView(dataManager: dataManager)
                 .environmentObject(authModel)
         }
-        .fullScreenCover(item: $selectedVisit) { visit in
-            RemoteVisitDetailView(
-                visitId: visit.id,
-                initialSummary: visit,
-                currentUserId: authModel.authenticatedUser?.id,
-                dataManager: dataManager
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedVisit != nil },
+                set: { if !$0 { selectedVisit = nil } }
             )
+        ) {
+            if let visit = selectedVisit {
+                RemoteVisitDetailView(
+                    visitId: visit.id,
+                    initialSummary: visit,
+                    currentUserId: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private func loadPassport() async {
+        guard let userID = authModel.authenticatedUser?.id else {
+            passportState = .failed("Sign in to view your Taste Passport.")
+            return
+        }
+        passportState = .loading
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let access = try await TastePassportService(client: client)
+                .fetchPassport(userID: userID)
+            guard authModel.authenticatedUser?.id == userID,
+                  !Task.isCancelled else { return }
+            passportState = .loaded(access)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard authModel.authenticatedUser?.id == userID else { return }
+            passportState = .failed(
+                MugshotUserFacingError.message(for: error, context: .loading)
+            )
+        }
+    }
+
+    private var topCafesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            MugshotSectionTitle(
+                title: "Top cafes",
+                subtitle: topCafesSubtitle
+            )
+
+            ForEach(cafeRanking.entries.prefix(5)) { entry in
+                ProfileTopCafeCard(
+                    entry: entry,
+                    basis: cafeRanking.basis
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var topCafesSubtitle: String {
+        switch cafeRanking.basis {
+        case .cafeExperience:
+            return "Ranked by your independent Cafe Pulse ratings."
+        case .sipAverageLegacy:
+            return "Sip average fallback · drink enjoyment, not a cafe rating."
+        }
+    }
+}
+
+private struct ProfileTopCafeCard: View {
+    let entry: RemoteProfileCafeRanking.Entry
+    let basis: RemoteProfileCafeRanking.Basis
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemotePhotoImageView(
+                urlString: entry.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill"
+            )
+            .frame(width: 68, height: 68)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: DesignSystem.Radius.control,
+                    style: .continuous
+                )
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.cafe.consumerDisplayName)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                    .lineLimit(2)
+
+                if !entry.cafe.displayLocation.isEmpty {
+                    Text(entry.cafe.displayLocation)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 9) {
+                    Label(scoreLabel, systemImage: "star.fill")
+                    Label(evidenceLabel, systemImage: "cup.and.saucer.fill")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .cardStyle()
+        .accessibilityElement(children: .combine)
+    }
+
+    private var scoreLabel: String {
+        let value = String(format: "%.1f", entry.score)
+        switch basis {
+        case .cafeExperience:
+            return "Cafe average \(value)"
+        case .sipAverageLegacy:
+            return "Sip average \(value)"
+        }
+    }
+
+    private var evidenceLabel: String {
+        switch basis {
+        case .cafeExperience:
+            let count = entry.ratedCafeSessionCount
+            return "\(count) cafe rating\(count == 1 ? "" : "s")"
+        case .sipAverageLegacy:
+            return "\(entry.sipCount) sip\(entry.sipCount == 1 ? "" : "s")"
         }
     }
 }
@@ -677,6 +870,15 @@ private struct JournalArchiveView: View {
             .sorted { $0.date > $1.date }
     }
 
+    private var timelineGroups: [JournalArchiveMonthGroup] {
+        let calendar = Calendar.current
+        return Dictionary(grouping: filteredEntries) { entry in
+            calendar.date(from: calendar.dateComponents([.year, .month], from: entry.date)) ?? entry.date
+        }
+        .map { JournalArchiveMonthGroup(month: $0.key, entries: $0.value.sorted { $0.date > $1.date }) }
+        .sorted { $0.month > $1.month }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -692,32 +894,17 @@ private struct JournalArchiveView: View {
                     } else {
                         switch mode {
                         case .timeline:
-                            ForEach(filteredEntries) { entry in
-                                Button { selectedVisit = entry.summary } label: {
-                                    RemoteJournalRow(visit: entry.summary)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button {
-                                        toggleBookmark(entry)
-                                    } label: {
-                                        Label(
-                                            bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
-                                            systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark"
-                                        )
-                                    }
-                                }
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        toggleBookmark(entry)
-                                    } label: {
-                                        Image(systemName: bookmarkedIDs.contains(entry.id) ? "bookmark.fill" : "bookmark")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.mugshotSage)
-                                            .frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(bookmarkedIDs.contains(entry.id) ? "Remove bookmark" : "Bookmark sip")
+                            ForEach(timelineGroups) { group in
+                                JournalTimelineMonthSection(
+                                    group: group,
+                                    bookmarkedIDs: bookmarkedIDs,
+                                    onSelect: { selectedVisit = $0.summary },
+                                    onToggleBookmark: toggleBookmark
+                                )
+                                if group.id != timelineGroups.last?.id {
+                                    Divider()
+                                        .overlay(Color.mugshotLine)
+                                        .padding(.vertical, 4)
                                 }
                             }
                         case .calendar:
@@ -756,23 +943,30 @@ private struct JournalArchiveView: View {
                         .foregroundColor(.mugshotSage)
                 }
             }
-            .fullScreenCover(item: $selectedVisit) { visit in
-                RemoteVisitDetailView(
-                    visitId: visit.id,
-                    initialSummary: visit,
-                    currentUserId: currentUserID,
-                    dataManager: dataManager,
-                    onRepeat: { detail in
-                        selectedVisit = nil
-                        let draft = detail.summary.visit.journalContext == .recipe
-                            ? SipDraft.brewAgain(from: detail.summary, ownerUserID: currentUserID)
-                            : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            onComposeDraft(draft)
-                        }
-                    }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedVisit != nil },
+                    set: { if !$0 { selectedVisit = nil } }
                 )
+            ) {
+                if let visit = selectedVisit {
+                    RemoteVisitDetailView(
+                        visitId: visit.id,
+                        initialSummary: visit,
+                        currentUserId: currentUserID,
+                        dataManager: dataManager,
+                        onRepeat: { detail in
+                            selectedVisit = nil
+                            let draft = detail.summary.visit.journalContext == .recipe
+                                ? SipDraft.brewAgain(from: detail, ownerUserID: currentUserID)
+                                : SipDraft.repeatSip(from: detail.summary, ownerUserID: currentUserID)
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onComposeDraft(draft)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -800,6 +994,92 @@ private struct JournalArchiveView: View {
                     } else {
                         bookmarkedIDs.remove(entry.id)
                     }
+                }
+            }
+        }
+    }
+}
+
+private struct JournalArchiveMonthGroup: Identifiable {
+    let month: Date
+    let entries: [JournalEntryProjection]
+
+    var id: Date { month }
+    var photoEntries: [JournalEntryProjection] {
+        Array(entries.filter { $0.summary.visit.posterPhotoURL?.remoteTrimmedNonEmpty != nil }.prefix(8))
+    }
+}
+
+private struct JournalTimelineMonthSection: View {
+    let group: JournalArchiveMonthGroup
+    let bookmarkedIDs: Set<UUID>
+    let onSelect: (JournalEntryProjection) -> Void
+    let onToggleBookmark: (JournalEntryProjection) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(group.month.formatted(.dateTime.month(.wide).year()))
+                    .mugshotDisplay(size: 23)
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                Text("\(group.entries.count) \(group.entries.count == 1 ? "memory" : "memories")")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            if !group.photoEntries.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 8) {
+                        ForEach(group.photoEntries) { entry in
+                            Button { onSelect(entry) } label: {
+                                RemotePhotoImageView(
+                                    urlString: entry.summary.visit.posterPhotoURL,
+                                    placeholderSystemName: "cup.and.saucer.fill",
+                                    contentMode: .fill
+                                )
+                                .frame(width: 102, height: 126)
+                                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                                .overlay(alignment: .bottomLeading) {
+                                    Text(entry.summary.visit.drinkDisplayName)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.foamWhite)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(.black.opacity(0.46))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Open \(entry.summary.visit.drinkDisplayName) from \(entry.date.formatted(date: .abbreviated, time: .omitted))")
+                        }
+                    }
+                }
+            }
+
+            ForEach(group.entries) { entry in
+                Button { onSelect(entry) } label: {
+                    RemoteJournalRow(visit: entry.summary)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button { onToggleBookmark(entry) } label: {
+                        Label(
+                            bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
+                            systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark"
+                        )
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    Button { onToggleBookmark(entry) } label: {
+                        Image(systemName: bookmarkedIDs.contains(entry.id) ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(bookmarkedIDs.contains(entry.id) ? "Remove bookmark" : "Bookmark sip")
                 }
             }
         }
@@ -929,14 +1209,19 @@ private struct JournalFilterBar: View {
                 Button {
                     withAnimation(DesignSystem.Motion.fast) { selection = filter }
                 } label: {
-                    Text(filter.rawValue)
-                        .font(.system(size: 13, weight: selection == filter ? .bold : .medium))
-                        .foregroundColor(selection == filter ? .foamWhite : .secondaryText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(selection == filter ? Color.mugshotSage : Color.clear, in: Capsule())
+                    ZStack {
+                        Capsule()
+                            .fill(selection == filter ? Color.mugshotSage : Color.foamWhite.opacity(0.10))
+                        Text(filter.rawValue)
+                            .font(.system(size: 13, weight: selection == filter ? .bold : .medium))
+                            .foregroundColor(selection == filter ? .foamWhite : .secondaryText)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityAddTraits(selection == filter ? .isSelected : [])
             }
         }
         .padding(3)
@@ -952,11 +1237,19 @@ private struct RemoteJournalFeatureCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
+            Group {
+                if visit.visit.posterPhotoURL != nil {
+                    RemotePhotoImageView(
+                        urlString: visit.visit.posterPhotoURL,
+                        placeholderSystemName: "cup.and.saucer.fill",
+                        contentMode: .fill
+                    )
+                } else {
+                    RemoteVisitNoPhotoThumbnail(
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                    )
+                }
+            }
             .frame(width: 118, height: 205)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
 
@@ -1018,6 +1311,7 @@ private struct RemoteJournalFeatureCard: View {
         switch visit.visit.journalContext {
         case .cafe: return "Cafe Sip · \(visit.locationTitle)"
         case .home: return "Home Brew"
+        case .elsewhere: return visit.locationTitle
         case .recipe: return "Recipe"
         }
     }
@@ -1043,11 +1337,19 @@ struct RemoteJournalRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
+            Group {
+                if visit.visit.posterPhotoURL != nil {
+                    RemotePhotoImageView(
+                        urlString: visit.visit.posterPhotoURL,
+                        placeholderSystemName: "cup.and.saucer.fill",
+                        contentMode: .fill
+                    )
+                } else {
+                    RemoteVisitNoPhotoThumbnail(
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                    )
+                }
+            }
             .frame(width: 92, height: 96)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
 
@@ -1069,7 +1371,7 @@ struct RemoteJournalRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondaryText)
                     .lineLimit(1)
-                Label(String(format: "%.1f", visit.visit.overallScore), systemImage: "star.fill")
+                Label(String(format: "%.1f", visit.displayedMugshotScore), systemImage: "star.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.mugshotSage)
             }
@@ -1091,9 +1393,9 @@ private struct JournalEmptyState: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: filter == "Recipes" ? "book.pages.fill" : "cup.and.saucer.fill")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundColor(.mugshotSage)
+            MugsyModelView(configuration: MugsyPlacement.journalEmpty.configuration)
+                .frame(width: 104, height: 104)
+                .accessibilityHidden(true)
             Text(filter == "All" ? "Your journal starts with a sip" : "No \(filter.lowercased()) entries yet")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundColor(.espressoBrown)
@@ -1102,9 +1404,18 @@ private struct JournalEmptyState: View {
                 .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
             if let onAdd {
-                Button("New journal entry", action: onAdd)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.mugshotSage)
+                Button(action: onAdd) {
+                    ZStack {
+                        Capsule().fill(Color.mugshotMint.opacity(0.34))
+                        Text("New journal entry")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                            .padding(.horizontal, 16)
+                    }
+                    .frame(minWidth: 164, minHeight: 44)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity)
@@ -1119,6 +1430,49 @@ private struct TasteIdentityJournalSection: View {
     let onChange: (RemoteTasteSignal, TasteSignalOwnerState, String?) async -> Bool
     @State private var selectedSignal: RemoteTasteSignal?
 
+    private var recentEntries: [JournalEntryProjection] {
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: Date()) else { return entries }
+        return entries.filter { $0.date >= cutoff }
+    }
+
+    private var locatedEntries: [JournalEntryProjection] {
+        entries.filter { $0.summary.cafe?.latitude != nil && $0.summary.cafe?.longitude != nil }
+    }
+
+    private var uniqueLocatedCafeCount: Int {
+        Set(locatedEntries.compactMap { $0.summary.cafe?.id }).count
+    }
+
+    private var bloomSamples: [TasteBloomSample] {
+        let durable = signals.filter(\.isDurableClaim)
+        if !durable.isEmpty {
+            return durable.map {
+                TasteBloomSample(
+                    label: $0.displayAttribute,
+                    value: MugshotMotion.normalized($0.confidence),
+                    support: $0.supportCount
+                )
+            }
+        }
+
+        let confidence = min(0.72, 0.24 + Double(recentEntries.count) * 0.06)
+        return summary.descriptors.enumerated().map { index, descriptor in
+            TasteBloomSample(
+                label: descriptor,
+                value: max(0.22, confidence - Double(index) * 0.07),
+                support: recentEntries.count
+            )
+        }
+    }
+
+    private var bloomConfidence: Double {
+        let durable = signals.filter(\.isDurableClaim)
+        if !durable.isEmpty {
+            return durable.map(\.confidence).reduce(0, +) / Double(durable.count)
+        }
+        return min(0.68, Double(recentEntries.count) / 10)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -1132,11 +1486,11 @@ private struct TasteIdentityJournalSection: View {
             }
 
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 27, weight: .semibold))
-                    .foregroundColor(.foamWhite)
-                    .frame(width: 64, height: 64)
-                    .background(Color.mugshotSage, in: Circle())
+                MugshotTasteBloom(
+                    samples: bloomSamples,
+                    confidence: bloomConfidence,
+                    size: 104
+                )
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(summary.title)
@@ -1159,6 +1513,28 @@ private struct TasteIdentityJournalSection: View {
                         .foregroundColor(.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+
+            Text("Your passport grows from your journal history. The last 90 days keep the picture current without turning taste into a score.")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                identityFact(
+                    value: "\(recentEntries.count)",
+                    label: "sips · 90 days",
+                    icon: "clock.fill"
+                )
+                identityFact(
+                    value: "\(uniqueLocatedCafeCount)",
+                    label: uniqueLocatedCafeCount == 1 ? "cafe on your map" : "cafes on your map",
+                    icon: "map.fill"
+                )
+            }
+
+            if !locatedEntries.isEmpty {
+                TasteIdentityFootprint(entries: locatedEntries)
             }
 
             if signals.filter(\.isDurableClaim).isEmpty {
@@ -1213,6 +1589,76 @@ private struct TasteIdentityJournalSection: View {
                 entries: entries.filter { signal.evidenceVisitIDs.contains($0.id) },
                 onChange: onChange
             )
+        }
+    }
+
+    private func identityFact(value: String, label: String, icon: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 30, height: 30)
+                .background(Color.mugshotMint.opacity(0.44), in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 16, weight: .bold, design: .serif))
+                    .foregroundColor(.espressoBrown)
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(Color.sandBeige.opacity(0.38), in: RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct TasteIdentityFootprint: View {
+    let entries: [JournalEntryProjection]
+
+    private var mapEntries: [JournalEntryProjection] {
+        var seen: Set<UUID> = []
+        return entries.filter { entry in
+            guard let cafeID = entry.summary.cafe?.id else { return false }
+            return seen.insert(cafeID).inserted
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Your coffee footprint")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Spacer()
+                Text("Personal, not ranked")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+            }
+
+            Map {
+                ForEach(mapEntries) { entry in
+                    if let latitude = entry.summary.cafe?.latitude,
+                       let longitude = entry.summary.cafe?.longitude {
+                        Marker(
+                            entry.summary.locationTitle,
+                            coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                        )
+                        .tint(Color.mugshotSage)
+                    }
+                }
+            }
+            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .frame(height: 156)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .allowsHitTesting(false)
+            .accessibilityLabel("Map of \(mapEntries.count) cafes in your journal")
         }
     }
 }

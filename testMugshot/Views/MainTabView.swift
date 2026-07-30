@@ -10,57 +10,147 @@ import SwiftUI
 struct MainTabView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(MugshotGuestIntroductionPolicy.storageKey) private var hasSeenGuestIntroduction = false
     @StateObject private var tabCoordinator = TabCoordinator()
     @StateObject private var systemRouter = SipSystemRouter.shared
+    @StateObject private var activityStore = ActivityCenterStore()
+    @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
+    @StateObject private var enforcementStore = EnforcementNoticeStore()
+    @StateObject private var automaticSipRecovery = AutomaticSipRecoveryCoordinator()
     @State private var composerDraft: SipDraft?
     @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
     @State private var showsGuestSavedMerge = false
     @State private var showsCapturePreferences = false
+    @State private var showsGuestIntroduction = false
+    @State private var showsActivityCenter = false
+    @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
+    @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
+    @State private var isBottomNavHidden = false
     
     var body: some View {
+        routedScene
+    }
+
+    private var coreScene: some View {
         ZStack(alignment: .bottom) {
             activeTab
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
-                .transition(.opacity)
 
-            if tabCoordinator.selectedTab != 2 {
+            if tabCoordinator.selectedTab != 2, !isBottomNavHidden {
                 MugshotBottomNav(selectedTab: gatedTabSelection)
                     .transition(.opacity)
                     .zIndex(1)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                if let sessionMessage {
+                    SessionUnavailableBanner(message: sessionMessage) {
+                        Task { await authModel.restoreSession(dataManager: dataManager) }
+                    }
+                }
+                AutomaticSipRecoveryBanner(
+                    state: automaticSipRecovery.state,
+                    retry: automaticSipRecovery.retryNow
+                )
+                if let action = enforcementStore.primaryAction {
+                    EnforcementStatusBanner(
+                        action: action,
+                        additionalActiveCount: max(enforcementStore.activeCount - 1, 0)
+                    ) {
+                        showsEnforcementCenter = true
+                    }
+                }
+            }
+        }
         .environmentObject(tabCoordinator)
+        .onPreferenceChange(MugshotBottomNavHiddenPreferenceKey.self) { isHidden in
+            withAnimation(DesignSystem.Motion.fast) {
+                isBottomNavHidden = isHidden
+            }
+        }
         .tint(.mugshotSage)
         .background(Color.creamWhite.ignoresSafeArea())
         // The dock deliberately extends through the container safe area so it
         // sits with the home indicator instead of hovering a full safe-area
         // height above it.
         .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    private var lifecycleScene: some View {
+        coreScene
         .onAppear {
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
+            activateLocalStorage()
+            automaticSipRecovery.activate(accountID: authModel.authenticatedUser?.id)
+            automaticSipRecovery.setAppActive(scenePhase == .active)
             if !hasAuthenticatedNavigation,
                !Self.guestTabs.contains(tabCoordinator.selectedTab) {
                 tabCoordinator.selectedTab = 0
             }
             handlePendingSystemRoute()
+            synchronizeActivityRouter()
+            handlePendingActivityRoute()
+            scheduleGuestIntroductionIfNeeded()
+            captureSelectedScreen()
+        }
+        .onChange(of: tabCoordinator.selectedTab) { _, _ in
+            captureSelectedScreen()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+            if showsActivityCenter {
+                showsActivityCenter = false
+            }
+            activateLocalStorage(scope: .forUserID(userId))
+            automaticSipRecovery.activate(accountID: userId)
             if userId != nil {
                 authenticationPrompt = nil
+                showsGuestIntroduction = false
             } else if !hasAuthenticatedNavigation,
                       !Self.guestTabs.contains(tabCoordinator.selectedTab) {
                 tabCoordinator.selectedTab = 0
             }
             handlePendingSystemRoute()
+            synchronizeActivityRouter()
+            enforcementStore.prepare(accountID: userId)
+            handlePendingActivityRoute()
+            scheduleGuestIntroductionIfNeeded()
+        }
+        .onChange(of: dataManager.journalRevision) { _, _ in
+            activateLocalStorage()
+        }
+        .onChange(of: automaticSipRecovery.completionRevision) { _, _ in
+            dataManager.noteJournalMutation()
         }
         .onChange(of: authModel.status) { _, _ in
+            synchronizeActivityRouter()
             handlePendingSystemRoute()
+            handlePendingActivityRoute()
+            scheduleGuestIntroductionIfNeeded()
         }
         .onChange(of: systemRouter.pendingRoute?.id) { _, _ in
             handlePendingSystemRoute()
+        }
+        .onChange(of: activityRouter.pendingRoute?.id) { _, _ in
+            handlePendingActivityRoute()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            automaticSipRecovery.setAppActive(phase == .active)
+            guard phase == .active,
+                  let expectedAccountID = authModel.authenticatedUser?.id else { return }
+            Task {
+                await activityStore.refresh()
+                guard !Task.isCancelled,
+                      authModel.authenticatedUser?.id == expectedAccountID else { return }
+                await NotificationDeviceCoordinator.shared.refreshPermission()
+                guard !Task.isCancelled,
+                      authModel.authenticatedUser?.id == expectedAccountID else { return }
+                await enforcementStore.refresh()
+            }
         }
         .onChange(of: authModel.pendingGuestSavedCafes.count) { _, count in
             guard count > 0 else {
@@ -76,6 +166,10 @@ struct MainTabView: View {
             guard shouldOffer else { return }
             scheduleCapturePreferencesIfNeeded()
         }
+    }
+
+    private var presentedScene: some View {
+        lifecycleScene
         .sheet(item: $authenticationPrompt, onDismiss: scheduleCapturePreferencesIfNeeded) { prompt in
             AuthEntryView(
                 dataManager: dataManager,
@@ -84,6 +178,14 @@ struct MainTabView: View {
                 showsCloseButton: true
             )
             .environmentObject(authModel)
+        }
+        .sheet(isPresented: $showsGuestIntroduction, onDismiss: {
+            hasSeenGuestIntroduction = true
+        }) {
+            MugsyGuestIntroductionView {
+                hasSeenGuestIntroduction = true
+                showsGuestIntroduction = false
+            }
         }
         .sheet(isPresented: $showsGuestSavedMerge, onDismiss: scheduleCapturePreferencesIfNeeded) {
             GuestSavedMergeView(dataManager: dataManager)
@@ -94,6 +196,67 @@ struct MainTabView: View {
             CapturePreferencesView(allowsSkipping: true)
                 .environmentObject(authModel)
         }
+        .sheet(isPresented: $showsActivityCenter) {
+            if let accountID = authModel.authenticatedUser?.id {
+                ActivityCenterView(
+                    store: activityStore,
+                    router: activityRouter,
+                    dataManager: dataManager,
+                    accountID: accountID
+                )
+                .environmentObject(authModel)
+            } else {
+                NavigationStack {
+                    ContentUnavailableView(
+                        "Session changed",
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text("Sign in again to view activity for your account.")
+                    )
+                    .navigationTitle("Activity")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Close") { showsActivityCenter = false }
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showsEnforcementCenter, onDismiss: {
+            Task { await enforcementStore.refresh() }
+        }) {
+            NavigationStack {
+                EnforcementCenterView()
+                    .environmentObject(authModel)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsEnforcementCenter = false }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { authModel.requiresNewPassword },
+            set: { _ in }
+        )) {
+            PasswordRecoveryView(dataManager: dataManager)
+                .environmentObject(authModel)
+        }
+        .sheet(item: $sharedMugshotRoute) { route in
+            NavigationStack {
+                PublicMugshotLinkView(route: route)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { sharedMugshotRoute = nil }
+                        }
+                    }
+            }
+            .presentationDetents([.large])
+        }
+    }
+
+    private var routedScene: some View {
+        presentedScene
         .alert("Couldn’t open that shortcut", isPresented: Binding(
             get: { systemRouteError != nil },
             set: { if !$0 { systemRouteError = nil } }
@@ -102,16 +265,48 @@ struct MainTabView: View {
         } message: {
             Text(systemRouteError ?? "Please try again.")
         }
-        .onOpenURL { systemRouter.enqueue(url: $0) }
+        .onOpenURL { url in
+            if MugshotAuthCallbackRoute.resolve(url) != nil {
+                // The always-mounted root queues auth callbacks until session
+                // restoration finishes and consumes each one-time URL once.
+                return
+            } else if let route = MugshotSharedLinkRoute.resolve(url) {
+                sharedMugshotRoute = route
+            } else if let accountID = authModel.authenticatedUser?.id,
+                      activityRouter.enqueue(url: url, accountID: accountID) {
+                handlePendingActivityRoute()
+            } else {
+                systemRouter.enqueue(url: url)
+            }
+        }
         .task(id: authModel.authenticatedUser?.id) {
-            guard let userId = authModel.authenticatedUser?.id,
+            let userId = authModel.authenticatedUser?.id
+            synchronizeActivityRouter()
+            await activityStore.activate(accountID: userId)
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
+            await NotificationDeviceCoordinator.shared.activate(accountID: userId)
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
+            await enforcementStore.activate(accountID: userId)
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
+            handlePendingActivityRoute()
+
+            guard let userId,
                   let client = try? SupabaseClientProvider.shared.client() else { return }
             if let clearedCount = try? await CafeStateService(client: client)
                 .reconcileVisitedWantToTry(userId: userId),
                clearedCount > 0 {
+                guard !Task.isCancelled,
+                      authModel.authenticatedUser?.id == userId else { return }
                 dataManager.noteJournalMutation()
             }
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
             await VisitDeletionService(client: client).retryPendingMediaCleanup(userId: userId)
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
             await DrinkAnalysisService(client: client).retryPendingAnalyses(userId: userId)
         }
     }
@@ -120,22 +315,30 @@ struct MainTabView: View {
     private var activeTab: some View {
         switch tabCoordinator.selectedTab {
         case 0:
-            MapTabView(dataManager: dataManager, onLogVisitRequested: { cafe in
-                guard hasAuthenticatedNavigation else {
-                    requestAuthentication(
-                        title: "Keep this sip in your journal",
-                        message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
-                    )
-                    return
-                }
-                composerDraft = Self.cafeDraft(cafe, dataManager: dataManager, userID: authModel.authenticatedUser?.id)
-                composerSessionID = UUID()
-                withAnimation(DesignSystem.Motion.base) {
-                    tabCoordinator.selectedTab = 2
-                }
-            })
+            MapTabView(
+                dataManager: dataManager,
+                onLogVisitRequested: beginCafeSip,
+                onAuthenticationRequired: requestAuthentication
+            )
         case 1:
-            FeedTabView(dataManager: dataManager)
+            FeedTabView(
+                dataManager: dataManager,
+                onLogVisitRequested: beginCafeSip,
+                onComposeDraft: { draft in
+                    composerDraft = draft
+                    composerSessionID = UUID()
+                    withAnimation(DesignSystem.Motion.base) {
+                        tabCoordinator.selectedTab = 2
+                    }
+                },
+                activityUnreadCount: activityStore.unreadCount,
+                onActivityRequested: {
+                    MugshotAnalytics.shared.capture(
+                        .screenViewed(.activityCenter, source: .sheet)
+                    )
+                    showsActivityCenter = true
+                }
+            )
         case 2:
             AddTabView(dataManager: dataManager, initialDraft: composerDraft)
                 .id(composerSessionID)
@@ -147,9 +350,11 @@ struct MainTabView: View {
                     }
                 }
         case 3:
-            SavedTabView(dataManager: dataManager) { title, message in
-                requestAuthentication(title: title, message: message)
-            }
+            SavedTabView(
+                dataManager: dataManager,
+                onLogVisitRequested: beginCafeSip,
+                onAuthenticationRequired: requestAuthentication
+            )
         default:
             JournalTabView(dataManager: dataManager) { draft in
                 composerDraft = draft
@@ -163,9 +368,54 @@ struct MainTabView: View {
 
     private static let guestTabs: Set<Int> = [0, 3]
 
+    private func captureSelectedScreen() {
+        let screen: MugshotAnalyticsScreen
+        switch tabCoordinator.selectedTab {
+        case 0: screen = .map
+        case 1: screen = .feed
+        case 2: screen = .sipComposer
+        case 3: screen = .saved
+        default: screen = .journal
+        }
+        MugshotAnalytics.shared.capture(.screenViewed(screen, source: .tab))
+    }
+
+    private func beginCafeSip(_ cafe: Cafe) {
+        guard hasAuthenticatedNavigation else {
+            requestAuthentication(
+                title: "Keep this sip in your journal",
+                message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
+            )
+            return
+        }
+
+        composerDraft = Self.cafeDraft(
+            cafe,
+            dataManager: dataManager,
+            userID: activeAccountUserID
+        )
+        composerSessionID = UUID()
+        tabCoordinator.selectedTab = 2
+    }
+
     private var hasAuthenticatedNavigation: Bool {
         authModel.authenticatedUser != nil
+            || (sessionMessage != nil && dataManager.appData.currentUser != nil)
             || (MugshotLaunchEnvironment.isUITesting && !MugshotLaunchEnvironment.isUITestingSignedOut)
+    }
+
+    private var activeAccountUserID: UUID? {
+        authModel.authenticatedUser?.id
+            ?? (sessionMessage == nil ? nil : dataManager.appData.currentUser?.id)
+    }
+
+    private var sessionMessage: String? {
+        guard authModel.authenticatedUser != nil
+                || dataManager.appData.currentUser != nil,
+              case .sessionUnavailable(let message) = authModel.status else {
+            return nil
+        }
+        return message
     }
 
     private var gatedTabSelection: Binding<Int> {
@@ -224,8 +474,25 @@ struct MainTabView: View {
         Task { await openComposer(for: route) }
     }
 
+    private func handlePendingActivityRoute() {
+        guard authModel.status != .checking,
+              authModel.status != .working,
+              let accountID = authModel.authenticatedUser?.id,
+              let route = activityRouter.pendingRoute,
+              route.accountID == accountID else { return }
+        showsActivityCenter = true
+    }
+
+    private func synchronizeActivityRouter() {
+        if case .signedOut = authModel.status {
+            activityRouter.deactivateForSignedOutSession()
+        } else {
+            activityRouter.activate(accountID: authModel.authenticatedUser?.id)
+        }
+    }
+
     private func openComposer(for route: SipSystemRoute) async {
-        let ownerID = authModel.authenticatedUser?.id
+        let ownerID = activeAccountUserID
         var draft: SipDraft?
         switch route.destination {
         case .cafeSip, .cameraSip:
@@ -236,7 +503,9 @@ struct MainTabView: View {
                     returnTab: tabCoordinator.selectedTab
                 ),
                 context: .cafe,
-                visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility,
+                visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
+                    in: .forUserID(ownerID)
+                ),
                 composerExperience: .guided,
                 guidedStep: route.destination == .cameraSip ? .drink : .context
             )
@@ -258,9 +527,19 @@ struct MainTabView: View {
                 if route.destination == .repeatRecentSip, let recent = entries.first?.summary {
                     draft = .repeatSip(from: recent, ownerUserID: ownerID)
                 } else if let recipe = entries.first(where: {
-                    $0.context == .recipe || $0.summary.visit.structuredBrewDetails.recipeIdentityID != nil
+                    $0.context == .recipe || $0.summary.visit.recipeVersionID != nil
                 })?.summary {
-                    draft = .brewAgain(from: recipe, ownerUserID: ownerID)
+                    let projection = try await VisitService(client: client)
+                        .fetchRecipeProjection(visitId: recipe.id)
+                    if let projection {
+                        draft = .brewAgain(
+                            from: recipe,
+                            recipeProjection: projection,
+                            ownerUserID: ownerID
+                        )
+                    } else {
+                        systemRouteError = "Mugshot couldn’t load that recipe’s private blueprint. Your saved recipe is unchanged."
+                    }
                 }
             } catch {
                 systemRouteError = "Mugshot couldn’t load your journal for this shortcut. Your existing drafts are safe."
@@ -291,7 +570,9 @@ struct MainTabView: View {
             launchContext: SipComposerLaunchContext(source: .cafeDetail, preselectedCafe: cafe),
             context: .cafe,
             cafe: cafe,
-            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
+            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
+                in: .forUserID(userID)
+            )
         )
         draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         return draft
@@ -310,6 +591,103 @@ struct MainTabView: View {
                   !showsGuestSavedMerge else { return }
             showsCapturePreferences = true
         }
+    }
+
+    private func scheduleGuestIntroductionIfNeeded() {
+        guard MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: hasSeenGuestIntroduction,
+            hasAuthenticatedNavigation: hasAuthenticatedNavigation,
+            isUITesting: MugshotLaunchEnvironment.isUITesting
+        ),
+        authenticationPrompt == nil,
+        !showsGuestSavedMerge,
+        !showsCapturePreferences,
+        !showsGuestIntroduction else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            guard MugshotGuestIntroductionPolicy.shouldPresent(
+                hasSeen: hasSeenGuestIntroduction,
+                hasAuthenticatedNavigation: hasAuthenticatedNavigation,
+                isUITesting: MugshotLaunchEnvironment.isUITesting
+            ),
+            authenticationPrompt == nil,
+            !showsGuestSavedMerge,
+            !showsCapturePreferences else { return }
+            showsGuestIntroduction = true
+        }
+    }
+
+    private var localAccountScope: LocalAccountScope {
+        .forUserID(
+            authModel.authenticatedUser?.id
+                ?? dataManager.appData.currentUser?.id
+        )
+    }
+
+    private func activateLocalStorage(scope: LocalAccountScope? = nil) {
+        let resolvedScope = scope ?? localAccountScope
+        SipDraftStore.shared.activate(scope: resolvedScope)
+        CafeVisibilityPreferenceStore.shared.activate(scope: resolvedScope)
+        try? PhotoCache.shared.activate(
+            scope: resolvedScope,
+            migratingKnownKeys: knownLegacyPhotoKeys(for: resolvedScope)
+        )
+    }
+
+    private func knownLegacyPhotoKeys(for scope: LocalAccountScope) -> Set<String> {
+        guard let userID = scope.userID else { return [] }
+        return Set(
+            dataManager.appData.visits
+                .filter { $0.userId == userID }
+                .flatMap(\.photos)
+        )
+    }
+}
+
+private struct SessionUnavailableBanner: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .accessibilityHidden(true)
+
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            Button("Retry", action: retry)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.roastBrown)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.sandBeige)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(Color.mugshotLine)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sessionUnavailableBanner")
+    }
+}
+
+struct MugshotBottomNavHiddenPreferenceKey: PreferenceKey {
+    static var defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
+extension View {
+    func mugshotBottomNavHidden(_ isHidden: Bool = true) -> some View {
+        preference(key: MugshotBottomNavHiddenPreferenceKey.self, value: isHidden)
     }
 }
 
@@ -506,6 +884,10 @@ private struct MugshotBottomNav: View {
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                         .accessibilityLabel(item.title)
+                        .accessibilityIdentifier("mugshot.tab.\(item.title.lowercased())")
+                        .accessibilityValue(selectedTab == item.index ? "Selected" : "")
+                        .accessibilityHint(item.index == 2 ? "Opens the guided sip composer" : "Switches to the \(item.title) tab")
+                        .accessibilityAddTraits(selectedTab == item.index ? .isSelected : [])
                     }
                 }
             }

@@ -4,3 +4,4 @@ create index if not exists visits_complete_created_id_idx
   on public.visits (created_at desc, id desc)
   include (user_id, cafe_id, visibility, overall_score)
   where upload_state = 'complete';
+;

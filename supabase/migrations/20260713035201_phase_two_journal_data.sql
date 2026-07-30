@@ -36,7 +36,7 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
   with input as (
@@ -66,6 +66,7 @@ as $$
         from public.visits candidate_visit
         where candidate_visit.cafe_id = c.id
           and candidate_visit.upload_state = 'complete'
+          and private.can_view_visit_as(candidate_visit.id, i.viewer)
       ) as visible_count,
       case
         when i.apple_place_id is not null and c.apple_place_id = i.apple_place_id then 0
@@ -108,6 +109,7 @@ as $$
     cross join input i
     join chosen cafe on cafe.id = visit.cafe_id
     where visit.upload_state = 'complete'
+      and private.can_view_visit_as(visit.id, i.viewer)
   )
   select
     cafe.id,
@@ -150,3 +152,4 @@ revoke all on function public.resolve_cafe_summary(text,double precision,double 
   from public, anon;
 grant execute on function public.resolve_cafe_summary(text,double precision,double precision,text)
   to authenticated;
+;

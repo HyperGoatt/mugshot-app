@@ -22,12 +22,12 @@ It does not add followers, public popularity metrics, contacts gating, competiti
 
 ## Database migrations
 
-- `20260714150000_phase_4_lightweight_friends.sql`
-- `20260714153000_refine_cafe_list_invitation_visibility.sql`
-- `20260714160000_expose_caller_bound_phase_4_policies.sql`
-- `20260714161500_close_phase_4_direct_mutations.sql`
-- `20260714163000_sanitize_shared_recipe_payloads.sql`
-- `20260714164500_add_cafe_list_reordering.sql`
+- `20260714050516_phase_4_lightweight_friends.sql`
+- `20260714051041_refine_cafe_list_invitation_visibility.sql`
+- `20260714051404_expose_caller_bound_phase_4_policies.sql`
+- `20260714051432_close_phase_4_direct_mutations.sql`
+- `20260714051603_sanitize_shared_recipe_payloads.sql`
+- `20260714052754_add_cafe_list_reordering.sql`
 
 All were applied as forward, additive migrations to project `quskamnfwglctqewwfln`.
 

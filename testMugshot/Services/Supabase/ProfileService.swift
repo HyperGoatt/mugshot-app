@@ -102,6 +102,10 @@ final class ProfileService {
             return username
         }
 
+        if let preferredDisplayName = authUser.preferredDisplayName?.nilIfEmpty {
+            return preferredDisplayName
+        }
+
         return authUser.email?.split(separator: "@").first.map(String.init) ?? "Mugshot User"
     }
 

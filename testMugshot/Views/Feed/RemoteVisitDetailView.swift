@@ -32,6 +32,9 @@ struct RemoteVisitDetailView: View {
     @ObservedObject var dataManager: DataManager
     let justPosted: Bool
     let onRepeat: ((RemoteVisitDetail) -> Void)?
+    let onComposeDraft: ((SipDraft) -> Void)?
+    let presentationMode: SipDetailPresentationMode
+    let onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)?
 
     init(
         visitId: UUID,
@@ -39,7 +42,10 @@ struct RemoteVisitDetailView: View {
         currentUserId: UUID?,
         dataManager: DataManager,
         justPosted: Bool = false,
-        onRepeat: ((RemoteVisitDetail) -> Void)? = nil
+        onRepeat: ((RemoteVisitDetail) -> Void)? = nil,
+        onComposeDraft: ((SipDraft) -> Void)? = nil,
+        presentationMode: SipDetailPresentationMode = .pushed,
+        onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     ) {
         self.visitId = visitId
         self.initialSummary = initialSummary
@@ -47,27 +53,44 @@ struct RemoteVisitDetailView: View {
         self.dataManager = dataManager
         self.justPosted = justPosted
         self.onRepeat = onRepeat
+        self.onComposeDraft = onComposeDraft
+        self.presentationMode = presentationMode
+        self.onAuthenticationRequired = onAuthenticationRequired
     }
 
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
     @State private var selectedPhotoIndex = 0
-    @State private var photoViewerPresentation: RemotePhotoViewerPresentation?
+    @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var socialError: String?
+    @State private var socialStatus: String?
     @State private var isSavingSocialAction = false
     @State private var commentText = ""
     @State private var replyingTo: RemoteVisitComment?
     @State private var mentionSuggestions: [PeopleSearchResult] = []
     @State private var mentionedUserIDs: Set<UUID> = []
-    @State private var reportTarget: SocialReportTarget?
+    @State private var reportTarget: SocialSafetyTarget?
+    @State private var reportDetailsRequest: SafetyReportDetailsRequest?
+    @State private var queuedReportDetailsRequest: SafetyReportDetailsRequest?
+    @State private var reportConfirmationRequest: SafetyReportConfirmationRequest?
+    @State private var queuedReportConfirmationRequest: SafetyReportConfirmationRequest?
+    @State private var failedReportReceipt: SafetyReportReceipt?
+    @State private var showBlockConfirmation = false
+    @State private var editingComment: RemoteVisitComment?
+    @State private var editCommentError: String?
+    @State private var commentPendingRemoval: RemoteVisitComment?
     @State private var isShowingEditVisit = false
     @State private var isShowingDrinkInterpretation = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
     @State private var reactions: [SipReactionRecord] = []
     @State private var isShowingRecommendation = false
+    @State private var toolbarProgress: CGFloat = 0
+    @State private var showMoreActions = false
+    @State private var recipeAdaptationRequest: SipDetailRecipeModel?
+    @State private var selectedTaggedProfile: PeopleProfileRoute?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @FocusState private var isCommentFocused: Bool
 
@@ -77,83 +100,537 @@ struct RemoteVisitDetailView: View {
 
     private var heroHeight: CGFloat { 500 }
 
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                SipDetailBackground()
+        if presentationMode == .postSave {
+            NavigationStack { detailScene }
+        } else {
+            detailScene
+        }
+    }
 
-                content
+    private var detailScene: some View {
+        safetyDialogsScene
+    }
 
-                topControls
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .task(id: visitId) {
-                await loadDetail()
-            }
-            .sheet(isPresented: $isShowingEditVisit) {
-                if let detail,
-                   let currentUserId {
-                    EditRemoteVisitView(
-                        detail: detail,
-                        currentUserId: currentUserId,
-                        onSave: saveVisitEdits
-                    )
-                }
-            }
-            .sheet(isPresented: $isShowingDrinkInterpretation) {
-                if let currentUserId {
-                    DrinkInterpretationEditor(
-                        visitID: visitId,
-                        rawDrinkName: displayedSummary.visit.drinkDisplayName,
-                        currentUserID: currentUserId
-                    )
-                }
-            }
-            .sheet(isPresented: $isShowingRecommendation) {
-                RecommendToFriendView(
-                    kind: recommendationKind,
-                    targetID: recommendationTargetID,
-                    title: displayedSummary.visit.drinkDisplayName
+    @ViewBuilder
+    private var detailContentScene: some View {
+        Group {
+            if let detail {
+                SipDetailScreen(
+                    presentation: sharedPresentation(for: detail),
+                    selectedPhotoIndex: $selectedPhotoIndex,
+                    commentText: $commentText,
+                    toolbarProgress: $toolbarProgress,
+                    commentFocus: $isCommentFocused,
+                    isWorking: isSavingSocialAction || isDeletingVisit,
+                    statusMessage: socialError ?? socialStatus,
+                    mentionSuggestions: mentionSuggestions.map {
+                        SipDetailMentionSuggestion(id: $0.id, username: $0.username)
+                    },
+                    onAction: perform,
+                    onSubmitComment: { Task { await postComment() } },
+                    onReply: beginReply,
+                    onCommentAction: handleCommentAction,
+                    onCancelReply: { replyingTo = nil },
+                    onSelectMention: selectMention,
+                    onPhotoTap: { index in
+                        photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                            photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                            initialIndex: index,
+                            drinkName: detail.summary.visit.drinkDisplayName,
+                            locationName: detail.summary.locationTitle
+                        )
+                    },
+                    onRecipeAction: performRecipeAction,
+                    onTaggedAccount: openTaggedProfile,
+                    onRemoveOwnTag: { Task { await removeOwnTag() } }
                 )
-            }
-            .fullScreenCover(item: $photoViewerPresentation) { presentation in
-                RemotePhotoViewer(
-                    photoURLs: presentation.photoURLs,
-                    initialIndex: presentation.initialIndex
+            } else if isLoading {
+                SipDetailLoadingView()
+            } else if let loadError {
+                SipDetailErrorView(
+                    message: loadError,
+                    onRetry: { Task { await loadDetail() } },
+                    onClose: { dismiss() }
                 )
-            }
-            .confirmationDialog(
-                "Delete this sip?",
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Delete Sip", role: .destructive) {
-                    Task {
-                        await deleteVisit()
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes the sip from Journal, Feed, and cafe history.")
-            }
-            .confirmationDialog(
-                "Why are you reporting this?",
-                isPresented: Binding(
-                    get: { reportTarget != nil },
-                    set: { if !$0 { reportTarget = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                ForEach(ReportReason.allCases) { reason in
-                    Button(reason.title, role: .destructive) {
-                        Task { await submitReport(reason: reason) }
-                    }
-                }
-                Button("Cancel", role: .cancel) { reportTarget = nil }
-            } message: {
-                Text("Reports are reviewed and do not automatically remove content.")
+            } else {
+                SipDetailLoadingView()
             }
         }
+    }
+
+    private var configuredDetailScene: some View {
+        detailContentScene
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
+        .mugshotBottomNavHidden()
+        .toolbar { detailToolbar }
+        .toolbarBackground(Color.creamWhite, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear {
+            MugshotAnalytics.shared.capture(
+                .screenViewed(
+                    .sipDetail,
+                    source: justPosted ? .postPublish : .navigation
+                )
+            )
+        }
+        .task(id: visitId) { await loadDetail() }
+        .task(id: commentText) { await updateMentionSuggestions() }
+        .navigationDestination(item: $selectedTaggedProfile) { route in
+            PublicProfileView(
+                route: route,
+                dataManager: dataManager,
+                onRelationshipChanged: { await loadDetail() }
+            )
+        }
+    }
+
+    private var editorSheetsScene: some View {
+        configuredDetailScene
+        .sheet(isPresented: $isShowingEditVisit) {
+            if let detail {
+                SipDetailEditForm(
+                    summary: sharedPresentation(for: detail).content,
+                    initialVisibility: VisitVisibility.supabaseValue(detail.summary.visit.visibility),
+                    allowsPrivateNoteEditing: detail.v3Reflection == nil,
+                    onSave: saveVisitEdits
+                )
+            }
+        }
+        .sheet(isPresented: $isShowingDrinkInterpretation) {
+            if let currentUserId {
+                DrinkInterpretationEditor(
+                    visitID: visitId,
+                    rawDrinkName: displayedSummary.visit.drinkDisplayName,
+                    currentUserID: currentUserId
+                )
+            }
+        }
+        .sheet(isPresented: $isShowingRecommendation) {
+            RecommendToFriendView(
+                kind: recommendationKind,
+                targetID: recommendationTargetID,
+                title: displayedSummary.visit.drinkDisplayName
+            )
+        }
+        .sheet(item: $recipeAdaptationRequest) { recipe in
+            SipRecipeAdaptationSheet(recipe: recipe) { name in
+                try await saveRecipeAdaptation(recipe, name: name)
+            }
+        }
+    }
+
+    private var safetySheetsScene: some View {
+        editorSheetsScene
+        .sheet(item: $reportDetailsRequest, onDismiss: presentQueuedReportStep) { request in
+            SafetyReportDetailsSheet(targetLabel: request.target.reportLabel) { details in
+                queuedReportConfirmationRequest = SafetyReportConfirmationRequest(
+                    target: request.target,
+                    reason: .other,
+                    details: details
+                )
+                reportDetailsRequest = nil
+            }
+        }
+        .sheet(item: $editingComment) { comment in
+            EditCommentSheet(
+                initialText: comment.comment.text,
+                isSaving: isSavingSocialAction,
+                errorMessage: editCommentError,
+                onSave: { text in
+                    Task { await updateComment(comment, text: text) }
+                }
+            )
+        }
+        .sheet(isPresented: $showDeleteConfirmation) {
+            SipDeleteConfirmationSheet(
+                isDeleting: isDeletingVisit,
+                errorMessage: socialError,
+                onDelete: { Task { await deleteVisit() } }
+            )
+            .presentationDetents([.height(socialError == nil ? 340 : 390)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var mediaPresentedScene: some View {
+        safetySheetsScene
+        .fullScreenCover(item: $photoViewerPresentation) { presentation in
+            SipDetailPhotoViewer(presentation: presentation)
+        }
+    }
+
+    private var safetyDialogsScene: some View {
+        mediaPresentedScene
+        .confirmationDialog("Sip actions", isPresented: $showMoreActions, titleVisibility: .visible) {
+            if let detail {
+                ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
+                    Button(action.title, role: action == .delete ? .destructive : nil) {
+                        perform(action)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Why are you reporting this?",
+            isPresented: Binding(
+                get: { reportTarget != nil },
+                set: { if !$0 { reportTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            ForEach(ReportReason.allCases) { reason in
+                Button(reason.title) {
+                    selectReportReason(reason)
+                }
+            }
+            Button("Cancel", role: .cancel) { reportTarget = nil }
+        } message: {
+            Text("Choose the concern that best describes what you saw.")
+        }
+        .onChange(of: reportTarget) { _, target in
+            guard target == nil else { return }
+            Task { @MainActor in
+                await Task.yield()
+                presentQueuedReportStep()
+            }
+        }
+        .alert(
+            "Report this item?",
+            isPresented: Binding(
+                get: { reportConfirmationRequest != nil },
+                set: { if !$0 { reportConfirmationRequest = nil } }
+            ),
+            presenting: reportConfirmationRequest
+        ) { request in
+            Button("Report", role: .destructive) {
+                reportConfirmationRequest = nil
+                Task {
+                    await submitReport(
+                        target: request.target,
+                        reason: request.reason,
+                        details: request.details
+                    )
+                }
+            }
+            Button("Cancel", role: .cancel) { reportConfirmationRequest = nil }
+        } message: { request in
+            Text("Send a \(request.reason.title.lowercased()) report about this \(request.target.reportLabel)?")
+        }
+        .alert("Block @\(displayedSummary.authorUsername)?", isPresented: $showBlockConfirmation) {
+            Button("Block · Keep Recipe Copies", role: .destructive) {
+                Task { await blockVisitAuthor(removeSavedRecipeCopies: false) }
+            }
+            Button("Block · Remove Recipe Copies", role: .destructive) {
+                Task { await blockVisitAuthor(removeSavedRecipeCopies: true) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(SocialSafetyCopy.blockConsequences)
+        }
+        .alert(
+            "Remove this comment?",
+            isPresented: Binding(
+                get: { commentPendingRemoval != nil },
+                set: { if !$0 { commentPendingRemoval = nil } }
+            ),
+            presenting: commentPendingRemoval
+        ) { comment in
+            Button("Remove", role: .destructive) {
+                Task { await removeComment(comment) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { comment in
+            Text(commentRemovalMessage(comment))
+        }
+        .alert(
+            "Report not confirmed",
+            isPresented: Binding(
+                get: { failedReportReceipt != nil },
+                set: { if !$0 { failedReportReceipt = nil } }
+            ),
+            presenting: failedReportReceipt
+        ) { receipt in
+            Button("Retry") { Task { await submitPreparedReport(receipt) } }
+            Button("Not now", role: .cancel) {}
+        } message: { _ in
+            Text(SocialSafetyCopy.reportFailed)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var detailToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: presentationMode.dismissIcon)
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(presentationMode.dismissLabel)
+        }
+
+        ToolbarItem(placement: .principal) {
+            SipDetailToolbarTitle(
+                drinkName: displayedSummary.visit.drinkDisplayName,
+                progress: toolbarProgress
+            )
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            if let detail {
+                Menu {
+                    ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
+                        Button(role: action == .delete ? .destructive : nil) {
+                            perform(action)
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(isDeletingVisit)
+                .accessibilityLabel("Sip actions")
+            }
+        }
+    }
+
+    private func sharedPresentation(for detail: RemoteVisitDetail) -> SipDetailPresentation {
+        SipDetailPresentationAdapter.remote(
+            detail: detail,
+            currentUserID: currentUserId,
+            reactions: reactions,
+            isCafeSaved: isCafeFavorite(detail),
+            canRecommend: phase4LightweightFriends && canRecommend(detail),
+            canRepeat: onRepeat != nil,
+            replyingToUsername: replyingTo.map { "@\($0.authorUsername)" }
+        )
+    }
+
+    private func beginReply(to commentID: UUID) {
+        guard !requestAuthenticationIfNeeded(for: .comment) else { return }
+        guard let comment = detail?.comments.first(where: { $0.id == commentID }) else { return }
+        replyingTo = comment
+    }
+
+    private func selectMention(id: UUID) {
+        guard let person = mentionSuggestions.first(where: { $0.id == id }) else { return }
+        selectMention(person)
+    }
+
+    private func perform(_ action: SipDetailAction) {
+        guard let detail else { return }
+        guard !requestAuthenticationIfNeeded(for: action) else { return }
+        socialError = nil
+        socialStatus = nil
+        switch action {
+        case .like:
+            Task { await toggleLike() }
+        case .comment, .share:
+            break
+        case .saveCafe:
+            setCafeStateFromVisit(detail, isFavorite: !isCafeFavorite(detail), wantToTry: nil)
+        case .recommend:
+            isShowingRecommendation = true
+        case .more:
+            showMoreActions = true
+        case .edit:
+            isShowingEditVisit = true
+        case .correctDrink:
+            isShowingDrinkInterpretation = true
+        case .repeatSip:
+            repeatCurrentSip(detail)
+        case .delete:
+            showDeleteConfirmation = true
+        case .report:
+            reportTarget = .visit(visitId)
+        case .block:
+            showBlockConfirmation = true
+        }
+    }
+
+    private func performRecipeAction(_ action: SipDetailRecipeAction) {
+        guard let detail,
+              let recipe = sharedPresentation(for: detail).content.recipe else {
+            return
+        }
+        socialError = nil
+        socialStatus = nil
+        switch action {
+        case .brewAgain:
+            guard recipe.canBrewAgain else { return }
+            repeatCurrentSip(detail)
+        case .saveAndAdapt:
+            guard recipe.canSaveAndAdapt,
+                  currentUserId != nil else {
+                onAuthenticationRequired?(
+                    "Save this recipe",
+                    "Sign in to keep an attributed private adaptation in Mugshot."
+                )
+                return
+            }
+            recipeAdaptationRequest = recipe
+        }
+    }
+
+    private func openTaggedProfile(_ userID: UUID) {
+        guard let tag = detail?.taggedAccounts.first(where: { $0.userID == userID }) else {
+            return
+        }
+        selectedTaggedProfile = PeopleProfileRoute(
+            id: tag.userID,
+            displayName: tag.personLabel,
+            username: tag.username,
+            state: tag.userID == currentUserId ? .self : .none
+        )
+    }
+
+    @MainActor
+    private func removeOwnTag() async {
+        guard let currentUserId,
+              detail?.taggedAccounts.contains(where: { $0.userID == currentUserId }) == true,
+              !isSavingSocialAction else {
+            return
+        }
+        isSavingSocialAction = true
+        socialError = nil
+        socialStatus = nil
+        defer { isSavingSocialAction = false }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let removed = try await ActivityService(client: client).removeTag(
+                visitID: visitId,
+                accountID: currentUserId
+            )
+            guard removed else {
+                socialError = "That tag is no longer available. Refreshing this MugShot will show its latest tags."
+                replaceDetailTags(detail?.taggedAccounts.filter { $0.userID != currentUserId } ?? [])
+                return
+            }
+
+            do {
+                detail = try await VisitService(client: client).fetchVisitDetail(
+                    visitId: visitId,
+                    currentUserId: currentUserId
+                )
+                socialStatus = "Your tag was removed. This MugShot’s audience did not change."
+            } catch {
+                replaceDetailTags(detail?.taggedAccounts.filter { $0.userID != currentUserId } ?? [])
+                socialStatus = "Your tag was removed. Refresh when you’re online to confirm the latest post details."
+            }
+        } catch {
+            socialError = "Mugshot couldn’t remove your tag. This post and its audience are unchanged—please try again."
+        }
+    }
+
+    @MainActor
+    private func saveRecipeAdaptation(
+        _ recipe: SipDetailRecipeModel,
+        name: String
+    ) async throws {
+        guard let currentUserId,
+              let sourceVersionID = recipe.recipeVersionID,
+              recipe.canSaveAndAdapt,
+              let detail else {
+            throw SocialDiscoveryServiceError.recipeProjectionUnavailable
+        }
+
+        isSavingSocialAction = true
+        defer { isSavingSocialAction = false }
+        let client = try SupabaseClientProvider.shared.client()
+        let savedVersionID = try await SocialDiscoveryService(client: client)
+            .saveRecipeAdaptation(
+                sourceRecipeVersionID: sourceVersionID,
+                name: name
+            )
+
+        dataManager.noteJournalMutation()
+        guard let onComposeDraft else {
+            socialStatus = "Saved a private adaptation with source credit."
+            return
+        }
+
+        let savedProjection = try? await VisitService(client: client)
+            .fetchRecipeProjection(recipeVersionId: savedVersionID)
+        guard let savedProjection else {
+            socialStatus = "Your private adaptation was saved, but Mugshot couldn’t open its Home draft yet."
+            return
+        }
+
+        let draft = SipDraft.brewAgain(
+            from: detail.summary,
+            recipeProjection: savedProjection,
+            ownerUserID: currentUserId
+        )
+        socialStatus = "Saved privately. Opening a Home draft…"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            onComposeDraft(draft)
+        }
+    }
+
+    private func handleCommentAction(
+        commentID: UUID,
+        action: SipDetailCommentAction
+    ) {
+        guard let comment = detail?.comments.first(where: { $0.id == commentID }) else {
+            return
+        }
+        socialError = nil
+        socialStatus = nil
+        switch action.id {
+        case "edit":
+            guard comment.comment.userId == currentUserId else { return }
+            editCommentError = nil
+            editingComment = comment
+        case "remove":
+            guard currentUserId == comment.comment.userId
+                    || currentUserId == detail?.summary.visit.userId else { return }
+            commentPendingRemoval = comment
+        case "report":
+            guard !requestAuthenticationIfNeeded(for: .report) else { return }
+            reportTarget = .comment(commentID)
+        default:
+            break
+        }
+    }
+
+    @discardableResult
+    private func requestAuthenticationIfNeeded(for action: SipDetailAction) -> Bool {
+        guard SipDetailInteractionGate.requiresAuthentication(
+            for: action,
+            currentUserID: currentUserId
+        ) else {
+            return false
+        }
+
+        let title: String
+        let message: String
+        switch action {
+        case .comment:
+            title = "Join the conversation"
+            message = "Sign in to comment or reply. You can keep exploring public Mugshots as a guest."
+        case .saveCafe:
+            title = "Keep this cafe"
+            message = "Sign in to sync this cafe with your saved places."
+        case .report, .block:
+            title = "Help keep Mugshot safe"
+            message = "Sign in to report content or block an account."
+        default:
+            title = "Make this social"
+            message = "Sign in to like, recommend, and connect with people on Mugshot."
+        }
+        if let onAuthenticationRequired {
+            onAuthenticationRequired(title, message)
+        } else {
+            socialError = message
+        }
+        return true
     }
 
     @ViewBuilder
@@ -230,7 +707,8 @@ struct RemoteVisitDetailView: View {
                         Label("Report Sip", systemImage: "exclamationmark.bubble")
                     }
                     Button(role: .destructive) {
-                        Task { await blockVisitAuthor() }
+                        guard !requestAuthenticationIfNeeded(for: .block) else { return }
+                        showBlockConfirmation = true
                     } label: {
                         Label("Block User", systemImage: "hand.raised")
                     }
@@ -276,9 +754,18 @@ struct RemoteVisitDetailView: View {
                     )
                     SipStructuredEntryDetailsPanel(
                         context: detail.summary.visit.journalContext,
-                        brewMethod: detail.summary.visit.brewMethod,
-                        equipment: detail.summary.visit.equipment,
-                        details: detail.summary.visit.structuredBrewDetails
+                        brewMethod: detail.recipeProjection?.brewMethod
+                            ?? (detail.summary.visit.recipeVersionID == nil
+                                ? detail.summary.visit.brewMethod
+                                : nil),
+                        equipment: detail.recipeProjection?.equipment
+                            ?? (detail.summary.visit.recipeVersionID == nil
+                                ? detail.summary.visit.equipment
+                                : nil),
+                        details: detail.recipeProjection?.resolvedBrewDetails
+                            ?? (detail.summary.visit.recipeVersionID == nil
+                                ? detail.summary.visit.structuredBrewDetails
+                                : .empty)
                     )
                     ownerNotesSection(detail)
                     commentsSection(detail)
@@ -372,16 +859,20 @@ struct RemoteVisitDetailView: View {
             .contentShape(Rectangle())
             .simultaneousGesture(
                 TapGesture().onEnded {
-                    photoViewerPresentation = RemotePhotoViewerPresentation(
-                        photoURLs: detail.photoURLs,
-                        initialIndex: selectedPhotoIndex
+                    photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                        photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                        initialIndex: selectedPhotoIndex,
+                        drinkName: detail.summary.visit.drinkDisplayName,
+                        locationName: detail.summary.locationTitle
                     )
                 }
             )
             .accessibilityAction(named: "Open photo full screen") {
-                photoViewerPresentation = RemotePhotoViewerPresentation(
-                    photoURLs: detail.photoURLs,
-                    initialIndex: selectedPhotoIndex
+                photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                    photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                    initialIndex: selectedPhotoIndex,
+                    drinkName: detail.summary.visit.drinkDisplayName,
+                    locationName: detail.summary.locationTitle
                 )
             }
         }
@@ -432,7 +923,7 @@ struct RemoteVisitDetailView: View {
 
     @ViewBuilder
     private func ownerNotesSection(_ detail: RemoteVisitDetail) -> some View {
-        if isOwnVisit(detail),
+        if isOwnVisit(detail), detail.v3Reflection == nil,
            let notes = detail.privateNote?.remoteTrimmedNonEmpty {
             SipPrivateNotePanel(text: notes)
         }
@@ -449,12 +940,9 @@ struct RemoteVisitDetailView: View {
                     Spacer()
                 }
 
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 94), spacing: 10)],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    SipActionButton(
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        SipActionButton(
                         title: detail.currentUserHasLiked ? "Liked" : "Like",
                         value: "\(detail.likeCount)",
                         systemImage: detail.currentUserHasLiked ? "heart.fill" : "heart",
@@ -466,7 +954,7 @@ struct RemoteVisitDetailView: View {
                         }
                     }
 
-                    SipActionButton(
+                        SipActionButton(
                         title: "Comment",
                         value: "\(detail.commentCount)",
                         systemImage: "bubble.right",
@@ -476,8 +964,8 @@ struct RemoteVisitDetailView: View {
                         isCommentFocused = true
                     }
 
-                    if detail.summary.cafe != nil {
-                        SipActionButton(
+                        if detail.summary.cafe != nil {
+                            SipActionButton(
                             title: isCafeFavorite(detail) ? "Saved" : "Save",
                             value: nil,
                             systemImage: isCafeFavorite(detail) ? "bookmark.fill" : "bookmark",
@@ -491,39 +979,37 @@ struct RemoteVisitDetailView: View {
                             )
                         }
 
-                        if !isOwnVisit(detail) {
-                            SipActionButton(
-                                title: isCafeWantToTry(detail) ? "Wanting" : "Want",
-                                value: nil,
-                                systemImage: isCafeWantToTry(detail) ? "pin.fill" : "pin",
-                                isActive: isCafeWantToTry(detail),
-                                isEnabled: currentUserId != nil
-                            ) {
-                                setCafeStateFromVisit(
-                                    detail,
-                                    isFavorite: nil,
-                                    wantToTry: !isCafeWantToTry(detail)
-                                )
-                            }
                         }
-                    }
 
-                    SipShareButton(
-                        text: shareText(for: detail),
-                        photoURL: detail.summary.visit.posterPhotoURL
+                        SipShareButton(
+                        payload: SipShareCardPayload(
+                            visitID: detail.summary.visit.id,
+                            visibility: .supabaseValue(detail.summary.visit.visibility),
+                            isOwner: currentUserId == detail.summary.visit.userId,
+                            isRemote: true,
+                            authorName: detail.summary.authorDisplayName,
+                            drinkName: detail.summary.visit.drinkDisplayName,
+                            cafeName: detail.summary.locationTitle,
+                            rating: detail.summary.visit.overallScore,
+                            date: detail.summary.visit.createdAtDate,
+                            publicCaption: detail.summary.visit.caption.remoteTrimmedNonEmpty,
+                            remotePhotoURL: detail.summary.visit.posterPhotoURL,
+                            localPhotoPath: nil
+                        )
                     )
 
-                    if phase4LightweightFriends,
-                       currentUserId != nil,
-                       canRecommend(detail) {
-                        SipActionButton(
+                        if phase4LightweightFriends,
+                           currentUserId != nil,
+                           canRecommend(detail) {
+                            SipActionButton(
                             title: "Recommend",
                             value: nil,
                             systemImage: "paperplane",
                             isActive: false,
                             isEnabled: !isSavingSocialAction
-                        ) {
-                            isShowingRecommendation = true
+                            ) {
+                                isShowingRecommendation = true
+                            }
                         }
                     }
                 }
@@ -559,9 +1045,10 @@ struct RemoteVisitDetailView: View {
                 Text("What stood out?")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.espressoBrown)
-                Text("A small coffee-focused reaction—not a scorecard.")
+                Text(reactionExplanation)
                     .font(.system(size: 12))
                     .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(SipReaction.allCases) { reaction in
@@ -584,13 +1071,24 @@ struct RemoteVisitDetailView: View {
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
-                            .disabled(currentUserId == nil || isSavingSocialAction)
+                            .disabled(currentUserId == nil || isOwnDisplayedVisit || isSavingSocialAction)
                             .accessibilityLabel("\(reaction.title), \(count) reactions")
                         }
                     }
                 }
             }
         }
+    }
+
+    private var isOwnDisplayedVisit: Bool {
+        displayedSummary.visit.userId == currentUserId
+    }
+
+    private var reactionExplanation: String {
+        if isOwnDisplayedVisit {
+            return "These are quick reactions friends left on your sip. They do not change your rating or tasting notes."
+        }
+        return "Choose the coffee detail that stood out to you in this sip. It is your quick reaction to their post, not part of their rating."
     }
 
     private func commentsSection(_ detail: RemoteVisitDetail) -> some View {
@@ -771,7 +1269,11 @@ struct RemoteVisitDetailView: View {
             tags.append(SipTag(title: category, systemImage: "tag.fill", isActive: false))
         }
 
-        if let brewMethod = detail.summary.visit.brewMethod?.remoteTrimmedNonEmpty {
+        let visibleBrewMethod = detail.recipeProjection?.brewMethod
+            ?? (detail.summary.visit.recipeVersionID == nil
+                ? detail.summary.visit.brewMethod
+                : nil)
+        if let brewMethod = visibleBrewMethod?.remoteTrimmedNonEmpty {
             tags.append(SipTag(title: brewMethod, systemImage: "drop.fill", isActive: false))
         }
 
@@ -844,14 +1346,28 @@ struct RemoteVisitDetailView: View {
                     wantToTry: nextWantToTry
                 )
                 dataManager.applyRemoteCafeState(summary)
+                if existing.isFavorite != nextFavorite {
+                    MugshotAnalytics.shared.capture(
+                        .cafeStateChanged(
+                            state: .favorite,
+                            action: nextFavorite ? .added : .removed,
+                            surface: .remoteSipDetail
+                        )
+                    )
+                }
+                if existing.wantToTry != nextWantToTry {
+                    MugshotAnalytics.shared.capture(
+                        .cafeStateChanged(
+                            state: .wantToTry,
+                            action: nextWantToTry ? .added : .removed,
+                            surface: .remoteSipDetail
+                        )
+                    )
+                }
             } catch {
                 socialError = "Could not update this cafe."
             }
         }
-    }
-
-    private func shareText(for detail: RemoteVisitDetail) -> String {
-        "\(detail.summary.authorDisplayName) rated \(detail.summary.visit.drinkDisplayName) \(String(format: "%.1f", detail.summary.visit.overallScore)) at \(detail.summary.locationTitle) on Mugshot."
     }
 
     private func loadDetail() async {
@@ -879,7 +1395,7 @@ struct RemoteVisitDetailView: View {
 
     @MainActor
     private func toggleReaction(_ reaction: SipReaction) async {
-        guard currentUserId != nil else { return }
+        guard !requestAuthenticationIfNeeded(for: .like) else { return }
         isSavingSocialAction = true
         defer { isSavingSocialAction = false }
         do {
@@ -920,6 +1436,12 @@ struct RemoteVisitDetailView: View {
                 currentlyLiked: detail.currentUserHasLiked
             )
             applySocialState(state)
+            MugshotAnalytics.shared.capture(
+                .sipLiked(
+                    action: state.currentUserHasLiked ? .added : .removed,
+                    surface: .remoteSipDetail
+                )
+            )
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
@@ -932,6 +1454,7 @@ struct RemoteVisitDetailView: View {
 
     @MainActor
     private func postComment() async {
+        guard !requestAuthenticationIfNeeded(for: .comment) else { return }
         guard let currentUserId,
               let detail,
               commentText.remoteTrimmedNonEmpty != nil else {
@@ -955,6 +1478,9 @@ struct RemoteVisitDetailView: View {
             self.detail = try await service.fetchVisitDetail(
                 visitId: visitId,
                 currentUserId: currentUserId
+            )
+            MugshotAnalytics.shared.capture(
+                .commentAdded(surface: .remoteSipDetail)
             )
             commentText = ""
             replyingTo = nil
@@ -998,29 +1524,109 @@ struct RemoteVisitDetailView: View {
         isCommentFocused = true
     }
 
-    @MainActor
-    private func submitReport(reason: ReportReason) async {
+    private func selectReportReason(_ reason: ReportReason) {
         guard let target = reportTarget else { return }
-        defer { reportTarget = nil }
+        if reason == .other {
+            queuedReportDetailsRequest = SafetyReportDetailsRequest(target: target)
+        } else {
+            queuedReportConfirmationRequest = SafetyReportConfirmationRequest(
+                target: target,
+                reason: reason,
+                details: nil
+            )
+        }
+        reportTarget = nil
+    }
+
+    @MainActor
+    private func presentQueuedReportStep() {
+        guard reportTarget == nil,
+              reportDetailsRequest == nil,
+              reportConfirmationRequest == nil else { return }
+        if let request = queuedReportDetailsRequest {
+            queuedReportDetailsRequest = nil
+            reportDetailsRequest = request
+        } else if let request = queuedReportConfirmationRequest {
+            queuedReportConfirmationRequest = nil
+            reportConfirmationRequest = request
+        }
+    }
+
+    @MainActor
+    private func submitReport(
+        target: SocialSafetyTarget,
+        reason: ReportReason,
+        details: String?
+    ) async {
+        guard !requestAuthenticationIfNeeded(for: .report) else { return }
+        guard let currentUserId else { return }
+        reportDetailsRequest = nil
         do {
-            let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
-            switch target {
-            case .visit(let id):
-                try await service.report(reason: reason, details: nil, visitID: id)
-            case .comment(let id):
-                try await service.report(reason: reason, details: nil, commentID: id)
-            }
+            let service = SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            )
+            let receipt = try service.prepareReport(
+                accountID: currentUserId,
+                target: target,
+                reason: reason,
+                details: details
+            )
+            await submitPreparedReport(receipt)
         } catch {
             socialError = MugshotUserFacingError.message(for: error, context: .social)
         }
     }
 
     @MainActor
-    private func blockVisitAuthor() async {
-        guard initialSummary.visit.userId != currentUserId else { return }
+    private func submitPreparedReport(_ receipt: SafetyReportReceipt) async {
+        guard currentUserId == receipt.accountID else {
+            socialStatus = nil
+            socialError = "Sign in to the account that started this report before retrying."
+            return
+        }
+        isSavingSocialAction = true
+        socialError = nil
+        socialStatus = SocialSafetyCopy.reportPending
+        failedReportReceipt = nil
+
         do {
-            try await SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
-                .block(userID: initialSummary.visit.userId)
+            let outcome = try await SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            ).submit(receipt)
+            isSavingSocialAction = false
+            switch outcome {
+            case .submitted:
+                socialStatus = SocialSafetyCopy.reportSubmitted
+            case .failed(let failedReceipt):
+                socialStatus = SocialSafetyCopy.reportFailed
+                failedReportReceipt = failedReceipt
+            }
+        } catch {
+            isSavingSocialAction = false
+            socialStatus = nil
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
+            if (error as? SocialSafetyServiceError) != .accountScopeChanged {
+                failedReportReceipt = receipt
+            }
+        }
+    }
+
+    @MainActor
+    private func blockVisitAuthor(removeSavedRecipeCopies: Bool) async {
+        guard !requestAuthenticationIfNeeded(for: .block) else { return }
+        guard let expectedAccountID = currentUserId,
+              initialSummary.visit.userId != expectedAccountID else { return }
+        isSavingSocialAction = true
+        defer { isSavingSocialAction = false }
+        do {
+            _ = try await SocialSafetyService(
+                client: try SupabaseClientProvider.shared.client()
+            ).block(
+                userID: initialSummary.visit.userId,
+                expectedAccountID: expectedAccountID,
+                removeSavedRecipeCopies: removeSavedRecipeCopies
+            )
+            dataManager.noteJournalMutation()
             dismiss()
         } catch {
             socialError = MugshotUserFacingError.message(for: error, context: .social)
@@ -1028,13 +1634,147 @@ struct RemoteVisitDetailView: View {
     }
 
     @MainActor
+    private func updateComment(_ comment: RemoteVisitComment, text: String) async {
+        guard comment.comment.userId == currentUserId else { return }
+        isSavingSocialAction = true
+        editCommentError = nil
+        do {
+            let service = VisitService(client: try SupabaseClientProvider.shared.client())
+            try await service.updateComment(commentID: comment.id, text: text)
+            do {
+                detail = try await service.fetchVisitDetail(
+                    visitId: visitId,
+                    currentUserId: currentUserId
+                )
+                socialError = nil
+            } catch {
+                applyEditedComment(comment, text: text)
+                socialError = "Comment updated, but the conversation couldn’t refresh. Pull to refresh before making another change."
+            }
+            editingComment = nil
+            socialStatus = "Comment updated."
+            dataManager.noteJournalMutation()
+        } catch {
+            editCommentError = MugshotUserFacingError.message(for: error, context: .social)
+        }
+        isSavingSocialAction = false
+    }
+
+    @MainActor
+    private func removeComment(_ comment: RemoteVisitComment) async {
+        guard currentUserId == comment.comment.userId
+                || currentUserId == detail?.summary.visit.userId else { return }
+        isSavingSocialAction = true
+        socialError = nil
+        do {
+            let service = VisitService(client: try SupabaseClientProvider.shared.client())
+            let reason = currentUserId == comment.comment.userId
+                ? "removed_by_author"
+                : "removed_by_post_owner"
+            try await service.removeComment(commentID: comment.id, reason: reason)
+            do {
+                detail = try await service.fetchVisitDetail(
+                    visitId: visitId,
+                    currentUserId: currentUserId
+                )
+            } catch {
+                applyRemovedComment(comment)
+                socialError = "Comment removed, but the conversation couldn’t refresh. Pull to refresh before making another change."
+            }
+            if replyingTo?.id == comment.id {
+                replyingTo = nil
+            }
+            socialStatus = "Comment removed."
+            dataManager.noteJournalMutation()
+        } catch {
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
+        }
+        isSavingSocialAction = false
+    }
+
+    private func commentRemovalMessage(_ comment: RemoteVisitComment) -> String {
+        let ownership = comment.comment.userId == currentUserId
+            ? "This removes your comment."
+            : "This removes the comment from your post."
+        if comment.comment.parentCommentId == nil {
+            return "\(ownership) Replies in its thread are removed too."
+        }
+        return ownership
+    }
+
+    private func applyEditedComment(_ comment: RemoteVisitComment, text: String) {
+        guard let detail else { return }
+        let comments = detail.comments.map { current in
+            guard current.id == comment.id else { return current }
+            return RemoteVisitComment(
+                comment: SupabaseVisitCommentRow(
+                    id: current.comment.id,
+                    userId: current.comment.userId,
+                    visitId: current.comment.visitId,
+                    text: text,
+                    createdAt: current.comment.createdAt,
+                    parentCommentId: current.comment.parentCommentId
+                ),
+                author: current.author
+            )
+        }
+        replaceDetailComments(comments)
+    }
+
+    private func applyRemovedComment(_ comment: RemoteVisitComment) {
+        guard let detail else { return }
+        replaceDetailComments(detail.comments.filter { current in
+            current.id != comment.id
+                && current.comment.parentCommentId != comment.id
+        })
+    }
+
+    private func replaceDetailComments(_ comments: [RemoteVisitComment]) {
+        guard let detail else { return }
+        self.detail = RemoteVisitDetail(
+            summary: detail.summary,
+            photos: detail.photos,
+            comments: comments,
+            likeCount: detail.likeCount,
+            currentUserHasLiked: detail.currentUserHasLiked,
+            privateNote: detail.privateNote,
+            sensorySnapshot: detail.sensorySnapshot,
+            cafeSessionSummary: detail.cafeSessionSummary,
+            v3Reflection: detail.v3Reflection,
+            recipeProjection: detail.recipeProjection,
+            recipeIdentityProjection: detail.recipeIdentityProjection,
+            sharedMugshotProjection: detail.sharedMugshotProjection,
+            taggedAccounts: detail.taggedAccounts
+        )
+    }
+
+    private func replaceDetailTags(_ tags: [RemoteVisitTag]) {
+        guard let detail else { return }
+        self.detail = RemoteVisitDetail(
+            summary: detail.summary,
+            photos: detail.photos,
+            comments: detail.comments,
+            likeCount: detail.likeCount,
+            currentUserHasLiked: detail.currentUserHasLiked,
+            privateNote: detail.privateNote,
+            sensorySnapshot: detail.sensorySnapshot,
+            cafeSessionSummary: detail.cafeSessionSummary,
+            v3Reflection: detail.v3Reflection,
+            recipeProjection: detail.recipeProjection,
+            recipeIdentityProjection: detail.recipeIdentityProjection,
+            sharedMugshotProjection: detail.sharedMugshotProjection,
+            taggedAccounts: tags
+        )
+    }
+
+    @MainActor
     private func saveVisitEdits(
         caption: String,
         notes: String,
         visibility: VisitVisibility
-    ) async -> Bool {
+    ) async -> SipDetailEditSaveResult {
         guard let currentUserId else {
-            return false
+            return .failure("Sign in again to edit this sip.")
         }
 
         do {
@@ -1043,26 +1783,36 @@ struct RemoteVisitDetailView: View {
                 visibility: visibility
             )
             let client = try SupabaseClientProvider.shared.client()
+            if let sessionID = detail?.summary.visit.cafeSessionID {
+                try await CafeSessionService(client: client).setAudience(
+                    sessionID: sessionID,
+                    visibility: visibility
+                )
+            }
             let service = VisitService(client: client)
             let summary = try await service.updateVisit(
                 visitId: visitId,
                 userId: currentUserId,
                 update: update
             )
-            try await service.updatePrivateNote(
-                visitId: visitId,
-                userId: currentUserId,
-                note: notes
-            )
+            if detail?.v3Reflection == nil {
+                try await service.updatePrivateNote(
+                    visitId: visitId,
+                    userId: currentUserId,
+                    note: notes
+                )
+            }
             self.detail = try await service.fetchVisitDetail(
                 visitId: summary.id,
                 currentUserId: currentUserId
             )
             dataManager.noteJournalMutation()
-            return true
+            return .success
         } catch {
             socialError = error.localizedDescription
-            return false
+            return .failure(
+                MugshotUserFacingError.message(for: error, context: .social)
+            )
         }
     }
 
@@ -1103,14 +1853,140 @@ struct RemoteVisitDetailView: View {
                 socialState: state,
                 rankingScore: detail.summary.rankingScore,
                 recommendationReason: detail.summary.recommendationReason,
-                recommendationReasonType: detail.summary.recommendationReasonType
+                recommendationReasonType: detail.summary.recommendationReasonType,
+                sessionSipCount: detail.summary.sessionSipCount,
+                cafePulseProjection: detail.summary.cafePulseProjection,
+                v3FeedProjection: detail.summary.v3FeedProjection
             ),
             photos: detail.photos,
             comments: detail.comments,
             likeCount: state.likeCount,
             currentUserHasLiked: state.currentUserHasLiked,
-            privateNote: detail.privateNote
+            privateNote: detail.privateNote,
+            sensorySnapshot: detail.sensorySnapshot,
+            cafeSessionSummary: detail.cafeSessionSummary,
+            v3Reflection: detail.v3Reflection,
+            recipeProjection: detail.recipeProjection,
+            recipeIdentityProjection: detail.recipeIdentityProjection,
+            sharedMugshotProjection: detail.sharedMugshotProjection,
+            taggedAccounts: detail.taggedAccounts
         )
+    }
+}
+
+private struct SipRecipeAdaptationSheet: View {
+    let recipe: SipDetailRecipeModel
+    let onSave: (String) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @FocusState private var isNameFocused: Bool
+
+    init(
+        recipe: SipDetailRecipeModel,
+        onSave: @escaping (String) async throws -> Void
+    ) {
+        self.recipe = recipe
+        self.onSave = onSave
+        _name = State(initialValue: recipe.suggestedAdaptationName)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Save & Adapt", systemImage: "square.and.pencil")
+                            .font(.system(.title2, design: .serif, weight: .semibold))
+                            .foregroundStyle(Color.espressoBrown)
+                        Text("Mugshot saves a private snapshot with credit to \(recipe.creatorUsername). Later changes to the source won’t overwrite your copy.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Adaptation name")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color.tertiaryText)
+                        TextField("Name this adaptation", text: $name)
+                            .focused($isNameFocused)
+                            .textInputAutocapitalization(.words)
+                            .submitLabel(.done)
+                            .padding(13)
+                            .background(Color.creamWhite)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.mugshotLine, lineWidth: 1)
+                            }
+                            .onChange(of: name) { _, value in
+                                guard value.count > 120 else { return }
+                                name = String(value.prefix(120))
+                            }
+                        Text("\(name.count)/120")
+                            .font(.caption2)
+                            .foregroundStyle(Color.tertiaryText)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+
+                    if let errorMessage {
+                        MugshotStatusCard(
+                            title: "Adaptation not saved",
+                            message: errorMessage,
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label(
+                            isSaving ? "Saving…" : "Save Private Adaptation",
+                            systemImage: isSaving ? "hourglass" : "lock.fill"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(isSaving || name.remoteTrimmedNonEmpty == nil)
+                }
+                .padding(20)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle("Recipe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+        .presentationDetents([.medium, .large])
+        .onAppear { isNameFocused = true }
+    }
+
+    private func save() {
+        guard let cleanName = name.remoteTrimmedNonEmpty,
+              !isSaving else {
+            return
+        }
+        Task { @MainActor in
+            isSaving = true
+            errorMessage = nil
+            do {
+                try await onSave(cleanName)
+                isSaving = false
+                dismiss()
+            } catch is CancellationError {
+                isSaving = false
+            } catch {
+                isSaving = false
+                errorMessage = MugshotUserFacingError.message(for: error, context: .social)
+            }
+        }
     }
 }
 
@@ -1250,71 +2126,6 @@ private struct DrinkInterpretationEditor: View {
     }
 }
 
-private struct RemotePhotoViewerPresentation: Identifiable {
-    let id = UUID()
-    let photoURLs: [String]
-    let initialIndex: Int
-}
-
-private struct RemotePhotoViewer: View {
-    let photoURLs: [String]
-    @State private var selectedIndex: Int
-    @Environment(\.dismiss) private var dismiss
-
-    init(photoURLs: [String], initialIndex: Int) {
-        self.photoURLs = photoURLs
-        _selectedIndex = State(initialValue: min(max(initialIndex, 0), max(photoURLs.count - 1, 0)))
-    }
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, urlString in
-                    RemotePhotoImageView(
-                        urlString: urlString,
-                        placeholderSystemName: "photo.on.rectangle",
-                        contentMode: .fit
-                    )
-                    .tag(index)
-                    .padding(.vertical, 56)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: photoURLs.count > 1 ? .automatic : .never))
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.52), in: Circle())
-                    }
-                    .accessibilityLabel("Close photo viewer")
-                }
-                Spacer()
-                if photoURLs.count > 1 {
-                    Text("\(selectedIndex + 1) of \(photoURLs.count)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(.black.opacity(0.56), in: Capsule())
-                        .accessibilityLabel("Photo \(selectedIndex + 1) of \(photoURLs.count)")
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        }
-        .statusBarHidden(true)
-    }
-}
-
 struct RemotePhotoImageView: View {
     let urlString: String?
     let placeholderSystemName: String
@@ -1331,7 +2142,7 @@ struct RemotePhotoImageView: View {
             } else {
                 placeholder
                     .overlay {
-                        if !didFail, url != nil {
+                        if !didFail, hasPhotoReference {
                             ProgressView()
                                 .tint(.mugshotSage)
                         }
@@ -1343,8 +2154,9 @@ struct RemotePhotoImageView: View {
         .task(id: urlString) {
             image = nil
             didFail = false
-            guard let url else { return }
+            guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
             do {
+                let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
                 image = try await RemoteImagePipeline.shared.image(for: url)
             } catch is CancellationError {
                 return
@@ -1354,8 +2166,8 @@ struct RemotePhotoImageView: View {
         }
     }
 
-    private var url: URL? {
-        urlString.flatMap(URL.init(string:))
+    private var hasPhotoReference: Bool {
+        urlString?.remoteTrimmedNonEmpty != nil
     }
 
     private var placeholder: some View {
@@ -1367,11 +2179,6 @@ struct RemotePhotoImageView: View {
                     .foregroundColor(.roastBrown.opacity(0.42))
             )
     }
-}
-
-private enum SocialReportTarget: Equatable {
-    case visit(UUID)
-    case comment(UUID)
 }
 
 struct RemoteCommentRow: View {
@@ -1447,7 +2254,7 @@ struct EditRemoteVisitView: View {
         self.currentUserId = currentUserId
         self.onSave = onSave
         _caption = State(initialValue: detail.summary.visit.caption)
-        _notes = State(initialValue: detail.privateNote ?? "")
+        _notes = State(initialValue: detail.v3Reflection == nil ? detail.privateNote ?? "" : "")
         _visibility = State(initialValue: VisitVisibility.supabaseValue(detail.summary.visit.visibility))
     }
 
@@ -1476,12 +2283,25 @@ struct EditRemoteVisitView: View {
                             .remoteVisitEditField()
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Private note")
+                    if detail.v3Reflection == nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            MugshotSectionTitle(title: "Private note")
 
-                        TextField("Only visible to you", text: $notes, axis: .vertical)
-                            .lineLimit(3...6)
-                            .remoteVisitEditField()
+                            TextField("Only visible to you", text: $notes, axis: .vertical)
+                                .lineLimit(3...6)
+                                .remoteVisitEditField()
+                        }
+                    } else {
+                        Label(
+                            "Raw journal notes are read-only here for this release.",
+                            systemImage: "lock.doc.fill"
+                        )
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.secondaryText)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.sandBeige.opacity(0.42))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control))
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -2071,29 +2891,100 @@ struct SipActionButton: View {
     }
 }
 
+struct SipShareCardPayload: Equatable {
+    let visitID: UUID
+    let visibility: VisitVisibility
+    let isOwner: Bool
+    let isRemote: Bool
+    let authorName: String
+    let drinkName: String
+    let cafeName: String
+    let rating: Double
+    let date: Date
+    let publicCaption: String?
+    let remotePhotoURL: String?
+    let localPhotoPath: String?
+
+    init(
+        visitID: UUID = UUID(),
+        visibility: VisitVisibility = .private,
+        isOwner: Bool = true,
+        isRemote: Bool = false,
+        authorName: String,
+        drinkName: String,
+        cafeName: String,
+        rating: Double,
+        date: Date,
+        publicCaption: String?,
+        remotePhotoURL: String?,
+        localPhotoPath: String?
+    ) {
+        self.visitID = visitID
+        self.visibility = visibility
+        self.isOwner = isOwner
+        self.isRemote = isRemote
+        self.authorName = authorName
+        self.drinkName = drinkName
+        self.cafeName = cafeName
+        self.rating = rating
+        self.date = date
+        self.publicCaption = publicCaption
+        self.remotePhotoURL = remotePhotoURL
+        self.localPhotoPath = localPhotoPath
+    }
+
+    var shareText: String {
+        "\(authorName) remembered \(drinkName) at \(cafeName) on Mugshot."
+    }
+}
+
+enum SipShareButtonLayout: Equatable {
+    case pill
+    case dock
+}
+
 struct SipShareButton: View {
-    let text: String
-    let photoURL: String?
-    @State private var presentation: RichSharePresentation?
+    let payload: SipShareCardPayload
+    var layout: SipShareButtonLayout = .pill
+    @State private var presentation: MugshotDetailSharePresentation?
     @State private var isPreparing = false
 
     var body: some View {
         Button {
             Task { await prepareShare() }
         } label: {
-            SipActionLabel(
-                title: "Share",
-                value: nil,
-                systemImage: isPreparing ? "hourglass" : "square.and.arrow.up",
-                isActive: false,
-                isEnabled: !isPreparing
-            )
+            if layout == .dock {
+                SipDetailDockLabel(
+                    action: .share,
+                    isActive: false,
+                    value: nil
+                )
+            } else {
+                SipActionLabel(
+                    title: "Share",
+                    value: nil,
+                    systemImage: isPreparing ? "hourglass" : "square.and.arrow.up",
+                    isActive: false,
+                    isEnabled: !isPreparing
+                )
+            }
         }
         .buttonStyle(.plain)
         .disabled(isPreparing)
         .accessibilityLabel("Share sip")
         .sheet(item: $presentation) { presentation in
-            ActivityShareView(items: presentation.items)
+            MugshotShareHubView(
+                summary: presentation.summary,
+                isOpeningMugshot: false,
+                statusMessage: nil,
+                onViewMugshot: {},
+                onViewPassport: {},
+                onFinish: { self.presentation = nil },
+                onStartAnother: nil,
+                isPostPublish: false
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -2101,29 +2992,53 @@ struct SipShareButton: View {
     private func prepareShare() async {
         isPreparing = true
         defer { isPreparing = false }
-        var items: [Any] = [text]
-        if let photoURL, let url = URL(string: photoURL),
-           let (data, _) = try? await URLSession.shared.data(from: url),
-           let image = UIImage(data: data) {
-            items.insert(image, at: 0)
+        let photo = await sharePhoto()
+        let photos = photo.map { [$0] } ?? []
+        presentation = MugshotDetailSharePresentation(
+            summary: LogASipV3PassportSummary(
+                visitID: payload.visitID,
+                visibility: payload.visibility,
+                isOwner: payload.isOwner,
+                isRemote: payload.isRemote,
+                displayName: payload.authorName,
+                drinkName: payload.drinkName,
+                contextName: payload.cafeName,
+                createdAt: payload.date,
+                sipScore: payload.rating,
+                contextScore: nil,
+                mugshotScore: payload.rating,
+                identityTitle: "Your Mugshot Passport",
+                identityDetail: "This memory is already part of the story your Passport is learning.",
+                memoryCount: 0,
+                criteria: [],
+                evidence: [],
+                publicCaption: payload.publicCaption,
+                photoImages: photos,
+                coverImage: photo
+            )
+        )
+    }
+
+    private func sharePhoto() async -> UIImage? {
+        if let localPhotoPath = payload.localPhotoPath {
+            return await PhotoCache.shared.image(forKey: localPhotoPath)
         }
-        presentation = RichSharePresentation(items: items)
+        guard let remotePhotoURL = payload.remotePhotoURL,
+              let url = try? await VisitPhotoAccessService.shared.resolvedURL(
+                for: remotePhotoURL
+              ) else {
+            return nil
+        }
+        return try? await RemoteImagePipeline.shared.image(
+            for: url,
+            maxPixelSize: 2_000
+        )
     }
 }
 
-private struct RichSharePresentation: Identifiable {
+private struct MugshotDetailSharePresentation: Identifiable {
     let id = UUID()
-    let items: [Any]
-}
-
-private struct ActivityShareView: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    let summary: LogASipV3PassportSummary
 }
 
 struct SipActionLabel: View {
@@ -2134,30 +3049,28 @@ struct SipActionLabel: View {
     var isEnabled = true
 
     var body: some View {
-        VStack(spacing: 5) {
+        HStack(spacing: 7) {
             Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
 
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.system(size: 12, weight: .bold))
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .lineLimit(1)
+
+            if let value {
+                Text(value)
+                    .font(.system(size: 11, weight: .bold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-
-                if let value {
-                    Text(value)
-                        .font(.system(size: 12, weight: .bold))
-                        .lineLimit(1)
-                }
+                    .monospacedDigit()
             }
         }
         .foregroundColor(foreground)
-        .frame(maxWidth: .infinity)
-        .frame(height: 56)
+        .padding(.horizontal, 12)
+        .frame(minWidth: 78, minHeight: 44)
         .background(background)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .clipShape(Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+            Capsule()
                 .stroke(isActive ? Color.mugshotSage.opacity(0.58) : Color.clear, lineWidth: 1.3)
         )
         .opacity(isEnabled ? 1 : 0.48)

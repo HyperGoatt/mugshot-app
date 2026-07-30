@@ -14,8 +14,7 @@ Status: Complete; advance to Phase 2 under the roadmap's risk-based transition p
 
 ## Data contract
 
-- Repository migration: `20260714034500_add_capture_preferences.sql`
-- Live migration: `20260714034718_add_capture_preferences`
+- Repository and live migration: `20260714034718_add_capture_preferences.sql`
 - `user_capture_preferences` is owner-only with RLS, explicit authenticated grants, no anonymous grants, and account-deletion cascade behavior.
 - Guest data remains an on-device store and is not uploaded until the signed-in owner explicitly confirms the merge.
 

@@ -2,6 +2,15 @@
 
 Date: 2026-07-01
 
+> Historical snapshot. The 2026-07-22 alpha backend release quarantined the
+> legacy notification triggers and device-token surface, made the legacy views
+> security-invoker, restored the complete migration history to source control,
+> and introduced caller-bound v2/v3 contracts. Use
+> `SUPABASE_ALPHA_BACKEND_RELEASE_2026-07-22.md` for current state. Remaining
+> active items from this document are the `pg_net` schema warning, measured
+> legacy RLS/index performance backlog, and leaked-password protection before
+> alpha widens.
+
 Purpose: track backend safety work discovered before and during Phase 2A. This file is a backlog only; Phase 2A did not change Supabase remotely.
 
 Phase 2A.5 update: read-only Supabase inspection confirmed the visit trigger risk. No live backend changes were made.

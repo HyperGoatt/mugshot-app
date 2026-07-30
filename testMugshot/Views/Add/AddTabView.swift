@@ -263,6 +263,20 @@ struct LegacyLogVisitView: View {
                     Text("Allow Camera access in Settings to take a new sip photo, or choose one from your library.")
                 }
                 .onAppear {
+                    let scope = LocalAccountScope.forUserID(
+                        authModel.authenticatedUser?.id
+                            ?? dataManager.appData.currentUser?.id
+                    )
+                    searchService.activate(scope: scope)
+                    CafeVisibilityPreferenceStore.shared.activate(scope: scope)
+                    try? PhotoCache.shared.activate(
+                        scope: scope,
+                        migratingKnownKeys: Set(
+                            dataManager.appData.visits
+                                .filter { $0.userId == scope.userID }
+                                .flatMap(\.photos)
+                        )
+                    )
                     if let cafe = preselectedCafe {
                         selectedCafe = cafe
                     }
@@ -293,7 +307,11 @@ struct LegacyLogVisitView: View {
                     dismiss()
                 }) {
                     if let visit = savedVisit {
-                        VisitDetailView(visit: visit, dataManager: dataManager)
+                        VisitDetailView(
+                            visit: visit,
+                            dataManager: dataManager,
+                            presentationMode: .postSave
+                        )
                     }
                 }
                 .fullScreenCover(item: $savedRemoteVisit, onDismiss: {
@@ -306,7 +324,8 @@ struct LegacyLogVisitView: View {
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
-                        justPosted: true
+                        justPosted: true,
+                        presentationMode: .postSave
                     )
                 }
         }
@@ -960,7 +979,20 @@ struct LegacyLogVisitView: View {
         }
         do {
             let client = try SupabaseClientProvider.shared.client()
-            try await VisitPhotoUploadService(client: client).deletePhotos(at: submission.objectPaths)
+            let locations: [VisitPhotoStorageLocation]
+            if let references = submission.uploadedPhotoURLs {
+                locations = references.compactMap(
+                    VisitPhotoStorageLocation.init(storedValue:)
+                )
+            } else {
+                locations = submission.objectPaths.map {
+                    VisitPhotoStorageLocation(
+                        bucketName: VisitPhotoStorageReference.privateBucketName,
+                        objectPath: $0
+                    )
+                }
+            }
+            try await VisitPhotoUploadService(client: client).deletePhotos(at: locations)
             if submission.phase >= .visitCreated {
                 try await VisitService(client: client).deleteVisit(
                     visitId: submission.id,
@@ -2464,120 +2496,138 @@ struct CafeSearchSheet: View {
     @ObservedObject var searchService: MapSearchService
     @ObservedObject var dataManager: DataManager
     @Binding var selectedCafe: Cafe?
-    let region: MKCoordinateRegion
-    @Environment(\.dismiss) var dismiss
+    @Binding var region: MKCoordinateRegion
+    let searchAreaDescription: String
+    let locationActionTitle: String
+    let onLocationAction: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isSearchFieldFocused: Bool
+    @State private var showCafeDetail = false
+    @State private var isSearchActive = true
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search bar
-                HStack {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
-                        
-                        TextField("Search cafes...", text: $searchText)
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotSage)
-                            .accentColor(.mugshotSage)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .onChange(of: searchText) { oldValue, newValue in
-                                if !newValue.isEmpty {
-                                    searchService.search(query: newValue, region: region)
-                                } else {
-                                    searchService.cancelSearch()
-                                }
-                            }
-                        
-                        if !searchText.isEmpty {
-                            Button(action: {
-                                searchText = ""
-                                searchService.cancelSearch()
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.espressoBrown.opacity(0.4))
-                            }
-                        }
-                    }
-                    .mugshotFormField()
-                }
-                .padding()
-                
-                // Results
-                if searchService.isSearching {
-                    ProgressView()
-                        .padding()
-                } else if let error = searchService.searchError {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.roastBrown.opacity(0.5))
-                        Text(error)
-                            .foregroundColor(.secondaryText)
-                    }
-                    .padding()
-                } else if searchService.searchResults.isEmpty && !searchText.isEmpty {
-                    Text("No results found")
-                        .foregroundColor(.secondaryText)
-                        .padding()
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                        ForEach(searchService.searchResults, id: \.self) { mapItem in
-                            Button(action: {
-                                let cafe = dataManager.findOrCreateCafe(from: mapItem)
-                                selectedCafe = cafe
-                                dismiss()
-                            }) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(mapItem.name ?? "Cafe")
-                                            .foregroundColor(.espressoBrown)
-                                        if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
-                                            Text(address)
-                                                .font(.caption)
-                                                .foregroundColor(.tertiaryText)
-                                        }
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundColor(.tertiaryText)
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 13)
-                                .background(Color.foamWhite)
-                            }
-                            .buttonStyle(.plain)
-                            Divider()
-                                .padding(.leading, 16)
-                        }
-                        }
-                    }
-                }
+                searchHeader
+
+                SearchResultsList(
+                    searchText: $searchText,
+                    searchService: searchService,
+                    dataManager: dataManager,
+                    region: $region,
+                    selectedCafe: $selectedCafe,
+                    showCafeDetail: $showCafeDetail,
+                    isSearchActive: $isSearchActive,
+                    isSearchFieldFocused: $isSearchFieldFocused,
+                    onSelectCafe: { _ in dismiss() }
+                )
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .background(Color.creamWhite)
-            .navigationTitle("Search cafes")
+            .accessibilityIdentifier("logASipV3.cafeSearch.sheet")
+            .background(Color.creamWhite.ignoresSafeArea())
+            .navigationTitle("Choose a cafe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel", action: cancel)
                 }
+            }
+            .onAppear { isSearchActive = true }
+            .onDisappear {
+                searchText = ""
+                isSearchFieldFocused = false
+                isSearchActive = false
+                searchService.cancelSearch()
             }
         }
     }
-    
-    private func formatAddress(from placemark: MKPlacemark) -> String? {
-        var components: [String] = []
-        if let thoroughfare = placemark.thoroughfare {
-            components.append(thoroughfare)
+
+    private var searchHeader: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.espressoBrown.opacity(0.6))
+
+                TextField("Search places", text: $searchText)
+                    .accessibilityIdentifier("logASipV3.cafeSearch.query")
+                    .foregroundColor(.inputText)
+                    .tint(.mugshotSage)
+                    .focused($isSearchFieldFocused)
+                    .submitLabel(.search)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .onChange(of: searchText) { _, newValue in
+                        if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            searchService.cancelSearch()
+                        } else {
+                            searchService.search(query: newValue, region: region)
+                        }
+                    }
+                    .onSubmit {
+                        searchService.search(
+                            query: searchText,
+                            region: region,
+                            immediately: true
+                        )
+                        isSearchFieldFocused = false
+                    }
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                        searchService.cancelSearch()
+                        isSearchFieldFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.espressoBrown.opacity(0.4))
+                    }
+                    .accessibilityLabel("Clear cafe search")
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .mugshotGlassSurface(
+                radius: 26,
+                tint: .foamWhite,
+                stroke: Color.foamWhite.opacity(0.62),
+                shadow: DesignSystem.Shadow(
+                    color: .black.opacity(0.10),
+                    radius: 16,
+                    x: 0,
+                    y: 6
+                ),
+                interactive: true
+            )
+
+            HStack(spacing: 8) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mugshotSage)
+
+                Text(searchAreaDescription)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(2)
+
+                Spacer(minLength: 8)
+
+                Button(locationActionTitle, action: onLocationAction)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+                    .accessibilityHint("Updates cafe search to use your current location")
+            }
         }
-        if let locality = placemark.locality {
-            components.append(locality)
-        }
-        return components.isEmpty ? nil : components.joined(separator: ", ")
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(Color.creamWhite)
+    }
+
+    private func cancel() {
+        searchText = ""
+        searchService.cancelSearch()
+        dismiss()
     }
 }
 

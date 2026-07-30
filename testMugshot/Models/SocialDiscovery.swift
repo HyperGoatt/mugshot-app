@@ -115,6 +115,26 @@ struct DiscoveryDrink: Decodable, Equatable, Identifiable {
     var id: String { name }
 }
 
+struct DiscoveryCafeFriend: Identifiable, Decodable, Equatable {
+    let userID: UUID
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+    let averageRating: Double
+    let sipCount: Int
+
+    var id: UUID { userID }
+
+    enum CodingKeys: String, CodingKey {
+        case username
+        case userID = "user_id"
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+        case averageRating = "average_rating"
+        case sipCount = "sip_count"
+    }
+}
+
 struct DiscoveryCafe: Identifiable, Decodable, Equatable {
     let cafeID: UUID
     let name: String
@@ -134,6 +154,7 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
     let recentCover: String?
     let isSaved: Bool
     let isVisited: Bool
+    let friendProfiles: [DiscoveryCafeFriend]?
 
     var id: UUID { cafeID }
 
@@ -151,13 +172,18 @@ struct DiscoveryCafe: Identifiable, Decodable, Equatable {
         case recentCover = "recent_cover"
         case isSaved = "is_saved"
         case isVisited = "is_visited"
+        case friendProfiles = "friend_profiles"
     }
+
+    var friends: [DiscoveryCafeFriend] { friendProfiles ?? [] }
 
     var localCafe: Cafe {
         remoteCafe.localCafe(
             isFavorite: isSaved,
             wantToTry: isSaved && !isVisited,
-            averageRating: averageRating ?? 0,
+            // Discovery v1's average is built from sip enjoyment. Keep the
+            // place unrated until a Cafe Pulse aggregate is available.
+            averageRating: 0,
             visitCount: visibleVisitCount
         )
     }
@@ -271,7 +297,9 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     }
 
     var cafe: Cafe? {
-        guard let cafeID, let cafeName else { return nil }
+        guard journalContext == .cafe,
+              let cafeID,
+              let cafeName else { return nil }
         return SupabaseCafeSummary(
             id: cafeID,
             name: cafeName,
@@ -286,7 +314,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     }
 
     func summary(profile: SupabaseUserProfile) -> RemoteVisitSummary {
-        let remoteCafe = cafeID.map { id in
+        let remoteCafe = journalContext == .cafe ? cafeID.map { id in
             SupabaseCafeSummary(
                 id: id,
                 name: cafeName ?? "Cafe",
@@ -298,7 +326,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
                 websiteURL: nil,
                 identityKey: identityKey
             )
-        }
+        } : nil
         let row = SupabaseVisitRow(
             id: id,
             userId: userID ?? profile.id,

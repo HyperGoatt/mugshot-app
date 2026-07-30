@@ -7,6 +7,126 @@
 
 import SwiftUI
 
+enum MugshotGuestIntroductionPolicy {
+    static let storageKey = "MugshotActivation.guestIntroduction.v1.seen"
+
+    static func shouldPresent(
+        hasSeen: Bool,
+        hasAuthenticatedNavigation: Bool,
+        isUITesting: Bool
+    ) -> Bool {
+        !hasSeen && !hasAuthenticatedNavigation && !isUITesting
+    }
+}
+
+struct MugsyGuestIntroductionView: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    MugsyAnimatedView(
+                        configuration: MugsyPlacement.onboarding.configuration,
+                        action: .entering,
+                        tapBehavior: MugsyPlacement.onboarding.tapBehavior
+                    )
+                    .frame(width: 132, height: 132)
+                    .accessibilityHidden(true)
+
+                    VStack(spacing: 7) {
+                        Text("A sip is a tiny time capsule")
+                            .mugshotDisplay(size: 31)
+                            .foregroundColor(.espressoBrown)
+                            .multilineTextAlignment(.center)
+
+                        Text("Mugsy will help you notice the drink and the moment while they are still in front of you.")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: 0) {
+                        GuestIntroductionRow(
+                            icon: "sparkles",
+                            title: "Your reaction is the score",
+                            detail: "A Mugshot score records your own memory—not an objective grade for a cafe."
+                        )
+                        Divider().padding(.leading, 54)
+                        GuestIntroductionRow(
+                            icon: "lock.shield.fill",
+                            title: "You choose what leaves the journal",
+                            detail: "Private notes stay private. Posts, recipes, and your Taste Passport each have their own audience."
+                        )
+                        Divider().padding(.leading, 54)
+                        GuestIntroductionRow(
+                            icon: "mappin.and.ellipse",
+                            title: "Your footprint grows one sip at a time",
+                            detail: "Log your first cafe sip and that place begins to carry your memories across Map and Journal."
+                        )
+                    }
+                    .cardStyle(radius: DesignSystem.Radius.heroCard)
+
+                    Text("Explore Map and save cafes without an account. Sign in only when you are ready to keep a sip or join friends.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button("Explore the Map", action: onContinue)
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityHint("Dismisses this introduction and leaves you on the Map")
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 24)
+                .padding(.bottom, 34)
+            }
+            .background(Color.creamWhite)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onContinue)
+                        .accessibilityLabel("Close introduction")
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+private struct GuestIntroductionRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+                .frame(width: 34, height: 34)
+                .background(Color.mugshotMint.opacity(0.22))
+                .clipShape(Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(15)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct OnboardingView: View {
     @ObservedObject var dataManager: DataManager
     @State private var currentStep = 0
@@ -81,12 +201,13 @@ struct WelcomeStep: View {
         VStack(spacing: 22) {
             Spacer()
 
-            Image("MugshotAppIcon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 92, height: 92)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .shadow(color: .black.opacity(0.1), radius: 16, x: 0, y: 7)
+            MugsyAnimatedView(
+                configuration: MugsyPlacement.onboarding.configuration,
+                action: .entering,
+                tapBehavior: MugsyPlacement.onboarding.tapBehavior
+            )
+            .frame(width: 164, height: 164)
+            .accessibilityHidden(true)
             
             Text("Mugshot")
                 .mugshotDisplay(size: 44)

@@ -2,6 +2,13 @@
 
 Date: 2026-06-30
 
+> Historical snapshot. It describes the backend before the repository acquired
+> the complete migration history and before the 2026-07-22 alpha social/trust
+> release. Do not use its counts, Edge Function list, migration-source warning,
+> or trigger findings as current operational state. See
+> `SUPABASE_ALPHA_BACKEND_RELEASE_2026-07-22.md` and
+> `SUPABASE_RELEASE_WORKFLOW.md` for the current evidence and release contract.
+
 Project inspected read-only: `Mugshot-App`
 
 Project ref: `quskamnfwglctqewwfln`

@@ -19,15 +19,10 @@ Phase 3 advances because Taste Identity evidence is owner-only, source-separated
 
 ## Database contracts
 
-Repository migrations:
+Repository and live migrations:
 
-- `20260714130000_phase_3_explainable_taste_graph.sql`
-- `20260714133000_refine_taste_graph_recommendation_reasons.sql`
-
-Live migration versions:
-
-- `20260714044901_phase_3_explainable_taste_graph`
-- `20260714045207_refine_taste_graph_recommendation_reasons`
+- `20260714044901_phase_3_explainable_taste_graph.sql`
+- `20260714045207_refine_taste_graph_recommendation_reasons.sql`
 
 The migrations add:
 

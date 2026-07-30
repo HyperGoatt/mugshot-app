@@ -14,6 +14,127 @@ import Testing
 
 struct testMugshotTests {
 
+    @Test func guestIntroductionOnlyAppearsForAnUnintroducedGuest() {
+        #expect(MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: false,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: true,
+            hasAuthenticatedNavigation: false,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: true,
+            isUITesting: false
+        ))
+        #expect(!MugshotGuestIntroductionPolicy.shouldPresent(
+            hasSeen: false,
+            hasAuthenticatedNavigation: false,
+            isUITesting: true
+        ))
+    }
+
+    @Test func authCallbackRoutingSeparatesRecoveryFromOrdinaryDeepLinks() throws {
+        let confirmation = try #require(URL(string: "mugshot://auth/callback?code=confirmation-code"))
+        let recovery = try #require(URL(string: "mugshot://auth/recovery?code=recovery-code"))
+        let sipShortcut = try #require(URL(string: "mugshot://sip/camera"))
+        let untrustedScheme = try #require(URL(string: "https://auth/recovery?code=recovery-code"))
+
+        #expect(MugshotAuthCallbackRoute.resolve(confirmation) == .confirmation)
+        #expect(MugshotAuthCallbackRoute.resolve(recovery) == .passwordRecovery)
+        #expect(MugshotAuthCallbackRoute.resolve(sipShortcut) == nil)
+        #expect(MugshotAuthCallbackRoute.resolve(untrustedScheme) == nil)
+    }
+
+    @Test func authInputPolicyNormalizesEmailAndPreservesLegacySignIn() {
+        #expect(MugshotAuthInput.normalizedEmail("  Member@Example.COM \n") == "member@example.com")
+        #expect(MugshotPasswordPolicy.acceptsExistingPassword("123456"))
+        #expect(!MugshotPasswordPolicy.acceptsExistingPassword("12345"))
+        #expect(MugshotPasswordPolicy.acceptsNewPassword("12345678"))
+        #expect(!MugshotPasswordPolicy.acceptsNewPassword("1234567"))
+        #expect(AuthService.callbackURL.absoluteString == "mugshot://auth/callback")
+        #expect(AuthService.passwordRecoveryURL.absoluteString == "mugshot://auth/recovery")
+    }
+
+    @Test func authCallbackQueueDefersColdLinksAndConsumesEachLinkOnce() throws {
+        let coldURL = try #require(URL(
+            string: "mugshot://auth/recovery?code=one-time-recovery-code"
+        ))
+        let warmURL = try #require(URL(
+            string: "mugshot://auth/callback?code=one-time-confirmation-code"
+        ))
+        var queue = MugshotAuthCallbackQueue()
+
+        let acceptedColdURL = queue.enqueue(coldURL)
+        #expect(acceptedColdURL)
+        #expect(queue.pendingCount == 1)
+        #expect(queue.nextIfReady(false) == nil)
+        #expect(queue.nextIfReady(true) == coldURL)
+        #expect(queue.isProcessing)
+        #expect(queue.nextIfReady(true) == nil)
+
+        queue.retryCurrentCallback()
+        #expect(!queue.isProcessing)
+        #expect(queue.pendingCount == 1)
+        #expect(queue.nextIfReady(true) == coldURL)
+
+        queue.completeCurrentCallback()
+        #expect(!queue.isProcessing)
+        let acceptedDuplicateURL = queue.enqueue(coldURL)
+        #expect(acceptedDuplicateURL)
+        #expect(queue.pendingCount == 0)
+
+        let acceptedWarmURL = queue.enqueue(warmURL)
+        #expect(acceptedWarmURL)
+        #expect(queue.nextIfReady(true) == warmURL)
+        queue.completeCurrentCallback()
+        #expect(queue.nextIfReady(true) == nil)
+    }
+
+    @Test func ritualSnapshotCelebratesSupportedMilestonesWithoutPunishingRest() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-14T12:00:00Z"))
+        let sevenDays = (0..<7).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: now)
+        }
+
+        let milestone = MugshotRitualSnapshot.make(dates: sevenDays, now: now, calendar: calendar)
+        #expect(milestone.consecutiveDays == 7)
+        #expect(milestone.totalDays == 7)
+        #expect(milestone.tone == .milestone(7))
+
+        let olderDate = try #require(calendar.date(byAdding: .day, value: -12, to: now))
+        let returning = MugshotRitualSnapshot.make(dates: [olderDate], now: now, calendar: calendar)
+        #expect(returning.consecutiveDays == 0)
+        #expect(returning.tone == .returning)
+    }
+
+    @Test func ritualSnapshotKeepsYesterdayWarmWithoutInventingToday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-14T12:00:00Z"))
+        let dates = (1...3).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: now)
+        }
+
+        let snapshot = MugshotRitualSnapshot.make(dates: dates, now: now, calendar: calendar)
+        #expect(snapshot.consecutiveDays == 3)
+        #expect(snapshot.tone == .yesterday)
+    }
+
+    @Test func motionProgressAndDrinkAppearanceStayDeterministic() {
+        #expect(MugshotMotion.normalized(-0.4) == 0)
+        #expect(MugshotMotion.normalized(1.4) == 1)
+        #expect(MugshotDrinkAppearance.infer(from: "Iced strawberry matcha") == .matcha)
+        #expect(MugshotDrinkAppearance.infer(from: "Masala chai") == .chai)
+        #expect(MugshotDrinkAppearance.infer(from: "Earl Grey tea") == .tea)
+        #expect(MugshotDrinkAppearance.infer(from: "Flat white") == .coffee)
+    }
+
     @Test func guestSavedCafesStayIsolatedFromAuthenticatedLocalDataUntilMerge() throws {
         let suite = "DataManagerGuestScopeTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -146,6 +267,22 @@ struct testMugshotTests {
             context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
         }
         let userId = UUID()
+        let sensorySnapshot = SipSensorySnapshot(
+            bundleID: "mugshot.sensory.en-US",
+            bundleContentVersion: "2026.07.16.1",
+            identity: SensoryDrinkIdentity(
+                rawName: "Latte",
+                family: .milkCoffee,
+                preparation: .latte,
+                confidence: 1,
+                provenance: .user,
+                userConfirmed: true
+            ),
+            depth: .guided,
+            ownWords: "Silky and cocoa-like",
+            responses: [],
+            personalEnjoyment: PersonalEnjoymentRating(value: 4.5)
+        )
         let record = try store.prepare(
             userId: userId,
             cafe: Cafe(name: "Durable Cafe"),
@@ -156,7 +293,9 @@ struct testMugshotTests {
             notes: nil,
             visibility: .friends,
             ratings: ["Taste": 4],
+            overallScore: 4.5,
             ratingTemplate: RatingTemplate(),
+            sensorySnapshot: sensorySnapshot,
             images: [image],
             posterPhotoIndex: 0
         )
@@ -167,6 +306,8 @@ struct testMugshotTests {
         #expect(restoredStore.load(userId: UUID()) == nil)
         #expect(try restoredStore.loadImages(for: restored).count == 1)
         #expect(restored.objectPaths.count == 1)
+        #expect(restored.sensorySnapshot == sensorySnapshot)
+        #expect(restored.resolvedOverallScore == 4.5)
 
         restoredStore.remove(restored)
         #expect(restoredStore.load(userId: userId) == nil)
@@ -187,6 +328,60 @@ struct testMugshotTests {
         store.remove([path], userId: userId)
         #expect(store.pendingPaths(userId: userId) == ["second.jpg"])
         #expect(store.pendingPaths(userId: UUID()).isEmpty)
+    }
+
+    @Test func privateVisitPhotoReferencesRoundTripWithoutExpiringURLs() throws {
+        let path = "71500ca8-a989-4416-b716-c160325c79ba/4b37b6e8-62c3-4016-8163-28cdb804e792/photo one.jpg"
+        let reference = try #require(VisitPhotoStorageReference(
+            bucketName: VisitPhotoStorageReference.privateBucketName,
+            objectPath: path
+        ))
+
+        #expect(
+            reference.storedValue ==
+                "mugshot-storage://visit-photos-private/71500ca8-a989-4416-b716-c160325c79ba/4b37b6e8-62c3-4016-8163-28cdb804e792/photo%20one.jpg"
+        )
+        #expect(VisitPhotoStorageReference(storedValue: reference.storedValue) == reference)
+        #expect(
+            VisitPhotoStorageLocation(storedValue: reference.storedValue) ==
+                VisitPhotoStorageLocation(
+                    bucketName: VisitPhotoStorageReference.privateBucketName,
+                    objectPath: path
+                )
+        )
+        #expect(
+            VisitPhotoStorageReference(
+                bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+                objectPath: path
+            ) == nil
+        )
+        #expect(
+            VisitPhotoStorageReference(
+                storedValue: "mugshot-storage://visit-photos-private/../escape.jpg"
+            ) == nil
+        )
+    }
+
+    @Test func visitMediaCleanupQueuePreservesPrivateAndLegacyBuckets() throws {
+        let suite = "VisitMediaCleanupBucketTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = VisitMediaCleanupStore(defaults: defaults)
+        let userId = UUID()
+        let legacy = VisitPhotoStorageLocation(
+            bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+            objectPath: "owner/visit/legacy.jpg"
+        )
+        let privatePhoto = VisitPhotoStorageLocation(
+            bucketName: VisitPhotoStorageReference.privateBucketName,
+            objectPath: "owner/visit/private.jpg"
+        )
+
+        store.enqueue([legacy, privatePhoto, privatePhoto], userId: userId)
+
+        #expect(Set(store.pendingLocations(userId: userId)) == Set([legacy, privatePhoto]))
+        store.remove([privatePhoto], userId: userId)
+        #expect(store.pendingLocations(userId: userId) == [legacy])
     }
 
     @MainActor
@@ -377,9 +572,156 @@ struct testMugshotTests {
         #expect(snapshot.pins.count == 2)
         #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.visitCount == 2)
         #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.averageScore == 4.5)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == loggedCafe.id })?.score?.source == .sip)
         #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.isFavorite == true)
         #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.visitCount == 0)
+        #expect(snapshot.pins.first(where: { $0.cafe.id == savedCafe.id })?.score == nil)
         #expect(snapshot.pins.contains(where: { $0.cafe.id == inactiveCafe.id }) == false)
+    }
+
+    @Test func mapPinsPreferCafeEvidenceAndBalanceSipFallbackByPhysicalSession() {
+        let sharedSession = UUID()
+        let sipFallback = MapPinScoreResolver.resolve(
+            sips: [
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: sharedSession),
+                MapSipScoreSeed(overallScore: 1, cafeSessionID: sharedSession),
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
+            ],
+            cafeSummary: nil,
+            audience: .personal
+        )
+
+        #expect(sipFallback?.source == .sip)
+        #expect(sipFallback?.value == 4)
+        #expect(sipFallback?.sipCount == 3)
+        #expect(sipFallback?.physicalSessionCount == 2)
+        #expect(sipFallback?.evidenceDescription == "3 sips across 2 visits")
+
+        let cafeID = UUID()
+        let cafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: cafeID,
+            scope: "personal",
+            physicalSessionCount: 1,
+            ratedSessionCount: 1,
+            contributorCount: 1,
+            averageCafeRating: 2.5,
+            latestNextMove: "come_back_try_another",
+            relationshipStageValue: "first_impression",
+            communityThresholdMet: true
+        )
+        let cafeFirst = MapPinScoreResolver.resolve(
+            sips: [
+                MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
+            ],
+            cafeSummary: cafeSummary,
+            audience: .personal
+        )
+
+        #expect(cafeFirst?.source == .cafe)
+        #expect(cafeFirst?.value == 2.5)
+        #expect(cafeFirst?.relationshipStage == .firstImpression)
+        #expect(cafeFirst?.pinUseTitle == "Pin uses your Cafe average")
+        #expect(cafeFirst?.evidenceDescription == "First impression · 1 rated Cafe Session")
+    }
+
+    @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
+        #expect(
+            MapDiscoveryScope.available(isAuthenticated: true) ==
+                [.visited, .friends, .favorites, .wantToTry, .all]
+        )
+        #expect(
+            MapDiscoveryScope.available(isAuthenticated: false) ==
+                [.visited, .favorites, .wantToTry, .all]
+        )
+    }
+
+    @Test func mapPinRatingBandsUseClassicTrafficLightThresholds() {
+        #expect(MapPinRatingBand(score: 5) == .high)
+        #expect(MapPinRatingBand(score: 4) == .high)
+        #expect(MapPinRatingBand(score: 3.9) == .middle)
+        #expect(MapPinRatingBand(score: 3) == .middle)
+        #expect(MapPinRatingBand(score: 2.9) == .low)
+        #expect(MapPinRatingBand(score: 0) == .unrated)
+        #expect(MapPinRatingBand(score: nil) == .unrated)
+    }
+
+    @Test func mapPinPresentationKeepsScorePrimaryAndUsesStateBadgesOnlyInAll() {
+        let cafe = Cafe(
+            name: "Mugshot Test Cafe",
+            isFavorite: true,
+            wantToTry: true,
+            visitCount: 2
+        )
+        let score = MapPinScore(
+            value: 4.25,
+            source: .cafe,
+            audience: .personal,
+            ratedCafeSessionCount: 2,
+            physicalSessionCount: 2,
+            sipCount: 0,
+            contributorCount: 1,
+            relationshipStage: .emergingView
+        )
+
+        let all = MapPinPresentation.resolve(
+            scope: .all,
+            cafe: cafe,
+            pinScore: score,
+            friendCount: 3
+        )
+        #expect(all.primaryKind == .journal)
+        #expect(all.scoreText == "4.2")
+        #expect(all.ratingBand == .high)
+        #expect(all.showsFavoriteBadge)
+        #expect(all.showsWantToTryBadge)
+        #expect(all.showsFriendsBadge)
+
+        let favorite = MapPinPresentation.resolve(
+            scope: .favorites,
+            cafe: cafe,
+            pinScore: score,
+            friendCount: 3
+        )
+        #expect(favorite.primaryKind == .favorite)
+        #expect(!favorite.hasStateBadges)
+
+        let friends = MapPinPresentation.resolve(
+            scope: .friends,
+            cafe: cafe,
+            pinScore: nil,
+            friendCount: 3
+        )
+        #expect(friends.primaryKind == .friends)
+        #expect(friends.scoreText == nil)
+        #expect(friends.ratingBand == .unrated)
+        #expect(friends.friendCount == 3)
+    }
+
+    @Test func friendMapSipSummaryPreservesItsSourceAndEvidence() throws {
+        let cafeID = UUID()
+        let json = """
+        {
+          "cafe_id":"\(cafeID.uuidString)",
+          "average_sip_rating":3.875,
+          "sip_count":3,
+          "physical_session_count":2,
+          "contributor_count":1
+        }
+        """
+        let summary = try JSONDecoder().decode(
+            RemoteFriendMapSipSummary.self,
+            from: Data(json.utf8)
+        )
+
+        #expect(summary.mapPinScore?.source == .sip)
+        #expect(summary.mapPinScore?.audience == .friends)
+        #expect(summary.mapPinScore?.value == 3.875)
+        #expect(summary.mapPinScore?.pinUseTitle == "Pin uses friends’ Sip fallback")
+        #expect(
+            summary.mapPinScore?.evidenceDescription ==
+                "3 sips across 2 visits · 1 friend"
+        )
     }
 
     @Test func mapPinsDoNotRenderUnratedLegacyVisitsAsCafeMarkers() {
@@ -539,11 +881,21 @@ struct testMugshotTests {
         #expect(row.createdAtDate > Date(timeIntervalSince1970: 0))
     }
 
-    @Test func remoteVisitSummaryUsesCraftLocationWhenCafeIsMissing() {
+    @Test func remoteVisitSummaryUsesContextLocationAndHidesStaleCafeAddress() {
+        let staleCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Stale Cafe",
+            address: "123 Private Way",
+            city: "Charleston, SC",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
         let row = SupabaseVisitRow(
             id: UUID(),
             userId: UUID(),
-            cafeId: nil,
+            cafeId: staleCafe.id,
             drinkType: "Tea",
             drinkTypeCustom: nil,
             drinkSubtype: "Jasmine",
@@ -560,10 +912,10 @@ struct testMugshotTests {
             createdAt: "2026-07-01T12:34:56Z"
         )
 
-        let summary = RemoteVisitSummary(visit: row, cafe: nil)
+        let summary = RemoteVisitSummary(visit: row, cafe: staleCafe)
 
         #expect(summary.locationTitle == "Kitchen counter")
-        #expect(summary.locationSubtitle == "Charleston, SC")
+        #expect(summary.locationSubtitle == nil)
         #expect(row.backendVisibilityLabel == "Private")
     }
 
@@ -594,9 +946,16 @@ struct testMugshotTests {
                 SupabaseVisitPhotoRow(
                     id: UUID(),
                     visitId: row.id,
-                    photoURL: "https://example.com/second.jpg",
+                    photoURL: "https://example.com/poster.jpg",
                     sortOrder: 2,
                     createdAt: "2026-07-01T12:36:56Z"
+                ),
+                SupabaseVisitPhotoRow(
+                    id: UUID(),
+                    visitId: row.id,
+                    photoURL: "https://example.com/second.jpg",
+                    sortOrder: 3,
+                    createdAt: "2026-07-01T12:37:56Z"
                 ),
                 SupabaseVisitPhotoRow(
                     id: UUID(),
@@ -798,6 +1157,43 @@ struct testMugshotTests {
         #expect(categoryScores[0]["weight"] as? Double == 2)
     }
 
+    @Test func nonCafeVisitInsertDropsStaleCafeAssociation() throws {
+        let remoteCafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Should Not Persist",
+            address: "123 Cafe Way",
+            city: "Charleston, SC",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let insert = try SupabaseVisitInsert.make(
+            userId: UUID(),
+            remoteCafe: remoteCafe,
+            entryContext: .elsewhere,
+            locationName: "Window seat on the Coast Starlight",
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Train coffee",
+            caption: "A moving memory",
+            notes: nil,
+            visibility: .friends,
+            ratings: ["Taste": 3],
+            ratingTemplate: RatingTemplate(categories: [
+                RatingCategory(name: "Taste", weight: 1)
+            ])
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(insert)) as? [String: Any]
+        )
+
+        #expect(object["cafe_id"] == nil)
+        #expect(object["context_type"] as? String == "Elsewhere")
+        #expect(object["location_name"] as? String == "Window seat on the Coast Starlight")
+        #expect(object["city_state"] == nil)
+    }
+
     @Test func visitInsertPayloadMapsCustomDrinkAndRejectsMissingRating() throws {
         let userId = UUID()
         let remoteCafe = SupabaseCafeSummary(
@@ -995,12 +1391,99 @@ struct testMugshotTests {
         )
         #expect(!upload.contains("endpoint"))
         #expect(upload.contains("sip"))
+
+        let missingCafeSessionsCapability = MugshotUserFacingError.message(
+            for: NSError(
+                domain: "PostgREST",
+                code: 404,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Could not find the function public.get_cafe_sessions_capability_v1"
+                ]
+            ),
+            context: .loading
+        )
+        #expect(!missingCafeSessionsCapability.contains("session ended"))
+        #expect(missingCafeSessionsCapability.contains("load"))
+
+        let expiredJWT = MugshotUserFacingError.message(
+            for: NSError(
+                domain: "Auth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "JWT expired"]
+            ),
+            context: .loading
+        )
+        #expect(expiredJWT.contains("session ended"))
+    }
+
+    @Test func visitQueriesFallBackOnlyForMissingCafeSessionColumns() {
+        let missingColumn = NSError(
+            domain: "PostgREST",
+            code: 400,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Could not find the 'cafe_session_id' column of 'visits' in the schema cache"
+            ]
+        )
+        #expect(VisitSchemaCompatibility.isMissingCafeSessionColumn(missingColumn))
+
+        let expiredSession = NSError(
+            domain: "Auth",
+            code: 401,
+            userInfo: [NSLocalizedDescriptionKey: "JWT expired"]
+        )
+        #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(expiredSession))
+
+        let unrelatedMissingColumn = NSError(
+            domain: "PostgREST",
+            code: 400,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Could not find the 'poster_photo_url' column of 'visits' in the schema cache"
+            ]
+        )
+        #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(unrelatedMissingColumn))
+    }
+
+    @Test func v3ProjectionRequestsBatchEveryVisitWithoutDuplicates() {
+        let identifiers = (0..<205).map { _ in UUID() }
+        let batches = VisitService.v3ProjectionBatches(
+            visitIDs: identifiers + [identifiers[20], identifiers[140]]
+        )
+
+        #expect(batches.map(\.count) == [100, 100, 5])
+        #expect(batches.flatMap { $0 } == identifiers)
+    }
+
+    @Test func remoteSaveErrorsNameTheFailedStageAndKeepRetryCopyAccurate() {
+        let rawFailure = NSError(
+            domain: "test",
+            code: 404,
+            userInfo: [NSLocalizedDescriptionKey: "relation missing"]
+        )
+        let snapshot = MugshotUserFacingError.message(
+            for: rawFailure,
+            context: SipRemoteSaveOperation.savingTastingLens.errorContext
+        )
+        let photo = MugshotUserFacingError.message(
+            for: rawFailure,
+            context: SipRemoteSaveOperation.uploadingPhotos.errorContext
+        )
+
+        #expect(snapshot.contains("Tasting Lens"))
+        #expect(snapshot.contains("tasting answers"))
+        #expect(!snapshot.localizedCaseInsensitiveContains("photo"))
+        #expect(photo.localizedCaseInsensitiveContains("photo"))
+        #expect(SipRemoteSaveOperation.savingTastingLens.recoveryMessage.contains("Tasting Lens"))
+        #expect(SipRemoteSaveOperation.uploadingPhotos.recoveryMessage.contains("photos"))
+        #expect(SipRemoteSaveOperation.finalizing.errorContext == .sipSave)
     }
 
     @Test func presentationNormalizesCafeNamesAndUnratedScores() {
         let cafe = Cafe(name: "  BLUE   BOTTLE COFFEE ", averageRating: 0)
         #expect(cafe.consumerDisplayName == "Blue Bottle Coffee")
-        #expect(cafe.consumerScoreLabel == "Unrated")
+        #expect(cafe.consumerScoreLabel == "Cafe not rated")
 
         let remoteCafe = SupabaseCafeSummary(
             id: UUID(),
@@ -1119,6 +1602,9 @@ struct testMugshotTests {
 
     @Test func naturalLanguageDrinkAnalysisDefaultsToHotAndKeepsOrderEvidenceSeparate() {
         let analysis = DrinkAnalysisParser.analyze("Strawberry matcha with oat milk")
+        let matchaLatte = DrinkAnalysisParser.analyze("Iced strawberry matcha latte with oat milk")
+        let hojichaLatte = DrinkAnalysisParser.analyze("Hojicha latte with macadamia milk")
+        let chaiLatte = DrinkAnalysisParser.analyze("Dirty chai latte with whole milk")
         let hotLatteWithColdFoam = DrinkAnalysisParser.analyze("Vanilla latte with cold foam")
 
         #expect(analysis.rawDrinkName == "Strawberry matcha with oat milk")
@@ -1130,6 +1616,13 @@ struct testMugshotTests {
         #expect(analysis.orderPreferenceSignals.contains("chooses_fruit_flavors"))
         #expect(analysis.orderPreferenceSignals.contains("chooses_sweet_flavors"))
         #expect(!analysis.orderPreferenceSignals.contains("tastes_sweet"))
+        #expect(matchaLatte.family == .matcha)
+        #expect(matchaLatte.preparation == .latte)
+        #expect(hojichaLatte.family == .hojicha)
+        #expect(hojichaLatte.preparation == .latte)
+        #expect(hojichaLatte.milk == "macadamia milk")
+        #expect(chaiLatte.family == .chai)
+        #expect(chaiLatte.preparation == .latte)
         #expect(hotLatteWithColdFoam.temperature == .hot)
     }
 
@@ -1193,7 +1686,7 @@ struct testMugshotTests {
         #expect(unknown.estimatedCaffeineMilligrams == nil)
     }
 
-    @Test func tastingLensReplacesQuickScoreAndExcludesIrrelevantCriteria() {
+    @Test func tastingLensKeepsPersonalStarsIndependentFromLegacyCriteria() {
         var draft = SipDraft(
             captureMode: .addDetails,
             context: .cafe,
@@ -1214,19 +1707,43 @@ struct testMugshotTests {
             ]
         )
 
-        #expect(abs(draft.resolvedOverallScore - (14.0 / 3.0)) < 0.000_001)
+        #expect(draft.resolvedOverallScore == 1)
         #expect(draft.ratingsDictionary["Value"] == nil)
+        #expect(!draft.hasRequiredCore, "A new guided lens save requires a typed sensory snapshot.")
+
+        draft.sensorySnapshot = SipSensorySnapshot(
+            bundleID: "mugshot.sensory.en-US",
+            bundleContentVersion: "2026.07.16.1",
+            identity: SensoryDrinkIdentity(
+                rawName: "Cortado",
+                family: .milkCoffee,
+                preparation: .cortado,
+                confidence: 1,
+                provenance: .user,
+                userConfirmed: true
+            ),
+            depth: .guided,
+            ownWords: "Dense and roasty",
+            responses: [],
+            personalEnjoyment: PersonalEnjoymentRating(value: 1)
+        )
         #expect(draft.hasRequiredCore)
+        #expect(draft.ratingsDictionary.isEmpty, "Typed observations must not be flattened into legacy star criteria.")
 
         draft.ratingCriteria[0].score = 0
         draft.ratingCriteria[1].score = 0
+        #expect(draft.resolvedOverallScore == 1)
+
+        draft.overallScore = 0
         #expect(!draft.hasRequiredCore)
     }
 
     @Test func halfStepRatingMapsTheTrailingHalfOfTheFifthStarToFive() {
         #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 10, starWidth: 40) == 4.5)
         #expect(HalfStepStarRating.ratingValue(starIndex: 5, tapX: 30, starWidth: 40) == 5)
+        #expect(HalfStepStarRating.ratingValue(starIndex: 1, tapX: 10, starWidth: 40) == 1)
         #expect(HalfStepStarRating.ratingValue(starIndex: 1, tapX: 30, starWidth: 40) == 1)
+        #expect(TastingLensEnjoymentRating.ratingValue(starIndex: 1, tapX: 10, starWidth: 40) == 1)
     }
 
     @Test func servingVolumeIsSeparateFromExtractionYieldAndSurvivesDraftEncoding() throws {
@@ -1292,6 +1809,26 @@ struct testMugshotTests {
         var recipe = SipDraft(context: .recipe, visibility: .friends)
         recipe.applyContextDefaults(using: preferences)
         #expect(recipe.visibility == .private)
+    }
+
+    @Test func composerWorkflowScaffoldingDoesNotCreateAnUntitledDraft() {
+        let untouchedDraft = SipDraft(
+            composerExperience: .guided,
+            guidedStep: .context,
+            v3Step: .setup
+        )
+
+        #expect(!untouchedDraft.hasDraftWorthyUserContent)
+
+        let preselectedCafeDraft = SipDraft(
+            launchContext: SipComposerLaunchContext(source: .cafeDetail),
+            cafe: Cafe(name: "Mugshot Test Cafe"),
+            composerExperience: .guided,
+            guidedStep: .context,
+            v3Step: .setup
+        )
+
+        #expect(preselectedCafeDraft.hasDraftWorthyUserContent)
     }
 
     @Test func everyonePublicationRequiresMediaOrIntentionalTextOnlyConfirmation() {
@@ -1495,6 +2032,7 @@ struct testMugshotTests {
 
     @Test func remoteRecipeBrewAgainReferencesExactRecipeAndCreatesPrivateAttempt() {
         let recipeIdentityID = UUID()
+        let recipeVersionID = UUID()
         let row = SupabaseVisitRow(
             id: UUID(),
             userId: UUID(),
@@ -1521,10 +2059,35 @@ struct testMugshotTests {
                 recipeIdentityID: recipeIdentityID,
                 steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
             ),
-            recipeVersionID: UUID()
+            recipeVersionID: recipeVersionID
         )
         let summary = RemoteVisitSummary(visit: row, cafe: nil)
-        let attempt = SipDraft.brewAgain(from: summary, ownerUserID: UUID())
+        let projection = RemoteVisitRecipeProjection(
+            recipeIdentityID: recipeIdentityID,
+            recipeVersionID: recipeVersionID,
+            recipeName: "Bright V60",
+            versionNumber: 3,
+            versionLabel: "v3",
+            visibilityValue: "private",
+            sourceKindValue: "original",
+            sourceRecipeVersionID: nil,
+            brewMethod: "V60",
+            equipment: "Kettle and scale",
+            brewDetails: BrewDetails(
+                beans: "Ethiopia Hambela",
+                steps: [BrewRecipeStep(instruction: "Bloom for 45 seconds")]
+            ),
+            canSaveAndAdapt: false
+        )
+        let detail = RemoteVisitDetail(
+            summary: summary,
+            photos: [],
+            comments: [],
+            likeCount: 0,
+            currentUserHasLiked: false,
+            recipeProjection: projection
+        )
+        let attempt = SipDraft.brewAgain(from: detail, ownerUserID: UUID())
 
         #expect(attempt.context == .home)
         #expect(attempt.visibility == .private)
@@ -1661,6 +2224,55 @@ struct testMugshotTests {
         #expect(stats.topCafes.first?.cafe.id == cafeId)
         #expect(stats.topCafes.first?.visitCount == 2)
         #expect(stats.topCafes.first?.posterPhotoURL == "https://example.com/a.jpg")
+
+        let cafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: cafeId,
+            scope: "personal",
+            physicalSessionCount: 3,
+            ratedSessionCount: 3,
+            contributorCount: 1,
+            averageCafeRating: 2,
+            latestNextMove: "come_back_try_another",
+            relationshipStageValue: "trend",
+            communityThresholdMet: true
+        )
+        let otherCafeSummary = RemoteCafeExperienceSummary(
+            schemaVersion: 1,
+            cafeID: otherCafeId,
+            scope: "personal",
+            physicalSessionCount: 1,
+            ratedSessionCount: 1,
+            contributorCount: 1,
+            averageCafeRating: 5,
+            latestNextMove: "come_back_for_this",
+            relationshipStageValue: "first_impression",
+            communityThresholdMet: true
+        )
+
+        let cafeExperienceRanking = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: [cafeSummary, otherCafeSummary]
+        )
+        #expect(cafeExperienceRanking.basis == .cafeExperience)
+        #expect(cafeExperienceRanking.entries.map(\.cafe.id) == [otherCafeId, cafeId])
+        #expect(cafeExperienceRanking.entries.first?.score == 5)
+        #expect(cafeExperienceRanking.entries.first?.ratedCafeSessionCount == 1)
+
+        let partiallyRated = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: [otherCafeSummary]
+        )
+        #expect(partiallyRated.basis == .cafeExperience)
+        #expect(partiallyRated.entries.map(\.cafe.id) == [otherCafeId])
+
+        let sipAverageFallback = RemoteProfileCafeRanking.calculate(
+            from: visits,
+            cafeExperienceSummaries: []
+        )
+        #expect(sipAverageFallback.basis == .sipAverageLegacy)
+        #expect(sipAverageFallback.entries.first?.cafe.id == cafeId)
+        #expect(sipAverageFallback.entries.first?.score == 4.5)
     }
 
     @Test func settingsLegalAndMugsyPresenceAreCovered() {
@@ -1747,6 +2359,32 @@ struct testMugshotTests {
         #expect(cafes.first?.identityKey == "apple:needle")
         #expect(cafes.first?.topDrinks.first?.name == "Latte")
         #expect(cafes.first?.localCafe.remoteCafeId == cafeID)
+        #expect(cafes.first?.friends.isEmpty == true)
+    }
+
+    @Test func friendCafeDiscoveryDecodesFriendOnlyContext() throws {
+        let cafeID = UUID()
+        let friendID = UUID()
+        let json = """
+        [{
+          "cafe_id":"\(cafeID)","name":"Friend Bean","address":"2 Main St","city":"Pittsburgh",
+          "latitude":40.4,"longitude":-80.0,"identity_key":"apple:friend-bean","section":"loved_by_friends",
+          "ranking_score":0.91,"ranking_reason":"Shared by 1 friend","distance_km":1.2,
+          "average_rating":4.7,"visible_visit_count":2,"friend_count":1,
+          "top_drinks":[],"recent_cover":null,"is_saved":false,"is_visited":false,
+          "friend_profiles":[{
+            "user_id":"\(friendID)","display_name":"Alice","username":"alice","avatar_url":"https://example.com/alice.jpg",
+            "average_rating":4.7,"sip_count":2
+          }]
+        }]
+        """
+
+        let cafe = try #require(JSONDecoder().decode([DiscoveryCafe].self, from: Data(json.utf8)).first)
+        let friend = try #require(cafe.friends.first)
+        #expect(cafe.averageRating == 4.7)
+        #expect(cafe.friendCount == 1)
+        #expect(friend.id == friendID)
+        #expect(friend.sipCount == 2)
     }
 
     @Test func peopleSearchPayloadPreservesFriendshipAndCursorFields() throws {
@@ -2117,6 +2755,47 @@ struct testMugshotTests {
     @Test func sipReactionsRemainSmallAndCoffeeFocused() {
         #expect(SipReaction.allCases.count == 4)
         #expect(Set(SipReaction.allCases.map(\.rawValue)) == ["want_to_try", "great_find", "dialed_in", "cozy"])
+    }
+
+    @Test func mapDiscoveryScopesKeepSourcesExplicitAndAuthenticationAware() {
+        #expect(MapDiscoveryScope.all.sections(isAuthenticated: false) == [.nearby, .trending])
+        #expect(MapDiscoveryScope.friends.sections(isAuthenticated: false).isEmpty)
+        #expect(MapDiscoveryScope.friends.sections(isAuthenticated: true) == [.lovedByFriends])
+        #expect(MapDiscoveryScope.favorites.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.wantToTry.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.visited.sections(isAuthenticated: true).isEmpty)
+        #expect(MapDiscoveryScope.all.sections(isAuthenticated: true) == [.nearby, .lovedByFriends, .trending])
+        #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
+        #expect(MapDiscoveryScope.available(isAuthenticated: false) == [.visited, .favorites, .wantToTry, .all])
+    }
+
+    @Test func mapDiscoveryRadiusUsesAZeroToFiftyMileControl() {
+        #expect(MapDiscoveryRadius.miles == 0...50)
+        #expect(MapDiscoveryRadius.kilometers(forMiles: 0) == 1.609_344)
+        #expect(abs(MapDiscoveryRadius.kilometers(forMiles: 50) - 80.467_2) < 0.000_1)
+    }
+
+    @Test func sipShareCardPayloadContainsOnlyExplicitlyShareableMemoryFields() {
+        let payload = SipShareCardPayload(
+            authorName: "Journal Owner",
+            drinkName: "Cortado",
+            cafeName: "Mugshot Test Cafe",
+            rating: 4.5,
+            date: Date(timeIntervalSince1970: 1_700_000_000),
+            publicCaption: "A bright finish",
+            remotePhotoURL: "https://example.com/sip.jpg",
+            localPhotoPath: nil
+        )
+        let fieldNames = Set(Mirror(reflecting: payload).children.compactMap(\.label))
+
+        #expect(fieldNames == [
+            "visitID", "visibility", "isOwner", "isRemote",
+            "authorName", "drinkName", "cafeName", "rating", "date",
+            "publicCaption", "remotePhotoURL", "localPhotoPath"
+        ])
+        #expect(!fieldNames.contains("privateNote"))
+        #expect(!fieldNames.contains("notes"))
+        #expect(payload.shareText == "Journal Owner remembered Cortado at Mugshot Test Cafe on Mugshot.")
     }
 
     @Test func journalReflectionUsesOnlyCoveredCaffeineEstimates() throws {

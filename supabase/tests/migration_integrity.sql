@@ -10,26 +10,34 @@ begin
     ('discovery_social_expansion', array['20260712214406']),
     ('complete_push_quarantine', array['20260712214646']),
     ('phase_two_journal_data', array['20260713035201']),
-    ('separate_visit_private_notes', array['20260713152500','20260713205511']),
-    ('add_visit_drink_analysis', array['20260713191000','20260713205518']),
+    ('separate_visit_private_notes', array['20260713205511']),
+    ('add_visit_drink_analysis', array['20260713205518']),
     ('add_drink_analysis_retry_metadata_and_backfill', array['20260713231635']),
-    ('harden_visit_photo_storage_contract', array['20260714013429','20260714013618']),
-    ('optimize_visit_photo_storage_policies', array['20260714013809','20260714013836']),
-    ('phase_2_canonical_journal', array['20260714110000','20260714042024']),
-    ('harden_phase_2_journal_contracts', array['20260714114000','20260714043328']),
-    ('phase_3_explainable_taste_graph', array['20260714130000','20260714044901']),
-    ('refine_taste_graph_recommendation_reasons', array['20260714133000','20260714045207']),
-    ('phase_4_lightweight_friends', array['20260714150000','20260714050516']),
-    ('refine_cafe_list_invitation_visibility', array['20260714153000','20260714051041']),
-    ('expose_caller_bound_phase_4_policies', array['20260714160000','20260714051404']),
-    ('close_phase_4_direct_mutations', array['20260714161500','20260714051432']),
-    ('sanitize_shared_recipe_payloads', array['20260714163000','20260714051603']),
-    ('add_cafe_list_reordering', array['20260714164500','20260714052754']),
-    ('phase_5_reflection_preferences', array['20260714170000','20260714053353']),
-    ('phase_6_owner_data_export', array['20260714180000','20260714055538']),
-    ('harden_owner_data_export_invoker', array['20260714181000','20260714061539']),
-    ('followup_discovery_feed_companions', array['20260714190000','20260714151316']),
-    ('fix_visit_companion_visibility_policy', array['20260714200000','20260714185446'])
+    ('harden_visit_photo_storage_contract', array['20260714013618']),
+    ('optimize_visit_photo_storage_policies', array['20260714013836']),
+    ('phase_2_canonical_journal', array['20260714042024']),
+    ('harden_phase_2_journal_contracts', array['20260714043328']),
+    ('phase_3_explainable_taste_graph', array['20260714044901']),
+    ('refine_taste_graph_recommendation_reasons', array['20260714045207']),
+    ('phase_4_lightweight_friends', array['20260714050516']),
+    ('refine_cafe_list_invitation_visibility', array['20260714051041']),
+    ('expose_caller_bound_phase_4_policies', array['20260714051404']),
+    ('close_phase_4_direct_mutations', array['20260714051432']),
+    ('sanitize_shared_recipe_payloads', array['20260714051603']),
+    ('add_cafe_list_reordering', array['20260714052754']),
+    ('phase_5_reflection_preferences', array['20260714053353']),
+    ('phase_6_owner_data_export', array['20260714055538']),
+    ('harden_owner_data_export_invoker', array['20260714061539']),
+    ('followup_discovery_feed_companions', array['20260714151316']),
+    ('fix_visit_companion_visibility_policy', array['20260714185446']),
+    ('tasting_lens_2_core', array['20260717114908']),
+    ('tasting_lens_2_security', array['20260717114953']),
+    ('tasting_lens_2_export', array['20260717115015']),
+    ('tasting_lens_2_indexes', array['20260717115054']),
+    ('cafe_sessions_and_pulse', array['20260717142724']),
+    ('private_visit_photo_storage', array['20260717150000']),
+    ('session_balanced_map_pin_scores', array['20260717185855']),
+    ('post_publish_share_hub', array['20260723154204'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -38,6 +46,32 @@ begin
   );
   if missing_migrations is not null then
     raise exception 'missing live migrations: %', missing_migrations;
+  end if;
+
+  if exists (
+    select 1
+    from pg_policies policy
+    where concat_ws(' ', policy.qual, policy.with_check) ilike '%private.%'
+  ) then
+    raise exception 'an RLS policy calls a sealed private helper directly';
+  end if;
+
+  if has_function_privilege(
+       'anon',
+       'public.can_write_account_storage(uuid)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.can_write_account_storage(uuid)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'anon',
+       'public.is_live_account(uuid)',
+       'EXECUTE'
+     ) then
+    raise exception 'caller-bound Storage wrapper grants are incorrect';
   end if;
 
   if to_regclass('public.comment_mentions') is null then
@@ -56,22 +90,16 @@ begin
       and grantee in ('anon','authenticated')
   ) then raise exception 'legacy device table remains client accessible'; end if;
 
-  if not exists (
+  if exists (
     select 1 from pg_trigger
     where tgrelid='public.notifications'::regclass
-      and tgname='on_notification_insert' and tgenabled='D'
-  ) then raise exception 'legacy push trigger is not disabled'; end if;
+      and tgname='on_notification_insert'
+      and not tgisinternal
+  ) then raise exception 'legacy push trigger remains installed'; end if;
 
-  if has_function_privilege('anon','public.send_push_notification_trigger()','EXECUTE')
-     or has_function_privilege('authenticated','public.send_push_notification_trigger()','EXECUTE') then
-    raise exception 'legacy push function remains callable';
+  if to_regprocedure('public.send_push_notification_trigger()') is not null then
+    raise exception 'legacy push function remains installed';
   end if;
-
-  if not exists (
-    select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname='send_push_notification_trigger'
-      and p.proconfig @> array['search_path=""']
-  ) then raise exception 'legacy push function search path is not quarantined'; end if;
 
   if exists (
     select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -210,6 +238,43 @@ begin
       and policyname='View photos based on completed visit visibility'
       and cmd='SELECT'
   ) then raise exception 'visit-photo visibility policy is missing'; end if;
+  if not exists (
+    select 1
+    from storage.buckets
+    where id='visit-photos-private'
+      and not public
+      and file_size_limit=10485760
+      and allowed_mime_types @> array['image/jpeg','image/png','image/gif','image/webp','image/heic']
+  ) then raise exception 'private visit-photo bucket contract is incomplete'; end if;
+  if (
+    select count(*)
+    from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname in (
+        'Owners upload private visit photos',
+        'Owners update private visit photos',
+        'Owners delete private visit photos',
+        'Visit audiences read private visit photos',
+        'Anonymous viewers read Everyone private visit photos'
+      )
+  ) <> 5 then raise exception 'private visit-photo policies are incomplete'; end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='Visit audiences read private visit photos'
+      and cmd='SELECT'
+      and qual ilike '%can_view_visit_photo_object%'
+  ) then raise exception 'private visit-photo audience policy is incomplete'; end if;
+  if not has_function_privilege(
+       'anon',
+       'public.can_view_visit_photo_object(text)',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.can_view_visit_photo_object(text)',
+       'EXECUTE'
+     ) then raise exception 'visit-photo audience helper grants are incomplete'; end if;
 
   if has_function_privilege('anon','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.resolve_cafe_summary(text,double precision,double precision,text)','EXECUTE') then
@@ -243,6 +308,47 @@ begin
       and procedure.prosecdef
   ) then raise exception 'owner data export bypasses caller RLS'; end if;
 
+  if to_regclass('public.visit_sensory_snapshots') is null
+     or to_regclass('public.visit_sensory_public_projections') is null
+     or to_regclass('public.tasting_lens_preferences') is null
+     or to_regclass('public.tasting_lens_corrections') is null then
+    raise exception 'Tasting Lens storage contract is incomplete';
+  end if;
+  if not (select relrowsecurity and relforcerowsecurity
+          from pg_class where oid='public.visit_sensory_snapshots'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.visit_sensory_public_projections'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.tasting_lens_preferences'::regclass)
+     or not (select relrowsecurity and relforcerowsecurity
+             from pg_class where oid='public.tasting_lens_corrections'::regclass) then
+    raise exception 'Tasting Lens RLS is not enabled and forced';
+  end if;
+  if has_table_privilege('anon','public.visit_sensory_snapshots','SELECT')
+     or has_table_privilege('authenticated','public.visit_sensory_snapshots','UPDATE')
+     or has_table_privilege('authenticated','public.visit_sensory_snapshots','DELETE')
+     or not has_table_privilege('authenticated','public.visit_sensory_snapshots','SELECT')
+     or not has_table_privilege('authenticated','public.visit_sensory_snapshots','INSERT') then
+    raise exception 'immutable sensory snapshot grants are incorrect';
+  end if;
+  if has_table_privilege('anon','public.tasting_lens_corrections','SELECT')
+     or has_table_privilege('authenticated','public.tasting_lens_corrections','UPDATE')
+     or has_table_privilege('authenticated','public.tasting_lens_corrections','DELETE')
+     or not has_table_privilege('authenticated','public.tasting_lens_corrections','SELECT')
+     or not has_table_privilege('authenticated','public.tasting_lens_corrections','INSERT') then
+    raise exception 'append-only sensory correction grants are incorrect';
+  end if;
+  if (select count(*) from pg_policies
+      where schemaname='public' and tablename='visit_sensory_snapshots') <> 2
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='visit_sensory_public_projections') <> 4
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='tasting_lens_preferences') <> 4
+     or (select count(*) from pg_policies
+         where schemaname='public' and tablename='tasting_lens_corrections') <> 2 then
+    raise exception 'Tasting Lens policy set is incomplete';
+  end if;
+
   if to_regclass('public.visit_companions') is null then
     raise exception 'visit_companions table is missing';
   end if;
@@ -263,7 +369,7 @@ begin
     where schemaname='public' and tablename='visit_companions'
       and policyname='Visible sip companions'
       and qual ilike '%can_view_visit%'
-      and qual ilike '%is_blocked_between%'
+      and qual ilike '%can_view_user%'
       and qual not ilike '%private.%'
   ) then raise exception 'visit companion policy bypasses caller-bound visibility wrappers'; end if;
   if has_function_privilege('anon','public.set_visit_companions(uuid,uuid[])','EXECUTE')
@@ -282,6 +388,18 @@ begin
   if has_function_privilege('anon','public.get_public_profile(uuid)','EXECUTE')
      or not has_function_privilege('authenticated','public.get_public_profile(uuid)','EXECUTE') then
     raise exception 'public profile RPC grants are incorrect';
+  end if;
+  if has_function_privilege(
+       'anon',
+       'public.get_friend_map_sip_summaries_v1(uuid[])',
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'authenticated',
+       'public.get_friend_map_sip_summaries_v1(uuid[])',
+       'EXECUTE'
+     ) then
+    raise exception 'friend map Sip summary RPC grants are incorrect';
   end if;
 end $$;
 

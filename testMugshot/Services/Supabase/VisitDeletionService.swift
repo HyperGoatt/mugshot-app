@@ -2,18 +2,14 @@ import Foundation
 import Supabase
 
 enum VisitPhotoObjectPath {
-    static let bucketName = "visit-photos"
+    static let bucketName = VisitPhotoStorageReference.legacyPublicBucketName
 
     static func path(fromPublicURL value: String) -> String? {
-        guard let url = URL(string: value) else { return nil }
-        let components = url.pathComponents.filter { $0 != "/" }
-        guard let bucketIndex = components.firstIndex(of: bucketName),
-              bucketIndex + 1 < components.count else {
-            return nil
-        }
-        return components[(bucketIndex + 1)...]
-            .joined(separator: "/")
-            .removingPercentEncoding
+        VisitPhotoStorageLocation(storedValue: value)?.objectPath
+    }
+
+    static func location(fromStoredValue value: String) -> VisitPhotoStorageLocation? {
+        VisitPhotoStorageLocation(storedValue: value)
     }
 }
 
@@ -28,21 +24,61 @@ final class VisitMediaCleanupStore {
     }
 
     func pendingPaths(userId: UUID) -> [String] {
-        defaults.stringArray(forKey: key(userId)) ?? []
+        pendingLocations(userId: userId).map(\.objectPath)
+    }
+
+    func pendingLocations(userId: UUID) -> [VisitPhotoStorageLocation] {
+        (defaults.stringArray(forKey: key(userId)) ?? [])
+            .compactMap(VisitPhotoStorageLocation.init(cleanupIdentifier:))
     }
 
     func enqueue(_ paths: [String], userId: UUID) {
-        let merged = Set(pendingPaths(userId: userId)).union(paths)
-        defaults.set(merged.sorted(), forKey: key(userId))
+        enqueue(
+            paths.map {
+                VisitPhotoStorageLocation(
+                    bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+                    objectPath: $0
+                )
+            },
+            userId: userId
+        )
+    }
+
+    func enqueue(_ locations: [VisitPhotoStorageLocation], userId: UUID) {
+        let merged = Set(pendingLocations(userId: userId))
+            .union(locations)
+            .map(\.cleanupIdentifier)
+            .sorted()
+        defaults.set(merged, forKey: key(userId))
     }
 
     func remove(_ paths: [String], userId: UUID) {
-        let remaining = Set(pendingPaths(userId: userId)).subtracting(paths)
+        remove(
+            paths.map {
+                VisitPhotoStorageLocation(
+                    bucketName: VisitPhotoStorageReference.legacyPublicBucketName,
+                    objectPath: $0
+                )
+            },
+            userId: userId
+        )
+    }
+
+    func remove(_ locations: [VisitPhotoStorageLocation], userId: UUID) {
+        let remaining = Set(pendingLocations(userId: userId))
+            .subtracting(locations)
         if remaining.isEmpty {
             defaults.removeObject(forKey: key(userId))
         } else {
-            defaults.set(remaining.sorted(), forKey: key(userId))
+            defaults.set(
+                remaining.map(\.cleanupIdentifier).sorted(),
+                forKey: key(userId)
+            )
         }
+    }
+
+    func removeAll(userId: UUID) {
+        defaults.removeObject(forKey: key(userId))
     }
 
     private func key(_ userId: UUID) -> String {
@@ -67,30 +103,30 @@ final class VisitDeletionService {
     func deleteVisit(visitId: UUID, userId: UUID) async throws {
         let photoRows = try await visitService.fetchVisitPhotoRows(visitId: visitId)
         let ownerPrefix = userId.uuidString.lowercased() + "/"
-        let paths = photoRows
-            .compactMap { VisitPhotoObjectPath.path(fromPublicURL: $0.photoURL) }
-            .filter { $0.lowercased().hasPrefix(ownerPrefix) }
+        let locations = photoRows
+            .compactMap { VisitPhotoObjectPath.location(fromStoredValue: $0.photoURL) }
+            .filter { $0.objectPath.lowercased().hasPrefix(ownerPrefix) }
 
         // Delete the journal record first so a cleanup outage can never leave
         // a visible sip pointing at already-deleted media. Storage cleanup is
         // durable and retried separately if it fails.
         try await visitService.deleteVisit(visitId: visitId, userId: userId)
-        guard !paths.isEmpty else { return }
+        guard !locations.isEmpty else { return }
 
         do {
-            try await photoService.deletePhotos(at: paths)
-            cleanupStore.remove(paths, userId: userId)
+            try await photoService.deletePhotos(at: locations)
+            cleanupStore.remove(locations, userId: userId)
         } catch {
-            cleanupStore.enqueue(paths, userId: userId)
+            cleanupStore.enqueue(locations, userId: userId)
         }
     }
 
     func retryPendingMediaCleanup(userId: UUID) async {
-        let paths = cleanupStore.pendingPaths(userId: userId)
-        guard !paths.isEmpty else { return }
+        let locations = cleanupStore.pendingLocations(userId: userId)
+        guard !locations.isEmpty else { return }
         do {
-            try await photoService.deletePhotos(at: paths)
-            cleanupStore.remove(paths, userId: userId)
+            try await photoService.deletePhotos(at: locations)
+            cleanupStore.remove(locations, userId: userId)
         } catch {
             // The queue remains account-scoped for the next launch.
         }

@@ -37,4 +37,4 @@ create policy "View photos based on completed visit visibility"
         )
       )
     )
-  );
+  );;

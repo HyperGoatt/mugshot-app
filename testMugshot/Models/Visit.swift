@@ -17,10 +17,20 @@ enum DrinkType: String, Codable, CaseIterable {
     case other = "Other"
 }
 
-enum VisitVisibility: String, Codable {
+enum VisitVisibility: String, Codable, CaseIterable, Identifiable {
     case `private` = "Private"
     case friends = "Friends"
     case everyone = "Everyone"
+
+    var id: String { rawValue }
+
+    var breadth: Int {
+        switch self {
+        case .private: return 0
+        case .friends: return 1
+        case .everyone: return 2
+        }
+    }
 }
 
 struct Visit: Identifiable {
@@ -32,17 +42,32 @@ struct Visit: Identifiable {
     var customDrinkType: String? // For "Other" option
     var caption: String
     var notes: String? // Private notes (optional)
-    var context: JournalEntryContext
+    var context: JournalEntryContext {
+        didSet {
+            if !context.supportsCafeSession {
+                cafeSessionID = nil
+                cafeSessionSipOrder = nil
+                cafeSessionSipRole = nil
+                sipReorderIntention = nil
+            }
+        }
+    }
     var locationName: String?
     var brewMethod: String?
     var equipment: String?
     var brewDetails: BrewDetails
     var drinkAnalysis: DrinkAnalysis?
+    var sensorySnapshot: SipSensorySnapshot?
     var photos: [String] // Store image names/paths
     var posterPhotoIndex: Int // Index of the photo to use as poster
     var ratings: [String: Double] // Category name -> rating value
     var ratingCriteria: [SipRatingCriterionSnapshot]
-    var overallScore: Double // Weighted average
+    var overallScore: Double // The user's independent personal enjoyment rating
+    var cafeSessionID: UUID?
+    var cafeSessionSipOrder: Int?
+    var cafeSessionSipRole: CafeSessionSipRole?
+    var sipReorderIntention: SipReorderIntention?
+    var v3Reflection: V3VisitReflection?
     var visibility: VisitVisibility
     var likeCount: Int // Renamed from likes
     var likedByUserIds: [UUID] // Track which users liked this visit
@@ -64,11 +89,17 @@ struct Visit: Identifiable {
         equipment: String? = nil,
         brewDetails: BrewDetails = .empty,
         drinkAnalysis: DrinkAnalysis? = nil,
+        sensorySnapshot: SipSensorySnapshot? = nil,
         photos: [String] = [],
         posterPhotoIndex: Int = 0,
         ratings: [String: Double] = [:],
         ratingCriteria: [SipRatingCriterionSnapshot] = [],
         overallScore: Double = 0.0,
+        cafeSessionID: UUID? = nil,
+        cafeSessionSipOrder: Int? = nil,
+        cafeSessionSipRole: CafeSessionSipRole? = nil,
+        sipReorderIntention: SipReorderIntention? = nil,
+        v3Reflection: V3VisitReflection? = nil,
         visibility: VisitVisibility = .everyone,
         likeCount: Int = 0,
         likedByUserIds: [UUID] = [],
@@ -89,11 +120,17 @@ struct Visit: Identifiable {
         self.equipment = equipment
         self.brewDetails = brewDetails
         self.drinkAnalysis = drinkAnalysis
+        self.sensorySnapshot = sensorySnapshot
         self.photos = photos
         self.posterPhotoIndex = posterPhotoIndex
         self.ratings = ratings
         self.ratingCriteria = ratingCriteria
         self.overallScore = overallScore
+        self.cafeSessionID = context.supportsCafeSession ? cafeSessionID : nil
+        self.cafeSessionSipOrder = context.supportsCafeSession ? cafeSessionSipOrder : nil
+        self.cafeSessionSipRole = context.supportsCafeSession ? cafeSessionSipRole : nil
+        self.sipReorderIntention = context.supportsCafeSession ? sipReorderIntention : nil
+        self.v3Reflection = v3Reflection
         self.visibility = visibility
         self.likeCount = likeCount
         self.likedByUserIds = likedByUserIds
@@ -143,8 +180,10 @@ struct Visit: Identifiable {
 extension Visit: Codable {
     enum CodingKeys: String, CodingKey {
         case id, cafeId, userId, drinkType, customDrinkType, caption, notes, photos
-        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis
+        case context, locationName, brewMethod, equipment, brewDetails, drinkAnalysis, sensorySnapshot
         case posterPhotoIndex, ratings, ratingCriteria, overallScore, visibility, comments, mentions
+        case cafeSessionID, cafeSessionSipOrder, cafeSessionSipRole, sipReorderIntention
+        case v3Reflection
         case createdAt, date // Support both for backward compatibility
         case likeCount, likes // Support both for backward compatibility
         case likedByUserIds
@@ -175,11 +214,30 @@ extension Visit: Codable {
         equipment = try container.decodeIfPresent(String.self, forKey: .equipment)
         brewDetails = try container.decodeIfPresent(BrewDetails.self, forKey: .brewDetails) ?? .empty
         drinkAnalysis = try container.decodeIfPresent(DrinkAnalysis.self, forKey: .drinkAnalysis)
+        sensorySnapshot = try container.decodeIfPresent(SipSensorySnapshot.self, forKey: .sensorySnapshot)
         photos = try container.decode([String].self, forKey: .photos)
         posterPhotoIndex = try container.decode(Int.self, forKey: .posterPhotoIndex)
         ratings = try container.decode([String: Double].self, forKey: .ratings)
         ratingCriteria = try container.decodeIfPresent([SipRatingCriterionSnapshot].self, forKey: .ratingCriteria) ?? []
         overallScore = try container.decode(Double.self, forKey: .overallScore)
+        if context.supportsCafeSession {
+            cafeSessionID = try container.decodeIfPresent(UUID.self, forKey: .cafeSessionID)
+            cafeSessionSipOrder = try container.decodeIfPresent(Int.self, forKey: .cafeSessionSipOrder)
+            cafeSessionSipRole = try container.decodeIfPresent(
+                CafeSessionSipRole.self,
+                forKey: .cafeSessionSipRole
+            )
+            sipReorderIntention = try container.decodeIfPresent(
+                SipReorderIntention.self,
+                forKey: .sipReorderIntention
+            )
+        } else {
+            cafeSessionID = nil
+            cafeSessionSipOrder = nil
+            cafeSessionSipRole = nil
+            sipReorderIntention = nil
+        }
+        v3Reflection = try container.decodeIfPresent(V3VisitReflection.self, forKey: .v3Reflection)
         visibility = try container.decode(VisitVisibility.self, forKey: .visibility)
         
         // Support both likeCount and likes for backward compatibility
@@ -212,11 +270,17 @@ extension Visit: Codable {
         try container.encodeIfPresent(equipment, forKey: .equipment)
         try container.encode(brewDetails, forKey: .brewDetails)
         try container.encodeIfPresent(drinkAnalysis, forKey: .drinkAnalysis)
+        try container.encodeIfPresent(sensorySnapshot, forKey: .sensorySnapshot)
         try container.encode(photos, forKey: .photos)
         try container.encode(posterPhotoIndex, forKey: .posterPhotoIndex)
         try container.encode(ratings, forKey: .ratings)
         try container.encode(ratingCriteria, forKey: .ratingCriteria)
         try container.encode(overallScore, forKey: .overallScore)
+        try container.encodeIfPresent(cafeSessionID, forKey: .cafeSessionID)
+        try container.encodeIfPresent(cafeSessionSipOrder, forKey: .cafeSessionSipOrder)
+        try container.encodeIfPresent(cafeSessionSipRole, forKey: .cafeSessionSipRole)
+        try container.encodeIfPresent(sipReorderIntention, forKey: .sipReorderIntention)
+        try container.encodeIfPresent(v3Reflection, forKey: .v3Reflection)
         try container.encode(visibility, forKey: .visibility)
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(likedByUserIds, forKey: .likedByUserIds)

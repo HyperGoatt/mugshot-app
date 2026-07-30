@@ -4,3 +4,11 @@
 
 MUGSHOT_SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
 MUGSHOT_SUPABASE_PUBLISHABLE_KEY = sb_publishable_REPLACE_ME
+
+// Share Hub provider and public-link configuration. These identifiers are
+// intentionally non-secret, but production flags should remain off until the
+// corresponding provider approval and public routes are ready.
+MUGSHOT_PUBLIC_BASE_URL = https:/$()/mugshotapp.co
+MUGSHOT_APP_STORE_URL = https:/$()/apps.apple.com/app/idREPLACE_ME
+MUGSHOT_META_APP_ID = REPLACE_ME
+MUGSHOT_SNAPCHAT_CLIENT_ID = REPLACE_ME
