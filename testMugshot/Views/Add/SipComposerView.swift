@@ -58,6 +58,12 @@ struct LogVisitView: View {
     @State private var remoteCafeSessionsAvailable = false
     @State private var cafeLearningSignals: [CafePreferenceSignal] = []
     @State private var v3Step: SipV3ComposerStep
+    @State private var analyticsStartedAt = Date()
+    @State private var analyticsIsDraftResume: Bool
+    @State private var analyticsDidCaptureOpen = false
+    @State private var analyticsDidCaptureRecovery = false
+    @State private var analyticsDidCaptureDeduplication = false
+    @State private var analyticsPublishWasRecovery = false
 
     @StateObject private var searchService = MapSearchService()
     @StateObject private var locationManager = LocationManager()
@@ -98,6 +104,18 @@ struct LogVisitView: View {
             authModel.authenticatedUser?.id
                 ?? dataManager.appData.currentUser?.id
         )
+    }
+
+    private var analyticsSnapshot: MugshotSipAnalyticsSnapshot {
+        MugshotSipAnalyticsSnapshot(
+            draft: draft,
+            photoCount: photoImages.count,
+            isDraftResume: analyticsIsDraftResume
+        )
+    }
+
+    private var analyticsDurationSeconds: Int {
+        Int(Date().timeIntervalSince(analyticsStartedAt).rounded())
     }
 
     private var tastingLensHistory: [SipSensorySnapshot] {
@@ -163,6 +181,7 @@ struct LogVisitView: View {
         _photoImages = State(initialValue: restoredImages)
         _showPhotoSourceDialog = State(initialValue: initialDraft?.launchContext.source == .camera)
         _v3Step = State(initialValue: initialDraft?.v3Step ?? .setup)
+        _analyticsIsDraftResume = State(initialValue: initialDraft != nil)
         _composerModel = StateObject(wrappedValue: SipComposerModel(
             draft: initialDraft ?? Self.initialDraft(
                 dataManager: dataManager,
@@ -363,6 +382,7 @@ struct LogVisitView: View {
             .onAppear {
                 activateLocalState()
                 restoreDraftIfNeeded()
+                captureComposerOpenedIfNeeded()
             }
             .task(id: authModel.authenticatedUser?.id) {
                 await refreshCafeSessionsCapability()
@@ -379,6 +399,9 @@ struct LogVisitView: View {
                 guard oldContext != newContext, !suppressContextDefaults else { return }
                 draft.applyContextDefaults(using: .shared)
                 confirmedTextOnlyEveryone = false
+                MugshotAnalytics.shared.capture(
+                    .sipContextSelected(analyticsSnapshot)
+                )
             }
             .onChange(of: draft.visibility) { _, _ in
                 confirmedTextOnlyEveryone = false
@@ -393,6 +416,9 @@ struct LogVisitView: View {
             }
             .onChange(of: v3Step) { _, step in
                 if draft.v3Step != step { draft.v3Step = step }
+                MugshotAnalytics.shared.capture(
+                    .sipStepViewed(analyticsSnapshot)
+                )
             }
             .onChange(of: draft.ratingCriteria) { _, criteria in
                 PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedSipScope)
@@ -465,6 +491,7 @@ struct LogVisitView: View {
             onUseLastContextSetup: useLastContextCriteriaSetup,
             onPublish: saveSip,
             onViewPublishedMugshot: viewPublishedMugshot,
+            onViewPassport: viewPassportAfterCompletion,
             onFinish: finishSuccessfulSave,
             onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
         )
@@ -1939,6 +1966,7 @@ struct LogVisitView: View {
         if explicitLaunchDraft == nil,
            let stored = SipDraftStore.shared.load(in: localAccountScope),
            shouldResume(stored.draft) {
+            analyticsIsDraftResume = true
             suppressContextDefaults = true
             draft = stored.draft
             photoImages = stored.images
@@ -2020,6 +2048,7 @@ struct LogVisitView: View {
         ) else {
             return false
         }
+        analyticsIsDraftResume = true
         if record.isRemote,
            let recordOwnerUserID = record.ownerUserID,
            let pending = PendingVisitSubmissionStore.shared.load(
@@ -2069,6 +2098,9 @@ struct LogVisitView: View {
             )]
         v3CompletionSummary = makeV3PassportSummary(
             from: stored.draft,
+            visitID: record.visitID,
+            isRemote: record.isRemote,
+            photoImages: stored.images,
             coverImage: coverImage,
             knownMemoryCount: record.isRemote
                 ? nil
@@ -2460,6 +2492,7 @@ struct LogVisitView: View {
         _ pending: PendingVisitSubmissionRecord,
         fallbackImages: [UIImage]? = nil
     ) {
+        analyticsIsDraftResume = true
         if draft.ownerUserID == nil {
             draft.ownerUserID = pending.userId
         }
@@ -2474,6 +2507,12 @@ struct LogVisitView: View {
             photoImages = fallbackImages
         }
         uploadRecoveryMessage = "An earlier save was interrupted. Retry continues the same sip without making a duplicate."
+        if !analyticsDidCaptureRecovery {
+            analyticsDidCaptureRecovery = true
+            MugshotAnalytics.shared.capture(
+                .sipRecoveryResumed(analyticsSnapshot)
+            )
+        }
     }
 
     @MainActor
@@ -2760,7 +2799,34 @@ struct LogVisitView: View {
         }
     }
 
+    private func captureComposerOpenedIfNeeded() {
+        guard !analyticsDidCaptureOpen, !showSavedConfirmation else { return }
+        analyticsDidCaptureOpen = true
+        MugshotAnalytics.shared.capture(
+            .sipComposerOpened(analyticsSnapshot)
+        )
+        MugshotAnalytics.shared.capture(
+            .sipStepViewed(analyticsSnapshot)
+        )
+    }
+
+    private func capturePublicationDeduplicationIfNeeded() {
+        guard !analyticsDidCaptureDeduplication else { return }
+        analyticsDidCaptureDeduplication = true
+        MugshotAnalytics.shared.capture(
+            .sipPublicationDeduplicated(analyticsSnapshot)
+        )
+    }
+
     private func cancelComposer() {
+        if draft.hasDraftWorthyUserContent || !photoImages.isEmpty {
+            MugshotAnalytics.shared.capture(
+                .sipDraftSaved(
+                    analyticsSnapshot,
+                    durationSeconds: analyticsDurationSeconds
+                )
+            )
+        }
         persistDraft()
         tabCoordinator.returnFromComposer()
         dismiss()
@@ -2768,6 +2834,15 @@ struct LogVisitView: View {
 
     private func saveSip() {
         guard !isSaving else { return }
+        analyticsPublishWasRecovery = pendingSubmission != nil
+            || conflictingPendingSubmission != nil
+            || draft.uploadState == .failed
+        MugshotAnalytics.shared.capture(
+            .sipPublishAttempted(
+                analyticsSnapshot,
+                isRecovery: analyticsPublishWasRecovery
+            )
+        )
         synchronizeV3CafeExperience()
         if shouldOfferCafePulse {
             ensureCafeSessionDraft()
@@ -2782,11 +2857,23 @@ struct LogVisitView: View {
                 draftID: draft.id,
                 visitID: conflictingPendingSubmission?.id
             )
+            MugshotAnalytics.shared.capture(
+                .sipPublishBlocked(
+                    analyticsSnapshot,
+                    reason: .pendingConflict
+                )
+            )
             return
         }
         errorMessage = validationMessage
         guard errorMessage == nil else {
             SipSaveDiagnostics.record(.validationBlocked, draftID: draft.id, visitID: pendingSubmission?.id)
+            MugshotAnalytics.shared.capture(
+                .sipPublishBlocked(
+                    analyticsSnapshot,
+                    reason: analyticsBlockReason(for: errorMessage)
+                )
+            )
             return
         }
 
@@ -2797,6 +2884,12 @@ struct LogVisitView: View {
             confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
         ) == .needsTextOnlyConfirmation {
             SipSaveDiagnostics.record(.awaitingTextOnlyConfirmation, draftID: draft.id, visitID: pendingSubmission?.id)
+            MugshotAnalytics.shared.capture(
+                .sipPublishBlocked(
+                    analyticsSnapshot,
+                    reason: .textOnlyConfirmation
+                )
+            )
             showTextOnlyConfirmation = true
             return
         }
@@ -2805,6 +2898,13 @@ struct LogVisitView: View {
         if MugshotLaunchEnvironment.consumeAuthenticationInterruption() {
             persistDraft()
             errorMessage = "Sign back in to save. Your draft will stay here."
+            MugshotAnalytics.shared.capture(
+                .sipPublishFailed(
+                    analyticsSnapshot,
+                    errorCode: .authentication,
+                    recoveryState: .localDraft
+                )
+            )
             return
         }
         if MugshotLaunchEnvironment.consumeForcedSaveFailure() {
@@ -2812,6 +2912,13 @@ struct LogVisitView: View {
             persistDraft()
             uploadRecoveryMessage = "The network interrupted this save. Retry continues the same sip and photos."
             errorMessage = "We couldn’t finish this save. Your sip is safe—try again."
+            MugshotAnalytics.shared.capture(
+                .sipPublishFailed(
+                    analyticsSnapshot,
+                    errorCode: .network,
+                    recoveryState: .localDraft
+                )
+            )
             return
         }
 #endif
@@ -2909,6 +3016,47 @@ struct LogVisitView: View {
         return nil
     }
 
+    private func analyticsBlockReason(
+        for message: String?
+    ) -> MugshotSipPublishBlockReason {
+        guard let message else { return .unknown }
+        if message.hasPrefix("This draft belongs") { return .accountMismatch }
+        if message.hasPrefix("Choose a cafe") { return .cafeRequired }
+        if message.hasPrefix("Name this setting")
+            || message.hasPrefix("Name this home") {
+            return .contextNameRequired
+        }
+        if message.hasPrefix("Add the drink") { return .drinkNameRequired }
+        if message.hasPrefix("Add a photo") { return .visualRequired }
+        if message.hasPrefix("Write the caption") { return .captionRequired }
+        if message.hasPrefix("Keep the caption") { return .captionTooLong }
+        if message.hasPrefix("Keep your sip journal") { return .privateNoteTooLong }
+        if message.hasPrefix("Keep your context journal") { return .contextNoteTooLong }
+        if message.hasPrefix("Finish or switch from Tasting Lens") {
+            return .tastingLensIncomplete
+        }
+        if message.hasPrefix("Add your personal") { return .sipScoreRequired }
+        if message.hasPrefix("Add your cafe score") { return .contextScoreRequired }
+        if message.hasPrefix("This adapted recipe needs") {
+            return .recipeSourceRequired
+        }
+        if message.contains("recipe")
+            || message.contains("instructions with Everyone") {
+            return .recipeAudienceBlocked
+        }
+        if message.hasPrefix("Choose Friends or Everyone") {
+            return .sharedAudienceRequired
+        }
+        if message.hasPrefix("Invite people from the primary") {
+            return .sharedPrimaryRequired
+        }
+        if message.hasPrefix("Add a one-line thought") {
+            return .publicContentRequired
+        }
+        if message.hasPrefix("Sign back in") { return .authenticationRequired }
+        return .unknown
+    }
+
     private var publicationVisualCount: Int {
         if !photoImages.isEmpty { return photoImages.count }
         return draft.photoFallback == nil ? 0 : 1
@@ -2977,6 +3125,13 @@ struct LogVisitView: View {
                 context: .sipSave
             )
             SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: draft.id)
+            MugshotAnalytics.shared.capture(
+                .sipPublishFailed(
+                    analyticsSnapshot,
+                    errorCode: MugshotAnalyticsErrorCode(error: error),
+                    recoveryState: .localDraft
+                )
+            )
         }
     }
 
@@ -3001,6 +3156,7 @@ struct LogVisitView: View {
                 userId: authenticatedUser.id
             ) {
                 if storedPending.isRemoteFinalized {
+                    capturePublicationDeduplicationIfNeeded()
                     guard SipRemoteRecoveryPlanner.action(
                         for: storedPending,
                         authenticatedUserID: authenticatedUser.id
@@ -3075,6 +3231,7 @@ struct LogVisitView: View {
                     userId: submission.userId
                 )
                 if remoteState == .complete {
+                    capturePublicationDeduplicationIfNeeded()
                     canonicalPublicationCommitted = true
                     submission.remoteFinalizedAt = .now
                     self.pendingSubmission = submission
@@ -3368,6 +3525,22 @@ struct LogVisitView: View {
         } catch {
             isSaving = false
             SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: pendingSubmission?.id)
+            let analyticsRecoveryState: MugshotSipRecoveryState
+            if canonicalPublicationCommitted
+                || pendingSubmission?.isRemotePublicationProtected == true {
+                analyticsRecoveryState = .publicationProtected
+            } else if pendingSubmission != nil {
+                analyticsRecoveryState = .protectedRetry
+            } else {
+                analyticsRecoveryState = .localDraft
+            }
+            MugshotAnalytics.shared.capture(
+                .sipPublishFailed(
+                    analyticsSnapshot,
+                    errorCode: MugshotAnalyticsErrorCode(error: error),
+                    recoveryState: analyticsRecoveryState
+                )
+            )
             if canonicalPublicationCommitted
                 || pendingSubmission?.isRemotePublicationProtected == true {
                 let publicationWasRecorded = pendingSubmission?.isRemoteFinalized == true
@@ -3560,6 +3733,14 @@ struct LogVisitView: View {
         knownRemoteMemoryCount: Int? = nil
     ) throws {
         SipSaveDiagnostics.record(.completed, draftID: draft.id, visitID: visitID)
+        MugshotAnalytics.shared.capture(
+            .sipPublished(
+                analyticsSnapshot,
+                durationSeconds: analyticsDurationSeconds,
+                isRemote: remoteVisit != nil,
+                wasRecovery: analyticsPublishWasRecovery
+            )
+        )
         let completedDraft = draft
         let selectedCoverImage = photoImages.isEmpty
             ? nil
@@ -3607,6 +3788,9 @@ struct LogVisitView: View {
         completionSummary = completedSummary
         v3CompletionSummary = makeV3PassportSummary(
             from: completedDraft,
+            visitID: visitID,
+            isRemote: remoteVisit != nil,
+            photoImages: photoImages,
             coverImage: selectedCoverImage,
             knownMemoryCount: localVisit != nil
                 ? knownLocalMemoryCount(for: completedDraft)
@@ -3696,7 +3880,14 @@ struct LogVisitView: View {
         confirmedTextOnlyEveryone = false
         showSavedConfirmation = false
         v3Step = .setup
+        analyticsStartedAt = .now
+        analyticsIsDraftResume = false
+        analyticsDidCaptureOpen = false
+        analyticsDidCaptureRecovery = false
+        analyticsDidCaptureDeduplication = false
+        analyticsPublishWasRecovery = false
         persistDraft()
+        captureComposerOpenedIfNeeded()
         let ownerUserID = configuredDraft.ownerUserID
             ?? authModel.authenticatedUser?.id
             ?? dataManager.appData.currentUser?.id
@@ -3724,6 +3915,11 @@ struct LogVisitView: View {
         CafeSessionContinuationStore.shared.remove(ownerUserID: ownerUserID)
         tabCoordinator.selectedTab = 4
         dismiss()
+    }
+
+    private func viewPassportAfterCompletion() {
+        JournalPassportRouter.shared.requestPassport()
+        finishSuccessfulSave()
     }
 
     private func clearPublishedCompletionHandoff(ownerUserID explicitOwnerUserID: UUID? = nil) {
@@ -3807,6 +4003,9 @@ struct LogVisitView: View {
                     )]
                 v3CompletionSummary = makeV3PassportSummary(
                     from: stored.draft,
+                    visitID: record.visitID,
+                    isRemote: record.isRemote,
+                    photoImages: stored.images,
                     coverImage: coverImage,
                     knownMemoryCount: memoryCount
                 )
@@ -3850,6 +4049,9 @@ struct LogVisitView: View {
 
     private func makeV3PassportSummary(
         from completedDraft: SipDraft,
+        visitID: UUID,
+        isRemote: Bool,
+        photoImages: [UIImage],
         coverImage: UIImage?,
         knownMemoryCount: Int?
     ) -> LogASipV3PassportSummary {
@@ -3920,6 +4122,10 @@ struct LogVisitView: View {
             : "\(criteria.prefix(2).joined(separator: " and ")) shaped this memory. Mugshot will wait for repetition before turning that into a taste pattern."
 
         return LogASipV3PassportSummary(
+            visitID: visitID,
+            visibility: completedDraft.visibility,
+            isOwner: true,
+            isRemote: isRemote,
             displayName: dataManager.appData.currentUser?.displayNameOrUsername ?? "You",
             drinkName: completedDraft.drinkName,
             contextName: contextName,
@@ -3932,6 +4138,8 @@ struct LogVisitView: View {
             memoryCount: knownMemoryCount ?? 0,
             criteria: Array(criteria.prefix(8)),
             evidence: evidence,
+            publicCaption: completedDraft.socialCaption.remoteTrimmedNonEmpty,
+            photoImages: photoImages,
             coverImage: coverImage
         )
     }

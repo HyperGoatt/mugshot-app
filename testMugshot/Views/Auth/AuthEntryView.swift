@@ -165,6 +165,12 @@ struct AuthEntryView: View {
                             SecureField("Password", text: $password)
                                 .textContentType(isCreatingAccount ? .newPassword : .password)
                                 .authFieldStyle()
+
+                            if isCreatingAccount {
+                                Text("Use at least eight characters.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.tertiaryText)
+                            }
                         }
                         
                         if let message {
@@ -245,7 +251,10 @@ struct AuthEntryView: View {
     }
     
     private var canSubmit: Bool {
-        email.contains("@") && password.count >= 6
+        let acceptsPassword = isCreatingAccount
+            ? MugshotPasswordPolicy.acceptsNewPassword(password)
+            : MugshotPasswordPolicy.acceptsExistingPassword(password)
+        return email.contains("@") && acceptsPassword
     }
 
     private var canSendEmailAction: Bool {
@@ -383,7 +392,8 @@ struct PasswordRecoveryView: View {
     }
 
     private var canSubmit: Bool {
-        password.count >= 6 && password == confirmation
+        MugshotPasswordPolicy.acceptsNewPassword(password)
+            && password == confirmation
     }
 
     var body: some View {
@@ -401,7 +411,7 @@ struct PasswordRecoveryView: View {
 
                     MugshotSectionTitle(
                         title: "Choose a new password",
-                        subtitle: "Use at least six characters. This change applies to your Mugshot email sign-in."
+                        subtitle: "Use at least eight characters. This change applies to your Mugshot email sign-in."
                     )
 
                     VStack(alignment: .leading, spacing: 8) {

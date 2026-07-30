@@ -12,6 +12,29 @@ enum MugshotAuthProvider: String, CaseIterable, Hashable {
     case google
 }
 
+enum MugshotPasswordPolicy {
+    static let minimumExistingPasswordLength = 6
+    static let minimumNewPasswordLength = 8
+
+    static func acceptsExistingPassword(_ password: String) -> Bool {
+        password.count >= minimumExistingPasswordLength
+    }
+
+    static func acceptsNewPassword(_ password: String) -> Bool {
+        password.count >= minimumNewPasswordLength
+    }
+}
+
+enum MugshotAuthInput {
+    static func normalizedEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
+enum MugshotAuthValidationError: Error, Equatable {
+    case weakNewPassword
+}
+
 struct AuthenticatedUser: Equatable {
     let id: UUID
     let email: String?
@@ -93,7 +116,7 @@ final class AuthService {
     
     func signIn(email: String, password: String) async throws -> AuthenticatedUser {
         let session = try await client.auth.signIn(
-            email: email.normalizedAuthEmail,
+            email: MugshotAuthInput.normalizedEmail(email),
             password: password
         )
         return authenticatedUser(from: session.user)
@@ -110,8 +133,12 @@ final class AuthService {
     }
     
     func signUp(email: String, password: String) async throws -> SignUpResult {
+        guard MugshotPasswordPolicy.acceptsNewPassword(password) else {
+            throw MugshotAuthValidationError.weakNewPassword
+        }
+
         let response = try await client.auth.signUp(
-            email: email.normalizedAuthEmail,
+            email: MugshotAuthInput.normalizedEmail(email),
             password: password,
             redirectTo: Self.callbackURL
         )
@@ -183,14 +210,14 @@ final class AuthService {
 
     func requestPasswordReset(email: String) async throws {
         try await client.auth.resetPasswordForEmail(
-            email,
+            MugshotAuthInput.normalizedEmail(email),
             redirectTo: Self.passwordRecoveryURL
         )
     }
 
     func resendSignupConfirmation(email: String) async throws {
         try await client.auth.resend(
-            email: email,
+            email: MugshotAuthInput.normalizedEmail(email),
             type: .signup,
             emailRedirectTo: Self.callbackURL
         )
@@ -202,6 +229,9 @@ final class AuthService {
     }
 
     func updatePassword(_ password: String) async throws {
+        guard MugshotPasswordPolicy.acceptsNewPassword(password) else {
+            throw MugshotAuthValidationError.weakNewPassword
+        }
         try await client.auth.update(user: UserAttributes(password: password))
     }
     
@@ -240,10 +270,6 @@ final class AuthService {
 }
 
 private extension String {
-    var normalizedAuthEmail: String {
-        trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
     var trimmedAuthValue: String? {
         let value = trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value

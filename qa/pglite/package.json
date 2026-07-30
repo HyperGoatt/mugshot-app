@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node check-activity-registration.mjs && node check-activity-leases.mjs && node check-collaborative.mjs && node check-collaborative-activity-lifecycle.mjs && node check-account-v3.mjs"
+    "test": "node check-activity-registration.mjs && node check-activity-leases.mjs && node check-collaborative.mjs && node check-collaborative-activity-lifecycle.mjs && node check-account-v3.mjs && node check-mugshot-share-links.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.3.14",

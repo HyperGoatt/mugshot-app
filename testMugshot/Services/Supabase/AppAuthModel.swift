@@ -143,10 +143,23 @@ final class AppAuthModel: ObservableObject {
                     dataManager: dataManager,
                     operationID: operationID
                 )
+                MugshotAnalytics.shared.capture(
+                    .authenticationCompleted(
+                        flow: .sessionRestore,
+                        method: .persistedSession
+                    )
+                )
             }
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
+            MugshotAnalytics.shared.capture(
+                .authenticationFailed(
+                    flow: .sessionRestore,
+                    method: .persistedSession,
+                    errorCode: MugshotAnalyticsErrorCode(error: error)
+                )
+            )
             guard authenticationEpoch.isCurrent(operationID) else { return }
             if let preservedUser = TransientSessionAccountResolver.accountToPreserve(
                 cachedUser: authService.cachedAuthenticatedUser,
@@ -181,9 +194,19 @@ final class AppAuthModel: ObservableObject {
                     password: password
                 )
             }
+            MugshotAnalytics.shared.capture(
+                .authenticationCompleted(flow: .signIn, method: .email)
+            )
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
+            MugshotAnalytics.shared.capture(
+                .authenticationFailed(
+                    flow: .signIn,
+                    method: .email,
+                    errorCode: MugshotAnalyticsErrorCode(error: error)
+                )
+            )
             guard authenticationEpoch.isCurrent(operationID) else { return }
             clearAuthenticatedAccountState(dataManager: dataManager)
             status = .failed(safeMessage(for: error))
@@ -218,6 +241,9 @@ final class AppAuthModel: ObservableObject {
                         clearAuthenticatedAccountState(dataManager: dataManager)
                         status = .signedOut(message: "Account created. Check your email to confirm, then sign in.")
                     }
+                    MugshotAnalytics.shared.capture(
+                        .authenticationCompleted(flow: .signUp, method: .email)
+                    )
                 } catch {
                     try await removeUnexpectedAuthenticationSession(
                         operationID: operationID,
@@ -229,6 +255,13 @@ final class AppAuthModel: ObservableObject {
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
+            MugshotAnalytics.shared.capture(
+                .authenticationFailed(
+                    flow: .signUp,
+                    method: .email,
+                    errorCode: MugshotAnalyticsErrorCode(error: error)
+                )
+            )
             guard authenticationEpoch.isCurrent(operationID) else { return }
             clearAuthenticatedAccountState(dataManager: dataManager)
             status = .failed(safeMessage(for: error))
@@ -257,9 +290,19 @@ final class AppAuthModel: ObservableObject {
                     preferredDisplayName: preferredDisplayName
                 )
             }
+            MugshotAnalytics.shared.capture(
+                .authenticationCompleted(flow: .signIn, method: .apple)
+            )
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
+            MugshotAnalytics.shared.capture(
+                .authenticationFailed(
+                    flow: .signIn,
+                    method: .apple,
+                    errorCode: MugshotAnalyticsErrorCode(error: error)
+                )
+            )
             guard authenticationEpoch.isCurrent(operationID) else { return }
             clearAuthenticatedAccountState(dataManager: dataManager)
             status = .failed(safeMessage(for: error))
@@ -279,9 +322,19 @@ final class AppAuthModel: ObservableObject {
             ) {
                 try await authService.signInWithGoogle()
             }
+            MugshotAnalytics.shared.capture(
+                .authenticationCompleted(flow: .signIn, method: .google)
+            )
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
+            MugshotAnalytics.shared.capture(
+                .authenticationFailed(
+                    flow: .signIn,
+                    method: .google,
+                    errorCode: MugshotAnalyticsErrorCode(error: error)
+                )
+            )
             guard authenticationEpoch.isCurrent(operationID) else { return }
             clearAuthenticatedAccountState(dataManager: dataManager)
             status = isCanceledWebAuthentication(error)
@@ -579,6 +632,9 @@ final class AppAuthModel: ObservableObject {
             status = .signedOut(message: usedLocalFallback
                 ? "Signed out on this device. Mugshot couldn’t confirm the server sign-out while offline."
                 : nil)
+            MugshotAnalytics.shared.capture(
+                .accountSignedOut(usedLocalFallback: usedLocalFallback)
+            )
         } catch AppAuthenticationOperationError.superseded {
             return
         } catch {
@@ -1170,6 +1226,10 @@ final class AppAuthModel: ObservableObject {
     private func safeMessage(for error: Error) -> String {
         if isCanceledWebAuthentication(error) {
             return "Sign-in was canceled. Nothing changed."
+        }
+
+        if error as? MugshotAuthValidationError == .weakNewPassword {
+            return "Use at least eight characters for your new password."
         }
 
         if let authError = error as? AuthError {

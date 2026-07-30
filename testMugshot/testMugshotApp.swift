@@ -14,6 +14,13 @@ struct testMugshotApp: App {
     @StateObject private var dataManager: DataManager
     
     init() {
+#if DEBUG
+        if !MugshotLaunchEnvironment.isUITesting {
+            MugshotAnalytics.shared.configure()
+        }
+#else
+        MugshotAnalytics.shared.configure()
+#endif
         PerformanceMonitor.mark("App init")
         let manager = DataManager.shared
 #if DEBUG

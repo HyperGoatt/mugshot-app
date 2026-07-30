@@ -13,18 +13,21 @@ struct MugshotRootView: View {
     
     var body: some View {
         Group {
+#if DEBUG
+            if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
+                SipDetailPreviewHost(presentation: .previewOwner)
+            } else if MugshotLaunchEnvironment.isUITesting {
+                MainTabView(dataManager: dataManager)
+            } else {
+                authenticatedRoot
+            }
+#else
             if MugshotLaunchEnvironment.isUITesting {
                 MainTabView(dataManager: dataManager)
             } else {
-                switch authModel.status {
-                case .checking:
-                    AuthLoadingView()
-                case .configurationRequired(let message):
-                    SupabaseConfigurationRequiredView(message: message)
-                case .working, .signedOut, .sessionUnavailable, .failed, .signedIn:
-                    MainTabView(dataManager: dataManager)
-                }
+                authenticatedRoot
             }
+#endif
         }
         .environmentObject(authModel)
         .preferredColorScheme(.light)
@@ -47,6 +50,26 @@ struct MugshotRootView: View {
             Task {
                 await processPendingAuthCallbacks()
             }
+        }
+        .onChange(of: authModel.authenticatedUser?.id) { previousUserID, userID in
+            if previousUserID != nil, previousUserID != userID {
+                MugshotAnalytics.shared.reset()
+            }
+            if let userID {
+                MugshotAnalytics.shared.identify(userID: userID)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedRoot: some View {
+        switch authModel.status {
+        case .checking:
+            AuthLoadingView()
+        case .configurationRequired(let message):
+            SupabaseConfigurationRequiredView(message: message)
+        case .working, .signedOut, .sessionUnavailable, .failed, .signedIn:
+            MainTabView(dataManager: dataManager)
         }
     }
 

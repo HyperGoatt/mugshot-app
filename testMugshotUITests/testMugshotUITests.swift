@@ -6,6 +6,41 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testEditorialPourDisclosuresAndSafeVisitContext() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-sip-detail-design-qa"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.scrollViews["sip.detail.screen"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Oops, missed the photo"].exists)
+
+        let scrollView = app.scrollViews["sip.detail.screen"]
+        scrollView.swipeUp()
+
+        let taste = app.buttons["sip.detail.taste.toggle"]
+        XCTAssertTrue(taste.waitForExistence(timeout: 3))
+        XCTAssertEqual(taste.value as? String, "Collapsed")
+        taste.tap()
+        XCTAssertEqual(taste.value as? String, "Expanded")
+        taste.tap()
+
+        let journal = app.buttons["sip.detail.journal.toggle"]
+        tapAfterRevealing(journal, in: app)
+        XCTAssertEqual(journal.value as? String, "Expanded")
+        XCTAssertTrue(app.staticTexts["Friends can read this note"].exists)
+
+        let visitContext = app.buttons["sip.detail.visitContext.toggle"]
+        tapAfterRevealing(visitContext, in: app)
+        XCTAssertEqual(visitContext.value as? String, "Expanded")
+        XCTAssertTrue(app.staticTexts["Nook Tiny Cafe & Market"].exists)
+        XCTAssertFalse(app.staticTexts["11 Cannon St"].exists)
+    }
+
+    @MainActor
     func testSignedOutShellKeepsMapAndSavedOpenAndGatesJournalActions() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out"]
@@ -230,15 +265,15 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Open sip"].tap()
 
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Taste snapshot"].exists)
+        let tasteEvidence = app.buttons["sip.detail.taste.toggle"]
+        XCTAssertTrue(tasteEvidence.exists)
         XCTAssertFalse(app.staticTexts["Presentation"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Citrus, tea-like, silky")).firstMatch.exists)
-        XCTAssertTrue(app.buttons["View sensory trail"].exists)
 
-        app.buttons["View sensory trail"].tap()
+        tasteEvidence.tap()
 
         XCTAssertTrue(app.staticTexts["Not sure yet"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Hide details"].exists)
+        XCTAssertEqual(tasteEvidence.value as? String, "Expanded")
     }
 
     @MainActor
@@ -263,8 +298,10 @@ final class testMugshotUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.scrollViews["sip.detail.screen"].exists)
-        XCTAssertTrue(app.staticTexts["Taste snapshot"].exists)
-        XCTAssertTrue(app.staticTexts["Visit details"].exists)
+        XCTAssertTrue(app.buttons["sip.detail.taste.toggle"].exists)
+        let visitContext = app.buttons["sip.detail.visitContext.toggle"]
+        XCTAssertTrue(visitContext.exists)
+        XCTAssertEqual(visitContext.value as? String, "Collapsed")
         XCTAssertFalse(app.buttons["mugshot.tab.feed"].exists, "The app dock should yield to sip detail.")
         XCTAssertTrue(app.buttons["Sip actions"].exists)
 

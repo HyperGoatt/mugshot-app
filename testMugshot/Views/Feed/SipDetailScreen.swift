@@ -24,11 +24,13 @@ enum SipDetailPresentationMode: Equatable {
 enum SipDetailPhotoSource: Identifiable, Equatable {
     case local(String)
     case remote(String)
+    case asset(String)
 
     var id: String {
         switch self {
         case .local(let path): "local-\(path)"
         case .remote(let url): "remote-\(url)"
+        case .asset(let name): "asset-\(name)"
         }
     }
 }
@@ -37,6 +39,8 @@ struct SipDetailPhotoViewerPresentation: Identifiable, Equatable {
     let id = UUID()
     let photos: [SipDetailPhotoSource]
     let initialIndex: Int
+    let drinkName: String
+    let locationName: String
 
     static func == (lhs: SipDetailPhotoViewerPresentation, rhs: SipDetailPhotoViewerPresentation) -> Bool {
         lhs.id == rhs.id
@@ -376,8 +380,10 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let locationSystemImage: String
     /// The whole-memory score shown on the post.
     let score: Double
-    /// The independent drink score used inside Taste snapshot.
+    /// The independent drink score used inside taste evidence.
     let sipScore: Double
+    /// The optional Cafe, Home, or Elsewhere context score supporting the Mugshot score.
+    let contextScore: Double?
     let caption: String?
     let sharedRawNote: String?
     let privateNote: String?
@@ -469,6 +475,7 @@ enum SipDetailPresentationAdapter {
             locationSystemImage: visit.journalContext.systemImage,
             score: displayedScore,
             sipScore: detail.v3Reflection?.sipScore ?? visit.overallScore,
+            contextScore: detail.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
             privateNote: isOwner && detail.v3Reflection == nil
@@ -528,6 +535,10 @@ enum SipDetailPresentationAdapter {
             isCafeSaved: isCafeSaved,
             replyingToUsername: replyingToUsername,
             sharePayload: SipShareCardPayload(
+                visitID: visit.id,
+                visibility: .supabaseValue(visit.visibility),
+                isOwner: isOwner,
+                isRemote: true,
                 authorName: detail.summary.authorDisplayName,
                 drinkName: visit.drinkDisplayName,
                 cafeName: detail.summary.locationTitle,
@@ -594,6 +605,7 @@ enum SipDetailPresentationAdapter {
             locationSystemImage: visit.context.systemImage,
             score: displayedScore,
             sipScore: visit.v3Reflection?.sipScore ?? visit.overallScore,
+            contextScore: visit.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
             privateNote: isOwner && visit.v3Reflection == nil
@@ -635,6 +647,10 @@ enum SipDetailPresentationAdapter {
             isCafeSaved: isCafeSaved,
             replyingToUsername: nil,
             sharePayload: SipShareCardPayload(
+                visitID: visit.id,
+                visibility: visit.visibility,
+                isOwner: isOwner,
+                isRemote: false,
                 authorName: authorDisplayName,
                 drinkName: visit.journalDrinkName,
                 cafeName: visit.context == .cafe
@@ -788,51 +804,31 @@ enum SipDetailPresentationAdapter {
         let structured = visit.recipeVersionID == nil
             ? visit.structuredBrewDetails
             : BrewDetails.empty
-        var facts: [SipDetailVisitFact] = []
-        if let companions = structured.companions, !companions.isEmpty {
-            facts.append(SipDetailVisitFact(label: "With", value: companions.joined(separator: ", "), systemImage: "person.2"))
-        }
-        if let subtitle = detail.summary.locationSubtitle?.remoteTrimmedNonEmpty {
-            facts.append(SipDetailVisitFact(label: "Address", value: subtitle, systemImage: "mappin"))
+        var facts: [SipDetailVisitFact] = [
+            SipDetailVisitFact(
+                label: "Place",
+                value: detail.summary.locationTitle,
+                systemImage: visit.journalContext == .cafe ? "storefront" : visit.journalContext.systemImage
+            )
+        ]
+        if let area = visit.cityState?.remoteTrimmedNonEmpty
+            ?? detail.summary.cafe?.city?.remoteTrimmedNonEmpty {
+            facts.append(SipDetailVisitFact(label: "Area", value: area, systemImage: "mappin.and.ellipse"))
         }
         facts.append(SipDetailVisitFact(
             label: "Visited",
-            value: visit.createdAtDate.formatted(date: .abbreviated, time: .omitted),
+            value: visit.createdAtDate.formatted(date: .abbreviated, time: .shortened),
             systemImage: "calendar"
         ))
-        if let reflection = detail.v3Reflection {
-            facts.append(SipDetailVisitFact(
-                label: "Sip",
-                value: reflection.sipScore.formatted(.number.precision(.fractionLength(1))),
-                systemImage: "cup.and.saucer.fill"
-            ))
-            if let contextScore = reflection.contextScore {
-                facts.append(SipDetailVisitFact(
-                    label: contextRatingLabel(for: visit.journalContext),
-                    value: contextScore.formatted(.number.precision(.fractionLength(1))),
-                    systemImage: visit.journalContext == .cafe ? "storefront.fill" : "mappin.and.ellipse"
-                ))
-            }
-            facts.append(SipDetailVisitFact(
-                label: "Mugshot",
-                value: reflection.mugshotScore.formatted(.number.precision(.fractionLength(1))),
-                systemImage: "sparkles"
-            ))
+        if let companions = structured.companions, !companions.isEmpty {
+            facts.append(SipDetailVisitFact(label: "With", value: companions.joined(separator: ", "), systemImage: "person.2"))
         }
         if let session = detail.cafeSessionSummary {
             facts.append(SipDetailVisitFact(
-                label: "This visit",
+                label: "Drinks",
                 value: "\(session.sipCount) \(session.sipCount == 1 ? "sip" : "sips")",
                 systemImage: "cup.and.saucer.fill"
             ))
-            if let cafeRating = session.cafeRating,
-               detail.v3Reflection?.contextScore == nil {
-                facts.append(SipDetailVisitFact(
-                    label: "The Cafe",
-                    value: cafeRating.formatted(.number.precision(.fractionLength(1))),
-                    systemImage: "storefront.fill"
-                ))
-            }
             if let nextMove = session.nextMove {
                 facts.append(SipDetailVisitFact(
                     label: "Next move",
@@ -859,37 +855,23 @@ enum SipDetailPresentationAdapter {
     }
 
     private static func localVisitFacts(visit: Visit, cafe: Cafe?) -> [SipDetailVisitFact] {
-        var facts: [SipDetailVisitFact] = []
+        let placeName = visit.context == .cafe
+            ? (cafe?.consumerDisplayName ?? "Cafe")
+            : (visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback)
+        var facts: [SipDetailVisitFact] = [
+            SipDetailVisitFact(
+                label: "Place",
+                value: placeName,
+                systemImage: visit.context == .cafe ? "storefront" : visit.context.systemImage
+            ),
+            SipDetailVisitFact(
+                label: "Visited",
+                value: visit.createdAt.formatted(date: .abbreviated, time: .shortened),
+                systemImage: "calendar"
+            )
+        ]
         if let companions = visit.brewDetails.companions, !companions.isEmpty {
             facts.append(SipDetailVisitFact(label: "With", value: companions.joined(separator: ", "), systemImage: "person.2"))
-        }
-        if visit.context == .cafe,
-           let address = cafe?.address.remoteTrimmedNonEmpty {
-            facts.append(SipDetailVisitFact(label: "Address", value: address, systemImage: "mappin"))
-        }
-        facts.append(SipDetailVisitFact(
-            label: "Visited",
-            value: visit.createdAt.formatted(date: .abbreviated, time: .omitted),
-            systemImage: "calendar"
-        ))
-        if let reflection = visit.v3Reflection {
-            facts.append(SipDetailVisitFact(
-                label: "Sip",
-                value: reflection.sipScore.formatted(.number.precision(.fractionLength(1))),
-                systemImage: "cup.and.saucer.fill"
-            ))
-            if let contextScore = reflection.contextScore {
-                facts.append(SipDetailVisitFact(
-                    label: contextRatingLabel(for: visit.context),
-                    value: contextScore.formatted(.number.precision(.fractionLength(1))),
-                    systemImage: visit.context == .cafe ? "storefront.fill" : "mappin.and.ellipse"
-                ))
-            }
-            facts.append(SipDetailVisitFact(
-                label: "Mugshot",
-                value: reflection.mugshotScore.formatted(.number.precision(.fractionLength(1))),
-                systemImage: "sparkles"
-            ))
         }
         if let method = visit.brewMethod?.remoteTrimmedNonEmpty {
             facts.append(SipDetailVisitFact(label: "Method", value: method, systemImage: "drop"))
@@ -940,6 +922,34 @@ enum SipDetailPresentationAdapter {
 
 // MARK: - Shared Immersive Pour screen
 
+struct SipDetailToolbarTitle: View {
+    let drinkName: String
+    let progress: CGFloat
+
+    private var normalizedProgress: CGFloat {
+        min(max(progress, 0), 1)
+    }
+
+    var body: some View {
+        ZStack {
+            Text("MUGSHOT")
+                .font(.system(size: 12, weight: .black))
+                .tracking(2.2)
+                .foregroundStyle(Color.mugshotSage)
+                .opacity(1 - normalizedProgress)
+                .accessibilityHidden(normalizedProgress > 0.5)
+
+            Text(drinkName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color.espressoBrown)
+                .lineLimit(1)
+                .opacity(normalizedProgress)
+                .accessibilityHidden(normalizedProgress <= 0.5)
+        }
+        .animation(.easeOut(duration: 0.16), value: normalizedProgress)
+    }
+}
+
 struct SipDetailScreen: View {
     let presentation: SipDetailPresentation
     @Binding var selectedPhotoIndex: Int
@@ -963,6 +973,7 @@ struct SipDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isTasteExpanded = false
+    @State private var isJournalExpanded = false
     @State private var isVisitExpanded = false
     @State private var isComposerPresented = false
     @State private var tasteReveal: CGFloat = 0
@@ -1009,7 +1020,6 @@ struct SipDetailScreen: View {
                     }
                 }
                 .background(Color.creamWhite)
-                .ignoresSafeArea(edges: .top)
             }
         }
         .background(Color.creamWhite)
@@ -1024,31 +1034,67 @@ struct SipDetailScreen: View {
     }
 
     private func heroHeight(for width: CGFloat) -> CGFloat {
-        let base = width / 0.88
+        let authorHeight: CGFloat = dynamicTypeSize.isAccessibilitySize ? 116 : 82
+        let mediaHeight = presentation.content.photos.isEmpty
+            ? (dynamicTypeSize.isAccessibilitySize ? 390 : 322)
+            : width * 0.68
         if dynamicTypeSize.isAccessibilitySize {
-            return max(base, 680)
+            return authorHeight + mediaHeight
         }
-        return min(max(base, 390), 472)
+        return authorHeight + mediaHeight
     }
 
     private func contentSurface(proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let caption = presentation.content.caption {
-                SipDetailEditorialNote(text: caption)
+            SipDetailPostSummary(model: presentation.content)
+                .padding(.horizontal, 22)
+                .padding(.top, 24)
+
+            SipDetailActionDock(
+                actions: presentation.capabilities.dockActions,
+                model: presentation.content,
+                isWorking: isWorking,
+                onAction: { action in handle(action, proxy: proxy) }
+            )
+            .padding(.horizontal, 22)
+            .padding(.top, 20)
+
+            if let statusMessage {
+                SipDetailStatusBanner(message: statusMessage)
                     .padding(.horizontal, 22)
-                    .padding(.top, 28)
+                    .padding(.top, 16)
             }
 
-            if let rawNote = presentation.content.sharedRawNote {
-                SipSharedRawNoteSection(text: rawNote)
+            if presentation.content.likeCount > 0
+                || !presentation.content.comments.isEmpty
+                || !presentation.content.reactions.isEmpty {
+                SipSocialProofSection(model: presentation.content)
                     .padding(.horizontal, 22)
-                    .padding(.top, 22)
+                    .padding(.top, 18)
+            }
+
+            if presentation.content.score > 0
+                || presentation.content.sipScore > 0
+                || !presentation.content.ratings.isEmpty
+                || !presentation.content.contextRatings.isEmpty
+                || presentation.content.sensorySnapshot != nil {
+                SipTasteEvidenceSection(
+                    model: presentation.content,
+                    isExpanded: $isTasteExpanded,
+                    revealProgress: tasteReveal
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .onChange(of: isTasteExpanded) { _, isExpanded in
+                    guard isExpanded else { return }
+                    revealTaste()
+                }
             }
 
             if let sharedMugshot = presentation.content.sharedMugshot {
                 SipSharedMugshotSection(model: sharedMugshot)
                     .padding(.horizontal, 22)
-                    .padding(.top, 24)
+                    .padding(.top, 20)
             }
 
             if let recipe = presentation.content.recipe {
@@ -1058,7 +1104,7 @@ struct SipDetailScreen: View {
                     onAction: onRecipeAction
                 )
                 .padding(.horizontal, 22)
-                .padding(.top, 24)
+                .padding(.top, 20)
             }
 
             if !presentation.content.taggedAccounts.isEmpty {
@@ -1069,62 +1115,26 @@ struct SipDetailScreen: View {
                     onRemoveOwnTag: onRemoveOwnTag
                 )
                 .padding(.horizontal, 22)
-                .padding(.top, 24)
+                .padding(.top, 14)
             }
 
-            SipDetailActionDock(
-                actions: presentation.capabilities.dockActions,
-                model: presentation.content,
-                isWorking: isWorking,
-                onAction: { action in handle(action, proxy: proxy) }
-            )
-            .padding(.horizontal, 18)
-            .padding(.top, presentation.content.caption == nil ? 26 : 22)
-
-            if let statusMessage {
-                SipDetailStatusBanner(message: statusMessage)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 16)
-            }
-
-            if !presentation.content.reactions.isEmpty {
-                SipFriendsNoticedSection(reactions: presentation.content.reactions)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 26)
-            }
-
-            if presentation.content.sipScore > 0 || !presentation.content.ratings.isEmpty || presentation.content.sensorySnapshot != nil {
-                SipTasteSnapshotSection(
-                    score: presentation.content.sipScore,
-                    ratings: presentation.content.ratings,
-                    sensorySnapshot: presentation.content.sensorySnapshot,
-                    isExpanded: $isTasteExpanded,
-                    revealProgress: tasteReveal
+            if let rawNote = presentation.content.sharedRawNote {
+                SipSharedRawNoteSection(
+                    text: rawNote,
+                    visibility: presentation.content.visibility,
+                    isExpanded: $isJournalExpanded
                 )
                 .padding(.horizontal, 22)
-                .padding(.top, 28)
-                .onChange(of: isTasteExpanded) { _, isExpanded in
-                    guard isExpanded else { return }
-                    revealTaste()
-                }
-            }
-
-            if !presentation.content.contextRatings.isEmpty {
-                SipContextCriteriaSection(
-                    label: presentation.content.contextRatingLabel ?? "Setting",
-                    ratings: presentation.content.contextRatings
-                )
-                .padding(.horizontal, 22)
-                .padding(.top, 28)
+                .padding(.top, 14)
             }
 
             if !presentation.content.visitFacts.isEmpty {
-                SipVisitDetailsSection(
+                SipVisitContextSection(
                     facts: presentation.content.visitFacts,
                     isExpanded: $isVisitExpanded
                 )
                 .padding(.horizontal, 22)
-                .padding(.top, 28)
+                .padding(.top, presentation.content.sharedRawNote == nil ? 14 : 0)
             }
 
             if presentation.capabilities.isOwner,
@@ -1146,22 +1156,13 @@ struct SipDetailScreen: View {
                     onCommentAction: onCommentAction
                 )
                 .padding(.horizontal, 22)
-                .padding(.top, 30)
+                .padding(.top, 24)
                 .id(commentsAnchor)
             }
         }
         .padding(.bottom, 42)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.creamWhite)
-        .clipShape(UnevenRoundedRectangle(
-            topLeadingRadius: 28,
-            bottomLeadingRadius: 0,
-            bottomTrailingRadius: 0,
-            topTrailingRadius: 28,
-            style: .continuous
-        ))
-        .offset(y: -18)
-        .padding(.bottom, -18)
     }
 
     private func handle(_ action: SipDetailAction, proxy: ScrollViewProxy) {
@@ -1516,64 +1517,59 @@ private struct SipDetailTaggedPeopleSection: View {
     let onRemoveOwnTag: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Label("People tagged", systemImage: "person.crop.circle.badge.checkmark")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.espressoBrown)
-                Text("Tags credit people without changing who owns this MugShot or who can see it.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            ForEach(accounts) { account in
-                HStack(spacing: 10) {
+        HStack(spacing: 12) {
+            HStack(spacing: -8) {
+                ForEach(accounts.prefix(3)) { account in
                     Button {
                         onOpenProfile(account.userID)
                     } label: {
-                        HStack(spacing: 10) {
-                            MugshotAvatar(
-                                name: account.displayName,
-                                size: 38,
-                                imageURL: account.avatarURL
-                            )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(account.displayName)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Color.espressoBrown)
-                                Text(account.username)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.secondaryText)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                        MugshotAvatar(
+                            name: account.displayName,
+                            size: 36,
+                            imageURL: account.avatarURL
+                        )
+                        .overlay(Circle().stroke(Color.creamWhite, lineWidth: 2))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Opens this Mugshot profile")
-
-                    if account.isCurrentUser {
-                        Button("Remove tag", role: .destructive) {
-                            onRemoveOwnTag()
-                        }
-                        .font(.system(size: 12, weight: .bold))
-                        .buttonStyle(.bordered)
-                        .disabled(isWorking)
-                        .accessibilityHint("Removes your name without changing this post's audience")
-                    }
+                    .accessibilityLabel("Open \(account.displayName)’s profile")
                 }
             }
+
+            Text(taggedSummary)
+                .font(.system(.subheadline, design: .serif, weight: .semibold))
+                .foregroundStyle(Color.espressoBrown)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if accounts.contains(where: \.isCurrentUser) {
+                Button("Remove", role: .destructive) {
+                    onRemoveOwnTag()
+                }
+                .font(.system(size: 12, weight: .bold))
+                .buttonStyle(.plain)
+                .disabled(isWorking)
+                .accessibilityHint("Removes your name without changing this post's audience")
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.mugshotSage)
+                .accessibilityHidden(true)
         }
-        .padding(16)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
-        }
+        .frame(minHeight: 58)
+        .overlay(alignment: .top) { Divider().foregroundStyle(Color.mugshotLine) }
+        .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sip.detail.taggedPeople")
+    }
+
+    private var taggedSummary: String {
+        let names = accounts.map(\.displayName)
+        switch names.count {
+        case 0: return "With friends"
+        case 1: return "With \(names[0])"
+        case 2: return "With \(names[0]) and \(names[1])"
+        default: return "With \(names[0]), \(names[1]) and \(names.count - 2) more"
+        }
     }
 }
 
@@ -1583,71 +1579,46 @@ private struct SipDetailHero: View {
     let model: SipDetailContentModel
     @Binding var selectedPhotoIndex: Int
     let onPhotoTap: (Int) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                MugshotAvatar(
+                    name: model.authorName,
+                    size: 44,
+                    imageURL: model.authorAvatarURL
+                )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.authorUsername)
+                        .font(.system(.subheadline, design: .default, weight: .bold))
+                        .foregroundStyle(Color.espressoBrown)
+                    Text("\(model.visibility)  ·  \(model.timestamp)")
+                        .font(.system(.caption, design: .default, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 22)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: dynamicTypeSize.isAccessibilitySize ? 116 : 82,
+                maxHeight: dynamicTypeSize.isAccessibilitySize ? 116 : 82,
+                alignment: .leading
+            )
+            .background(Color.creamWhite)
+
             SipDetailPhotoPager(
                 photos: model.photos,
                 usesMugsyFallback: model.usesMugsyPhotoFallback,
                 selectedIndex: $selectedPhotoIndex,
                 onTap: onPhotoTap
             )
-
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.12), .black.opacity(0.86)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .allowsHitTesting(false)
-
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 10) {
-                    MugshotAvatar(
-                        name: model.authorName,
-                        size: 42,
-                        imageURL: model.authorAvatarURL
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.authorName)
-                            .font(.system(.subheadline, design: .default, weight: .bold))
-                        Text("\(model.authorUsername)  ·  \(model.timestamp)  ·  \(model.visibility)")
-                            .font(.system(.caption, design: .default, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.76))
-                            .lineLimit(2)
-                    }
-                }
-
-                Text(model.drinkName)
-                    .font(.system(.largeTitle, design: .serif, weight: .regular))
-                    .tracking(-0.7)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.78)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(alignment: .center, spacing: 12) {
-                    Label(model.locationName, systemImage: model.locationSystemImage)
-                        .font(.system(.subheadline, design: .default, weight: .bold))
-                        .lineLimit(2)
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text("MUGSHOT")
-                            .font(.system(size: 9, weight: .black))
-                            .tracking(1.2)
-                        MugshotRatingBadge(score: model.score, onPhoto: false)
-                            .background(Color.mugshotMint.opacity(0.76), in: Capsule())
-                    }
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 22)
-            .padding(.bottom, 38)
-            .shadow(color: .black.opacity(0.36), radius: 16, x: 0, y: 8)
-            .allowsHitTesting(false)
         }
         .clipped()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.drinkName) at \(model.locationName), Mugshot score \(String(format: "%.1f", model.score))")
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -1661,6 +1632,8 @@ private struct SipDetailPhotoPager: View {
         Group {
             if photos.isEmpty {
                 SipDetailNoPhotoSurface(usesMugsyFallback: usesMugsyFallback)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
             } else {
                 TabView(selection: $selectedIndex) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, source in
@@ -1676,7 +1649,7 @@ private struct SipDetailPhotoPager: View {
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
                                         .background(.black.opacity(0.54), in: Capsule())
-                                        .padding(.top, 96)
+                                        .padding(.top, 16)
                                         .padding(.trailing, 18)
                                 }
                             }
@@ -1705,6 +1678,12 @@ private struct SipDetailPhoto: View {
             RemotePhotoImageView(urlString: url, placeholderSystemName: "photo.on.rectangle")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
+        case .asset(let name):
+            Image(name)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
         }
     }
 }
@@ -1720,28 +1699,102 @@ struct SipDetailPhotoViewer: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+        ZStack {
+            Color.espressoBrown.ignoresSafeArea()
 
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(presentation.photos.enumerated()), id: \.element.id) { index, source in
-                    SipDetailPhoto(source: source)
-                        .tag(index)
-                        .scaledToFit()
+            VStack(spacing: 0) {
+                ZStack {
+                    Text("\(selectedIndex + 1) of \(presentation.photos.count)")
+                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                        .foregroundStyle(Color.creamWhite)
+                        .monospacedDigit()
+
+                    HStack {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(.body, design: .default, weight: .bold))
+                                .foregroundStyle(Color.creamWhite)
+                                .frame(width: 44, height: 44)
+                                .background(.black.opacity(0.22), in: Circle())
+                        }
+                        .accessibilityLabel("Close photo viewer")
+
+                        Spacer()
+                    }
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: presentation.photos.count > 1 ? .automatic : .never))
+                .padding(.horizontal, 16)
+                .frame(height: 60)
 
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(.body, design: .default, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(.black.opacity(0.55), in: Circle())
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(presentation.photos.enumerated()), id: \.element.id) { index, source in
+                        SipDetailViewerPhoto(source: source)
+                            .tag(index)
+                            .padding(.horizontal, 10)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                if presentation.photos.count > 1 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(presentation.photos.enumerated()), id: \.element.id) { index, source in
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        selectedIndex = index
+                                    }
+                                } label: {
+                                    SipDetailPhoto(source: source)
+                                        .frame(width: 58, height: 72)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .stroke(
+                                                    index == selectedIndex ? Color.mugshotMint : Color.creamWhite.opacity(0.24),
+                                                    lineWidth: index == selectedIndex ? 3 : 1
+                                                )
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Show photo \(index + 1)")
+                            }
+                        }
+                        .padding(.horizontal, 18)
+                    }
+                    .frame(height: 88)
+                }
+
+                Text("\(presentation.drinkName)  ·  \(presentation.locationName)")
+                    .font(.system(.footnote, design: .serif, weight: .regular))
+                    .foregroundStyle(Color.creamWhite.opacity(0.78))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
             }
-            .padding(.top, 8)
-            .padding(.trailing, 16)
-            .accessibilityLabel("Close photo viewer")
+        }
+    }
+}
+
+private struct SipDetailViewerPhoto: View {
+    let source: SipDetailPhotoSource
+
+    var body: some View {
+        switch source {
+        case .local(let path):
+            PhotoImageView(photoPath: path, contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .remote(let url):
+            RemotePhotoImageView(
+                urlString: url,
+                placeholderSystemName: "photo.on.rectangle",
+                contentMode: .fit
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .asset(let name):
+            Image(name)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -1751,33 +1804,50 @@ private struct SipDetailNoPhotoSurface: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.darkRoast, Color.roastBrown, Color.mugshotSage.opacity(0.82)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            VStack(spacing: 10) {
+            Color.sandBeige.opacity(0.56)
+
+            Circle()
+                .fill(Color.mugshotMint.opacity(0.28))
+                .frame(width: 210, height: 210)
+                .offset(x: 132, y: -82)
+
+            VStack(spacing: 12) {
                 if usesMugsyFallback {
                     MugsyModelView(configuration: MugsyModelConfiguration(
                         expression: .curious,
                         prop: .camera,
                         pose: .leaningLeft
                     ))
-                    .frame(width: 112, height: 112)
+                    .frame(width: 118, height: 118)
                 } else {
                     Image(systemName: "cup.and.saucer")
-                        .font(.system(size: 54, weight: .light))
+                        .font(.system(size: 50, weight: .light))
+                        .foregroundStyle(Color.mugshotSage)
                 }
-                Text(usesMugsyFallback ? "Oops, missed the photo" : "No photo added")
-                    .font(.system(.callout, design: .default, weight: .semibold))
-                if usesMugsyFallback {
-                    Text("Mugsy saved this memory a spot.")
-                        .font(.caption)
+
+                VStack(spacing: 7) {
+                    Text(usesMugsyFallback ? "Oops, missed the photo" : "No photo added")
+                        .font(.system(.title2, design: .serif, weight: .semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                    Text(
+                        usesMugsyFallback
+                            ? "Mugsy saved this memory a spot."
+                            : "The story of this Mugshot still lives here."
+                    )
+                    .font(.system(.footnote, design: .default, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .foregroundStyle(Color.creamWhite.opacity(0.72))
-            .padding(.bottom, 90)
+            .padding(.horizontal, 28)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.mugshotLine.opacity(0.8), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1793,6 +1863,52 @@ private struct SipDetailEditorialNote: View {
             .lineSpacing(4)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityLabel("Tasting note: \(text)")
+    }
+}
+
+private struct SipDetailPostSummary: View {
+    let model: SipDetailContentModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(model.drinkName)
+                .font(.system(.largeTitle, design: .serif, weight: .regular))
+                .tracking(-0.55)
+                .foregroundStyle(Color.espressoBrown)
+                .lineLimit(3)
+                .minimumScaleFactor(0.78)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(model.locationName, systemImage: model.locationSystemImage)
+                        .font(.system(.subheadline, design: .default, weight: .bold))
+                        .foregroundStyle(Color.espressoBrown)
+                        .lineLimit(2)
+                    Text(model.timestamp)
+                        .font(.system(.caption, design: .default, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                }
+
+                Spacer(minLength: 10)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("MUGSHOT")
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(1.35)
+                        .foregroundStyle(Color.mugshotSage)
+                    MugshotRatingBadge(score: model.score, onPhoto: false)
+                        .background(Color.mugshotMint.opacity(0.34), in: Capsule())
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Mugshot score \(model.score.formatted(.number.precision(.fractionLength(1))))")
+            }
+
+            if let caption = model.caption {
+                SipDetailEditorialNote(text: caption)
+            }
+        }
     }
 }
 
@@ -1833,11 +1949,8 @@ private struct SipDetailActionDock: View {
             }
         }
         .background(Color.creamWhite)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(alignment: .top) { Divider().foregroundStyle(Color.mugshotLine) }
+        .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
     }
 
     private func isActive(_ action: SipDetailAction) -> Bool {
@@ -1904,220 +2017,278 @@ private struct SipDetailPressButtonStyle: ButtonStyle {
     }
 }
 
-private struct SipFriendsNoticedSection: View {
-    let reactions: [SipDetailReactionSummary]
+private struct SipSocialProofSection: View {
+    let model: SipDetailContentModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                Text("Friends noticed")
-                    .font(.system(.title3, design: .default, weight: .bold))
-                Spacer()
-                HStack(spacing: -7) {
-                    ForEach(Array(reactions.prefix(3).enumerated()), id: \.offset) { _, reaction in
-                        Circle()
-                            .fill(Color.mugshotMint)
-                            .frame(width: 30, height: 30)
-                            .overlay(
-                                Image(systemName: reaction.systemImage)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(Color.espressoBrown)
-                            )
-                            .overlay(Circle().stroke(Color.creamWhite, lineWidth: 2))
-                    }
-                }
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { summaryContent }
+                VStack(alignment: .leading, spacing: 8) { summaryContent }
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) { reactionContent }
-                VStack(alignment: .leading, spacing: 8) { reactionContent }
+            if !model.reactions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(model.reactions) { reaction in
+                            Label("\(reaction.title) \(reaction.count)", systemImage: reaction.systemImage)
+                                .font(.system(.caption, design: .default, weight: .semibold))
+                                .foregroundStyle(Color.roastBrown)
+                                .padding(.horizontal, 11)
+                                .frame(minHeight: 34)
+                                .background(Color.sandBeige.opacity(0.58), in: Capsule())
+                        }
+                    }
+                }
             }
         }
-        .foregroundStyle(Color.espressoBrown)
-        .padding(.bottom, 4)
+        .padding(.bottom, 16)
         .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
-    private var reactionContent: some View {
-        ForEach(reactions) { reaction in
-            Label("\(reaction.title) \(reaction.count)", systemImage: reaction.systemImage)
-                .font(.system(.footnote, design: .default, weight: .semibold))
-                .foregroundStyle(Color.roastBrown)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 40)
-                .background(Color.sandBeige.opacity(0.64), in: Capsule())
+    private var summaryContent: some View {
+        if model.likeCount > 0 {
+            Label("\(model.likeCount) \(model.likeCount == 1 ? "like" : "likes")", systemImage: "heart.fill")
+                .foregroundStyle(Color.mugshotSage)
+        }
+        if !model.comments.isEmpty {
+            Label(
+                "\(model.comments.count) \(model.comments.count == 1 ? "comment" : "comments")",
+                systemImage: "bubble.right.fill"
+            )
+            .foregroundStyle(Color.espressoBrown)
         }
     }
 }
 
-private struct SipTasteSnapshotSection: View {
-    let score: Double
-    let ratings: [SipDetailRatingItem]
-    let sensorySnapshot: SipSensorySnapshot?
+private struct SipTasteEvidenceSection: View {
+    let model: SipDetailContentModel
     @Binding var isExpanded: Bool
     let revealProgress: CGFloat
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var columns: [GridItem] {
-        if dynamicTypeSize.isAccessibilitySize {
-            return [GridItem(.flexible())]
-        }
-        return [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
-    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Taste snapshot")
-                    .font(.system(.title3, design: .default, weight: .bold))
-                Spacer()
-                Text(String(format: "%.1f personal", score))
-                    .font(.system(.callout, design: .default, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(Color.mugshotMint.opacity(0.28), in: Capsule())
+        VStack(alignment: .leading, spacing: 16) {
+            SipEvidenceScoreStrip(
+                sipScore: model.sipScore,
+                contextLabel: contextLabel,
+                contextScore: model.contextScore,
+                mugshotScore: model.score
+            )
+
+            Button {
+                guard hasExpandableDetails else { return }
+                withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "leaf")
+                        .foregroundStyle(Color.mugshotSage)
+                    Text("What shaped this Mugshot?")
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if hasExpandableDetails {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(.footnote, design: .default, weight: .bold))
+                            .foregroundStyle(Color.mugshotSage)
+                    }
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sip.detail.taste.toggle")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+
+            if !descriptorPreview.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(descriptorPreview, id: \.self) { descriptor in
+                            Text(descriptor)
+                                .font(.system(.caption, design: .default, weight: .semibold))
+                                .foregroundStyle(Color.espressoBrown)
+                                .padding(.horizontal, 11)
+                                .frame(minHeight: 34)
+                                .background(Color.mugshotMint.opacity(0.2), in: Capsule())
+                        }
+                    }
+                }
             }
 
-            if let sensorySnapshot {
-                if let ownWords = sensorySnapshot.ownWords.remoteTrimmedNonEmpty {
-                    Text("“\(ownWords)”")
-                        .font(.system(.body, design: .serif, weight: .regular))
-                        .foregroundStyle(Color.espressoBrown)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 13)
-                } else if !descriptorPreview.isEmpty {
-                    Text(descriptorPreview.joined(separator: " · "))
-                        .font(.system(.footnote, design: .default, weight: .semibold))
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Your ratings describe how this memory worked for you.")
+                        .font(.system(.footnote, design: .default, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 13)
-                }
 
-                if isExpanded {
-                    VStack(alignment: .leading, spacing: 14) {
-                        ForEach(meaningfulResponses) { response in
-                            SipSensoryResponseDetail(response: response)
-                            if response.id != meaningfulResponses.last?.id {
-                                Divider().foregroundStyle(Color.mugshotLine)
-                            }
-                        }
-
-                        Label(
-                            "High intensity is not automatically better. Uncertainty never changes your stars.",
-                            systemImage: "equal.circle"
+                    if !meaningfulResponses.isEmpty || !model.ratings.isEmpty {
+                        SipEvidenceGroup(
+                            title: "The drink itself",
+                            ratings: model.ratings,
+                            responses: meaningfulResponses,
+                            revealProgress: revealProgress
                         )
-                        .font(.caption)
-                        .foregroundStyle(Color.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        Text("\(sensorySnapshot.depth.title) Lens · vocabulary \(sensorySnapshot.bundleContentVersion)")
-                            .font(.caption2)
-                            .foregroundStyle(Color.tertiaryText)
                     }
-                    .padding(.top, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            } else if isExpanded {
-                Text("Legacy tasting criteria")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.tertiaryText)
-                    .padding(.top, 14)
 
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-                    ForEach(ratings) { rating in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(rating.name)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer()
-                                Text(String(format: "%.1f", rating.score))
-                                    .monospacedDigit()
-                            }
-                            .font(.system(.footnote, design: .default, weight: .semibold))
-
-                            GeometryReader { geometry in
-                                Capsule().fill(Color.mugshotLine)
-                                    .overlay(alignment: .leading) {
-                                        Capsule()
-                                            .fill(Color.mugshotSage)
-                                            .frame(width: geometry.size.width * CGFloat(rating.score / 5) * revealProgress)
-                                    }
-                            }
-                            .frame(height: 5)
-                        }
+                    if !model.contextRatings.isEmpty {
+                        SipEvidenceGroup(
+                            title: "The \(contextLabel.lowercased()) & experience",
+                            ratings: model.contextRatings,
+                            responses: [],
+                            revealProgress: revealProgress
+                        )
                     }
+
+                    Label(
+                        "These are personal observations, not universal quality scores.",
+                        systemImage: "equal.circle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, 16)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
-
-            if hasExpandableDetails {
-                Button {
-                    withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    Label(
-                        isExpanded ? "Hide details" : (sensorySnapshot == nil ? "View legacy breakdown" : "View sensory trail"),
-                        systemImage: isExpanded ? "chevron.up" : "chevron.down"
-                    )
-                        .font(.system(.footnote, design: .default, weight: .semibold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.top, isExpanded ? 14 : 6)
-                .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            }
         }
-        .foregroundStyle(Color.espressoBrown)
-        .padding(.bottom, 4)
+        .padding(.bottom, 18)
         .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
     }
 
+    private var contextLabel: String {
+        model.contextRatingLabel?.remoteTrimmedNonEmpty ?? "Context"
+    }
+
     private var meaningfulResponses: [SipSensoryResponseSnapshot] {
-        sensorySnapshot?.responses.filter {
+        model.sensorySnapshot?.responses.filter {
             $0.state != .notAsked && $0.state != .skipped
         } ?? []
     }
 
     private var descriptorPreview: [String] {
-        Array(meaningfulResponses.flatMap(\.descriptors).map(\.displayedTitle).sensoryUnique.prefix(4))
+        let sensory = meaningfulResponses.flatMap(\.descriptors).map(\.displayedTitle)
+        let fallback = model.ratings.map(\.name) + model.contextRatings.map(\.name)
+        return Array((sensory.isEmpty ? fallback : sensory).sensoryUnique.prefix(4))
     }
 
     private var hasExpandableDetails: Bool {
-        sensorySnapshot != nil ? !meaningfulResponses.isEmpty : !ratings.isEmpty
+        !meaningfulResponses.isEmpty || !model.ratings.isEmpty || !model.contextRatings.isEmpty
     }
 }
 
-private struct SipContextCriteriaSection: View {
-    let label: String
+private struct SipEvidenceScoreStrip: View {
+    let sipScore: Double
+    let contextLabel: String
+    let contextScore: Double?
+    let mugshotScore: Double
+
+    var body: some View {
+        HStack(spacing: 0) {
+            scoreColumn(label: "Sip", score: sipScore)
+
+            Divider()
+                .frame(height: 56)
+
+            scoreColumn(
+                label: contextScore == nil ? "Mugshot" : contextLabel,
+                score: contextScore ?? mugshotScore
+            )
+        }
+        .padding(.vertical, 12)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+    }
+
+    private func scoreColumn(label: String, score: Double) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.system(.footnote, design: .serif, weight: .medium))
+                .foregroundStyle(Color.secondaryText)
+            HStack(spacing: 8) {
+                Text(score.formatted(.number.precision(.fractionLength(1))))
+                    .font(.system(.title, design: .serif, weight: .regular))
+                    .foregroundStyle(Color.espressoBrown)
+                    .monospacedDigit()
+
+                HStack(spacing: 1) {
+                    ForEach(1...5, id: \.self) { star in
+                        Image(systemName: score >= Double(star) - 0.25 ? "star.fill" : "star")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                }
+                .foregroundStyle(Color.mugshotSage)
+                .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) score \(score.formatted(.number.precision(.fractionLength(1))))")
+    }
+}
+
+private struct SipEvidenceGroup: View {
+    let title: String
     let ratings: [SipDetailRatingItem]
+    let responses: [SipSensoryResponseSnapshot]
+    let revealProgress: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("\(label) · What shaped it")
-                .font(.system(.title3, design: .default, weight: .bold))
+            Text(title)
+                .font(.system(.headline, design: .serif, weight: .semibold))
+                .foregroundStyle(Color.espressoBrown)
+
+            ForEach(responses) { response in
+                SipSensoryResponseDetail(response: response)
+                if response.id != responses.last?.id || !ratings.isEmpty {
+                    Divider().foregroundStyle(Color.mugshotLine)
+                }
+            }
 
             ForEach(ratings) { rating in
-                HStack(spacing: 12) {
-                    Text(rating.name)
-                        .font(.system(.subheadline, design: .default, weight: .semibold))
-                    Spacer()
-                    Text(rating.score.formatted(.number.precision(.fractionLength(1))))
-                        .font(.system(.subheadline, design: .default, weight: .bold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .monospacedDigit()
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text(rating.name)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 12)
+                        Text(rating.score.formatted(.number.precision(.fractionLength(1))))
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.mugshotSage)
+                            .monospacedDigit()
+                    }
+                    .font(.system(.footnote, design: .default, weight: .semibold))
+
+                    GeometryReader { geometry in
+                        Capsule().fill(Color.mugshotLine)
+                            .overlay(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.mugshotSage)
+                                    .frame(
+                                        width: geometry.size.width
+                                            * CGFloat(min(max(rating.score / 5, 0), 1))
+                                            * revealProgress
+                                    )
+                            }
+                    }
+                    .frame(height: 4)
                 }
             }
         }
-        .padding(.bottom, 4)
-        .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+        .padding(16)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
     }
 }
 
@@ -2192,77 +2363,112 @@ private extension Array where Element == String {
     }
 }
 
-private struct SipVisitDetailsSection: View {
+private struct SipVisitContextSection: View {
     let facts: [SipDetailVisitFact]
     @Binding var isExpanded: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var visibleFacts: ArraySlice<SipDetailVisitFact> {
-        facts.prefix(isExpanded ? facts.count : 3)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Text("Visit details")
-                    .font(.system(.title3, design: .default, weight: .bold))
-                Spacer()
-                Image(systemName: "mappin.and.ellipse")
-                    .foregroundStyle(Color.mugshotSage)
-            }
-
-            ForEach(Array(visibleFacts)) { fact in
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if let systemImage = fact.systemImage {
-                            Label(fact.label, systemImage: systemImage)
-                                .font(.system(.footnote, design: .default, weight: .medium))
-                                .foregroundStyle(Color.mugshotSage)
-                        } else {
-                            Text(fact.label)
-                                .font(.system(.footnote, design: .default, weight: .medium))
-                                .foregroundStyle(Color.tertiaryText)
-                        }
-                        Text(fact.value)
-                            .font(.system(.body, design: .default, weight: .semibold))
-                            .foregroundStyle(Color.espressoBrown)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        if let systemImage = fact.systemImage {
-                            Image(systemName: systemImage)
-                                .font(.system(.caption, design: .default, weight: .semibold))
-                                .foregroundStyle(Color.mugshotSage)
-                                .frame(width: 18)
-                        }
-                        Text(fact.label)
-                            .font(.system(.footnote, design: .default, weight: .medium))
-                            .foregroundStyle(Color.tertiaryText)
-                            .frame(width: 68, alignment: .leading)
-                        Text(fact.value)
-                            .font(.system(.subheadline, design: .default, weight: .semibold))
-                            .foregroundStyle(Color.espressoBrown)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                toggle()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(.title3, design: .default, weight: .medium))
+                        .foregroundStyle(Color.mugshotSage)
+                        .frame(width: 24)
+                    Text("Visit context")
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(.footnote, design: .default, weight: .bold))
+                        .foregroundStyle(Color.mugshotSage)
                 }
+                .frame(minHeight: 58)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sip.detail.visitContext.toggle")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
-            if facts.count > 3 {
-                Button(isExpanded ? "Show less" : "Show \(facts.count - 3) more") {
-                    withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
-                        isExpanded.toggle()
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(facts) { fact in
+                        Group {
+                            if dynamicTypeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    visitFactLabel(fact)
+                                    Text(fact.value)
+                                        .font(.system(.body, design: .default, weight: .semibold))
+                                        .foregroundStyle(Color.espressoBrown)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    if let systemImage = fact.systemImage {
+                                        Image(systemName: systemImage)
+                                            .font(.system(.body, design: .default, weight: .medium))
+                                            .foregroundStyle(Color.mugshotSage)
+                                            .frame(width: 24)
+                                    } else {
+                                        Color.clear.frame(width: 24, height: 1)
+                                    }
+                                    Text(fact.label)
+                                        .font(.system(.subheadline, design: .default, weight: .medium))
+                                        .foregroundStyle(Color.mugshotSage)
+                                        .frame(width: 72, alignment: .leading)
+                                    Text(fact.value)
+                                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                                        .foregroundStyle(Color.espressoBrown)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 12)
+                        .overlay(alignment: .bottom) {
+                            if fact.id != facts.last?.id {
+                                Divider().foregroundStyle(Color.mugshotLine)
+                            }
+                        }
                     }
+
+                    Button(action: toggle) {
+                        Label("Show less", systemImage: "chevron.up")
+                            .font(.system(.footnote, design: .default, weight: .semibold))
+                            .foregroundStyle(Color.mugshotSage)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .font(.system(.footnote, design: .default, weight: .semibold))
-                .foregroundStyle(Color.mugshotSage)
-                .frame(minHeight: 44)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.bottom, 4)
+        .overlay(alignment: .top) { Divider().foregroundStyle(Color.mugshotLine) }
         .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+    }
+
+    @ViewBuilder
+    private func visitFactLabel(_ fact: SipDetailVisitFact) -> some View {
+        if let systemImage = fact.systemImage {
+            Label(fact.label, systemImage: systemImage)
+                .font(.system(.footnote, design: .default, weight: .medium))
+                .foregroundStyle(Color.mugshotSage)
+        } else {
+            Text(fact.label)
+                .font(.system(.footnote, design: .default, weight: .medium))
+                .foregroundStyle(Color.mugshotSage)
+        }
+    }
+
+    private func toggle() {
+        withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
+            isExpanded.toggle()
+        }
     }
 }
 
@@ -2290,23 +2496,106 @@ private struct SipPrivateNoteSection: View {
 
 private struct SipSharedRawNoteSection: View {
     let text: String
+    let visibility: String
+    @Binding var isExpanded: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Raw journal note", systemImage: "text.book.closed.fill")
-                .font(.system(.caption2, design: .default, weight: .bold))
-                .textCase(.uppercase)
-                .tracking(1.2)
-                .foregroundStyle(Color.mugshotSage)
-            Text(text)
-                .font(.system(.title3, design: .serif, weight: .regular))
-                .foregroundStyle(Color.espressoBrown)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                toggle()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "text.book.closed")
+                        .font(.system(.body, design: .default, weight: .medium))
+                        .foregroundStyle(Color.mugshotSage)
+                        .frame(width: 24)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("SHARED JOURNAL NOTE")
+                            .font(.system(.caption2, design: .default, weight: .bold))
+                            .tracking(1.25)
+                            .foregroundStyle(Color.mugshotSage)
+                        if !isExpanded {
+                            Text(text)
+                                .font(.system(.body, design: .serif, weight: .regular))
+                                .foregroundStyle(Color.espressoBrown)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(.footnote, design: .default, weight: .bold))
+                        .foregroundStyle(Color.mugshotSage)
+                }
+                .padding(.vertical, 16)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sip.detail.journal.toggle")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 16) {
+                    Label(readerDescription, systemImage: visibilitySystemImage)
+                        .font(.system(.subheadline, design: .default, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+
+                    Text(text)
+                        .font(.system(.title3, design: .serif, weight: .regular))
+                        .foregroundStyle(Color.espressoBrown)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            Color.mugshotMint.opacity(0.16),
+                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        )
+
+                    Button(action: toggle) {
+                        Label("Collapse note", systemImage: "chevron.up")
+                            .font(.system(.footnote, design: .default, weight: .semibold))
+                            .foregroundStyle(Color.mugshotSage)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+
+                    Label(
+                        "This note never travels beyond the Mugshot audience.",
+                        systemImage: "lock"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 16)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.mugshotMint.opacity(0.18), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sip.detail.journal")
+    }
+
+    private var readerDescription: String {
+        switch visibility.lowercased() {
+        case "private": "Only you can read this note"
+        case "friends": "Friends can read this note"
+        default: "Everyone can read this note"
+        }
+    }
+
+    private var visibilitySystemImage: String {
+        visibility.lowercased() == "private" ? "lock" : "person.2"
+    }
+
+    private func toggle() {
+        withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
+            isExpanded.toggle()
+        }
     }
 }
 
@@ -2331,11 +2620,7 @@ private struct SipConversationSection: View {
                     .background(Color.sandBeige.opacity(0.58), in: Capsule())
             }
 
-            if comments.isEmpty {
-                Text("No comments yet.")
-                    .font(.body)
-                    .foregroundStyle(Color.tertiaryText)
-            } else {
+            if !comments.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(comments) { comment in
                         SipDetailCommentRow(
@@ -2354,7 +2639,7 @@ private struct SipConversationSection: View {
                 Button(action: onCompose) {
                     HStack(spacing: 10) {
                         Image(systemName: "bubble.right")
-                        Text("Add a thought")
+                        Text(comments.isEmpty ? "Be the first to comment" : "Add a thought")
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "arrow.up.circle.fill")
                             .foregroundStyle(Color.mugshotSage)
@@ -2858,7 +3143,7 @@ private struct SipEditSummaryRow: View {
 // MARK: - Deterministic previews
 
 #if DEBUG
-private extension SipDetailPresentation {
+extension SipDetailPresentation {
     static var previewOwner: SipDetailPresentation {
         let id = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
         let content = SipDetailContentModel(
@@ -2866,49 +3151,113 @@ private extension SipDetailPresentation {
             authorName: "Your sip",
             authorUsername: "@joe",
             authorAvatarURL: nil,
-            timestamp: "Jul 14, 2026",
-            visibility: "Public",
-            drinkName: "Iced Quad Shot Carmel Macchiato",
-            locationName: "Babas on Cannon",
-            locationSubtitle: "11 Cannon St, Charleston, SC",
+            timestamp: "Jul 23, 2026",
+            visibility: "Friends",
+            drinkName: "Iced Pistachio Latte",
+            locationName: "Nook Tiny Cafe & Market",
+            locationSubtitle: "Charleston, SC",
             locationSystemImage: JournalEntryContext.cafe.systemImage,
-            score: 3,
-            sipScore: 3,
-            caption: "Strong coffee and strong friends!",
-            sharedRawNote: nil,
+            score: 4,
+            sipScore: 3.8,
+            contextScore: 4.2,
+            caption: "Mid-work day pick me up at Nook! Support your local cafe.",
+            sharedRawNote: """
+            Sip
+            Starts with a punchy pistachio flavor right off the bat. It settles into a coffee-forward aftertaste that lingers. The drink is creamy and uses quality dairy, which gives it the mouth-feel I enjoy.
+
+            Cafe
+            This was a to-go order during a work call. Nook felt quiet and welcoming, the barista was kind, and the drink was ready quickly.
+            """,
             privateNote: "Order it with an extra shot next time.",
             sharedMugshot: nil,
             recipe: nil,
-            taggedAccounts: [],
-            photos: [],
-            usesMugsyPhotoFallback: false,
-            ratings: [
-                SipDetailRatingItem(name: "Presentation", score: 3.5),
-                SipDetailRatingItem(name: "Value", score: 1.5),
-                SipDetailRatingItem(name: "Taste", score: 3),
-                SipDetailRatingItem(name: "Ambiance", score: 4)
+            taggedAccounts: [
+                SipDetailTaggedAccount(
+                    userID: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!,
+                    displayName: "Jamie",
+                    username: "@jamie",
+                    avatarURL: nil,
+                    isCurrentUser: false
+                ),
+                SipDetailTaggedAccount(
+                    userID: UUID(uuidString: "33333333-3333-4333-8333-333333333333")!,
+                    displayName: "Marco",
+                    username: "@marco",
+                    avatarURL: nil,
+                    isCurrentUser: false
+                )
             ],
-            contextRatingLabel: nil,
-            contextRatings: [],
+            photos: MugshotLaunchEnvironment.shouldShowSipDetailPhotoDesignQA
+                ? [
+                    .asset("V3CreamyLatte"),
+                    .asset("V3QuietCafeCorner"),
+                    .asset("V3OrangeCitrusDetail")
+                ]
+                : [],
+            usesMugsyPhotoFallback: !MugshotLaunchEnvironment.shouldShowSipDetailPhotoDesignQA,
+            ratings: [
+                SipDetailRatingItem(name: "Flavor balance", score: 3.7),
+                SipDetailRatingItem(name: "Mouth-feel", score: 4.2),
+                SipDetailRatingItem(name: "Coffee finish", score: 4)
+            ],
+            contextRatingLabel: "Cafe",
+            contextRatings: [
+                SipDetailRatingItem(name: "Atmosphere", score: 4),
+                SipDetailRatingItem(name: "Service", score: 4.5),
+                SipDetailRatingItem(name: "Menu clarity", score: 3.5),
+                SipDetailRatingItem(name: "Wait time", score: 4.5)
+            ],
             sensorySnapshot: nil,
             visitFacts: [
-                SipDetailVisitFact(label: "With", value: "Amanda", systemImage: "person.2"),
-                SipDetailVisitFact(label: "Address", value: "11 Cannon St", systemImage: "mappin"),
-                SipDetailVisitFact(label: "Visited", value: "Jul 14, 2026", systemImage: "calendar")
+                SipDetailVisitFact(label: "Place", value: "Nook Tiny Cafe & Market", systemImage: "storefront"),
+                SipDetailVisitFact(label: "Area", value: "Charleston, SC", systemImage: "mappin.and.ellipse"),
+                SipDetailVisitFact(label: "Visited", value: "Jul 23, 2026 at 12:24 PM", systemImage: "calendar"),
+                SipDetailVisitFact(label: "Visit", value: "To-go", systemImage: "takeoutbag.and.cup.and.straw"),
+                SipDetailVisitFact(label: "Time", value: "Afternoon", systemImage: "sun.max"),
+                SipDetailVisitFact(label: "Company", value: "With Jamie and Marco", systemImage: "person.2"),
+                SipDetailVisitFact(label: "Drinks", value: "1", systemImage: "cup.and.saucer")
             ],
-            reactions: [],
-            comments: [],
+            reactions: [
+                SipDetailReactionSummary(title: "Great find", systemImage: "sparkles", count: 3),
+                SipDetailReactionSummary(title: "Want this", systemImage: "cup.and.saucer.fill", count: 2)
+            ],
+            comments: [
+                SipDetailCommentModel(
+                    id: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!,
+                    authorName: "Jamie",
+                    username: "@jamie",
+                    text: "That pistachio finish sounds so good.",
+                    timestamp: "12m",
+                    canReply: true
+                ),
+                SipDetailCommentModel(
+                    id: UUID(uuidString: "55555555-5555-4555-8555-555555555555")!,
+                    authorName: "Marco",
+                    username: "@marco",
+                    text: "Adding Nook to my list.",
+                    timestamp: "9m",
+                    canReply: true
+                ),
+                SipDetailCommentModel(
+                    id: UUID(uuidString: "66666666-6666-4666-8666-666666666666")!,
+                    authorName: "Avery",
+                    username: "@avery",
+                    text: "Coffee-forward is exactly how I’d order it.",
+                    timestamp: "4m",
+                    canReply: true
+                )
+            ],
             isLiked: false,
-            likeCount: 0,
+            likeCount: 12,
             isCafeSaved: true,
             replyingToUsername: nil,
             sharePayload: SipShareCardPayload(
                 authorName: "Joe",
-                drinkName: "Iced Quad Shot Carmel Macchiato",
-                cafeName: "Babas on Cannon",
-                rating: 3,
+                drinkName: "Iced Pistachio Latte",
+                cafeName: "Nook Tiny Cafe & Market",
+                rating: 4,
                 date: Date(timeIntervalSince1970: 1_768_000_000),
-                publicCaption: "Strong coffee and strong friends!",
+                publicCaption: "Mid-work day pick me up at Nook! Support your local cafe.",
                 remotePhotoURL: nil,
                 localPhotoPath: nil
             )
@@ -2920,11 +3269,12 @@ private extension SipDetailPresentation {
     }
 }
 
-private struct SipDetailPreviewHost: View {
+struct SipDetailPreviewHost: View {
     let presentation: SipDetailPresentation
     @State private var photoIndex = 0
     @State private var comment = ""
     @State private var progress: CGFloat = 0
+    @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
     @FocusState private var commentFocus: Bool
 
     var body: some View {
@@ -2944,7 +3294,15 @@ private struct SipDetailPreviewHost: View {
                 onCommentAction: { _, _ in },
                 onCancelReply: {},
                 onSelectMention: { _ in },
-                onPhotoTap: { _ in },
+                onPhotoTap: { index in
+                    guard presentation.content.photos.indices.contains(index) else { return }
+                    photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                        photos: presentation.content.photos,
+                        initialIndex: index,
+                        drinkName: presentation.content.drinkName,
+                        locationName: presentation.content.locationName
+                    )
+                },
                 onRecipeAction: { _ in },
                 onTaggedAccount: { _ in },
                 onRemoveOwnTag: {}
@@ -2954,13 +3312,19 @@ private struct SipDetailPreviewHost: View {
                     Image(systemName: "chevron.left")
                 }
                 ToolbarItem(placement: .principal) {
-                    Text(presentation.content.drinkName)
-                        .lineLimit(1)
-                        .opacity(progress)
+                    SipDetailToolbarTitle(
+                        drinkName: presentation.content.drinkName,
+                        progress: progress
+                    )
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Image(systemName: "ellipsis")
                 }
+            }
+            .toolbarBackground(Color.creamWhite, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .fullScreenCover(item: $photoViewerPresentation) { presentation in
+                SipDetailPhotoViewer(presentation: presentation)
             }
         }
     }

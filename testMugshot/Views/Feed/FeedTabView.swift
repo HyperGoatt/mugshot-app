@@ -625,6 +625,12 @@ struct FeedTabView: View {
                     currentlyLiked: visit.socialState.currentUserHasLiked
                 )
                 updateRemoteVisit(id: visit.id, socialState: state)
+                MugshotAnalytics.shared.capture(
+                    .sipLiked(
+                        action: state.currentUserHasLiked ? .added : .removed,
+                        surface: .feed
+                    )
+                )
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
@@ -667,6 +673,13 @@ struct FeedTabView: View {
                     wantToTry: state.wantToTry
                 )
                 dataManager.applyRemoteCafeState(summary)
+                MugshotAnalytics.shared.capture(
+                    .cafeStateChanged(
+                        state: .favorite,
+                        action: .added,
+                        surface: .feed
+                    )
+                )
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 dataManager.setCafeState(
@@ -1326,7 +1339,13 @@ struct VisitCard: View {
         HStack(spacing: 14) {
             Button(action: {
                 if let userId = dataManager.appData.currentUser?.id {
+                    let action: MugshotAnalyticsMutationAction = isLiked
+                        ? .removed
+                        : .added
                     dataManager.toggleVisitLike(visit.id, userId: userId)
+                    MugshotAnalytics.shared.capture(
+                        .sipLiked(action: action, surface: .feed)
+                    )
                 }
             }) {
                 localSocialLabel(value: visit.likeCount, systemImage: isLiked ? "heart.fill" : "heart", isActive: isLiked)
@@ -1461,7 +1480,9 @@ struct VisitDetailView: View {
                 guard photos.indices.contains(index) else { return }
                 photoViewerPresentation = SipDetailPhotoViewerPresentation(
                     photos: photos,
-                    initialIndex: index
+                    initialIndex: index,
+                    drinkName: sharedPresentation.content.drinkName,
+                    locationName: sharedPresentation.content.locationName
                 )
             },
             onRecipeAction: { _ in },
@@ -1472,8 +1493,8 @@ struct VisitDetailView: View {
         .toolbar(.hidden, for: .tabBar)
         .mugshotBottomNavHidden()
         .toolbar { localDetailToolbar }
-        .toolbarBackground(toolbarProgress > 0.82 ? .visible : .hidden, for: .navigationBar)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarBackground(Color.creamWhite, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .onAppear(perform: refreshVisit)
         .sheet(isPresented: $showEdit) {
             SipDetailEditForm(
@@ -1516,11 +1537,10 @@ struct VisitDetailView: View {
         }
 
         ToolbarItem(placement: .principal) {
-            Text(localDrinkDisplayName)
-                .font(.system(size: 16, weight: .bold))
-                .lineLimit(1)
-                .opacity(toolbarProgress)
-                .accessibilityHidden(toolbarProgress < 0.82)
+            SipDetailToolbarTitle(
+                drinkName: localDrinkDisplayName,
+                progress: toolbarProgress
+            )
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -1790,6 +1810,10 @@ struct VisitDetailView: View {
 
                         SipShareButton(
                         payload: SipShareCardPayload(
+                            visitID: visit.id,
+                            visibility: visit.visibility,
+                            isOwner: user?.id == visit.userId,
+                            isRemote: false,
                             authorName: user?.displayNameOrUsername ?? "Mugshot user",
                             drinkName: localDrinkDisplayName,
                             cafeName: cafe?.consumerDisplayName ?? visit.locationName ?? "Cafe",
@@ -1911,7 +1935,13 @@ struct VisitDetailView: View {
             return
         }
 
+        let action: MugshotAnalyticsMutationAction = visit.likedByUserIds.contains(userId)
+            ? .removed
+            : .added
         dataManager.toggleVisitLike(visit.id, userId: userId)
+        MugshotAnalytics.shared.capture(
+            .sipLiked(action: action, surface: .sipDetail)
+        )
         refreshVisit()
     }
 
@@ -1925,6 +1955,13 @@ struct VisitDetailView: View {
             isFavorite: !cafe.isFavorite,
             wantToTry: cafe.wantToTry
         )
+        MugshotAnalytics.shared.capture(
+            .cafeStateChanged(
+                state: .favorite,
+                action: cafe.isFavorite ? .removed : .added,
+                surface: .sipDetail
+            )
+        )
     }
 
     private func toggleLocalCafeWantToTry() {
@@ -1936,6 +1973,13 @@ struct VisitDetailView: View {
             cafeId: cafe.id,
             isFavorite: cafe.isFavorite,
             wantToTry: !cafe.wantToTry
+        )
+        MugshotAnalytics.shared.capture(
+            .cafeStateChanged(
+                state: .wantToTry,
+                action: cafe.wantToTry ? .removed : .added,
+                surface: .sipDetail
+            )
         )
     }
 
@@ -1957,6 +2001,9 @@ struct VisitDetailView: View {
         }
         
         dataManager.addComment(to: visit.id, userId: userId, text: commentText)
+        MugshotAnalytics.shared.capture(
+            .commentAdded(surface: .sipDetail)
+        )
         commentText = ""
         isCommentFocused = false
         

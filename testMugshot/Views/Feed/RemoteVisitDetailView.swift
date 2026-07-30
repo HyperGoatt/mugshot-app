@@ -61,7 +61,7 @@ struct RemoteVisitDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var detail: RemoteVisitDetail?
     @State private var selectedPhotoIndex = 0
-    @State private var photoViewerPresentation: RemotePhotoViewerPresentation?
+    @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var socialError: String?
@@ -135,9 +135,11 @@ struct RemoteVisitDetailView: View {
                     onCancelReply: { replyingTo = nil },
                     onSelectMention: selectMention,
                     onPhotoTap: { index in
-                        photoViewerPresentation = RemotePhotoViewerPresentation(
-                            photoURLs: detail.photoURLs,
-                            initialIndex: index
+                        photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                            photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                            initialIndex: index,
+                            drinkName: detail.summary.visit.drinkDisplayName,
+                            locationName: detail.summary.locationTitle
                         )
                     },
                     onRecipeAction: performRecipeAction,
@@ -164,8 +166,16 @@ struct RemoteVisitDetailView: View {
         .toolbar(.hidden, for: .tabBar)
         .mugshotBottomNavHidden()
         .toolbar { detailToolbar }
-        .toolbarBackground(toolbarProgress > 0.82 ? .visible : .hidden, for: .navigationBar)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarBackground(Color.creamWhite, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear {
+            MugshotAnalytics.shared.capture(
+                .screenViewed(
+                    .sipDetail,
+                    source: justPosted ? .postPublish : .navigation
+                )
+            )
+        }
         .task(id: visitId) { await loadDetail() }
         .task(id: commentText) { await updateMentionSuggestions() }
         .navigationDestination(item: $selectedTaggedProfile) { route in
@@ -248,10 +258,7 @@ struct RemoteVisitDetailView: View {
     private var mediaPresentedScene: some View {
         safetySheetsScene
         .fullScreenCover(item: $photoViewerPresentation) { presentation in
-            RemotePhotoViewer(
-                photoURLs: presentation.photoURLs,
-                initialIndex: presentation.initialIndex
-            )
+            SipDetailPhotoViewer(presentation: presentation)
         }
     }
 
@@ -366,11 +373,10 @@ struct RemoteVisitDetailView: View {
         }
 
         ToolbarItem(placement: .principal) {
-            Text(displayedSummary.visit.drinkDisplayName)
-                .font(.system(size: 16, weight: .bold))
-                .lineLimit(1)
-                .opacity(toolbarProgress)
-                .accessibilityHidden(toolbarProgress < 0.82)
+            SipDetailToolbarTitle(
+                drinkName: displayedSummary.visit.drinkDisplayName,
+                progress: toolbarProgress
+            )
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -853,16 +859,20 @@ struct RemoteVisitDetailView: View {
             .contentShape(Rectangle())
             .simultaneousGesture(
                 TapGesture().onEnded {
-                    photoViewerPresentation = RemotePhotoViewerPresentation(
-                        photoURLs: detail.photoURLs,
-                        initialIndex: selectedPhotoIndex
+                    photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                        photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                        initialIndex: selectedPhotoIndex,
+                        drinkName: detail.summary.visit.drinkDisplayName,
+                        locationName: detail.summary.locationTitle
                     )
                 }
             )
             .accessibilityAction(named: "Open photo full screen") {
-                photoViewerPresentation = RemotePhotoViewerPresentation(
-                    photoURLs: detail.photoURLs,
-                    initialIndex: selectedPhotoIndex
+                photoViewerPresentation = SipDetailPhotoViewerPresentation(
+                    photos: detail.photoURLs.map(SipDetailPhotoSource.remote),
+                    initialIndex: selectedPhotoIndex,
+                    drinkName: detail.summary.visit.drinkDisplayName,
+                    locationName: detail.summary.locationTitle
                 )
             }
         }
@@ -973,6 +983,10 @@ struct RemoteVisitDetailView: View {
 
                         SipShareButton(
                         payload: SipShareCardPayload(
+                            visitID: detail.summary.visit.id,
+                            visibility: .supabaseValue(detail.summary.visit.visibility),
+                            isOwner: currentUserId == detail.summary.visit.userId,
+                            isRemote: true,
                             authorName: detail.summary.authorDisplayName,
                             drinkName: detail.summary.visit.drinkDisplayName,
                             cafeName: detail.summary.locationTitle,
@@ -1332,6 +1346,24 @@ struct RemoteVisitDetailView: View {
                     wantToTry: nextWantToTry
                 )
                 dataManager.applyRemoteCafeState(summary)
+                if existing.isFavorite != nextFavorite {
+                    MugshotAnalytics.shared.capture(
+                        .cafeStateChanged(
+                            state: .favorite,
+                            action: nextFavorite ? .added : .removed,
+                            surface: .remoteSipDetail
+                        )
+                    )
+                }
+                if existing.wantToTry != nextWantToTry {
+                    MugshotAnalytics.shared.capture(
+                        .cafeStateChanged(
+                            state: .wantToTry,
+                            action: nextWantToTry ? .added : .removed,
+                            surface: .remoteSipDetail
+                        )
+                    )
+                }
             } catch {
                 socialError = "Could not update this cafe."
             }
@@ -1404,6 +1436,12 @@ struct RemoteVisitDetailView: View {
                 currentlyLiked: detail.currentUserHasLiked
             )
             applySocialState(state)
+            MugshotAnalytics.shared.capture(
+                .sipLiked(
+                    action: state.currentUserHasLiked ? .added : .removed,
+                    surface: .remoteSipDetail
+                )
+            )
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
@@ -1440,6 +1478,9 @@ struct RemoteVisitDetailView: View {
             self.detail = try await service.fetchVisitDetail(
                 visitId: visitId,
                 currentUserId: currentUserId
+            )
+            MugshotAnalytics.shared.capture(
+                .commentAdded(surface: .remoteSipDetail)
             )
             commentText = ""
             replyingTo = nil
@@ -2082,71 +2123,6 @@ private struct DrinkInterpretationEditor: View {
 
     private var selectedPreparation: DrinkPreparation {
         DrinkPreparation(rawValue: preparation) ?? .unknown
-    }
-}
-
-private struct RemotePhotoViewerPresentation: Identifiable {
-    let id = UUID()
-    let photoURLs: [String]
-    let initialIndex: Int
-}
-
-private struct RemotePhotoViewer: View {
-    let photoURLs: [String]
-    @State private var selectedIndex: Int
-    @Environment(\.dismiss) private var dismiss
-
-    init(photoURLs: [String], initialIndex: Int) {
-        self.photoURLs = photoURLs
-        _selectedIndex = State(initialValue: min(max(initialIndex, 0), max(photoURLs.count - 1, 0)))
-    }
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(photoURLs.enumerated()), id: \.offset) { index, urlString in
-                    RemotePhotoImageView(
-                        urlString: urlString,
-                        placeholderSystemName: "photo.on.rectangle",
-                        contentMode: .fit
-                    )
-                    .tag(index)
-                    .padding(.vertical, 56)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: photoURLs.count > 1 ? .automatic : .never))
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.52), in: Circle())
-                    }
-                    .accessibilityLabel("Close photo viewer")
-                }
-                Spacer()
-                if photoURLs.count > 1 {
-                    Text("\(selectedIndex + 1) of \(photoURLs.count)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(.black.opacity(0.56), in: Capsule())
-                        .accessibilityLabel("Photo \(selectedIndex + 1) of \(photoURLs.count)")
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        }
-        .statusBarHidden(true)
     }
 }
 
@@ -2916,6 +2892,10 @@ struct SipActionButton: View {
 }
 
 struct SipShareCardPayload: Equatable {
+    let visitID: UUID
+    let visibility: VisitVisibility
+    let isOwner: Bool
+    let isRemote: Bool
     let authorName: String
     let drinkName: String
     let cafeName: String
@@ -2924,6 +2904,34 @@ struct SipShareCardPayload: Equatable {
     let publicCaption: String?
     let remotePhotoURL: String?
     let localPhotoPath: String?
+
+    init(
+        visitID: UUID = UUID(),
+        visibility: VisitVisibility = .private,
+        isOwner: Bool = true,
+        isRemote: Bool = false,
+        authorName: String,
+        drinkName: String,
+        cafeName: String,
+        rating: Double,
+        date: Date,
+        publicCaption: String?,
+        remotePhotoURL: String?,
+        localPhotoPath: String?
+    ) {
+        self.visitID = visitID
+        self.visibility = visibility
+        self.isOwner = isOwner
+        self.isRemote = isRemote
+        self.authorName = authorName
+        self.drinkName = drinkName
+        self.cafeName = cafeName
+        self.rating = rating
+        self.date = date
+        self.publicCaption = publicCaption
+        self.remotePhotoURL = remotePhotoURL
+        self.localPhotoPath = localPhotoPath
+    }
 
     var shareText: String {
         "\(authorName) remembered \(drinkName) at \(cafeName) on Mugshot."
@@ -2938,7 +2946,7 @@ enum SipShareButtonLayout: Equatable {
 struct SipShareButton: View {
     let payload: SipShareCardPayload
     var layout: SipShareButtonLayout = .pill
-    @State private var presentation: RichSharePresentation?
+    @State private var presentation: MugshotDetailSharePresentation?
     @State private var isPreparing = false
 
     var body: some View {
@@ -2965,7 +2973,18 @@ struct SipShareButton: View {
         .disabled(isPreparing)
         .accessibilityLabel("Share sip")
         .sheet(item: $presentation) { presentation in
-            ActivityShareView(items: presentation.items)
+            MugshotShareHubView(
+                summary: presentation.summary,
+                isOpeningMugshot: false,
+                statusMessage: nil,
+                onViewMugshot: {},
+                onViewPassport: {},
+                onFinish: { self.presentation = nil },
+                onStartAnother: nil,
+                isPostPublish: false
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -2974,15 +2993,30 @@ struct SipShareButton: View {
         isPreparing = true
         defer { isPreparing = false }
         let photo = await sharePhoto()
-        let artwork = MugshotSipShareCard(payload: payload, photo: photo)
-            .frame(width: 540, height: 675)
-        let renderer = ImageRenderer(content: artwork)
-        renderer.scale = 2
-        var items: [Any] = [payload.shareText]
-        if let image = renderer.uiImage {
-            items.insert(image, at: 0)
-        }
-        presentation = RichSharePresentation(items: items)
+        let photos = photo.map { [$0] } ?? []
+        presentation = MugshotDetailSharePresentation(
+            summary: LogASipV3PassportSummary(
+                visitID: payload.visitID,
+                visibility: payload.visibility,
+                isOwner: payload.isOwner,
+                isRemote: payload.isRemote,
+                displayName: payload.authorName,
+                drinkName: payload.drinkName,
+                contextName: payload.cafeName,
+                createdAt: payload.date,
+                sipScore: payload.rating,
+                contextScore: nil,
+                mugshotScore: payload.rating,
+                identityTitle: "Your Mugshot Passport",
+                identityDetail: "This memory is already part of the story your Passport is learning.",
+                memoryCount: 0,
+                criteria: [],
+                evidence: [],
+                publicCaption: payload.publicCaption,
+                photoImages: photos,
+                coverImage: photo
+            )
+        )
     }
 
     private func sharePhoto() async -> UIImage? {
@@ -3002,117 +3036,9 @@ struct SipShareButton: View {
     }
 }
 
-private struct MugshotSipShareCard: View {
-    let payload: SipShareCardPayload
-    let photo: UIImage?
-
-    var body: some View {
-        ZStack {
-            Color.creamWhite
-
-            VStack(spacing: 0) {
-                photoSurface
-                    .frame(height: 356)
-
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("MUGSHOT")
-                            .font(.system(size: 13, weight: .black))
-                            .tracking(2.2)
-                            .foregroundColor(.mugshotSage)
-                        Spacer()
-                        Text(payload.date.formatted(date: .abbreviated, time: .omitted))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.secondaryText)
-                    }
-
-                    Text(payload.drinkName)
-                        .font(.system(size: 34, weight: .bold, design: .serif))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HStack(alignment: .center, spacing: 12) {
-                        Label(payload.cafeName, systemImage: "mappin.circle.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.espressoBrown)
-                            .lineLimit(2)
-                        Spacer(minLength: 8)
-                        VStack(alignment: .trailing, spacing: 3) {
-                            Text("MUGSHOT")
-                                .font(.system(size: 9, weight: .black))
-                                .tracking(1.2)
-                                .foregroundColor(.mugshotSage)
-                            MugshotRatingBadge(score: payload.rating)
-                        }
-                    }
-
-                    if let caption = payload.publicCaption?.remoteTrimmedNonEmpty {
-                        Text("“\(caption)”")
-                            .font(.system(size: 16, weight: .medium, design: .serif))
-                            .foregroundColor(.roastBrown)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Text("Remembered by \(payload.authorName)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.tertiaryText)
-                }
-                .padding(28)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
-        )
-    }
-
-    @ViewBuilder
-    private var photoSurface: some View {
-        if let photo {
-            Image(uiImage: photo)
-                .resizable()
-                .scaledToFill()
-                .clipped()
-                .overlay(alignment: .bottomLeading) {
-                    LinearGradient(
-                        colors: [.clear, Color.espressoBrown.opacity(0.34)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-        } else {
-            ZStack {
-                LinearGradient(
-                    colors: [Color.mugshotMint.opacity(0.64), Color.sandBeige],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                MugsyModelView(configuration: MugsyPlacement.camera.configuration)
-                    .padding(46)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-}
-
-private struct RichSharePresentation: Identifiable {
+private struct MugshotDetailSharePresentation: Identifiable {
     let id = UUID()
-    let items: [Any]
-}
-
-private struct ActivityShareView: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    let summary: LogASipV3PassportSummary
 }
 
 struct SipActionLabel: View {

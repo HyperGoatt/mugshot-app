@@ -49,6 +49,16 @@ struct testMugshotTests {
         #expect(MugshotAuthCallbackRoute.resolve(untrustedScheme) == nil)
     }
 
+    @Test func authInputPolicyNormalizesEmailAndPreservesLegacySignIn() {
+        #expect(MugshotAuthInput.normalizedEmail("  Member@Example.COM \n") == "member@example.com")
+        #expect(MugshotPasswordPolicy.acceptsExistingPassword("123456"))
+        #expect(!MugshotPasswordPolicy.acceptsExistingPassword("12345"))
+        #expect(MugshotPasswordPolicy.acceptsNewPassword("12345678"))
+        #expect(!MugshotPasswordPolicy.acceptsNewPassword("1234567"))
+        #expect(AuthService.callbackURL.absoluteString == "mugshot://auth/callback")
+        #expect(AuthService.passwordRecoveryURL.absoluteString == "mugshot://auth/recovery")
+    }
+
     @Test func authCallbackQueueDefersColdLinksAndConsumesEachLinkOnce() throws {
         let coldURL = try #require(URL(
             string: "mugshot://auth/recovery?code=one-time-recovery-code"
@@ -2779,6 +2789,7 @@ struct testMugshotTests {
         let fieldNames = Set(Mirror(reflecting: payload).children.compactMap(\.label))
 
         #expect(fieldNames == [
+            "visitID", "visibility", "isOwner", "isRemote",
             "authorName", "drinkName", "cafeName", "rating", "date",
             "publicCaption", "remotePhotoURL", "localPhotoPath"
         ])

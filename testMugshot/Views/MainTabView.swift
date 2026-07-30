@@ -27,6 +27,7 @@ struct MainTabView: View {
     @State private var showsActivityCenter = false
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
+    @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
     @State private var isBottomNavHidden = false
     
     var body: some View {
@@ -95,6 +96,10 @@ struct MainTabView: View {
             synchronizeActivityRouter()
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
+            captureSelectedScreen()
+        }
+        .onChange(of: tabCoordinator.selectedTab) { _, _ in
+            captureSelectedScreen()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
             if showsActivityCenter {
@@ -237,6 +242,17 @@ struct MainTabView: View {
             PasswordRecoveryView(dataManager: dataManager)
                 .environmentObject(authModel)
         }
+        .sheet(item: $sharedMugshotRoute) { route in
+            NavigationStack {
+                PublicMugshotLinkView(route: route)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { sharedMugshotRoute = nil }
+                        }
+                    }
+            }
+            .presentationDetents([.large])
+        }
     }
 
     private var routedScene: some View {
@@ -254,6 +270,8 @@ struct MainTabView: View {
                 // The always-mounted root queues auth callbacks until session
                 // restoration finishes and consumes each one-time URL once.
                 return
+            } else if let route = MugshotSharedLinkRoute.resolve(url) {
+                sharedMugshotRoute = route
             } else if let accountID = authModel.authenticatedUser?.id,
                       activityRouter.enqueue(url: url, accountID: accountID) {
                 handlePendingActivityRoute()
@@ -314,7 +332,12 @@ struct MainTabView: View {
                     }
                 },
                 activityUnreadCount: activityStore.unreadCount,
-                onActivityRequested: { showsActivityCenter = true }
+                onActivityRequested: {
+                    MugshotAnalytics.shared.capture(
+                        .screenViewed(.activityCenter, source: .sheet)
+                    )
+                    showsActivityCenter = true
+                }
             )
         case 2:
             AddTabView(dataManager: dataManager, initialDraft: composerDraft)
@@ -344,6 +367,18 @@ struct MainTabView: View {
     }
 
     private static let guestTabs: Set<Int> = [0, 3]
+
+    private func captureSelectedScreen() {
+        let screen: MugshotAnalyticsScreen
+        switch tabCoordinator.selectedTab {
+        case 0: screen = .map
+        case 1: screen = .feed
+        case 2: screen = .sipComposer
+        case 3: screen = .saved
+        default: screen = .journal
+        }
+        MugshotAnalytics.shared.capture(.screenViewed(screen, source: .tab))
+    }
 
     private func beginCafeSip(_ cafe: Cafe) {
         guard hasAuthenticatedNavigation else {

@@ -1,5 +1,4 @@
 import Combine
-import Security
 import UIKit
 @preconcurrency import UserNotifications
 
@@ -277,21 +276,10 @@ final class NotificationDeviceCoordinator: ObservableObject {
     private static func detectCapability() -> ActivityPushCapability {
 #if targetEnvironment(simulator)
         return .unavailable("Push requires a signed device build. In-app activity works in Simulator.")
+#elseif MUGSHOT_PUSH_CAPABLE
+        return .configured(environment: "production")
 #else
-        guard let task = SecTaskCreateFromSelf(nil),
-              let entitlement = SecTaskCopyValueForEntitlement(
-                task,
-                "aps-environment" as CFString,
-                nil
-              ) as? String else {
-            return .unavailable("This build does not include the APNs entitlement. In-app activity remains available.")
-        }
-        switch entitlement.lowercased() {
-        case "development": return .configured(environment: "sandbox")
-        case "production": return .configured(environment: "production")
-        default:
-            return .unavailable("This build has an unknown APNs environment. In-app activity remains available.")
-        }
+        return .unavailable("This build does not include the APNs entitlement. In-app activity remains available.")
 #endif
     }
 }

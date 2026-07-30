@@ -48,6 +48,9 @@ struct CapturePreferencesView: View {
                         Button("Skip for now") {
                             Task {
                                 if await authModel.skipCapturePreferences() {
+                                    MugshotAnalytics.shared.capture(
+                                        .capturePreferencesSkipped
+                                    )
                                     dismiss()
                                 }
                             }
@@ -72,7 +75,15 @@ struct CapturePreferencesView: View {
             }
         }
         .interactiveDismissDisabled(authModel.isSavingCapturePreferences)
-        .onAppear(perform: loadStoredPreferences)
+        .onAppear {
+            loadStoredPreferences()
+            MugshotAnalytics.shared.capture(
+                .capturePreferencesViewed(allowsSkipping: allowsSkipping)
+            )
+            MugshotAnalytics.shared.capture(
+                .screenViewed(.capturePreferences, source: .sheet)
+            )
+        }
     }
 
     private var header: some View {
@@ -139,6 +150,13 @@ struct CapturePreferencesView: View {
                     setupCompletedAt: authModel.capturePreferences.setupCompletedAt
                 )
                 if await authModel.saveCapturePreferences(preferences) {
+                    MugshotAnalytics.shared.capture(
+                        .capturePreferencesCompleted(
+                            selectedDrinkFamilyCount: usualDrinkFamilies.count,
+                            selectedDiscoveryIntentCount: discoveryIntents.count,
+                            hasHabit: cafeHomeHabit != nil
+                        )
+                    )
                     dismiss()
                 }
             }

@@ -2314,6 +2314,24 @@ struct CafeDetailSheet: View {
             isFavorite: isFavorite,
             wantToTry: wantToTry
         )
+        if previousCafe.isFavorite != isFavorite {
+            MugshotAnalytics.shared.capture(
+                .cafeStateChanged(
+                    state: .favorite,
+                    action: isFavorite ? .added : .removed,
+                    surface: .map
+                )
+            )
+        }
+        if previousCafe.wantToTry != wantToTry {
+            MugshotAnalytics.shared.capture(
+                .cafeStateChanged(
+                    state: .wantToTry,
+                    action: wantToTry ? .added : .removed,
+                    surface: .map
+                )
+            )
+        }
 
         guard let userId = authModel.authenticatedUser?.id else {
             return

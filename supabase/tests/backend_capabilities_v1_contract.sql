@@ -10,6 +10,7 @@ declare
     'independent_recipe_visibility',
     'visit_tags',
     'shared_mugshots',
+    'public_mugshot_sharing',
     'activity_center',
     'notification_preferences',
     'push_registration',
@@ -29,7 +30,7 @@ begin
   end if;
 
   if payload ->> 'schema_release'
-      <> '2026-07-22-alpha-social-foundations' then
+      <> '2026-07-23-post-publish-share-hub' then
     raise exception 'Unexpected backend schema release: %',
       payload ->> 'schema_release';
   end if;

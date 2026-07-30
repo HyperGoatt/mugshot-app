@@ -247,7 +247,12 @@ struct SipDetailPresentationTests {
         )
 
         #expect(presentation.content.contextRatingLabel == "Cafe")
+        #expect(presentation.content.contextScore == 3.5)
         #expect(presentation.content.sharedRawNote == "Sip\nSweet opening.\n\nCafe\nQuiet back room.")
+        #expect(presentation.content.visitFacts.first?.label == "Place")
+        #expect(!presentation.content.visitFacts.contains { fact in
+            fact.label == "Address" || fact.value.contains("11 Cannon")
+        })
     }
 
     @Test func authorizedRecipeProjectionDrivesBlueprintAndReusableAction() {
@@ -499,6 +504,7 @@ struct SipDetailPresentationTests {
             locationSystemImage: JournalEntryContext.cafe.systemImage,
             score: ratings.isEmpty ? 0 : 4.2,
             sipScore: ratings.isEmpty ? 0 : 4.2,
+            contextScore: nil,
             caption: caption,
             sharedRawNote: nil,
             privateNote: privateNote,

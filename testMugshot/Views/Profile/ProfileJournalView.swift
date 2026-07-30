@@ -6,6 +6,7 @@ struct JournalTabView: View {
     let onComposeDraft: (SipDraft) -> Void
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
+    @StateObject private var passportRouter = JournalPassportRouter.shared
 
     @State private var selectedFilter: JournalFilter = .all
     @State private var activeProfileSheet: ProfileSheet?
@@ -245,7 +246,19 @@ struct JournalTabView: View {
                     .sorted { $0.updatedAt > $1.updatedAt }
                 await loadJournal()
             }
+            .onAppear {
+                openRequestedPassport()
+            }
+            .onChange(of: passportRouter.requestID) { _, _ in
+                openRequestedPassport()
+            }
         }
+    }
+
+    private func openRequestedPassport() {
+        guard let requestID = passportRouter.requestID else { return }
+        showOwnerProfile = true
+        passportRouter.consume(requestID)
     }
 
     private var draftSection: some View {

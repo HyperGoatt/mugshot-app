@@ -33,6 +33,7 @@ struct LogASipV3ProductionView: View {
     let onUseLastContextSetup: () -> Void
     let onPublish: () -> Void
     let onViewPublishedMugshot: () -> Void
+    let onViewPassport: () -> Void
     let onFinish: () -> Void
     let onStartAnother: (() -> Void)?
 
@@ -65,6 +66,7 @@ struct LogASipV3ProductionView: View {
         onUseLastContextSetup: @escaping () -> Void = {},
         onPublish: @escaping () -> Void,
         onViewPublishedMugshot: @escaping () -> Void = {},
+        onViewPassport: @escaping () -> Void = {},
         onFinish: @escaping () -> Void = {},
         onStartAnother: (() -> Void)? = nil
     ) {
@@ -91,6 +93,7 @@ struct LogASipV3ProductionView: View {
         self.onUseLastContextSetup = onUseLastContextSetup
         self.onPublish = onPublish
         self.onViewPublishedMugshot = onViewPublishedMugshot
+        self.onViewPassport = onViewPassport
         self.onFinish = onFinish
         self.onStartAnother = onStartAnother
     }
@@ -101,14 +104,28 @@ struct LogASipV3ProductionView: View {
                 Color.creamWhite.ignoresSafeArea()
 
                 if let completion {
-                    LogASipV3PassportCompletionView(
-                        summary: completion,
-                        isOpeningMugshot: isOpeningPublishedMugshot,
-                        statusMessage: completionStatusMessage,
-                        onViewMugshot: onViewPublishedMugshot,
-                        onFinish: onFinish,
-                        onStartAnother: onStartAnother
-                    )
+                    Group {
+                        if MugshotShareFeatureFlags.isEnabled(MugshotShareFeatureFlags.hub) {
+                            MugshotShareHubView(
+                                summary: completion,
+                                isOpeningMugshot: isOpeningPublishedMugshot,
+                                statusMessage: completionStatusMessage,
+                                onViewMugshot: onViewPublishedMugshot,
+                                onViewPassport: onViewPassport,
+                                onFinish: onFinish,
+                                onStartAnother: onStartAnother
+                            )
+                        } else {
+                            LogASipV3PassportCompletionView(
+                                summary: completion,
+                                isOpeningMugshot: isOpeningPublishedMugshot,
+                                statusMessage: completionStatusMessage,
+                                onViewMugshot: onViewPublishedMugshot,
+                                onFinish: onFinish,
+                                onStartAnother: onStartAnother
+                            )
+                        }
+                    }
                     .transition(.opacity)
                 } else {
                     currentSurface
@@ -1013,6 +1030,10 @@ private struct LogASipV3PublishSurface: View {
 // MARK: - Passport completion
 
 struct LogASipV3PassportSummary {
+    let visitID: UUID
+    let visibility: VisitVisibility
+    let isOwner: Bool
+    let isRemote: Bool
     let displayName: String
     let drinkName: String
     let contextName: String
@@ -1025,9 +1046,15 @@ struct LogASipV3PassportSummary {
     let memoryCount: Int
     let criteria: [String]
     let evidence: [LogASipV3PassportEvidence]
+    let publicCaption: String?
+    let photoImages: [UIImage]
     let coverImage: UIImage?
 
     init(
+        visitID: UUID,
+        visibility: VisitVisibility,
+        isOwner: Bool,
+        isRemote: Bool,
         displayName: String,
         drinkName: String,
         contextName: String,
@@ -1040,8 +1067,14 @@ struct LogASipV3PassportSummary {
         memoryCount: Int,
         criteria: [String],
         evidence: [LogASipV3PassportEvidence],
+        publicCaption: String?,
+        photoImages: [UIImage],
         coverImage: UIImage?
     ) {
+        self.visitID = visitID
+        self.visibility = visibility
+        self.isOwner = isOwner
+        self.isRemote = isRemote
         self.displayName = displayName
         self.drinkName = drinkName
         self.contextName = contextName
@@ -1054,6 +1087,8 @@ struct LogASipV3PassportSummary {
         self.memoryCount = memoryCount
         self.criteria = criteria
         self.evidence = evidence
+        self.publicCaption = publicCaption
+        self.photoImages = photoImages
         self.coverImage = coverImage
     }
 }
@@ -1378,7 +1413,7 @@ private struct LogASipV3ScrollableSurface<Content: View>: View {
     }
 }
 
-private struct LogASipV3BottomAction: View {
+struct LogASipV3BottomAction: View {
     let title: String
     let subtitle: String
     let systemImage: String
