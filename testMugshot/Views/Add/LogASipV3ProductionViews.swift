@@ -135,7 +135,13 @@ struct LogASipV3ProductionView: View {
             }
             .foregroundStyle(Color.espressoBrown)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarContent }
+            .toolbar {
+                toolbarContent
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done", action: dismissKeyboard)
+                }
+            }
             .sheet(item: $presentedSheet) { sheet in
                 sheetContent(sheet)
                     .presentationBackground(Color.creamWhite)
@@ -249,6 +255,7 @@ struct LogASipV3ProductionView: View {
                 Text("\(stepNumber) of 5")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
+                    .fixedSize(horizontal: true, vertical: true)
                     .accessibilityLabel("Step \(stepNumber) of 5")
             }
         }
@@ -307,6 +314,15 @@ struct LogASipV3ProductionView: View {
         case .context: move(to: .sip)
         case .publish: move(to: .context)
         }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 
     private func addCustomCriterion(_ rawName: String, to target: LogASipV3CriterionTarget) {
@@ -1394,6 +1410,7 @@ private struct LogASipV3ScrollableSurface<Content: View>: View {
             .disabled(!contentEnabled)
             .padding(.bottom, 116)
         }
+        .accessibilityIdentifier("logASipV3.scroll")
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             LogASipV3BottomAction(
@@ -1532,10 +1549,9 @@ private struct LogASipV3LabeledField: View {
             Label(title, systemImage: systemImage)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Color.secondaryText)
-            TextField(placeholder, text: $text, axis: .vertical)
+            TextField(placeholder, text: $text)
                 .textInputAutocapitalization(.sentences)
                 .font(.system(size: 15, weight: .medium))
-                .lineLimit(1...3)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 50)
                 .background(Color.foamWhite)
@@ -1599,6 +1615,7 @@ private struct LogASipV3PhotoStrip: View {
                                     Image(uiImage: images[index])
                                         .resizable()
                                         .scaledToFill()
+                                        .accessibilityHidden(true)
                                         .frame(width: 108, height: 126)
                                         .clipped()
                                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1614,6 +1631,7 @@ private struct LogASipV3PhotoStrip: View {
                                         Image(systemName: "star.fill")
                                             .font(.system(size: 12, weight: .bold))
                                             .foregroundStyle(Color.espressoBrown)
+                                            .accessibilityHidden(true)
                                             .frame(width: 30, height: 30)
                                             .background(Color.mugshotMint, in: Circle())
                                             .padding(6)
@@ -1668,6 +1686,7 @@ private struct LogASipV3MemorySummary: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
+                        .accessibilityHidden(true)
                 } else {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 20, weight: .bold))
@@ -1689,10 +1708,14 @@ private struct LogASipV3MemorySummary: View {
                     .lineLimit(1)
             }
             Spacer()
-            Button("Edit", action: onEdit)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.mugshotSage)
-                .frame(minWidth: 44, minHeight: 44)
+            Button(action: onEdit) {
+                Text("Edit")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(10)
         .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
@@ -1731,6 +1754,8 @@ private struct LogASipV3JournalEditor: View {
                     .frame(minHeight: minimumHeight)
                     .padding(.horizontal, 1)
                     .background(Color.clear)
+                    .accessibilityLabel(title)
+                    .accessibilityHint(prompt)
                     .onChange(of: text) { _, updatedText in
                         guard updatedText.v3DatabaseCharacterCount
                                 > V3VisitReflection.rawNoteCharacterLimit else {
