@@ -149,6 +149,80 @@ final result: passed
 
 ---
 
+# Mugshot Post V2 — Editorial Pour QA
+
+## Comparison target
+
+- Source visual truth:
+  - `docs/product-research/mugshot-post-v2/editorial-pour-full-post/01-canonical-full-post.png`
+  - `docs/product-research/mugshot-post-v2/editorial-pour-full-post/02-score-evidence-expanded.png`
+  - `docs/product-research/mugshot-post-v2/editorial-pour-full-post/03-journal-visit-expanded.png`
+  - `docs/product-research/mugshot-post-v2/editorial-pour-full-post/05-photo-viewer.png`
+  - `docs/product-research/mugshot-post-v2/editorial-pour-full-post/06-no-photo-fallback.png`
+- Rendered implementation evidence:
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/canonical-photo-comparison.png`
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/no-photo-comparison.png`
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/taste-evidence-comparison.png`
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/journal-comparison.png`
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/visit-context-comparison.png`
+  - `docs/product-research/mugshot-post-v2/design-qa-evidence/photo-viewer-comparison.png`
+- Viewport: iPhone 16 Pro Simulator on iOS 18.6, captured at 368 × 800 pixels in light mode.
+- Normalization: the 853 × 1844 source state boards were scaled to 368 pixels wide, then cropped or padded to 368 × 800. Simulator captures were already 368 × 800. Device scale factor is not applicable to the optimized XcodeBuildMCP capture output.
+- States: canonical three-photo post, Mugsy no-photo fallback, collapsed and expanded taste evidence, expanded shared journal, collapsed and expanded Visit Context, conversation content, and full-screen photo paging.
+
+Every source and implementation state was placed into one side-by-side comparison image before the final assessment. Focused comparisons were required because the journal typography, Visit Context rows, taste evidence, and photo viewer are not readable enough in one full-post capture.
+
+## Required fidelity surfaces
+
+- **Fonts and typography:** Passed. The implementation uses the approved iOS system-serif for drink titles, editorial captions, evidence headings, journal copy, and private notes, with system sans-serif for controls and metadata. Scale, weight, wrapping, and hierarchy remain readable at the 368-point viewport.
+- **Spacing and layout rhythm:** Passed. The post reads as one continuous cream editorial surface. Author, media, title, score, action rail, social proof, evidence, people, journal, Visit Context, private note, and conversation follow the selected order with 44-point-or-larger controls and no overlap.
+- **Colors and visual tokens:** Passed. Cream, foam, sand, espresso, sage, mint, and line tokens come from the existing Mugshot design system. Selected, expanded, private, and score states do not rely on color alone.
+- **Image quality and asset fidelity:** Passed. Production photos remain real user media. QA used existing Mugshot raster assets to exercise the multi-photo path. The no-photo state uses the established Mugsy model instead of a generic placeholder, and the viewer preserves the complete image with editorial letterboxing.
+- **Copy and content:** Passed. Product strings use `cafe` consistently. The shared journal names its actual audience, explains that the note stays inside that audience, and keeps Visit Context separate. No precise address appears in the public presentation model.
+- **Icons:** Passed. SF Symbols remain consistent in weight and alignment across actions, ratings, journal privacy, Visit Context facts, and the viewer.
+- **States and interactions:** Passed. Taste, journal, and Visit Context disclosures were opened and closed independently. Visit Context starts collapsed. Photo paging and thumbnail selection work, and the conversation composer remains reachable.
+- **Accessibility and resilience:** Passed for the scoped implementation. Runtime snapshots exposed semantic toggle values, descriptive photo controls, and stable identifiers. Dynamic Type branches, Reduce Motion fallbacks, multiline wrapping, and safe-area spacing were reviewed in code; no clipped state appeared at 368 × 800.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 — Mugsy fallback read as a compressed banner.**
+  - Evidence: the first implementation placed Mugsy and copy in a shallow edge-to-edge region, while the source used a proper editorial media card.
+  - Fix: increased the media region, constrained the author row, inset the fallback, added the approved rounded surface, and centered Mugsy above the copy.
+- **P2 — Taste evidence was too compact and appeared in the wrong visual order.**
+  - Evidence: small score chips followed the disclosure heading, while the selected direction established Sip and Cafe as primary evidence before the expandable explanation.
+  - Fix: introduced the two-column Sip/Cafe score strip with large serif numerals and restrained star evidence, then placed `What shaped this Mugshot?` below it.
+- **P2 — Tagged people consumed several rows.**
+  - Evidence: the implementation repeated full account rows where the reference used one compact social attribution.
+  - Fix: collapsed tags into one avatar stack and `With Jamie and Marco` row while keeping each avatar independently tappable.
+
+### Pass 2
+
+- **P2 — Full-screen photos were cropped instead of preserved.**
+  - Evidence: the first viewer capture filled the viewport and cut off the drink, while the selected viewer showed the complete image on an espresso canvas.
+  - Fix: added a viewer-specific fit renderer for local, remote, and QA asset sources; retained the count, thumbnail rail, selected outline, and drink/location caption.
+- Recaptured the canonical post, no-photo fallback, taste evidence, journal, Visit Context, and viewer after the fixes.
+- No actionable P0, P1, or P2 visual or interaction mismatch remains.
+
+## Follow-up polish
+
+- **P3:** The source viewer sketches an owner-only `Set as cover` action and a second share icon. The current viewer intentionally remains a browsing surface; cover mutation stays in editing behavior, and the working Share Hub remains in the post action rail.
+- **P3:** QA fixtures use initial avatars when no profile image URL is available. The production avatar component still renders real remote profile images when supplied.
+- **P3:** The app-owned content preserves native iOS status and navigation chrome, so less below-the-fold evidence appears in the first 368 × 800 capture than in the unframed concept board.
+
+## Verification evidence
+
+- Repository no-Simulator gate: 11 passed, 0 failed, 1 optional parser check skipped because local `pglast` is not installed.
+- Focused `SipDetailPresentationTests`: 12 passed, 0 failed.
+- Focused Editorial Pour disclosure UI test: 1 passed, 0 failed.
+- Debug build and Simulator launch: passed for photo, no-photo, taste, journal/Visit Context, and viewer states.
+- No Supabase environment was contacted or changed.
+
+final result: passed
+
+---
+
 # Log a Sip V3 Production Criterion Parity QA
 
 ## Comparison target
