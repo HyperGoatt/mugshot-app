@@ -88,7 +88,21 @@ struct SocialSafetyStoreTests {
         let attributes = try FileManager.default.attributesOfItem(
             atPath: protectedURL.path
         )
+        #expect(
+            SocialSafetyFileProtectionPolicy.protectionType == .complete
+        )
+        #expect(
+            SocialSafetyFileProtectionPolicy.writingOptions.contains(
+                .completeFileProtection
+            )
+        )
+#if targetEnvironment(simulator)
+        if let reportedProtection = attributes[.protectionKey] as? FileProtectionType {
+            #expect(reportedProtection == .complete)
+        }
+#else
         #expect(attributes[.protectionKey] as? FileProtectionType == .complete)
+#endif
         #expect(
             protectedURL != SafetyReportReceiptStore.protectedUnresolvedReportsURL(
                 accountID: UUID(),

@@ -14,6 +14,14 @@ private enum SocialSafetyProtectedPayload: String {
     case pendingAppeals = "pending-appeals.json"
 }
 
+enum SocialSafetyFileProtectionPolicy {
+    static let protectionType = FileProtectionType.complete
+    static let writingOptions: Data.WritingOptions = [
+        .atomic,
+        .completeFileProtection
+    ]
+}
+
 private final class SocialSafetyProtectedFileStore {
     private let fileManager: FileManager
     private let baseDirectory: URL
@@ -52,14 +60,16 @@ private final class SocialSafetyProtectedFileStore {
             try fileManager.createDirectory(
                 at: directory,
                 withIntermediateDirectories: true,
-                attributes: [.protectionKey: FileProtectionType.complete]
+                attributes: [
+                    .protectionKey: SocialSafetyFileProtectionPolicy.protectionType
+                ]
             )
             try secureExistingItem(at: directory)
             let url = fileURL(accountID: accountID, payload: payload)
             let data = try JSONEncoder().encode(value)
             try data.write(
                 to: url,
-                options: [.atomic, .completeFileProtection]
+                options: SocialSafetyFileProtectionPolicy.writingOptions
             )
             try secureExistingItem(at: url)
         } catch {
@@ -100,7 +110,9 @@ private final class SocialSafetyProtectedFileStore {
 
     private func secureExistingItem(at url: URL) throws {
         try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.complete],
+            [
+                .protectionKey: SocialSafetyFileProtectionPolicy.protectionType
+            ],
             ofItemAtPath: url.path
         )
         var securedURL = url
