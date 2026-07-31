@@ -248,7 +248,7 @@ struct V3LabDraft: Equatable {
 
     var isReadyToPublish: Bool {
         !drinkName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && SipCaptionPolicy.validationError(for: caption) == nil
             && sipScore > 0
             && (context == .home || contextScore > 0)
     }

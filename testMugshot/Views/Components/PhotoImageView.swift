@@ -12,6 +12,7 @@ struct PhotoImageView: View {
     let photoPath: String
     var contentMode: ContentMode = .fill
     @State private var image: UIImage?
+    @Environment(\.mugshotImageSizeReporter) private var reportImageSize
     
     var body: some View {
         Group {
@@ -35,6 +36,9 @@ struct PhotoImageView: View {
         }
         .task(id: photoPath) {
             image = await PhotoCache.shared.image(forKey: photoPath)
+            if let image {
+                reportImageSize?(image.size)
+            }
         }
     }
 }

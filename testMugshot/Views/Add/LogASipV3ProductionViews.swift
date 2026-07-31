@@ -851,7 +851,7 @@ private struct LogASipV3PublishSurface: View {
 
     private var isReadyToPublish: Bool {
         draft.drinkName.remoteTrimmedNonEmpty != nil
-            && draft.socialCaption.remoteTrimmedNonEmpty != nil
+            && SipCaptionPolicy.validationError(for: draft.socialCaption) == nil
             && draft.overallScore > 0
             && hasRequiredContextScore
             && (!photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto)
@@ -918,13 +918,16 @@ private struct LogASipV3PublishSurface: View {
                     .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
-                            .stroke(Color.mugshotLine, lineWidth: 1)
+                            .stroke(
+                                captionIsOverLimit ? Color.red : Color.mugshotLine,
+                                lineWidth: captionIsOverLimit ? 1.5 : 1
+                            )
                     )
                     .accessibilityIdentifier("logASipV3.caption")
 
-                Text("\(draft.socialCaption.count)/80")
+                Text("\(captionCharacterCount.formatted()) / \(SipCaptionPolicy.maximumLength.formatted())")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.tertiaryText)
+                    .foregroundStyle(captionIsOverLimit ? Color.red : Color.tertiaryText)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, DesignSystem.Space.md)
@@ -1006,11 +1009,14 @@ private struct LogASipV3PublishSurface: View {
                 max(photoImages.count - 1, 0)
             )
         }
-        .onChange(of: draft.socialCaption) { _, caption in
-            if caption.count > 80 {
-                draft.socialCaption = String(caption.prefix(80))
-            }
-        }
+    }
+
+    private var captionCharacterCount: Int {
+        SipCaptionPolicy.characterCount(draft.socialCaption)
+    }
+
+    private var captionIsOverLimit: Bool {
+        captionCharacterCount > SipCaptionPolicy.maximumLength
     }
 
     private var publishSubtitle: String {

@@ -135,7 +135,7 @@ struct LegacyLogVisitView: View {
                 requirement: .caption,
                 title: "Caption",
                 systemImage: "text.bubble.fill",
-                isComplete: caption.remoteTrimmedNonEmpty != nil
+                isComplete: SipCaptionPolicy.validationError(for: caption) == nil
             )
         ]
     }
@@ -152,6 +152,7 @@ struct LegacyLogVisitView: View {
 
     private var isSaveButtonDisabled: Bool {
         isSavingRemoteVisit
+            || SipCaptionPolicy.characterCount(caption) > SipCaptionPolicy.maximumLength
     }
 
     private var firstIncompleteRequirement: AddVisitRequirement? {
@@ -678,6 +679,14 @@ struct LegacyLogVisitView: View {
             return
         }
 
+        guard let normalizedCaption = try? SipCaptionPolicy.validateAndNormalize(caption) else {
+            validationErrors.append(
+                SipCaptionPolicy.validationError(for: caption)?.localizedDescription
+                    ?? "Add a caption before saving."
+            )
+            return
+        }
+
         if visibility == .everyone && photoImages.isEmpty {
             validationErrors.append("Add a photo before sharing this legacy entry with Everyone.")
             scrollToTop = true
@@ -704,7 +713,7 @@ struct LegacyLogVisitView: View {
         }
 
         // Parse mentions from caption
-        let mentions = MentionParser.parseMentions(from: caption)
+        let mentions = MentionParser.parseMentions(from: normalizedCaption)
 
         let localCafe = cafe ?? dataManager.findOrCreateCafe(
             named: journalLocationName.remoteTrimmedNonEmpty ?? entryContext.locationFallback
@@ -715,7 +724,7 @@ struct LegacyLogVisitView: View {
             createdAt: Date(),
             drinkType: drinkType,
             customDrinkType: drinkType == .other ? customDrinkType : nil,
-            caption: caption,
+            caption: normalizedCaption,
             notes: notes.isEmpty ? nil : notes,
             photos: photoPaths,
             posterPhotoIndex: posterPhotoIndex,
@@ -1160,8 +1169,8 @@ enum AddVisitRequirement: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static let requiredCases: [AddVisitRequirement] = [.cafe, .drink, .rating]
-    static let optionalCases: [AddVisitRequirement] = [.photo, .caption]
+    static let requiredCases: [AddVisitRequirement] = [.cafe, .drink, .rating, .caption]
+    static let optionalCases: [AddVisitRequirement] = [.photo]
 
     var actionTitle: String {
         switch self {
@@ -2370,24 +2379,31 @@ struct CaptionSection: View {
                 
                 Spacer()
                 
-                Text("\(caption.count)/200")
+                Text("\(characterCount.formatted()) / \(SipCaptionPolicy.maximumLength.formatted())")
                     .font(.system(size: 12))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
+                    .foregroundColor(isOverLimit ? .red : .espressoBrown.opacity(0.6))
             }
             
-            TextField("Silky, bright, cozy, would order again...", text: Binding(
-                get: { caption },
-                set: { newValue in
-                    if newValue.count <= 200 {
-                        caption = newValue
-                    }
-                }
-            ), axis: .vertical)
+            TextField("Silky, bright, cozy, would order again...", text: $caption, axis: .vertical)
                 .lineLimit(3...6)
                 .mugshotFormField()
+                .overlay {
+                    if isOverLimit {
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
+                            .stroke(Color.red, lineWidth: 1.5)
+                    }
+                }
         }
         .padding(16)
         .cardStyle()
+    }
+
+    private var characterCount: Int {
+        SipCaptionPolicy.characterCount(caption)
+    }
+
+    private var isOverLimit: Bool {
+        characterCount > SipCaptionPolicy.maximumLength
     }
 }
 

@@ -2958,11 +2958,8 @@ struct LogVisitView: View {
         if photoImages.isEmpty, draft.photoFallback == nil {
             return "Add a photo, or deliberately choose I missed the photo."
         }
-        if draft.socialCaption.remoteTrimmedNonEmpty == nil {
-            return "Write the caption your friends will see."
-        }
-        if draft.socialCaption.count > 80 {
-            return "Keep the caption to 80 characters or fewer."
+        if let captionError = SipCaptionPolicy.validationError(for: draft.socialCaption) {
+            return captionError.localizedDescription
         }
         if draft.privateNotes.v3DatabaseCharacterCount
             > V3VisitReflection.rawNoteCharacterLimit {
@@ -3069,6 +3066,7 @@ struct LogVisitView: View {
         let cafeSessionLink = makePendingCafeSessionLink(userID: userID)
 
         do {
+            let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(draft.socialCaption)
             let cafe = draft.context == .cafe
                 ? draft.cafe ?? dataManager.findOrCreateCafe(named: "Cafe")
                 : nil
@@ -3083,7 +3081,7 @@ struct LogVisitView: View {
                 userId: userID,
                 drinkType: draft.drinkType,
                 customDrinkType: draft.drinkType == .other ? draft.customDrinkType : nil,
-                caption: draft.socialCaption,
+                caption: normalizedCaption,
                 notes: draft.privateNotes.remoteTrimmedNonEmpty,
                 context: draft.context,
                 locationName: draft.context == .cafe ? draft.cafe?.name : draft.locationName,
@@ -3103,7 +3101,7 @@ struct LogVisitView: View {
                 sipReorderIntention: cafeSessionLink?.reorderIntention,
                 v3Reflection: V3VisitReflection.make(visitID: draft.id, from: draft),
                 visibility: draft.visibility,
-                mentions: MentionParser.parseMentions(from: draft.socialCaption)
+                mentions: MentionParser.parseMentions(from: normalizedCaption)
             )
             dataManager.upsertVisit(visit)
             if let cafeSessionLink, let cafe {
@@ -3144,6 +3142,7 @@ struct LogVisitView: View {
         SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
 
         do {
+            let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(draft.socialCaption)
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
             let cafeSessionService = CafeSessionService(client: client)
@@ -3197,7 +3196,7 @@ struct LogVisitView: View {
                     drinkType: draft.drinkType,
                     customDrinkType: draft.customDrinkType,
                     drinkSubtype: draft.drinkName,
-                    caption: draft.socialCaption,
+                    caption: normalizedCaption,
                     notes: draft.privateNotes.remoteTrimmedNonEmpty,
                     brewMethod: draft.brewMethod,
                     equipment: draft.equipment,

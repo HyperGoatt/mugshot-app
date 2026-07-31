@@ -296,7 +296,7 @@ struct SupabaseVisitUpdate: Encodable, Equatable {
         visibility: VisitVisibility
     ) throws -> SupabaseVisitUpdate {
         return SupabaseVisitUpdate(
-            caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
+            caption: try SipCaptionPolicy.validateAndNormalize(caption),
             visibility: visibility.supabaseValue
         )
     }

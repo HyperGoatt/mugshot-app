@@ -2132,6 +2132,7 @@ struct RemotePhotoImageView: View {
     var contentMode: ContentMode = .fill
     @State private var image: UIImage?
     @State private var didFail = false
+    @Environment(\.mugshotImageSizeReporter) private var reportImageSize
 
     var body: some View {
         Group {
@@ -2157,7 +2158,9 @@ struct RemotePhotoImageView: View {
             guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
             do {
                 let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
-                image = try await RemoteImagePipeline.shared.image(for: url)
+                let loadedImage = try await RemoteImagePipeline.shared.image(for: url)
+                image = loadedImage
+                reportImageSize?(loadedImage.size)
             } catch is CancellationError {
                 return
             } catch {

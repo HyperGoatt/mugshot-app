@@ -629,3 +629,120 @@ Both complete reference boards and all eight final Simulator captures were opene
 - Full source-and-implementation visual comparison: passed.
 
 final result: passed
+
+---
+
+# Feed and Full Post Refresh QA
+
+## Comparison target
+
+- Source visual truth:
+  - `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-642d658d-92bf-4a6e-8df2-70df19d60e90.png` (current feed hierarchy)
+  - `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-a715118b-8260-42d6-bf9f-c90e7b216fd9.png` (share-card overlay language)
+- Combined reference-and-implementation input: `docs/design-qa/feed-full-post-refresh/comparison-board.png`
+- Final Simulator captures:
+  - `docs/design-qa/feed-full-post-refresh/feed-top.jpg`
+  - `docs/design-qa/feed-full-post-refresh/feed-long-overlay.jpg`
+  - `docs/design-qa/feed-full-post-refresh/feed-square.jpg`
+  - `docs/design-qa/feed-full-post-refresh/feed-no-photo.jpg`
+  - `docs/design-qa/feed-full-post-refresh/amanda-detail.jpg`
+  - `docs/design-qa/feed-full-post-refresh/joe-detail.jpg`
+- Viewport: iPhone 17 Pro Simulator; XcodeBuildMCP optimized captures at 368 x 800 pixels.
+- Density normalization: the 1206 x 2622 reference captures were resized to the same 368 x 800 aspect and placed beside the native 368 x 800 implementation capture. The comparison evaluates the requested hierarchy and visual language; post content and the DEBUG-only feed header state intentionally differ.
+- State: deterministic Friends feed with Amanda directly above Joe, a 1,000-scalar Amanda caption, landscape and square media, an extreme portrait source, Home and Elsewhere contexts, a two-photo carousel, and a 3:4 no-photo fallback.
+
+The current-feed reference, share-card reference, and rendered feed were opened as one side-by-side comparison input. The focused captures cover long overlay text, square media, no-photo fallback, Amanda's carousel/full caption, and Joe's post detail.
+
+## Required fidelity surfaces
+
+- **Media geometry:** Supported photos preserve their intrinsic ratio. The extreme portrait source clamps to 3:4, the landscape and square sources retain their ratios, the no-photo surface uses 3:4, and Amanda's detail carousel keeps the first image's landscape frame.
+- **Overlay hierarchy:** Drink and context stay lower-left; the one-decimal Mugshot score and `OUT OF 5` stay lower-right. A bottom contrast gradient keeps both readable on light, dark, and detailed imagery. Address, stamp, remembered-by copy, date, chevron, and the old score badge are absent.
+- **Feed rhythm:** Caption immediately follows media, the author row follows the caption, and the social/Open dock remains independent. Two rendered lines end with inline `… more` only when measured overflow exists.
+- **Full post hierarchy:** Display name plus `@username · timestamp` precedes the adaptive media, the full caption follows it, and the existing action/evidence sections continue below. Visit Context is absent.
+- **Brand fidelity:** The implementation reuses Mugshot's cream, foam, sage, mint, line, espresso, system-serif, and system-sans tokens; it does not introduce a parallel card system.
+
+## Interaction evidence
+
+- Tapped Amanda's media and verified destination accessibility identity `feed.destination.AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA` with Amanda's name, drink, carousel, and full 1,000-scalar caption.
+- Returned and tapped Amanda's `Open` action; it resolved to the same Amanda UUID.
+- Returned and tapped Joe's media while Joe remained directly below Amanda; it resolved to `feed.destination.BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB` with Joe's name, Peach Cobbler Latte, and the correct photo.
+- Expanded Amanda's two-line caption in place; expansion did not navigate.
+- Confirmed the feed exposes separate like, comment, save, author, media, and `Open` controls.
+- Confirmed `Visit Context` and `sip.detail.visitContext.toggle` are absent from the rendered detail hierarchy.
+- Scrolled the consolidated matrix through landscape, square, extreme portrait, Home, Elsewhere, carousel-backed, and no-photo fixtures.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 - The first deterministic fixture looked like a no-photo placeholder, weakening overlay QA.** It used the archival map backdrop even though the presentation mechanics were correct.
+  - Fix: moved the real landscape drink photo to Amanda and retained the archival portrait fixture lower in the matrix for boundary-clamp coverage.
+- Rebuilt and recaptured the feed and both detail destinations.
+- The title/context block stays clear of the score with long drink and context names, and the gradient remains legible across light and dark source regions.
+- No actionable P0, P1, or P2 visual or interaction mismatch remains.
+
+## Verification evidence
+
+- Full static verification: passed (11 passed, 0 failed, 1 optional `pglast` check skipped because that dependency is not installed).
+- Focused post-presentation and detail projection suite: 18 passed, 0 failed.
+- Hermetic PGlite caption migration/contract check: passed; no linked Supabase project was touched.
+- Consolidated Simulator routing and visual journey: passed.
+- Full source-and-implementation visual comparison: passed.
+
+final result: passed
+
+---
+
+# Feed Location and Social Action Rail Refinement QA
+
+## Audit scope and user goal
+
+- Surface: refreshed feed card and shared full-post detail.
+- Goal: add a compact city-level location to cafe posts and make social actions feel like a lightweight Instagram-style action rail instead of a second content section.
+- Source captures:
+  - `docs/design-qa/feed-social-refresh/01-feed-source.png`
+  - `docs/design-qa/feed-social-refresh/02-detail-source.png`
+- Rendered implementation:
+  - `docs/design-qa/feed-social-refresh/03-feed-implemented.jpg`
+  - `docs/design-qa/feed-social-refresh/04-detail-implemented.jpg`
+- Combined comparison input: `docs/design-qa/feed-social-refresh/comparison-board.png`
+- Viewport: iPhone 17 Pro Simulator; implementation captures are 368 x 800 pixels.
+- Density normalization: the 872 x 1800 feed source and 816 x 1754 detail source were aspect-fit into 368 x 800 comparison cells beside native 368 x 800 implementation captures. The source includes device framing while the implementation capture is screen-only; that framing difference was excluded from findings.
+- State: Friends feed and friend full-post detail for an Uptown Coffee post with Pittsburgh locality, one like, and the like/comment/recommend/save actions available.
+
+## Audit findings and decisions
+
+- **Strength:** The drink, cafe, and score overlay already establishes the post identity without repeating metadata below the photo.
+- **P2 - Cafe identity lacked geographic disambiguation.** The source left an empty visual slot after `Uptown Coffee`, and similarly named cafes would be hard to distinguish.
+  - Fix: render `Cafe name · City` using the stored cafe city/city-state value and a compact locality formatter. Keep Home and Elsewhere labels unchanged unless they have an explicit cafe context.
+- **P2 - The detail social module competed with the Mugshot evidence.** Four tall labeled actions plus a second like/comment summary consumed a full content section before the score evidence.
+  - Fix: treat social controls as an action rail immediately after the caption: 22-point SF Symbols inside 44-point tap targets, counts inline only for like/comment, distribution actions on the left, save at the far right, and no duplicated like/comment summary row.
+- **Accessibility:** Visible icons are smaller, but touch targets remain at least 44 x 44 points. Every icon retains a spoken action/count label; active like/save states use both fill and color rather than color alone. Screenshot review cannot prove VoiceOver reading order, so semantic snapshot labels and focused tests remain the implementation evidence.
+- **Purpose in the flow:** The rail is the handoff from consuming the memory to acting on it. It should stay between caption and taste evidence, remain visually subordinate to the photo and caption, and never look like another evidence card.
+
+## Required fidelity surfaces
+
+- **Typography:** The overlay keeps the existing serif drink hierarchy and compact system-sans metadata. The new locality shares the cafe line's weight and baseline instead of introducing another row.
+- **Spacing and layout rhythm:** The detail action region drops from roughly two labeled rows to one 52-point rail. Caption-to-actions spacing is 12 points; the taste evidence follows without duplicated engagement content.
+- **Colors and tokens:** Existing cream, espresso, sage, mint, and line tokens remain unchanged. Sage marks active like/save states without adding Instagram-red branding to Mugshot.
+- **Image quality:** Photo crops, adaptive ratios, gradients, and rounded masks are unchanged; no new raster or illustrative assets were required.
+- **Copy and content:** The location reads `Uptown Coffee · Pittsburgh`. Visible action labels are removed, while accessibility labels preserve `Like`, `Comment`, `Recommend`, `Save cafe`, and their counts/states.
+
+## Comparison history
+
+### Pass 1
+
+- Added the centered-dot locality and replaced the large labeled dock plus duplicated proof row with the compact action rail.
+- Rebuilt the deterministic feed/detail fixture and compared both revised screens in the combined board.
+- The locality remains legible without colliding with the score, all four actions fit without compression, save is clearly separated at the trailing edge, and Mugshot evidence moves materially higher on the detail screen.
+- No actionable P0, P1, or P2 visual or interaction mismatch remains.
+
+## Verification evidence
+
+- Repository fast verification: 6 passed, 0 failed.
+- iOS Simulator build and launch: passed.
+- Focused post-presentation and detail tests: 19 passed, 0 failed.
+- Runtime accessibility snapshot: distinct 44-point targets for like, comment, recommend, and save; destination identity remained Joe's exact UUID.
+- Full source-and-implementation comparison: passed.
+
+final result: passed

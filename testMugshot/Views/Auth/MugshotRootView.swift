@@ -14,7 +14,9 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
+            if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
+                FeedRefreshPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
                 SipDetailPreviewHost(presentation: .previewOwner)
             } else if MugshotLaunchEnvironment.isUITesting {
                 MainTabView(dataManager: dataManager)

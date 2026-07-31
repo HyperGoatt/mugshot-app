@@ -1357,9 +1357,9 @@ struct testMugshotTests {
         #expect(RemoteCafeVisitStats.calculate(from: []).averageScore == 0)
     }
 
-    @Test func legacyAddVisitKeepsPhotoAndCaptionOptional() {
-        #expect(AddVisitRequirement.requiredCases == [.cafe, .drink, .rating])
-        #expect(AddVisitRequirement.optionalCases == [.photo, .caption])
+    @Test func legacyAddVisitRequiresCaptionButKeepsPhotoOptional() {
+        #expect(AddVisitRequirement.requiredCases == [.cafe, .drink, .rating, .caption])
+        #expect(AddVisitRequirement.optionalCases == [.photo])
     }
 
     @Test func addVisitRequirementSequenceMatchesTheGuidedJournalFlow() {
@@ -1556,11 +1556,9 @@ struct testMugshotTests {
         #expect(object["caption"] as? String == "Better caption")
         #expect(object["notes"] == nil)
         #expect(object["visibility"] as? String == "friends")
-        let noCaption = try SupabaseVisitUpdate.make(caption: " ", visibility: .private)
-        let noCaptionObject = try #require(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(noCaption)) as? [String: Any]
-        )
-        #expect(noCaptionObject["caption"] as? String == "")
+        #expect(throws: SipCaptionValidationError.required) {
+            _ = try SupabaseVisitUpdate.make(caption: " ", visibility: .private)
+        }
     }
 
     @Test func privateNotePayloadUsesOwnerOnlyContract() throws {

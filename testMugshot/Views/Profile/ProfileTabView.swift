@@ -836,7 +836,6 @@ struct RecentVisitsView: View {
                     VisitCard(
                         visit: visit,
                         dataManager: dataManager,
-                        selectedScope: .friends,
                         onOpen: { selectedVisit = visit }
                     )
                     .contentShape(Rectangle())

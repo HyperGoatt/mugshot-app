@@ -521,13 +521,16 @@ struct V3LabPublishScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous)
-                                .stroke(Color.mugshotLine, lineWidth: 1)
+                                .stroke(
+                                    captionIsOverLimit ? Color.red : Color.mugshotLine,
+                                    lineWidth: captionIsOverLimit ? 1.5 : 1
+                                )
                         )
                     HStack {
                         Spacer()
-                        Text("\(draft.caption.count)/80")
+                        Text("\(captionCharacterCount.formatted()) / \(SipCaptionPolicy.maximumLength.formatted())")
                             .font(.system(size: 11))
-                            .foregroundColor(.tertiaryText)
+                            .foregroundColor(captionIsOverLimit ? .red : .tertiaryText)
                     }
                 }
 
@@ -585,11 +588,14 @@ struct V3LabPublishScreen: View {
         .onAppear {
             previewIndex = min(max(draft.coverIndex, 0), max(V3LabMedia.photos.count - 1, 0))
         }
-        .onChange(of: draft.caption) { _, caption in
-            if caption.count > 80 {
-                draft.caption = String(caption.prefix(80))
-            }
-        }
+    }
+
+    private var captionCharacterCount: Int {
+        SipCaptionPolicy.characterCount(draft.caption)
+    }
+
+    private var captionIsOverLimit: Bool {
+        captionCharacterCount > SipCaptionPolicy.maximumLength
     }
 
     private var publishSubtitle: String {
