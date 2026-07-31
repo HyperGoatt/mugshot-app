@@ -8,7 +8,7 @@ enum AutomaticSipRecoveryState: Equatable {
     case pending(Int)
     case waitingForNetwork(Int)
     case recovering(Int)
-    case failed(count: Int, message: String)
+    case failed(count: Int, published: Bool, message: String)
     case localDataUnavailable(message: String)
 
     var pendingCount: Int {
@@ -17,7 +17,7 @@ enum AutomaticSipRecoveryState: Equatable {
         case .pending(let count),
              .waitingForNetwork(let count),
              .recovering(let count),
-             .failed(let count, _): count
+             .failed(let count, _, _): count
         case .localDataUnavailable: 0
         }
     }
@@ -25,7 +25,7 @@ enum AutomaticSipRecoveryState: Equatable {
 
 struct AutomaticSipRecoveryCandidate {
     let record: PendingVisitSubmissionRecord
-    let reconciledAmbiguousFinalization: Bool
+    let reconciledRemoteState: Bool
 }
 
 struct AutomaticSipRecoveryDependencies {
@@ -170,6 +170,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     private func drain(accountID: UUID, runID: UUID) async {
+        var recordAtFailure: PendingVisitSubmissionRecord?
         do {
             while !Task.isCancelled {
                 guard activeAccountID == accountID else {
@@ -185,18 +186,20 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 }
 
                 state = .recovering(records.count)
-                var candidate = AutomaticSipRecoveryCandidate(
-                    record: record,
-                    reconciledAmbiguousFinalization: false
+                recordAtFailure = record
+                // Always probe the owner-bound server row before retrying
+                // local media or insert work. Older app versions can leave a
+                // complete visit beside an outbox record that predates the
+                // finalization marker; treating that record as an upload retry
+                // traps an already-published MugShot behind missing local
+                // photos forever.
+                let reconciled = try await dependencies.reconcile(record)
+                try Task.checkCancellation()
+                recordAtFailure = reconciled
+                let candidate = AutomaticSipRecoveryCandidate(
+                    record: reconciled,
+                    reconciledRemoteState: true
                 )
-                if record.hasAmbiguousRemoteFinalization {
-                    let reconciled = try await dependencies.reconcile(record)
-                    try Task.checkCancellation()
-                    candidate = AutomaticSipRecoveryCandidate(
-                        record: reconciled,
-                        reconciledAmbiguousFinalization: true
-                    )
-                }
 
                 let completedVisitID = try await dependencies.recover(candidate)
                 try Task.checkCancellation()
@@ -224,18 +227,30 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 return
             }
             suppressAutomaticRetry = true
-            let count: Int
+            let remainingRecords: [PendingVisitSubmissionRecord]
             do {
-                count = try dependencies.loadRecords(accountID).count
+                remainingRecords = try dependencies.loadRecords(accountID)
             } catch {
                 recordLocalReadFailure()
                 return
             }
+            let published = recordAtFailure.map { failedRecord in
+                let latestRecord = remainingRecords.first {
+                    $0.id == failedRecord.id
+                }
+                return latestRecord?.isRemoteFinalized == true
+                    || failedRecord.isRemoteFinalized
+            } ?? false
+            let count = remainingRecords.count
             state = count == 0
                 ? .idle
                 : .failed(
                     count: count,
-                    message: AutomaticSipRecoveryError.userMessage(for: error)
+                    published: published,
+                    message: AutomaticSipRecoveryError.userMessage(
+                        for: error,
+                        published: published
+                    )
                 )
         }
     }
@@ -278,6 +293,28 @@ private final class SipRecoveryNetworkObserver {
     }
 }
 
+struct PublishedSipDraftCleaner {
+    var draftStore: SipDraftStore = .shared
+
+    @discardableResult
+    func removeDraft(
+        matching submission: PendingVisitSubmissionRecord
+    ) -> Bool {
+        guard submission.isRemoteFinalized else { return false }
+        // Remove only the exact draft that created this stable visit ID. An
+        // unrelated active draft for the same account is never loaded or
+        // replaced by automatic recovery.
+        let scope = LocalAccountScope.user(submission.userId)
+        guard let storedDraft = draftStore.load(id: submission.id, in: scope),
+              storedDraft.draft.id == submission.id,
+              storedDraft.draft.ownerUserID == submission.userId else {
+            return false
+        }
+        draftStore.remove(storedDraft.draft, in: scope)
+        return true
+    }
+}
+
 private struct PendingVisitPublicationWorker {
     var pendingStore: PendingVisitSubmissionStore = .shared
     var draftStore: SipDraftStore = .shared
@@ -285,14 +322,12 @@ private struct PendingVisitPublicationWorker {
     func reconcile(
         _ record: PendingVisitSubmissionRecord
     ) async throws -> PendingVisitSubmissionRecord {
-        guard record.hasAmbiguousRemoteFinalization else { return record }
         guard let latest = pendingStore.load(
             visitId: record.id,
             userId: record.userId
         ), latest.id == record.id, latest.userId == record.userId else {
             throw AutomaticSipRecoveryError.identityMismatch
         }
-        guard latest.hasAmbiguousRemoteFinalization else { return latest }
 
         let client = try SupabaseClientProvider.shared.client()
         let remoteState = try await VisitService(client: client)
@@ -302,14 +337,18 @@ private struct PendingVisitPublicationWorker {
             )
         var reconciled = latest
         if remoteState == .complete {
-            reconciled.remoteFinalizedAt = .now
-        } else if remoteState == nil {
+            if reconciled.remoteFinalizedAt == nil {
+                reconciled.remoteFinalizedAt = .now
+            }
+        } else if remoteState == nil,
+                  latest.hasAmbiguousRemoteFinalization {
             // The owner-bound read proved there is no visit row. Recreate the
             // same stable ID and frozen payload; the ambiguity marker remains
             // as evidence that reconciliation was required.
             reconciled.phase = .prepared
             reconciled.uploadedPhotoURLs = nil
         }
+        guard reconciled != latest else { return latest }
         try pendingStore.save(reconciled)
         return pendingStore.load(
             visitId: reconciled.id,
@@ -327,10 +366,10 @@ private struct PendingVisitPublicationWorker {
         }
         submission = latest
         if submission.hasAmbiguousRemoteFinalization,
-           !candidate.reconciledAmbiguousFinalization {
+           !candidate.reconciledRemoteState {
             throw AutomaticSipRecoveryError.reconciliationRequired
         }
-        guard submission.hasValidRetryPayload else {
+        guard submission.isRemoteFinalized || submission.hasValidRetryPayload else {
             throw submission.retryPayloadIssue
                 ?? AutomaticSipRecoveryError.invalidPayload
         }
@@ -466,6 +505,13 @@ private struct PendingVisitPublicationWorker {
             try saveAndReload(&submission)
         }
 
+        // Once the owner-bound server row proves the canonical post is
+        // complete, the composer draft is no longer a draft. Remove it before
+        // best-effort projection/setup work so a downstream retry can never
+        // leave an already-visible post stuck in Drafts.
+        PublishedSipDraftCleaner(draftStore: draftStore)
+            .removeDraft(matching: submission)
+
         let postPublication = await SipPostPublicationSetupWorker(
             client: client,
             pendingStore: pendingStore
@@ -475,16 +521,6 @@ private struct PendingVisitPublicationWorker {
             throw AutomaticSipRecoveryError.postPublicationPending(
                 postPublication.warning
             )
-        }
-
-        // Remove only the exact draft that created this stable visit ID. An
-        // unrelated active draft for the same account is never loaded or
-        // replaced by automatic recovery.
-        let scope = LocalAccountScope.user(submission.userId)
-        if let storedDraft = draftStore.load(id: submission.id, in: scope),
-           storedDraft.draft.id == submission.id,
-           storedDraft.draft.ownerUserID == submission.userId {
-            draftStore.remove(storedDraft.draft, in: scope)
         }
 
         DrinkAnalysisRetryStore.shared.enqueue(
@@ -542,7 +578,10 @@ enum AutomaticSipRecoveryError: LocalizedError, Equatable {
         }
     }
 
-    static func userMessage(for error: Error) -> String {
+    static func userMessage(
+        for error: Error,
+        published: Bool = false
+    ) -> String {
         if let recovery = error as? AutomaticSipRecoveryError,
            let description = recovery.errorDescription {
             return description
@@ -554,8 +593,12 @@ enum AutomaticSipRecoveryError: LocalizedError, Equatable {
         if let urlError = error as? URLError,
            [.notConnectedToInternet, .networkConnectionLost, .timedOut]
             .contains(urlError.code) {
-            return "The protected MugShot is still safe and will retry when the connection is ready."
+            return published
+                ? "This MugShot is already published. Mugshot will finish clearing its local recovery copy when the connection is ready."
+                : "The protected MugShot will retry when the connection is ready."
         }
-        return "The protected MugShot is still safe. Retry when you’re online."
+        return published
+            ? "This MugShot is already published. Mugshot couldn’t finish clearing its local recovery copy."
+            : "Mugshot couldn’t finish this protected retry. Try again or review the saved MugShot."
     }
 }
