@@ -14,7 +14,9 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
+            if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
+                AutomaticSipRecoveryBannerPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
                 FeedRefreshPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
                 SipDetailPreviewHost(presentation: .previewOwner)

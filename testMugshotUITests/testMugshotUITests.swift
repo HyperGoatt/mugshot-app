@@ -6,6 +6,32 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testPublishedRecoveryBannerIsTruthfulAndDismissible() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-recovery-banner-design-qa"
+        ]
+        app.launch()
+
+        let banner = app.otherElements["automaticSipRecoveryBanner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["MugShot is already posted"].exists)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "already published")
+        ).firstMatch.exists)
+        XCTAssertTrue(app.buttons["Finish"].exists)
+        XCTAssertFalse(app.buttons["Retry"].exists)
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "online")
+        ).firstMatch.exists)
+
+        app.buttons["automaticSipRecoveryBanner.dismiss"].tap()
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 1))
+    }
+
+    @MainActor
     func testEditorialPourDisclosuresAndSafeVisitContext() throws {
         let app = XCUIApplication()
         app.launchArguments = [

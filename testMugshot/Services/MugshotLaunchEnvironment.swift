@@ -15,6 +15,7 @@ enum MugshotLaunchEnvironment {
     static let shouldShowSipDetailDesignQA = arguments.contains("--ui-testing-sip-detail-design-qa")
     static let shouldShowSipDetailPhotoDesignQA = arguments.contains("--ui-testing-sip-detail-photo-design-qa")
     static let shouldShowFeedRefreshDesignQA = arguments.contains("--ui-testing-feed-refresh-design-qa")
+    static let shouldShowRecoveryBannerDesignQA = arguments.contains("--ui-testing-recovery-banner-design-qa")
 
     static func prepareDebugFailureHooks() {
         if arguments.contains("--debug-reset-failure-hooks") {

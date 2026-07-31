@@ -36,7 +36,7 @@ struct AutomaticSipRecoveryCoordinatorTests {
             },
             recover: { candidate in
                 events.append(
-                    "recover:\(candidate.record.id):\(candidate.reconciledAmbiguousFinalization)"
+                    "recover:\(candidate.record.id):\(candidate.reconciledRemoteState)"
                 )
                 let latest = try #require(
                     fixture.store.load(
@@ -65,9 +65,172 @@ struct AutomaticSipRecoveryCoordinatorTests {
         #expect(events == [
             "reconcile:\(first.id)",
             "recover:\(first.id):true",
-            "recover:\(second.id):false"
+            "reconcile:\(second.id)",
+            "recover:\(second.id):true"
         ])
         #expect(coordinator.completionRevision == 2)
+    }
+
+    @MainActor
+    @Test func legacyOutboxRecordReconcilesAlreadyPublishedVisitBeforeRetry() async throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let accountID = UUID()
+        let published = try prepare(
+            fixture.store,
+            accountID: accountID,
+            caption: "Published before the local receipt was saved"
+        )
+        var recoveredRemoteFinalization = false
+
+        let dependencies = AutomaticSipRecoveryDependencies(
+            loadRecords: { try fixture.store.loadAll(userId: $0) },
+            reconcile: { record in
+                // Model the owner-bound server probe returning `complete` for
+                // an older outbox record with no finalization marker.
+                #expect(record.finalizationRequestedAt == nil)
+                var reconciled = record
+                reconciled.remoteFinalizedAt = Date(timeIntervalSince1970: 101)
+                try fixture.store.save(reconciled)
+                return try #require(
+                    fixture.store.load(visitId: record.id, userId: accountID)
+                )
+            },
+            recover: { candidate in
+                recoveredRemoteFinalization = candidate.reconciledRemoteState
+                    && candidate.record.isRemoteFinalized
+                let latest = try #require(
+                    fixture.store.load(
+                        visitId: candidate.record.id,
+                        userId: accountID
+                    )
+                )
+                fixture.store.remove(latest)
+                return candidate.record.id
+            }
+        )
+        let coordinator = AutomaticSipRecoveryCoordinator(
+            dependencies: dependencies,
+            observesNetwork: false
+        )
+
+        coordinator.activate(accountID: accountID)
+        coordinator.setNetworkAvailable(true)
+        coordinator.setAppActive(true)
+        let completed = await waitUntil { coordinator.state == .idle }
+
+        #expect(completed)
+        #expect(recoveredRemoteFinalization)
+        #expect(coordinator.completionRevision == 1)
+        #expect(try fixture.store.loadAll(userId: accountID).isEmpty)
+        #expect(published.remoteFinalizedAt == nil)
+    }
+
+    @Test func publishedDraftCleanupRemovesOnlyTheMatchingOwnerDraft() throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let draftDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "PublishedSipDraftCleanerTests.\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: draftDirectory) }
+        let draftStore = SipDraftStore(baseDirectory: draftDirectory)
+        let accountID = UUID()
+        let otherAccountID = UUID()
+        let matchingDraft = SipDraft(
+            ownerUserID: accountID,
+            context: .home,
+            drinkName: "Already posted",
+            visibility: .friends
+        )
+        let otherDraft = SipDraft(
+            ownerUserID: otherAccountID,
+            context: .home,
+            drinkName: "Still drafting",
+            visibility: .private
+        )
+        _ = try draftStore.save(
+            matchingDraft,
+            images: [],
+            in: .user(accountID)
+        )
+        _ = try draftStore.save(
+            otherDraft,
+            images: [],
+            in: .user(otherAccountID)
+        )
+        var published = try fixture.store.prepare(
+            visitId: matchingDraft.id,
+            userId: accountID,
+            cafe: nil,
+            entryContext: .home,
+            locationName: "Home",
+            drinkType: .coffee,
+            customDrinkType: nil,
+            drinkSubtype: "Coffee",
+            caption: "Already posted",
+            notes: nil,
+            visibility: .friends,
+            ratings: ["Taste": 4],
+            overallScore: 4,
+            ratingTemplate: RatingTemplate(),
+            images: [],
+            posterPhotoIndex: 0
+        )
+        published.remoteFinalizedAt = Date(timeIntervalSince1970: 101)
+        try fixture.store.save(published)
+        let cleaner = PublishedSipDraftCleaner(draftStore: draftStore)
+
+        #expect(cleaner.removeDraft(matching: published))
+        #expect(draftStore.load(id: matchingDraft.id, in: .user(accountID)) == nil)
+        #expect(draftStore.load(id: otherDraft.id, in: .user(otherAccountID)) != nil)
+    }
+
+    @MainActor
+    @Test func publishedRecoveryFailureDoesNotClaimDeviceIsOffline() async throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let accountID = UUID()
+        _ = try prepare(
+            fixture.store,
+            accountID: accountID,
+            caption: "Already visible"
+        )
+        let dependencies = AutomaticSipRecoveryDependencies(
+            loadRecords: { try fixture.store.loadAll(userId: $0) },
+            reconcile: { record in
+                var reconciled = record
+                reconciled.remoteFinalizedAt = Date(timeIntervalSince1970: 101)
+                try fixture.store.save(reconciled)
+                return reconciled
+            },
+            recover: { _ in
+                throw InjectedRecoveryFailure.transport
+            }
+        )
+        let coordinator = AutomaticSipRecoveryCoordinator(
+            dependencies: dependencies,
+            observesNetwork: false
+        )
+
+        coordinator.activate(accountID: accountID)
+        coordinator.setNetworkAvailable(true)
+        coordinator.setAppActive(true)
+        let failed = await waitUntil {
+            if case .failed = coordinator.state { return true }
+            return false
+        }
+
+        #expect(failed)
+        guard case .failed(let count, let published, let message) = coordinator.state else {
+            Issue.record("Expected the published recovery state to remain actionable.")
+            return
+        }
+        #expect(count == 1)
+        #expect(published)
+        #expect(message.contains("already published"))
+        #expect(!message.localizedCaseInsensitiveContains("online"))
     }
 
     @MainActor
