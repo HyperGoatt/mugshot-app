@@ -471,7 +471,6 @@ struct JournalTabView: View {
                         VisitCard(
                             visit: visit,
                             dataManager: dataManager,
-                            selectedScope: .friends,
                             onOpen: { selectedLocalVisit = visit }
                         )
                         .contentShape(Rectangle())

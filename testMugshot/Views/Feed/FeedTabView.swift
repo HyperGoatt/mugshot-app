@@ -8,6 +8,33 @@
 import SwiftUI
 import UIKit
 
+enum FeedPostRoute: Identifiable, Hashable {
+    case local(Visit)
+    case remote(RemoteVisitSummary)
+
+    var visitID: UUID {
+        switch self {
+        case .local(let visit): return visit.id
+        case .remote(let visit): return visit.id
+        }
+    }
+
+    var id: String {
+        switch self {
+        case .local: return "local:\(visitID.uuidString)"
+        case .remote: return "remote:\(visitID.uuidString)"
+        }
+    }
+
+    static func == (lhs: FeedPostRoute, rhs: FeedPostRoute) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
 // Helper view to display the poster image for a visit
 struct PosterImageView: View {
     let visit: Visit
@@ -56,16 +83,13 @@ struct FeedTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
-    @State private var selectedVisit: Visit?
-    @State private var selectedCafe: Cafe?
-    @State private var showCafeDetail = false
+    @State private var selectedPostRoute: FeedPostRoute?
     @State private var remoteVisits: [RemoteVisitSummary] = []
     @State private var canonicalSipCount = 0
     @State private var isLoadingRemoteVisits = false
     @State private var isLoadingMoreRemoteVisits = false
     @State private var hasMoreRemoteVisits = false
     @State private var remoteVisitError: String?
-    @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var pendingSocialVisitIDs: Set<UUID> = []
     @State private var socialRecoveryMessage: String?
     @State private var activeFeedRequestID: UUID?
@@ -219,46 +243,29 @@ struct FeedTabView: View {
                 }
             }
             .background(Color.creamWhite)
-            .navigationDestination(
-                isPresented: Binding(
-                    get: { selectedVisit != nil },
-                    set: { if !$0 { selectedVisit = nil } }
-                )
-            ) {
-                if let visit = selectedVisit {
-                    VisitDetailView(visit: visit, dataManager: dataManager)
-                }
-            }
-            .navigationDestination(
-                isPresented: Binding(
-                    get: { selectedRemoteVisit != nil },
-                    set: { if !$0 { selectedRemoteVisit = nil } }
-                )
-            ) {
-                if let visit = selectedRemoteVisit {
+            .navigationDestination(item: $selectedPostRoute) { route in
+                Group {
+                    switch route {
+                    case .local(let visit):
+                        VisitDetailView(visit: visit, dataManager: dataManager)
+                    case .remote(let visit):
                     RemoteVisitDetailView(
                         visitId: visit.id,
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
                         onComposeDraft: { draft in
-                            selectedRemoteVisit = nil
+                            selectedPostRoute = nil
                             onComposeDraft?(draft)
                         }
                     )
                     .onDisappear {
                         Task { await loadRemoteFeedIfNeeded(forceRefresh: true) }
                     }
+                    }
                 }
-            }
-        }
-        .sheet(isPresented: $showCafeDetail) {
-            if let cafe = selectedCafe {
-                CafeDetailView(
-                    cafe: cafe,
-                    dataManager: dataManager,
-                    onLogVisitRequested: onLogVisitRequested
-                )
+                .id(route.id)
+                .accessibilityIdentifier("feed.destination.\(route.visitID.uuidString)")
             }
         }
         .sheet(isPresented: $isPeopleHubPresented) {
@@ -362,7 +369,7 @@ struct FeedTabView: View {
                     isSocialActionInFlight: pendingSocialVisitIDs.contains(visit.id),
                     showsRecommendationReason: phase3ExplainableTasteGraph && selectedScope == .ranked,
                     onOpen: {
-                        selectedRemoteVisit = visit
+                        selectedPostRoute = .remote(visit)
                     },
                     onLike: {
                         toggleRemoteLike(for: visit)
@@ -371,7 +378,7 @@ struct FeedTabView: View {
                         saveCafe(from: visit)
                     },
                     onComment: {
-                        selectedRemoteVisit = visit
+                        selectedPostRoute = .remote(visit)
                     }
                 )
             }
@@ -421,21 +428,10 @@ struct FeedTabView: View {
                 VisitCard(
                     visit: visit,
                     dataManager: dataManager,
-                    selectedScope: selectedScope,
                     onOpen: {
-                        selectedVisit = visit
-                    },
-                    onCafeTap: {
-                        if let cafe = dataManager.getCafe(id: visit.cafeId) {
-                            selectedCafe = cafe
-                            showCafeDetail = true
-                        }
+                        selectedPostRoute = .local(visit)
                     }
                 )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    selectedVisit = visit
-                }
             }
         }
     }
@@ -741,10 +737,6 @@ struct RemoteFeedVisitCard: View {
         return formatter
     }()
 
-    private var hasPhoto: Bool {
-        visit.visit.posterPhotoURL != nil
-    }
-
     private var displayedScore: Double {
         visit.v3FeedProjection?.mugshotScore ?? visit.visit.overallScore
     }
@@ -753,199 +745,48 @@ struct RemoteFeedVisitCard: View {
         visit.v3FeedProjection?.usesMugsyPhotoFallback == true
     }
 
-    private var posterHeight: CGFloat {
-        hasPhoto ? 270 : 178
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 0) {
-                    poster
-                    contentBlock
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(isSocialActionInFlight)
-            .accessibilityLabel("Open \(visit.visit.drinkDisplayName) at \(visit.locationTitle)")
-            .accessibilityHint("Opens visit details")
-
-            provenanceBlock
+        MugshotFeedPostCard(
+            presentation: MugshotFeedPostPresentation(
+                visitID: visit.id,
+                mediaSource: feedMediaSource,
+                drinkName: visit.visit.drinkDisplayName,
+                locationName: visit.locationTitle,
+                locationDetail: visit.visit.journalContext == .cafe
+                    ? MugshotPostLocationLine.locality(
+                        from: visit.cafe?.city ?? visit.visit.cityState
+                    )
+                    : nil,
+                score: displayedScore,
+                caption: consumerPreviewCaption(visit.visit.caption),
+                mentions: [],
+                authorName: visit.authorDisplayName,
+                username: visit.authorUsername,
+                avatarURL: visit.author?.avatarURL,
+                timestamp: timeAgoString(from: visit.visit.createdAtDate),
+                authorBadge: nil,
+                recommendation: showsRecommendationReason
+                    ? visit.recommendationReason?.remoteTrimmedNonEmpty
+                    : nil,
+                recommendationSystemImage: recommendationIcon
+            ),
+            onOpen: onOpen
+        ) {
             footer
         }
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
-        .frame(maxWidth: .infinity)
         .accessibilityIdentifier("feed.remoteVisitCard.\(visit.id.uuidString)")
     }
 
-    private var provenanceBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 9) {
-                MugshotAvatar(name: visit.authorDisplayName, size: 30)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(visit.authorDisplayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(1)
-
-                    Text("@\(visit.authorUsername) · \(timeAgoString(from: visit.visit.createdAtDate))")
-                        .font(.system(size: 11))
-                        .foregroundColor(.tertiaryText)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-            }
-
-            if showsRecommendationReason,
-               let reason = visit.recommendationReason?.remoteTrimmedNonEmpty {
-                Label(reason, systemImage: recommendationIcon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Recommended because \(reason)")
-            }
+    private var feedMediaSource: MugshotPostMediaSource {
+        guard let reference = visit.visit.posterPhotoURL?.remoteTrimmedNonEmpty else {
+            return .placeholder(usesMugsyFallback: usesMugsyPhotoFallback)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.mugshotLine).frame(height: 1)
+#if DEBUG
+        if reference.hasPrefix("asset://") {
+            return .asset(String(reference.dropFirst("asset://".count)))
         }
-    }
-
-    private var poster: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                Group {
-                    if hasPhoto {
-                        RemotePhotoImageView(
-                            urlString: visit.visit.posterPhotoURL,
-                            placeholderSystemName: "photo.on.rectangle"
-                        )
-                    } else {
-                        RemoteFeedNoPhotoPoster(usesMugsyFallback: usesMugsyPhotoFallback)
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped()
-
-                locationOverlay
-
-                if displayedScore > 0 {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            MugshotRatingBadge(score: displayedScore, onPhoto: true)
-                                .padding(12)
-                        }
-                        Spacer()
-                    }
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .frame(height: posterHeight)
-        .padding(.horizontal, 12)
-    }
-
-    private var locationOverlay: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Label(visit.locationTitle, systemImage: visit.visit.journalContext.systemImage)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.creamWhite)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let subtitle = visit.locationSubtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.creamWhite.opacity(0.75))
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.creamWhite.opacity(0.78))
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .mugshotGlassSurface(
-            radius: 19,
-            tint: .espressoBrown,
-            stroke: Color.creamWhite.opacity(0.20),
-            shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
-            interactive: true
-        )
-        .padding(12)
-    }
-
-    private var contentBlock: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            Text(visit.visit.drinkDisplayName)
-                .font(.system(size: 21, weight: .bold))
-                .foregroundColor(.espressoBrown)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if visit.additionalSessionSipCount > 0 {
-                Label(
-                    "+\(visit.additionalSessionSipCount) more \(visit.additionalSessionSipCount == 1 ? "sip" : "sips") this visit",
-                    systemImage: "cup.and.saucer.fill"
-                )
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.mugshotSage)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(Color.mugshotMint.opacity(0.28), in: Capsule())
-            }
-
-            if let projection = visit.cafePulseProjection {
-                HStack(spacing: 8) {
-                    if projection.includesCafeRating,
-                       let cafeRating = projection.cafeRating {
-                        Label(
-                            "Cafe \(String(format: "%.1f", cafeRating))",
-                            systemImage: "storefront.fill"
-                        )
-                    }
-                    if projection.includesNextMove,
-                       let nextMove = projection.nextMove {
-                        Label(nextMove.title, systemImage: "arrow.triangle.branch")
-                    }
-                }
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.roastBrown)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let caption = consumerPreviewCaption(visit.visit.caption) {
-                Text(caption)
-                    .font(.system(size: 15))
-                    .foregroundColor(.espressoBrown.opacity(0.74))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Text("\(visit.visit.contextDisplayName) · \(timeAgoString(from: visit.visit.createdAtDate))")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.roastBrown.opacity(0.58))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
+#endif
+        return .remote(reference)
     }
 
     private var recommendationIcon: String {
@@ -1027,24 +868,20 @@ struct RemoteFeedVisitCard: View {
         }
     }
 
-    private var scoreBadge: some View {
-        MugshotRatingBadge(score: displayedScore)
-    }
-
     private func socialActionLabel(value: Int?, systemImage: String, isActive: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 20, weight: .medium))
 
             if let value {
                 Text("\(value)")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
             }
         }
-        .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
-        .padding(.horizontal, value == nil ? 9 : 10)
-        .frame(minHeight: 44)
-        .background(isActive ? Color.mugshotMint.opacity(0.28) : Color.clear, in: Capsule())
+        .foregroundColor(isActive ? .mugshotSage : .espressoBrown)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private func timeAgoString(from date: Date) -> String {
@@ -1134,9 +971,7 @@ private func consumerPreviewCaption(_ caption: String) -> String? {
 struct VisitCard: View {
     let visit: Visit
     @ObservedObject var dataManager: DataManager
-    let selectedScope: FeedScope
     var onOpen: (() -> Void)? = nil
-    var onCafeTap: (() -> Void)? = nil
     
     var cafe: Cafe? {
         dataManager.getCafe(id: visit.cafeId)
@@ -1157,182 +992,48 @@ struct VisitCard: View {
         return visit.isLikedBy(userId: currentUserId)
     }
 
-    private var localPosterHeight: CGFloat {
-        visit.photos.isEmpty ? 178 : 260
-    }
-
     private var localDisplayedScore: Double {
         visit.v3Reflection?.mugshotScore ?? visit.overallScore
     }
 
-    private var additionalSessionSipCount: Int {
-        guard let sessionID = visit.cafeSessionID else { return 0 }
-        return max(
-            dataManager.appData.visits.filter { $0.cafeSessionID == sessionID }.count - 1,
-            0
-        )
-    }
-    
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            localPoster
-            localContent
-            localAuthorHeader
+        MugshotFeedPostCard(
+            presentation: MugshotFeedPostPresentation(
+                visitID: visit.id,
+                mediaSource: visit.posterImagePath.map(MugshotPostMediaSource.local)
+                    ?? .placeholder(
+                        usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto
+                    ),
+                drinkName: localDrinkDisplayName,
+                locationName: localLocationName,
+                locationDetail: localLocationDetail,
+                score: localDisplayedScore,
+                caption: consumerPreviewCaption(visit.caption),
+                mentions: visit.mentions,
+                authorName: user?.displayNameOrUsername ?? user?.username ?? "Mugshot User",
+                username: user?.username ?? "user",
+                avatarURL: nil,
+                timestamp: timeAgoString(from: visit.createdAt),
+                authorBadge: isCurrentUser ? "You" : nil,
+                recommendation: nil,
+                recommendationSystemImage: "sparkles"
+            ),
+            onOpen: { onOpen?() }
+        ) {
             localFooter
         }
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.foamWhite.opacity(0.72), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
-        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("feed.localVisitCard.\(visit.id.uuidString)")
     }
 
-    private var localAuthorHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            MugshotAvatar(name: user?.username ?? "User", size: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(user?.displayNameOrUsername ?? user?.username ?? "Mugshot User")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(1)
-
-                    if isCurrentUser {
-                        Text("You")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.espressoBrown)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.mugshotMint.opacity(0.5))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                Text("@\(user?.username ?? "user") · \(formatDate(visit.createdAt))")
-                    .font(.system(size: 11))
-                    .foregroundColor(.espressoBrown.opacity(0.6))
-            }
-
-            Spacer(minLength: 8)
-
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.mugshotLine).frame(height: 1)
-        }
+    private var localLocationName: String {
+        visit.context == .cafe
+            ? cafe?.consumerDisplayName ?? "Cafe"
+            : visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback
     }
 
-    private var localPoster: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                Group {
-                    if !visit.photos.isEmpty {
-                        PosterImageView(visit: visit)
-                    } else {
-                        RemoteFeedNoPhotoPoster(
-                            usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto
-                        )
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped()
-
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Label(
-                            visit.context == .cafe
-                                ? cafe?.consumerDisplayName ?? "Cafe"
-                                : visit.locationName?.remoteTrimmedNonEmpty
-                                    ?? visit.context.locationFallback,
-                            systemImage: visit.context.systemImage
-                        )
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.creamWhite)
-                            .lineLimit(2)
-
-                        if let address = cafe?.address, !address.isEmpty {
-                            Text(address)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.creamWhite.opacity(0.75))
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.creamWhite.opacity(0.78))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .mugshotGlassSurface(
-                    radius: 19,
-                    tint: .espressoBrown,
-                    stroke: Color.creamWhite.opacity(0.20),
-                    shadow: DesignSystem.Shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4),
-                    interactive: true
-                )
-                .padding(12)
-
-                if localDisplayedScore > 0 {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            MugshotRatingBadge(score: localDisplayedScore, onPhoto: true)
-                                .padding(12)
-                        }
-                        Spacer()
-                    }
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .frame(height: localPosterHeight)
-        .padding(.horizontal, 12)
-    }
-
-    private var localContent: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            Text(localDrinkDisplayName)
-                .font(.system(size: 21, weight: .bold))
-                .foregroundColor(.espressoBrown)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if additionalSessionSipCount > 0 {
-                Label(
-                    "+\(additionalSessionSipCount) more \(additionalSessionSipCount == 1 ? "sip" : "sips") this visit",
-                    systemImage: "cup.and.saucer.fill"
-                )
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.mugshotSage)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(Color.mugshotMint.opacity(0.28), in: Capsule())
-            }
-
-            if let caption = consumerPreviewCaption(visit.caption) {
-                MentionText(text: caption, mentions: visit.mentions)
-                    .font(.system(size: 15))
-                    .foregroundColor(.espressoBrown.opacity(0.74))
-                    .lineLimit(3)
-            }
-
-            Text("\(visit.drinkType.rawValue) · \(formatDate(visit.createdAt))")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.roastBrown.opacity(0.58))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
+    private var localLocationDetail: String? {
+        guard visit.context == .cafe else { return nil }
+        return MugshotPostLocationLine.locality(from: cafe?.address)
     }
 
     private var localFooter: some View {
@@ -1352,7 +1053,11 @@ struct VisitCard: View {
             }
             .buttonStyle(.plain)
 
-            localSocialLabel(value: visit.commentCount, systemImage: "bubble.right", isActive: false)
+            Button(action: { onOpen?() }) {
+                localSocialLabel(value: visit.commentCount, systemImage: "bubble.right", isActive: false)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Comment, \(visit.commentCount) comments")
 
             Spacer(minLength: 0)
 
@@ -1385,23 +1090,16 @@ struct VisitCard: View {
     private func localSocialLabel(value: Int, systemImage: String, isActive: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 20, weight: .medium))
             Text("\(value)")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
+                .monospacedDigit()
         }
-        .foregroundColor(isActive ? .espressoBrown : .roastBrown.opacity(0.78))
-        .padding(.horizontal, 10)
-        .frame(minHeight: 44)
-        .background(isActive ? Color.mugshotMint.opacity(0.28) : Color.clear, in: Capsule())
+        .foregroundColor(isActive ? .mugshotSage : .espressoBrown)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-    
     private func timeAgoString(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated

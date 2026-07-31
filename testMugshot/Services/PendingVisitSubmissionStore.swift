@@ -387,6 +387,7 @@ final class PendingVisitSubmissionStore {
         images: [UIImage],
         posterPhotoIndex: Int
     ) throws -> PendingVisitSubmissionRecord {
+        let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(caption)
         lock.lock()
         defer { lock.unlock() }
         try? migrateLegacyRecordIfNeeded(for: userId)
@@ -428,7 +429,7 @@ final class PendingVisitSubmissionStore {
             drinkType: drinkType,
             customDrinkType: customDrinkType,
             drinkSubtype: drinkSubtype,
-            caption: caption,
+            caption: normalizedCaption,
             notes: notes,
             brewMethod: brewMethod,
             equipment: equipment,

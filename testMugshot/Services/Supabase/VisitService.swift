@@ -1356,6 +1356,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         ratingTemplate: RatingTemplate,
         uploadState: VisitUploadState = .complete
     ) throws -> SupabaseVisitInsert {
+        let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(caption)
         let cleanRatings = clean(ratings: ratings, ratingTemplate: ratingTemplate)
         let overallScore: Double
         if let explicitOverallScore {
@@ -1383,7 +1384,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             drinkType: drinkType == .other ? nil : drinkType.rawValue,
             drinkTypeCustom: drinkType == .other ? customDrinkType?.remoteTrimmedNonEmpty : nil,
             drinkSubtype: drinkSubtype?.remoteTrimmedNonEmpty,
-            caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
+            caption: normalizedCaption,
             visibility: visibility.supabaseValue,
             uploadState: uploadState.rawValue,
             ratings: cleanRatings,

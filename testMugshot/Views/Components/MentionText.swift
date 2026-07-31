@@ -14,10 +14,12 @@ struct MentionText: View {
     var body: some View {
         // For now, use AttributedString for mention highlighting
         // In a production app, you might want a more sophisticated text renderer
-        Text(attributedString)
+        Text(MentionTextFormatter.attributedString(for: text))
     }
-    
-    private var attributedString: AttributedString {
+}
+
+enum MentionTextFormatter {
+    static func attributedString(for text: String) -> AttributedString {
         var attributed = AttributedString(text)
         
         // Find all mention ranges and apply styling
@@ -33,4 +35,3 @@ struct MentionText: View {
         return attributed
     }
 }
-

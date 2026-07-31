@@ -86,19 +86,18 @@ struct SipDetailPresentationTests {
             caption: nil,
             privateNote: "Dial the grind finer next time.",
             reactions: [],
-            ratings: [SipDetailRatingItem(name: "Taste", score: 4.2)],
-            visitFacts: [SipDetailVisitFact(label: "Visited", value: "Jul 15, 2026")]
+            ratings: [SipDetailRatingItem(name: "Taste", score: 4.2)]
         )
 
         #expect(model.visibleSections(capabilities: owner) == [
             .actions,
             .taste,
-            .visitDetails,
             .privateNote,
             .conversation
         ])
         #expect(model.visibleSections(capabilities: owner).contains(.friendsNoticed) == false)
         #expect(model.visibleSections(capabilities: owner).contains(.note) == false)
+        #expect(!SipDetailSection.allCases.map(\.rawValue).contains("visitDetails"))
     }
 
     @Test func populatedReactionsBecomeFriendsNoticed() {
@@ -249,10 +248,8 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.contextRatingLabel == "Cafe")
         #expect(presentation.content.contextScore == 3.5)
         #expect(presentation.content.sharedRawNote == "Sip\nSweet opening.\n\nCafe\nQuiet back room.")
-        #expect(presentation.content.visitFacts.first?.label == "Place")
-        #expect(!presentation.content.visitFacts.contains { fact in
-            fact.label == "Address" || fact.value.contains("11 Cannon")
-        })
+        #expect(presentation.content.locationName == "Babas on Cannon")
+        #expect(presentation.content.locationSubtitle == "Charleston")
     }
 
     @Test func authorizedRecipeProjectionDrivesBlueprintAndReusableAction() {
@@ -360,7 +357,6 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.taggedAccounts.first?.isCurrentUser == true)
         #expect(presentation.content.visibleSections(capabilities: presentation.capabilities).contains(.recipe))
         #expect(presentation.content.visibleSections(capabilities: presentation.capabilities).contains(.taggedPeople))
-        #expect(!presentation.content.visitFacts.contains { $0.value.contains("Untrusted") })
     }
 
     @Test func inaccessibleRecipeRendersIdentityOnlyWithoutVisitPayloadFallback() {
@@ -433,9 +429,6 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.recipe?.equipment == nil)
         #expect(presentation.content.recipe?.details == nil)
         #expect(presentation.content.recipe?.canSaveAndAdapt == false)
-        #expect(!presentation.content.visitFacts.contains { fact in
-            fact.value.contains("Secret")
-        })
     }
 
     @Test func recipeOwnerKeepsBrewAgainInsteadOfSaveAndAdapt() {
@@ -488,8 +481,7 @@ struct SipDetailPresentationTests {
         caption: String? = "Bright, balanced, and worth another visit.",
         privateNote: String? = nil,
         reactions: [SipDetailReactionSummary] = [],
-        ratings: [SipDetailRatingItem] = [],
-        visitFacts: [SipDetailVisitFact] = []
+        ratings: [SipDetailRatingItem] = []
     ) -> SipDetailContentModel {
         SipDetailContentModel(
             id: UUID(),
@@ -517,7 +509,6 @@ struct SipDetailPresentationTests {
             contextRatingLabel: nil,
             contextRatings: [],
             sensorySnapshot: nil,
-            visitFacts: visitFacts,
             reactions: reactions,
             comments: [],
             isLiked: false,

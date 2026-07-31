@@ -34,9 +34,7 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertEqual(journal.value as? String, "Expanded")
         XCTAssertTrue(app.staticTexts["Friends can read this note"].exists)
 
-        let visitContext = app.buttons["sip.detail.visitContext.toggle"]
-        tapAfterRevealing(visitContext, in: app)
-        XCTAssertEqual(visitContext.value as? String, "Expanded")
+        XCTAssertFalse(app.buttons["sip.detail.visitContext.toggle"].exists)
         XCTAssertTrue(app.staticTexts["Nook Tiny Cafe & Market"].exists)
         XCTAssertFalse(app.staticTexts["11 Cannon St"].exists)
     }
@@ -230,9 +228,7 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.scrollViews["sip.detail.screen"].exists)
         XCTAssertTrue(app.buttons["sip.detail.taste.toggle"].exists)
-        let visitContext = app.buttons["sip.detail.visitContext.toggle"]
-        XCTAssertTrue(visitContext.exists)
-        XCTAssertEqual(visitContext.value as? String, "Collapsed")
+        XCTAssertFalse(app.buttons["sip.detail.visitContext.toggle"].exists)
         XCTAssertFalse(app.buttons["mugshot.tab.feed"].exists, "The app dock should yield to sip detail.")
         XCTAssertTrue(app.buttons["Sip actions"].exists)
 
