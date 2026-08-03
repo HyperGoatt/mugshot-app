@@ -242,6 +242,7 @@ class DataManager: ObservableObject {
             return
         }
 
+        let adaptiveMapFixture = adaptiveMapUITestFixture(userID: userID)
         appData = AppData(
             currentUser: User(
                 id: userID,
@@ -249,7 +250,7 @@ class DataManager: ObservableObject {
                 displayName: "Mugshot Test",
                 location: "Charleston, SC"
             ),
-            cafes: [
+            cafes: adaptiveMapFixture?.cafes ?? [
                 Cafe(
                     id: cafeID,
                     name: "Mugshot Test Cafe",
@@ -257,7 +258,7 @@ class DataManager: ObservableObject {
                     isFavorite: true
                 )
             ],
-            visits: [],
+            visits: adaptiveMapFixture?.visits ?? [],
             ratingTemplate: RatingTemplate(),
             hasCompletedOnboarding: true
         )
@@ -268,6 +269,55 @@ class DataManager: ObservableObject {
         )
         save()
         seedUITestV3LabParityIfRequested(userID: userID)
+    }
+
+    private func adaptiveMapUITestFixture(
+        userID: UUID
+    ) -> (cafes: [Cafe], visits: [Visit])? {
+        guard MugshotLaunchEnvironment.shouldSeedUITestAdaptiveMap else { return nil }
+        let seeds: [(name: String, latitude: Double, longitude: Double, city: String)] = [
+            ("North Beach Coffee", 37.8060, -122.4103, "San Francisco"),
+            ("Market Street Coffee", 37.7890, -122.4010, "San Francisco"),
+            ("Mission Coffee", 37.7599, -122.4148, "San Francisco"),
+            ("Hayes Valley Coffee", 37.7764, -122.4242, "San Francisco"),
+            ("SoMa Coffee", 37.7812, -122.3972, "San Francisco"),
+            ("Castro Coffee", 37.7609, -122.4350, "San Francisco"),
+            ("Twin Peaks Coffee", 37.7544, -122.4477, "San Francisco"),
+            ("Overlapping Espresso", 37.7890, -122.4010, "San Francisco"),
+            ("Oakland Uptown Coffee", 37.8087, -122.2680, "Oakland"),
+            ("Oakland Lake Coffee", 37.8044, -122.2584, "Oakland"),
+            ("Oakland Temescal Coffee", 37.8378, -122.2627, "Oakland"),
+            ("Berkeley Coffee", 37.8715, -122.2730, "Berkeley"),
+            ("Sacramento Coffee", 38.5816, -121.4944, "Sacramento"),
+            ("Sacramento Midtown Coffee", 38.5747, -121.4810, "Sacramento")
+        ]
+        let cafes = seeds.enumerated().map { index, seed in
+            Cafe(
+                id: UUID(uuidString: String(format: "00000000-0000-4000-8001-%012d", index + 1))!,
+                name: seed.name,
+                location: CLLocationCoordinate2D(
+                    latitude: seed.latitude,
+                    longitude: seed.longitude
+                ),
+                address: "\(index + 1) Test Street, \(seed.city), CA",
+                isFavorite: index.isMultiple(of: 4),
+                wantToTry: index.isMultiple(of: 5),
+                averageRating: 2.5 + (Double(index % 5) * 0.5),
+                visitCount: 1
+            )
+        }
+        let visits = cafes.enumerated().map { index, cafe in
+            Visit(
+                cafeId: cafe.id,
+                userId: userID,
+                drinkType: .coffee,
+                overallScore: 2.5 + (Double(index % 5) * 0.5),
+                cafeSessionID: UUID(
+                    uuidString: String(format: "00000000-0000-4000-8002-%012d", index + 1)
+                )
+            )
+        }
+        return (cafes, visits)
     }
 
     private func seedUITestMapSearchRecentIfRequested(key: String) {

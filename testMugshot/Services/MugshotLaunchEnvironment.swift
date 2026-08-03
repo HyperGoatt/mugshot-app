@@ -11,6 +11,7 @@ enum MugshotLaunchEnvironment {
     static let shouldResetUITestState = arguments.contains("--ui-testing-reset")
     static let shouldSeedUITestPhoto = arguments.contains("--ui-testing-seed-photo")
     static let shouldSeedUITestMapSearchRecent = arguments.contains("--ui-testing-seed-map-search-recent")
+    static let shouldSeedUITestAdaptiveMap = arguments.contains("--ui-testing-seed-adaptive-map")
     static let shouldSeedUITestV3LabParity = arguments.contains("--ui-testing-seed-v3-lab-parity")
     static let shouldShowSipDetailDesignQA = arguments.contains("--ui-testing-sip-detail-design-qa")
     static let shouldShowSipDetailPhotoDesignQA = arguments.contains("--ui-testing-sip-detail-photo-design-qa")

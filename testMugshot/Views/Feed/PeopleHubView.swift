@@ -641,10 +641,12 @@ struct PublicProfileView: View {
             highlightedCafe: nil,
             friendCounts: [:],
             pinScores: [:],
+            placeNames: [:],
             showsFriendContext: false,
             showsUserLocation: false,
             trackingMode: .constant(.none),
-            onCafeTap: { _ in }
+            onCafeTap: { _ in },
+            onClusterListRequested: { _ in }
         )
         .frame(height: 230)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
