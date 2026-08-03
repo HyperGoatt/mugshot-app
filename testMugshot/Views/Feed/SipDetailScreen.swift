@@ -379,6 +379,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let contextScore: Double?
     let caption: String?
     let sharedRawNote: String?
+    let journalVisibility: String?
     let privateNote: String?
     let sharedMugshot: SipDetailSharedMugshotModel?
     let recipe: SipDetailRecipeModel?
@@ -396,6 +397,12 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let isCafeSaved: Bool
     let replyingToUsername: String?
     let sharePayload: SipShareCardPayload
+
+    var journalNoteTitle: String {
+        journalVisibility?.lowercased() == "private"
+            ? "Private journal note"
+            : "Shared journal note"
+    }
 
     func visibleSections(capabilities: SipDetailCapabilities) -> [SipDetailSection] {
         var sections: [SipDetailSection] = []
@@ -473,6 +480,7 @@ enum SipDetailPresentationAdapter {
             contextScore: detail.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
+            journalVisibility: detail.v3Reflection.map { audienceLabel($0.rawNoteVisibility.supabaseValue) },
             privateNote: isOwner && detail.v3Reflection == nil
                 ? detail.privateNote?.remoteTrimmedNonEmpty
                 : nil,
@@ -602,6 +610,9 @@ enum SipDetailPresentationAdapter {
             contextScore: visit.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
+            journalVisibility: visit.v3Reflection.map {
+                $0.rawNoteVisibility == .everyone ? "Public" : $0.rawNoteVisibility.rawValue
+            },
             privateNote: isOwner && visit.v3Reflection == nil
                 ? visit.notes?.remoteTrimmedNonEmpty
                 : nil,
@@ -1026,7 +1037,9 @@ struct SipDetailScreen: View {
             if let rawNote = presentation.content.sharedRawNote {
                 SipSharedRawNoteSection(
                     text: rawNote,
-                    visibility: presentation.content.visibility,
+                    title: presentation.content.journalNoteTitle,
+                    visibility: presentation.content.journalVisibility
+                        ?? presentation.content.visibility,
                     isExpanded: $isJournalExpanded
                 )
                 .padding(.horizontal, 22)
@@ -2239,7 +2252,7 @@ private struct SipPrivateNoteSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Private note", systemImage: "lock.fill")
+            Label("Private journal note", systemImage: "lock.fill")
                 .font(.system(.caption2, design: .default, weight: .bold))
                 .textCase(.uppercase)
                 .tracking(1.2)
@@ -2258,6 +2271,7 @@ private struct SipPrivateNoteSection: View {
 
 private struct SipSharedRawNoteSection: View {
     let text: String
+    let title: String
     let visibility: String
     @Binding var isExpanded: Bool
 
@@ -2275,8 +2289,9 @@ private struct SipSharedRawNoteSection: View {
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("SHARED JOURNAL NOTE")
+                        Text(title)
                             .font(.system(.caption2, design: .default, weight: .bold))
+                            .textCase(.uppercase)
                             .tracking(1.25)
                             .foregroundStyle(Color.mugshotSage)
                         if !isExpanded {
@@ -2747,9 +2762,9 @@ struct SipDetailEditForm: View {
                         .padding(.bottom, 22)
 
                     editSection(
-                        title: "Public note",
-                        helper: "Visible with this sip",
-                        placeholder: "What should people remember?",
+                        title: "Caption",
+                        helper: "Public text shown below the photos",
+                        placeholder: "Write a caption",
                         text: $publicNote
                     )
 
@@ -2763,7 +2778,7 @@ struct SipDetailEditForm: View {
 
                     if allowsPrivateNoteEditing {
                         editSection(
-                            title: "Private note",
+                            title: "Private journal note",
                             helper: "Only visible to you",
                             placeholder: "Only visible to you",
                             text: $privateNote
@@ -2780,7 +2795,7 @@ struct SipDetailEditForm: View {
                     Divider().padding(.vertical, 20)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Audience")
+                        Text("Post audience")
                             .font(.system(.caption, design: .default, weight: .bold))
                             .textCase(.uppercase)
                             .tracking(0.8)
@@ -2948,6 +2963,7 @@ extension SipDetailPresentation {
             Cafe
             This was a to-go order during a work call. Nook felt quiet and welcoming, the barista was kind, and the drink was ready quickly.
             """,
+            journalVisibility: "Friends",
             privateNote: "Order it with an extra shot next time.",
             sharedMugshot: nil,
             recipe: nil,

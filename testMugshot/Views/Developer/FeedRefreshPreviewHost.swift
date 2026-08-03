@@ -223,6 +223,7 @@ private enum FeedRefreshPreviewFixtures {
             contextScore: nil,
             caption: summary.visit.caption,
             sharedRawNote: nil,
+            journalVisibility: nil,
             privateNote: nil,
             sharedMugshot: nil,
             recipe: nil,

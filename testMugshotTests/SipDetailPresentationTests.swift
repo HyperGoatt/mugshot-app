@@ -248,8 +248,31 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.contextRatingLabel == "Cafe")
         #expect(presentation.content.contextScore == 3.5)
         #expect(presentation.content.sharedRawNote == "Sip\nSweet opening.\n\nCafe\nQuiet back room.")
+        #expect(presentation.content.journalVisibility == "Public")
+        #expect(presentation.content.journalNoteTitle == "Shared journal note")
         #expect(presentation.content.locationName == "Babas on Cannon")
         #expect(presentation.content.locationSubtitle == "Charleston")
+
+        var privateReflection = reflection
+        privateReflection.rawNoteVisibility = .private
+        let privatePresentation = SipDetailPresentationAdapter.remote(
+            detail: RemoteVisitDetail(
+                summary: detail.summary,
+                photos: [],
+                comments: [],
+                likeCount: 0,
+                currentUserHasLiked: false,
+                v3Reflection: privateReflection
+            ),
+            currentUserID: userID,
+            reactions: [],
+            isCafeSaved: false,
+            canRecommend: false,
+            canRepeat: false,
+            replyingToUsername: nil
+        )
+        #expect(privatePresentation.content.journalVisibility == "Private")
+        #expect(privatePresentation.content.journalNoteTitle == "Private journal note")
     }
 
     @Test func authorizedRecipeProjectionDrivesBlueprintAndReusableAction() {
@@ -499,6 +522,7 @@ struct SipDetailPresentationTests {
             contextScore: nil,
             caption: caption,
             sharedRawNote: nil,
+            journalVisibility: nil,
             privateNote: privateNote,
             sharedMugshot: nil,
             recipe: nil,
