@@ -13,6 +13,7 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(MugshotGuestIntroductionPolicy.storageKey) private var hasSeenGuestIntroduction = false
     @StateObject private var tabCoordinator = TabCoordinator()
+    @StateObject private var mapLocationManager = LocationManager()
     @StateObject private var systemRouter = SipSystemRouter.shared
     @StateObject private var activityStore = ActivityCenterStore()
     @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
@@ -97,9 +98,11 @@ struct MainTabView: View {
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
             captureSelectedScreen()
+            synchronizeMapLocationUpdates()
         }
         .onChange(of: tabCoordinator.selectedTab) { _, _ in
             captureSelectedScreen()
+            synchronizeMapLocationUpdates()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
             if showsActivityCenter {
@@ -140,6 +143,7 @@ struct MainTabView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             automaticSipRecovery.setAppActive(phase == .active)
+            synchronizeMapLocationUpdates()
             guard phase == .active,
                   let expectedAccountID = authModel.authenticatedUser?.id else { return }
             Task {
@@ -317,6 +321,7 @@ struct MainTabView: View {
         case 0:
             MapTabView(
                 dataManager: dataManager,
+                locationManager: mapLocationManager,
                 onLogVisitRequested: beginCafeSip,
                 onAuthenticationRequired: requestAuthentication
             )
@@ -378,6 +383,18 @@ struct MainTabView: View {
         default: screen = .journal
         }
         MugshotAnalytics.shared.capture(.screenViewed(screen, source: .tab))
+    }
+
+    private func synchronizeMapLocationUpdates() {
+        guard tabCoordinator.selectedTab == 0, scenePhase == .active else {
+            mapLocationManager.stopUpdatingLocation()
+            return
+        }
+
+        // This never prompts. If permission already exists, retaining this
+        // manager at the tab shell gives Map an immediate known location and
+        // requests one fresh update whenever the tab becomes active.
+        mapLocationManager.startUpdatingLocation()
     }
 
     private func beginCafeSip(_ cafe: Cafe) {
@@ -816,7 +833,19 @@ private struct GuestSavedMergeView: View {
 private struct MugshotBottomNav: View {
     @Binding var selectedTab: Int
     @State private var dragPosition: CGFloat?
-    @State private var dragPreviewTab: Int?
+    @State private var isSettlingSelection = false
+
+    private enum Metrics {
+        static let contentHeight: CGFloat = 62
+        static let standardItemWidth: CGFloat = 60
+        static let addControlDiameter: CGFloat = 52
+        static let lensWidth: CGFloat = 70
+        static let lensHeight: CGFloat = 66
+        static let lensCornerRadius: CGFloat = 25
+        static let iconSize: CGFloat = 20
+        static let addIconSize: CGFloat = 22
+        static let labelSize: CGFloat = 11
+    }
 
     private let items: [MugshotTabItem] = [
         MugshotTabItem(index: 0, title: "Map", icon: "map"),
@@ -827,58 +856,51 @@ private struct MugshotBottomNav: View {
     ]
 
     var body: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 14) {
-                    navItems
-                }
-            } else {
-                navItems
+        ZStack {
+            glassNavigationLayer
+
+            addForegroundIconLayer
+                .frame(height: Metrics.contentHeight)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if showsRestingSelection {
+                restingSelectedLayer
+                    .frame(height: Metrics.contentHeight)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 8)
         .padding(.top, 6)
         .padding(.bottom, 7)
-        .mugshotGlassSurface(
-            radius: 28,
-            tint: Color.creamWhite.opacity(0.94),
-            stroke: Color.foamWhite.opacity(0.68),
-            shadow: DesignSystem.Shadow(color: .black.opacity(0.11), radius: 20, x: 0, y: -5),
-            interactive: false
-        )
+        .modifier(MugshotBottomNavGlassStyle())
         .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.bottom, 16)
+    }
+
+    @ViewBuilder
+    private var glassNavigationLayer: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 14) {
+                navItems
+            }
+        } else {
+            navItems
+        }
     }
 
     private var navItems: some View {
         GeometryReader { proxy in
-            ZStack {
-                if let dragPosition {
-                    dragGlassLens(x: clamped(position: dragPosition, width: proxy.size.width))
-                        .position(x: clamped(position: dragPosition, width: proxy.size.width), y: proxy.size.height / 2)
-                        .transition(.opacity)
-                        .allowsHitTesting(false)
-                }
+            let lensPosition = activeLensPosition(width: proxy.size.width)
 
+            ZStack {
                 HStack(alignment: .center, spacing: 0) {
                     ForEach(items) { item in
                         Button {
-                            withAnimation(DesignSystem.Motion.base) {
-                                selectedTab = item.index
-                            }
+                            settleSelection(on: item.index)
                         } label: {
-                            if item.index == 2 {
-                                addButton(
-                                    isSelected: selectedTab == item.index,
-                                    isPreviewing: dragPreviewTab == item.index
-                                )
-                            } else {
-                                standardItem(
-                                    item,
-                                    isSelected: selectedTab == item.index,
-                                    isPreviewing: dragPreviewTab == item.index
-                                )
-                            }
+                            baseItem(item)
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
@@ -890,105 +912,269 @@ private struct MugshotBottomNav: View {
                         .accessibilityAddTraits(selectedTab == item.index ? .isSelected : [])
                     }
                 }
+
+                if !showsRestingSelection {
+                    mintIconLayer
+                        .mask {
+                            selectionShape
+                                .frame(width: Metrics.lensWidth, height: Metrics.lensHeight)
+                                .position(x: lensPosition, y: proxy.size.height / 2)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+
+                selectionGlassLens
+                    .position(x: lensPosition, y: proxy.size.height / 2)
+                    .allowsHitTesting(false)
             }
             .contentShape(Rectangle())
             .highPriorityGesture(dragGesture(width: proxy.size.width))
         }
-        .frame(height: 54)
+        .frame(height: Metrics.contentHeight)
     }
 
-    private func standardItem(
-        _ item: MugshotTabItem,
-        isSelected: Bool,
-        isPreviewing: Bool
-    ) -> some View {
-        let isHighlighted = isSelected || isPreviewing
-        let showsRestingSelection = isSelected && dragPosition == nil
-        let label = VStack(spacing: 3) {
-            Image(systemName: isHighlighted ? selectedIcon(for: item.icon) : item.icon)
-                .font(.system(size: 18, weight: .semibold))
+    @ViewBuilder
+    private func baseItem(_ item: MugshotTabItem) -> some View {
+        if showsRestingSelection, item.index == selectedTab, item.index != 2 {
+            Color.clear
+                .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+        } else if item.index == 2 {
+            addButton
+        } else {
+            standardItem(item)
+        }
+    }
+
+    private func standardItem(_ item: MugshotTabItem) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: item.icon)
+                .font(.system(size: Metrics.iconSize, weight: .semibold))
             Text(item.title)
-                .font(.system(size: 10, weight: isHighlighted ? .bold : .semibold))
+                .font(.system(size: Metrics.labelSize, weight: .semibold))
         }
-        .foregroundColor(isHighlighted ? .mugshotSage : .tertiaryText)
-        .frame(width: 56, height: 52)
-
-        return Group {
-            if showsRestingSelection {
-                label
-                    .mugshotGlassSurface(
-                        radius: 18,
-                        tint: Color.mugshotMint.opacity(0.84),
-                        stroke: Color.foamWhite.opacity(0.50),
-                        shadow: DesignSystem.Shadow(color: Color.mugshotSage.opacity(0.12), radius: 8, x: 0, y: 3),
-                        interactive: true
-                    )
-            } else {
-                label
-            }
-        }
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .foregroundColor(.tertiaryText)
+        .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
     }
 
-    private func addButton(isSelected: Bool, isPreviewing: Bool) -> some View {
-        let isHighlighted = isSelected || isPreviewing
-        let fill = isHighlighted ? Color.mugshotMatcha : Color.mugshotSage
+    private var addButton: some View {
+        let control = Color.clear
+            .frame(width: Metrics.addControlDiameter, height: Metrics.addControlDiameter)
 
         return VStack(spacing: 2) {
-            ZStack {
-                Circle()
-                    .fill(fill.opacity(isHighlighted ? 0.96 : 0.90))
-
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.foamWhite)
+            Group {
+                if #available(iOS 26.0, *) {
+                    control
+                        .glassEffect(.clear.interactive(), in: .circle)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.foamWhite.opacity(0.42), lineWidth: 1)
+                        )
+                } else {
+                    control
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.mugshotLine.opacity(0.82), lineWidth: 1)
+                        )
+                }
             }
-            .frame(width: 48, height: 48)
-            .mugshotGlassCircle(
-                tint: fill,
-                stroke: Color.foamWhite.opacity(0.72),
-                shadow: DesignSystem.Shadow(color: fill.opacity(0.34), radius: 15, x: 0, y: 6),
-                interactive: true
+            .shadow(
+                color: Color.black.opacity(0.08),
+                radius: 7,
+                x: 0,
+                y: 4
             )
-            .scaleEffect(isHighlighted ? 1.05 : 1.0)
 
             Text("Add")
-                .font(.system(size: 10, weight: isHighlighted ? .bold : .semibold))
-                .foregroundColor(isHighlighted ? .mugshotSage : .tertiaryText)
+                .font(.system(size: Metrics.labelSize, weight: .semibold))
+                .foregroundColor(.tertiaryText)
         }
-        .frame(width: 56, height: 54)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
     }
 
-    private func dragGlassLens(x: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(Color.mugshotMint.opacity(0.16))
-            .frame(width: 58, height: 52)
-            .mugshotGlassSurface(
-                radius: 18,
-                tint: Color.mugshotMint.opacity(0.76),
-                stroke: Color.foamWhite.opacity(0.54),
-                shadow: DesignSystem.Shadow(color: Color.mugshotSage.opacity(0.12), radius: 8, x: 0, y: 3),
-                interactive: true
-            )
-            .accessibilityHidden(true)
+    private var mintIconLayer: some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(items) { item in
+                Group {
+                    if item.index == 2 {
+                        Color.clear
+                            .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+                    } else {
+                        mintStandardIcon(item)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func mintStandardIcon(_ item: MugshotTabItem) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: selectedIcon(for: item.icon))
+                .font(.system(size: Metrics.iconSize, weight: .bold))
+                .foregroundColor(.mugshotMint)
+            Text(item.title)
+                .font(.system(size: Metrics.labelSize, weight: .semibold))
+                .hidden()
+        }
+        .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+    }
+
+    private var selectionGlassLens: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                Color.clear
+                    .frame(width: Metrics.lensWidth, height: Metrics.lensHeight)
+                    .glassEffect(
+                        .clear.interactive(),
+                        in: .rect(cornerRadius: Metrics.lensCornerRadius)
+                    )
+                    .overlay(selectionStroke)
+            } else {
+                RoundedRectangle(cornerRadius: Metrics.lensCornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .frame(width: Metrics.lensWidth, height: Metrics.lensHeight)
+                    .overlay(selectionStroke)
+            }
+        }
+        .shadow(color: Color.mugshotSage.opacity(0.12), radius: 8, x: 0, y: 3)
+        .accessibilityHidden(true)
+    }
+
+    private var selectionShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Metrics.lensCornerRadius, style: .continuous)
+    }
+
+    private var selectionStroke: some View {
+        selectionShape.stroke(Color.foamWhite.opacity(0.50), lineWidth: 1)
+    }
+
+    private var showsRestingSelection: Bool {
+        dragPosition == nil && !isSettlingSelection
+    }
+
+    private var addForegroundIconLayer: some View {
+        GeometryReader { proxy in
+            let lensPosition = activeLensPosition(width: proxy.size.width)
+
+            ZStack {
+                addIconStrip(color: .tertiaryText)
+
+                addIconStrip(color: .mugshotMint)
+                    .mask {
+                        selectionShape
+                            .frame(width: Metrics.lensWidth, height: Metrics.lensHeight)
+                            .position(x: lensPosition, y: proxy.size.height / 2)
+                    }
+            }
+        }
+    }
+
+    private func addIconStrip(color: Color) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(items) { item in
+                Group {
+                    if item.index == 2 {
+                        addForegroundIcon(color: color)
+                    } else {
+                        Color.clear
+                            .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func addForegroundIcon(color: Color) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: "plus")
+                .font(.system(size: Metrics.addIconSize, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: Metrics.addControlDiameter, height: Metrics.addControlDiameter)
+            Text("Add")
+                .font(.system(size: Metrics.labelSize, weight: .semibold))
+                .hidden()
+        }
+        .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
     }
 
     private func dragGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 8, coordinateSpace: .local)
             .onChanged { value in
                 let position = clamped(position: value.location.x, width: width)
+                isSettlingSelection = false
                 dragPosition = position
-                dragPreviewTab = nearestTab(to: position, width: width)
             }
             .onEnded { value in
                 let target = nearestTab(to: value.location.x, width: width)
-                withAnimation(DesignSystem.Motion.base) {
-                    selectedTab = target
-                    dragPosition = nil
-                    dragPreviewTab = nil
-                }
+                settleSelection(on: target)
             }
+    }
+
+    private var restingSelectedLayer: some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(items) { item in
+                Group {
+                    if item.index == selectedTab {
+                        restingSelectedItem(item)
+                    } else {
+                        Color.clear
+                            .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func restingSelectedItem(_ item: MugshotTabItem) -> some View {
+        if item.index == 2 {
+            VStack(spacing: 2) {
+                Image(systemName: "plus")
+                    .font(.system(size: Metrics.addIconSize, weight: .bold))
+                    .frame(width: Metrics.addControlDiameter, height: Metrics.addControlDiameter)
+                    .foregroundColor(.mugshotMint)
+                Text(item.title)
+                    .font(.system(size: Metrics.labelSize, weight: .bold))
+                    .foregroundColor(.mugshotSageText)
+            }
+            .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+        } else {
+            VStack(spacing: 3) {
+                Image(systemName: selectedIcon(for: item.icon))
+                    .font(.system(size: Metrics.iconSize, weight: .bold))
+                    .foregroundColor(.mugshotMint)
+                Text(item.title)
+                    .font(.system(size: Metrics.labelSize, weight: .bold))
+                    .foregroundColor(.mugshotSageText)
+            }
+            .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+        }
+    }
+
+    private func settleSelection(on target: Int) {
+        guard target != selectedTab || dragPosition != nil else { return }
+
+        isSettlingSelection = true
+        withAnimation(DesignSystem.Motion.base) {
+            selectedTab = target
+            dragPosition = nil
+        } completion: {
+            guard selectedTab == target, dragPosition == nil else { return }
+            isSettlingSelection = false
+        }
+    }
+
+    private func activeLensPosition(width: CGFloat) -> CGFloat {
+        if let dragPosition {
+            return clamped(position: dragPosition, width: width)
+        }
+
+        let itemWidth = width / CGFloat(items.count)
+        return itemWidth * (CGFloat(selectedTab) + 0.5)
     }
 
     private func nearestTab(to position: CGFloat, width: CGFloat) -> Int {
@@ -998,21 +1184,42 @@ private struct MugshotBottomNav: View {
     }
 
     private func clamped(position: CGFloat, width: CGFloat) -> CGFloat {
-        min(max(position, 29), width - 29)
+        let inset = Metrics.lensWidth / 2
+        return min(max(position, inset), width - inset)
     }
 
     private func selectedIcon(for icon: String) -> String {
         switch icon {
         case "bookmark":
             return "bookmark.fill"
-        case "person":
-            return "person.fill"
         case "book.closed":
             return "book.closed.fill"
         case "map":
             return "map.fill"
+        case "square.grid.2x2":
+            return "square.grid.2x2.fill"
         default:
             return icon
+        }
+    }
+
+}
+
+private struct MugshotBottomNavGlassStyle: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 36, style: .continuous)
+
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: .rect(cornerRadius: 36))
+                .overlay(shape.stroke(Color.foamWhite.opacity(0.58), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.11), radius: 20, x: 0, y: -5)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.stroke(Color.mugshotLine.opacity(0.72), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.11), radius: 20, x: 0, y: -5)
         }
     }
 }

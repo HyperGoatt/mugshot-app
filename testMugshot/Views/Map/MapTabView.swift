@@ -72,10 +72,10 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
 
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var locationManager: LocationManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
-    @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
     
     @State private var region: MKCoordinateRegion?
@@ -92,6 +92,7 @@ struct MapTabView: View {
     @State private var remoteMapPins: [RemoteMapPin] = []
     @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
+    @State private var isLoadingRemoteMapPins = false
     @State private var discoveryScope: MapDiscoveryScope = .visited
     @State private var discoveryMode: MapDiscoveryMode = .map
     @State private var discoveryRadiusMiles = 10.0
@@ -100,13 +101,30 @@ struct MapTabView: View {
     @State private var friendCafeSummariesByID: [UUID: RemoteCafeExperienceSummary] = [:]
     @State private var friendSipSummariesByID: [UUID: RemoteFriendMapSipSummary] = [:]
     @State private var friendPreviewCafe: Cafe?
+    @State private var clusterSelection: MapClusterSelection?
     @State private var userTrackingMode: MKUserTrackingMode = .none
+    @State private var shouldCenterOnNextLocationUpdate = true
     
-    // Default fallback region (SF) - only used if location unavailable
-    private let defaultRegion = MKCoordinateRegion(
+    // The deterministic fixture remains city-scale for adaptive-map UI tests.
+    // Production never uses this as its unavailable-location fallback.
+    private let uiTestingRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
+
+    private var effectiveRegion: MKCoordinateRegion {
+        if let region {
+            return region
+        }
+        if MugshotLaunchEnvironment.isUITesting {
+            return uiTestingRegion
+        }
+        return MapInitialCameraPolicy.region(
+            knownLocation: locationManager.getCurrentLocation(),
+            isLocationAuthorized: locationAccessAuthorized,
+            cafeCoordinates: displayedMapCafes.compactMap(\.location)
+        )
+    }
     
     var body: some View {
         if discoveryMode == .map {
@@ -132,7 +150,7 @@ struct MapTabView: View {
             // Map with POIs hidden
             MapViewRepresentable(
                 region: Binding(
-                    get: { region ?? defaultRegion },
+                    get: { effectiveRegion },
                     set: { updatedRegion in
                         region = updatedRegion
 
@@ -149,20 +167,16 @@ struct MapTabView: View {
                 highlightedCafe: showCafeDetail || friendPreviewCafe != nil ? selectedCafe : nil,
                 friendCounts: friendCountsByCafeID,
                 pinScores: displayedPinScoresByCafeID,
+                placeNames: mapPlaceNamesByCafeID,
                 showsFriendContext: discoveryScope == .friends,
                 scope: discoveryScope,
                 showsUserLocation: locationAccessAuthorized,
                 trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
-                    selectedCafe = cafe
-                    if discoveryScope == .friends {
-                        friendPreviewCafe = cafe
-                        showCafeDetail = false
-                    } else {
-                        friendPreviewCafe = nil
-                        showCafeDetail = true
-                    }
-                    isSearchActive = false
+                    handleMapCafeTap(cafe)
+                },
+                onClusterListRequested: { cafes in
+                    clusterSelection = MapClusterSelection(cafes: cafes)
                 }
             )
             .ignoresSafeArea()
@@ -172,18 +186,22 @@ struct MapTabView: View {
                 initializeLocationIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
+                guard !MugshotLaunchEnvironment.isUITesting else { return }
                 // When we get a location update and we have permission, center the map
                 if let location = newLocation {
                     let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
                     
                     if isAuthorized {
                         // If we haven't initialized yet, or if this is a fresh location update
-                        if !hasInitializedLocation || (oldValue == nil) {
+                        if !hasInitializedLocation
+                            || oldValue == nil
+                            || shouldCenterOnNextLocationUpdate {
                             hasInitializedLocation = true
+                            shouldCenterOnNextLocationUpdate = false
                             withAnimation {
                                 region = MKCoordinateRegion(
                                     center: location.coordinate,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                    span: MapInitialCameraPolicy.nearbySpan
                                 )
                             }
                         }
@@ -194,6 +212,7 @@ struct MapTabView: View {
                 switch status {
                 case .authorizedWhenInUse, .authorizedAlways:
                     // Permission granted - start updating location
+                    shouldCenterOnNextLocationUpdate = true
                     locationManager.startUpdatingLocation()
                     showLocationMessage = false
                     // Reset initialization flag to allow centering on new location
@@ -205,7 +224,7 @@ struct MapTabView: View {
                     showLocationMessage = true
                     locationManager.stopUpdatingLocation()
                     if region == nil {
-                        region = defaultRegion
+                        region = effectiveRegion
                     }
                 case .notDetermined:
                     // Will request when needed
@@ -243,6 +262,12 @@ struct MapTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                 }
+
+                if isLoadingRemoteMapPins && displayedMapCafes.isEmpty {
+                    MapLoadingStatus()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                }
                 
                 HStack(spacing: 12) {
                     HStack {
@@ -259,7 +284,7 @@ struct MapTabView: View {
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     isSearchActive = true
-                                    searchService.search(query: newValue, region: region ?? defaultRegion)
+                                    searchService.search(query: newValue, region: effectiveRegion)
                                 } else {
                                     searchService.cancelSearch()
                                 }
@@ -270,7 +295,7 @@ struct MapTabView: View {
                             .onSubmit {
                                 searchService.search(
                                     query: searchText,
-                                    region: region ?? defaultRegion,
+                                    region: effectiveRegion,
                                     immediately: true
                                 )
                                 isSearchFieldFocused = false
@@ -343,7 +368,7 @@ struct MapTabView: View {
                         searchService: searchService,
                         dataManager: dataManager,
                         region: Binding(
-                            get: { region ?? defaultRegion },
+                            get: { effectiveRegion },
                             set: { region = $0 }
                         ),
                         selectedCafe: $selectedCafe,
@@ -365,7 +390,7 @@ struct MapTabView: View {
                         MyLocationButton(
                             locationManager: locationManager,
                             region: Binding(
-                                get: { region ?? defaultRegion },
+                                get: { effectiveRegion },
                                 set: { region = $0 }
                             ),
                             trackingMode: $userTrackingMode,
@@ -448,6 +473,18 @@ struct MapTabView: View {
         .onReceive(searchService.$searchResults) { items in
             searchPreviewCafes = items.compactMap(Self.searchPreviewCafe(from:))
         }
+        .sheet(item: $clusterSelection) { selection in
+            MapClusterCafeListSheet(
+                cafes: selection.cafes,
+                pinScores: pinScoresByCafeID,
+                onSelect: { cafe in
+                    clusterSelection = nil
+                    DispatchQueue.main.async {
+                        handleMapCafeTap(cafe)
+                    }
+                }
+            )
+        }
     }
 
     private var locationAccessAuthorized: Bool {
@@ -463,6 +500,11 @@ struct MapTabView: View {
     }
 
     private func initializeLocationIfNeeded() {
+        if MugshotLaunchEnvironment.isUITesting {
+            region = uiTestingRegion
+            hasInitializedLocation = true
+            return
+        }
         // Only initialize once, and only if we have permission
         guard !hasInitializedLocation else { return }
         
@@ -475,7 +517,7 @@ struct MapTabView: View {
                 withAnimation {
                     region = MKCoordinateRegion(
                         center: location.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        span: MapInitialCameraPolicy.nearbySpan
                     )
                 }
             } else {
@@ -486,7 +528,7 @@ struct MapTabView: View {
             // Use fallback only if truly no location available
             showLocationMessage = true
             if region == nil {
-                region = defaultRegion
+                region = effectiveRegion
             }
         case .notDetermined:
             // Will request permission
@@ -603,6 +645,25 @@ struct MapTabView: View {
         return discoveryCafesByID.mapValues(\.friendCount)
     }
 
+    private var mapPlaceNamesByCafeID: [UUID: String] {
+        var placeNames = remoteMapPins.reduce(into: [UUID: String]()) { result, pin in
+            if let city = pin.cafe.city?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !city.isEmpty {
+                result[pin.id] = city
+            }
+        }
+        for (id, discoveryCafe) in discoveryCafesByID {
+            if let city = discoveryCafe.city?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !city.isEmpty {
+                placeNames[id] = city
+            }
+        }
+        return AdaptiveMapPlaceNameResolver.names(
+            for: displayedMapCafes,
+            authoritativeNames: placeNames
+        )
+    }
+
     private var effectiveDiscoveryRadiusKM: Double {
         MapDiscoveryRadius.kilometers(forMiles: discoveryRadiusMiles)
     }
@@ -646,6 +707,8 @@ struct MapTabView: View {
 
     @MainActor
     private func loadRemoteMapPins() async {
+        isLoadingRemoteMapPins = true
+        defer { isLoadingRemoteMapPins = false }
         guard let userId = authModel.authenticatedUser?.id else {
             do {
                 let client = try SupabaseClientProvider.shared.client()
@@ -772,6 +835,115 @@ struct MapTabView: View {
             }
         }
     }
+
+    private func handleMapCafeTap(_ cafe: Cafe) {
+        selectedCafe = cafe
+        if discoveryScope == .friends {
+            friendPreviewCafe = cafe
+            showCafeDetail = false
+        } else {
+            friendPreviewCafe = nil
+            showCafeDetail = true
+        }
+        isSearchActive = false
+    }
+}
+
+private struct MapClusterSelection: Identifiable {
+    let id = UUID()
+    let cafes: [Cafe]
+}
+
+private struct MapLoadingStatus: View {
+    var body: some View {
+        HStack(spacing: 9) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(.mugshotSage)
+            Text("Loading your cafes…")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondaryText)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 38)
+        .mugshotGlassSurface(
+            radius: 19,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.62),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 5),
+            interactive: false
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading your cafes")
+    }
+}
+
+private struct MapClusterCafeListSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let cafes: [Cafe]
+    let pinScores: [UUID: MapPinScore]
+    let onSelect: (Cafe) -> Void
+
+    private var sortedCafes: [Cafe] {
+        cafes.sorted { lhs, rhs in
+            let lhsScore = pinScores[lhs.id]?.value ?? -1
+            let rhsScore = pinScores[rhs.id]?.value ?? -1
+            if lhsScore == rhsScore {
+                return lhs.consumerDisplayName.localizedCaseInsensitiveCompare(
+                    rhs.consumerDisplayName
+                ) == .orderedAscending
+            }
+            return lhsScore > rhsScore
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(sortedCafes) { cafe in
+                Button {
+                    dismiss()
+                    onSelect(cafe)
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(cafe.consumerDisplayName)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.espressoBrown)
+                            if !cafe.address.isEmpty {
+                                Text(cafe.address)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondaryText)
+                                    .lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        if let score = pinScores[cafe.id] {
+                            MugshotRatingBadge(score: score.value, label: score.sourceLabel)
+                                .accessibilityLabel(score.accessibilityLabel)
+                        } else {
+                            Image(systemName: "cup.and.saucer.fill")
+                                .foregroundColor(.mugshotSage)
+                                .accessibilityLabel("Not rated")
+                        }
+                    }
+                    .padding(.vertical, 5)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows cafe details")
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("\(cafes.count) \(cafes.count == 1 ? "cafe" : "cafes")")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
 }
 
 // MARK: - Map Pin Presentation
@@ -874,16 +1046,43 @@ struct MapViewRepresentable: UIViewRepresentable {
     let highlightedCafe: Cafe?
     let friendCounts: [UUID: Int]
     let pinScores: [UUID: MapPinScore]
+    let placeNames: [UUID: String]
     let showsFriendContext: Bool
     var scope: MapDiscoveryScope = .all
     let showsUserLocation: Bool
     @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
+    let onClusterListRequested: ([Cafe]) -> Void
+
+    private var displayedCafes: [Cafe] {
+        var seenIDs: Set<UUID> = []
+        return (cafes + [highlightedCafe].compactMap { $0 }).filter { cafe in
+            seenIDs.insert(cafe.id).inserted
+        }
+    }
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
         mapView.region = region
+        mapView.accessibilityIdentifier = "map.surface"
+
+        if MugshotLaunchEnvironment.isUITesting {
+            let gestureGuide = UIView()
+            gestureGuide.translatesAutoresizingMaskIntoConstraints = false
+            gestureGuide.backgroundColor = .clear
+            gestureGuide.isUserInteractionEnabled = false
+            gestureGuide.isAccessibilityElement = true
+            gestureGuide.accessibilityIdentifier = "map.gestureSurface"
+            gestureGuide.accessibilityLabel = "Map gesture surface"
+            mapView.addSubview(gestureGuide)
+            NSLayoutConstraint.activate([
+                gestureGuide.centerXAnchor.constraint(equalTo: mapView.centerXAnchor),
+                gestureGuide.centerYAnchor.constraint(equalTo: mapView.centerYAnchor, constant: -20),
+                gestureGuide.widthAnchor.constraint(equalToConstant: 240),
+                gestureGuide.heightAnchor.constraint(equalToConstant: 280)
+            ])
+        }
         
         // Keep the standard MapKit blue puck so the map has the same
         // orientation anchor people expect from Apple Maps.
@@ -911,59 +1110,35 @@ struct MapViewRepresentable: UIViewRepresentable {
             mapView.setUserTrackingMode(trackingMode, animated: true)
         }
 
-        // Update region if needed
-        if abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
-           abs(mapView.region.center.longitude - region.center.longitude) > 0.001 {
+        // Update region if needed. Include span so cluster taps and external
+        // camera changes can zoom without fighting MapKit's delegate updates.
+        if !context.coordinator.isCameraChanging,
+           abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
+           abs(mapView.region.center.longitude - region.center.longitude) > 0.001 ||
+           abs(mapView.region.span.latitudeDelta - region.span.latitudeDelta) > 0.001 ||
+           abs(mapView.region.span.longitudeDelta - region.span.longitudeDelta) > 0.001 {
             mapView.setRegion(region, animated: true)
         }
-        
-        // Update annotations - refresh all to handle Favorite/Want to Try state changes
-        let displayedCafes = (cafes + [highlightedCafe].compactMap { $0 }).reduce(into: [Cafe]()) { cafes, cafe in
-            if !cafes.contains(where: { $0.id == cafe.id }) {
-                cafes.append(cafe)
-            }
-        }
-        let existingAnnotations = mapView.annotations.compactMap { $0 as? CafeAnnotation }
-        let existingCafeIds = Set(existingAnnotations.map { $0.cafe.id })
-        let currentCafeIds = Set(displayedCafes.map { $0.id })
 
-        let pinPresentationChanged = context.coordinator.lastFriendCounts != friendCounts
+        let dataChanged = context.coordinator.lastDisplayedCafes != displayedCafes
+            || context.coordinator.lastPlaceNames != placeNames
+            || context.coordinator.lastHighlightedCafeID != highlightedCafe?.id
+        let presentationChanged = context.coordinator.lastFriendCounts != friendCounts
             || context.coordinator.lastPinScores != pinScores
             || context.coordinator.lastShowsFriendContext != showsFriendContext
             || context.coordinator.lastScope != scope
-        if pinPresentationChanged {
-            mapView.removeAnnotations(existingAnnotations)
-            mapView.addAnnotations(displayedCafes.map { CafeAnnotation(cafe: $0) })
-            context.coordinator.lastFriendCounts = friendCounts
-            context.coordinator.lastPinScores = pinScores
-            context.coordinator.lastShowsFriendContext = showsFriendContext
-            context.coordinator.lastScope = scope
-            return
-        }
-        
-        // Remove annotations for cafes that no longer exist
-        let toRemove = existingAnnotations.filter { !currentCafeIds.contains($0.cafe.id) }
-        mapView.removeAnnotations(toRemove)
-        
-        // Update existing annotations if cafe state changed (Favorite/Want to Try)
-        for existingAnnotation in existingAnnotations {
-            if let updatedCafe = displayedCafes.first(where: { $0.id == existingAnnotation.cafe.id }) {
-                // Check if Favorite/Want to Try state changed
-                if existingAnnotation.cafe.isFavorite != updatedCafe.isFavorite ||
-                   existingAnnotation.cafe.wantToTry != updatedCafe.wantToTry ||
-                   existingAnnotation.cafe.averageRating != updatedCafe.averageRating {
-                    // Remove and re-add to trigger view refresh
-                    mapView.removeAnnotation(existingAnnotation)
-                    let newAnnotation = CafeAnnotation(cafe: updatedCafe)
-                    mapView.addAnnotation(newAnnotation)
-                }
-            }
-        }
-        
-        // Add new annotations
-        let toAdd = displayedCafes.filter { !existingCafeIds.contains($0.id) }
-        let newAnnotations = toAdd.map { CafeAnnotation(cafe: $0) }
-        mapView.addAnnotations(newAnnotations)
+
+        context.coordinator.lastDisplayedCafes = displayedCafes
+        context.coordinator.lastPlaceNames = placeNames
+        context.coordinator.lastHighlightedCafeID = highlightedCafe?.id
+        context.coordinator.lastFriendCounts = friendCounts
+        context.coordinator.lastPinScores = pinScores
+        context.coordinator.lastShowsFriendContext = showsFriendContext
+        context.coordinator.lastScope = scope
+        context.coordinator.reconcileAnnotations(
+            in: mapView,
+            forceRefresh: dataChanged || presentationChanged
+        )
     }
     
     func makeCoordinator() -> Coordinator {
@@ -976,6 +1151,12 @@ struct MapViewRepresentable: UIViewRepresentable {
         var lastPinScores: [UUID: MapPinScore]
         var lastShowsFriendContext: Bool
         var lastScope: MapDiscoveryScope
+        var lastDisplayedCafes: [Cafe]
+        var lastPlaceNames: [UUID: String]
+        var lastHighlightedCafeID: UUID?
+        var displayMode: AdaptiveMapDisplayMode = .cafes
+        var isCameraChanging = false
+        private var cameraSettledWorkItem: DispatchWorkItem?
 
         init(parent: MapViewRepresentable) {
             self.parent = parent
@@ -983,6 +1164,74 @@ struct MapViewRepresentable: UIViewRepresentable {
             lastPinScores = parent.pinScores
             lastShowsFriendContext = parent.showsFriendContext
             lastScope = parent.scope
+            lastDisplayedCafes = parent.displayedCafes
+            lastPlaceNames = parent.placeNames
+            lastHighlightedCafeID = parent.highlightedCafe?.id
+        }
+
+        func reconcileAnnotations(in mapView: MKMapView, forceRefresh: Bool = false) {
+            let nextMode = AdaptiveMapCameraPolicy.displayMode(
+                current: displayMode,
+                groundFootprintMeters: AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView),
+                visibleCafeCount: visibleCafeCount(in: mapView),
+                viewportSize: mapView.bounds.size
+            )
+            let modeChanged = nextMode != displayMode
+            guard forceRefresh || modeChanged || applicationAnnotations(in: mapView).isEmpty else {
+                return
+            }
+
+            if forceRefresh || modeChanged {
+                mapView.removeAnnotations(applicationAnnotations(in: mapView))
+            }
+            displayMode = nextMode
+
+            switch displayMode {
+            case .cafes:
+                let existingIDs = Set(
+                    mapView.annotations.compactMap { ($0 as? CafeAnnotation)?.cafe.id }
+                )
+                let annotations = parent.displayedCafes
+                    .filter { !existingIDs.contains($0.id) }
+                    .map(CafeAnnotation.init)
+                mapView.addAnnotations(annotations)
+            case .places:
+                addPlaceAnnotations(to: mapView)
+            }
+        }
+
+        private func applicationAnnotations(in mapView: MKMapView) -> [MKAnnotation] {
+            mapView.annotations.filter {
+                $0 is CafeAnnotation || $0 is PlaceAggregateAnnotation
+            }
+        }
+
+        private func visibleCafeCount(in mapView: MKMapView) -> Int {
+            parent.displayedCafes.reduce(into: 0) { count, cafe in
+                guard let coordinate = cafe.location else { return }
+                if mapView.visibleMapRect.contains(MKMapPoint(coordinate)) {
+                    count += 1
+                }
+            }
+        }
+
+        private func addPlaceAnnotations(to mapView: MKMapView) {
+            let highlightedID = parent.highlightedCafe?.id
+            let aggregateCafes = parent.displayedCafes.filter { $0.id != highlightedID }
+            let aggregates = AdaptiveMapPlaceAggregateBuilder.make(
+                cafes: aggregateCafes,
+                placeNames: parent.placeNames,
+                scores: parent.pinScores,
+                friendCounts: parent.friendCounts
+            )
+            mapView.addAnnotations(aggregates.map(PlaceAggregateAnnotation.init))
+
+            // A selected cafe remains individually identifiable while the
+            // surrounding map uses semantic place aggregates.
+            if let highlightedCafe = parent.highlightedCafe,
+               highlightedCafe.location != nil {
+                mapView.addAnnotation(CafeAnnotation(cafe: highlightedCafe))
+            }
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -997,6 +1246,14 @@ struct MapViewRepresentable: UIViewRepresentable {
                 userLocationView.annotation = annotation
                 userLocationView.tintColor = .systemBlue
                 return userLocationView
+            }
+
+            if let cluster = annotation as? MKClusterAnnotation {
+                return clusterView(for: cluster, in: mapView)
+            }
+
+            if let placeAnnotation = annotation as? PlaceAggregateAnnotation {
+                return placeView(for: placeAnnotation, in: mapView)
             }
 
             guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
@@ -1029,6 +1286,13 @@ struct MapViewRepresentable: UIViewRepresentable {
             annotationView?.addSubview(containerView)
             annotationView?.frame = CGRect(x: 0, y: 0, width: pinSize, height: pinSize)
             annotationView?.centerOffset = CGPoint(x: 0, y: -pinSize / 2)
+            annotationView?.clusteringIdentifier = parent.highlightedCafe?.id == cafe.id
+                ? nil
+                : "MugshotCafe"
+            annotationView?.collisionMode = .circle
+            annotationView?.displayPriority = parent.highlightedCafe?.id == cafe.id
+                ? .required
+                : .defaultHigh
             annotationView?.isAccessibilityElement = true
             annotationView?.accessibilityTraits = .button
             annotationView?.accessibilityIdentifier = "map.pin.\(cafe.id.uuidString)"
@@ -1055,6 +1319,117 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
             
             return annotationView
+        }
+
+        private func clusterView(
+            for cluster: MKClusterAnnotation,
+            in mapView: MKMapView
+        ) -> MKAnnotationView {
+            let identifier = "MugshotCluster"
+            let annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: identifier
+            ) as? MugshotAggregateAnnotationView ?? MugshotAggregateAnnotationView(
+                annotation: cluster,
+                reuseIdentifier: identifier
+            )
+            let members = aggregateContents(in: cluster)
+            let placeMembers = cluster.memberAnnotations.compactMap {
+                $0 as? PlaceAggregateAnnotation
+            }
+            let isPlaceCluster = !placeMembers.isEmpty
+            let placeLabels = Array(Set(placeMembers.map { $0.aggregate.label })).sorted()
+            annotationView.annotation = cluster
+            annotationView.configure(
+                title: "\(members.summary.cafeCount) \(members.summary.cafeCount == 1 ? "cafe" : "cafes")",
+                subtitle: isPlaceCluster
+                    ? "\(placeLabels.count) \(placeLabels.count == 1 ? "area" : "areas")"
+                    : members.summary.displayedBestScore.map {
+                        "Best \(String(format: "%.1f", $0))"
+                    } ?? "Explore area",
+                summary: members.summary,
+                style: .cluster,
+                accessibilityLabel: clusterAccessibilityLabel(
+                    summary: members.summary,
+                    placeLabel: isPlaceCluster
+                        ? "Across " + placeLabels.joined(separator: ", ")
+                        : nil,
+                    includesScore: !isPlaceCluster
+                ),
+                onShowList: { [weak self] in
+                    self?.parent.onClusterListRequested(members.cafes)
+                }
+            )
+            annotationView.clusteringIdentifier = nil
+            annotationView.collisionMode = .circle
+            annotationView.displayPriority = .required
+            return annotationView
+        }
+
+        private func placeView(
+            for placeAnnotation: PlaceAggregateAnnotation,
+            in mapView: MKMapView
+        ) -> MKAnnotationView {
+            let identifier = "MugshotPlace"
+            let annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: identifier
+            ) as? MugshotAggregateAnnotationView ?? MugshotAggregateAnnotationView(
+                annotation: placeAnnotation,
+                reuseIdentifier: identifier
+            )
+            let aggregate = placeAnnotation.aggregate
+            annotationView.annotation = placeAnnotation
+            annotationView.configure(
+                title: aggregate.label,
+                subtitle: "\(aggregate.summary.cafeCount) \(aggregate.summary.cafeCount == 1 ? "cafe" : "cafes")",
+                summary: aggregate.summary,
+                style: .place,
+                accessibilityLabel: clusterAccessibilityLabel(
+                    summary: aggregate.summary,
+                    placeLabel: aggregate.label,
+                    includesScore: false
+                ),
+                onShowList: { [weak self] in
+                    self?.parent.onClusterListRequested(aggregate.cafes)
+                }
+            )
+            annotationView.clusteringIdentifier = "MugshotPlace"
+            annotationView.collisionMode = .rectangle
+            annotationView.displayPriority = .defaultHigh
+            return annotationView
+        }
+
+        private func clusterAccessibilityLabel(
+            summary: AdaptiveMapClusterSummary,
+            placeLabel: String?,
+            includesScore: Bool
+        ) -> String {
+            var components: [String] = []
+            if let placeLabel {
+                components.append(placeLabel)
+            }
+            components.append(
+                "\(summary.cafeCount) \(summary.cafeCount == 1 ? "cafe" : "cafes")"
+            )
+            if includesScore, let bestScore = summary.displayedBestScore {
+                components.append("best score \(String(format: "%.1f", bestScore))")
+            }
+            if summary.ratedCount > 0 {
+                components.append("\(summary.ratedCount) rated")
+            }
+            if summary.favoriteCount > 0 {
+                components.append(
+                    "\(summary.favoriteCount) \(summary.favoriteCount == 1 ? "favorite" : "favorites")"
+                )
+            }
+            if summary.wantToTryCount > 0 {
+                components.append("\(summary.wantToTryCount) want to try")
+            }
+            if summary.friendCafeCount > 0 {
+                components.append(
+                    "friend activity at \(summary.friendCafeCount) \(summary.friendCafeCount == 1 ? "cafe" : "cafes")"
+                )
+            }
+            return components.joined(separator: ", ")
         }
 
         private func createPinContainer(_ presentation: MapPinPresentation) -> UIView {
@@ -1291,28 +1666,138 @@ struct MapViewRepresentable: UIViewRepresentable {
                 ? UIColor(Color.espressoBrown)
                 : UIColor(Color.foamWhite)
         }
-        
+
+        private func aggregateContents(
+            in annotation: MKAnnotation
+        ) -> (cafes: [Cafe], summary: AdaptiveMapClusterSummary) {
+            let annotations: [MKAnnotation]
+            if let cluster = annotation as? MKClusterAnnotation {
+                annotations = cluster.memberAnnotations
+            } else {
+                annotations = [annotation]
+            }
+
+            var cafes: [Cafe] = []
+            var summaries: [AdaptiveMapClusterSummary] = []
+            for member in annotations {
+                if let cafeAnnotation = member as? CafeAnnotation {
+                    let cafe = cafeAnnotation.cafe
+                    cafes.append(cafe)
+                    summaries.append(
+                        .make(
+                            cafes: [cafe],
+                            scores: parent.pinScores,
+                            friendCounts: parent.friendCounts
+                        )
+                    )
+                } else if let placeAnnotation = member as? PlaceAggregateAnnotation {
+                    cafes.append(contentsOf: placeAnnotation.aggregate.cafes)
+                    summaries.append(placeAnnotation.aggregate.summary)
+                }
+            }
+
+            var seenIDs: Set<UUID> = []
+            let uniqueCafes = cafes.filter { seenIDs.insert($0.id).inserted }
+            return (
+                uniqueCafes,
+                .merging(summaries)
+            )
+        }
+
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
-            guard let cafeAnnotation = view.annotation as? CafeAnnotation else { return }
-            parent.onCafeTap(cafeAnnotation.cafe)
-            mapView.deselectAnnotation(cafeAnnotation, animated: false)
+            guard let annotation = view.annotation else { return }
+            defer { mapView.deselectAnnotation(annotation, animated: false) }
+
+            if let cafeAnnotation = annotation as? CafeAnnotation {
+                parent.onCafeTap(cafeAnnotation.cafe)
+                return
+            }
+
+            if annotation is MKClusterAnnotation || annotation is PlaceAggregateAnnotation {
+                let contents = aggregateContents(in: annotation)
+                zoomIntoAggregate(
+                    cafes: contents.cafes,
+                    in: mapView
+                )
+            }
+        }
+
+        private func zoomIntoAggregate(
+            cafes: [Cafe],
+            in mapView: MKMapView
+        ) {
+            guard !cafes.isEmpty else { return }
+            let validCoordinates = cafes.compactMap(\.location)
+            guard let firstCoordinate = validCoordinates.first else { return }
+
+            let latitudeRange = validCoordinates.map(\.latitude)
+            let longitudeRange = validCoordinates.map(\.longitude)
+            let latitudeDelta = (latitudeRange.max() ?? firstCoordinate.latitude)
+                - (latitudeRange.min() ?? firstCoordinate.latitude)
+            let longitudeDelta = (longitudeRange.max() ?? firstCoordinate.longitude)
+                - (longitudeRange.min() ?? firstCoordinate.longitude)
+            let tapAction = AdaptiveMapClusterTapPolicy.action(
+                cafeCount: cafes.count,
+                latitudeDelta: latitudeDelta,
+                longitudeDelta: longitudeDelta,
+                cameraSpan: mapView.region.span
+            )
+
+            if tapAction == .showList {
+                parent.onClusterListRequested(cafes)
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "Showing \(cafes.count) overlapping cafes"
+                )
+                return
+            }
+
+            let center = CLLocationCoordinate2D(
+                latitude: ((latitudeRange.min() ?? firstCoordinate.latitude)
+                    + (latitudeRange.max() ?? firstCoordinate.latitude)) / 2,
+                longitude: ((longitudeRange.min() ?? firstCoordinate.longitude)
+                    + (longitudeRange.max() ?? firstCoordinate.longitude)) / 2
+            )
+            let targetRegion = MKCoordinateRegion(
+                center: center,
+                span: MKCoordinateSpan(
+                    latitudeDelta: min(max(latitudeDelta * 2.4, 0.012), 45),
+                    longitudeDelta: min(max(longitudeDelta * 2.4, 0.012), 45)
+                )
+            )
+            mapView.setRegion(targetRegion, animated: true)
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "Zooming in to explore \(cafes.count) \(cafes.count == 1 ? "cafe" : "cafes")"
+            )
+        }
+
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            isCameraChanging = true
+            cameraSettledWorkItem?.cancel()
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             let updatedRegion = mapView.region
-            guard abs(parent.region.center.latitude - updatedRegion.center.latitude) > 0.000_001
-                    || abs(parent.region.center.longitude - updatedRegion.center.longitude) > 0.000_001
-                    || abs(parent.region.span.latitudeDelta - updatedRegion.span.latitudeDelta) > 0.000_001
-                    || abs(parent.region.span.longitudeDelta - updatedRegion.span.longitudeDelta) > 0.000_001 else {
-                return
-            }
+            cameraSettledWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self, weak mapView] in
+                guard let self, let mapView else { return }
+                self.isCameraChanging = false
+                self.reconcileAnnotations(in: mapView)
+                guard abs(self.parent.region.center.latitude - updatedRegion.center.latitude) > 0.000_001
+                        || abs(self.parent.region.center.longitude - updatedRegion.center.longitude) > 0.000_001
+                        || abs(self.parent.region.span.latitudeDelta - updatedRegion.span.latitudeDelta) > 0.000_001
+                        || abs(self.parent.region.span.longitudeDelta - updatedRegion.span.longitudeDelta) > 0.000_001 else {
+                    return
+                }
 
-            // MapKit can invoke this delegate while SwiftUI is updating the
-            // representable. Defer the binding write to the next main turn.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+                // MapKit can invoke this delegate while SwiftUI is updating the
+                // representable. The debounce also avoids rebuilding semantic
+                // aggregates during every frame of a rapid pan or pinch.
                 self.parent.region = updatedRegion
             }
+            cameraSettledWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
         }
 
         func mapView(
@@ -1328,9 +1813,9 @@ struct MapViewRepresentable: UIViewRepresentable {
     }
 }
 
-// MARK: - Cafe Annotation
+// MARK: - Adaptive Map Annotations
 
-class CafeAnnotation: NSObject, MKAnnotation {
+final class CafeAnnotation: NSObject, MKAnnotation {
     let cafe: Cafe
     var coordinate: CLLocationCoordinate2D {
         cafe.location ?? CLLocationCoordinate2D()
@@ -1339,6 +1824,155 @@ class CafeAnnotation: NSObject, MKAnnotation {
     init(cafe: Cafe) {
         self.cafe = cafe
         super.init()
+    }
+}
+
+final class PlaceAggregateAnnotation: NSObject, MKAnnotation {
+    let aggregate: AdaptiveMapPlaceAggregate
+    var coordinate: CLLocationCoordinate2D { aggregate.coordinate }
+
+    init(aggregate: AdaptiveMapPlaceAggregate) {
+        self.aggregate = aggregate
+        super.init()
+    }
+}
+
+private enum MugshotAggregateStyle {
+    case cluster
+    case place
+}
+
+private final class MugshotAggregateAnnotationView: MKAnnotationView {
+    private let backgroundView = UIView()
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let activityStack = UIStackView()
+    private var onShowList: (() -> Void)?
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        canShowCallout = false
+        isEnabled = true
+        isUserInteractionEnabled = true
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+
+        backgroundView.layer.borderWidth = 1.5
+        backgroundView.layer.shadowColor = UIColor.black.cgColor
+        backgroundView.layer.shadowOpacity = 0.13
+        backgroundView.layer.shadowRadius = 5
+        backgroundView.layer.shadowOffset = CGSize(width: 0, height: 3)
+        addSubview(backgroundView)
+
+        titleLabel.font = .systemFont(ofSize: 13, weight: .bold)
+        titleLabel.textColor = UIColor(Color.espressoBrown)
+        titleLabel.textAlignment = .center
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.75
+        backgroundView.addSubview(titleLabel)
+
+        subtitleLabel.font = .systemFont(ofSize: 10, weight: .semibold)
+        subtitleLabel.textColor = UIColor(Color.secondaryText)
+        subtitleLabel.textAlignment = .center
+        subtitleLabel.adjustsFontSizeToFitWidth = true
+        subtitleLabel.minimumScaleFactor = 0.75
+        backgroundView.addSubview(subtitleLabel)
+
+        activityStack.axis = .horizontal
+        activityStack.alignment = .center
+        activityStack.spacing = 3
+        backgroundView.addSubview(activityStack)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onShowList = nil
+        accessibilityCustomActions = nil
+        activityStack.arrangedSubviews.forEach {
+            activityStack.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+    }
+
+    func configure(
+        title: String,
+        subtitle: String,
+        summary: AdaptiveMapClusterSummary,
+        style: MugshotAggregateStyle,
+        accessibilityLabel: String,
+        onShowList: @escaping () -> Void
+    ) {
+        self.onShowList = onShowList
+        self.accessibilityLabel = accessibilityLabel
+        accessibilityHint = "Double tap to zoom in. Use the actions menu to show these cafes in a list."
+        accessibilityCustomActions = [
+            UIAccessibilityCustomAction(
+                name: "Show cafes in list",
+                actionHandler: { [weak self] _ in
+                    self?.onShowList?()
+                    return self?.onShowList != nil
+                }
+            )
+        ]
+
+        titleLabel.text = title
+        subtitleLabel.text = subtitle
+        activityStack.arrangedSubviews.forEach {
+            activityStack.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        addActivityIcon(systemName: "heart.fill", count: summary.favoriteCount)
+        addActivityIcon(systemName: "bookmark.fill", count: summary.wantToTryCount)
+        addActivityIcon(systemName: "person.2.fill", count: summary.friendCafeCount)
+
+        let size: CGSize
+        switch style {
+        case .cluster:
+            size = CGSize(width: 84, height: 52)
+            backgroundView.backgroundColor = UIColor(Color.foamWhite)
+            backgroundView.layer.cornerRadius = 26
+        case .place:
+            size = CGSize(width: 112, height: 52)
+            backgroundView.backgroundColor = UIColor(Color.creamWhite)
+            backgroundView.layer.cornerRadius = 15
+        }
+        backgroundView.layer.borderColor = UIColor(Color.mugshotSage.opacity(0.68)).cgColor
+        frame = CGRect(origin: .zero, size: size)
+        backgroundView.frame = bounds
+        centerOffset = CGPoint(x: 0, y: -size.height / 2)
+
+        let hasActivity = !activityStack.arrangedSubviews.isEmpty
+        titleLabel.frame = CGRect(x: 8, y: 7, width: size.width - 16, height: 18)
+        if hasActivity {
+            subtitleLabel.frame = CGRect(x: 8, y: 27, width: size.width * 0.56, height: 14)
+            activityStack.frame = CGRect(
+                x: size.width * 0.58,
+                y: 28,
+                width: size.width * 0.34,
+                height: 12
+            )
+        } else {
+            subtitleLabel.frame = CGRect(x: 8, y: 28, width: size.width - 16, height: 14)
+            activityStack.frame = .zero
+        }
+        accessibilityIdentifier = style == .cluster ? "map.cluster" : "map.place"
+    }
+
+    private func addActivityIcon(systemName: String, count: Int) {
+        guard count > 0 else { return }
+        let icon = UIImageView(image: UIImage(systemName: systemName))
+        icon.tintColor = UIColor(Color.mugshotSage)
+        icon.contentMode = .scaleAspectFit
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            icon.widthAnchor.constraint(equalToConstant: 11),
+            icon.heightAnchor.constraint(equalToConstant: 11)
+        ])
+        activityStack.addArrangedSubview(icon)
     }
 }
 
