@@ -47,6 +47,7 @@ final class MapSearchRecentUITests: XCTestCase {
             "Iced latte"
         )
         XCTAssertTrue(element(Identifier.seededPhoto, in: app).exists)
+        attachScreenshot(named: "08 After - One tap composer cafe selection")
     }
 
     @MainActor
@@ -81,6 +82,7 @@ final class MapSearchRecentUITests: XCTestCase {
             "The search field should leave so the cafe card sits over only the map."
         )
         XCTAssertFalse(app.staticTexts["Recent"].exists)
+        attachScreenshot(named: "09 After - One tap Map cafe selection")
 
         let closeCafeCard = app.buttons["Close cafe card"]
         XCTAssertTrue(closeCafeCard.waitForExistence(timeout: 3))
@@ -220,5 +222,13 @@ final class MapSearchRecentUITests: XCTestCase {
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

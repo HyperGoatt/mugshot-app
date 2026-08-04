@@ -962,29 +962,18 @@ private struct MugshotBottomNav: View {
             .frame(width: Metrics.addControlDiameter, height: Metrics.addControlDiameter)
 
         return VStack(spacing: 2) {
-            Group {
-                if #available(iOS 26.0, *) {
-                    control
-                        .glassEffect(.clear.interactive(), in: .circle)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.foamWhite.opacity(0.42), lineWidth: 1)
-                        )
-                } else {
-                    control
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(Color.mugshotLine.opacity(0.82), lineWidth: 1)
-                        )
-                }
-            }
-            .shadow(
-                color: Color.black.opacity(0.08),
-                radius: 7,
-                x: 0,
-                y: 4
-            )
+            control
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.foamWhite.opacity(0.48), lineWidth: 1)
+                )
+                .shadow(
+                    color: Color.black.opacity(0.08),
+                    radius: 7,
+                    x: 0,
+                    y: 4
+                )
 
             Text("Add")
                 .font(.system(size: Metrics.labelSize, weight: .semibold))
