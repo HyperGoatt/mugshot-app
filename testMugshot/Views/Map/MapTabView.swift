@@ -72,10 +72,10 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
 
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var locationManager: LocationManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
-    @StateObject private var locationManager = LocationManager()
     @StateObject private var searchService = MapSearchService()
     
     @State private var region: MKCoordinateRegion?
@@ -103,12 +103,28 @@ struct MapTabView: View {
     @State private var friendPreviewCafe: Cafe?
     @State private var clusterSelection: MapClusterSelection?
     @State private var userTrackingMode: MKUserTrackingMode = .none
+    @State private var shouldCenterOnNextLocationUpdate = true
     
-    // Default fallback region (SF) - only used if location unavailable
-    private let defaultRegion = MKCoordinateRegion(
+    // The deterministic fixture remains city-scale for adaptive-map UI tests.
+    // Production never uses this as its unavailable-location fallback.
+    private let uiTestingRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
+
+    private var effectiveRegion: MKCoordinateRegion {
+        if let region {
+            return region
+        }
+        if MugshotLaunchEnvironment.isUITesting {
+            return uiTestingRegion
+        }
+        return MapInitialCameraPolicy.region(
+            knownLocation: locationManager.getCurrentLocation(),
+            isLocationAuthorized: locationAccessAuthorized,
+            cafeCoordinates: displayedMapCafes.compactMap(\.location)
+        )
+    }
     
     var body: some View {
         if discoveryMode == .map {
@@ -134,7 +150,7 @@ struct MapTabView: View {
             // Map with POIs hidden
             MapViewRepresentable(
                 region: Binding(
-                    get: { region ?? defaultRegion },
+                    get: { effectiveRegion },
                     set: { updatedRegion in
                         region = updatedRegion
 
@@ -177,12 +193,15 @@ struct MapTabView: View {
                     
                     if isAuthorized {
                         // If we haven't initialized yet, or if this is a fresh location update
-                        if !hasInitializedLocation || (oldValue == nil) {
+                        if !hasInitializedLocation
+                            || oldValue == nil
+                            || shouldCenterOnNextLocationUpdate {
                             hasInitializedLocation = true
+                            shouldCenterOnNextLocationUpdate = false
                             withAnimation {
                                 region = MKCoordinateRegion(
                                     center: location.coordinate,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                    span: MapInitialCameraPolicy.nearbySpan
                                 )
                             }
                         }
@@ -193,6 +212,7 @@ struct MapTabView: View {
                 switch status {
                 case .authorizedWhenInUse, .authorizedAlways:
                     // Permission granted - start updating location
+                    shouldCenterOnNextLocationUpdate = true
                     locationManager.startUpdatingLocation()
                     showLocationMessage = false
                     // Reset initialization flag to allow centering on new location
@@ -204,7 +224,7 @@ struct MapTabView: View {
                     showLocationMessage = true
                     locationManager.stopUpdatingLocation()
                     if region == nil {
-                        region = defaultRegion
+                        region = effectiveRegion
                     }
                 case .notDetermined:
                     // Will request when needed
@@ -264,7 +284,7 @@ struct MapTabView: View {
                             .onChange(of: searchText) { oldValue, newValue in
                                 if !newValue.isEmpty {
                                     isSearchActive = true
-                                    searchService.search(query: newValue, region: region ?? defaultRegion)
+                                    searchService.search(query: newValue, region: effectiveRegion)
                                 } else {
                                     searchService.cancelSearch()
                                 }
@@ -275,7 +295,7 @@ struct MapTabView: View {
                             .onSubmit {
                                 searchService.search(
                                     query: searchText,
-                                    region: region ?? defaultRegion,
+                                    region: effectiveRegion,
                                     immediately: true
                                 )
                                 isSearchFieldFocused = false
@@ -348,7 +368,7 @@ struct MapTabView: View {
                         searchService: searchService,
                         dataManager: dataManager,
                         region: Binding(
-                            get: { region ?? defaultRegion },
+                            get: { effectiveRegion },
                             set: { region = $0 }
                         ),
                         selectedCafe: $selectedCafe,
@@ -370,7 +390,7 @@ struct MapTabView: View {
                         MyLocationButton(
                             locationManager: locationManager,
                             region: Binding(
-                                get: { region ?? defaultRegion },
+                                get: { effectiveRegion },
                                 set: { region = $0 }
                             ),
                             trackingMode: $userTrackingMode,
@@ -481,7 +501,7 @@ struct MapTabView: View {
 
     private func initializeLocationIfNeeded() {
         if MugshotLaunchEnvironment.isUITesting {
-            region = defaultRegion
+            region = uiTestingRegion
             hasInitializedLocation = true
             return
         }
@@ -497,7 +517,7 @@ struct MapTabView: View {
                 withAnimation {
                     region = MKCoordinateRegion(
                         center: location.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        span: MapInitialCameraPolicy.nearbySpan
                     )
                 }
             } else {
@@ -508,7 +528,7 @@ struct MapTabView: View {
             // Use fallback only if truly no location available
             showLocationMessage = true
             if region == nil {
-                region = defaultRegion
+                region = effectiveRegion
             }
         case .notDetermined:
             // Will request permission
