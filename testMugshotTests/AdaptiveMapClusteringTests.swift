@@ -5,10 +5,61 @@
 
 import CoreLocation
 import CoreGraphics
+import MapKit
 import Testing
 @testable import testMugshot
 
 struct AdaptiveMapClusteringTests {
+    @Test func initialCameraPrefersTheCurrentKnownLocation() {
+        let currentLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 32.7765, longitude: -79.9311),
+            altitude: 3,
+            horizontalAccuracy: 12,
+            verticalAccuracy: 8,
+            timestamp: .now
+        )
+        let region = MapInitialCameraPolicy.region(
+            knownLocation: currentLocation,
+            isLocationAuthorized: true,
+            cafeCoordinates: [
+                CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+            ]
+        )
+
+        #expect(abs(region.center.latitude - currentLocation.coordinate.latitude) < 0.000_001)
+        #expect(abs(region.center.longitude - currentLocation.coordinate.longitude) < 0.000_001)
+        #expect(region.span.latitudeDelta == MapInitialCameraPolicy.nearbySpan.latitudeDelta)
+    }
+
+    @Test func authorizedCameraDoesNotFlashACityDefaultWhileLocationResolves() {
+        let region = MapInitialCameraPolicy.region(
+            knownLocation: nil,
+            isLocationAuthorized: true,
+            cafeCoordinates: [
+                CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+            ]
+        )
+
+        #expect(region.center.latitude == MapInitialCameraPolicy.broadFallbackRegion.center.latitude)
+        #expect(region.center.longitude == MapInitialCameraPolicy.broadFallbackRegion.center.longitude)
+        #expect(region.span.latitudeDelta == MapInitialCameraPolicy.broadFallbackRegion.span.latitudeDelta)
+    }
+
+    @Test func unavailableLocationFramesExistingCafeActivity() {
+        let region = MapInitialCameraPolicy.region(
+            knownLocation: nil,
+            isLocationAuthorized: false,
+            cafeCoordinates: [
+                CLLocationCoordinate2D(latitude: 32.7765, longitude: -79.9311),
+                CLLocationCoordinate2D(latitude: 32.7898, longitude: -79.9421)
+            ]
+        )
+
+        #expect(region.center.latitude > 32.77 && region.center.latitude < 32.80)
+        #expect(region.center.longitude > -79.95 && region.center.longitude < -79.92)
+        #expect(region.span.latitudeDelta >= 0.08)
+    }
+
     @Test func cameraPolicyUsesHysteresisAcrossSemanticBoundary() {
         let viewport = CGSize(width: 360, height: 720)
         #expect(
