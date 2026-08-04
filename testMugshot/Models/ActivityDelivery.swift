@@ -3,7 +3,6 @@ import Foundation
 enum MugshotActivityKind: String, Codable, CaseIterable {
     case friendPost = "friend_post"
     case tag
-    case sharedMugshotInvitation = "shared_mugshot_invitation"
     case collaborativeListInvitation = "collaborative_list_invitation"
     case collaborativeListInvitationAccepted = "collaborative_list_invitation_accepted"
     case collaborativeListInvitationDeclined = "collaborative_list_invitation_declined"
@@ -24,7 +23,6 @@ enum MugshotActivityKind: String, Codable, CaseIterable {
         switch self {
         case .friendPost: "cup.and.saucer.fill"
         case .tag, .commentMention: "at"
-        case .sharedMugshotInvitation: "person.2.wave.2.fill"
         case .collaborativeListInvitation,
              .collaborativeListInvitationAccepted,
              .collaborativeListInvitationDeclined,
@@ -55,7 +53,6 @@ struct MugshotActivityEvent: Decodable, Identifiable, Equatable {
     let body: String
     let visitID: UUID?
     let commentID: UUID?
-    let sharedMemoryID: UUID?
     let cafeListID: UUID?
     let friendRequestID: UUID?
     let deepLink: String
@@ -75,7 +72,6 @@ struct MugshotActivityEvent: Decodable, Identifiable, Equatable {
         case body
         case visitID = "visit_id"
         case commentID = "comment_id"
-        case sharedMemoryID = "shared_memory_id"
         case cafeListID = "cafe_list_id"
         case friendRequestID = "friend_request_id"
         case deepLink = "deep_link"
@@ -106,7 +102,6 @@ struct ActivityNotificationPreferences: Codable, Equatable {
     var pushEnabled: Bool
     var friendPosts: Bool
     var tags: Bool
-    var sharedMugshotInvitations: Bool
     var collaborativeListInvitations: Bool
     var likes: Bool
     var comments: Bool
@@ -118,7 +113,6 @@ struct ActivityNotificationPreferences: Codable, Equatable {
         pushEnabled: true,
         friendPosts: true,
         tags: true,
-        sharedMugshotInvitations: true,
         collaborativeListInvitations: true,
         likes: true,
         comments: true,
@@ -131,7 +125,6 @@ struct ActivityNotificationPreferences: Codable, Equatable {
         case pushEnabled = "push_enabled"
         case friendPosts = "friend_posts"
         case tags
-        case sharedMugshotInvitations = "shared_mugshot_invitations"
         case collaborativeListInvitations = "collaborative_list_invitations"
         case likes
         case comments
@@ -141,171 +134,10 @@ struct ActivityNotificationPreferences: Codable, Equatable {
     }
 }
 
-struct SharedMugshotMembership: Decodable, Identifiable, Equatable {
-    let id: UUID
-    let sharedMemoryID: UUID
-    let status: String
-    let inviterID: UUID?
-    let inviterDisplayName: String?
-    let inviterUsername: String?
-    let inviterAvatarURL: String?
-    let relationshipAvailable: Bool
-    let contextType: String
-    let cafeID: UUID?
-    let locationLabel: String?
-    let occurredAt: String
-    let invitedAt: String
-    let respondedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id = "membership_id"
-        case sharedMemoryID = "shared_memory_id"
-        case status
-        case inviterID = "inviter_id"
-        case inviterDisplayName = "inviter_display_name"
-        case inviterUsername = "inviter_username"
-        case inviterAvatarURL = "inviter_avatar_url"
-        case relationshipAvailable = "relationship_available"
-        case contextType = "context_type"
-        case cafeID = "cafe_id"
-        case locationLabel = "location_label"
-        case occurredAt = "occurred_at"
-        case invitedAt = "invited_at"
-        case respondedAt = "responded_at"
-    }
-
-    var inviterLabel: String {
-        if let name = inviterDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !name.isEmpty { return name }
-        if let username = inviterUsername, !username.isEmpty { return "@\(username)" }
-        return "Unavailable account"
-    }
-}
-
-struct OwnedSharedMugshot: Decodable, Identifiable, Equatable {
-    let sharedMugshotID: UUID
-    // The original source can disappear during account deletion while the
-    // consented grouping safely transfers to another accepted participant.
-    let sourceVisitID: UUID?
-    let contextType: String
-    let cafeID: UUID?
-    let locationLabel: String?
-    let occurredAt: String
-    let createdAt: String
-    let updatedAt: String
-
-    var id: UUID { sharedMugshotID }
-
-    enum CodingKeys: String, CodingKey {
-        case sharedMugshotID = "shared_memory_id"
-        case sourceVisitID = "source_visit_id"
-        case contextType = "context_type"
-        case cafeID = "cafe_id"
-        case locationLabel = "location_label"
-        case occurredAt = "occurred_at"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-}
-
-struct ManagedSharedMugshotInvitation: Decodable, Identifiable, Equatable {
-    let id: UUID
-    let userID: UUID?
-    let displayName: String?
-    let username: String?
-    let avatarURL: String?
-    let status: String
-    let invitedAt: String
-    let respondedAt: String?
-    let leftAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id = "invitation_id"
-        case userID = "user_id"
-        case displayName = "display_name"
-        case username
-        case avatarURL = "avatar_url"
-        case status
-        case invitedAt = "invited_at"
-        case respondedAt = "responded_at"
-        case leftAt = "left_at"
-    }
-
-    var personLabel: String {
-        if let displayName = displayName?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmptyValue {
-            return displayName
-        }
-        if let username = username?.nonEmptyValue {
-            return "@\(username)"
-        }
-        return "Unavailable account"
-    }
-
-    var canCancel: Bool { status == "pending" }
-}
-
-enum SharedMugshotContributionEligibility {
-    static let maximumMomentDistance: TimeInterval = 12 * 60 * 60
-
-    static func eligibleVisits(
-        from visits: [RemoteVisitSummary],
-        for membership: SharedMugshotMembership,
-        ownerID: UUID
-    ) -> [RemoteVisitSummary] {
-        visits.filter {
-            isEligible(
-                visit: $0.visit,
-                contextType: membership.contextType,
-                cafeID: membership.cafeID,
-                occurredAt: membership.occurredAt,
-                ownerID: ownerID
-            )
-        }
-    }
-
-    static func isEligible(
-        visit: SupabaseVisitRow,
-        contextType: String,
-        cafeID: UUID?,
-        occurredAt: String,
-        ownerID: UUID
-    ) -> Bool {
-        guard visit.userId == ownerID,
-              visit.uploadState == VisitUploadState.complete.rawValue,
-              visit.isCafeSessionPrimary,
-              visit.journalContext == journalContext(for: contextType) else {
-            return false
-        }
-        guard let sharedDate = ActivityDateParser.date(from: occurredAt),
-              abs(visit.createdAtDate.timeIntervalSince(sharedDate))
-                <= maximumMomentDistance else {
-            return false
-        }
-        guard journalContext(for: contextType) == .cafe else { return true }
-        return cafeID != nil && visit.cafeId == cafeID
-    }
-
-    private static func journalContext(for backendValue: String) -> JournalEntryContext {
-        switch backendValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "home": .home
-        case "recipe": .recipe
-        case "elsewhere": .elsewhere
-        default: .cafe
-        }
-    }
-}
-
-private extension String {
-    var nonEmptyValue: String? { isEmpty ? nil : self }
-}
-
 enum ActivityDeepLinkDestination: Codable, Hashable {
     case center
     case visit(UUID)
     case profile(UUID)
-    case sharedMugshots
     case collaborativeLists
 
     static func resolve(_ url: URL) -> ActivityDeepLinkDestination? {
@@ -324,8 +156,6 @@ enum ActivityDeepLinkDestination: Codable, Hashable {
                 return nil
             }
             return .profile(id)
-        case "shared":
-            return components.count == 1 ? .sharedMugshots : nil
         case "lists":
             return components.count == 1 ? .collaborativeLists : nil
         default:
@@ -341,8 +171,6 @@ enum ActivityDeepLinkDestination: Codable, Hashable {
             URL(string: "mugshot://activity/visit/\(id.uuidString.lowercased())")!
         case .profile(let id):
             URL(string: "mugshot://activity/people/\(id.uuidString.lowercased())")!
-        case .sharedMugshots:
-            URL(string: "mugshot://activity/shared")!
         case .collaborativeLists:
             URL(string: "mugshot://activity/lists")!
         }

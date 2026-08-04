@@ -76,9 +76,6 @@ begin
     where not trigger_row.tgisinternal
       and trigger_row.tgname in (
         'activity_from_visit', 'activity_from_tag', 'cleanup_activity_from_tag',
-        'activity_from_shared_memory_invitation',
-        'cleanup_activity_from_shared_memory_invitation',
-        'cleanup_deleted_activity_from_shared_memory_invitation',
         'activity_from_cafe_list_invitation',
         'cleanup_activity_from_cafe_list_invitation',
         'cleanup_activity_from_cafe_list_invitation_status',
@@ -91,7 +88,7 @@ begin
         'cleanup_blocked_pair_activity', 'suppress_moderated_activity',
         'suppress_invisible_visit_activity'
       )
-  ) <> 22 then
+  ) <> 19 then
     raise exception 'authoritative activity triggers are incomplete';
   end if;
 
@@ -110,7 +107,7 @@ begin
     'public.register_user_device_v2(uuid,text,text)',
     'public.unregister_user_device_v2(uuid)',
     'public.get_notification_preferences_v1()',
-    'public.set_notification_preferences_v1(boolean,boolean,boolean,boolean,boolean,boolean,boolean,boolean,boolean)',
+    'public.set_notification_preferences_v1(boolean,boolean,boolean,boolean,boolean,boolean,boolean,boolean)',
     'public.list_activity_events_v1(integer,timestamp with time zone,uuid)',
     'public.activity_unread_count_v1()',
     'public.mark_activity_read_v1(uuid)',

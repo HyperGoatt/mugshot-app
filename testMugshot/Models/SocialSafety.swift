@@ -110,7 +110,7 @@ struct SafetyBlockConsequences: Decodable, Equatable {
 }
 
 enum SocialSafetyCopy {
-    static let blockConsequences = "Blocking removes your friendship, shared MugShot presentation, interactions, tags, and pending invitations with this person. Each private journal stays unchanged. Choose whether Mugshot should also remove recipe copies you saved from them."
+    static let blockConsequences = "Blocking removes your friendship, interactions, tags, and pending invitations with this person. Their tag is removed from your private people recaps immediately. Each private journal stays unchanged. Choose whether Mugshot should also remove recipe copies you saved from them."
     static let unblockConsequences = "Unblocking lets this person appear in Mugshot again. It does not restore a friendship, interactions, tags, or invitations that were removed."
     static let reportPending = "Sending report…"
     static let reportSubmitted = "Report submitted."

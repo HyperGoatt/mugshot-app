@@ -30,7 +30,7 @@ begin
   end if;
 
   if payload ->> 'schema_release'
-      <> '2026-07-23-post-publish-share-hub' then
+      <> '2026-08-04-tag-only-edit-v2' then
     raise exception 'Unexpected backend schema release: %',
       payload ->> 'schema_release';
   end if;
@@ -53,7 +53,11 @@ begin
       raise exception 'Capability % is missing or not boolean', capability_name;
     end if;
 
-    if not (payload -> 'capabilities' ->> capability_name)::boolean then
+    if capability_name = 'shared_mugshots' then
+      if (payload -> 'capabilities' ->> capability_name)::boolean then
+        raise exception 'Retired capability % is unexpectedly available', capability_name;
+      end if;
+    elsif not (payload -> 'capabilities' ->> capability_name)::boolean then
       raise exception 'Capability % is not deploy-ready', capability_name;
     end if;
   end loop;

@@ -23,9 +23,9 @@ final class SocialDiscoveryService {
         ).execute().value
     }
 
-    func companionSuggestions(limit: Int = 50) async throws -> [SipCompanionSuggestion] {
+    func tagSuggestions(limit: Int = 50) async throws -> [SipCompanionSuggestion] {
         try await client.rpc(
-            "companion_suggestions",
+            "visit_tag_suggestions_v1",
             params: ["p_limit": limit]
         ).execute().value
     }
@@ -38,22 +38,6 @@ final class SocialDiscoveryService {
             "set_visit_tags_v1",
             params: VisitTagParameters(pVisitID: visitID, pTaggedUserIDs: userIDs)
         ).execute()
-    }
-
-    /// Creates pending co-ownership invitations only after the source post is
-    /// complete. Invitees remain independent until they explicitly accept.
-    @discardableResult
-    func createSharedMemoryInvitations(
-        for visitID: UUID,
-        inviteeIDs: [UUID]
-    ) async throws -> UUID {
-        try await client.rpc(
-            "create_shared_memory_invitations_v1",
-            params: SharedMemoryInvitationParameters(
-                pVisitID: visitID,
-                pInviteeIDs: inviteeIDs
-            )
-        ).execute().value
     }
 
     /// Resolves only the viewer-safe recipe reference, then applies immutable
@@ -520,15 +504,6 @@ private struct VisitTagParameters: Encodable {
     enum CodingKeys: String, CodingKey {
         case pVisitID = "p_visit_id"
         case pTaggedUserIDs = "p_tagged_user_ids"
-    }
-}
-
-private struct SharedMemoryInvitationParameters: Encodable {
-    let pVisitID: UUID
-    let pInviteeIDs: [UUID]
-    enum CodingKeys: String, CodingKey {
-        case pVisitID = "p_visit_id"
-        case pInviteeIDs = "p_invitee_ids"
     }
 }
 

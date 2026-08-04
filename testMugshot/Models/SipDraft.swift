@@ -270,9 +270,6 @@ struct SipDraft: Identifiable, Codable, Equatable {
     /// Account-bound companion identities. `companions` remains as a legacy
     /// display snapshot so older visits and drafts continue to render.
     var taggedCompanions: [SipCompanion]?
-    /// Invitations to co-own a shared MugShot are separate from ordinary tags
-    /// because they require each friend's consent after publication.
-    var sharedMemoryInvitees: [SipCompanion]?
     /// Optional storage keeps drafts written before independent recipe sharing
     /// decodable. The resolved contract always defaults to Private.
     private var storedRecipePublication: SipRecipePublicationContract?
@@ -357,7 +354,6 @@ struct SipDraft: Identifiable, Codable, Equatable {
         tags: [String] = [],
         companions: [String] = [],
         taggedCompanions: [SipCompanion]? = nil,
-        sharedMemoryInvitees: [SipCompanion]? = nil,
         recipePublication: SipRecipePublicationContract = .privateOriginal,
         brewMethod: String = "",
         equipment: String = "",
@@ -405,7 +401,6 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.tags = tags
         self.companions = companions
         self.taggedCompanions = taggedCompanions
-        self.sharedMemoryInvitees = sharedMemoryInvitees
         self.storedRecipePublication = recipePublication
         self.brewMethod = brewMethod
         self.equipment = equipment
@@ -540,7 +535,6 @@ struct SipDraft: Identifiable, Codable, Equatable {
             brewMethod.remoteTrimmedNonEmpty != nil || equipment.remoteTrimmedNonEmpty != nil ||
             brewDetails.hasStructuredData || orderNotes.remoteTrimmedNonEmpty != nil ||
             !tags.isEmpty || !companions.isEmpty || !(taggedCompanions ?? []).isEmpty ||
-            !(sharedMemoryInvitees ?? []).isEmpty ||
             sensorySnapshot != nil || hasSensoryWork || hasCafeSessionWork ||
             sipReorderIntention != nil || contextNotes.remoteTrimmedNonEmpty != nil ||
             contextScore != nil || contextRatingCriteria.contains(where: { $0.score > 0 }) ||

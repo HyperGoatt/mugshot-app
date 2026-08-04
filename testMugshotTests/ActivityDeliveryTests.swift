@@ -18,7 +18,7 @@ struct ActivityDeliveryTests {
         ) == .profile(profileID))
         #expect(ActivityDeepLinkDestination.resolve(
             try #require(URL(string: "mugshot://activity/shared"))
-        ) == .sharedMugshots)
+        ) == nil)
         #expect(ActivityDeepLinkDestination.resolve(
             try #require(URL(string: "mugshot://activity/lists"))
         ) == .collaborativeLists)
@@ -42,7 +42,6 @@ struct ActivityDeliveryTests {
         #expect(defaults.pushEnabled)
         #expect(defaults.friendPosts)
         #expect(defaults.tags)
-        #expect(defaults.sharedMugshotInvitations)
         #expect(defaults.collaborativeListInvitations)
     }
 
@@ -304,7 +303,6 @@ struct ActivityDeliveryTests {
             body: "Published a MugShot",
             visitID: UUID(),
             commentID: nil,
-            sharedMemoryID: nil,
             cafeListID: nil,
             friendRequestID: nil,
             deepLink: "mugshot://activity",

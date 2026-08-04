@@ -32,20 +32,12 @@ struct PendingVisitOutboxTests {
             username: "tagged",
             avatarURL: nil
         )
-        let invitee = SipCompanion(
-            userID: UUID(),
-            displayName: "Shared memory invitee",
-            username: "invitee",
-            avatarURL: nil
-        )
-
         let firstPrepared = try prepare(
             store: fixture.store,
             userID: userID,
             caption: "First",
             image: image(.brown),
-            taggedCompanions: [tagged],
-            sharedMemoryInvitees: [invitee]
+            taggedCompanions: [tagged]
         )
         let secondPrepared = try prepare(
             store: fixture.store,
@@ -67,10 +59,6 @@ struct PendingVisitOutboxTests {
         #expect(try fixture.store.loadAll(userId: userID).map(\.id) == [second.id, first.id])
         #expect(fixture.store.load(userId: userID)?.id == second.id)
         #expect(fixture.store.load(visitId: first.id, userId: userID)?.taggedCompanions == [tagged])
-        #expect(
-            fixture.store.load(visitId: first.id, userId: userID)?.sharedMemoryInvitees
-                == [invitee]
-        )
 
         fixture.store.remove(second)
 
@@ -133,7 +121,13 @@ struct PendingVisitOutboxTests {
             JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy))
                 as? [String: Any]
         )
-        legacyObject.removeValue(forKey: "sharedMemoryInvitees")
+        legacyObject["sharedMemoryInvitees"] = [[
+            "userID": UUID().uuidString,
+            "displayName": "Retired invitee",
+            "username": "retired",
+            "avatarURL": NSNull()
+        ]]
+        legacyObject["sharedMemoryInvitationsCompletedAt"] = Date().timeIntervalSinceReferenceDate
         let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
         target.defaults.set(
             legacyData,
@@ -161,7 +155,6 @@ struct PendingVisitOutboxTests {
         #expect(migrated.id == legacy.id)
         #expect(migrated.remoteFinalizedAt == legacy.remoteFinalizedAt)
         #expect(migrated.isRemoteFinalized)
-        #expect(migrated.sharedMemoryInvitees == nil)
         #expect(try migratedStore.loadImages(for: migrated).count == 1)
         #expect(
             target.defaults.data(
@@ -209,14 +202,42 @@ struct PendingVisitOutboxTests {
         #expect(fixture.store.load(userId: userID)?.remoteFinalizedAt == finalized.remoteFinalizedAt)
     }
 
+    @Test func publicationSetupPlanRetriesTagsUntilTheirReceiptIsDurable() throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let person = SipCompanion(
+            userID: UUID(),
+            displayName: "Amanda",
+            username: "amanda",
+            avatarURL: nil
+        )
+        var finalized = try prepare(
+            store: fixture.store,
+            userID: UUID(),
+            caption: "Tag retry",
+            image: nil,
+            taggedCompanions: [person]
+        )
+        finalized.remoteFinalizedAt = Date(timeIntervalSince1970: 4_321)
+
+        let pendingPlan = try #require(SipPostPublicationSetupPlan.make(from: finalized))
+        #expect(pendingPlan.visitID == finalized.id)
+        #expect(pendingPlan.taggedUserIDs == [person.userID])
+        #expect(!finalized.isPostPublicationSetupComplete)
+
+        finalized.visitTagsCompletedAt = Date(timeIntervalSince1970: 4_322)
+        let completedPlan = try #require(SipPostPublicationSetupPlan.make(from: finalized))
+        #expect(completedPlan.taggedUserIDs == nil)
+        #expect(finalized.isPostPublicationSetupComplete)
+    }
+
     private func prepare(
         store: PendingVisitSubmissionStore,
         visitID: UUID = UUID(),
         userID: UUID,
         caption: String,
         image selectedImage: UIImage?,
-        taggedCompanions: [SipCompanion]? = nil,
-        sharedMemoryInvitees: [SipCompanion]? = nil
+        taggedCompanions: [SipCompanion]? = nil
     ) throws -> PendingVisitSubmissionRecord {
         try store.prepare(
             visitId: visitID,
@@ -234,7 +255,6 @@ struct PendingVisitOutboxTests {
             overallScore: 4,
             ratingTemplate: RatingTemplate(),
             taggedCompanions: taggedCompanions,
-            sharedMemoryInvitees: sharedMemoryInvitees,
             images: selectedImage.map { [$0] } ?? [],
             posterPhotoIndex: 0
         )

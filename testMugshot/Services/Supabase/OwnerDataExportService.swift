@@ -88,7 +88,6 @@ final class OwnerDataExportService {
         "safety report receipts",
         "enforcement decisions and appeal statements",
         "visit tags",
-        "shared MugShot memberships and contributions",
         "collaborative list memberships and contributions",
         "notification and device metadata",
         "structured private media references"

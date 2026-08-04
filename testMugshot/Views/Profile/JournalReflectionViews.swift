@@ -3,14 +3,23 @@ import UIKit
 
 struct JournalReflectionsSection: View {
     let entries: [JournalEntryProjection]
+    let peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]]
     let onSelect: (JournalReflectionSummary) -> Void
 
     private var monthly: JournalReflectionSummary {
-        JournalReflectionEngine.summary(for: .month, entries: entries)
+        JournalReflectionEngine.summary(
+            for: .month,
+            entries: entries,
+            people: peopleByPeriod[.month] ?? []
+        )
     }
 
     private var yearly: JournalReflectionSummary {
-        JournalReflectionEngine.summary(for: .year, entries: entries)
+        JournalReflectionEngine.summary(
+            for: .year,
+            entries: entries,
+            people: peopleByPeriod[.year] ?? []
+        )
     }
 
     private var milestones: [JournalMilestone] {
@@ -153,6 +162,9 @@ struct JournalReflectionDetailView: View {
                     }
                     rhythmPanel
                     memoryHighlights
+                    if !reflection.people.isEmpty {
+                        peoplePanel
+                    }
                     if let caffeine = reflection.caffeine {
                         caffeinePanel(caffeine)
                     }
@@ -337,6 +349,35 @@ struct JournalReflectionDetailView: View {
         .cardStyle()
     }
 
+    private var peoplePanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("People in your coffee story")
+                .font(.system(size: 19, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            Text("Private to you · based on people currently tagged in your Mugshots")
+                .font(.system(size: 12))
+                .foregroundColor(.secondaryText)
+
+            ForEach(reflection.people.prefix(3)) { person in
+                HStack(spacing: 10) {
+                    MugshotAvatar(
+                        name: person.personLabel,
+                        size: 38,
+                        imageURL: person.avatarURL
+                    )
+                    Text("\(person.sipCount) \(person.sipCount == 1 ? "sip" : "sips") with \(person.personLabel)")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(16)
+        .cardStyle()
+        .accessibilityIdentifier("journal.reflection.people")
+    }
+
     private func caffeinePanel(_ caffeine: JournalCaffeineEstimate) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Deep journal data")
@@ -406,6 +447,62 @@ struct JournalReflectionDetailView: View {
         }
     }
 }
+
+#if DEBUG
+struct JournalPeopleRecapPreviewHost: View {
+    private let reflection = JournalReflectionSummary(
+        period: .month,
+        startDate: Date(timeIntervalSince1970: 1_775_001_600),
+        endDate: Date(timeIntervalSince1970: 1_777_680_000),
+        entryCount: 36,
+        cafeCount: 9,
+        homeExperimentCount: 4,
+        recipeCount: 2,
+        favoriteDrink: "Cortados",
+        favoriteCafe: "Nook Tiny Cafe & Market",
+        neighborhoods: ["Charleston", "North Charleston"],
+        meaningfulMemoryCount: 24,
+        photoCount: 18,
+        averageRating: 4.2,
+        ratingChange: 0.2,
+        caffeine: nil,
+        people: [
+            JournalPeopleCount(
+                accountID: UUID(uuidString: "40000000-0000-4000-8000-000000000001")!,
+                displayName: "Amanda",
+                username: "amanda",
+                avatarURL: nil,
+                sipCount: 16,
+                latestSharedSipAt: "2026-08-03T14:30:00Z"
+            ),
+            JournalPeopleCount(
+                accountID: UUID(uuidString: "40000000-0000-4000-8000-000000000002")!,
+                displayName: "Paul",
+                username: "paul",
+                avatarURL: nil,
+                sipCount: 12,
+                latestSharedSipAt: "2026-08-02T14:30:00Z"
+            ),
+            JournalPeopleCount(
+                accountID: UUID(uuidString: "40000000-0000-4000-8000-000000000003")!,
+                displayName: "Jake",
+                username: "jake",
+                avatarURL: nil,
+                sipCount: 8,
+                latestSharedSipAt: "2026-08-01T14:30:00Z"
+            )
+        ]
+    )
+
+    var body: some View {
+        JournalReflectionDetailView(
+            reflection: reflection,
+            entries: [],
+            milestones: []
+        )
+    }
+}
+#endif
 
 private struct JournalReflectionShareCard: View {
     let reflection: JournalReflectionSummary

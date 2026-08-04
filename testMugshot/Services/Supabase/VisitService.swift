@@ -293,14 +293,6 @@ final class VisitService {
                 return nil
             }
         }()
-        async let sharedMugshotProjectionRequest: RemoteSharedMugshotProjection? = {
-            guard currentUserId != nil else { return nil }
-            do {
-                return try await fetchSharedMugshotProjection(visitId: visitId)
-            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
-                return nil
-            }
-        }()
         async let taggedAccountsRequest: [RemoteVisitTag] = {
             guard currentUserId != nil else { return [] }
             do {
@@ -319,7 +311,6 @@ final class VisitService {
             v3Reflection,
             recipeProjection,
             recipeIdentityProjection,
-            sharedMugshotProjection,
             taggedAccounts
         ) = try await (
             summariesRequest,
@@ -330,7 +321,6 @@ final class VisitService {
             v3ReflectionRequest,
             recipeProjectionRequest,
             recipeIdentityProjectionRequest,
-            sharedMugshotProjectionRequest,
             taggedAccountsRequest
         )
         guard let summary = summaries.first else {
@@ -364,7 +354,6 @@ final class VisitService {
             v3Reflection: v3Reflection,
             recipeProjection: recipeProjection,
             recipeIdentityProjection: recipeIdentityProjection,
-            sharedMugshotProjection: sharedMugshotProjection,
             taggedAccounts: taggedAccounts
         )
     }
@@ -402,17 +391,6 @@ final class VisitService {
             "list_visible_visit_tags_v1",
             params: ["p_visit_id": visitId]
         ).execute().value
-    }
-
-    func fetchSharedMugshotProjection(
-        visitId: UUID
-    ) async throws -> RemoteSharedMugshotProjection? {
-        let projection: RemoteSharedMugshotProjection? = try await client.rpc(
-            "get_shared_memory_projection_v1",
-            params: ["p_visit_id": visitId]
-        ).execute().value
-        guard projection?.groupedContributions != nil else { return nil }
-        return projection
     }
 
     private func fetchCafeSessionSummaryIfPresent(

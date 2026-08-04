@@ -516,74 +516,8 @@ struct RemoteVisitTag: Decodable, Identifiable, Equatable {
     }
 }
 
-/// Caller-bound shared presentation. The server returns nil when fewer than
-/// two independently visible contributions remain. The client repeats that
-/// minimum defensively so malformed or stale payloads never imply hidden
-/// participants.
-struct RemoteSharedMugshotProjection: Decodable, Identifiable, Equatable {
-    let sharedMugshotID: UUID
-    let contextType: String
-    let cafeID: UUID?
-    let locationLabel: String?
-    let occurredAt: String
-    let contributions: [RemoteSharedMugshotContribution]
-
-    var id: UUID { sharedMugshotID }
-
-    enum CodingKeys: String, CodingKey {
-        case sharedMugshotID = "shared_memory_id"
-        case contextType = "context_type"
-        case cafeID = "cafe_id"
-        case locationLabel = "location_label"
-        case occurredAt = "occurred_at"
-        case contributions
-    }
-
-    var groupedContributions: [RemoteSharedMugshotContribution]? {
-        var seenVisitIDs: Set<UUID> = []
-        var seenUserIDs: Set<UUID> = []
-        let unique = contributions.filter { contribution in
-            seenVisitIDs.insert(contribution.visitID).inserted
-                && seenUserIDs.insert(contribution.userID).inserted
-        }
-        return unique.count >= 2 ? unique : nil
-    }
-}
-
-struct RemoteSharedMugshotContribution: Decodable, Identifiable, Equatable {
-    let visitID: UUID
-    let userID: UUID
-    let displayName: String?
-    let username: String
-    let avatarURL: String?
-    let caption: String?
-    let drink: String
-    let overallScore: Double
-    let posterPhotoURL: String?
-    let visibility: String
-    let createdAt: String
-
-    var id: UUID { visitID }
-
-    enum CodingKeys: String, CodingKey {
-        case visitID = "visit_id"
-        case userID = "user_id"
-        case displayName = "display_name"
-        case username
-        case avatarURL = "avatar_url"
-        case caption
-        case drink
-        case overallScore = "overall_score"
-        case posterPhotoURL = "poster_photo_url"
-        case visibility
-        case createdAt = "created_at"
-    }
-
-    var personLabel: String {
-        displayName?.remoteTrimmedNonEmpty ?? "@\(username)"
-    }
-}
-
+/// Canonical caller-visible detail for one independently owned Mugshot.
+/// Tagged accounts add social context without changing ownership or audience.
 struct RemoteVisitDetail: Identifiable, Equatable {
     let summary: RemoteVisitSummary
     let photos: [SupabaseVisitPhotoRow]
@@ -596,7 +530,6 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let v3Reflection: V3VisitReflection?
     let recipeProjection: RemoteVisitRecipeProjection?
     let recipeIdentityProjection: RemoteVisitRecipeIdentityProjection?
-    let sharedMugshotProjection: RemoteSharedMugshotProjection?
     let taggedAccounts: [RemoteVisitTag]
 
     init(
@@ -611,7 +544,6 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         v3Reflection: V3VisitReflection? = nil,
         recipeProjection: RemoteVisitRecipeProjection? = nil,
         recipeIdentityProjection: RemoteVisitRecipeIdentityProjection? = nil,
-        sharedMugshotProjection: RemoteSharedMugshotProjection? = nil,
         taggedAccounts: [RemoteVisitTag] = []
     ) {
         self.summary = summary
@@ -625,7 +557,6 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         self.v3Reflection = v3Reflection
         self.recipeProjection = recipeProjection
         self.recipeIdentityProjection = recipeIdentityProjection
-        self.sharedMugshotProjection = sharedMugshotProjection
         self.taggedAccounts = taggedAccounts
     }
 

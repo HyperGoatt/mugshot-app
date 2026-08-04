@@ -21,6 +21,7 @@ struct JournalTabView: View {
     @State private var tasteSignals: [RemoteTasteSignal] = []
     @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
+    @State private var peopleByReflectionPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:]
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
@@ -151,6 +152,7 @@ struct JournalTabView: View {
                     if phase5Reflections, !journalEntries.isEmpty {
                         JournalReflectionsSection(
                             entries: journalEntries,
+                            peopleByPeriod: peopleByReflectionPeriod,
                             onSelect: { selectedReflection = $0 }
                         )
                         .padding(.top, 18)
@@ -530,6 +532,7 @@ struct JournalTabView: View {
             journalEntries = []
             tasteSignals = []
             cafeExperienceSummaries = []
+            peopleByReflectionPeriod = [:]
             isLoading = false
             loadError = nil
             return
@@ -539,7 +542,18 @@ struct JournalTabView: View {
         loadError = nil
         do {
             let client = try SupabaseClientProvider.shared.client()
-            async let entriesRequest = JournalService(client: client).fetchEntries(userID: userID)
+            let journalService = JournalService(client: client)
+            let monthlyInterval = JournalReflectionEngine.dateInterval(for: .month)
+            let yearlyInterval = JournalReflectionEngine.dateInterval(for: .year)
+            async let entriesRequest = journalService.fetchEntries(userID: userID)
+            async let monthlyPeopleRequest = journalService.fetchPeopleCounts(
+                startAt: monthlyInterval.start,
+                endAt: monthlyInterval.end
+            )
+            async let yearlyPeopleRequest = journalService.fetchPeopleCounts(
+                startAt: yearlyInterval.start,
+                endAt: yearlyInterval.end
+            )
             async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
             let loadedEntries = try await entriesRequest
             let cafeIDs: [UUID] = Array(Set(loadedEntries.compactMap { entry -> UUID? in
@@ -554,10 +568,16 @@ struct JournalTabView: View {
             )
             let loadedSignals = (try? await signalsRequest) ?? []
             let loadedCafeSummaries = (try? await summariesRequest) ?? []
+            let loadedMonthlyPeople = (try? await monthlyPeopleRequest) ?? []
+            let loadedYearlyPeople = (try? await yearlyPeopleRequest) ?? []
             guard !Task.isCancelled else { return }
             journalEntries = loadedEntries
             tasteSignals = loadedSignals
             cafeExperienceSummaries = loadedCafeSummaries
+            peopleByReflectionPeriod = [
+                .month: loadedMonthlyPeople,
+                .year: loadedYearlyPeople
+            ]
             isLoading = false
         } catch is CancellationError {
             return

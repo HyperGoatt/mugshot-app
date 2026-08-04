@@ -250,17 +250,10 @@ struct LogVisitView: View {
             .sheet(item: $peoplePickerMode) { mode in
                 SipCompanionPicker(
                     mode: mode,
-                    selected: mode == .tag
-                        ? draft.taggedCompanions ?? []
-                        : draft.sharedMemoryInvitees ?? [],
+                    selected: draft.taggedCompanions ?? [],
                     onSave: { companions in
-                        switch mode {
-                        case .tag:
-                            draft.taggedCompanions = companions
-                            draft.companions = companions.map(\.displayName)
-                        case .sharedMemory:
-                            draft.sharedMemoryInvitees = companions
-                        }
+                        draft.taggedCompanions = companions
+                        draft.companions = companions.map(\.displayName)
                     }
                 )
             }
@@ -479,7 +472,6 @@ struct LogVisitView: View {
                 isCafeSearchActive = true
             },
             onTagPeople: { peoplePickerMode = .tag },
-            onInviteSharedMemory: { peoplePickerMode = .sharedMemory },
             onRepairProtectedSave: pendingRecoveryNeedsPhotoRepair
                 ? { showPhotoSourceDialog = true }
                 : nil,
@@ -1398,64 +1390,6 @@ struct LogVisitView: View {
                 }
             }
 
-            if draft.cafeSessionSipRole != .secondary {
-                Divider().overlay(Color.mugshotLine)
-
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack {
-                        Label("Shared MugShot", systemImage: "person.2.badge.plus")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.espressoBrown)
-                        Spacer()
-                        Button {
-                            peoplePickerMode = .sharedMemory
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold))
-                                .frame(width: 36, height: 36)
-                                .foregroundColor(.mugshotSage)
-                                .background(Color.mugshotMint.opacity(0.42), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Invite friends to this shared MugShot")
-                    }
-
-                    if let invitees = draft.sharedMemoryInvitees, !invitees.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(invitees) { invitee in
-                                    HStack(spacing: 7) {
-                                        MugshotAvatar(
-                                            name: invitee.displayName,
-                                            size: 28,
-                                            imageURL: invitee.avatarURL
-                                        )
-                                        Text(invitee.displayName)
-                                            .font(.system(size: 12, weight: .semibold))
-                                        Button {
-                                            removeSharedMemoryInvitee(invitee)
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.system(size: 13))
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Remove \(invitee.displayName)")
-                                    }
-                                    .foregroundColor(.espressoBrown)
-                                    .padding(.leading, 5)
-                                    .padding(.trailing, 9)
-                                    .frame(minHeight: 40)
-                                    .background(Color.sandBeige.opacity(0.56), in: Capsule())
-                                }
-                            }
-                        }
-                    } else {
-                        Text("Friends are invited after your post is safely published. Each person chooses whether to join.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondaryText)
-                    }
-                }
-            }
         }
     }
 
@@ -2403,7 +2337,6 @@ struct LogVisitView: View {
             tags: details.tags ?? [],
             companions: details.companions ?? [],
             taggedCompanions: pending.taggedCompanions,
-            sharedMemoryInvitees: pending.sharedMemoryInvitees,
             recipePublication: pending.resolvedRecipePublication,
             brewMethod: pending.brewMethod ?? "",
             equipment: pending.equipment ?? "",
@@ -2991,14 +2924,6 @@ struct LogVisitView: View {
         case .needsPublicReuseAcknowledgment:
             return "Acknowledge public recipe reuse before sharing these instructions with Everyone."
         }
-        if !(draft.sharedMemoryInvitees ?? []).isEmpty,
-           draft.visibility == .private {
-            return "Choose Friends or Everyone before inviting people to a shared MugShot."
-        }
-        if !(draft.sharedMemoryInvitees ?? []).isEmpty,
-           draft.cafeSessionSipRole == .secondary {
-            return "Invite people from the primary cafe MugShot so the shared MugShot has one clear source."
-        }
         if SipPublicationPolicy.requirement(
             visibility: draft.visibility,
             photoCount: publicationVisualCount,
@@ -3211,7 +3136,6 @@ struct LogVisitView: View {
                         ? draft.recipePublication
                         : nil,
                     taggedCompanions: draft.taggedCompanions,
-                    sharedMemoryInvitees: draft.sharedMemoryInvitees,
                     cafeSession: makePendingCafeSessionLink(userID: authenticatedUser.id),
                     images: photoImages,
                     posterPhotoIndex: draft.posterPhotoIndex
@@ -3253,10 +3177,9 @@ struct LogVisitView: View {
 
             if submission.isRemoteFinalized {
                 saveOperation = .finishingLocalCompletion
-                let postPublicationSetup = await finishPostPublicationSetup(
-                    for: submission,
+                let postPublicationSetup = await SipPostPublicationSetupWorker(
                     client: client
-                )
+                ).finish(submission: submission)
                 submission = postPublicationSetup.submission
                 self.pendingSubmission = submission
                 let finalizedVisit = try await service.fetchOwnedVisitSummary(
@@ -3474,10 +3397,9 @@ struct LogVisitView: View {
             try V3PublishedCompletionStore.shared.save(completionRecord)
             publishedCompletionRecord = completionRecord
 
-            let postPublicationSetup = await finishPostPublicationSetup(
-                for: submission,
+            let postPublicationSetup = await SipPostPublicationSetupWorker(
                 client: client
-            )
+            ).finish(submission: submission)
             submission = postPublicationSetup.submission
             self.pendingSubmission = submission
 
@@ -3584,147 +3506,6 @@ struct LogVisitView: View {
         }
     }
 
-    /// Every projection and relationship is downstream of the durable
-    /// canonical-visit receipt. Each action receives its own durable receipt,
-    /// so a partial retry never republishes the visit or repeats completed work.
-    @MainActor
-    private func finishPostPublicationSetup(
-        for submission: PendingVisitSubmissionRecord,
-        client: SupabaseClient
-    ) async -> SipPostPublicationSetupResult {
-        guard let plan = SipPostPublicationSetupPlan.make(from: submission) else {
-            return SipPostPublicationSetupResult(
-                submission: submission,
-                warning: nil
-            )
-        }
-        let social = SocialDiscoveryService(client: client)
-        let cafeSessions = CafeSessionService(client: client)
-        let pendingStore = PendingVisitSubmissionStore.shared
-        var updatedSubmission = submission
-        var failedActions: [String] = []
-        var canonicalAudienceReady = true
-
-        if let session = plan.cafeSession {
-            do {
-                switch session.sipRole {
-                case .primary:
-                    try await cafeSessions.publishSession(
-                        sessionID: session.sessionID,
-                        visibility: submission.visibility,
-                        snapshot: session.experienceSnapshot,
-                        sharing: session.shareProjection
-                    )
-                case .secondary:
-                    try await cafeSessions.appendSip(
-                        sessionID: session.sessionID,
-                        visitID: submission.id,
-                        order: session.sipOrder,
-                        reorderIntention: session.reorderIntention
-                    )
-                }
-                var receipt = updatedSubmission
-                receipt.cafeSessionPublicationCompletedAt = .now
-                try pendingStore.save(receipt)
-                updatedSubmission = pendingStore.load(
-                    visitId: receipt.id,
-                    userId: receipt.userId
-                ) ?? receipt
-            } catch {
-                canonicalAudienceReady = false
-                failedActions.append("its cafe publication")
-            }
-        }
-
-        // A Cafe Session visit remains private until its session action
-        // succeeds. Do not expose a recipe or social projection ahead of that
-        // canonical audience; all skipped actions remain durably retryable.
-        guard canonicalAudienceReady else {
-            return SipPostPublicationSetupResult(
-                submission: updatedSubmission,
-                warning: "Your MugShot is safely saved. Mugshot will retry its cafe publication without creating a duplicate."
-            )
-        }
-
-        if let reflection = plan.v3Reflection {
-            do {
-                _ = try await V3VisitReflectionService(client: client).upsert(reflection)
-                var receipt = updatedSubmission
-                receipt.v3ReflectionCompletedAt = .now
-                try pendingStore.save(receipt)
-                updatedSubmission = pendingStore.load(
-                    visitId: receipt.id,
-                    userId: receipt.userId
-                ) ?? receipt
-            } catch {
-                failedActions.append("its reflection")
-            }
-        }
-
-        if let recipePublication = plan.recipePublication {
-            do {
-                _ = try await social.configureRecipePublication(
-                    for: plan.visitID,
-                    contract: recipePublication
-                )
-                var receipt = updatedSubmission
-                receipt.recipePublicationCompletedAt = .now
-                try pendingStore.save(receipt)
-                updatedSubmission = pendingStore.load(
-                    visitId: receipt.id,
-                    userId: receipt.userId
-                ) ?? receipt
-            } catch {
-                failedActions.append("its recipe sharing")
-            }
-        }
-
-        if let taggedUserIDs = plan.taggedUserIDs {
-            do {
-                try await social.setVisitTags(
-                    taggedUserIDs,
-                    for: plan.visitID
-                )
-                var receipt = updatedSubmission
-                receipt.visitTagsCompletedAt = .now
-                try pendingStore.save(receipt)
-                updatedSubmission = pendingStore.load(
-                    visitId: receipt.id,
-                    userId: receipt.userId
-                ) ?? receipt
-            } catch {
-                failedActions.append("its people tags")
-            }
-        }
-
-        if !plan.sharedMemoryInviteeIDs.isEmpty {
-            do {
-                _ = try await social.createSharedMemoryInvitations(
-                    for: plan.visitID,
-                    inviteeIDs: plan.sharedMemoryInviteeIDs
-                )
-                var receipt = updatedSubmission
-                receipt.sharedMemoryInvitationsCompletedAt = .now
-                try pendingStore.save(receipt)
-                updatedSubmission = pendingStore.load(
-                    visitId: receipt.id,
-                    userId: receipt.userId
-                ) ?? receipt
-            } catch {
-                failedActions.append("its shared MugShot invitations")
-            }
-        }
-
-        let warning = failedActions.isEmpty
-            ? nil
-            : "Your MugShot is safely published. Mugshot will retry \(failedActions.joined(separator: ", ")) without publishing a duplicate."
-        return SipPostPublicationSetupResult(
-            submission: updatedSubmission,
-            warning: warning
-        )
-    }
-
-    @MainActor
     private func completeSuccessfulSave(
         visitID: UUID,
         remoteVisit: RemoteVisitSummary? = nil,
@@ -4432,10 +4213,6 @@ struct LogVisitView: View {
         draft.companions = draft.taggedCompanions?.map(\.displayName) ?? []
     }
 
-    private func removeSharedMemoryInvitee(_ invitee: SipCompanion) {
-        draft.sharedMemoryInvitees?.removeAll { $0.userID == invitee.userID }
-    }
-
     private func appendPhotos(_ images: [UIImage]) {
         guard canEditPhotos else {
             errorMessage = PendingVisitSubmissionStoreError
@@ -5070,28 +4847,17 @@ struct HalfStepStarRating: View {
     }
 }
 
-private enum SipPeoplePickerMode: String, Identifiable {
+enum SipPeoplePickerMode: String, Identifiable {
     case tag
-    case sharedMemory
 
     var id: String { rawValue }
 
-    var title: String {
-        switch self {
-        case .tag: return "Tag people"
-        case .sharedMemory: return "Invite to shared MugShot"
-        }
-    }
+    var title: String { "Tag people" }
 
-    var searchPlaceholder: String {
-        switch self {
-        case .tag: return "Search Mugshot accounts"
-        case .sharedMemory: return "Search friends"
-        }
-    }
+    var searchPlaceholder: String { "Search Mugshot accounts" }
 }
 
-private struct SipCompanionPicker: View {
+struct SipCompanionPicker: View {
     let mode: SipPeoplePickerMode
     let onSave: ([SipCompanion]) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -5132,18 +4898,10 @@ private struct SipCompanionPicker: View {
     }
 
     private var visiblePeople: [SipCompanion] {
-        guard let needle = query.remoteTrimmedNonEmpty?.localizedLowercase else {
+        guard query.remoteTrimmedNonEmpty != nil else {
             return allFriends
         }
-        switch mode {
-        case .tag:
-            return accountMatches
-        case .sharedMemory:
-            return allFriends.filter {
-                $0.displayName.localizedLowercase.contains(needle)
-                    || $0.username.localizedLowercase.contains(needle)
-            }
-        }
+        return accountMatches
     }
 
     private var recommended: [SipCompanion] {
@@ -5172,9 +4930,7 @@ private struct SipCompanionPicker: View {
                     }
                 }
 
-                Section(query.isEmpty
-                    ? (mode == .tag ? "People you know" : "All friends")
-                    : "Matches") {
+                Section(query.isEmpty ? "People you know" : "Matches") {
                     if isLoading || isSearching {
                         HStack(spacing: 10) {
                             ProgressView()
@@ -5222,13 +4978,9 @@ private struct SipCompanionPicker: View {
 
     private var emptyMessage: String {
         if query.remoteTrimmedNonEmpty != nil {
-            return mode == .tag
-                ? "No Mugshot accounts match that search."
-                : "No friends match that search."
+            return "No Mugshot accounts match that search."
         }
-        return mode == .tag
-            ? "Search for any Mugshot account to tag them."
-            : "Become friends before inviting someone to co-own a shared MugShot."
+        return "Search for any Mugshot account to tag them."
     }
 
     private func companionRow(_ companion: SipCompanion) -> some View {
@@ -5269,7 +5021,7 @@ private struct SipCompanionPicker: View {
             let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
             async let loadedFriends = service.connections(kind: "friends")
             friends = try await loadedFriends
-            suggestions = (try? await service.companionSuggestions()) ?? []
+            suggestions = (try? await service.tagSuggestions()) ?? []
             errorMessage = nil
         } catch {
             errorMessage = "Mugshot couldn’t open your friends just now."
@@ -5278,8 +5030,7 @@ private struct SipCompanionPicker: View {
 
     @MainActor
     private func searchAccountsIfNeeded() async {
-        guard mode == .tag,
-              let trimmedQuery = query.remoteTrimmedNonEmpty else {
+        guard let trimmedQuery = query.remoteTrimmedNonEmpty else {
             accountMatches = []
             isSearching = false
             return

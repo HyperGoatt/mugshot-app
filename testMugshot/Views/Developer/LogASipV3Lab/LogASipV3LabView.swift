@@ -147,7 +147,7 @@ struct LogASipV3LabView: View {
                 onAdd: { addCustomCriterion(to: target) }
             )
         case .inviteFriends:
-            V3LabFriendPickerSheet(selectedIDs: $draft.invitedFriendIDs)
+            V3LabFriendPickerSheet(selectedIDs: $draft.taggedPeopleIDs)
         case .passportWhy:
             V3LabPassportWhySheet()
         }
@@ -410,7 +410,7 @@ private struct V3LabFriendPickerSheet: View {
 
     var body: some View {
         V3LabSheetShell(
-            title: "Invite friends",
+            title: "Tag people",
             subtitle: "An invite creates a shared MugShot. It never publishes for them."
         ) {
             ForEach(V3LabFriend.recommended) { friend in

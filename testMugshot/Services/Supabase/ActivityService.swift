@@ -316,103 +316,6 @@ final class ActivityService {
         try requireAccount(accountID)
     }
 
-    func sharedMugshotMemberships(
-        accountID: UUID
-    ) async throws -> [SharedMugshotMembership] {
-        try requireAccount(accountID)
-        let memberships: [SharedMugshotMembership] = try await client.rpc(
-            "list_my_shared_memory_memberships_v1"
-        ).execute().value
-        try requireAccount(accountID)
-        return memberships
-    }
-
-    func ownedSharedMugshots(accountID: UUID) async throws -> [OwnedSharedMugshot] {
-        try requireAccount(accountID)
-        let mugshots: [OwnedSharedMugshot] = try await client.rpc(
-            "list_owned_shared_memories_v1"
-        ).execute().value
-        try requireAccount(accountID)
-        return mugshots
-    }
-
-    func managedInvitations(
-        sharedMugshotID: UUID,
-        accountID: UUID
-    ) async throws -> [ManagedSharedMugshotInvitation] {
-        try requireAccount(accountID)
-        let invitations: [ManagedSharedMugshotInvitation] = try await client.rpc(
-            "list_managed_shared_memory_invitations_v1",
-            params: ["p_shared_memory_id": sharedMugshotID]
-        ).execute().value
-        try requireAccount(accountID)
-        return invitations
-    }
-
-    @discardableResult
-    func respondToSharedMugshotInvitation(
-        invitationID: UUID,
-        accept: Bool,
-        accountID: UUID
-    ) async throws -> String {
-        try requireAccount(accountID)
-        let status: String = try await client.rpc(
-            "respond_shared_memory_invitation_v1",
-            params: ActivitySharedMugshotResponseParameters(
-                pInvitationID: invitationID,
-                pAccept: accept
-            )
-        ).execute().value
-        try requireAccount(accountID)
-        return status
-    }
-
-    @discardableResult
-    func attachSharedMugshotContribution(
-        sharedMugshotID: UUID,
-        visitID: UUID,
-        accountID: UUID
-    ) async throws -> UUID {
-        try requireAccount(accountID)
-        let contributionID: UUID = try await client.rpc(
-            "attach_shared_memory_contribution_v1",
-            params: ActivitySharedMugshotContributionParameters(
-                sharedMugshotID: sharedMugshotID,
-                visitID: visitID
-            )
-        ).execute().value
-        try requireAccount(accountID)
-        return contributionID
-    }
-
-    @discardableResult
-    func cancelSharedMugshotInvitation(
-        invitationID: UUID,
-        accountID: UUID
-    ) async throws -> Bool {
-        try requireAccount(accountID)
-        let cancelled: Bool = try await client.rpc(
-            "cancel_shared_memory_invitation_v1",
-            params: ["p_invitation_id": invitationID]
-        ).execute().value
-        try requireAccount(accountID)
-        return cancelled
-    }
-
-    @discardableResult
-    func leaveSharedMugshot(
-        sharedMugshotID: UUID,
-        accountID: UUID
-    ) async throws -> Bool {
-        try requireAccount(accountID)
-        let left: Bool = try await client.rpc(
-            "leave_shared_memory_v1",
-            params: ["p_shared_memory_id": sharedMugshotID]
-        ).execute().value
-        try requireAccount(accountID)
-        return left
-    }
-
     private func requireAccount(_ expectedAccountID: UUID) throws {
         try Self.validateAccountScope(
             currentUserID: client.auth.currentUser?.id,
@@ -773,7 +676,6 @@ struct LegacyActivityNotification: Decodable, Equatable {
             body: copy.body,
             visitID: visitID,
             commentID: commentID,
-            sharedMemoryID: nil,
             cafeListID: nil,
             friendRequestID: nil,
             deepLink: deepLink,
@@ -888,7 +790,6 @@ private struct ActivityPreferenceParameters: Encodable {
     let pPushEnabled: Bool
     let pFriendPosts: Bool
     let pTags: Bool
-    let pSharedMugshotInvitations: Bool
     let pCollaborativeListInvitations: Bool
     let pLikes: Bool
     let pComments: Bool
@@ -899,7 +800,6 @@ private struct ActivityPreferenceParameters: Encodable {
         pPushEnabled = preferences.pushEnabled
         pFriendPosts = preferences.friendPosts
         pTags = preferences.tags
-        pSharedMugshotInvitations = preferences.sharedMugshotInvitations
         pCollaborativeListInvitations = preferences.collaborativeListInvitations
         pLikes = preferences.likes
         pComments = preferences.comments
@@ -911,31 +811,10 @@ private struct ActivityPreferenceParameters: Encodable {
         case pPushEnabled = "p_push_enabled"
         case pFriendPosts = "p_friend_posts"
         case pTags = "p_tags"
-        case pSharedMugshotInvitations = "p_shared_mugshot_invitations"
         case pCollaborativeListInvitations = "p_collaborative_list_invitations"
         case pLikes = "p_likes"
         case pComments = "p_comments"
         case pReactions = "p_reactions"
         case pFriendRequests = "p_friend_requests"
-    }
-}
-
-private struct ActivitySharedMugshotResponseParameters: Encodable {
-    let pInvitationID: UUID
-    let pAccept: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case pInvitationID = "p_invitation_id"
-        case pAccept = "p_accept"
-    }
-}
-
-private struct ActivitySharedMugshotContributionParameters: Encodable {
-    let sharedMugshotID: UUID
-    let visitID: UUID
-
-    enum CodingKeys: String, CodingKey {
-        case sharedMugshotID = "p_shared_memory_id"
-        case visitID = "p_visit_id"
     }
 }

@@ -42,13 +42,38 @@ if [[ "${qa_database_url}" == *"db.${PRODUCTION_REF}.supabase.co"* ]]; then
 fi
 
 printf 'Checking local and QA migration alignment...\n'
-migration_json="$(npx --yes "supabase@${SUPABASE_CLI_VERSION}" migration list --db-url "${qa_database_url}")"
-local_only_count="$(
-  jq '[.migrations[] | select(.remote == "")] | length' <<<"${migration_json}"
-)"
-remote_only_count="$(
-  jq '[.migrations[] | select(.local == "")] | length' <<<"${migration_json}"
-)"
+migration_table="$(npx --yes "supabase@${SUPABASE_CLI_VERSION}" migration list --db-url "${qa_database_url}")"
+if jq -e '.migrations | type == "array"' >/dev/null 2>&1 <<<"${migration_table}"; then
+  local_only_count="$(
+    jq '[.migrations[] | select(.local != "" and .remote == "")] | length' \
+      <<<"${migration_table}"
+  )"
+  remote_only_count="$(
+    jq '[.migrations[] | select(.local == "" and .remote != "")] | length' \
+      <<<"${migration_table}"
+  )"
+else
+  local_only_count="$(awk -F '|' '
+    /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/ {
+      local_version = $1
+      remote_version = $2
+      gsub(/[^0-9]/, "", local_version)
+      gsub(/[^0-9]/, "", remote_version)
+      if (local_version != "" && remote_version == "") count += 1
+    }
+    END { print count + 0 }
+  ' <<<"${migration_table}")"
+  remote_only_count="$(awk -F '|' '
+    /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/ {
+      local_version = $1
+      remote_version = $2
+      gsub(/[^0-9]/, "", local_version)
+      gsub(/[^0-9]/, "", remote_version)
+      if (local_version == "" && remote_version != "") count += 1
+    }
+    END { print count + 0 }
+  ' <<<"${migration_table}")"
+fi
 
 if [ "${local_only_count}" -ne 0 ] || [ "${remote_only_count}" -ne 0 ]; then
   printf 'Migration drift detected: %s local-only, %s remote-only.\n' "${local_only_count}" "${remote_only_count}" >&2

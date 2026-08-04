@@ -48,7 +48,7 @@ struct PendingVisitRecoveryTests {
             drinkType: .coffee,
             customDrinkType: nil,
             drinkSubtype: "Cortado",
-            caption: "",
+            caption: "Identity recovery fixture",
             notes: nil,
             visibility: .friends,
             ratings: ["Taste": 4],

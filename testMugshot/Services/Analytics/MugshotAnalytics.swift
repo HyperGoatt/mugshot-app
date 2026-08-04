@@ -199,7 +199,6 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
     let hasCaption: Bool
     let hasPrivateNote: Bool
     let hasContextNote: Bool
-    let hasSharedInvitees: Bool
     let sipCriteriaCount: Int
     let contextCriteriaCount: Int
 
@@ -215,7 +214,6 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
         hasCaption = draft.socialCaption.remoteTrimmedNonEmpty != nil
         hasPrivateNote = draft.privateNotes.remoteTrimmedNonEmpty != nil
         hasContextNote = draft.contextNotes.remoteTrimmedNonEmpty != nil
-        hasSharedInvitees = !(draft.sharedMemoryInvitees ?? []).isEmpty
         sipCriteriaCount = min(max(draft.ratingCriteria.count, 0), 20)
         contextCriteriaCount = min(max(draft.contextRatingCriteria.count, 0), 20)
     }
@@ -233,7 +231,6 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
             "has_caption": .boolean(hasCaption),
             "has_private_note": .boolean(hasPrivateNote),
             "has_context_note": .boolean(hasContextNote),
-            "has_shared_invitees": .boolean(hasSharedInvitees),
             "sip_criteria_count": .integer(sipCriteriaCount),
             "context_criteria_count": .integer(contextCriteriaCount)
         ]

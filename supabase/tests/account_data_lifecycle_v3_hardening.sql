@@ -46,9 +46,6 @@ declare
   serialization_definition text := pg_get_functiondef(
     'private.serialize_account_collaboration_v3()'::regprocedure
   );
-  pair_lock_definition text := pg_get_functiondef(
-    'private.enforce_shared_member_pair_lock_v1()'::regprocedure
-  );
   shared_recipe_definition text := pg_get_functiondef(
     'public.list_shared_recipes()'::regprocedure
   );
@@ -187,15 +184,6 @@ begin
     raise exception 'actor-aware immutable collaboration guard is incomplete';
   end if;
 
-  if pair_lock_definition not ilike '%tg_op = ''UPDATE''%'
-     or pair_lock_definition not ilike '%auth.uid()%is null%'
-     or pair_lock_definition not ilike '%old.invited_by is not null%'
-     or pair_lock_definition not ilike '%new.invited_by is null%'
-     or pair_lock_definition not ilike '%new.status is not distinct from old.status%'
-     or pair_lock_definition not ilike '%shared MugShot inviter is unavailable%' then
-    raise exception 'shared MugShot inviter FK transition is not safely isolated';
-  end if;
-
   if shared_recipe_definition not ilike '%can_project_recipe_version_as%'
      or shared_recipe_definition not ilike '%recipient_id =%auth.uid()%'
      or shared_recipe_definition ilike '%privateNotes%' then
@@ -209,9 +197,7 @@ begin
 
   foreach trigger_name in array array[
     'serialize_account_collaboration_lists_v3',
-    'serialize_account_collaboration_list_members_v3',
-    'serialize_account_shared_memories_v3',
-    'serialize_account_shared_memory_members_v3'
+    'serialize_account_collaboration_list_members_v3'
   ] loop
     if not exists (
       select 1
@@ -261,8 +247,8 @@ $$;
 
 -- Behavior coverage for the race that matters: after owner A's plan is
 -- frozen, user-context invitations, acceptances, and departures by B cannot
--- change list or shared MugShot succession. Auth-null cleanup remains valid
--- for FK cascades and the trusted finalizer.
+-- change cafe-list succession. Auth-null cleanup remains valid for FK cascades
+-- and the trusted finalizer.
 do $$
 declare
   identities uuid[];
@@ -272,9 +258,6 @@ declare
   list_invite_id uuid;
   list_accept_id uuid;
   list_leave_id uuid;
-  memory_invite_id uuid;
-  memory_accept_id uuid;
-  memory_leave_id uuid;
   failure_message text;
 begin
   select array_agg(candidate.id order by candidate.id) into identities
@@ -312,31 +295,6 @@ begin
     now(), now()
   );
 
-  insert into public.shared_memories(
-    created_by, managed_by, context_type, location_label, occurred_at
-  ) values (
-    owner_id, owner_id, 'home', 'V3 freeze invite', now()
-  ) returning id into memory_invite_id;
-  insert into public.shared_memories(
-    created_by, managed_by, context_type, location_label, occurred_at
-  ) values (
-    owner_id, owner_id, 'home', 'V3 freeze accept', now()
-  ) returning id into memory_accept_id;
-  insert into public.shared_memories(
-    created_by, managed_by, context_type, location_label, occurred_at
-  ) values (
-    owner_id, owner_id, 'home', 'V3 freeze leave', now()
-  ) returning id into memory_leave_id;
-  insert into public.shared_memory_members(
-    shared_memory_id, user_id, invited_by, status
-  ) values (
-    memory_accept_id, collaborator_id, owner_id, 'pending'
-  );
-  insert into public.shared_memory_members(
-    shared_memory_id, user_id, invited_by, status, responded_at
-  ) values (
-    memory_leave_id, collaborator_id, owner_id, 'accepted', now()
-  );
 
   insert into private.account_deletion_jobs(
     request_id, subject_id, protocol_version, status,
@@ -423,43 +381,6 @@ begin
   delete from public.cafe_list_members
   where list_id = list_leave_id and user_id = collaborator_id;
 
-  begin
-    insert into public.shared_memory_members(
-      shared_memory_id, user_id, invited_by, status
-    ) values (
-      memory_invite_id, collaborator_id, collaborator_id, 'pending'
-    );
-    raise exception 'post-freeze shared MugShot invitation was accepted';
-  exception when sqlstate '55000' or sqlstate '42501' then
-    get stacked diagnostics failure_message = message_text;
-    if failure_message not in (
-      'collaboration plan is frozen by account deletion',
-      'shared MugShot invitation is unavailable'
-    ) then
-      raise exception 'unexpected shared MugShot invitation failure: %', failure_message;
-    end if;
-  end;
-
-  begin
-    update public.shared_memory_members
-    set status = 'accepted', responded_at = now()
-    where shared_memory_id = memory_accept_id and user_id = collaborator_id;
-    raise exception 'post-freeze shared MugShot acceptance was accepted';
-  exception when sqlstate '55000' or sqlstate '42501' then
-    get stacked diagnostics failure_message = message_text;
-    if failure_message not in (
-      'collaboration plan is frozen by account deletion',
-      'shared MugShot invitation is unavailable'
-    ) then
-      raise exception 'unexpected shared MugShot acceptance failure: %', failure_message;
-    end if;
-  end;
-
-  update public.shared_memory_members
-  set status = 'declined', responded_at = now()
-  where shared_memory_id = memory_accept_id and user_id = collaborator_id;
-  delete from public.shared_memory_members
-  where shared_memory_id = memory_leave_id and user_id = collaborator_id;
 
   if exists (
        select 1 from public.cafe_list_members
@@ -477,34 +398,13 @@ begin
     raise exception 'cafe-list freeze or safety-exit state is incorrect';
   end if;
 
-  if exists (
-       select 1 from public.shared_memory_members
-       where shared_memory_id = memory_invite_id and user_id = collaborator_id
-     )
-     or not exists (
-       select 1 from public.shared_memory_members
-       where shared_memory_id = memory_accept_id and user_id = collaborator_id
-         and status = 'declined'
-     )
-     or exists (
-       select 1 from public.shared_memory_members
-       where shared_memory_id = memory_leave_id and user_id = collaborator_id
-     ) then
-    raise exception 'shared MugShot freeze or safety-exit state is incorrect';
-  end if;
 
   perform set_config('request.jwt.claims', '{}'::jsonb::text, true);
   delete from public.cafe_list_members
   where list_id = list_accept_id and user_id = collaborator_id;
-  delete from public.shared_memory_members
-  where shared_memory_id = memory_accept_id and user_id = collaborator_id;
   if exists (
        select 1 from public.cafe_list_members
        where list_id = list_accept_id and user_id = collaborator_id
-     )
-     or exists (
-       select 1 from public.shared_memory_members
-       where shared_memory_id = memory_accept_id and user_id = collaborator_id
      ) then
     raise exception 'auth-null collaboration cleanup was blocked';
   end if;

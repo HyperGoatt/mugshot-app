@@ -252,8 +252,8 @@ $$;
 
 reset role;
 
--- Invitation retries are idempotent while pending. A response cleans the old
--- activity, and a deliberate later invitation creates exactly one fresh row.
+-- Shared Mugshot invitations are retired. Continue with the owner-bound
+-- collaborative-list activity contract.
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -263,94 +263,6 @@ select set_config(
   )::text,
   true
 );
-
-select public.create_shared_memory_invitations_v1(
-  (select id from alpha_activity_state where key = 'friend_visit'),
-  array[(select id from alpha_activity_users where n = 2)]
-);
-
-insert into alpha_activity_state (key, id)
-select 'shared_event_first', event.id
-from alpha_activity_events_debug event
-where event.kind = 'shared_mugshot_invitation'
-  and event.recipient_id = (select id from alpha_activity_users where n = 2)
-order by event.created_at desc, event.id desc limit 1;
-
--- This simulates an ambiguous client retry while the invitation is pending.
-select public.create_shared_memory_invitations_v1(
-  (select id from alpha_activity_state where key = 'friend_visit'),
-  array[(select id from alpha_activity_users where n = 2)]
-);
-
-do $$
-begin
-  if (select count(*) from alpha_activity_events_debug event
-      where event.kind = 'shared_mugshot_invitation'
-        and event.recipient_id = (select id from alpha_activity_users where n = 2)) <> 1
-     or not exists (
-       select 1 from alpha_activity_events_debug event
-       where event.id = (select id from alpha_activity_state where key = 'shared_event_first')
-         and event.deep_link = 'mugshot://activity/shared'
-     ) then
-    raise exception 'pending shared MugShot retry re-notified or routed past consent';
-  end if;
-end;
-$$;
-
-select set_config(
-  'request.jwt.claims',
-  jsonb_build_object(
-    'sub', (select id from alpha_activity_users where n = 2),
-    'role', 'authenticated'
-  )::text,
-  true
-);
-
-select public.respond_shared_memory_invitation_v1(
-  (select membership_id
-   from public.list_my_shared_memory_memberships_v1()
-   where status = 'pending'
-   order by invited_at desc, membership_id desc limit 1),
-  false
-);
-
-do $$
-begin
-  if exists (
-    select 1 from public.list_activity_events_v1() activity
-    where activity.kind = 'shared_mugshot_invitation'
-  ) then
-    raise exception 'responded shared MugShot activity remained visible';
-  end if;
-end;
-$$;
-
-select set_config(
-  'request.jwt.claims',
-  jsonb_build_object(
-    'sub', (select id from alpha_activity_users where n = 1),
-    'role', 'authenticated'
-  )::text,
-  true
-);
-select public.create_shared_memory_invitations_v1(
-  (select id from alpha_activity_state where key = 'friend_visit'),
-  array[(select id from alpha_activity_users where n = 2)]
-);
-
-do $$
-begin
-  if (select count(*) from alpha_activity_events_debug event
-      where event.kind = 'shared_mugshot_invitation'
-        and event.recipient_id = (select id from alpha_activity_users where n = 2)) <> 1
-     or exists (
-       select 1 from alpha_activity_events_debug event
-       where event.id = (select id from alpha_activity_state where key = 'shared_event_first')
-     ) then
-    raise exception 'deliberate shared MugShot reinvite did not create one fresh event';
-  end if;
-end;
-$$;
 
 insert into alpha_activity_state (key, id)
 select 'activity_cafe_list', (public.create_cafe_list(

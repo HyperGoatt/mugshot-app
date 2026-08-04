@@ -81,7 +81,7 @@ struct RemoteVisitDetailView: View {
     @State private var editingComment: RemoteVisitComment?
     @State private var editCommentError: String?
     @State private var commentPendingRemoval: RemoteVisitComment?
-    @State private var isShowingEditVisit = false
+    @State private var editSipSeed: SipPostEditSeed?
     @State private var isShowingDrinkInterpretation = false
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
@@ -189,15 +189,10 @@ struct RemoteVisitDetailView: View {
 
     private var editorSheetsScene: some View {
         configuredDetailScene
-        .sheet(isPresented: $isShowingEditVisit) {
-            if let detail {
-                SipDetailEditForm(
-                    summary: sharedPresentation(for: detail).content,
-                    initialVisibility: VisitVisibility.supabaseValue(detail.summary.visit.visibility),
-                    allowsPrivateNoteEditing: detail.v3Reflection == nil,
-                    onSave: saveVisitEdits
-                )
-            }
+        .sheet(item: $editSipSeed) { seed in
+            EditSipView(seed: seed, onSave: saveVisitEdits)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $isShowingDrinkInterpretation) {
             if let currentUserId {
@@ -440,7 +435,7 @@ struct RemoteVisitDetailView: View {
         case .more:
             showMoreActions = true
         case .edit:
-            isShowingEditVisit = true
+            beginEditing(detail)
         case .correctDrink:
             isShowingDrinkInterpretation = true
         case .repeatSip:
@@ -659,7 +654,7 @@ struct RemoteVisitDetailView: View {
                isOwnVisit(detail) {
                 Menu {
                     Button {
-                        isShowingEditVisit = true
+                        beginEditing(detail)
                     } label: {
                         Label("Edit Sip", systemImage: "pencil")
                     }
@@ -1743,7 +1738,6 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: detail.taggedAccounts
         )
     }
@@ -1762,51 +1756,31 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: tags
         )
     }
 
     @MainActor
-    private func saveVisitEdits(
-        caption: String,
-        notes: String,
-        visibility: VisitVisibility
-    ) async -> SipDetailEditSaveResult {
-        guard let currentUserId else {
+    private func saveVisitEdits(_ draft: SipPostEditDraft) async -> SipDetailEditSaveResult {
+        guard let currentUserId, let detail else {
             return .failure("Sign in again to edit this sip.")
         }
 
         do {
-            let update = try SupabaseVisitUpdate.make(
-                caption: caption,
-                visibility: visibility
-            )
             let client = try SupabaseClientProvider.shared.client()
-            if let sessionID = detail?.summary.visit.cafeSessionID {
-                try await CafeSessionService(client: client).setAudience(
-                    sessionID: sessionID,
-                    visibility: visibility
-                )
-            }
-            let service = VisitService(client: client)
-            let summary = try await service.updateVisit(
-                visitId: visitId,
-                userId: currentUserId,
-                update: update
+            let refreshedDetail = try await VisitEditService(client: client).save(
+                detail: detail,
+                currentUserID: currentUserId,
+                draft: draft
             )
-            if detail?.v3Reflection == nil {
-                try await service.updatePrivateNote(
-                    visitId: visitId,
-                    userId: currentUserId,
-                    note: notes
-                )
+            if let refreshedDetail {
+                self.detail = refreshedDetail
+            } else {
+                Task { await loadDetail() }
             }
-            self.detail = try await service.fetchVisitDetail(
-                visitId: summary.id,
-                currentUserId: currentUserId
-            )
+            selectedPhotoIndex = 0
             dataManager.noteJournalMutation()
+            socialStatus = "Your sip was updated."
             return .success
         } catch {
             socialError = error.localizedDescription
@@ -1814,6 +1788,11 @@ struct RemoteVisitDetailView: View {
                 MugshotUserFacingError.message(for: error, context: .social)
             )
         }
+    }
+
+    private func beginEditing(_ detail: RemoteVisitDetail) {
+        guard let currentUserId, detail.summary.visit.userId == currentUserId else { return }
+        editSipSeed = SipPostEditSeed(detail: detail, currentUserID: currentUserId)
     }
 
     @MainActor
@@ -1868,7 +1847,6 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: detail.taggedAccounts
         )
     }
@@ -2231,179 +2209,6 @@ struct RemoteCommentRow: View {
         .padding(14)
         .background(Color.sandBeige.opacity(0.42))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-    }
-}
-
-struct EditRemoteVisitView: View {
-    let detail: RemoteVisitDetail
-    let currentUserId: UUID
-    let onSave: (String, String, VisitVisibility) async -> Bool
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var caption: String
-    @State private var notes: String
-    @State private var visibility: VisitVisibility
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-    @State private var showTextOnlyConfirmation = false
-    @State private var confirmedTextOnlyEveryone = false
-
-    init(
-        detail: RemoteVisitDetail,
-        currentUserId: UUID,
-        onSave: @escaping (String, String, VisitVisibility) async -> Bool
-    ) {
-        self.detail = detail
-        self.currentUserId = currentUserId
-        self.onSave = onSave
-        _caption = State(initialValue: detail.summary.visit.caption)
-        _notes = State(initialValue: detail.v3Reflection == nil ? detail.privateNote ?? "" : "")
-        _visibility = State(initialValue: VisitVisibility.supabaseValue(detail.summary.visit.visibility))
-    }
-
-    private var canSave: Bool {
-        !isSaving && !(
-            visibility == .everyone &&
-            detail.photoURLs.isEmpty &&
-            caption.remoteTrimmedNonEmpty == nil
-        )
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    MugshotSectionTitle(
-                        title: "Edit sip",
-                        subtitle: "Update the public note, private note, and audience."
-                    )
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Public note")
-
-                        TextField("What should people remember?", text: $caption, axis: .vertical)
-                            .lineLimit(3...6)
-                            .remoteVisitEditField()
-                    }
-
-                    if detail.v3Reflection == nil {
-                        VStack(alignment: .leading, spacing: 8) {
-                            MugshotSectionTitle(title: "Private note")
-
-                            TextField("Only visible to you", text: $notes, axis: .vertical)
-                                .lineLimit(3...6)
-                                .remoteVisitEditField()
-                        }
-                    } else {
-                        Label(
-                            "Raw journal notes are read-only here for this release.",
-                            systemImage: "lock.doc.fill"
-                        )
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.secondaryText)
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.sandBeige.opacity(0.42))
-                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control))
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        MugshotSectionTitle(title: "Audience")
-
-                        MugshotSegmentedControl(
-                            options: [VisitVisibility.private, .friends, .everyone],
-                            selection: $visibility,
-                            title: { $0.rawValue },
-                            icon: { visibilityIcon(for: $0.rawValue) }
-                        )
-                    }
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.system(size: 13))
-                            .foregroundColor(.red.opacity(0.82))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Button {
-                        if visibility == .everyone,
-                           detail.photoURLs.isEmpty,
-                           !confirmedTextOnlyEveryone {
-                            showTextOnlyConfirmation = true
-                        } else {
-                            Task { await save() }
-                        }
-                    } label: {
-                        HStack {
-                            if isSaving {
-                                ProgressView()
-                                    .tint(.foamWhite)
-                            }
-                            Text("Save sip")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.62)
-                }
-                .padding(DesignSystem.largePadding)
-                .cardStyle(radius: DesignSystem.Radius.heroCard)
-                .padding()
-            }
-            .background(Color.creamWhite)
-            .navigationTitle("Edit sip")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
-            }
-            .alert("Publish without a photo?", isPresented: $showTextOnlyConfirmation) {
-                Button("Publish Text Only") {
-                    confirmedTextOnlyEveryone = true
-                    Task { await save() }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Confirm that you want this tasting note to be visible to Everyone without a photo.")
-            }
-            .onChange(of: visibility) { _, _ in confirmedTextOnlyEveryone = false }
-            .onChange(of: caption) { _, _ in confirmedTextOnlyEveryone = false }
-        }
-    }
-
-    @MainActor
-    private func save() async {
-        guard canSave else {
-            return
-        }
-
-        isSaving = true
-        errorMessage = nil
-        let didSave = await onSave(caption, notes, visibility)
-        isSaving = false
-
-        if didSave {
-            dismiss()
-        } else {
-            errorMessage = "Could not save sip edits."
-        }
-    }
-
-    private func visibilityIcon(for label: String) -> String {
-        switch label.lowercased() {
-        case "private":
-            return "lock.fill"
-        case "friends":
-            return "person.2.fill"
-        default:
-            return "globe"
-        }
     }
 }
 
@@ -3100,12 +2905,6 @@ enum SipDetailFormat {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-}
-
-private extension View {
-    func remoteVisitEditField() -> some View {
-        mugshotFormField()
     }
 }
 

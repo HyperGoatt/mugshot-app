@@ -69,6 +69,33 @@ final class JournalService {
                 .execute()
         }
     }
+
+    func fetchPeopleCounts(
+        startAt: Date,
+        endAt: Date,
+        limit: Int = 3
+    ) async throws -> [JournalPeopleCount] {
+        try await client.rpc(
+            "get_journal_people_counts_v1",
+            params: JournalPeopleCountParameters(
+                startAt: startAt.ISO8601Format(),
+                endAt: endAt.ISO8601Format(),
+                limit: min(max(limit, 1), 25)
+            )
+        ).execute().value
+    }
+}
+
+private struct JournalPeopleCountParameters: Encodable {
+    let startAt: String
+    let endAt: String
+    let limit: Int
+
+    enum CodingKeys: String, CodingKey {
+        case startAt = "p_start_at"
+        case endAt = "p_end_at"
+        case limit = "p_limit"
+    }
 }
 
 private struct JournalBookmarkInsert: Encodable {

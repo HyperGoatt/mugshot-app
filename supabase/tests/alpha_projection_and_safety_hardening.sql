@@ -27,7 +27,7 @@ begin
   select pg_get_functiondef(
     'public.companion_suggestions(integer)'::regprocedure
   ) into definition;
-  if definition not ilike '%can_view_user_as(friend.id, input.actor)%' then
+  if definition not ilike '%can_view_user_as(profile.id, input.actor)%' then
     raise exception 'companion suggestions expose unavailable accounts';
   end if;
 
@@ -56,56 +56,6 @@ begin
      or definition ilike '%equipment%'
      or definition ilike '%source_recipe_version_id%' then
     raise exception 'locked recipe identity projection exposes protected blueprint data';
-  end if;
-
-  select pg_get_functiondef(
-    'public.list_pending_shared_memory_invitations_v1()'::regprocedure
-  ) into definition;
-  if definition not ilike '%can_view_user_as(inviter.id, input.actor)%' then
-    raise exception 'pending shared MugShot projection exposes unavailable inviters';
-  end if;
-
-  select pg_get_functiondef(
-    'public.list_managed_shared_memory_invitations_v1(uuid)'::regprocedure
-  ) into definition;
-  if definition not ilike '%case when%can_view_user_as(profile.id, input.actor)%'
-     or definition not ilike '%memory.managed_by = input.actor%' then
-    raise exception 'managed shared MugShot roster does not mask unavailable members';
-  end if;
-
-  select pg_get_functiondef(
-    'public.list_my_shared_memory_memberships_v1()'::regprocedure
-  ) into definition;
-  if definition not ilike '%can_view_user_as(inviter.id, input.actor)%'
-     or definition not ilike '%relationship_available%' then
-    raise exception 'shared MugShot membership projection lost safe-exit masking';
-  end if;
-
-  select pg_get_functiondef(
-    'public.leave_shared_memory_v1(uuid)'::regprocedure
-  ) into definition;
-  if definition not ilike '%can_socially_mutate_as(member.user_id)%'
-     or definition not ilike '%account_deletion_active_as(member.user_id)%'
-     or definition not ilike '%blocked_between(actor, member.user_id)%'
-     or definition not ilike '%delete from public.shared_memories%' then
-    raise exception 'shared MugShot leave can strand management';
-  end if;
-
-  if not exists (
-    select 1 from pg_trigger
-    where tgrelid = 'public.visits'::regclass
-      and tgname = 'dissolve_manual_shared_memory_source_v3'
-      and not tgisinternal
-  ) then
-    raise exception 'manual shared MugShot source deletion cleanup is missing';
-  end if;
-
-  select pg_get_functiondef(
-    'private.dissolve_manual_shared_memory_source_v3()'::regprocedure
-  ) into definition;
-  if definition not ilike '%account_deletion_active_as(old.user_id)%'
-     or definition not ilike '%delete from public.shared_memories%' then
-    raise exception 'source deletion does not preserve frozen account succession';
   end if;
 
   select pg_get_functiondef(
