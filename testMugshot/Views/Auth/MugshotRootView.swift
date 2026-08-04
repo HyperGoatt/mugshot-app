@@ -18,6 +18,10 @@ struct MugshotRootView: View {
                 AutomaticSipRecoveryBannerPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
                 FeedRefreshPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowEditSipDesignQA {
+                EditSipPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowPeopleRecapDesignQA {
+                JournalPeopleRecapPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
                 SipDetailPreviewHost(presentation: .previewOwner)
             } else if MugshotLaunchEnvironment.isUITesting {

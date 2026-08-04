@@ -29,7 +29,7 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
             mediumCluster.waitForExistence(timeout: 5),
             "The city-scale fixture should consolidate overlapping cafes."
         )
-        attachScreenshot(named: "Adaptive Map - Medium")
+        attachScreenshot(named: "06 After - Map aggregate")
 
         let northBeachPin = element(
             "map.pin.00000000-0000-4000-8001-000000000001",
@@ -53,7 +53,7 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
             cafePin.waitForExistence(timeout: 5),
             "Tapping a cluster should reveal the existing cafe pins."
         )
-        attachScreenshot(named: "Adaptive Map - Close")
+        attachScreenshot(named: "06b After - Map individual cafes")
 
         gestureSurface.pinch(withScale: 0.25, velocity: -2)
         gestureSurface.pinch(withScale: 0.25, velocity: -2)
@@ -78,7 +78,7 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(regionalCluster.waitForExistence(timeout: 3))
-        attachScreenshot(named: "Adaptive Map - Far")
+        attachScreenshot(named: "06c After - Map named places")
 
         regionalCluster.tap()
         let revealedCluster = element("map.cluster", in: app)

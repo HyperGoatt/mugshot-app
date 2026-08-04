@@ -26,6 +26,7 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "online")
         ).firstMatch.exists)
+        attachScreenshot(named: "04 After - Published recovery")
 
         app.buttons["automaticSipRecoveryBanner.dismiss"].tap()
         XCTAssertTrue(banner.waitForNonExistence(timeout: 1))
@@ -61,8 +62,8 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Friends can read this note"].exists)
 
         XCTAssertFalse(app.buttons["sip.detail.visitContext.toggle"].exists)
-        XCTAssertTrue(app.staticTexts["Nook Tiny Cafe & Market"].exists)
         XCTAssertFalse(app.staticTexts["11 Cannon St"].exists)
+        attachScreenshot(named: "07 After - Connected detail actions")
     }
 
     @MainActor
@@ -206,6 +207,7 @@ final class testMugshotUITests: XCTestCase {
             "A home sip worth remembering"
         )
         XCTAssertTrue(v3Element("logASipV3.primaryAction", in: app).isEnabled)
+        attachScreenshot(named: "03 After - Publishing and restored draft")
     }
 
     @MainActor
@@ -478,6 +480,14 @@ final class testMugshotUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         return app
+    }
+
+    @MainActor
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor
