@@ -701,8 +701,8 @@ struct V3LabPublishScreen: View {
 
             Divider().padding(.leading, 54)
 
-            V3LabFriendInviteStrip(
-                selectedIDs: $draft.invitedFriendIDs,
+            V3LabPeopleTagStrip(
+                selectedIDs: $draft.taggedPeopleIDs,
                 onShowAll: onInviteFriends
             )
         }

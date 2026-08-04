@@ -57,7 +57,7 @@ final class VisitEditService {
 
         do {
             try await client.rpc(
-                "edit_owned_visit_v1",
+                "edit_owned_visit_v2",
                 params: EditOwnedVisitParameters(
                     visitID: detail.id,
                     caption: values.caption,
@@ -70,7 +70,8 @@ final class VisitEditService {
                     contextRawNote: values.contextJournalNote,
                     rawNoteVisibility: values.journalAudience.supabaseValue,
                     legacyPrivateNote: values.legacyPrivateJournalNote,
-                    photoURLs: orderedPhotoReferences
+                    photoURLs: orderedPhotoReferences,
+                    taggedUserIDs: values.taggedUserIDs
                 )
             )
             .execute()
@@ -137,7 +138,8 @@ final class VisitEditService {
               summary.visit.overallScore == values.sipScore,
               summary.visit.posterPhotoURL == orderedPhotoReferences.first,
               orderedPhotos == orderedPhotoReferences,
-              criteriaMatch(summary.visit.orderedRatingScores, values.sipCriteria) else {
+              criteriaMatch(summary.visit.orderedRatingScores, values.sipCriteria),
+              try await canonicalTagIDs(for: detail.id) == Set(values.taggedUserIDs) else {
             return false
         }
 
@@ -157,6 +159,14 @@ final class VisitEditService {
             userId: currentUserID
         )
         return privateNote == values.legacyPrivateJournalNote
+    }
+
+    private func canonicalTagIDs(for visitID: UUID) async throws -> Set<UUID> {
+        let tags: [RemoteVisitTag] = try await client.rpc(
+            "list_visible_visit_tags_v1",
+            params: ["p_visit_id": visitID]
+        ).execute().value
+        return Set(tags.map(\.userID))
     }
 
     private func criteriaMatch(
@@ -223,6 +233,7 @@ private struct EditOwnedVisitParameters: Encodable {
     let rawNoteVisibility: String
     let legacyPrivateNote: String?
     let photoURLs: [String]
+    let taggedUserIDs: [UUID]
 
     enum CodingKeys: String, CodingKey {
         case visitID = "p_visit_id"
@@ -237,6 +248,7 @@ private struct EditOwnedVisitParameters: Encodable {
         case rawNoteVisibility = "p_raw_note_visibility"
         case legacyPrivateNote = "p_legacy_private_note"
         case photoURLs = "p_photo_urls"
+        case taggedUserIDs = "p_tagged_user_ids"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -249,6 +261,7 @@ private struct EditOwnedVisitParameters: Encodable {
         try container.encode(contextCriteria, forKey: .contextCriteria)
         try container.encode(rawNoteVisibility, forKey: .rawNoteVisibility)
         try container.encode(photoURLs, forKey: .photoURLs)
+        try container.encode(taggedUserIDs, forKey: .taggedUserIDs)
         try container.encodeIfPresent(contextScore, forKey: .contextScore)
         if contextScore == nil { try container.encodeNil(forKey: .contextScore) }
         try container.encodeIfPresent(sipRawNote, forKey: .sipRawNote)

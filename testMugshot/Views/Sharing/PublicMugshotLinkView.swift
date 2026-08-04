@@ -98,7 +98,7 @@ struct PublicMugshotLinkView: View {
             }
         }
         .background(Color.creamWhite)
-        .navigationTitle("Shared Mugshot")
+        .navigationTitle("Mugshot")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: route.slug) {
             await load()

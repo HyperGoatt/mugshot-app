@@ -44,6 +44,7 @@ struct SipPostEditDraft {
     var sipJournalNote: String
     var contextJournalNote: String
     var legacyPrivateJournalNote: String
+    var taggedPeople: [SipCompanion]
     var photos: [SipPostEditPhoto]
     var coverPhotoID: String?
 }
@@ -95,6 +96,14 @@ struct SipPostEditSeed: Identifiable {
             sipJournalNote: reflection?.sipRawNote ?? "",
             contextJournalNote: reflection?.contextRawNote ?? "",
             legacyPrivateJournalNote: reflection == nil ? detail.privateNote ?? "" : "",
+            taggedPeople: detail.taggedAccounts.map { tag in
+                SipCompanion(
+                    userID: tag.userID,
+                    displayName: tag.displayName?.remoteTrimmedNonEmpty ?? "@\(tag.username)",
+                    username: tag.username,
+                    avatarURL: tag.avatarURL
+                )
+            },
             photos: photos,
             coverPhotoID: coverPhotoID
         )
@@ -112,6 +121,7 @@ enum SipPostEditValidationError: LocalizedError, Equatable {
     case journalNoteTooLong
     case journalAudienceTooBroad
     case tooManyPhotos
+    case tooManyTags
 
     var errorDescription: String? {
         switch self {
@@ -135,6 +145,8 @@ enum SipPostEditValidationError: LocalizedError, Equatable {
             "The journal audience cannot be broader than the post audience."
         case .tooManyPhotos:
             "A Mugshot can contain up to 10 photos."
+        case .tooManyTags:
+            "A Mugshot can tag up to 12 people."
         }
     }
 }
@@ -150,6 +162,7 @@ struct SipPostEditNormalizedValues: Equatable {
     let sipJournalNote: String?
     let contextJournalNote: String?
     let legacyPrivateJournalNote: String?
+    let taggedUserIDs: [UUID]
 }
 
 enum SipPostEditPolicy {
@@ -163,6 +176,11 @@ enum SipPostEditPolicy {
     ) throws -> SipPostEditNormalizedValues {
         guard draft.photos.count <= VisitPhotoUploadPlan.maxPhotoCount else {
             throw SipPostEditValidationError.tooManyPhotos
+        }
+        let taggedUserIDs = Array(Set(draft.taggedPeople.map(\.userID)))
+            .sorted { $0.uuidString < $1.uuidString }
+        guard taggedUserIDs.count <= 12 else {
+            throw SipPostEditValidationError.tooManyTags
         }
         guard draft.postAudience.breadth >= draft.journalAudience.breadth else {
             throw SipPostEditValidationError.journalAudienceTooBroad
@@ -193,7 +211,8 @@ enum SipPostEditPolicy {
             contextCriteria: contextCriteria,
             sipJournalNote: hasV3Reflection ? sipNote : nil,
             contextJournalNote: hasV3Reflection ? contextNote : nil,
-            legacyPrivateJournalNote: hasV3Reflection ? nil : legacyNote
+            legacyPrivateJournalNote: hasV3Reflection ? nil : legacyNote,
+            taggedUserIDs: taggedUserIDs
         )
     }
 

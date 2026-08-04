@@ -349,34 +349,32 @@ begin
     raise exception 'Tasting Lens policy set is incomplete';
   end if;
 
-  if to_regclass('public.visit_companions') is null then
-    raise exception 'visit_companions table is missing';
+  if to_regclass('public.visit_tags') is null then
+    raise exception 'visit_tags table is missing';
   end if;
-  if not (select relrowsecurity from pg_class where oid='public.visit_companions'::regclass) then
-    raise exception 'visit_companions RLS is disabled';
+  if not (select relrowsecurity from pg_class where oid='public.visit_tags'::regclass) then
+    raise exception 'visit_tags RLS is disabled';
   end if;
-  if has_table_privilege('anon','public.visit_companions','SELECT')
-     or has_table_privilege('authenticated','public.visit_companions','INSERT')
-     or has_table_privilege('authenticated','public.visit_companions','UPDATE')
-     or has_table_privilege('authenticated','public.visit_companions','DELETE') then
-    raise exception 'visit companion grants are incorrect';
-  end if;
-  if not has_table_privilege('authenticated','public.visit_companions','SELECT') then
-    raise exception 'authenticated users cannot read visible companion links';
+  if has_table_privilege('anon','public.visit_tags','SELECT')
+     or has_table_privilege('authenticated','public.visit_tags','SELECT')
+     or has_table_privilege('authenticated','public.visit_tags','INSERT')
+     or has_table_privilege('authenticated','public.visit_tags','UPDATE')
+     or has_table_privilege('authenticated','public.visit_tags','DELETE') then
+    raise exception 'visit tag table grants are incorrect';
   end if;
   if not exists (
     select 1 from pg_policies
-    where schemaname='public' and tablename='visit_companions'
-      and policyname='Visible sip companions'
+    where schemaname='public' and tablename='visit_tags'
+      and policyname='Visible visit tags'
       and qual ilike '%can_view_visit%'
       and qual ilike '%can_view_user%'
       and qual not ilike '%private.%'
-  ) then raise exception 'visit companion policy bypasses caller-bound visibility wrappers'; end if;
-  if has_function_privilege('anon','public.set_visit_companions(uuid,uuid[])','EXECUTE')
-     or not has_function_privilege('authenticated','public.set_visit_companions(uuid,uuid[])','EXECUTE')
+  ) then raise exception 'visit tag policy bypasses caller-bound visibility wrappers'; end if;
+  if has_function_privilege('anon','public.set_visit_tags_v1(uuid,uuid[])','EXECUTE')
+     or not has_function_privilege('authenticated','public.set_visit_tags_v1(uuid,uuid[])','EXECUTE')
      or has_function_privilege('anon','public.companion_suggestions(integer)','EXECUTE')
      or not has_function_privilege('authenticated','public.companion_suggestions(integer)','EXECUTE') then
-    raise exception 'companion RPC grants are incorrect';
+    raise exception 'tag RPC grants are incorrect';
   end if;
   if not has_function_privilege(
        'anon',

@@ -389,39 +389,6 @@ begin
 end;
 $$;
 
--- A restricted participant cannot attach, but this migration does not wrap or
--- remove decline, cancel, or leave RPCs.
-insert into private.moderation_actions (
-  subject_kind, subject_id, action_kind, reason_code, starts_at
-)
-values (
-  'user', (select id from alpha_hardening_users where n = 2),
-  'social_restricted', 'alpha_test', now()
-);
-
-set local role authenticated;
-select set_config(
-  'request.jwt.claims',
-  jsonb_build_object(
-    'sub', (select id from alpha_hardening_users where n = 2),
-    'role', 'authenticated'
-  )::text,
-  true
-);
-
-do $$
-begin
-  begin
-    perform public.attach_shared_memory_contribution_v1(
-      gen_random_uuid(), gen_random_uuid()
-    );
-    raise exception 'restricted participant reached shared attachment mutation';
-  exception when sqlstate '42501' then
-    null;
-  end;
-end;
-$$;
-
 rollback;
 
 select 'alpha_moderation_integrity_hardening_contract_passed' as result;

@@ -182,7 +182,7 @@ $$;
 
 update public.visits
 set visibility = 'everyone',
-    upload_state = 'pending'
+    upload_state = 'uploading'
 where id = (select visit_id from mugshot_share_fixture);
 
 do $$

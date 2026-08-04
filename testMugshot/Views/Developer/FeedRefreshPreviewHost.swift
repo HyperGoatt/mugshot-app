@@ -225,7 +225,6 @@ private enum FeedRefreshPreviewFixtures {
             sharedRawNote: nil,
             journalVisibility: nil,
             privateNote: nil,
-            sharedMugshot: nil,
             recipe: nil,
             taggedAccounts: [],
             photos: photos,

@@ -2853,6 +2853,37 @@ struct testMugshotTests {
         #expect(summary.caffeine == nil)
     }
 
+    @Test func journalReflectionCarriesPrivatePeopleCountsWithoutChangingSipTotals() {
+        let person = JournalPeopleCount(
+            accountID: UUID(),
+            displayName: "Amanda",
+            username: "amanda",
+            avatarURL: nil,
+            sipCount: 16,
+            latestSharedSipAt: "2026-07-10T12:00:00Z"
+        )
+        let entry = Self.reflectionEntry(
+            drink: "Cortado",
+            context: "Cafe",
+            score: 4,
+            createdAt: "2026-07-10T12:00:00Z",
+            estimatedCaffeine: nil,
+            caffeineCoverage: DrinkAnalysisCoverage.excluded.rawValue
+        )
+
+        let summary = JournalReflectionEngine.summary(
+            for: .month,
+            entries: [entry],
+            people: [person],
+            referenceDate: ISO8601DateFormatter().date(from: "2026-07-15T12:00:00Z") ?? Date()
+        )
+
+        #expect(summary.entryCount == 1)
+        #expect(summary.people == [person])
+        #expect(summary.people.first?.personLabel == "Amanda")
+        #expect(summary.people.first?.sipCount == 16)
+    }
+
     @Test func journalMilestonesRewardMemoryAndLearningInsteadOfConsumptionPressure() {
         let entries = [
             Self.reflectionEntry(

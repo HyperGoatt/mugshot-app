@@ -155,7 +155,6 @@ struct SipDetailMentionSuggestion: Identifiable, Equatable {
 enum SipDetailSection: String, CaseIterable, Equatable {
     case note
     case rawNote
-    case sharedMugshot
     case recipe
     case taggedPeople
     case actions
@@ -166,24 +165,6 @@ enum SipDetailSection: String, CaseIterable, Equatable {
     case conversation
 }
 
-struct SipDetailSharedMugshotContribution: Identifiable, Equatable {
-    let visitID: UUID
-    let personName: String
-    let username: String
-    let avatarURL: String?
-    let drinkName: String
-    let caption: String?
-    let score: Double
-    let posterPhotoURL: String?
-    let isCurrentPost: Bool
-
-    var id: UUID { visitID }
-}
-
-struct SipDetailSharedMugshotModel: Equatable {
-    let locationLabel: String?
-    let contributions: [SipDetailSharedMugshotContribution]
-}
 
 enum SipDetailRecipeAccessState: Equatable {
     case available
@@ -381,7 +362,6 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let sharedRawNote: String?
     let journalVisibility: String?
     let privateNote: String?
-    let sharedMugshot: SipDetailSharedMugshotModel?
     let recipe: SipDetailRecipeModel?
     let taggedAccounts: [SipDetailTaggedAccount]
     let photos: [SipDetailPhotoSource]
@@ -399,16 +379,17 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let sharePayload: SipShareCardPayload
 
     var journalNoteTitle: String {
-        journalVisibility?.lowercased() == "private"
-            ? "Private journal note"
-            : "Shared journal note"
+        switch journalVisibility?.lowercased() {
+        case "friends": "Journal note · Friends"
+        case "everyone", "public": "Journal note · Public"
+        default: "Journal note · Only you"
+        }
     }
 
     func visibleSections(capabilities: SipDetailCapabilities) -> [SipDetailSection] {
         var sections: [SipDetailSection] = []
         if caption != nil { sections.append(.note) }
         if sharedRawNote != nil { sections.append(.rawNote) }
-        if sharedMugshot != nil { sections.append(.sharedMugshot) }
         if recipe != nil { sections.append(.recipe) }
         if !taggedAccounts.isEmpty { sections.append(.taggedPeople) }
         if !capabilities.dockActions.isEmpty { sections.append(.actions) }
@@ -484,10 +465,6 @@ enum SipDetailPresentationAdapter {
             privateNote: isOwner && detail.v3Reflection == nil
                 ? detail.privateNote?.remoteTrimmedNonEmpty
                 : nil,
-            sharedMugshot: sharedMugshotModel(
-                detail.sharedMugshotProjection,
-                currentVisitID: detail.id
-            ),
             recipe: remoteRecipeModel(
                 detail,
                 isOwner: isOwner,
@@ -616,7 +593,6 @@ enum SipDetailPresentationAdapter {
             privateNote: isOwner && visit.v3Reflection == nil
                 ? visit.notes?.remoteTrimmedNonEmpty
                 : nil,
-            sharedMugshot: nil,
             recipe: localRecipeModel(
                 visit,
                 creatorName: authorDisplayName,
@@ -814,31 +790,6 @@ enum SipDetailPresentationAdapter {
         return ordered
     }
 
-    private static func sharedMugshotModel(
-        _ projection: RemoteSharedMugshotProjection?,
-        currentVisitID: UUID
-    ) -> SipDetailSharedMugshotModel? {
-        guard let projection,
-              let contributions = projection.groupedContributions else {
-            return nil
-        }
-        return SipDetailSharedMugshotModel(
-            locationLabel: projection.locationLabel?.remoteTrimmedNonEmpty,
-            contributions: contributions.map { contribution in
-                SipDetailSharedMugshotContribution(
-                    visitID: contribution.visitID,
-                    personName: contribution.personLabel,
-                    username: "@\(contribution.username)",
-                    avatarURL: contribution.avatarURL,
-                    drinkName: contribution.drink,
-                    caption: contribution.caption?.remoteTrimmedNonEmpty,
-                    score: contribution.overallScore,
-                    posterPhotoURL: contribution.posterPhotoURL,
-                    isCurrentPost: contribution.visitID == currentVisitID
-                )
-            }
-        )
-    }
 }
 
 // MARK: - Shared Immersive Pour screen
@@ -1007,12 +958,6 @@ struct SipDetailScreen: View {
                 }
             }
 
-            if let sharedMugshot = presentation.content.sharedMugshot {
-                SipSharedMugshotSection(model: sharedMugshot)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 20)
-            }
-
             if let recipe = presentation.content.recipe {
                 SipDetailRecipeSection(
                     model: recipe,
@@ -1132,85 +1077,6 @@ private struct SipDetailStatusBanner: View {
     }
 }
 
-private struct SipSharedMugshotSection: View {
-    let model: SipDetailSharedMugshotModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "person.2.wave.2.fill")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .frame(width: 38, height: 38)
-                    .background(Color.mugshotMint.opacity(0.34), in: Circle())
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Shared MugShot")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Color.espressoBrown)
-                    Text(model.locationLabel?.remoteTrimmedNonEmpty
-                         ?? "One moment, independently remembered")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.secondaryText)
-                }
-            }
-
-            VStack(spacing: 10) {
-                ForEach(model.contributions) { contribution in
-                    HStack(spacing: 11) {
-                        PhotoThumbnailView(
-                            photoPath: contribution.posterPhotoURL,
-                            size: 54
-                        )
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(contribution.personName)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Color.espressoBrown)
-                                if contribution.isCurrentPost {
-                                    Text("This post")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(Color.mugshotSage)
-                                        .padding(.horizontal, 7)
-                                        .padding(.vertical, 3)
-                                        .background(Color.mugshotMint.opacity(0.34), in: Capsule())
-                                }
-                            }
-                            Text("\(contribution.drinkName) · \(contribution.score.formatted(.number.precision(.fractionLength(1))))")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.secondaryText)
-                            if let caption = contribution.caption {
-                                Text(caption)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText)
-                                    .lineLimit(2)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(
-                        "\(contribution.personName), \(contribution.drinkName), score \(contribution.score.formatted(.number.precision(.fractionLength(1))))"
-                    )
-                }
-            }
-
-            Text("Each person keeps their own post and audience. This grouped view only includes MugShots you can already see.")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.tertiaryText)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("sip.detail.sharedMugshot")
-    }
-}
 
 private struct SipDetailRecipeSection: View {
     let model: SipDetailRecipeModel
@@ -2294,13 +2160,6 @@ private struct SipSharedRawNoteSection: View {
                             .textCase(.uppercase)
                             .tracking(1.25)
                             .foregroundStyle(Color.mugshotSage)
-                        if !isExpanded {
-                            Text(text)
-                                .font(.system(.body, design: .serif, weight: .regular))
-                                .foregroundStyle(Color.espressoBrown)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -2350,7 +2209,7 @@ private struct SipSharedRawNoteSection: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 16)
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
             }
         }
         .accessibilityElement(children: .contain)
@@ -2965,7 +2824,6 @@ extension SipDetailPresentation {
             """,
             journalVisibility: "Friends",
             privateNote: "Order it with an extra shot next time.",
-            sharedMugshot: nil,
             recipe: nil,
             taggedAccounts: [
                 SipDetailTaggedAccount(

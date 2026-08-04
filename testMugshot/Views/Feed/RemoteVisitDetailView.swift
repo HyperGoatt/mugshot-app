@@ -1738,7 +1738,6 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: detail.taggedAccounts
         )
     }
@@ -1757,7 +1756,6 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: tags
         )
     }
@@ -1849,7 +1847,6 @@ struct RemoteVisitDetailView: View {
             v3Reflection: detail.v3Reflection,
             recipeProjection: detail.recipeProjection,
             recipeIdentityProjection: detail.recipeIdentityProjection,
-            sharedMugshotProjection: detail.sharedMugshotProjection,
             taggedAccounts: detail.taggedAccounts
         )
     }

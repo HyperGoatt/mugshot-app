@@ -669,18 +669,18 @@ struct V3LabVisibilitySelector<Option: Identifiable & Equatable>: View {
     }
 }
 
-struct V3LabFriendInviteStrip: View {
+struct V3LabPeopleTagStrip: View {
     @Binding var selectedIDs: Set<String>
     let onShowAll: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Invite friends", systemImage: "person.badge.plus")
+                Label("Tag people", systemImage: "person.crop.circle.badge.plus")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.espressoBrown)
                 Spacer()
-                Text(selectedIDs.isEmpty ? "Shared MugShot" : "\(selectedIDs.count) invited")
+                Text(selectedIDs.isEmpty ? "Optional" : "\(selectedIDs.count) tagged")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.mugshotSage)
             }
@@ -718,7 +718,7 @@ struct V3LabFriendInviteStrip: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(selectedIDs.contains(friend.id) ? "Remove" : "Invite") \(friend.name)")
+                    .accessibilityLabel("\(selectedIDs.contains(friend.id) ? "Remove tag for" : "Tag") \(friend.name)")
                 }
 
                 Button(action: onShowAll) {

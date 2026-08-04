@@ -119,7 +119,6 @@ struct NotificationSettingsView: View {
                 Toggle("Push notifications", isOn: $store.preferences.pushEnabled)
                 Toggle("Friend posts", isOn: $store.preferences.friendPosts)
                 Toggle("Tags", isOn: $store.preferences.tags)
-                Toggle("Shared MugShot invitations", isOn: $store.preferences.sharedMugshotInvitations)
                 Toggle("Collaborative cafe lists", isOn: $store.preferences.collaborativeListInvitations)
                 Toggle("Likes", isOn: $store.preferences.likes)
                 Toggle("Comments and mentions", isOn: $store.preferences.comments)

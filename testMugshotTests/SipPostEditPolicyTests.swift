@@ -87,6 +87,36 @@ struct SipPostEditPolicyTests {
         #expect(draft.photos.map(\.id) == [second.id, first.id, third.id])
     }
 
+    @Test func tagsAreDeduplicatedAndBounded() throws {
+        var draft = makeDraft()
+        let person = SipCompanion(
+            userID: UUID(),
+            displayName: "Amanda",
+            username: "amanda",
+            avatarURL: nil
+        )
+        draft.taggedPeople = [person, person]
+
+        let values = try SipPostEditPolicy.normalize(
+            draft,
+            context: .cafe,
+            hasV3Reflection: true
+        )
+        #expect(values.taggedUserIDs == [person.userID])
+
+        draft.taggedPeople = (0..<13).map { index in
+            SipCompanion(
+                userID: UUID(),
+                displayName: "Person \(index)",
+                username: "person\(index)",
+                avatarURL: nil
+            )
+        }
+        #expect(throws: SipPostEditValidationError.tooManyTags) {
+            try SipPostEditPolicy.normalize(draft, context: .cafe, hasV3Reflection: true)
+        }
+    }
+
     private func makeDraft() -> SipPostEditDraft {
         SipPostEditDraft(
             caption: "Caption",
@@ -99,6 +129,7 @@ struct SipPostEditPolicyTests {
             sipJournalNote: "",
             contextJournalNote: "",
             legacyPrivateJournalNote: "",
+            taggedPeople: [],
             photos: [],
             coverPhotoID: nil
         )

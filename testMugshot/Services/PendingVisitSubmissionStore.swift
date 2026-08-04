@@ -55,9 +55,6 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     /// Ordinary post tags. Tags do not grant shared ownership and do not
     /// require consent. Optional keeps older pending records decodable.
     let taggedCompanions: [SipCompanion]?
-    /// Accounts invited to co-own a shared Mugshot. This remains independent
-    /// from ordinary tags because shared-memory publication requires consent.
-    let sharedMemoryInvitees: [SipCompanion]?
     var posterPhotoIndex: Int
     var localPhotoNames: [String]
     var objectPaths: [String]
@@ -89,9 +86,6 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     /// Written only after the ordinary-tag RPC and the outbox save both
     /// succeed. Nil remains retryable for older finalized records.
     var visitTagsCompletedAt: Date? = nil
-    /// Written only after consent invitations and the outbox save both
-    /// succeed. Nil remains retryable for older finalized records.
-    var sharedMemoryInvitationsCompletedAt: Date? = nil
 
     var isRemoteFinalized: Bool { remoteFinalizedAt != nil }
 
@@ -127,19 +121,12 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
             && visitTagsCompletedAt == nil
     }
 
-    var needsSharedMemoryInvitationsCompletion: Bool {
-        isRemoteFinalized
-            && !(sharedMemoryInvitees ?? []).isEmpty
-            && sharedMemoryInvitationsCompletedAt == nil
-    }
-
     var isPostPublicationSetupComplete: Bool {
         isRemoteFinalized
             && !needsCafeSessionPublicationCompletion
             && !needsV3ReflectionCompletion
             && !needsRecipePublicationCompletion
             && !needsVisitTagsCompletion
-            && !needsSharedMemoryInvitationsCompletion
     }
 
     /// Compatibility name for call sites compiled against the first identity
@@ -382,7 +369,6 @@ final class PendingVisitSubmissionStore {
         v3Reflection: V3VisitReflection? = nil,
         recipePublication: SipRecipePublicationContract? = nil,
         taggedCompanions: [SipCompanion]? = nil,
-        sharedMemoryInvitees: [SipCompanion]? = nil,
         cafeSession: PendingCafeSessionLink? = nil,
         images: [UIImage],
         posterPhotoIndex: Int
@@ -442,7 +428,6 @@ final class PendingVisitSubmissionStore {
             v3Reflection: v3Reflection,
             recipePublication: recipePublication,
             taggedCompanions: taggedCompanions,
-            sharedMemoryInvitees: sharedMemoryInvitees,
             posterPhotoIndex: min(max(posterPhotoIndex, 0), max(localNames.count - 1, 0)),
             localPhotoNames: localNames,
             objectPaths: objectPaths,
@@ -819,9 +804,6 @@ final class PendingVisitSubmissionStore {
                 ?? record.recipePublicationCompletedAt
             merged.visitTagsCompletedAt = merged.visitTagsCompletedAt
                 ?? record.visitTagsCompletedAt
-            merged.sharedMemoryInvitationsCompletedAt =
-                merged.sharedMemoryInvitationsCompletedAt
-                ?? record.sharedMemoryInvitationsCompletedAt
         }
         return merged
     }

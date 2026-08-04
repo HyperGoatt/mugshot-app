@@ -215,30 +215,33 @@ select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from sprint_users where n=1), 'role', 'authenticated'
 )::text, true);
 
-select public.set_visit_companions(
+select public.set_visit_tags_v1(
   (select friend_visit from sprint_visits),
   array[(select id from sprint_users where n=2)]
 );
 
 do $$ begin
   if not exists (
-    select 1 from public.visit_companions
-    where visit_id = (select friend_visit from sprint_visits)
-      and companion_user_id = (select id from sprint_users where n=2)
-  ) then raise exception 'owner could not attach a confirmed friend'; end if;
+    select 1 from public.list_visible_visit_tags_v1(
+      (select friend_visit from sprint_visits)
+    )
+    where user_id = (select id from sprint_users where n=2)
+  ) then raise exception 'owner could not tag a person'; end if;
   if not exists (
     select 1 from public.companion_suggestions(10)
     where user_id = (select id from sprint_users where n=2)
       and shared_sip_count >= 1
   ) then raise exception 'companion suggestions did not learn from prior sips'; end if;
-  begin
-    perform public.set_visit_companions(
-      (select friend_visit from sprint_visits),
-      array[(select id from sprint_users where n=3)]
-    );
-    raise exception 'non-friend companion unexpectedly succeeded';
-  exception when sqlstate '42501' then null;
-  end;
+  perform public.set_visit_tags_v1(
+    (select friend_visit from sprint_visits),
+    array[(select id from sprint_users where n=3)]
+  );
+  if not exists (
+    select 1 from public.list_visible_visit_tags_v1(
+      (select friend_visit from sprint_visits)
+    )
+    where user_id = (select id from sprint_users where n=3)
+  ) then raise exception 'tagging incorrectly required friendship'; end if;
 end $$;
 
 reset role;
@@ -314,15 +317,16 @@ begin
   end if;
 end $$;
 
--- A stranger cannot inspect companion links on a Friends-only sip.
+-- A tag never grants access to a Friends-only sip.
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from sprint_users where n=3), 'role', 'authenticated'
 )::text, true);
 do $$ begin
   if exists (
-    select 1 from public.visit_companions
-    where visit_id = (select friend_visit from sprint_visits)
-  ) then raise exception 'stranger read Friends-only companion links'; end if;
+    select 1 from public.list_visible_visit_tags_v1(
+      (select friend_visit from sprint_visits)
+    )
+  ) then raise exception 'tagged stranger read Friends-only tag links'; end if;
 end $$;
 
 reset role;

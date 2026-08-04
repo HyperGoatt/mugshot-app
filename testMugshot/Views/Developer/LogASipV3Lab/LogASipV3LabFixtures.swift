@@ -212,7 +212,7 @@ struct V3LabDraft: Equatable {
     var contextCriteria: [V3LabCriterion]
     var audience: V3LabAudience
     var rawNoteVisibility: V3LabRawNoteVisibility
-    var invitedFriendIDs: Set<String>
+    var taggedPeopleIDs: Set<String>
     var makeAgain: V3LabMakeAgain
     var recipeVersion: Int
     var didUsePlaceholder: Bool
@@ -332,7 +332,7 @@ struct V3LabDraft: Equatable {
         ],
         audience: .friends,
         rawNoteVisibility: .private,
-        invitedFriendIDs: ["amanda", "jake", "sarah"],
+        taggedPeopleIDs: ["amanda", "jake", "sarah"],
         makeAgain: .withATweak,
         recipeVersion: 4,
         didUsePlaceholder: false

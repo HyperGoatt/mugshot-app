@@ -5,18 +5,18 @@ begin;
 do $$
 begin
   if to_regprocedure(
-    'public.edit_owned_visit_v1(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb)'
+    'public.edit_owned_visit_v2(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb,uuid[])'
   ) is null then
     raise exception 'owner edit RPC is missing';
   end if;
   if has_function_privilege(
        'anon',
-       'public.edit_owned_visit_v1(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb)',
+       'public.edit_owned_visit_v2(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb,uuid[])',
        'EXECUTE'
      )
      or not has_function_privilege(
        'authenticated',
-       'public.edit_owned_visit_v1(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb)',
+       'public.edit_owned_visit_v2(uuid,text,text,numeric,jsonb,numeric,jsonb,text,text,text,text,jsonb,uuid[])',
        'EXECUTE'
      ) then
     raise exception 'owner edit RPC grants are incorrect';
@@ -26,7 +26,7 @@ begin
     from pg_proc procedure
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
-      and procedure.proname = 'edit_owned_visit_v1'
+      and procedure.proname = 'edit_owned_visit_v2'
       and (not procedure.prosecdef or not procedure.proconfig @> array['search_path=""'])
   ) then
     raise exception 'owner edit RPC is not safely isolated';
@@ -95,7 +95,7 @@ from public.upsert_visit_v3_reflection_v1(
   p_raw_note_visibility => 'private'
 );
 
-select public.edit_owned_visit_v1(
+select public.edit_owned_visit_v2(
   p_visit_id => (select visit_id from edit_sip_test_context),
   p_caption => 'After edit',
   p_visibility => 'friends',
@@ -132,7 +132,8 @@ select public.edit_owned_visit_v1(
       || '/'
       || (select lower(visit_id::text) from edit_sip_test_context)
       || '/second.jpg'
-  )
+  ),
+  p_tagged_user_ids => array[(select viewer_id from edit_sip_test_context)]
 );
 
 reset role;
@@ -175,6 +176,14 @@ begin
      or reflection.context_raw_note <> 'Shared context words' then
     raise exception 'journal and reflection edit was not applied coherently';
   end if;
+  if not exists (
+    select 1 from public.visit_tags tag
+    where tag.visit_id = target_visit.id
+      and tag.tagged_user_id = (select viewer_id from edit_sip_test_context)
+      and tag.tagged_by = (select owner_id from edit_sip_test_context)
+  ) then
+    raise exception 'tag replacement did not commit with the edit';
+  end if;
 end;
 $$;
 
@@ -191,7 +200,7 @@ select set_config(
 do $$
 begin
   begin
-    perform public.edit_owned_visit_v1(
+    perform public.edit_owned_visit_v2(
       p_visit_id => (select visit_id from edit_sip_test_context),
       p_caption => 'Must roll back',
       p_visibility => 'private',
@@ -200,7 +209,8 @@ begin
       p_context_score => 4,
       p_context_criteria => '[]'::jsonb,
       p_raw_note_visibility => 'everyone',
-      p_photo_urls => '[]'::jsonb
+      p_photo_urls => '[]'::jsonb,
+      p_tagged_user_ids => '{}'::uuid[]
     );
     raise exception 'broader journal audience unexpectedly succeeded';
   exception
@@ -214,6 +224,14 @@ begin
   if (select caption from public.visits where id = (select visit_id from edit_sip_test_context))
      <> 'After edit' then
     raise exception 'failed edit partially mutated the visit';
+  end if;
+  if not exists (
+    select 1 from public.list_visible_visit_tags_v1(
+      (select visit_id from edit_sip_test_context)
+    ) tag
+    where tag.user_id = (select viewer_id from edit_sip_test_context)
+  ) then
+    raise exception 'failed edit partially mutated tags';
   end if;
 end;
 $$;
@@ -230,7 +248,7 @@ select set_config(
 do $$
 begin
   begin
-    perform public.edit_owned_visit_v1(
+    perform public.edit_owned_visit_v2(
       p_visit_id => (select visit_id from edit_sip_test_context),
       p_caption => 'Cross-owner edit',
       p_visibility => 'friends',
@@ -239,7 +257,8 @@ begin
       p_context_score => 4,
       p_context_criteria => '[]'::jsonb,
       p_raw_note_visibility => 'private',
-      p_photo_urls => '[]'::jsonb
+      p_photo_urls => '[]'::jsonb,
+      p_tagged_user_ids => '{}'::uuid[]
     );
     raise exception 'cross-owner edit unexpectedly succeeded';
   exception

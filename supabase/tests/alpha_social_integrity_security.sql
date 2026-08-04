@@ -153,13 +153,9 @@ begin
     'public.block_user_v2(uuid,boolean)',
     'public.block_user(uuid)',
     'public.set_visit_tags_v1(uuid,uuid[])',
-    'public.create_shared_memory_invitations_v1(uuid,uuid[])',
-    'public.respond_shared_memory_invitation_v1(uuid,boolean)',
-    'public.attach_shared_memory_contribution_v1(uuid,uuid)',
     'public.send_friend_request(uuid)',
     'public.respond_friend_request(uuid,boolean)',
-    'public.send_trusted_recommendation(uuid,text,uuid,text)',
-    'public.set_visit_companions(uuid,uuid[])'
+    'public.send_trusted_recommendation(uuid,text,uuid,text)'
   ] loop
     if not has_function_privilege('authenticated', function_signature, 'EXECUTE') then
       raise exception 'authenticated role cannot execute %', function_signature;
@@ -180,11 +176,9 @@ begin
         'create_comment', 'update_comment_v1', 'remove_comment_v1',
         'block_user_v2', 'block_user', 'can_view_user',
         'can_view_visit', 'can_view_comment', 'can_socially_mutate',
-        'set_visit_tags_v1', 'create_shared_memory_invitations_v1',
-        'respond_shared_memory_invitation_v1',
-        'attach_shared_memory_contribution_v1', 'send_friend_request',
+        'set_visit_tags_v1', 'send_friend_request',
         'respond_friend_request', 'send_trusted_recommendation',
-        'set_visit_companions'
+        'edit_owned_visit_v2'
       )
       and (
         not procedure.prosecdef
@@ -202,13 +196,9 @@ begin
     'private.can_view_comment_as(uuid,uuid)',
     'private.submit_report_internal(uuid,public.report_reason,text,text,uuid,uuid,boolean)',
     'private.set_visit_tags_v1(uuid,uuid[])',
-    'private.create_shared_memory_invitations_v1(uuid,uuid[])',
-    'private.respond_shared_memory_invitation_v1(uuid,boolean)',
-    'private.attach_shared_memory_contribution_v1(uuid,uuid)',
     'private.send_friend_request(uuid)',
     'private.respond_friend_request(uuid,boolean)',
-    'private.send_trusted_recommendation(uuid,text,uuid,text)',
-    'private.set_visit_companions(uuid,uuid[])'
+    'private.send_trusted_recommendation(uuid,text,uuid,text)'
   ] loop
     if has_function_privilege('anon', private_signature, 'EXECUTE')
        or has_function_privilege('authenticated', private_signature, 'EXECUTE') then

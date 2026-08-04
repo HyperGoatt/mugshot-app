@@ -9,6 +9,8 @@ struct EditSipView: View {
     @State private var draft: SipPostEditDraft
     @State private var pickedImages: [UIImage] = []
     @State private var isShowingPhotoLibrary = false
+    @State private var isShowingTagPicker = false
+    @State private var isConfirmingTextOnlyPublicPost = false
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -47,6 +49,8 @@ struct EditSipView: View {
                     journalSection
                     Divider()
                     audienceSection
+                    Divider()
+                    taggedPeopleSection
 
                     if let errorMessage {
                         Text(errorMessage)
@@ -97,6 +101,23 @@ struct EditSipView: View {
                     isPresented: $isShowingPhotoLibrary,
                     maximumSelectionCount: max(1, VisitPhotoUploadPlan.maxPhotoCount - draft.photos.count)
                 )
+            }
+            .sheet(isPresented: $isShowingTagPicker) {
+                SipCompanionPicker(
+                    mode: .tag,
+                    selected: draft.taggedPeople,
+                    onSave: { draft.taggedPeople = $0 }
+                )
+            }
+            .confirmationDialog(
+                "Publish without a photo?",
+                isPresented: $isConfirmingTextOnlyPublicPost,
+                titleVisibility: .visible
+            ) {
+                Button("Save public Mugshot") { performSave() }
+                Button("Keep editing", role: .cancel) {}
+            } message: {
+                Text("This Mugshot will be visible to everyone using its text-only presentation.")
             }
             .onChange(of: draft.postAudience) { _, postAudience in
                 if draft.journalAudience.breadth > postAudience.breadth {
@@ -278,6 +299,52 @@ struct EditSipView: View {
         }
     }
 
+    private var taggedPeopleSection: some View {
+        editSection(
+            title: "Tagged people",
+            subtitle: "Tags add context to your coffee story. They do not create co-owners or change who can see this post."
+        ) {
+            if draft.taggedPeople.isEmpty {
+                Text("No one tagged")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondaryText)
+            } else {
+                ForEach(draft.taggedPeople) { person in
+                    HStack(spacing: 10) {
+                        MugshotAvatar(
+                            name: person.displayName,
+                            size: 36,
+                            imageURL: person.avatarURL
+                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(person.displayName).font(.subheadline.weight(.semibold))
+                            Text("@\(person.username)")
+                                .font(.caption)
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                        Spacer()
+                        Button("Remove") {
+                            draft.taggedPeople.removeAll { $0.userID == person.userID }
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
+            }
+
+            Button {
+                isShowingTagPicker = true
+            } label: {
+                Label("Edit tagged people", systemImage: "person.crop.circle.badge.plus")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.mugshotSage)
+            .disabled(isSaving)
+            .accessibilityIdentifier("editSip.tags.edit")
+        }
+    }
+
     private func criteriaSection(
         title: String,
         subtitle: String,
@@ -410,6 +477,16 @@ struct EditSipView: View {
             errorMessage = validationError?.localizedDescription
             return
         }
+        if seed.detail.summary.visit.posterPhotoURL != nil,
+           draft.photos.isEmpty,
+           draft.postAudience == .everyone {
+            isConfirmingTextOnlyPublicPost = true
+            return
+        }
+        performSave()
+    }
+
+    private func performSave() {
         Task { @MainActor in
             isSaving = true
             errorMessage = nil
@@ -613,3 +690,89 @@ private extension View {
             .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.mugshotLine, lineWidth: 1))
     }
 }
+
+#if DEBUG
+struct EditSipPreviewHost: View {
+    var body: some View {
+        EditSipView(seed: .qualitySprintPreview) { _ in .success }
+    }
+}
+
+private extension SipPostEditSeed {
+    static var qualitySprintPreview: SipPostEditSeed {
+        let ownerID = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
+        let visitID = UUID(uuidString: "20000000-0000-4000-8000-000000000001")!
+        let cafe = SupabaseCafeSummary(
+            id: UUID(uuidString: "30000000-0000-4000-8000-000000000001")!,
+            name: "Nook Tiny Cafe & Market",
+            address: "83 Spring Street",
+            city: "Charleston, SC",
+            latitude: nil,
+            longitude: nil,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let visit = SupabaseVisitRow(
+            id: visitID,
+            userId: ownerID,
+            cafeId: cafe.id,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "Iced Pistachio Latte",
+            caption: "Mid-work day pick me up at Nook! Support your local cafe.",
+            notes: nil,
+            visibility: "friends",
+            ratings: ["Flavor balance": 3.7, "Mouth-feel": 4.2, "Coffee finish": 4.0],
+            overallScore: 4.0,
+            posterPhotoURL: nil,
+            contextType: "Cafe",
+            locationName: cafe.name,
+            cityState: cafe.city,
+            brewMethod: nil,
+            createdAt: "2026-08-04T14:30:00Z"
+        )
+        let reflection = V3VisitReflection(
+            visitID: visitID,
+            sipScore: 3.8,
+            contextScore: 4.2,
+            contextCriteria: [
+                SipRatingCriterionSnapshot(name: "Atmosphere", score: 4.0, sortOrder: 0),
+                SipRatingCriterionSnapshot(name: "Service", score: 4.5, sortOrder: 1)
+            ],
+            sipRawNote: "Creamy with a coffee-forward finish.",
+            contextRawNote: "Quiet back room and a kind barista.",
+            rawNoteVisibility: .friends,
+            photoFallback: .mugsyMissedPhoto,
+            homeMakeAgain: nil
+        )
+        let tags = [
+            RemoteVisitTag(
+                userID: UUID(uuidString: "40000000-0000-4000-8000-000000000001")!,
+                displayName: "Amanda",
+                username: "amanda",
+                avatarURL: nil,
+                taggedAt: "2026-08-04T14:30:00Z"
+            ),
+            RemoteVisitTag(
+                userID: UUID(uuidString: "40000000-0000-4000-8000-000000000002")!,
+                displayName: "Paul",
+                username: "paul",
+                avatarURL: nil,
+                taggedAt: "2026-08-04T14:30:00Z"
+            )
+        ]
+        return SipPostEditSeed(
+            detail: RemoteVisitDetail(
+                summary: RemoteVisitSummary(visit: visit, cafe: cafe),
+                photos: [],
+                comments: [],
+                likeCount: 12,
+                currentUserHasLiked: false,
+                v3Reflection: reflection,
+                taggedAccounts: tags
+            ),
+            currentUserID: ownerID
+        )
+    }
+}
+#endif

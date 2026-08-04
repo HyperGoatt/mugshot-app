@@ -7,7 +7,6 @@ struct SipPostPublicationSetupPlan: Equatable {
     let v3Reflection: V3VisitReflection?
     let recipePublication: SipRecipePublicationContract?
     let taggedUserIDs: [UUID]?
-    let sharedMemoryInviteeIDs: [UUID]
 
     static func make(
         from submission: PendingVisitSubmissionRecord
@@ -26,10 +25,7 @@ struct SipPostPublicationSetupPlan: Equatable {
                 : nil,
             taggedUserIDs: submission.needsVisitTagsCompletion
                 ? submission.taggedCompanions?.map(\.userID)
-                : nil,
-            sharedMemoryInviteeIDs: submission.needsSharedMemoryInvitationsCompletion
-                ? submission.sharedMemoryInvitees?.map(\.userID) ?? []
-                : []
+                : nil
         )
     }
 }
@@ -131,20 +127,6 @@ struct SipPostPublicationSetupWorker {
                 }
             } catch {
                 failedActions.append("its people tags")
-            }
-        }
-
-        if !plan.sharedMemoryInviteeIDs.isEmpty {
-            do {
-                _ = try await social.createSharedMemoryInvitations(
-                    for: plan.visitID,
-                    inviteeIDs: plan.sharedMemoryInviteeIDs
-                )
-                updatedSubmission = try saveReceipt(updatedSubmission) {
-                    $0.sharedMemoryInvitationsCompletedAt = .now
-                }
-            } catch {
-                failedActions.append("its shared MugShot invitations")
             }
         }
 

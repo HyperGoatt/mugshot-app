@@ -1,6 +1,6 @@
 import Foundation
 
-enum JournalReflectionPeriod: String, CaseIterable, Identifiable {
+enum JournalReflectionPeriod: String, CaseIterable, Identifiable, Hashable {
     case month
     case year
 
@@ -19,6 +19,29 @@ struct JournalCaffeineEstimate: Equatable {
     var coverageText: String { "Based on \(coveredEntries) of \(totalEntries) sips" }
 }
 
+struct JournalPeopleCount: Decodable, Identifiable, Equatable {
+    let accountID: UUID
+    let displayName: String?
+    let username: String
+    let avatarURL: String?
+    let sipCount: Int
+    let latestSharedSipAt: String
+
+    var id: UUID { accountID }
+    var personLabel: String {
+        displayName?.remoteTrimmedNonEmpty ?? "@\(username)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case accountID = "account_id"
+        case displayName = "display_name"
+        case username
+        case avatarURL = "avatar_url"
+        case sipCount = "sip_count"
+        case latestSharedSipAt = "latest_shared_sip_at"
+    }
+}
+
 struct JournalReflectionSummary: Identifiable, Equatable {
     let period: JournalReflectionPeriod
     let startDate: Date
@@ -35,6 +58,7 @@ struct JournalReflectionSummary: Identifiable, Equatable {
     let averageRating: Double?
     let ratingChange: Double?
     let caffeine: JournalCaffeineEstimate?
+    let people: [JournalPeopleCount]
 
     var id: String { "\(period.rawValue)-\(startDate.timeIntervalSince1970)" }
 
@@ -56,6 +80,7 @@ enum JournalReflectionEngine {
     static func summary(
         for period: JournalReflectionPeriod,
         entries: [JournalEntryProjection],
+        people: [JournalPeopleCount] = [],
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> JournalReflectionSummary {
@@ -99,8 +124,21 @@ enum JournalReflectionEngine {
             ratingChange: average.flatMap { currentAverage in
                 previousAverage.map { currentAverage - $0 }
             },
-            caffeine: caffeine
+            caffeine: caffeine,
+            people: people
         )
+    }
+
+    static func dateInterval(
+        for period: JournalReflectionPeriod,
+        containing date: Date = Date(),
+        calendar: Calendar = .current
+    ) -> DateInterval {
+        if period == .month, let interval = calendar.dateInterval(of: .month, for: date) {
+            return interval
+        }
+        if let interval = calendar.dateInterval(of: .year, for: date) { return interval }
+        return DateInterval(start: date, duration: 1)
     }
 
     static func milestones(entries: [JournalEntryProjection]) -> [JournalMilestone] {
@@ -142,16 +180,6 @@ enum JournalReflectionEngine {
             ))
         }
         return result
-    }
-
-    private static func dateInterval(
-        for period: JournalReflectionPeriod,
-        containing date: Date,
-        calendar: Calendar
-    ) -> DateInterval {
-        if period == .month, let interval = calendar.dateInterval(of: .month, for: date) { return interval }
-        if let interval = calendar.dateInterval(of: .year, for: date) { return interval }
-        return DateInterval(start: date, duration: 1)
     }
 
     private static func averageRating(_ entries: [JournalEntryProjection]) -> Double? {

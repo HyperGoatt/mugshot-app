@@ -2,7 +2,7 @@
 -- evidence, journal audience, and ordered photo references in sync. Storage
 -- objects are uploaded before this RPC and cleaned up after it by the client.
 
-create or replace function public.edit_owned_visit_v1(
+create or replace function private.edit_owned_visit_content_v2(
   p_visit_id uuid,
   p_caption text,
   p_visibility text,
@@ -284,14 +284,11 @@ begin
 end;
 $$;
 
-comment on function public.edit_owned_visit_v1(
+comment on function private.edit_owned_visit_content_v2(
   uuid, text, text, numeric, jsonb, numeric, jsonb, text, text, text, text, jsonb
 ) is
   'Atomically edits an owned published visit, taste criteria, journal audience, and ordered photo references.';
 
-revoke all on function public.edit_owned_visit_v1(
+revoke all on function private.edit_owned_visit_content_v2(
   uuid, text, text, numeric, jsonb, numeric, jsonb, text, text, text, text, jsonb
 ) from public, anon, authenticated;
-grant execute on function public.edit_owned_visit_v1(
-  uuid, text, text, numeric, jsonb, numeric, jsonb, text, text, text, text, jsonb
-) to authenticated, service_role;

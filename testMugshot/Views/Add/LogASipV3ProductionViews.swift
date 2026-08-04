@@ -26,7 +26,6 @@ struct LogASipV3ProductionView: View {
     let onOrganizePhotos: () -> Void
     let onChooseCafe: () -> Void
     let onTagPeople: () -> Void
-    let onInviteSharedMemory: () -> Void
     let onRepairProtectedSave: (() -> Void)?
     let onDiscardProtectedSave: (() -> Void)?
     let onUseLastSipSetup: () -> Void
@@ -59,7 +58,6 @@ struct LogASipV3ProductionView: View {
         onOrganizePhotos: @escaping () -> Void,
         onChooseCafe: @escaping () -> Void,
         onTagPeople: @escaping () -> Void,
-        onInviteSharedMemory: @escaping () -> Void,
         onRepairProtectedSave: (() -> Void)? = nil,
         onDiscardProtectedSave: (() -> Void)? = nil,
         onUseLastSipSetup: @escaping () -> Void = {},
@@ -86,7 +84,6 @@ struct LogASipV3ProductionView: View {
         self.onOrganizePhotos = onOrganizePhotos
         self.onChooseCafe = onChooseCafe
         self.onTagPeople = onTagPeople
-        self.onInviteSharedMemory = onInviteSharedMemory
         self.onRepairProtectedSave = onRepairProtectedSave
         self.onDiscardProtectedSave = onDiscardProtectedSave
         self.onUseLastSipSetup = onUseLastSipSetup
@@ -206,7 +203,6 @@ struct LogASipV3ProductionView: View {
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage,
                 onTagPeople: onTagPeople,
-                onInviteSharedMemory: onInviteSharedMemory,
                 onRepairProtectedSave: onRepairProtectedSave,
                 onDiscardProtectedSave: onDiscardProtectedSave,
                 onPublish: onPublish
@@ -836,7 +832,6 @@ private struct LogASipV3PublishSurface: View {
     let isRecoveryLocked: Bool
     let statusMessage: String?
     let onTagPeople: () -> Void
-    let onInviteSharedMemory: () -> Void
     let onRepairProtectedSave: (() -> Void)?
     let onDiscardProtectedSave: (() -> Void)?
     let onPublish: () -> Void
@@ -856,8 +851,6 @@ private struct LogASipV3PublishSurface: View {
             && hasRequiredContextScore
             && (!photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto)
             && draft.recipePublicationRequirement == .ready
-            && ((draft.sharedMemoryInvitees ?? []).isEmpty || draft.visibility != .private)
-            && ((draft.sharedMemoryInvitees ?? []).isEmpty || draft.cafeSessionSipRole != .secondary)
     }
 
     private var contextScoreForBlend: Double? {
@@ -981,19 +974,6 @@ private struct LogASipV3PublishSurface: View {
                     action: onTagPeople
                 )
 
-                if draft.cafeSessionSipRole != .secondary {
-                    Divider().padding(.leading, 54)
-
-                    LogASipV3PeopleStrip(
-                        title: "Shared MugShot",
-                        emptyDetail: "Friends choose whether to co-own it",
-                        populatedDetail: { "\($0) invited after publishing" },
-                        systemImage: "person.2.badge.plus",
-                        people: draft.sharedMemoryInvitees ?? [],
-                        actionAccessibilityLabel: "Choose friends to invite to this shared MugShot",
-                        action: onInviteSharedMemory
-                    )
-                }
             }
             .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
             .padding(.horizontal, DesignSystem.Space.md)
@@ -1033,12 +1013,6 @@ private struct LogASipV3PublishSurface: View {
             return "Confirm that this recipe may be saved and adapted."
         case .needsPublicReuseAcknowledgment:
             return "Acknowledge public recipe reuse before publishing."
-        }
-        if !(draft.sharedMemoryInvitees ?? []).isEmpty, draft.visibility == .private {
-            return "Choose Friends or Everyone for shared MugShot invitations."
-        }
-        if !(draft.sharedMemoryInvitees ?? []).isEmpty, draft.cafeSessionSipRole == .secondary {
-            return "Send shared MugShot invitations from the primary cafe MugShot."
         }
         guard isReadyToPublish else { return "Finish the required details to publish." }
         switch draft.visibility {

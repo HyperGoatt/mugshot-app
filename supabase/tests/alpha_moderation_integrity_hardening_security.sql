@@ -72,17 +72,8 @@ begin
      ) not ilike '%is_live_account_as%'
      or pg_get_functiondef(
        'private.can_view_comment_as(uuid,uuid)'::regprocedure
-     ) not ilike '%is_live_account_as%'
-     or pg_get_functiondef(
-       'private.can_view_shared_memory_as(uuid,uuid)'::regprocedure
      ) not ilike '%is_live_account_as%' then
     raise exception 'a central social/view helper lacks the live-account gate';
-  end if;
-
-  if pg_get_functiondef(
-       'public.attach_shared_memory_contribution_v1(uuid,uuid)'::regprocedure
-     ) not ilike '%can_socially_mutate_as%' then
-    raise exception 'shared MugShot attachment bypassed social enforcement';
   end if;
 
   foreach trigger_name in array array[
@@ -95,7 +86,6 @@ begin
     'enforce_comment_mention_pair_lock',
     'enforce_visit_companion_pair_lock',
     'enforce_recommendation_pair_lock',
-    'enforce_shared_member_pair_lock',
     'enforce_moderation_action_report_subject',
     'enforce_moderation_action_admin_update',
     'enforce_moderation_appeal_operator_role'
