@@ -26,8 +26,13 @@ struct testMugshotApp: App {
 #if DEBUG
         MugshotLaunchEnvironment.prepareDebugFailureHooks()
         if MugshotLaunchEnvironment.isUITesting {
+            if MugshotLaunchEnvironment.savedAuditScenario != nil,
+               MugshotLaunchEnvironment.isUITestingSignedOut {
+                manager.prepareGuestSession()
+            }
             manager.prepareUITestFixture(reset: MugshotLaunchEnvironment.shouldResetUITestState)
-            if MugshotLaunchEnvironment.isUITestingSignedOut {
+            if MugshotLaunchEnvironment.savedAuditScenario == nil,
+               MugshotLaunchEnvironment.isUITestingSignedOut {
                 manager.prepareGuestSession()
             }
         }

@@ -85,6 +85,11 @@ struct MainTabView: View {
     private var lifecycleScene: some View {
         coreScene
         .onAppear {
+#if DEBUG
+            if MugshotLaunchEnvironment.savedAuditScenario != nil {
+                tabCoordinator.selectedTab = 3
+            }
+#endif
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
             activateLocalStorage()
             automaticSipRecovery.activate(accountID: authModel.authenticatedUser?.id)

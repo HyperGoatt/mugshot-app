@@ -302,6 +302,7 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
     let title: (Option) -> String
     var icon: ((Option) -> String?)? = nil
     var accessibilityIdentifier: ((Option) -> String?)? = nil
+    var selectedColor: Color = .foamWhite
 
     var body: some View {
         HStack(spacing: 4) {
@@ -325,7 +326,7 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
                     .foregroundColor(selection == option ? .espressoBrown : .roastBrown.opacity(0.72))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 44)
-                    .background(selection == option ? Color.foamWhite : Color.clear)
+                    .background(selection == option ? selectedColor : Color.clear)
                     .clipShape(Capsule())
                     .contentShape(Capsule())
                 }

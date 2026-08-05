@@ -35,7 +35,17 @@ struct PhotoImageView: View {
             }
         }
         .task(id: photoPath) {
+#if DEBUG
+            if photoPath == SavedAuditFixtures.photoKey {
+                image = UIImage(named: "V3QuietCafeCorner")
+            } else if photoPath == SavedAuditFixtures.secondaryPhotoKey {
+                image = UIImage(named: "V3CreamyLatte")
+            } else {
+                image = await PhotoCache.shared.image(forKey: photoPath)
+            }
+#else
             image = await PhotoCache.shared.image(forKey: photoPath)
+#endif
             if let image {
                 reportImageSize?(image.size)
             }
@@ -75,7 +85,17 @@ struct PhotoThumbnailView: View {
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         .task(id: photoPath) {
             guard let photoPath else { return }
+#if DEBUG
+            if photoPath == SavedAuditFixtures.photoKey {
+                image = UIImage(named: "V3QuietCafeCorner")
+            } else if photoPath == SavedAuditFixtures.secondaryPhotoKey {
+                image = UIImage(named: "V3CreamyLatte")
+            } else {
+                image = await PhotoCache.shared.image(forKey: photoPath)
+            }
+#else
             image = await PhotoCache.shared.image(forKey: photoPath)
+#endif
         }
     }
 }

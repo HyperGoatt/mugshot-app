@@ -6,8 +6,11 @@
 //
 
 import SwiftUI
+import UIKit
 
-struct SavedTabView: View {
+/// Retained temporarily as a compile-safe reference while the production
+/// Saved library is supplied by `SavedCafeLibraryView.swift`.
+private struct LegacySavedTabView: View {
     @ObservedObject var dataManager: DataManager
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
@@ -19,6 +22,9 @@ struct SavedTabView: View {
     @State private var isLoadingRemoteStates = false
     @State private var remoteStateError: String?
     @State private var remoteCafeCoverURLs: [UUID: String] = [:]
+#if DEBUG
+    @State private var auditRetrySucceeded = false
+#endif
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 
     enum SavedSection: String, CaseIterable {
@@ -158,7 +164,7 @@ struct SavedTabView: View {
                     }
                 }
 
-                if selectedSection == .cafes, authModel.authenticatedUser != nil {
+                if selectedSection == .cafes, shouldShowRemoteStateStatus {
                     remoteStateStatus
                         .padding(.horizontal, 16)
                         .padding(.bottom, 4)
@@ -228,26 +234,73 @@ struct SavedTabView: View {
 
     @ViewBuilder
     private var remoteStateStatus: some View {
-        if isLoadingRemoteStates {
-            HStack(spacing: 8) {
-                ProgressView().tint(.mugshotSage)
-                Text("Refreshing saved cafes…")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondaryText)
+#if DEBUG
+        if let scenario = MugshotLaunchEnvironment.savedAuditScenario,
+           scenario.showsForcedSavedStatus,
+           !auditRetrySucceeded {
+            if scenario.isForcedLoading {
+                remoteLoadingStatus
+            } else if let message = scenario.forcedSavedErrorMessage {
+                MugshotRecoveryCard(
+                    title: "Couldn’t refresh saved cafes",
+                    message: message,
+                    actionTitle: "Retry"
+                ) {
+                    auditRetrySucceeded = true
+                }
             }
+        } else if isLoadingRemoteStates {
+            remoteLoadingStatus
         } else if let remoteStateError {
-            MugshotRecoveryCard(
-                title: "Couldn’t refresh saved cafes",
-                message: remoteStateError,
-                actionTitle: "Retry"
-            ) {
-                Task { await loadRemoteCafeStates() }
-            }
+            remoteRecoveryStatus(message: remoteStateError)
         }
+#else
+        if isLoadingRemoteStates {
+            remoteLoadingStatus
+        } else if let remoteStateError {
+            remoteRecoveryStatus(message: remoteStateError)
+        }
+#endif
+    }
+
+    private var remoteLoadingStatus: some View {
+        HStack(spacing: 8) {
+            ProgressView().tint(.mugshotSage)
+            Text("Refreshing saved cafes…")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondaryText)
+        }
+    }
+
+    private func remoteRecoveryStatus(message: String) -> some View {
+        MugshotRecoveryCard(
+            title: "Couldn’t refresh saved cafes",
+            message: message,
+            actionTitle: "Retry"
+        ) {
+            Task { await loadRemoteCafeStates() }
+        }
+    }
+
+    private var shouldShowRemoteStateStatus: Bool {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario?.showsForcedSavedStatus == true {
+            return true
+        }
+#endif
+        return authModel.authenticatedUser != nil
     }
 
     @MainActor
     private func loadRemoteCafeStates() async {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario != nil {
+            isLoadingRemoteStates = false
+            remoteStateError = nil
+            remoteCafeCoverURLs = [:]
+            return
+        }
+#endif
         guard let userId = authModel.authenticatedUser?.id else {
             remoteStateError = nil
             remoteCafeCoverURLs = [:]
@@ -590,10 +643,12 @@ private struct CommunityDrinkCount: Identifiable {
 struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
+    let initialDetent: PresentationDetent
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showLogVisit = false
     @State private var isSyncingCafeState = false
     @State private var cafeStateError: String?
@@ -605,6 +660,24 @@ struct CafeDetailView: View {
     @State private var cafeExperienceSummary: RemoteCafeExperienceSummary?
     @State private var isLoadingCafeExperienceSummary = false
     @State private var cafeExperienceSummaryError: String?
+    @State private var selectedDetent: PresentationDetent
+    @State private var showListMembership = false
+    @State private var showReportUnavailable = false
+
+    init(
+        cafe: Cafe,
+        dataManager: DataManager,
+        initialDetent: PresentationDetent = .large,
+        onLogVisitRequested: ((Cafe) -> Void)? = nil,
+        onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
+    ) {
+        self.cafe = cafe
+        self.dataManager = dataManager
+        self.initialDetent = initialDetent
+        self.onLogVisitRequested = onLogVisitRequested
+        self.onAuthenticationRequired = onAuthenticationRequired
+        _selectedDetent = State(initialValue: initialDetent)
+    }
 
     var currentCafe: Cafe {
         dataManager.getCafe(id: cafe.id) ?? cafe
@@ -639,64 +712,13 @@ struct CafeDetailView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Hero image - user photos > placeholder
-                    if let imagePath = heroImagePath {
-                        if imagePath.hasPrefix("http") {
-                            RemotePhotoImageView(
-                                urlString: imagePath,
-                                placeholderSystemName: "photo",
-                                contentMode: .fit
-                            )
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 250)
-                                .background(Color.sandBeige.opacity(0.7))
-                                .clipped()
-                        } else {
-                            PhotoImageView(photoPath: imagePath, contentMode: .fit)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 250)
-                                .background(Color.sandBeige.opacity(0.7))
-                                .clipped()
-                        }
-                    } else {
-                        Rectangle()
-                            .fill(Color.sandBeige.opacity(0.7))
-                            .frame(height: 250)
-                            .overlay(
-                                VStack(spacing: 10) {
-                                    Image(systemName: "cup.and.saucer.fill")
-                                        .font(.system(size: 44, weight: .semibold))
-                                    Text("No cafe photo yet")
-                                        .font(.system(size: 14, weight: .semibold))
-                                }
-                                .foregroundColor(.roastBrown.opacity(0.46))
-                            )
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 20) {
-                        cafeSummarySection
-                            .padding(.horizontal)
-                        .padding(.top, 20)
-
-                        detailPrimaryAction
-                            .padding(.horizontal)
-
-                        personalRelationshipSection
-                            .padding(.horizontal)
-
-                        if shouldShowRemoteVisits && !remoteVisits.isEmpty {
-                            communityHighlightsSection
-                                .padding(.horizontal)
-                        }
-
-                        recentVisitsSection
-
-                        detailUtilitiesSection
-                            .padding(.horizontal)
-                    }
-                    .padding(.bottom, 20)
+            Group {
+                if selectedDetent == .height(258) {
+                    compactDetail
+                } else if selectedDetent == .medium {
+                    mediumDetail
+                } else {
+                    expandedDetail
                 }
             }
             .background(Color.creamWhite)
@@ -707,6 +729,7 @@ struct CafeDetailView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityLabel("Close cafe card")
                 }
             }
             .sheet(isPresented: $showLogVisit, onDismiss: {
@@ -716,6 +739,18 @@ struct CafeDetailView: View {
                 }
             }) {
                 LogVisitView(dataManager: dataManager, preselectedCafe: currentCafe)
+            }
+            .sheet(isPresented: $showListMembership) {
+                CafeListMembershipSheet(
+                    cafe: currentCafe,
+                    dataManager: dataManager,
+                    onAuthenticationRequired: onAuthenticationRequired
+                )
+            }
+            .alert("Reporting is coming soon", isPresented: $showReportUnavailable) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Mugshot does not yet send cafe data reports. No report was submitted.")
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -741,6 +776,227 @@ struct CafeDetailView: View {
                 await loadCafeExperienceSummary()
             }
         }
+        .presentationDetents([.height(258), .medium, .large], selection: $selectedDetent)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.creamWhite)
+        .accessibilityIdentifier("cafe.detail.sheet")
+    }
+
+    private var compactDetail: some View {
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                detailIdentityImage(size: 72)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(currentCafe.consumerDisplayName)
+                        .mugshotDisplay(size: 22)
+                        .foregroundColor(.espressoBrown)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let compactMetadataLine {
+                        Text(compactMetadataLine)
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            detailPrimaryAction
+
+            Button {
+                withAnimation(DesignSystem.Motion.base) { selectedDetent = .medium }
+            } label: {
+                Label("More details", systemImage: "chevron.up")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.mugshotSageText)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Expands cafe details")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+    }
+
+    private var mediumDetail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 10) {
+                            detailIdentityImage(size: 96)
+                            Text(currentCafe.consumerDisplayName)
+                                .mugshotDisplay(size: 24)
+                                .foregroundColor(.espressoBrown)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let compactMetadataLine {
+                                Text(compactMetadataLine)
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: 12) {
+                            detailIdentityImage(size: 78)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(currentCafe.consumerDisplayName)
+                                    .mugshotDisplay(size: 24)
+                                    .foregroundColor(.espressoBrown)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let metadataLine {
+                                    Text(metadataLine)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                detailPrimaryAction
+                detailUtilitiesSection
+                personalRelationshipSection
+
+                Button {
+                    withAnimation(DesignSystem.Motion.base) { selectedDetent = .large }
+                } label: {
+                    Label("See full cafe details", systemImage: "chevron.up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.mugshotSageText)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var expandedDetail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    detailHero
+                }
+
+                VStack(alignment: .leading, spacing: 20) {
+                    cafeSummarySection
+                    detailPrimaryAction
+                    detailUtilitiesSection
+                    personalRelationshipSection
+
+                    recentVisitsSection
+
+                    if shouldShowRemoteVisits && !communityRemoteVisits.isEmpty {
+                        communityHighlightsSection
+                    }
+
+                    secondaryActionsSection
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 36)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailHero: some View {
+        if let imagePath = heroImagePath {
+            ZStack(alignment: .bottomLeading) {
+                Group {
+                    if imagePath.hasPrefix("http") {
+                        RemotePhotoImageView(urlString: imagePath, placeholderSystemName: "photo", contentMode: .fill)
+                    } else {
+                        PhotoImageView(photoPath: imagePath, contentMode: .fill)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+                .clipped()
+
+                Text(heroPhotoProvenance)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.foamWhite)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 30)
+                    .background(.black.opacity(0.58), in: Capsule())
+                    .padding(12)
+            }
+        } else {
+            VStack(spacing: 4) {
+                MugsyModelView(configuration: MugsyModelConfiguration(
+                    expression: .curious,
+                    prop: .guidebookAndPen,
+                    outfit: .cafeScout
+                ))
+                .frame(width: 128, height: 128)
+                Text("No photo yet")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.roastBrown)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 220)
+            .background(Color.sandBeige.opacity(0.72))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("No cafe photo yet")
+        }
+    }
+
+    @ViewBuilder
+    private func detailIdentityImage(size: CGFloat) -> some View {
+        if let imagePath = heroImagePath {
+            Group {
+                if imagePath.hasPrefix("http") {
+                    RemotePhotoImageView(urlString: imagePath, placeholderSystemName: "photo", contentMode: .fill)
+                } else {
+                    PhotoImageView(photoPath: imagePath, contentMode: .fill)
+                }
+            }
+            .frame(width: size, height: size)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            MugsyModelView(configuration: MugsyModelConfiguration(
+                expression: .curious,
+                prop: .guidebookAndPen,
+                outfit: .cafeScout
+            ))
+            .frame(width: size, height: size)
+            .background(Color.sandBeige.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityLabel("No cafe photo yet")
+        }
+    }
+
+    private var metadataLine: String? {
+        [currentCafe.consumerPlaceCategory, currentCafe.address.remoteTrimmedNonEmpty]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+            .remoteTrimmedNonEmpty
+    }
+
+    private var compactMetadataLine: String? {
+        let shortAddress = currentCafe.address.remoteTrimmedNonEmpty?
+            .split(separator: ",", maxSplits: 1)
+            .first
+            .map(String.init)
+        return [currentCafe.consumerPlaceCategory, shortAddress]
+            .compactMap { $0?.remoteTrimmedNonEmpty }
+            .joined(separator: " · ")
+            .remoteTrimmedNonEmpty
+    }
+
+    private var heroPhotoProvenance: String {
+        guard let heroImagePath else { return "No cafe photo yet" }
+        if !heroImagePath.hasPrefix("http") { return "Photo from your Mugshot" }
+        if ownRemoteVisits.contains(where: { $0.visit.posterPhotoURL == heroImagePath }) {
+            return "Photo from your Mugshot"
+        }
+        return "Photo from a visible Mugshot"
     }
 
     private var remoteVisitTaskID: String {
@@ -748,6 +1004,24 @@ struct CafeDetailView: View {
             authModel.authenticatedUser?.id.uuidString ?? "signed-out",
             currentCafe.remoteCafeId?.uuidString ?? "local"
         ].joined(separator: "-")
+    }
+
+    private var isPresentingCafeExperienceLoading: Bool {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .detailLoading {
+            return true
+        }
+#endif
+        return isLoadingCafeExperienceSummary
+    }
+
+    private var presentedCafeExperienceError: String? {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .detailError {
+            return "Cafe relationship could not refresh."
+        }
+#endif
+        return cafeExperienceSummaryError
     }
 
     private var cafeSummarySection: some View {
@@ -788,26 +1062,21 @@ struct CafeDetailView: View {
 
     private var detailStatsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            relationshipTruthHeader(
-                title: "The Cafe",
-                systemImage: "storefront.fill"
-            )
-
-            HStack(spacing: 10) {
-                detailStatCard(
-                    title: "Cafe average",
-                    value: cafeAverageDisplayValue,
-                    systemImage: "star.fill"
-                )
-
-                detailStatCard(
-                    title: "Physical visits",
-                    value: cafePhysicalVisitDisplayValue,
-                    systemImage: "door.left.hand.open"
-                )
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 10) {
+                        personalSipAverageCard
+                        cafeReflectionCard
+                    }
+                } else {
+                    HStack(spacing: 10) {
+                        personalSipAverageCard
+                        cafeReflectionCard
+                    }
+                }
             }
             .redacted(
-                reason: isLoadingCafeExperienceSummary && cafeExperienceSummary == nil
+                reason: isPresentingCafeExperienceLoading && cafeExperienceSummary == nil
                     ? .placeholder
                     : []
             )
@@ -816,35 +1085,42 @@ struct CafeDetailView: View {
                 cafeRelationshipEvidence(summary)
             }
 
-            if let cafeExperienceSummaryError {
-                Label(cafeExperienceSummaryError, systemImage: "exclamationmark.circle")
+            Text(personalHistoryLine)
+                .font(.system(size: 13))
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let favoriteDrinkEvidence {
+                Label(favoriteDrinkEvidence, systemImage: "cup.and.saucer")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.mugshotSageText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let presentedCafeExperienceError {
+                Label(presentedCafeExperienceError, systemImage: "exclamationmark.circle")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.tertiaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Divider()
-                .overlay(Color.mugshotLine)
-
-            relationshipTruthHeader(
-                title: "The Sip",
-                systemImage: "cup.and.saucer.fill"
-            )
-
-            HStack(spacing: 10) {
-                detailStatCard(
-                    title: "Sip average",
-                    value: personalAverageRating.map { String(format: "%.1f", $0) } ?? "—",
-                    systemImage: "star.fill"
-                )
-
-                detailStatCard(
-                    title: "Your sips",
-                    value: "\(personalSipCount)",
-                    systemImage: "cup.and.saucer.fill"
-                )
-            }
         }
+    }
+
+    private var personalSipAverageCard: some View {
+        detailStatCard(
+            title: "Personal sip average",
+            value: personalAverageRating.map { String(format: "%.1f", $0) } ?? "—",
+            systemImage: "cup.and.saucer.fill"
+        )
+    }
+
+    private var cafeReflectionCard: some View {
+        detailStatCard(
+            title: "Cafe reflection",
+            value: cafeAverageDisplayValue,
+            systemImage: "storefront.fill"
+        )
     }
 
     private var detailPrimaryAction: some View {
@@ -863,7 +1139,7 @@ struct CafeDetailView: View {
             showLogVisit = true
         } label: {
             Label("Log a Sip", systemImage: "plus.circle.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.headline)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(PrimaryButtonStyle())
@@ -890,7 +1166,12 @@ struct CafeDetailView: View {
             }
         }
         .padding(16)
-        .cardStyle()
+        .background(Color.mugshotMint.opacity(0.22))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                .stroke(Color.mugshotSage.opacity(0.28))
+        )
     }
 
     private var ownRemoteVisits: [RemoteVisitSummary] {
@@ -898,15 +1179,20 @@ struct CafeDetailView: View {
         return remoteVisits.filter { $0.visit.userId == userID }
     }
 
+    private var communityRemoteVisits: [RemoteVisitSummary] {
+        guard let userID = authModel.authenticatedUser?.id else { return remoteVisits }
+        return remoteVisits.filter { $0.visit.userId != userID }
+    }
+
     private var personalSipCount: Int {
         max(visits.count, ownRemoteVisits.count)
     }
 
     private var cafeAverageDisplayValue: String {
-        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
-            return "4.5"
+        if isPresentingCafeExperienceLoading, cafeExperienceSummary == nil {
+            return "—"
         }
-        if cafeExperienceSummaryError != nil, cafeExperienceSummary == nil {
+        if presentedCafeExperienceError != nil, cafeExperienceSummary == nil {
             return "Unavailable"
         }
         guard let summary = cafeExperienceSummary,
@@ -918,8 +1204,8 @@ struct CafeDetailView: View {
     }
 
     private var cafePhysicalVisitDisplayValue: String {
-        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
-            return "2"
+        if isPresentingCafeExperienceLoading, cafeExperienceSummary == nil {
+            return "—"
         }
         return cafeExperienceSummary.map { "\($0.physicalSessionCount)" } ?? "—"
     }
@@ -947,6 +1233,31 @@ struct CafeDetailView: View {
             return "One of your favorite cafes"
         }
         return "New to you — log a sip or save it for later"
+    }
+
+    private var personalHistoryLine: String {
+        let remoteDate = ownRemoteVisits.map(\.visit.createdAtDate).max()
+        let localDate = visits.map(\.createdAt).max()
+        let lastDate = [remoteDate, localDate].compactMap { $0 }.max()
+        let count = personalSipCount
+        let visitText = "\(count) \(count == 1 ? "sip" : "sips")"
+        if let lastDate {
+            return "\(visitText) · Last sip \(lastDate.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return "No personal sips yet"
+    }
+
+    private var favoriteDrinkEvidence: String? {
+        let names = ownRemoteVisits.map(\.visit.drinkDisplayName)
+            + visits.map(\.journalDrinkName)
+        guard !names.isEmpty else { return nil }
+        let counts = Dictionary(grouping: names, by: { $0 }).mapValues(\.count)
+        guard let favorite = counts.max(by: { lhs, rhs in
+            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+        }) else { return nil }
+        return favorite.value > 1
+            ? "\(favorite.key) · ordered \(favorite.value) times"
+            : favorite.key
     }
 
     private func relationshipTruthHeader(title: String, systemImage: String) -> some View {
@@ -991,16 +1302,15 @@ struct CafeDetailView: View {
     }
 
     private var detailUtilitiesSection: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10)
-        ]
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: 8),
+            count: dynamicTypeSize.isAccessibilitySize ? 1 : 4
+        )
 
-        return VStack(alignment: .leading, spacing: 12) {
-            MugshotSectionTitle(title: "Cafe actions")
+        return VStack(alignment: .leading, spacing: 10) {
             LazyVGrid(columns: columns, spacing: 10) {
                 detailActionButton(
-                    title: "Favorite",
+                    title: currentCafe.isFavorite ? "Favorited" : "Favorite",
                     systemImage: currentCafe.isFavorite ? "heart.fill" : "heart",
                     isSelected: currentCafe.isFavorite,
                     action: toggleFavorite
@@ -1016,21 +1326,19 @@ struct CafeDetailView: View {
                 .disabled(isSyncingCafeState)
 
                 detailActionButton(
+                    title: "Lists",
+                    systemImage: "rectangle.stack.fill",
+                    isSelected: false,
+                    action: presentListMembership
+                )
+
+                detailActionButton(
                     title: "Directions",
-                    systemImage: "location.north.circle",
+                    systemImage: "location.north.fill",
                     isSelected: false,
                     action: openInMaps
                 )
-
-                if let websiteURL = currentCafe.websiteURL, !websiteURL.isEmpty {
-                    detailActionButton(
-                        title: "Website",
-                        systemImage: "safari",
-                        isSelected: false
-                    ) {
-                        openWebsite(urlString: websiteURL)
-                    }
-                }
+                .disabled(currentCafe.location == nil)
             }
 
             if let cafeStateError {
@@ -1044,12 +1352,12 @@ struct CafeDetailView: View {
     }
 
     private var communityHighlightsSection: some View {
-        let friendVisits = Set(remoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
+        let friendVisits = Set(communityRemoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
 
         return VStack(alignment: .leading, spacing: 10) {
             MugshotSectionTitle(
-                title: friendVisits == 0 ? "Community favorites" : "Friends at this cafe",
-                subtitle: friendVisits == 0 ? "Top drinks from visible sips" : "\(friendVisits) friends have shared sips here"
+                title: friendVisits == 0 ? "Community at this cafe" : "Friends at this cafe",
+                subtitle: friendVisits == 0 ? "From visible community Mugshots" : "\(friendVisits) friends have shared visible Mugshots here"
             )
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -1065,7 +1373,7 @@ struct CafeDetailView: View {
 
     private var communityDrinkCounts: [CommunityDrinkCount] {
         var counts: [String: Int] = [:]
-        for visit in remoteVisits {
+        for visit in communityRemoteVisits {
             counts[visit.visit.drinkDisplayName, default: 0] += 1
         }
         return counts
@@ -1076,19 +1384,20 @@ struct CafeDetailView: View {
     private func detailStatCard(title: String, value: String, systemImage: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 20 : 12, weight: .semibold))
                 .foregroundColor(.espressoBrown.opacity(0.58))
 
             Text(value)
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 28 : 22, weight: .bold))
                 .foregroundColor(.espressoBrown)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.sandBeige.opacity(0.58))
+        .background(Color.foamWhite.opacity(0.94))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine))
     }
 
     private func detailActionButton(
@@ -1098,13 +1407,30 @@ struct CafeDetailView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-                .lineLimit(1)
-                .minimumScaleFactor(0.84)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    HStack(spacing: 12) {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 20, weight: .semibold))
+                            .frame(width: 28)
+                        Text(title)
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                } else {
+                    VStack(spacing: 7) {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 20, weight: .semibold))
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+                .foregroundColor(isSelected ? .mugshotSageText : .espressoBrown)
+                .frame(maxWidth: .infinity, minHeight: 78)
                 .background(isSelected ? Color.mugshotSage.opacity(0.34) : Color.sandBeige.opacity(0.55))
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
                 .overlay(
@@ -1113,6 +1439,8 @@ struct CafeDetailView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -1152,7 +1480,7 @@ struct CafeDetailView: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            if isLoadingRemoteVisits && remoteVisits.isEmpty {
+            if isLoadingRemoteVisits && ownRemoteVisits.isEmpty && visits.isEmpty {
                 MugshotLoadingState(layout: .journal, count: 2)
                     .padding(.horizontal)
             } else if let remoteVisitError {
@@ -1161,7 +1489,7 @@ struct CafeDetailView: View {
                     .foregroundColor(.red.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
-            } else if remoteVisits.isEmpty && !isLoadingRemoteVisits {
+            } else if ownRemoteVisits.isEmpty && !isLoadingRemoteVisits {
                 if !visits.isEmpty {
                     ForEach(visits.prefix(5)) { visit in
                         VisitRow(visit: visit, dataManager: dataManager)
@@ -1177,7 +1505,7 @@ struct CafeDetailView: View {
                         .padding(.vertical, 12)
                 }
             } else {
-                ForEach(remoteVisits.prefix(5)) { visit in
+                ForEach(ownRemoteVisits.prefix(5)) { visit in
                     RemoteCafeVisitRow(visit: visit) {
                         selectedRemoteVisit = visit
                     }
@@ -1186,6 +1514,75 @@ struct CafeDetailView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    private var secondaryActionsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let websiteURL = currentCafe.websiteURL?.remoteTrimmedNonEmpty {
+                Button {
+                    openWebsite(urlString: websiteURL)
+                } label: {
+                    secondaryActionRow("Website", systemImage: "safari")
+                }
+                .buttonStyle(.plain)
+            }
+
+            ShareLink(
+                item: [currentCafe.consumerDisplayName, currentCafe.address.remoteTrimmedNonEmpty]
+                    .compactMap { $0 }
+                    .joined(separator: " — ")
+            ) {
+                secondaryActionRow("Share cafe", systemImage: "square.and.arrow.up")
+            }
+
+            if let address = currentCafe.address.remoteTrimmedNonEmpty {
+                Button {
+                    UIPasteboard.general.string = address
+                } label: {
+                    secondaryActionRow("Copy address", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                showReportUnavailable = true
+            } label: {
+                secondaryActionRow("Report a data issue", systemImage: "exclamationmark.bubble")
+            }
+            .buttonStyle(.plain)
+        }
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
+    }
+
+    private func secondaryActionRow(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.mugshotSageText)
+                .frame(width: 28)
+            Text(title)
+                .font(.system(size: 15))
+                .foregroundColor(.espressoBrown)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.tertiaryText)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 52)
+        .contentShape(Rectangle())
+    }
+
+    private func presentListMembership() {
+        guard authModel.authenticatedUser != nil else {
+            onAuthenticationRequired?(
+                "Keep cafe lists in sync",
+                "Sign in to add this cafe to a private or shared list."
+            )
+            return
+        }
+        showListMembership = true
     }
     
     private func openInMaps() {
@@ -1327,10 +1724,30 @@ struct CafeDetailView: View {
             )
         }
 
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .saveFailure {
+            isSyncingCafeState = true
+            cafeStateError = nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                dataManager.setCafeState(
+                    cafeId: previousCafe.id,
+                    isFavorite: previousCafe.isFavorite,
+                    wantToTry: previousCafe.wantToTry
+                )
+                cafeStateError = "Could not save cafe state."
+                isSyncingCafeState = false
+            }
+            return
+        }
+#endif
+
         guard let userId = authModel.authenticatedUser?.id else {
             return
         }
 
+        isSyncingCafeState = true
+        cafeStateError = nil
         Task {
             await saveRemoteCafeState(
                 previousCafe: previousCafe,
