@@ -779,7 +779,10 @@ struct RemoteFeedVisitCard: View {
 
     private var feedMediaSource: MugshotPostMediaSource {
         guard let reference = visit.visit.posterPhotoURL?.remoteTrimmedNonEmpty else {
-            return .placeholder(usesMugsyFallback: usesMugsyPhotoFallback)
+            return .placeholder(
+                usesMugsyFallback: usesMugsyPhotoFallback,
+                stableID: visit.id.uuidString
+            )
         }
 #if DEBUG
         if reference.hasPrefix("asset://") {
@@ -916,29 +919,22 @@ extension RemoteVisitSummary {
 
 struct RemoteFeedNoPhotoPoster: View {
     var usesMugsyFallback = false
+    var stableID = "feed-no-photo"
 
     var body: some View {
         VStack(spacing: 10) {
             Spacer(minLength: 20)
 
-            if usesMugsyFallback {
-                MugsyAnimatedView(
-                    configuration: MugsyModelConfiguration(
-                        expression: .curious,
-                        prop: .camera,
-                        pose: .leaningLeft
-                    ),
-                    action: .resting
-                )
-                .frame(width: 76, height: 78)
-                .accessibilityHidden(true)
-            } else {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundColor(.roastBrown.opacity(0.42))
-            }
+            MugsyModelView(
+                configuration: MugsySceneResolver.scene(
+                    for: usesMugsyFallback ? .missedSipPhoto : .sipMemory,
+                    stableID: stableID
+                ).configuration
+            )
+            .frame(width: 82, height: 84)
+            .accessibilityHidden(true)
 
-            Text(usesMugsyFallback ? "Oops, missed the photo" : "Taste memory")
+            Text(usesMugsyFallback ? "Mugsy kept the memory" : "Taste memory")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondaryText)
 
@@ -1002,7 +998,8 @@ struct VisitCard: View {
                 visitID: visit.id,
                 mediaSource: visit.posterImagePath.map(MugshotPostMediaSource.local)
                     ?? .placeholder(
-                        usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto
+                        usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto,
+                        stableID: visit.id.uuidString
                     ),
                 drinkName: localDrinkDisplayName,
                 locationName: localLocationName,
@@ -1402,7 +1399,8 @@ struct VisitDetailView: View {
         if orderedPhotos.isEmpty {
             SipEmptyPhotoBackdrop(
                 title: "No photo saved",
-                message: "This sip still has its taste memory, notes, and social thread."
+                message: "This sip still has its taste memory, notes, and social thread.",
+                stableID: visit.id.uuidString
             )
         } else {
             TabView(selection: $selectedPhotoIndex) {

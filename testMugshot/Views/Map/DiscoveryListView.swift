@@ -417,11 +417,17 @@ private struct DiscoveryCafeRow: View {
                 if let cover = cafe.recentCover {
                     RemotePhotoImageView(urlString: cover, placeholderSystemName: "cup.and.saucer.fill", contentMode: .fill)
                 } else {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.mugshotSage)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.mugshotMint.opacity(0.32))
+                    MugsyPhotoPlaceholderView(
+                        scene: MugsySceneResolver.cafePhoto(
+                            stableID: cafe.id.uuidString,
+                            origin: cafe.friendCount > 0 ? .friends : .discovery,
+                            isFavorite: cafe.isSaved && cafe.isVisited,
+                            wantToTry: cafe.isSaved && !cafe.isVisited,
+                            hasVisited: cafe.isVisited
+                        ),
+                        style: .identity,
+                        photoDescription: "No cafe photo yet"
+                    )
                 }
             }
             .frame(width: 82, height: 82)

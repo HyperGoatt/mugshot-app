@@ -348,39 +348,43 @@ struct SavedCafeImage: View {
             .remoteTrimmedNonEmpty
     }
 
+    private var resolvedCommunityImageURL: String? {
+        communityImageURL?.remoteTrimmedNonEmpty
+    }
+
+    private var scene: MugsyScene {
+        MugsySceneResolver.cafePhoto(
+            stableID: cafe.id.uuidString,
+            origin: .library,
+            isFavorite: cafe.isFavorite,
+            wantToTry: cafe.wantToTry,
+            hasVisited: max(cafe.visitCount, dataManager.getVisitsForCafe(cafe.id).count) > 0
+        )
+    }
+
     var body: some View {
         Group {
             if let imagePath {
                 PhotoThumbnailView(photoPath: imagePath, size: size)
-            } else if let communityImageURL = communityImageURL?.remoteTrimmedNonEmpty {
+            } else if let communityImageURL = resolvedCommunityImageURL {
                 RemotePhotoImageView(
                     urlString: communityImageURL,
                     placeholderSystemName: "photo",
                     contentMode: .fill
                 )
             } else {
-                VStack(spacing: 2) {
-                    MugsyModelView(configuration: MugsyModelConfiguration(
-                        expression: .curious,
-                        prop: .guidebookAndPen,
-                        outfit: .cafeScout
-                    ))
-                    .frame(width: size * 0.62, height: size * 0.62)
-                    if size >= 90 {
-                        Text("No photo yet")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.roastBrown)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.sandBeige.opacity(0.72))
+                MugsyPhotoPlaceholderView(
+                    scene: scene,
+                    style: size >= 90 ? .card : .thumbnail,
+                    photoDescription: "No cafe photo yet"
+                )
             }
         }
         .frame(width: size, height: size)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: size >= 90 ? 16 : 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: size >= 90 ? 16 : 12).stroke(Color.mugshotLine))
-        .accessibilityLabel(imagePath == nil && communityImageURL == nil ? "No cafe photo yet" : "Cafe photo")
+        .accessibilityLabel(imagePath == nil && resolvedCommunityImageURL == nil ? "No cafe photo yet" : "Cafe photo")
     }
 }
 
@@ -500,10 +504,9 @@ struct CafeListMembershipSheet: View {
                     .padding(16)
                 } else if rows.isEmpty {
                     VStack(spacing: 14) {
-                        MugsyModelView(configuration: MugsyModelConfiguration(
-                            expression: .curious,
-                            prop: .guidebookAndPen
-                        ))
+                        MugsyModelView(
+                            configuration: MugsySceneFamily.happyBuilder.configuration
+                        )
                         .frame(width: 124, height: 124)
                         Text("No cafe lists yet")
                             .mugshotDisplay(size: 24)

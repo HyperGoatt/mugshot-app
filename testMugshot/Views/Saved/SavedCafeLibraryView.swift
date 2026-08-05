@@ -457,11 +457,7 @@ struct SavedTabView: View {
         let hasQuery = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasFilters = activeFilterCount > 0
         return VStack(spacing: 14) {
-            MugsyModelView(configuration: MugsyModelConfiguration(
-                expression: .curious,
-                prop: selectedCategory == .wantToTry ? .wishlistBadge : .guidebookAndPen,
-                outfit: .cafeScout
-            ))
+            MugsyModelView(configuration: emptyScene.configuration)
             .frame(width: 132, height: 132)
 
             Text(hasQuery || hasFilters ? "No cafes match" : emptyTitle)
@@ -484,6 +480,20 @@ struct SavedTabView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
         .padding(.vertical, 42)
+    }
+
+    private var emptyScene: MugsyScene {
+        let family: MugsySceneFamily
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || activeFilterCount > 0 {
+            family = .cheerfulCafeScout
+        } else {
+            switch selectedCategory {
+            case .favorites: family = .happyHeartKeeper
+            case .wantToTry: family = .delightedWishlistHolder
+            case .all: family = .playfulWavingMugsy
+            }
+        }
+        return MugsyScene(family: family, variant: selectedCategory.hashVariant)
     }
 
     private var emptyTitle: String {

@@ -539,17 +539,17 @@ struct CafeCard: View {
                     contentMode: .fill
                 )
             case .placeholder:
-                VStack(spacing: 8) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundColor(.espressoBrown.opacity(0.34))
-
-                    Text("Cafe")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.espressoBrown.opacity(0.52))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.sandBeige.opacity(0.66))
+                MugsyPhotoPlaceholderView(
+                    scene: MugsySceneResolver.cafePhoto(
+                        stableID: cafe.id.uuidString,
+                        origin: .library,
+                        isFavorite: cafe.isFavorite,
+                        wantToTry: cafe.wantToTry,
+                        hasVisited: displayedVisitCount > 0
+                    ),
+                    style: .card,
+                    photoDescription: "No cafe photo yet"
+                )
             }
         }
         .frame(width: 112, height: 142)
@@ -928,20 +928,14 @@ struct CafeDetailView: View {
                     .padding(12)
             }
         } else {
-            VStack(spacing: 4) {
-                MugsyModelView(configuration: MugsyModelConfiguration(
-                    expression: .curious,
-                    prop: .guidebookAndPen,
-                    outfit: .cafeScout
-                ))
-                .frame(width: 128, height: 128)
-                Text("No photo yet")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.roastBrown)
-            }
+            MugsyPhotoPlaceholderView(
+                scene: detailPhotoScene,
+                style: .hero,
+                photoDescription: "No cafe photo yet",
+                animatesProminentMugsy: true
+            )
             .frame(maxWidth: .infinity)
             .frame(height: 220)
-            .background(Color.sandBeige.opacity(0.72))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("No cafe photo yet")
         }
@@ -961,15 +955,25 @@ struct CafeDetailView: View {
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         } else {
-            MugsyModelView(configuration: MugsyModelConfiguration(
-                expression: .curious,
-                prop: .guidebookAndPen,
-                outfit: .cafeScout
-            ))
+            MugsyPhotoPlaceholderView(
+                scene: detailPhotoScene,
+                style: .identity,
+                photoDescription: "No cafe photo yet"
+            )
             .frame(width: size, height: size)
-            .background(Color.sandBeige.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .accessibilityLabel("No cafe photo yet")
         }
+    }
+
+    private var detailPhotoScene: MugsyScene {
+        MugsySceneResolver.cafePhoto(
+            stableID: currentCafe.id.uuidString,
+            origin: .library,
+            isFavorite: currentCafe.isFavorite,
+            wantToTry: currentCafe.wantToTry,
+            hasVisited: max(currentCafe.visitCount, visits.count) > 0 || !remoteVisits.isEmpty
+        )
     }
 
     private var metadataLine: String? {

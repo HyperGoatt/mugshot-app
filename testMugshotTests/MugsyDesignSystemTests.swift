@@ -131,7 +131,7 @@ struct MugsyDesignSystemTests {
         #expect(MugsyPlacement.savedFavorites.configuration.prop == .favoriteHeart)
         #expect(MugsyPlacement.friendsEmpty.configuration.prop == .friendsPhone)
         #expect(MugsyPlacement.camera.configuration.outfit == .cameraCompanion)
-        #expect(MugsyPlacement.camera.configuration.expression == .curious)
+        #expect(MugsyPlacement.camera.configuration.expression == .delighted)
         #expect(MugsyPlacement.comingSoon.configuration.outfit == .builder)
 
         #expect(MugsyPlacement.savedWishlist.tapBehavior == .playfulCycle)
@@ -149,6 +149,100 @@ struct MugsyDesignSystemTests {
         for placement in MugsyPlacement.allCases {
             #expect(placement.configuration.hasPermanentGlasses)
             #expect(placement.configuration.usesPermanentWhiteCeramic)
+            #expect(
+                placement.configuration.expression.isPositiveProductExpression,
+                "\(placement.rawValue) must use a positive product expression"
+            )
+        }
+    }
+
+    @Test("Dynamic Mugsy registry contains exactly ten positive scene families")
+    func positiveSceneFamilyRegistry() {
+        #expect(MugsySceneFamily.allCases.count == 10)
+        #expect(Set(MugsySceneFamily.allCases.map(\.title)).count == 10)
+
+        for family in MugsySceneFamily.allCases {
+            let configuration = family.configuration
+            #expect(configuration.expression.isPositiveProductExpression)
+            #expect(configuration.hasPermanentGlasses)
+            #expect(configuration.usesPermanentWhiteCeramic)
+        }
+    }
+
+    @Test("Scene selection is deterministic across stable identifiers")
+    func deterministicSceneSelection() {
+        let first = MugsySceneResolver.scene(
+            for: .cafePhoto(
+                origin: .library,
+                isFavorite: false,
+                wantToTry: false,
+                hasVisited: false
+            ),
+            stableID: "60000000-0000-4000-8000-000000000006"
+        )
+        let second = MugsySceneResolver.scene(
+            for: .cafePhoto(
+                origin: .library,
+                isFavorite: false,
+                wantToTry: false,
+                hasVisited: false
+            ),
+            stableID: "60000000-0000-4000-8000-000000000006"
+        )
+
+        #expect(first == second)
+        #expect(MugsySceneResolver.stableSeed(for: "Mugshot") == 17_620_294_719_749_117_680)
+    }
+
+    @Test("Cafe relationship takes precedence over generic origin")
+    func cafeRelationshipPrecedence() {
+        let id = "70000000-0000-4000-8000-000000000007"
+
+        let visited = MugsySceneResolver.cafePhoto(
+            stableID: id,
+            origin: .discovery,
+            isFavorite: true,
+            wantToTry: true,
+            hasVisited: true
+        )
+        let wantToTry = MugsySceneResolver.cafePhoto(
+            stableID: id,
+            origin: .friends,
+            isFavorite: true,
+            wantToTry: true,
+            hasVisited: false
+        )
+        let favorite = MugsySceneResolver.cafePhoto(
+            stableID: id,
+            origin: .sharedList,
+            isFavorite: true,
+            wantToTry: false,
+            hasVisited: false
+        )
+        let friend = MugsySceneResolver.cafePhoto(
+            stableID: id,
+            origin: .friends,
+            isFavorite: false,
+            wantToTry: false,
+            hasVisited: false
+        )
+
+        #expect(visited.family == .proudCameraCompanion)
+        #expect(wantToTry.family == .delightedWishlistHolder)
+        #expect(favorite.family == .happyHeartKeeper)
+        #expect(friend.family == .welcomingFriendsPhone)
+    }
+
+    @Test("Stable variants preserve the scene family meaning")
+    func stableVariantsPreserveFamily() {
+        for family in MugsySceneFamily.allCases {
+            for variant in 0..<8 {
+                let scene = MugsyScene(family: family, variant: variant)
+                #expect(scene.family == family)
+                #expect(scene.configuration.prop == family.configuration.prop)
+                #expect(scene.configuration.outfit == family.configuration.outfit)
+                #expect(scene.configuration.expression.isPositiveProductExpression)
+            }
         }
     }
 }

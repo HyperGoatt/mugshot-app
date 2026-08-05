@@ -906,7 +906,10 @@ struct SipDetailScreen: View {
     private func heroHeight(for width: CGFloat) -> CGFloat {
         let authorHeight: CGFloat = dynamicTypeSize.isAccessibilitySize ? 116 : 82
         let source = presentation.content.photos.first?.postMediaSource
-            ?? .placeholder(usesMugsyFallback: presentation.content.usesMugsyPhotoFallback)
+            ?? .placeholder(
+                usesMugsyFallback: presentation.content.usesMugsyPhotoFallback,
+                stableID: presentation.content.id.uuidString
+            )
         let ratio = MugshotPostAspectRatioCache.shared.ratio(for: source.cacheKey)
             ?? MugshotPostAspectRatioPolicy.fallback
         let mediaHeight = max(width - 40, 1) / ratio
@@ -1395,6 +1398,7 @@ private struct SipDetailHero: View {
                 SipDetailPhotoPager(
                     photos: model.photos,
                     usesMugsyFallback: model.usesMugsyPhotoFallback,
+                    stableID: model.id.uuidString,
                     selectedIndex: $selectedPhotoIndex,
                     onTap: onPhotoTap
                 )
@@ -1408,20 +1412,27 @@ private struct SipDetailHero: View {
 
     private var firstMediaSource: MugshotPostMediaSource {
         model.photos.first?.postMediaSource
-            ?? .placeholder(usesMugsyFallback: model.usesMugsyPhotoFallback)
+            ?? .placeholder(
+                usesMugsyFallback: model.usesMugsyPhotoFallback,
+                stableID: model.id.uuidString
+            )
     }
 }
 
 private struct SipDetailPhotoPager: View {
     let photos: [SipDetailPhotoSource]
     let usesMugsyFallback: Bool
+    let stableID: String
     @Binding var selectedIndex: Int
     let onTap: (Int) -> Void
 
     var body: some View {
         Group {
             if photos.isEmpty {
-                SipDetailNoPhotoSurface(usesMugsyFallback: usesMugsyFallback)
+                SipDetailNoPhotoSurface(
+                    usesMugsyFallback: usesMugsyFallback,
+                    stableID: stableID
+                )
             } else {
                 TabView(selection: $selectedIndex) {
                     ForEach(Array(photos.enumerated()), id: \.element.id) { index, source in
@@ -1597,47 +1608,17 @@ private struct SipDetailViewerPhoto: View {
 
 private struct SipDetailNoPhotoSurface: View {
     let usesMugsyFallback: Bool
+    let stableID: String
 
     var body: some View {
-        ZStack {
-            Color.sandBeige.opacity(0.56)
-
-            Circle()
-                .fill(Color.mugshotMint.opacity(0.28))
-                .frame(width: 210, height: 210)
-                .offset(x: 132, y: -82)
-
-            VStack(spacing: 12) {
-                if usesMugsyFallback {
-                    MugsyModelView(configuration: MugsyModelConfiguration(
-                        expression: .curious,
-                        prop: .camera,
-                        pose: .leaningLeft
-                    ))
-                    .frame(width: 118, height: 118)
-                } else {
-                    Image(systemName: "cup.and.saucer")
-                        .font(.system(size: 50, weight: .light))
-                        .foregroundStyle(Color.mugshotSage)
-                }
-
-                VStack(spacing: 7) {
-                    Text(usesMugsyFallback ? "Oops, missed the photo" : "No photo added")
-                        .font(.system(.title2, design: .serif, weight: .semibold))
-                        .foregroundStyle(Color.espressoBrown)
-                    Text(
-                        usesMugsyFallback
-                            ? "Mugsy saved this memory a spot."
-                            : "The story of this Mugshot still lives here."
-                    )
-                    .font(.system(.footnote, design: .default, weight: .medium))
-                    .foregroundStyle(Color.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.horizontal, 28)
-        }
+        MugsyPhotoPlaceholderView(
+            scene: MugsySceneResolver.scene(
+                for: usesMugsyFallback ? .missedSipPhoto : .sipMemory,
+                stableID: stableID
+            ),
+            style: .poster,
+            photoDescription: usesMugsyFallback ? "Missed sip photo" : "No sip photo"
+        )
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)

@@ -16,6 +16,10 @@ struct MugshotRootView: View {
 #if DEBUG
             if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
                 AutomaticSipRecoveryBannerPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowMugsySceneDesignQA {
+                NavigationStack {
+                    MugsyStudioView()
+                }
             } else if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
                 FeedRefreshPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowEditSipDesignQA {
@@ -39,6 +43,7 @@ struct MugshotRootView: View {
         }
         .environmentObject(authModel)
         .modifier(MugshotDebugDynamicTypeModifier())
+        .modifier(MugshotDebugReduceMotionModifier())
         .preferredColorScheme(.light)
         .task {
             guard !MugshotLaunchEnvironment.isUITesting else { return }
@@ -107,6 +112,21 @@ private struct MugshotDebugDynamicTypeModifier: ViewModifier {
 #if DEBUG
         if MugshotLaunchEnvironment.shouldUseAccessibilityXXXL {
             content.environment(\.dynamicTypeSize, .accessibility5)
+        } else {
+            content
+        }
+#else
+        content
+#endif
+    }
+}
+
+private struct MugshotDebugReduceMotionModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+#if DEBUG
+        if MugshotLaunchEnvironment.shouldUseReduceMotion {
+            content.environment(\.mugshotReduceMotionOverride, true)
         } else {
             content
         }

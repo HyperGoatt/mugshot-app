@@ -30,6 +30,8 @@ struct MugsyStudioView: View {
             LazyVStack(alignment: .leading, spacing: 24) {
                 introduction
 
+                MugsyPositiveSceneFamilySheet()
+
                 MugsyStudioSection(
                     eyebrow: "PRIMARY MASTER",
                     title: "Canonical neutral model",
@@ -59,7 +61,6 @@ struct MugsyStudioView: View {
                 MugsyLiquidSheet()
                 MugsyScaleMatrix()
                 MugsyBackgroundChecks()
-                MugsyReferenceComparison()
                 MugsyPaletteSheet()
             }
             .padding(.horizontal, 20)
@@ -92,7 +93,7 @@ struct MugsyStudioView: View {
         VStack(spacing: 14) {
             HStack(spacing: 12) {
                 Picker("Expression", selection: $expression) {
-                    ForEach(MugsyExpression.allCases) { expression in
+                    ForEach(MugsyExpression.allCases.filter(\.isPositiveProductExpression)) { expression in
                         Text(expression.title).tag(expression)
                     }
                 }
@@ -330,11 +331,11 @@ private struct MugsyExpressionSheet: View {
     var body: some View {
         MugsyStudioSection(
             eyebrow: "FACIAL LANGUAGE",
-            title: "Six-expression sheet",
-            note: "Only brows, eyelids, pupils, gaze, and mouth change. Mugsy's anatomy and glasses do not."
+            title: "Product-safe expression sheet",
+            note: "Production Mugsy scenes stay curious, delighted, or calmly engaged. Anatomy and glasses never change."
         ) {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(MugsyExpression.allCases) { expression in
+                ForEach(MugsyExpression.allCases.filter(\.isPositiveProductExpression)) { expression in
                     MugsySpecimenCard(title: expression.title) {
                         MugsyModelView(configuration: .init(expression: expression))
                             .frame(height: 144)
@@ -342,6 +343,57 @@ private struct MugsyExpressionSheet: View {
                 }
             }
         }
+    }
+}
+
+private struct MugsyPositiveSceneFamilySheet: View {
+    private let columns = [GridItem(.adaptive(minimum: 148), spacing: 12)]
+
+    var body: some View {
+        MugsyStudioSection(
+            eyebrow: "DYNAMIC EMPTY STATES",
+            title: "Ten joyful Mugsy scene families",
+            note: "Context chooses the family; a stable cafe or sip identifier chooses the pose and gaze variant. No family uses a sad, angry, or depressed production expression."
+        ) {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(Array(MugsySceneFamily.allCases.enumerated()), id: \.element.id) { index, family in
+                    VStack(spacing: 0) {
+                        MugsyPhotoPlaceholderView(
+                            scene: MugsyScene(family: family, variant: index % 4),
+                            style: .card,
+                            photoDescription: family.contextDescription
+                        )
+                        .frame(height: 150)
+
+                        VStack(spacing: 5) {
+                            Text(family.title)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.espressoBrown)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(family.contextDescription)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.black.opacity(0.07), lineWidth: 1)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(family.title). \(family.contextDescription)")
+                }
+            }
+        }
+        .accessibilityIdentifier("mugsy.studio.positiveScenes")
     }
 }
 
@@ -457,7 +509,7 @@ private struct MugsyInteractionSheet: View {
             LazyVGrid(columns: columns, spacing: 12) {
                 MugsySpecimenCard(title: "Tap to wave") {
                     MugsyAnimatedView(
-                        configuration: .init(expression: .tender),
+                        configuration: MugsySceneFamily.playfulWavingMugsy.configuration,
                         tapBehavior: .wave
                     )
                     .frame(height: 150)
@@ -585,7 +637,7 @@ private struct MugsyBackgroundChecks: View {
 
     private func backgroundCard(title: String, color: Color, titleColor: Color) -> some View {
         VStack(spacing: 2) {
-            MugsyModelView(configuration: .init(expression: .tender))
+            MugsyModelView(configuration: MugsySceneFamily.cozyCoffeeRitual.configuration)
                 .frame(height: 172)
             Text(title)
                 .font(.system(size: 12, weight: .bold, design: .monospaced))

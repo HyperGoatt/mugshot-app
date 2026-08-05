@@ -10,6 +10,18 @@ enum MugsyExpression: String, CaseIterable, Identifiable, Equatable {
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
+
+    /// Product empty states intentionally use only expressions that read as
+    /// curious, delighted, or calmly engaged. Tender and concerned remain in
+    /// the authoring model sheet, but are not valid production scene faces.
+    var isPositiveProductExpression: Bool {
+        switch self {
+        case .neutral, .curious, .delighted, .focused:
+            return true
+        case .tender, .concerned:
+            return false
+        }
+    }
 }
 
 /// Props are objects Mugsy holds or uses. They never become part of his anatomy.
@@ -330,7 +342,7 @@ enum MugsyActionState: Equatable {
             result.expression = .delighted
             result.liquid.steamIntensity = max(result.liquid.steamIntensity, 0.62)
         case .recovering:
-            result.expression = .concerned
+            result.expression = .curious
         }
         return result
     }
@@ -350,6 +362,294 @@ enum MugsyRefreshPresentation {
 
     static func shouldRender(progress: CGFloat, isRefreshing: Bool) -> Bool {
         isRefreshing || MugshotMotion.normalized(progress) > 0.025
+    }
+}
+
+/// The ten approved, reusable Mugsy scenes. A family owns the semantic prop,
+/// outfit, and positive emotional read. Stable variants may change pose, gaze,
+/// and coffee state, but never change the family meaning or Mugsy's identity.
+enum MugsySceneFamily: String, CaseIterable, Identifiable, Equatable {
+    case cheerfulCafeScout
+    case delightedWishlistHolder
+    case happyHeartKeeper
+    case proudCameraCompanion
+    case joyfulJournalKeeper
+    case welcomingFriendsPhone
+    case cozyCoffeeRitual
+    case excitedFirstSipCelebration
+    case happyBuilder
+    case playfulWavingMugsy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .cheerfulCafeScout: return "Cheerful Cafe Scout"
+        case .delightedWishlistHolder: return "Delighted Wishlist Holder"
+        case .happyHeartKeeper: return "Happy Heart Keeper"
+        case .proudCameraCompanion: return "Proud Camera Companion"
+        case .joyfulJournalKeeper: return "Joyful Journal Keeper"
+        case .welcomingFriendsPhone: return "Welcoming Friends Phone"
+        case .cozyCoffeeRitual: return "Cozy Coffee Ritual"
+        case .excitedFirstSipCelebration: return "Excited First-Sip Celebration"
+        case .happyBuilder: return "Happy Builder"
+        case .playfulWavingMugsy: return "Playful Waving Mugsy"
+        }
+    }
+
+    var contextDescription: String {
+        switch self {
+        case .cheerfulCafeScout:
+            return "Cafe discovery, Map, and general cafe placeholders"
+        case .delightedWishlistHolder:
+            return "Want to Try cafes before the first completed sip"
+        case .happyHeartKeeper:
+            return "Favorite cafes and keepsakes"
+        case .proudCameraCompanion:
+            return "Visited cafes and intentionally photo-free sips"
+        case .joyfulJournalKeeper:
+            return "Journal memories and personal history"
+        case .welcomingFriendsPhone:
+            return "Friends and attributed community activity"
+        case .cozyCoffeeRitual:
+            return "Home coffee, quiet rituals, and taste memories"
+        case .excitedFirstSipCelebration:
+            return "The first sip at a Want to Try cafe"
+        case .happyBuilder:
+            return "Shared cafe lists and experiences still taking shape"
+        case .playfulWavingMugsy:
+            return "Welcomes, generic true-empty states, and friendly handoffs"
+        }
+    }
+
+    var configuration: MugsyModelConfiguration {
+        switch self {
+        case .cheerfulCafeScout:
+            return .init(
+                expression: .delighted,
+                prop: .guidebookAndPen,
+                outfit: .cafeScout,
+                pose: .leaningRight
+            )
+        case .delightedWishlistHolder:
+            return .init(
+                expression: .delighted,
+                prop: .wishlistBadge,
+                pose: .leaningLeft
+            )
+        case .happyHeartKeeper:
+            return .init(
+                expression: .delighted,
+                prop: .favoriteHeart,
+                pose: .leaningRight
+            )
+        case .proudCameraCompanion:
+            return .init(
+                expression: .delighted,
+                prop: .camera,
+                outfit: .cameraCompanion,
+                pose: .leaningLeft
+            )
+        case .joyfulJournalKeeper:
+            return .init(
+                expression: .delighted,
+                prop: .journalNotebook,
+                pose: .leaningRight,
+                liquid: .coffee(fillProgress: 0.48, steamIntensity: 0.28)
+            )
+        case .welcomingFriendsPhone:
+            return .init(
+                expression: .delighted,
+                prop: .friendsPhone,
+                pose: .leaningLeft
+            )
+        case .cozyCoffeeRitual:
+            return .init(
+                expression: .delighted,
+                prop: .journalNotebook,
+                outfit: .cozyRitual,
+                liquid: MugsyLiquidState(
+                    appearance: .chai,
+                    fillProgress: 0.74,
+                    steamIntensity: 0.68
+                )
+            )
+        case .excitedFirstSipCelebration:
+            return .init(
+                expression: .delighted,
+                armPose: .presenting,
+                pose: .leaningRight,
+                legArticulation: MugsyLegArticulation(
+                    bendProgress: 0.42,
+                    weightShift: 0.34
+                ),
+                liquid: .coffee(fillProgress: 0.94, steamIntensity: 0.82)
+            )
+        case .happyBuilder:
+            return .init(
+                expression: .delighted,
+                prop: .builderTools,
+                outfit: .builder,
+                pose: .leaningLeft
+            )
+        case .playfulWavingMugsy:
+            return .init(
+                expression: .delighted,
+                armPose: .waving,
+                pose: .leaningRight,
+                liquid: .coffee(fillProgress: 0.34, steamIntensity: 0.34)
+            )
+        }
+    }
+
+    var tapBehavior: MugsyTapBehavior {
+        switch self {
+        case .excitedFirstSipCelebration:
+            return .playfulCycle
+        case .playfulWavingMugsy, .welcomingFriendsPhone:
+            return .wave
+        case .cheerfulCafeScout,
+             .delightedWishlistHolder,
+             .happyHeartKeeper,
+             .proudCameraCompanion,
+             .joyfulJournalKeeper,
+             .cozyCoffeeRitual,
+             .happyBuilder:
+            return .disabled
+        }
+    }
+}
+
+enum MugsyCafePhotoOrigin: String, Equatable {
+    case library
+    case map
+    case discovery
+    case friends
+    case sharedList
+}
+
+enum MugsySceneContext: Equatable {
+    case cafePhoto(
+        origin: MugsyCafePhotoOrigin,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        hasVisited: Bool
+    )
+    case missedSipPhoto
+    case sipMemory
+    case journalMemory
+    case communitySip
+    case coffeeRitual
+    case firstSipMilestone
+    case welcoming
+}
+
+struct MugsyScene: Identifiable, Equatable {
+    let family: MugsySceneFamily
+    let variant: Int
+
+    var id: String { "\(family.rawValue)-\(variant)" }
+
+    var configuration: MugsyModelConfiguration {
+        var result = family.configuration
+
+        switch variant % 4 {
+        case 1:
+            result.pose = result.pose == .leaningLeft ? .leaningRight : .leaningLeft
+            result.gaze = .topTrailing
+        case 2:
+            result.pose = .neutral
+            result.gaze = UnitPoint(x: 0.28, y: 0.42)
+            result.liquid.steamIntensity = max(result.liquid.steamIntensity, 0.24)
+        case 3:
+            result.gaze = UnitPoint(x: 0.72, y: 0.40)
+            result.liquid.fillProgress = max(result.liquid.fillProgress, 0.28)
+        default:
+            break
+        }
+
+        return result
+    }
+
+    var accessibilityLabel: String {
+        "\(family.title). \(family.contextDescription)."
+    }
+}
+
+/// Pure resolver used by production views and the Studio. Selection is stable
+/// across app launches; Swift's randomized `hashValue` is deliberately avoided.
+enum MugsySceneResolver {
+    static func scene(
+        for context: MugsySceneContext,
+        stableID: String
+    ) -> MugsyScene {
+        let seed = stableSeed(for: stableID)
+        let family: MugsySceneFamily
+
+        switch context {
+        case let .cafePhoto(origin, isFavorite, wantToTry, hasVisited):
+            if hasVisited {
+                family = .proudCameraCompanion
+            } else if wantToTry {
+                family = .delightedWishlistHolder
+            } else if isFavorite {
+                family = .happyHeartKeeper
+            } else {
+                switch origin {
+                case .friends:
+                    family = .welcomingFriendsPhone
+                case .sharedList:
+                    family = .happyBuilder
+                case .library, .map, .discovery:
+                    let generalFamilies: [MugsySceneFamily] = [
+                        .cheerfulCafeScout,
+                        .playfulWavingMugsy,
+                        .cozyCoffeeRitual
+                    ]
+                    family = generalFamilies[Int(seed % UInt64(generalFamilies.count))]
+                }
+            }
+        case .missedSipPhoto:
+            family = .proudCameraCompanion
+        case .sipMemory:
+            family = .cozyCoffeeRitual
+        case .journalMemory:
+            family = .joyfulJournalKeeper
+        case .communitySip:
+            family = .welcomingFriendsPhone
+        case .coffeeRitual:
+            family = .cozyCoffeeRitual
+        case .firstSipMilestone:
+            family = .excitedFirstSipCelebration
+        case .welcoming:
+            family = .playfulWavingMugsy
+        }
+
+        return MugsyScene(family: family, variant: Int((seed >> 8) % 4))
+    }
+
+    static func cafePhoto(
+        stableID: String,
+        origin: MugsyCafePhotoOrigin,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        hasVisited: Bool
+    ) -> MugsyScene {
+        scene(
+            for: .cafePhoto(
+                origin: origin,
+                isFavorite: isFavorite,
+                wantToTry: wantToTry,
+                hasVisited: hasVisited
+            ),
+            stableID: stableID
+        )
+    }
+
+    static func stableSeed(for value: String) -> UInt64 {
+        value.utf8.reduce(14_695_981_039_346_656_037) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
     }
 }
 
@@ -378,42 +678,39 @@ enum MugsyPlacement: String, CaseIterable, Identifiable {
     var configuration: MugsyModelConfiguration {
         switch self {
         case .feedEmpty:
-            return .init(expression: .tender, prop: .journalNotebook)
+            return MugsySceneFamily.joyfulJournalKeeper.configuration
         case .feedFiltered:
-            return .init(expression: .curious, prop: .guidebookAndPen, outfit: .cafeScout)
+            return MugsySceneFamily.cheerfulCafeScout.configuration
         case .discoveryEmpty:
-            return .init(expression: .curious, prop: .guidebookAndPen, outfit: .cafeScout)
+            return MugsySceneFamily.cheerfulCafeScout.configuration
         case .locationRecovery:
-            return .init(expression: .concerned, prop: .guidebookAndPen, outfit: .cafeScout)
+            return MugsySceneFamily.cheerfulCafeScout.configuration
         case .savedFavorites:
-            return .init(expression: .tender, prop: .favoriteHeart)
+            return MugsySceneFamily.happyHeartKeeper.configuration
         case .savedWishlist:
-            return .init(expression: .concerned, prop: .wishlistBadge)
-        case .savedCafes, .sharedLists:
-            return .init(expression: .curious, prop: .guidebookAndPen)
+            return MugsySceneFamily.delightedWishlistHolder.configuration
+        case .savedCafes:
+            return MugsySceneFamily.cheerfulCafeScout.configuration
+        case .sharedLists:
+            return MugsySceneFamily.happyBuilder.configuration
         case .friendsEmpty:
-            return .init(expression: .tender, prop: .friendsPhone)
+            return MugsySceneFamily.welcomingFriendsPhone.configuration
         case .journalEmpty:
-            return .init(expression: .tender, prop: .journalNotebook)
+            return MugsySceneFamily.joyfulJournalKeeper.configuration
         case .ritual:
-            return .init(
-                expression: .tender,
-                prop: .journalNotebook,
-                outfit: .cozyRitual,
-                liquid: MugsyLiquidState(appearance: .chai, fillProgress: 0.74, steamIntensity: 0.68)
-            )
+            return MugsySceneFamily.cozyCoffeeRitual.configuration
         case .composer:
-            return .init(expression: .neutral, liquid: .coffee(fillProgress: 0.16))
+            return MugsySceneFamily.cozyCoffeeRitual.configuration
         case .camera:
-            return .init(expression: .curious, prop: .camera, outfit: .cameraCompanion)
+            return MugsySceneFamily.proudCameraCompanion.configuration
         case .onboarding:
-            return .init(expression: .delighted, pose: .leaningRight)
+            return MugsySceneFamily.playfulWavingMugsy.configuration
         case .authentication:
-            return .init(expression: .tender)
+            return MugsySceneFamily.playfulWavingMugsy.configuration
         case .recovery:
-            return .init(expression: .concerned)
+            return MugsySceneFamily.playfulWavingMugsy.configuration
         case .comingSoon:
-            return .init(expression: .curious, prop: .builderTools, outfit: .builder)
+            return MugsySceneFamily.happyBuilder.configuration
         }
     }
 

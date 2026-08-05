@@ -19,6 +19,8 @@ The implementation is code-native and has no third-party animation runtime.
 - `MugsyModelView.swift` is the sole canonical character renderer.
 - `MugsyAnimatedView.swift` adds progress-driven and one-shot state articulation around that renderer.
 - `MugsyDesignSystem.swift` owns expressions, props, outfits, arm poses, liquid, actions, placement defaults, palette, scale metrics, and identity invariants.
+- `MugsySceneResolver` selects one of ten positive scene families from semantic context and a stable identifier.
+- `MugsyPhotoPlaceholderView.swift` renders size-aware, truthful photo-empty states without taking ownership of loading or failure behavior.
 - `MugshotMotionSystem.swift` owns shared timing, normalization, drink appearances, and intentional haptics.
 - `MugshotSignatureMotion.swift` owns composer progress, pull refresh, Taste Bloom, and ritual presentation.
 - Feature views own their local interaction state. There is no global animation manager.
@@ -38,6 +40,17 @@ Empty states render the canonical layered model through `MugsyPlacement`. The ap
 - Friends uses the phone.
 - Journal uses the notebook.
 - True Coming Soon uses the builder outfit and tools.
+
+Cafe and sip photo-empty surfaces use the same scene language with deterministic
+variation. Visited cafes resolve to the camera companion, Want to Try cafes to
+the Wishlist holder, Favorites to the heart keeper, friends to the friends
+phone, shared lists to the builder, and general Discovery/Map/library cafes to a
+stable scout, waving, or ritual scene. List and card instances are static; one
+prominent detail hero may animate. All production scene faces are positive.
+
+The renderer appears only when a photo is genuinely absent. Loading skeletons,
+download failures, offline and stale data, hidden or removed media, permissions,
+and unavailable content keep their distinct truthful treatments.
 
 Selected welcoming and empty-state placements opt into direct touch. A first tap waves, a second hops, and a third performs a short happy dance. Camera, recovery, loading, list rows, and ordinary browsing placements do not intercept taps for play.
 
