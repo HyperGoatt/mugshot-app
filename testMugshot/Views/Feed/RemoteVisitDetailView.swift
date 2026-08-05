@@ -824,9 +824,13 @@ struct RemoteVisitDetailView: View {
                 endPoint: .bottomTrailing
             )
                 .overlay {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 76, weight: .semibold))
-                        .foregroundColor(.creamWhite.opacity(0.12))
+                    MugsyModelView(
+                        configuration: MugsySceneResolver.scene(
+                            for: detail.summary.usesMugsyPhotoFallback ? .missedSipPhoto : .communitySip,
+                            stableID: detail.summary.id.uuidString
+                        ).configuration
+                    )
+                        .frame(width: 172, height: 172)
                         .offset(y: -44)
                         .accessibilityHidden(true)
                 }
@@ -2319,6 +2323,7 @@ struct SipMemoryHeroOverlay: View {
 struct SipEmptyPhotoBackdrop: View {
     let title: String
     let message: String
+    var stableID = "sip-memory"
 
     var body: some View {
         ZStack {
@@ -2333,9 +2338,14 @@ struct SipEmptyPhotoBackdrop: View {
             )
 
             VStack(spacing: 12) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 56, weight: .semibold))
-                    .foregroundColor(.creamWhite.opacity(0.54))
+                MugsyModelView(
+                    configuration: MugsySceneResolver.scene(
+                        for: .sipMemory,
+                        stableID: stableID
+                    ).configuration
+                )
+                .frame(width: 112, height: 112)
+                .accessibilityHidden(true)
 
                 Text(title)
                     .font(.system(size: 18, weight: .bold))

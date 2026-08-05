@@ -2831,9 +2831,17 @@ struct CafeDetailSheet: View {
                 MugshotLoadingState(layout: .journal, count: 2)
             } else if remoteVisits.isEmpty && visits.isEmpty {
                 VStack(spacing: 9) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.roastBrown.opacity(0.42))
+                    MugsyModelView(
+                        configuration: MugsySceneResolver.cafePhoto(
+                            stableID: displayCafe.id.uuidString,
+                            origin: .map,
+                            isFavorite: displayCafe.isFavorite,
+                            wantToTry: displayCafe.wantToTry,
+                            hasVisited: false
+                        ).configuration
+                    )
+                    .frame(width: 72, height: 72)
+                    .accessibilityHidden(true)
 
                     Text("No sips here yet")
                         .font(.system(size: 14, weight: .semibold))
@@ -3078,11 +3086,24 @@ private struct MapRemoteVisitRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
+            Group {
+                if let photoURL = visit.visit.posterPhotoURL?.remoteTrimmedNonEmpty {
+                    RemotePhotoImageView(
+                        urlString: photoURL,
+                        placeholderSystemName: "cup.and.saucer.fill",
+                        contentMode: .fill
+                    )
+                } else {
+                    MugsyPhotoPlaceholderView(
+                        scene: MugsySceneResolver.scene(
+                            for: visit.usesMugsyPhotoFallback ? .missedSipPhoto : .communitySip,
+                            stableID: visit.id.uuidString
+                        ),
+                        style: .thumbnail,
+                        photoDescription: "No sip photo"
+                    )
+                }
+            }
             .frame(width: 58, height: 58)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
 

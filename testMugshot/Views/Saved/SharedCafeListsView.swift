@@ -1049,11 +1049,17 @@ private struct CollaborativeCafeListItemRow: View {
                                 contentMode: .fill
                             )
                         } else {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.mugshotSage)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(Color.mugshotSage.opacity(0.12))
+                            MugsyPhotoPlaceholderView(
+                                scene: MugsySceneResolver.cafePhoto(
+                                    stableID: item.cafeID.uuidString,
+                                    origin: .sharedList,
+                                    isFavorite: item.isFavorite,
+                                    wantToTry: item.wantToTry,
+                                    hasVisited: false
+                                ),
+                                style: .thumbnail,
+                                photoDescription: "No cafe photo yet"
+                            )
                         }
                     }
                     .frame(width: 58, height: 58)

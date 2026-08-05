@@ -6,6 +6,10 @@ enum SavedCafeCategory: String, CaseIterable, Identifiable {
     case all = "All Cafes"
 
     var id: String { rawValue }
+
+    var hashVariant: Int {
+        Int(MugsySceneResolver.stableSeed(for: rawValue) % 4)
+    }
 }
 
 enum SavedCafeSort: String, CaseIterable, Identifiable {

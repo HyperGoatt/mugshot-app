@@ -130,12 +130,16 @@ struct EditSipView: View {
     private var photosSection: some View {
         editSection(title: "Photos", subtitle: "Choose the cover, reorder, add, or remove photos.") {
             if draft.photos.isEmpty {
-                ContentUnavailableView(
-                    "No photos",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text("This Mugshot will use its no-photo presentation.")
+                MugsyPhotoPlaceholderView(
+                    scene: MugsySceneResolver.scene(
+                        for: .missedSipPhoto,
+                        stableID: seed.detail.summary.id.uuidString
+                    ),
+                    style: .poster,
+                    photoDescription: "No sip photos"
                 )
                 .frame(maxWidth: .infinity, minHeight: 150)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 VStack(spacing: 10) {
                     ForEach(Array(draft.photos.enumerated()), id: \.element.id) { index, photo in

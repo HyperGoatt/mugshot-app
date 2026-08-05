@@ -19,6 +19,8 @@ enum MugshotLaunchEnvironment {
     static let shouldShowPeopleRecapDesignQA = arguments.contains("--ui-testing-people-recap-design-qa")
     static let shouldShowFeedRefreshDesignQA = arguments.contains("--ui-testing-feed-refresh-design-qa")
     static let shouldShowRecoveryBannerDesignQA = arguments.contains("--ui-testing-recovery-banner-design-qa")
+    static let shouldShowMugsySceneDesignQA = arguments.contains("--ui-testing-mugsy-scenes-design-qa")
+    static let shouldUseReduceMotion = arguments.contains("--ui-testing-reduce-motion")
 #if DEBUG
     static let savedAuditScenario = SavedAuditScenario.resolve(arguments: arguments)
     static let shouldUseAccessibilityXXXL = arguments.contains("--ui-testing-accessibility-xxxl")

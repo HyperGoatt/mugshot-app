@@ -1343,9 +1343,9 @@ struct TastingLensMugsyMoment: View {
         TastingLensCard(tint: Color.mugshotMint.opacity(0.14)) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
-                    Image("MugsyNoWishlist")
-                        .resizable()
-                        .scaledToFit()
+                    MugsyModelView(
+                        configuration: MugsySceneFamily.cozyCoffeeRitual.configuration
+                    )
                         .frame(width: 82, height: 82)
                         .accessibilityHidden(true)
 

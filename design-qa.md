@@ -149,6 +149,63 @@ final result: passed
 
 ---
 
+# Dynamic Mugsy scene system — implementation QA
+
+## Comparison setup
+
+- Approved brand source: `/Users/joe.rosso/.codex/state/plugins/product-design/assets/mugshot-v3-approved-five-screen-direction.png`.
+- Character source of truth: the existing code-native canonical model in `testMugshot/Design/MugsyDesignSystem.swift` and `testMugshot/Views/Components/MugsyModelView.swift`.
+- Semantic source of truth: the approved requirement for ten context-aware scene families with only happy, joyful, curious, proud, cozy, playful, or welcoming production expressions.
+- Production evidence:
+  - `docs/design/dynamic-mugsy-2026-08-05/evidence/01-studio-scenes-1-4-reduce-motion.png`
+  - `docs/design/dynamic-mugsy-2026-08-05/evidence/02-studio-scenes-5-10-reduce-motion.png`
+  - `docs/design/dynamic-mugsy-2026-08-05/evidence/03-saved-want-to-try.png`
+  - `docs/design/dynamic-mugsy-2026-08-05/evidence/04-cafe-detail-want-to-try-no-photo.png`
+  - `docs/design/dynamic-mugsy-2026-08-05/evidence/05-saved-want-to-try-accessibility-xxxl.png`
+- Combined comparison input: `docs/design/dynamic-mugsy-2026-08-05/evidence/06-source-and-implementation-comparison.png`.
+- Viewport: iPhone 17 Pro at 402 x 874 points and 1206 x 2622 pixels at 3x; forced-light appearance.
+- Fixture: deterministic DEBUG/UI-test-only Saved data with no authentication, production data, analytics, or remote mutations.
+
+No prior image contained these exact ten semantic scenes. The combined comparison therefore tests character identity, proportions, line treatment, palette, typography, and integration with the approved Mugshot V3 product language; the ten-family product behavior is verified by the Studio gallery, production screens, semantic snapshots, and focused tests.
+
+## Required fidelity surfaces
+
+- **Character identity:** White ceramic body, black hand-drawn outline, square glasses, handle, highlight/shadow behavior, bow tie, and face proportions remain those of the canonical Mugsy model.
+- **Expression:** Every production family uses a positive expression. The tender and concerned expressions remain available only as internal model capabilities and are filtered from product placement controls.
+- **Context:** Props, outfits, arm poses, leg poses, and coffee states communicate the difference between discovery, Want to Try, Favorite, visited, journal, friends, home ritual, first sip, shared lists, and welcome states without changing Mugsy's identity.
+- **Brand integration:** Cream, sand, mint, sage, espresso, and white surfaces match the approved Mugshot V3 palette and density. No stock art, emoji, or disconnected illustration style was introduced.
+- **Motion:** Small cards and rows are static. Hero motion remains optional, subtle, and disabled when Reduce Motion is active.
+- **Truthfulness:** Mugsy is never substituted for a loading skeleton, failed photo, removed/private media, offline state, or unavailable data.
+- **Accessibility:** Placeholder groups expose one concise accessibility label rather than announcing decorative Mugsy subparts. Accessibility XXXL reflows the surrounding Saved UI without shrinking text.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 — Studio gallery cards exposed duplicate child semantics.** The gallery had a combined description but still allowed decorative child labels to enter traversal.
+  - Fix: the gallery card now ignores child semantics and exposes one combined family/context label.
+- **P2 — The first-sip scene read too similarly to the neutral wishlist pose when static.** Reduce Motion removes celebratory animation, so the silhouette needed a stronger static distinction.
+  - Fix: the family now uses a presenting arm and bent planted legs while retaining the approved joyful expression.
+
+### Final pass
+
+- Rebuilt and launched the final source on the iPhone 17 Pro Simulator.
+- Captured all ten scene families with Reduce Motion enabled, then captured production Saved card, expanded detail, and accessibility XXXL states.
+- Inspected every image at its original 1206 x 2622 resolution and judged the source and implementation together in the 2800 x 1840 comparison board.
+- No actionable P0, P1, or P2 visual, semantic, or product-truth mismatch remains.
+
+## Verification evidence
+
+- Repository full static verification: 11 passed, 0 failed, 1 optional `pglast` check skipped because the dependency is not installed.
+- Focused Mugsy design-system suite: 12 passed, 0 failed.
+- Final Simulator build and launch: passed.
+- Runtime semantic snapshots: passed for the Studio gallery, Saved Want to Try cards, expanded cafe detail, and accessibility XXXL category menu.
+- Full source-and-implementation visual comparison: passed.
+
+final result: passed
+
+---
+
 # Mugshot Post V2 — Editorial Pour QA
 
 ## Comparison target

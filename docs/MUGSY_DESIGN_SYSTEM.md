@@ -88,7 +88,40 @@ The body and handle use curved Bezier construction. A generic rounded rectangle 
 - `MugsyLegArticulation` defines planted-foot knee bend, body lowering, and weight shift without changing canonical leg or foot anchors.
 - `MugsyLiquidState` defines visible drink surface and steam.
 - `MugsyActionState` defines event and progress-driven product motion.
+- `MugsySceneFamily` defines the ten positive semantic scene families.
+- `MugsySceneResolver` maps real cafe and sip context to a deterministic scene.
 - `MugsyPlacement` is the registry for approved app contexts.
+
+## Dynamic empty-state scenes
+
+Production photo-empty and true-empty surfaces use ten reusable families:
+
+1. Cheerful Cafe Scout
+2. Delighted Wishlist Holder
+3. Happy Heart Keeper
+4. Proud Camera Companion
+5. Joyful Journal Keeper
+6. Welcoming Friends Phone
+7. Cozy Coffee Ritual
+8. Excited First-Sip Celebration
+9. Happy Builder
+10. Playful Waving Mugsy
+
+The context selects the family. A stable cafe or sip identifier selects one of
+four pose, gaze, and coffee variants using a deterministic FNV-1a seed. Swift's
+process-randomized `hashValue` is never used. Relationship meaning takes
+precedence over entry point: visited, Want to Try, and Favorite resolve before
+library, Map, Discovery, friends, or shared-list origin.
+
+Every production scene uses a positive expression. Tender and concerned remain
+authoring-only values for lineage and compatibility; they are not valid
+production scene faces.
+
+`MugsyPhotoPlaceholderView` is the shared size-aware presentation. Thumbnail,
+identity, and card instances are static. One prominent hero may animate, and it
+resolves to a static final pose under Reduce Motion. Loading, remote-image
+failure, offline, privacy-hidden, removed, permission-denied, and unavailable
+states never use the photo-empty renderer.
 
 ## Props
 
@@ -130,7 +163,7 @@ Outfits are exceptional rather than default. They may not cover the glasses, mir
 - Refreshing produces one restrained focused response with a full coffee surface and steam.
 - Composer progress maps to drink fill; saving is focused; completion is delighted.
 - Camera focus maps gaze to the focus point; capture and completion use short reactions.
-- Recovery uses a concerned but calm expression.
+- Recovery uses a curious, calm expression without implying sadness or blame.
 - Approved interactive heroes and empty states may opt into wave-only or wave/hop/happy-dance tap cycles.
 - A successful save may use one branded confetti burst and the scoped dance loop.
 - The accomplishment dance must bend Mugsy's knees and lower the body over planted feet. Rigid whole-character wobble is not an approved substitute for leg articulation.
@@ -155,17 +188,19 @@ Under Reduce Motion, the same meaning is communicated through discrete states wi
 | Surface | Approved treatment |
 | --- | --- |
 | Onboarding | One delighted canonical hero |
-| Authentication | One tender canonical hero; no loop while typing |
+| Authentication | One welcoming, positive canonical hero; no loop while typing |
 | Feed | Coffee-fill refresh plus first-feed, friends, and filtered empty states |
 | Map and Discovery | Guidebook and cafe scout treatment in empty or recovery states; never a persistent loaded-map overlay |
 | Saved Favorites | Favorite heart |
 | Saved Wishlist | Wishlist badge beneath crossed arms |
-| Saved cafes and shared lists | Guidebook and pen |
-| Composer | Drink fill, focused save, delighted completion, concerned recovery |
+| Saved cafes | Relationship-aware scout, Wishlist, heart, or camera scene |
+| Shared lists | Builder scene only for cafe-row placeholders; Lists workflows remain unchanged |
+| Composer | Drink fill, focused save, delighted completion, curious recovery |
 | Camera | Camera prop and strap, focus gaze, capture reaction, permission recovery |
 | Friends | Friends phone |
 | Journal and Profile | Journal notebook, cozy ritual, and cafe ranking states |
-| Missing photo | Camera treatment |
+| Missing cafe photo | Deterministic relationship-aware scene; only authorized Mugshot media replaces it |
+| Missing sip photo | Camera, journal, friends, or ritual scene based on provenance |
 | True Coming Soon | Builder outfit and tools |
 | Settings | Mugsy Studio and Motion Lab only; ordinary account controls remain quiet |
 
@@ -188,8 +223,9 @@ Mugsy does not appear persistently over a loaded map, inside every feed row, on 
 
 The DEBUG-only Mugsy Studio includes:
 
+- Ten positive production scene families with context labels
 - Canonical inspection with reference overlay, grid, anchors, and contours
-- Six-expression sheet
+- Product-safe expression sheet
 - Correct Wishlist comparison
 - Prop, outfit, and arm-pose libraries
 - Tap-reaction and accomplishment-motion inspection

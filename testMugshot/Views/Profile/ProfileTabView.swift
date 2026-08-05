@@ -1000,7 +1000,8 @@ struct RemoteVisitSummaryCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
             } else {
                 RemoteVisitNoPhotoThumbnail(
-                    usesMugsyFallback: visit.usesMugsyPhotoFallback
+                    usesMugsyFallback: visit.usesMugsyPhotoFallback,
+                    stableID: visit.id.uuidString
                 )
             }
         }
@@ -1051,31 +1052,17 @@ struct RemoteVisitSummaryCard: View {
 
 struct RemoteVisitNoPhotoThumbnail: View {
     var usesMugsyFallback = false
+    var stableID = "sip-photo"
 
     var body: some View {
-        VStack(spacing: 4) {
-            if usesMugsyFallback {
-                MugsyModelView(configuration: MugsyModelConfiguration(
-                    expression: .curious,
-                    prop: .camera,
-                    pose: .leaningLeft
-                ))
-                .frame(width: 44, height: 44)
-                .accessibilityHidden(true)
-            } else {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.espressoBrown.opacity(0.4))
-            }
-
-            Text(usesMugsyFallback ? "Missed photo" : "No photo")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.55))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.sandBeige.opacity(0.68))
+        MugsyPhotoPlaceholderView(
+            scene: MugsySceneResolver.scene(
+                for: usesMugsyFallback ? .missedSipPhoto : .journalMemory,
+                stableID: stableID
+            ),
+            style: .thumbnail,
+            photoDescription: usesMugsyFallback ? "Missed sip photo" : "No sip photo"
+        )
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
     }
 }
@@ -1134,10 +1121,26 @@ struct RemoteTopCafeCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemotePhotoImageView(
-                urlString: topCafe.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill"
-            )
+            Group {
+                if let photoURL = topCafe.posterPhotoURL?.remoteTrimmedNonEmpty {
+                    RemotePhotoImageView(
+                        urlString: photoURL,
+                        placeholderSystemName: "cup.and.saucer.fill"
+                    )
+                } else {
+                    MugsyPhotoPlaceholderView(
+                        scene: MugsySceneResolver.cafePhoto(
+                            stableID: topCafe.id.uuidString,
+                            origin: .library,
+                            isFavorite: false,
+                            wantToTry: false,
+                            hasVisited: topCafe.visitCount > 0
+                        ),
+                        style: .identity,
+                        photoDescription: "No cafe photo yet"
+                    )
+                }
+            }
             .frame(width: 72, height: 72)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
 

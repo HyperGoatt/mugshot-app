@@ -782,10 +782,26 @@ private struct ProfileTopCafeCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RemotePhotoImageView(
-                urlString: entry.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill"
-            )
+            Group {
+                if let photoURL = entry.posterPhotoURL?.remoteTrimmedNonEmpty {
+                    RemotePhotoImageView(
+                        urlString: photoURL,
+                        placeholderSystemName: "cup.and.saucer.fill"
+                    )
+                } else {
+                    MugsyPhotoPlaceholderView(
+                        scene: MugsySceneResolver.cafePhoto(
+                            stableID: entry.id.uuidString,
+                            origin: .library,
+                            isFavorite: false,
+                            wantToTry: false,
+                            hasVisited: entry.sipCount > 0
+                        ),
+                        style: .identity,
+                        photoDescription: "No cafe photo yet"
+                    )
+                }
+            }
             .frame(width: 68, height: 68)
             .clipShape(
                 RoundedRectangle(
@@ -1265,7 +1281,8 @@ private struct RemoteJournalFeatureCard: View {
                     )
                 } else {
                     RemoteVisitNoPhotoThumbnail(
-                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback,
+                        stableID: visit.id.uuidString
                     )
                 }
             }
@@ -1365,7 +1382,8 @@ struct RemoteJournalRow: View {
                     )
                 } else {
                     RemoteVisitNoPhotoThumbnail(
-                        usesMugsyFallback: visit.usesMugsyPhotoFallback
+                        usesMugsyFallback: visit.usesMugsyPhotoFallback,
+                        stableID: visit.id.uuidString
                     )
                 }
             }

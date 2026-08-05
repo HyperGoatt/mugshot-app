@@ -76,14 +76,15 @@ enum MugshotPostMediaSource: Hashable {
     case local(String)
     case remote(String)
     case asset(String)
-    case placeholder(usesMugsyFallback: Bool)
+    case placeholder(usesMugsyFallback: Bool, stableID: String)
 
     var cacheKey: String {
         switch self {
         case .local(let path): return "local:\(path)"
         case .remote(let url): return "remote:\(url)"
         case .asset(let name): return "asset:\(name)"
-        case .placeholder(let usesMugsyFallback): return "placeholder:\(usesMugsyFallback)"
+        case .placeholder(let usesMugsyFallback, let stableID):
+            return "placeholder:\(usesMugsyFallback):\(stableID)"
         }
     }
 }
@@ -108,8 +109,11 @@ struct MugshotPostMediaImage: View {
                             reportImageSize?(size)
                         }
                     }
-            case .placeholder(let usesMugsyFallback):
-                RemoteFeedNoPhotoPoster(usesMugsyFallback: usesMugsyFallback)
+            case .placeholder(let usesMugsyFallback, let stableID):
+                RemoteFeedNoPhotoPoster(
+                    usesMugsyFallback: usesMugsyFallback,
+                    stableID: stableID
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
