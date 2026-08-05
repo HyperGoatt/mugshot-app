@@ -1108,6 +1108,7 @@ struct VisitDetailView: View {
     @ObservedObject var dataManager: DataManager
     @State private var visit: Visit
     let presentationMode: SipDetailPresentationMode
+    let onCafeRequested: ((Cafe) -> Void)?
     @Environment(\.dismiss) var dismiss
     @State private var commentText = ""
     @State private var selectedPhotoIndex = 0
@@ -1117,15 +1118,18 @@ struct VisitDetailView: View {
     @State private var showMoreActions = false
     @State private var toolbarProgress: CGFloat = 0
     @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
+    @State private var selectedCafeDetail: Cafe?
     
     init(
         visit: Visit,
         dataManager: DataManager,
-        presentationMode: SipDetailPresentationMode = .pushed
+        presentationMode: SipDetailPresentationMode = .pushed,
+        onCafeRequested: ((Cafe) -> Void)? = nil
     ) {
         self._visit = State(initialValue: visit)
         self.dataManager = dataManager
         self.presentationMode = presentationMode
+        self.onCafeRequested = onCafeRequested
     }
     
     var cafe: Cafe? {
@@ -1180,6 +1184,7 @@ struct VisitDetailView: View {
                     locationName: sharedPresentation.content.locationName
                 )
             },
+            onCafeTap: cafe == nil ? nil : openLocalCafe,
             onRecipeAction: { _ in },
             onTaggedAccount: { _ in },
             onRemoveOwnTag: {}
@@ -1206,6 +1211,13 @@ struct VisitDetailView: View {
             }
             .presentationDetents([.height(340)])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedCafeDetail) { cafe in
+            CafeDetailView(
+                cafe: cafe,
+                dataManager: dataManager,
+                initialDetent: .medium
+            )
         }
         .fullScreenCover(item: $photoViewerPresentation) { presentation in
             SipDetailPhotoViewer(presentation: presentation)
@@ -1266,6 +1278,15 @@ struct VisitDetailView: View {
             comments: comments,
             isCafeSaved: cafe?.isFavorite == true
         )
+    }
+
+    private func openLocalCafe() {
+        guard let cafe else { return }
+        if let onCafeRequested {
+            onCafeRequested(cafe)
+        } else {
+            selectedCafeDetail = cafe
+        }
     }
 
     private func perform(_ action: SipDetailAction) {

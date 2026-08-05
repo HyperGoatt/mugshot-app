@@ -14,6 +14,8 @@ class DataManager: ObservableObject {
     
     @Published var appData: AppData
     @Published private(set) var journalRevision = 0
+    @Published private var personalMapSnapshotCache: RemoteMapPinSnapshot?
+    private var personalMapSnapshotUserID: UUID?
     
     private let dataKey = "MugshotAppData"
     private let guestDataKey = "MugshotGuestAppData.v1"
@@ -29,6 +31,7 @@ class DataManager: ObservableObject {
     
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.personalMapSnapshotCache = nil
         PerformanceMonitor.mark("Local data load start")
         defer { PerformanceMonitor.mark("Local data load end") }
         // Try to load existing data, otherwise start fresh
@@ -76,6 +79,7 @@ class DataManager: ObservableObject {
     }
 
     func prepareGuestSession() {
+        clearPersonalMapSnapshot()
         guard storageScope != .guest else { return }
 
         switch storageScope {
@@ -114,6 +118,9 @@ class DataManager: ObservableObject {
     /// every other signed-in account remain intact on a shared device.
     func clearLocalReleaseState(for userID: UUID) {
         defaults.removeObject(forKey: userDataKey(userID))
+        if personalMapSnapshotUserID == userID {
+            clearPersonalMapSnapshot()
+        }
 
         let isActiveDeletedAccount: Bool
         switch storageScope {
@@ -146,6 +153,10 @@ class DataManager: ObservableObject {
     }
 
     private func activateUserStorage(userId: UUID) {
+        if personalMapSnapshotUserID != nil,
+           personalMapSnapshotUserID != userId {
+            clearPersonalMapSnapshot()
+        }
         switch storageScope {
         case .legacy:
             if let legacyOwnerID = appData.currentUser?.id {
@@ -488,7 +499,21 @@ class DataManager: ObservableObject {
     /// Applies the authoritative visited-or-saved projection shared with Map.
     /// Search-only cafes can remain in the local identity cache without leaking
     /// into Saved's All Cafes section.
-    func applyPersonalMapSnapshot(_ snapshot: RemoteMapPinSnapshot) {
+    func applyPersonalMapSnapshot(_ snapshot: RemoteMapPinSnapshot, for userID: UUID) {
+        let belongsToActiveAccount: Bool
+        switch storageScope {
+        case .user(let activeUserID):
+            belongsToActiveAccount = activeUserID == userID
+        case .legacy:
+            belongsToActiveAccount = appData.currentUser?.id == userID
+        case .guest:
+            belongsToActiveAccount = false
+        }
+        guard belongsToActiveAccount else { return }
+
+        personalMapSnapshotUserID = userID
+        personalMapSnapshotCache = snapshot
+
         var authoritativeIDs = Set(
             appData.visits
                 .filter { $0.context == .cafe }
@@ -510,6 +535,15 @@ class DataManager: ObservableObject {
         appData.personalLibraryCafeIDs = authoritativeIDs
         prunePersonalLibraryMembership()
         save()
+    }
+
+    func personalMapSnapshot(for userID: UUID) -> RemoteMapPinSnapshot? {
+        personalMapSnapshotUserID == userID ? personalMapSnapshotCache : nil
+    }
+
+    private func clearPersonalMapSnapshot() {
+        personalMapSnapshotUserID = nil
+        personalMapSnapshotCache = nil
     }
 
     var personalLibraryCafes: [Cafe] {

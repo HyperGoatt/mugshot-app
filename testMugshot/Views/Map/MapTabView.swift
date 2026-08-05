@@ -95,9 +95,7 @@ struct MapTabView: View {
     @State private var showLocationMessage = false
     @State private var remoteStateError: String?
     @State private var remoteMapPins: [RemoteMapPin] = []
-    @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
-    @State private var isLoadingRemoteMapPins = false
     @State private var discoveryScope: MapDiscoveryScope = .all
     @State private var discoveryMode: MapDiscoveryMode = .map
     @State private var discoveryRadiusMiles = 10.0
@@ -240,7 +238,7 @@ struct MapTabView: View {
                 }
             }
             
-            if friendPreviewCafe == nil {
+            if friendPreviewCafe == nil && !showCafeDetail {
                 VStack(spacing: 0) {
                     // Location message banner
                     if showLocationMessage {
@@ -269,124 +267,7 @@ struct MapTabView: View {
                     .padding(.top, 8)
                 }
 
-                if isLoadingRemoteMapPins && displayedMapCafes.isEmpty {
-                    MapLoadingStatus()
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                }
-                
-                HStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.espressoBrown.opacity(0.6))
-                        
-                        TextField("Search cafes", text: $searchText)
-                            .accessibilityIdentifier("map.search.query")
-                            .foregroundColor(.inputText)
-                            .tint(.mugshotSage)
-                            .accentColor(.mugshotSage)
-                            .focused($isSearchFieldFocused)
-                            .submitLabel(.search)
-                            .onChange(of: searchText) { oldValue, newValue in
-                                if !newValue.isEmpty {
-                                    isSearchActive = true
-                                    searchService.search(query: newValue, region: effectiveRegion)
-                                } else {
-                                    searchService.cancelSearch()
-                                }
-                            }
-                            .onTapGesture {
-                                isSearchActive = true
-                            }
-                            .onSubmit {
-                                searchService.search(
-                                    query: searchText,
-                                    region: effectiveRegion,
-                                    immediately: true
-                                )
-                                isSearchFieldFocused = false
-                            }
-                        
-                        if !searchText.isEmpty {
-                            Button(action: {
-                                searchText = ""
-                                searchService.cancelSearch()
-                                isSearchActive = true
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.espressoBrown.opacity(0.4))
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(height: 52)
-                    .mugshotGlassSurface(
-                        radius: 26,
-                        tint: .foamWhite,
-                        stroke: Color.foamWhite.opacity(0.62),
-                        shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
-                        interactive: true
-                    )
-
-                    if !isSearchActive {
-                        Menu {
-                            Picker("Map cafes", selection: $discoveryScope) {
-                                ForEach(MapDiscoveryScope.available(isAuthenticated: authModel.authenticatedUser != nil)) { scope in
-                                    Label(scope.rawValue, systemImage: scope.icon).tag(scope)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: discoveryScope.icon)
-                                Text(discoveryScope.rawValue)
-                                    .lineLimit(1)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10, weight: .bold))
-                            }
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.mugshotSageText)
-                            .padding(.horizontal, 11)
-                            .frame(height: 52)
-                            .background(Color.mugshotMint.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotSageText))
-                        }
-                        .accessibilityLabel("Map cafe source")
-                        .accessibilityValue(discoveryScope.rawValue)
-
-                        Button {
-                            discoveryMode = .list
-                        } label: {
-                            Label("List", systemImage: "list.bullet")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.espressoBrown)
-                                .padding(.horizontal, 11)
-                                .frame(height: 52)
-                                .background(Color.sandBeige.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .accessibilityHint("Shows these cafes in a list")
-                    }
-                    
-                    if isSearchActive {
-                        Button("Cancel") {
-                            searchText = ""
-                            searchService.cancelSearch()
-                            isSearchActive = false
-                            isSearchFieldFocused = false
-                        }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                        .transition(.opacity)
-                        .accessibilityIdentifier("map.search.cancel")
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, isSearchActive ? 12 : 8)
-                .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
-                .animation(DesignSystem.Motion.base, value: isSearchActive)
-                .onChange(of: isSearchFieldFocused) { _, isFocused in
-                    if isFocused { isSearchActive = true }
-                }
+                mapDiscoveryControls
 
                 // Search results list (inline below search bar)
                 if isSearchActive {
@@ -519,11 +400,143 @@ struct MapTabView: View {
             || locationManager.authorizationStatus == .authorizedAlways
     }
 
+    private var mapDiscoveryControls: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.espressoBrown.opacity(0.6))
+                        .accessibilityHidden(true)
+
+                    TextField("Search cafes", text: $searchText)
+                        .accessibilityIdentifier("map.search.query")
+                        .foregroundColor(.inputText)
+                        .tint(.mugshotSage)
+                        .focused($isSearchFieldFocused)
+                        .submitLabel(.search)
+                        .onChange(of: searchText) { _, newValue in
+                            if newValue.remoteTrimmedNonEmpty != nil {
+                                searchService.search(query: newValue, region: effectiveRegion)
+                            } else {
+                                searchService.cancelSearch()
+                            }
+                        }
+                        .onSubmit {
+                            searchService.search(
+                                query: searchText,
+                                region: effectiveRegion,
+                                immediately: true
+                            )
+                            isSearchFieldFocused = false
+                        }
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                            searchService.cancelSearch()
+                            isSearchActive = true
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.espressoBrown.opacity(0.42))
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                    }
+                }
+                .padding(.leading, 14)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(
+                    Color.foamWhite.opacity(0.78),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.foamWhite.opacity(0.88))
+                )
+
+                Button {
+                    if isSearchActive {
+                        searchText = ""
+                        searchService.cancelSearch()
+                        isSearchActive = false
+                        isSearchFieldFocused = false
+                    } else {
+                        discoveryMode = .list
+                    }
+                } label: {
+                    Group {
+                        if isSearchActive {
+                            Text("Cancel")
+                                .font(.system(size: 14, weight: .semibold))
+                        } else {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
+                    }
+                    .foregroundColor(.espressoBrown)
+                    .frame(width: 58, height: 48)
+                    .background(
+                        isSearchActive ? Color.clear : Color.sandBeige.opacity(0.82),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(isSearchActive ? "map.search.cancel" : "map.mode.list")
+                .accessibilityLabel(isSearchActive ? "Cancel search" : "Show cafes as a list")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(MapDiscoveryScope.available(isAuthenticated: authModel.authenticatedUser != nil)) { scope in
+                        MugshotFilterChip(
+                            title: scope.rawValue,
+                            icon: scope.icon,
+                            isSelected: discoveryScope == scope
+                        ) {
+                            discoveryScope = scope
+                        }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("map.scope.\(scope.rawValue)")
+                        .accessibilityHint(scope.explanation)
+                    }
+                }
+            }
+            .frame(height: isSearchActive ? 0 : 44)
+            .clipped()
+            .opacity(isSearchActive ? 0 : 1)
+            .allowsHitTesting(!isSearchActive)
+            .accessibilityHidden(isSearchActive)
+            .accessibilityLabel("Map cafe sources")
+        }
+        .padding(10)
+        .mugshotGlassSurface(
+            radius: 24,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.72),
+            shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
+            interactive: true
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, isSearchActive ? 12 : 8)
+        .onChange(of: isSearchFieldFocused) { _, isFocused in
+            if isFocused { isSearchActive = true }
+        }
+    }
+
     private var localAccountScope: LocalAccountScope {
         .forUserID(
             authModel.authenticatedUser?.id
                 ?? dataManager.appData.currentUser?.id
         )
+    }
+
+    private var personalMapPins: [RemoteMapPin] {
+        guard let userID = authModel.authenticatedUser?.id else {
+            return remoteMapPins
+        }
+        return dataManager.personalMapSnapshot(for: userID)?.pins ?? remoteMapPins
     }
 
     @MainActor
@@ -611,15 +624,15 @@ struct MapTabView: View {
         } else {
             switch discoveryScope {
             case .all:
-                source = remoteMapPins.map(\.localCafe) + discoveryMapCafes
+                source = personalMapPins.map(\.localCafe) + discoveryMapCafes
             case .discovery:
                 source = discoveryMapCafes
             case .favorites:
-                source = remoteMapPins.filter(\.isFavorite).map(\.localCafe)
+                source = personalMapPins.filter(\.isFavorite).map(\.localCafe)
             case .wantToTry:
-                source = remoteMapPins.filter(\.wantToTry).map(\.localCafe)
+                source = personalMapPins.filter(\.wantToTry).map(\.localCafe)
             case .visited:
-                source = remoteMapPins.filter { $0.visitCount > 0 }.map(\.localCafe)
+                source = personalMapPins.filter { $0.visitCount > 0 }.map(\.localCafe)
             case .friends:
                 source = discoveryMapCafes
             }
@@ -637,7 +650,7 @@ struct MapTabView: View {
             return localPinScoresByCafeID
         }
         return Dictionary(
-            uniqueKeysWithValues: remoteMapPins.compactMap { pin in
+            uniqueKeysWithValues: personalMapPins.compactMap { pin in
                 pin.score.map { (pin.id, $0) }
             }
         )
@@ -697,7 +710,7 @@ struct MapTabView: View {
     }
 
     private var mapPlaceNamesByCafeID: [UUID: String] {
-        var placeNames = remoteMapPins.reduce(into: [UUID: String]()) { result, pin in
+        var placeNames = personalMapPins.reduce(into: [UUID: String]()) { result, pin in
             if let city = pin.cafe.city?.trimmingCharacters(in: .whitespacesAndNewlines),
                !city.isEmpty {
                 result[pin.id] = city
@@ -758,8 +771,6 @@ struct MapTabView: View {
 
     @MainActor
     private func loadRemoteMapPins() async {
-        isLoadingRemoteMapPins = true
-        defer { isLoadingRemoteMapPins = false }
         guard let userId = authModel.authenticatedUser?.id else {
             do {
                 let client = try SupabaseClientProvider.shared.client()
@@ -774,7 +785,6 @@ struct MapTabView: View {
                 friendCafeSummariesByID = [:]
                 friendSipSummariesByID = [:]
                 remoteStateError = nil
-                hasLoadedRemoteMapPins = true
                 remoteMapPinUserId = nil
             } catch {
                 guard !Task.isCancelled else { return }
@@ -784,15 +794,14 @@ struct MapTabView: View {
                 friendCafeSummariesByID = [:]
                 friendSipSummariesByID = [:]
                 remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
-                hasLoadedRemoteMapPins = false
                 remoteMapPinUserId = nil
             }
             return
         }
 
         if remoteMapPinUserId != userId {
-            remoteMapPins = []
-            hasLoadedRemoteMapPins = false
+            remoteMapPins = dataManager.personalMapSnapshot(for: userId)?.pins ?? []
+            remoteMapPinUserId = userId
         }
 
         do {
@@ -803,6 +812,17 @@ struct MapTabView: View {
                     cafeStateService: CafeStateService(client: client),
                     cafeSessionService: CafeSessionService(client: client)
                 ).fetchSnapshot(userId: userId)
+            }
+
+            guard !Task.isCancelled else { return }
+            remoteMapPins = snapshot.pins
+            dataManager.applyPersonalMapSnapshot(snapshot, for: userId)
+            remoteMapPinUserId = userId
+            if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),
+               let refreshedSelection = snapshot.pins
+                .map(\.localCafe)
+                .first(where: { ($0.remoteCafeId ?? $0.id) == selectedID }) {
+                selectedCafe = refreshedSelection
             }
 
             let discovery = try await fetchDiscoveryCafes(
@@ -823,13 +843,6 @@ struct MapTabView: View {
                 sipSummariesRequest
             )
 
-            remoteMapPins = snapshot.pins
-            if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),
-               let refreshedSelection = snapshot.pins
-                .map(\.localCafe)
-                .first(where: { ($0.remoteCafeId ?? $0.id) == selectedID }) {
-                selectedCafe = refreshedSelection
-            }
             discoveryMapCafes = discovery.map(\.localCafe)
             discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
             friendCafeSummariesByID = Dictionary(
@@ -838,18 +851,10 @@ struct MapTabView: View {
             friendSipSummariesByID = Dictionary(
                 uniqueKeysWithValues: (friendSipSummaries ?? []).map { ($0.cafeID, $0) }
             )
-            // Keep the rest of the personal library in sync without using it
-            // as the map's source of truth.
-            dataManager.applyPersonalMapSnapshot(snapshot)
-            hasLoadedRemoteMapPins = true
-            remoteMapPinUserId = userId
             remoteStateError = nil
         } catch {
             guard !Task.isCancelled else { return }
             remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
-            hasLoadedRemoteMapPins = false
-            friendCafeSummariesByID = [:]
-            friendSipSummariesByID = [:]
         }
     }
 
@@ -909,30 +914,6 @@ struct MapTabView: View {
 private struct MapClusterSelection: Identifiable {
     let id = UUID()
     let cafes: [Cafe]
-}
-
-private struct MapLoadingStatus: View {
-    var body: some View {
-        HStack(spacing: 9) {
-            ProgressView()
-                .controlSize(.small)
-                .tint(.mugshotSage)
-            Text("Loading your cafes…")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondaryText)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 38)
-        .mugshotGlassSurface(
-            radius: 19,
-            tint: .foamWhite,
-            stroke: Color.foamWhite.opacity(0.62),
-            shadow: DesignSystem.Shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 5),
-            interactive: false
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Loading your cafes")
-    }
 }
 
 private struct MapClusterCafeListSheet: View {

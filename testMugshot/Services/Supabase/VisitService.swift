@@ -132,8 +132,8 @@ final class VisitService {
                 .from("visits")
                 .select(
                     hasCafeSessions
-                        ? "cafe_id, overall_score, context_type, cafe_session_id"
-                        : "cafe_id, overall_score, context_type"
+                        ? "cafe_id, overall_score, context_type, cafe_session_id, created_at, poster_photo_url"
+                        : "cafe_id, overall_score, context_type, created_at, poster_photo_url"
                 )
                 .eq("user_id", value: userId.uuidString)
                 .eq("upload_state", value: VisitUploadState.complete.rawValue)
@@ -154,7 +154,9 @@ final class VisitService {
             return RemoteMapVisitSeed(
                 cafe: cafe,
                 overallScore: row.overallScore,
-                cafeSessionID: row.cafeSessionID
+                cafeSessionID: row.cafeSessionID,
+                createdAt: MapVisitDateParser.date(from: row.createdAt) ?? .distantPast,
+                posterPhotoURL: row.posterPhotoURL?.remoteTrimmedNonEmpty
             )
         }
     }
@@ -1214,12 +1216,28 @@ private struct MapVisitRow: Decodable {
     let overallScore: Double
     let contextType: String?
     let cafeSessionID: UUID?
+    let createdAt: String
+    let posterPhotoURL: String?
 
     enum CodingKeys: String, CodingKey {
         case cafeId = "cafe_id"
         case overallScore = "overall_score"
         case contextType = "context_type"
         case cafeSessionID = "cafe_session_id"
+        case createdAt = "created_at"
+        case posterPhotoURL = "poster_photo_url"
+    }
+}
+
+private enum MapVisitDateParser {
+    static func date(from value: String) -> Date? {
+        if let date = try? Date(
+            value,
+            strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        ) {
+            return date
+        }
+        return try? Date(value, strategy: Date.ISO8601FormatStyle())
     }
 }
 

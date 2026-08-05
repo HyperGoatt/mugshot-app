@@ -724,7 +724,7 @@ struct testMugshotTests {
         )
     }
 
-    @Test func mapPinsDoNotRenderUnratedLegacyVisitsAsCafeMarkers() {
+    @Test func mapPinsKeepUnratedCompletedVisitsWithoutInventingScore() {
         let userId = UUID()
         let cafe = SupabaseCafeSummary(
             id: UUID(),
@@ -761,7 +761,9 @@ struct testMugshotTests {
 
         let snapshot = RemoteMapPinSnapshot.make(visits: [visit], cafeStates: [])
 
-        #expect(snapshot.pins.isEmpty)
+        #expect(snapshot.pins.count == 1)
+        #expect(snapshot.pins.first?.visitCount == 1)
+        #expect(snapshot.pins.first?.score == nil)
     }
 
     @Test func mapKitCategoriesNeverSurfaceRawDeveloperValues() {

@@ -35,6 +35,7 @@ struct RemoteVisitDetailView: View {
     let onComposeDraft: ((SipDraft) -> Void)?
     let presentationMode: SipDetailPresentationMode
     let onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)?
+    let onCafeRequested: ((Cafe) -> Void)?
 
     init(
         visitId: UUID,
@@ -45,7 +46,8 @@ struct RemoteVisitDetailView: View {
         onRepeat: ((RemoteVisitDetail) -> Void)? = nil,
         onComposeDraft: ((SipDraft) -> Void)? = nil,
         presentationMode: SipDetailPresentationMode = .pushed,
-        onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
+        onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil,
+        onCafeRequested: ((Cafe) -> Void)? = nil
     ) {
         self.visitId = visitId
         self.initialSummary = initialSummary
@@ -56,6 +58,7 @@ struct RemoteVisitDetailView: View {
         self.onComposeDraft = onComposeDraft
         self.presentationMode = presentationMode
         self.onAuthenticationRequired = onAuthenticationRequired
+        self.onCafeRequested = onCafeRequested
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -91,11 +94,20 @@ struct RemoteVisitDetailView: View {
     @State private var showMoreActions = false
     @State private var recipeAdaptationRequest: SipDetailRecipeModel?
     @State private var selectedTaggedProfile: PeopleProfileRoute?
+    @State private var selectedCafeDetail: Cafe?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @FocusState private var isCommentFocused: Bool
 
     private var displayedSummary: RemoteVisitSummary {
         detail?.summary ?? initialSummary
+    }
+
+    private var postCafe: Cafe? {
+        guard displayedSummary.visit.journalContext == .cafe,
+              let remoteCafe = displayedSummary.cafe else { return nil }
+        return dataManager.appData.cafes.first(where: {
+            $0.remoteCafeId == remoteCafe.id || $0.id == remoteCafe.id
+        }) ?? remoteCafe.localCafe()
     }
 
     private var heroHeight: CGFloat { 500 }
@@ -142,6 +154,7 @@ struct RemoteVisitDetailView: View {
                             locationName: detail.summary.locationTitle
                         )
                     },
+                    onCafeTap: postCafe == nil ? nil : openPostCafe,
                     onRecipeAction: performRecipeAction,
                     onTaggedAccount: openTaggedProfile,
                     onRemoveOwnTag: { Task { await removeOwnTag() } }
@@ -214,6 +227,23 @@ struct RemoteVisitDetailView: View {
             SipRecipeAdaptationSheet(recipe: recipe) { name in
                 try await saveRecipeAdaptation(recipe, name: name)
             }
+        }
+        .sheet(item: $selectedCafeDetail) { cafe in
+            CafeDetailView(
+                cafe: cafe,
+                dataManager: dataManager,
+                initialDetent: .medium,
+                onAuthenticationRequired: onAuthenticationRequired
+            )
+        }
+    }
+
+    private func openPostCafe() {
+        guard let postCafe else { return }
+        if let onCafeRequested {
+            onCafeRequested(postCafe)
+        } else {
+            selectedCafeDetail = postCafe
         }
     }
 

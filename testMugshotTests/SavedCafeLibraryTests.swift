@@ -51,7 +51,7 @@ struct SavedCafeLibraryTests {
         #expect(manager.getCafe(id: cafe.id)?.wantToTry == true)
     }
 
-    @Test func projectionKeepsCategorySearchFiltersAndSortDeterministic() {
+    @Test func projectionKeepsCategorySearchAndSortDeterministic() {
         let favorite = Cafe(
             name: "Harborlight Coffee Roasters",
             address: "Embarcadero",
@@ -90,15 +90,89 @@ struct SavedCafeLibraryTests {
         )
         #expect(searched.map(\.id) == [visited.id])
 
-        let visitedOnly = SavedCafeLibraryProjector.project(
+        let highestRated = SavedCafeLibraryProjector.project(
             cafes: cafes,
             visits: [],
             query: SavedCafeLibraryQuery(
                 category: .all,
-                sort: .highestRated,
-                requiresVisit: true
+                sort: .highestRated
             )
         )
-        #expect(visitedOnly.map(\.id) == [favorite.id, visited.id])
+        #expect(highestRated.map(\.id) == [favorite.id, visited.id, wantToTry.id])
+
+        let now = Date(timeIntervalSince1970: 1_785_859_200)
+        let recent = SavedCafeLibraryProjector.project(
+            cafes: cafes,
+            visits: [],
+            query: SavedCafeLibraryQuery(category: .all, sort: .recentActivity),
+            remoteActivityDates: [
+                favorite.id: now.addingTimeInterval(-3_600),
+                wantToTry.id: now,
+                visited.id: now.addingTimeInterval(-86_400)
+            ]
+        )
+        #expect(recent.map(\.id) == [wantToTry.id, favorite.id, visited.id])
+    }
+
+    @Test func photoSelectionSkipsNewerVisitsWithoutPhotos() {
+        let cafeID = UUID()
+        let userID = UUID()
+        let olderPhoto = Visit(
+            cafeId: cafeID,
+            userId: userID,
+            createdAt: Date(timeIntervalSince1970: 100),
+            drinkType: .coffee,
+            photos: ["older-photo.jpg"]
+        )
+        let newerWithoutPhoto = Visit(
+            cafeId: cafeID,
+            userId: userID,
+            createdAt: Date(timeIntervalSince1970: 200),
+            drinkType: .coffee
+        )
+
+        #expect(
+            CafePhotoSelection.mostRecentLocalPosterPath(
+                in: [newerWithoutPhoto, olderPhoto]
+            ) == "older-photo.jpg"
+        )
+    }
+
+    @Test func personalSnapshotKeepsUnratedVisitsAndMostRecentAvailablePhoto() {
+        let cafe = SupabaseCafeSummary(
+            id: UUID(),
+            name: "Photo Cafe",
+            address: "1 Test Street",
+            city: "Charleston",
+            latitude: 32.78,
+            longitude: -79.93,
+            applePlaceId: nil,
+            websiteURL: nil
+        )
+        let newestDate = Date(timeIntervalSince1970: 300)
+        let snapshot = RemoteMapPinSnapshot.make(
+            mapVisits: [
+                RemoteMapVisitSeed(
+                    cafe: cafe,
+                    overallScore: 0,
+                    cafeSessionID: nil,
+                    createdAt: newestDate,
+                    posterPhotoURL: nil
+                ),
+                RemoteMapVisitSeed(
+                    cafe: cafe,
+                    overallScore: 4.5,
+                    cafeSessionID: nil,
+                    createdAt: Date(timeIntervalSince1970: 200),
+                    posterPhotoURL: "https://example.com/authorized.jpg"
+                )
+            ],
+            cafeStates: []
+        )
+
+        #expect(snapshot.pins.count == 1)
+        #expect(snapshot.pins.first?.visitCount == 2)
+        #expect(snapshot.pins.first?.lastActivityAt == newestDate)
+        #expect(snapshot.pins.first?.coverPhotoURL == "https://example.com/authorized.jpg")
     }
 }

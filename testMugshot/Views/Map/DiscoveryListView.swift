@@ -271,7 +271,7 @@ struct DiscoveryListView: View {
                         cafeSessionService: CafeSessionService(client: client)
                     ).fetchSnapshot(userId: userID)
                     libraryCafes = cafes(for: discoveryScope, from: snapshot.pins.map(\.localCafe))
-                    dataManager.applyPersonalMapSnapshot(snapshot)
+                    dataManager.applyPersonalMapSnapshot(snapshot, for: userID)
                 } else {
                     libraryCafes = cafes(for: discoveryScope, from: dataManager.appData.cafes)
                 }

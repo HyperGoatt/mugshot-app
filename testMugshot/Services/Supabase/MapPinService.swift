@@ -165,6 +165,8 @@ struct RemoteMapPin: Identifiable, Equatable {
     let score: MapPinScore?
     let isFavorite: Bool
     let wantToTry: Bool
+    let lastActivityAt: Date?
+    let coverPhotoURL: String?
 
     var id: UUID { cafe.id }
     var averageScore: Double { score?.value ?? 0 }
@@ -195,7 +197,7 @@ struct RemoteMapPinSnapshot: Equatable {
             uniqueKeysWithValues: activeStates.map { ($0.cafe.id, $0) }
         )
         let visitsByCafeID = Dictionary(grouping: visits.compactMap { summary -> RemoteVisitSummary? in
-            summary.cafe == nil || summary.visit.overallScore <= 0 ? nil : summary
+            summary.cafe == nil ? nil : summary
         }) { $0.cafe!.id }
         let experienceByCafeID = Dictionary(
             uniqueKeysWithValues: cafeExperienceSummaries.map { ($0.cafeID, $0) }
@@ -221,6 +223,8 @@ struct RemoteMapPinSnapshot: Equatable {
                 cafeSummary: experience,
                 audience: .personal
             )
+            let latestVisit = cafeVisits.map(\.visit.createdAtDate).max()
+            let latestState = state.flatMap { RemoteMapPinDateParser.activityDate(for: $0.state) }
 
             return RemoteMapPin(
                 cafe: cafe,
@@ -228,7 +232,12 @@ struct RemoteMapPinSnapshot: Equatable {
                     + (experience?.physicalSessionCount ?? linkedSessionCount),
                 score: score,
                 isFavorite: state?.state.isFavorite ?? false,
-                wantToTry: state?.state.wantToTry ?? false
+                wantToTry: state?.state.wantToTry ?? false,
+                lastActivityAt: [latestVisit, latestState].compactMap { $0 }.max(),
+                coverPhotoURL: cafeVisits
+                    .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+                    .compactMap { $0.visit.posterPhotoURL?.remoteTrimmedNonEmpty }
+                    .first
             )
         }
         .sorted { lhs, rhs in
@@ -248,10 +257,7 @@ struct RemoteMapPinSnapshot: Equatable {
     ) -> RemoteMapPinSnapshot {
         let activeStates = cafeStates.filter { $0.state.isFavorite || $0.state.wantToTry }
         let statesByCafeID = Dictionary(uniqueKeysWithValues: activeStates.map { ($0.cafe.id, $0) })
-        let visitsByCafeID = Dictionary(
-            grouping: mapVisits.filter { $0.overallScore > 0 },
-            by: { $0.cafe.id }
-        )
+        let visitsByCafeID = Dictionary(grouping: mapVisits, by: { $0.cafe.id })
         let cafeIDs = Set(visitsByCafeID.keys).union(statesByCafeID.keys)
         let experienceByCafeID = Dictionary(
             uniqueKeysWithValues: cafeExperienceSummaries.map { ($0.cafeID, $0) }
@@ -274,13 +280,20 @@ struct RemoteMapPinSnapshot: Equatable {
                 cafeSummary: experience,
                 audience: .personal
             )
+            let latestVisit = visits.map(\.createdAt).max()
+            let latestState = state.flatMap { RemoteMapPinDateParser.activityDate(for: $0.state) }
             return RemoteMapPin(
                 cafe: cafe,
                 visitCount: legacySipCount
                     + (experience?.physicalSessionCount ?? linkedSessionCount),
                 score: score,
                 isFavorite: state?.state.isFavorite ?? false,
-                wantToTry: state?.state.wantToTry ?? false
+                wantToTry: state?.state.wantToTry ?? false,
+                lastActivityAt: [latestVisit, latestState].compactMap { $0 }.max(),
+                coverPhotoURL: visits
+                    .sorted { $0.createdAt > $1.createdAt }
+                    .compactMap { $0.posterPhotoURL?.remoteTrimmedNonEmpty }
+                    .first
             )
         }
         .sorted { lhs, rhs in
@@ -297,6 +310,25 @@ struct RemoteMapVisitSeed: Equatable {
     let cafe: SupabaseCafeSummary
     let overallScore: Double
     let cafeSessionID: UUID?
+    let createdAt: Date
+    let posterPhotoURL: String?
+}
+
+private enum RemoteMapPinDateParser {
+    static func activityDate(for state: SupabaseCafeStateRow) -> Date? {
+        date(from: state.updatedAt) ?? date(from: state.createdAt)
+    }
+
+    private static func date(from value: String?) -> Date? {
+        guard let value else { return nil }
+        if let date = try? Date(
+            value,
+            strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        ) {
+            return date
+        }
+        return try? Date(value, strategy: Date.ISO8601FormatStyle())
+    }
 }
 
 final class MapPinService {
