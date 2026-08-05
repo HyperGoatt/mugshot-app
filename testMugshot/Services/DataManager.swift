@@ -231,6 +231,21 @@ class DataManager: ObservableObject {
             MugshotLaunchEnvironment.resetDeterministicFailures()
         }
 
+        if let savedAuditScenario = MugshotLaunchEnvironment.savedAuditScenario {
+            if !reset,
+               appData.currentUser?.id == SavedAuditFixtures.userID || MugshotLaunchEnvironment.isUITestingSignedOut {
+                SavedAuditFixtures.seedLocalPhotos()
+                return
+            }
+            appData = SavedAuditFixtures.appData(
+                for: savedAuditScenario,
+                signedOut: MugshotLaunchEnvironment.isUITestingSignedOut
+            )
+            SavedAuditFixtures.seedLocalPhotos()
+            save()
+            return
+        }
+
         let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
         if !reset, appData.currentUser?.id == userID {
             seedUITestMapSearchRecentIfRequested(key: mapSearchRecentsKey)

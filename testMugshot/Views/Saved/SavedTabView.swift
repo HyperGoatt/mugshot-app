@@ -19,6 +19,9 @@ struct SavedTabView: View {
     @State private var isLoadingRemoteStates = false
     @State private var remoteStateError: String?
     @State private var remoteCafeCoverURLs: [UUID: String] = [:]
+#if DEBUG
+    @State private var auditRetrySucceeded = false
+#endif
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 
     enum SavedSection: String, CaseIterable {
@@ -158,7 +161,7 @@ struct SavedTabView: View {
                     }
                 }
 
-                if selectedSection == .cafes, authModel.authenticatedUser != nil {
+                if selectedSection == .cafes, shouldShowRemoteStateStatus {
                     remoteStateStatus
                         .padding(.horizontal, 16)
                         .padding(.bottom, 4)
@@ -228,26 +231,73 @@ struct SavedTabView: View {
 
     @ViewBuilder
     private var remoteStateStatus: some View {
-        if isLoadingRemoteStates {
-            HStack(spacing: 8) {
-                ProgressView().tint(.mugshotSage)
-                Text("Refreshing saved cafes…")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondaryText)
+#if DEBUG
+        if let scenario = MugshotLaunchEnvironment.savedAuditScenario,
+           scenario.showsForcedSavedStatus,
+           !auditRetrySucceeded {
+            if scenario.isForcedLoading {
+                remoteLoadingStatus
+            } else if let message = scenario.forcedSavedErrorMessage {
+                MugshotRecoveryCard(
+                    title: "Couldn’t refresh saved cafes",
+                    message: message,
+                    actionTitle: "Retry"
+                ) {
+                    auditRetrySucceeded = true
+                }
             }
+        } else if isLoadingRemoteStates {
+            remoteLoadingStatus
         } else if let remoteStateError {
-            MugshotRecoveryCard(
-                title: "Couldn’t refresh saved cafes",
-                message: remoteStateError,
-                actionTitle: "Retry"
-            ) {
-                Task { await loadRemoteCafeStates() }
-            }
+            remoteRecoveryStatus(message: remoteStateError)
         }
+#else
+        if isLoadingRemoteStates {
+            remoteLoadingStatus
+        } else if let remoteStateError {
+            remoteRecoveryStatus(message: remoteStateError)
+        }
+#endif
+    }
+
+    private var remoteLoadingStatus: some View {
+        HStack(spacing: 8) {
+            ProgressView().tint(.mugshotSage)
+            Text("Refreshing saved cafes…")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondaryText)
+        }
+    }
+
+    private func remoteRecoveryStatus(message: String) -> some View {
+        MugshotRecoveryCard(
+            title: "Couldn’t refresh saved cafes",
+            message: message,
+            actionTitle: "Retry"
+        ) {
+            Task { await loadRemoteCafeStates() }
+        }
+    }
+
+    private var shouldShowRemoteStateStatus: Bool {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario?.showsForcedSavedStatus == true {
+            return true
+        }
+#endif
+        return authModel.authenticatedUser != nil
     }
 
     @MainActor
     private func loadRemoteCafeStates() async {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario != nil {
+            isLoadingRemoteStates = false
+            remoteStateError = nil
+            remoteCafeCoverURLs = [:]
+            return
+        }
+#endif
         guard let userId = authModel.authenticatedUser?.id else {
             remoteStateError = nil
             remoteCafeCoverURLs = [:]
@@ -750,6 +800,24 @@ struct CafeDetailView: View {
         ].joined(separator: "-")
     }
 
+    private var isPresentingCafeExperienceLoading: Bool {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .detailLoading {
+            return true
+        }
+#endif
+        return isLoadingCafeExperienceSummary
+    }
+
+    private var presentedCafeExperienceError: String? {
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .detailError {
+            return "Cafe relationship could not refresh."
+        }
+#endif
+        return cafeExperienceSummaryError
+    }
+
     private var cafeSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(currentCafe.name)
@@ -807,7 +875,7 @@ struct CafeDetailView: View {
                 )
             }
             .redacted(
-                reason: isLoadingCafeExperienceSummary && cafeExperienceSummary == nil
+                reason: isPresentingCafeExperienceLoading && cafeExperienceSummary == nil
                     ? .placeholder
                     : []
             )
@@ -816,8 +884,8 @@ struct CafeDetailView: View {
                 cafeRelationshipEvidence(summary)
             }
 
-            if let cafeExperienceSummaryError {
-                Label(cafeExperienceSummaryError, systemImage: "exclamationmark.circle")
+            if let presentedCafeExperienceError {
+                Label(presentedCafeExperienceError, systemImage: "exclamationmark.circle")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.tertiaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -903,10 +971,10 @@ struct CafeDetailView: View {
     }
 
     private var cafeAverageDisplayValue: String {
-        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
+        if isPresentingCafeExperienceLoading, cafeExperienceSummary == nil {
             return "4.5"
         }
-        if cafeExperienceSummaryError != nil, cafeExperienceSummary == nil {
+        if presentedCafeExperienceError != nil, cafeExperienceSummary == nil {
             return "Unavailable"
         }
         guard let summary = cafeExperienceSummary,
@@ -918,7 +986,7 @@ struct CafeDetailView: View {
     }
 
     private var cafePhysicalVisitDisplayValue: String {
-        if isLoadingCafeExperienceSummary, cafeExperienceSummary == nil {
+        if isPresentingCafeExperienceLoading, cafeExperienceSummary == nil {
             return "2"
         }
         return cafeExperienceSummary.map { "\($0.physicalSessionCount)" } ?? "—"
@@ -1326,6 +1394,24 @@ struct CafeDetailView: View {
                 )
             )
         }
+
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario == .saveFailure {
+            isSyncingCafeState = true
+            cafeStateError = nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                dataManager.setCafeState(
+                    cafeId: previousCafe.id,
+                    isFavorite: previousCafe.isFavorite,
+                    wantToTry: previousCafe.wantToTry
+                )
+                cafeStateError = "Could not save cafe state."
+                isSyncingCafeState = false
+            }
+            return
+        }
+#endif
 
         guard let userId = authModel.authenticatedUser?.id else {
             return
