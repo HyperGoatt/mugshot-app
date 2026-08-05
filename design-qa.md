@@ -746,3 +746,79 @@ final result: passed
 - Full source-and-implementation comparison: passed.
 
 final result: passed
+
+---
+
+# Saved cafes redesign — implementation QA
+
+## Comparison setup
+
+- Source visual truth:
+  - `docs/design/saved-cafes-redesign-2026-08-04/screens/CF-01-favorites-populated.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/screens/CF-12-map-tab-saved-cafe-detail.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/screens/CD-03-detail-expanded-top.png`
+- Final implementation captures:
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/ui-test-final-matrix/B3C67E8A-701D-4E85-B2EC-25E6FC3ABC63.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/ui-test-final-matrix/31B02138-B703-4512-AFD7-297AF8ACBDAF.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/ui-test-final-matrix/E67711BB-1E7E-4634-8DC2-DB98BA406CB0.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/ui-test-final-matrix/394624C2-BB68-436F-B7C8-657B87AFF17F.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/ui-test-final-matrix/7F24C097-6BFB-44AC-A55F-4FAD4AEB5954.png`
+- Same-input comparisons:
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/comparison-saved-final-pass.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/comparison-map-final-pass.png`
+  - `docs/design/saved-cafes-redesign-2026-08-04/production-evidence/comparison-detail-final-pass.png`
+- Viewport: iPhone 17 Pro, iOS 26.3.1, 402 × 874 points.
+- Pixels and density: every source and implementation capture is 1206 × 2622 pixels at 3×. No density normalization was required.
+- Appearance: forced light.
+- Fixture: deterministic local Saved audit data; no authentication, analytics, or remote mutations.
+- States: Favorites populated, Saved medium detail, expanded detail, Saved-to-Map compact detail, and accessibility XXXL Saved/detail.
+
+## Final findings
+
+No actionable P0, P1, or P2 visual differences remain.
+
+- Fonts and typography: the regular-size hierarchy retains the serif Saved/cafe identity and SF system UI treatment. Dynamic Type changes the Saved category controls to readable menu rows, makes cafe cards vertical, and makes detail actions full-width rows rather than compressing labels.
+- Spacing and layout: the production screen uses the real iPhone 17 Pro safe area, so content begins lower than the bezel-free static board. The hierarchy, 16-point margins, 44-point minimum controls, card structure, native sheet detents, and dock clearance are preserved.
+- Colors and tokens: cream, foam, espresso, roast, sage, mint, sand, and divider treatments map to Mugshot tokens. Selected state is differentiated with fill, border, icon, label, and accessibility value.
+- Image quality: fixture images use authorized Mugshot assets at native density. Missing imagery uses Mugsy and a branded sand surface; there are no stock photos or fabricated cafe images.
+- Copy and content: strings use `cafe` and `cafes`; personal ratings and history are labeled separately from cafe reflection and community data. No unavailable score, distance, hours, or report submission is fabricated.
+- Icons and affordances: actions use SF Symbols with explicit labels. Map scope uses the approved layered-source icon; Lists continues to call the existing membership workflow.
+- Accessibility: accessibility XXXL was rendered in Simulator. Controls reflow without horizontal compression; category switches become menus; cards and action rows become vertical. VoiceOver labels, values, selected traits, and minimum targets are implemented. Full VoiceOver traversal and Reduce Motion quality remain device-level acceptance checks rather than visual claims.
+
+## Comparison history
+
+### Iteration 1 — blocked
+
+- [P1] The compact Map cafe sheet hid the approved search/scope/List control.
+  - Fix: kept the floating Map control visible while the native compact detail sheet is presented.
+- [P1] The deterministic signed-out capture omitted the Cafes/Lists boundary visible in the approved Saved board.
+  - Fix: the DEBUG-only audit route now renders that boundary without authenticating or loading Lists; production Lists behavior is unchanged.
+- [P2] Favorites selection and Your Mugshot used neutral white surfaces rather than the approved mint hierarchy.
+  - Fix: applied the selected mint wash and the attributed Your Mugshot mint surface with white stat cards.
+
+### Iteration 2 — blocked
+
+- [P1] The first accessibility harness did not actually apply accessibility XXXL.
+  - Fix: added a DEBUG/UI-test-only Dynamic Type override and proved the large-size layout in Simulator.
+- [P1] Direct semantic scaling compressed category controls and regular library controls at accessibility XXXL.
+  - Fix: replaced segmented categories with full-width menus, stacked sort/count/density controls, shortened the search placeholder, made cafe cards vertical, and made actions full-width labeled rows.
+
+### Final iteration — passed
+
+- Recompiled after the accessibility changes.
+- Ran the three-test Saved Simulator matrix: Saved search/categories/Undo persistence, Saved-detail-Map handoff, and accessibility XXXL Saved/detail.
+- Re-captured the implementation at the same viewport and rebuilt all same-input comparison boards.
+- No actionable P0/P1/P2 mismatch remained.
+
+## Focused-region evidence
+
+Focused review was performed directly on the full-resolution Saved card action area, compact Map sheet identity/CTA area, expanded identity/action/Your Mugshot region, and accessibility category/card/action regions. Separate crops were unnecessary because each source and implementation pair shares the same 1206 × 2622 dimensions and the relevant controls remain legible in the full-resolution side-by-side boards.
+
+## Follow-up polish
+
+- [P3] The production Map sheet uses a native `Cafe details` title and Done control rather than the mockup's custom close button. This is an intentional navigation-clarity tradeoff.
+- [P3] The synthetic fixture shows full street addresses on Saved cards because the current cafe model has no trustworthy neighborhood projection. The UI avoids inventing neighborhood or distance values.
+
+## Final result
+
+final result: passed

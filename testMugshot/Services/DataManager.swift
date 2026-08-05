@@ -473,14 +473,47 @@ class DataManager: ObservableObject {
             appData.cafes[index].wantToTry = false
         }
         for summary in summaries {
-            upsertRemoteCafe(
+            let cafe = upsertRemoteCafe(
                 summary.cafe,
                 isFavorite: summary.state.isFavorite,
                 wantToTry: summary.state.wantToTry,
                 persist: false
             )
+            appData.personalLibraryCafeIDs.insert(cafe.id)
         }
+        prunePersonalLibraryMembership()
         save()
+    }
+
+    /// Applies the authoritative visited-or-saved projection shared with Map.
+    /// Search-only cafes can remain in the local identity cache without leaking
+    /// into Saved's All Cafes section.
+    func applyPersonalMapSnapshot(_ snapshot: RemoteMapPinSnapshot) {
+        var authoritativeIDs = Set(
+            appData.visits
+                .filter { $0.context == .cafe }
+                .map(\.cafeId)
+        )
+
+        for pin in snapshot.pins {
+            let cafe = upsertRemoteCafe(
+                pin.cafe,
+                isFavorite: pin.isFavorite,
+                wantToTry: pin.wantToTry,
+                averageRating: pin.score?.value,
+                visitCount: pin.visitCount,
+                persist: false
+            )
+            authoritativeIDs.insert(cafe.id)
+        }
+
+        appData.personalLibraryCafeIDs = authoritativeIDs
+        prunePersonalLibraryMembership()
+        save()
+    }
+
+    var personalLibraryCafes: [Cafe] {
+        appData.cafes.filter { appData.personalLibraryCafeIDs.contains($0.id) }
     }
 
     @discardableResult
@@ -584,8 +617,40 @@ class DataManager: ObservableObject {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
             appData.cafes[index].isFavorite = isFavorite
             appData.cafes[index].wantToTry = wantToTry
+            if isFavorite || wantToTry || hasPersonalCafeVisit(cafeId: cafeId) {
+                appData.personalLibraryCafeIDs.insert(cafeId)
+            } else {
+                appData.personalLibraryCafeIDs.remove(cafeId)
+            }
             save()
         }
+    }
+
+    /// Completes the Want to Try lifecycle after a cafe sip is durably saved.
+    /// The cafe remains in All Cafes even before the next remote snapshot.
+    @discardableResult
+    func completeWantToTryAfterSip(at cafe: Cafe) -> Cafe? {
+        guard let index = appData.cafes.firstIndex(where: {
+            $0.id == cafe.id
+                || (cafe.remoteCafeId != nil && $0.remoteCafeId == cafe.remoteCafeId)
+                || ($0.remoteCafeId != nil && $0.remoteCafeId == cafe.id)
+        }), appData.cafes[index].wantToTry else { return nil }
+        let previous = appData.cafes[index]
+        appData.cafes[index].wantToTry = false
+        appData.personalLibraryCafeIDs.insert(appData.cafes[index].id)
+        save()
+        return previous
+    }
+
+    func restoreWantToTry(after completionCafe: Cafe) {
+        guard let index = appData.cafes.firstIndex(where: {
+            $0.id == completionCafe.id
+                || (completionCafe.remoteCafeId != nil && $0.remoteCafeId == completionCafe.remoteCafeId)
+                || ($0.remoteCafeId != nil && $0.remoteCafeId == completionCafe.id)
+        }) else { return }
+        appData.cafes[index].wantToTry = true
+        appData.personalLibraryCafeIDs.insert(appData.cafes[index].id)
+        save()
     }
     
     func getCafe(id: UUID) -> Cafe? {
@@ -595,6 +660,7 @@ class DataManager: ObservableObject {
     func toggleCafeFavorite(_ cafeId: UUID) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
             appData.cafes[index].isFavorite.toggle()
+            synchronizePersonalLibraryMembership(for: cafeId)
             save()
         }
     }
@@ -602,6 +668,7 @@ class DataManager: ObservableObject {
     func toggleCafeWantToTry(_ cafeId: UUID) {
         if let index = appData.cafes.firstIndex(where: { $0.id == cafeId }) {
             appData.cafes[index].wantToTry.toggle()
+            synchronizePersonalLibraryMembership(for: cafeId)
             save()
         }
     }
@@ -733,6 +800,9 @@ class DataManager: ObservableObject {
     // MARK: - Visit Operations
     func addVisit(_ visit: Visit) {
         appData.visits.append(visit)
+        if visit.context == .cafe {
+            appData.personalLibraryCafeIDs.insert(visit.cafeId)
+        }
         
         // Update cafe stats
         if let cafeIndex = appData.cafes.firstIndex(where: { $0.id == visit.cafeId }) {
@@ -766,7 +836,14 @@ class DataManager: ObservableObject {
             appData.visits.append(visit)
         }
 
+        if visit.context == .cafe {
+            appData.personalLibraryCafeIDs.insert(visit.cafeId)
+        }
+
         recalculateCafeStats(for: priorCafeIDs.union([visit.cafeId]))
+        for cafeID in priorCafeIDs where cafeID != visit.cafeId {
+            synchronizePersonalLibraryMembership(for: cafeID)
+        }
         save()
     }
     
@@ -801,8 +878,33 @@ class DataManager: ObservableObject {
                 let totalRating = cafeVisits.reduce(0.0) { $0 + $1.overallScore }
                 appData.cafes[cafeIndex].averageRating = cafeVisits.isEmpty ? 0.0 : (totalRating / Double(cafeVisits.count))
             }
+            synchronizePersonalLibraryMembership(for: visit.cafeId)
             save()
         }
+
+    private func hasPersonalCafeVisit(cafeId: UUID) -> Bool {
+        appData.visits.contains { $0.context == .cafe && $0.cafeId == cafeId }
+    }
+
+    private func synchronizePersonalLibraryMembership(for cafeId: UUID) {
+        guard let cafe = appData.cafes.first(where: { $0.id == cafeId }) else {
+            appData.personalLibraryCafeIDs.remove(cafeId)
+            return
+        }
+        if cafe.isFavorite || cafe.wantToTry || hasPersonalCafeVisit(cafeId: cafeId) {
+            appData.personalLibraryCafeIDs.insert(cafeId)
+        } else {
+            appData.personalLibraryCafeIDs.remove(cafeId)
+        }
+    }
+
+    private func prunePersonalLibraryMembership() {
+        let knownCafeIDs = Set(appData.cafes.map(\.id))
+        appData.personalLibraryCafeIDs.formIntersection(knownCafeIDs)
+        for cafe in appData.cafes where cafe.isFavorite || cafe.wantToTry || hasPersonalCafeVisit(cafeId: cafe.id) {
+            appData.personalLibraryCafeIDs.insert(cafe.id)
+        }
+    }
 
     private func recalculateCafeStats(for cafeIDs: Set<UUID>) {
         for cafeID in cafeIDs {

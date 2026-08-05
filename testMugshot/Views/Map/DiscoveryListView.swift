@@ -252,7 +252,7 @@ struct DiscoveryListView: View {
         case .favorites: return cafes.filter(\.isFavorite)
         case .wantToTry: return cafes.filter(\.wantToTry)
         case .visited: return cafes.filter { $0.visitCount > 0 }
-        case .all, .friends: return []
+        case .all, .friends, .discovery: return []
         }
     }
 
@@ -271,7 +271,7 @@ struct DiscoveryListView: View {
                         cafeSessionService: CafeSessionService(client: client)
                     ).fetchSnapshot(userId: userID)
                     libraryCafes = cafes(for: discoveryScope, from: snapshot.pins.map(\.localCafe))
-                    dataManager.applyRemoteCafeStates(snapshot.cafeStates)
+                    dataManager.applyPersonalMapSnapshot(snapshot)
                 } else {
                     libraryCafes = cafes(for: discoveryScope, from: dataManager.appData.cafes)
                 }
@@ -370,7 +370,7 @@ private struct LibraryCafeSection: View {
         case .wantToTry: return "Saved to try later"
         case .visited:
             return "\(cafe.visitCount) \(cafe.visitCount == 1 ? "sip" : "sips") logged"
-        case .all, .friends: return ""
+        case .all, .friends, .discovery: return ""
         }
     }
 }

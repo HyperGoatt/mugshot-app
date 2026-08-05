@@ -68,6 +68,7 @@ enum SavedAuditFixtures {
 
     static func appData(for scenario: SavedAuditScenario, signedOut: Bool) -> AppData {
         let populated = scenario.usesPopulatedFixture
+        let fixtureCafes = populated ? cafes : []
         return AppData(
             currentUser: signedOut ? nil : User(
                 id: userID,
@@ -75,7 +76,8 @@ enum SavedAuditFixtures {
                 displayName: "Saved Audit",
                 location: "San Francisco, CA"
             ),
-            cafes: populated ? cafes : [],
+            cafes: fixtureCafes,
+            personalLibraryCafeIDs: Set(fixtureCafes.map(\.id)),
             visits: populated ? visits : [],
             ratingTemplate: RatingTemplate(),
             hasCompletedOnboarding: true
@@ -109,6 +111,7 @@ enum SavedAuditFixtures {
                 name: "Juniper & Stone",
                 location: CLLocationCoordinate2D(latitude: 37.7764, longitude: -122.4242),
                 address: "401 Grove Street, San Francisco, CA",
+                isFavorite: true,
                 wantToTry: true,
                 placeCategory: "Cafe"
             ),
@@ -118,7 +121,7 @@ enum SavedAuditFixtures {
                 location: CLLocationCoordinate2D(latitude: 37.7599, longitude: -122.4148),
                 address: "88 Valencia Street, San Francisco, CA",
                 isFavorite: true,
-                wantToTry: true,
+                wantToTry: false,
                 averageRating: 4.2,
                 visitCount: 2,
                 placeCategory: "Coffee Shop"

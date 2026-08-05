@@ -19,6 +19,7 @@ struct LogASipV3ProductionView: View {
     let isOpeningPublishedMugshot: Bool
     let completionStatusMessage: String?
     let completion: LogASipV3PassportSummary?
+    let wantToTryAchievementCafeName: String?
     let canUseLastSipSetup: Bool
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
@@ -33,6 +34,7 @@ struct LogASipV3ProductionView: View {
     let onPublish: () -> Void
     let onViewPublishedMugshot: () -> Void
     let onViewPassport: () -> Void
+    let onUndoWantToTryRemoval: () -> Void
     let onFinish: () -> Void
     let onStartAnother: (() -> Void)?
 
@@ -51,6 +53,7 @@ struct LogASipV3ProductionView: View {
         isOpeningPublishedMugshot: Bool = false,
         completionStatusMessage: String? = nil,
         completion: LogASipV3PassportSummary? = nil,
+        wantToTryAchievementCafeName: String? = nil,
         canUseLastSipSetup: Bool = false,
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
@@ -65,6 +68,7 @@ struct LogASipV3ProductionView: View {
         onPublish: @escaping () -> Void,
         onViewPublishedMugshot: @escaping () -> Void = {},
         onViewPassport: @escaping () -> Void = {},
+        onUndoWantToTryRemoval: @escaping () -> Void = {},
         onFinish: @escaping () -> Void = {},
         onStartAnother: (() -> Void)? = nil
     ) {
@@ -77,6 +81,7 @@ struct LogASipV3ProductionView: View {
         self.isOpeningPublishedMugshot = isOpeningPublishedMugshot
         self.completionStatusMessage = completionStatusMessage
         self.completion = completion
+        self.wantToTryAchievementCafeName = wantToTryAchievementCafeName
         self.canUseLastSipSetup = canUseLastSipSetup
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
@@ -91,6 +96,7 @@ struct LogASipV3ProductionView: View {
         self.onPublish = onPublish
         self.onViewPublishedMugshot = onViewPublishedMugshot
         self.onViewPassport = onViewPassport
+        self.onUndoWantToTryRemoval = onUndoWantToTryRemoval
         self.onFinish = onFinish
         self.onStartAnother = onStartAnother
     }
@@ -124,6 +130,18 @@ struct LogASipV3ProductionView: View {
                         }
                     }
                     .transition(.opacity)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if let cafeName = wantToTryAchievementCafeName {
+                            WantToTryAchievementBanner(
+                                cafeName: cafeName,
+                                reduceMotion: reduceMotion,
+                                onUndo: onUndoWantToTryRemoval
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
                 } else {
                     currentSurface
                         .id(step)
@@ -345,6 +363,61 @@ struct LogASipV3ProductionView: View {
                 isPinned: false
             ))
         }
+    }
+}
+
+private struct WantToTryAchievementBanner: View {
+    let cafeName: String
+    let reduceMotion: Bool
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Group {
+                if reduceMotion {
+                    MugsyModelView(configuration: configuration)
+                } else {
+                    MugsyAnimatedView(
+                        configuration: configuration,
+                        action: .celebrating,
+                        tapBehavior: .disabled
+                    )
+                }
+            }
+            .frame(width: 58, height: 58)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("You tried a saved cafe")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text("\(cafeName) was removed from Want to Try.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+            Button("Undo", action: onUndo)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.mugshotSageText)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.mugshotMint.opacity(0.30), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotSageText, lineWidth: 1.5))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Achievement. You tried \(cafeName). Removed from Want to Try.")
+    }
+
+    private var configuration: MugsyModelConfiguration {
+        MugsyModelConfiguration(
+            expression: .delighted,
+            prop: .wishlistBadge,
+            outfit: .cafeScout,
+            pose: .leaningRight
+        )
     }
 }
 

@@ -21,6 +21,7 @@ enum MugshotLaunchEnvironment {
     static let shouldShowRecoveryBannerDesignQA = arguments.contains("--ui-testing-recovery-banner-design-qa")
 #if DEBUG
     static let savedAuditScenario = SavedAuditScenario.resolve(arguments: arguments)
+    static let shouldUseAccessibilityXXXL = arguments.contains("--ui-testing-accessibility-xxxl")
 #endif
 
     static func prepareDebugFailureHooks() {

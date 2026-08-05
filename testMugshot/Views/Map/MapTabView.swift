@@ -25,17 +25,19 @@ enum MapDiscoveryRadius {
 }
 
 enum MapDiscoveryScope: String, CaseIterable, Identifiable {
+    case all = "All"
     case visited = "Visited"
     case friends = "Friends"
     case favorites = "Favorites"
     case wantToTry = "Want to Try"
-    case all = "All"
+    case discovery = "Discovery"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .all: return "map.fill"
+        case .all: return "square.stack.3d.up.fill"
+        case .discovery: return "sparkles"
         case .favorites: return "heart.fill"
         case .wantToTry: return "bookmark.fill"
         case .visited: return "cup.and.saucer.fill"
@@ -46,6 +48,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     var explanation: String {
         switch self {
         case .all: return "Nearby, friend, and community cafes together"
+        case .discovery: return "Nearby and community cafes you have not necessarily saved"
         case .favorites: return "Only cafes you marked as favorites"
         case .wantToTry: return "Only cafes you saved to try later"
         case .visited: return "Only cafes where you logged a sip"
@@ -62,11 +65,12 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
         case .favorites, .wantToTry, .visited:
             return []
         case .friends: return isAuthenticated ? [.lovedByFriends] : []
+        case .discovery: return [.nearby, .trending]
         }
     }
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
-        isAuthenticated ? allCases : [.visited, .favorites, .wantToTry, .all]
+        isAuthenticated ? allCases : [.all, .visited, .favorites, .wantToTry, .discovery]
     }
 }
 
@@ -76,6 +80,7 @@ struct MapTabView: View {
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var searchService = MapSearchService()
     
     @State private var region: MKCoordinateRegion?
@@ -93,7 +98,7 @@ struct MapTabView: View {
     @State private var hasLoadedRemoteMapPins = false
     @State private var remoteMapPinUserId: UUID?
     @State private var isLoadingRemoteMapPins = false
-    @State private var discoveryScope: MapDiscoveryScope = .visited
+    @State private var discoveryScope: MapDiscoveryScope = .all
     @State private var discoveryMode: MapDiscoveryMode = .map
     @State private var discoveryRadiusMiles = 10.0
     @State private var discoveryMapCafes: [Cafe] = []
@@ -184,6 +189,7 @@ struct MapTabView: View {
                 // Opening Map never prompts. Existing permission is honored;
                 // new permission is requested only from the location control.
                 initializeLocationIfNeeded()
+                presentPendingSavedCafeIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
                 guard !MugshotLaunchEnvironment.isUITesting else { return }
@@ -234,7 +240,7 @@ struct MapTabView: View {
                 }
             }
             
-            if !showCafeDetail && friendPreviewCafe == nil {
+            if friendPreviewCafe == nil {
                 VStack(spacing: 0) {
                     // Location message banner
                     if showLocationMessage {
@@ -274,7 +280,7 @@ struct MapTabView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.espressoBrown.opacity(0.6))
                         
-                        TextField("Search places", text: $searchText)
+                        TextField("Search cafes", text: $searchText)
                             .accessibilityIdentifier("map.search.query")
                             .foregroundColor(.inputText)
                             .tint(.mugshotSage)
@@ -321,6 +327,44 @@ struct MapTabView: View {
                         shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
                         interactive: true
                     )
+
+                    if !isSearchActive {
+                        Menu {
+                            Picker("Map cafes", selection: $discoveryScope) {
+                                ForEach(MapDiscoveryScope.available(isAuthenticated: authModel.authenticatedUser != nil)) { scope in
+                                    Label(scope.rawValue, systemImage: scope.icon).tag(scope)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: discoveryScope.icon)
+                                Text(discoveryScope.rawValue)
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.mugshotSageText)
+                            .padding(.horizontal, 11)
+                            .frame(height: 52)
+                            .background(Color.mugshotMint.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotSageText))
+                        }
+                        .accessibilityLabel("Map cafe source")
+                        .accessibilityValue(discoveryScope.rawValue)
+
+                        Button {
+                            discoveryMode = .list
+                        } label: {
+                            Label("List", systemImage: "list.bullet")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.espressoBrown)
+                                .padding(.horizontal, 11)
+                                .frame(height: 52)
+                                .background(Color.sandBeige.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .accessibilityHint("Shows these cafes in a list")
+                    }
                     
                     if isSearchActive {
                         Button("Cancel") {
@@ -344,23 +388,6 @@ struct MapTabView: View {
                     if isFocused { isSearchActive = true }
                 }
 
-                if !isSearchActive {
-                    MapDiscoveryFilterBar(
-                        selection: $discoveryScope,
-                        isAuthenticated: authModel.authenticatedUser != nil
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-
-                    HStack {
-                        Spacer()
-                        MapDiscoveryModeControl(selection: $discoveryMode)
-                            .frame(width: 166)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
                 // Search results list (inline below search bar)
                 if isSearchActive {
                     SearchResultsList(
@@ -418,22 +445,7 @@ struct MapTabView: View {
                 }
             }
             
-            // Bottom sheet for cafe details
-            if showCafeDetail, let cafe = selectedCafe {
-                VStack {
-                    Spacer()
-                    CafeDetailSheet(
-                        cafe: cafe,
-                        dataManager: dataManager,
-                        isPresented: $showCafeDetail,
-                        initialPinScore: pinScoresByCafeID[cafe.id],
-                        onLogVisitRequested: onLogVisitRequested,
-                        onAuthenticationRequired: onAuthenticationRequired
-                    )
-                }
-                .accessibilityIdentifier("map.cafeDetail.sheet")
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let cafe = friendPreviewCafe,
+            if let cafe = friendPreviewCafe,
                       let discoveryCafe = discoveryCafesByID[cafe.id] {
                 VStack {
                     Spacer()
@@ -458,6 +470,9 @@ struct MapTabView: View {
         }
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(discoveryScope.rawValue)-\(discoveryRadiusMiles)") {
             await loadRemoteMapPins()
+        }
+        .onChange(of: tabCoordinator.pendingMapCafe?.id) { _, _ in
+            presentPendingSavedCafeIfNeeded()
         }
         .onChange(of: discoveryScope) { _, _ in
             friendPreviewCafe = nil
@@ -485,6 +500,18 @@ struct MapTabView: View {
                 }
             )
         }
+        .sheet(isPresented: $showCafeDetail) {
+            if let cafe = selectedCafe {
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    initialDetent: .height(258),
+                    onLogVisitRequested: onLogVisitRequested,
+                    onAuthenticationRequired: onAuthenticationRequired
+                )
+                .accessibilityIdentifier("map.cafeDetail.sheet")
+            }
+        }
     }
 
     private var locationAccessAuthorized: Bool {
@@ -497,6 +524,26 @@ struct MapTabView: View {
             authModel.authenticatedUser?.id
                 ?? dataManager.appData.currentUser?.id
         )
+    }
+
+    @MainActor
+    private func presentPendingSavedCafeIfNeeded() {
+        guard let cafe = tabCoordinator.consumePendingMapCafe() else { return }
+        discoveryMode = .map
+        discoveryScope = .all
+        isSearchActive = false
+        isSearchFieldFocused = false
+        searchText = ""
+        selectedCafe = cafe
+        if let location = cafe.location {
+            region = MKCoordinateRegion(
+                center: location,
+                span: MKCoordinateSpan(latitudeDelta: 0.025, longitudeDelta: 0.025)
+            )
+        }
+        withAnimation(DesignSystem.Motion.base) {
+            showCafeDetail = true
+        }
     }
 
     private func initializeLocationIfNeeded() {
@@ -550,6 +597,8 @@ struct MapTabView: View {
             switch discoveryScope {
             case .all:
                 source = localEligibleCafes + discoveryMapCafes
+            case .discovery:
+                source = discoveryMapCafes
             case .favorites:
                 source = dataManager.appData.cafes.filter(\.isFavorite)
             case .wantToTry:
@@ -563,6 +612,8 @@ struct MapTabView: View {
             switch discoveryScope {
             case .all:
                 source = remoteMapPins.map(\.localCafe) + discoveryMapCafes
+            case .discovery:
+                source = discoveryMapCafes
             case .favorites:
                 source = remoteMapPins.filter(\.isFavorite).map(\.localCafe)
             case .wantToTry:
@@ -773,6 +824,12 @@ struct MapTabView: View {
             )
 
             remoteMapPins = snapshot.pins
+            if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),
+               let refreshedSelection = snapshot.pins
+                .map(\.localCafe)
+                .first(where: { ($0.remoteCafeId ?? $0.id) == selectedID }) {
+                selectedCafe = refreshedSelection
+            }
             discoveryMapCafes = discovery.map(\.localCafe)
             discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
             friendCafeSummariesByID = Dictionary(
@@ -783,7 +840,7 @@ struct MapTabView: View {
             )
             // Keep the rest of the personal library in sync without using it
             // as the map's source of truth.
-            dataManager.applyRemoteCafeStates(snapshot.cafeStates)
+            dataManager.applyPersonalMapSnapshot(snapshot)
             hasLoadedRemoteMapPins = true
             remoteMapPinUserId = userId
             remoteStateError = nil
@@ -1023,7 +1080,7 @@ struct MapPinPresentation: Equatable {
             primaryKind = .favorite
         case .wantToTry:
             primaryKind = .wantToTry
-        case .visited, .all:
+        case .visited, .all, .discovery:
             primaryKind = .journal
         }
 

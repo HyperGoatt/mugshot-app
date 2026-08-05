@@ -38,6 +38,7 @@ struct MugshotRootView: View {
 #endif
         }
         .environmentObject(authModel)
+        .modifier(MugshotDebugDynamicTypeModifier())
         .preferredColorScheme(.light)
         .task {
             guard !MugshotLaunchEnvironment.isUITesting else { return }
@@ -97,6 +98,21 @@ struct MugshotRootView: View {
                 authCallbackQueue.completeCurrentCallback()
             }
         }
+    }
+}
+
+private struct MugshotDebugDynamicTypeModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+#if DEBUG
+        if MugshotLaunchEnvironment.shouldUseAccessibilityXXXL {
+            content.environment(\.dynamicTypeSize, .accessibility5)
+        } else {
+            content
+        }
+#else
+        content
+#endif
     }
 }
 

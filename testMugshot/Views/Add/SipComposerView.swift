@@ -39,6 +39,8 @@ struct LogVisitView: View {
     @State private var publishedCompletionRecord: V3PublishedCompletionRecord?
     @State private var isLoadingPublishedVisit = false
     @State private var completionStatusMessage: String?
+    @State private var wantToTryAchievementCafe: Cafe?
+    @State private var wantToTryCompletionTask: Task<Void, Never>?
     @State private var showPublishedMugshot = false
     @State private var completedCafeSession: CafeSessionDraft?
     @State private var completedSessionCafe: Cafe?
@@ -460,6 +462,7 @@ struct LogVisitView: View {
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
+            wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
             canUseLastSipSetup: !RecentCriterionSetupStore.shared
                 .names(scope: pinnedSipScope).isEmpty,
             canUseLastContextSetup: !RecentCriterionSetupStore.shared
@@ -484,6 +487,7 @@ struct LogVisitView: View {
             onPublish: saveSip,
             onViewPublishedMugshot: viewPublishedMugshot,
             onViewPassport: viewPassportAfterCompletion,
+            onUndoWantToTryRemoval: undoWantToTryRemoval,
             onFinish: finishSuccessfulSave,
             onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
         )
@@ -3522,6 +3526,7 @@ struct LogVisitView: View {
             )
         )
         let completedDraft = draft
+        completeWantToTryLifecycleIfNeeded(for: completedDraft.cafe)
         let selectedCoverImage = photoImages.isEmpty
             ? nil
             : photoImages[min(max(draft.posterPhotoIndex, 0), photoImages.count - 1)]
@@ -3621,6 +3626,70 @@ struct LogVisitView: View {
         showSavedConfirmation = true
         v3Step = .publish
         isSaving = false
+    }
+
+    private func completeWantToTryLifecycleIfNeeded(for cafe: Cafe?) {
+        guard let cafe,
+              let previousCafe = dataManager.completeWantToTryAfterSip(at: cafe) else { return }
+        wantToTryAchievementCafe = previousCafe
+        guard let userID = authModel.authenticatedUser?.id else { return }
+
+        wantToTryCompletionTask = Task { @MainActor in
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let summary = try await CafeStateService(client: client).setCafeState(
+                    userId: userID,
+                    cafe: previousCafe,
+                    isFavorite: previousCafe.isFavorite,
+                    wantToTry: false
+                )
+                dataManager.applyRemoteCafeState(summary)
+            } catch {
+                dataManager.restoreWantToTry(after: previousCafe)
+                wantToTryAchievementCafe = nil
+                completionStatusMessage = "Your sip was saved, but this cafe is still in Want to Try. You can try removing it again from cafe details."
+            }
+            wantToTryCompletionTask = nil
+        }
+    }
+
+    private func undoWantToTryRemoval() {
+        guard let achievementCafe = wantToTryAchievementCafe,
+              let currentCafe = matchingLocalCafe(for: achievementCafe) else { return }
+        dataManager.restoreWantToTry(after: currentCafe)
+        wantToTryAchievementCafe = nil
+        MugshotHaptic.softImpact.play()
+
+        guard let userID = authModel.authenticatedUser?.id else { return }
+        let pendingCompletion = wantToTryCompletionTask
+        wantToTryCompletionTask = nil
+        Task { @MainActor in
+            await pendingCompletion?.value
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let summary = try await CafeStateService(client: client).setCafeState(
+                    userId: userID,
+                    cafe: currentCafe,
+                    isFavorite: currentCafe.isFavorite,
+                    wantToTry: true
+                )
+                dataManager.applyRemoteCafeState(summary)
+            } catch {
+                dataManager.setCafeState(
+                    cafeId: currentCafe.id,
+                    isFavorite: currentCafe.isFavorite,
+                    wantToTry: false
+                )
+                completionStatusMessage = "Want to Try could not be restored. Try again from cafe details."
+            }
+        }
+    }
+
+    private func matchingLocalCafe(for cafe: Cafe) -> Cafe? {
+        dataManager.getCafe(id: cafe.id)
+            ?? cafe.remoteCafeId.flatMap { remoteID in
+                dataManager.appData.cafes.first { $0.remoteCafeId == remoteID || $0.id == remoteID }
+            }
     }
 
     private func addAnotherSipToCompletedSession() {
