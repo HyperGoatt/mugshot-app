@@ -75,33 +75,17 @@ struct SavedTabView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                MugshotScreenHeader("Saved", subtitle: selectedSection == .cafes ? "Your personal cafe library" : "Plan places together")
-
-                if showsSectionPicker {
-                    Group {
-                        if dynamicTypeSize.isAccessibilitySize {
-                            accessibilitySelectionMenu(
-                                selection: sectionSelection,
-                                options: SavedLibrarySection.allCases,
-                                title: "Saved section",
-                                label: { $0.rawValue }
-                            )
-                        } else {
-                            MugshotSegmentedControl(
-                                options: SavedLibrarySection.allCases,
-                                selection: sectionSelection,
-                                title: { $0.rawValue }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
-                    .accessibilityIdentifier("saved.section")
-                }
-
                 if selectedSection == .cafes {
                     cafeLibrary
                 } else if let currentUserID = authModel.authenticatedUser?.id {
+                    MugshotScreenHeader("Saved", subtitle: "Plan places together")
+
+                    if showsSectionPicker {
+                        savedSectionPicker
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                    }
+
                     ScrollView {
                         SharedCafeListsView(dataManager: dataManager, currentUserID: currentUserID)
                             .padding(.horizontal, 16)
@@ -154,6 +138,27 @@ struct SavedTabView: View {
         }
     }
 
+    @ViewBuilder
+    private var savedSectionPicker: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilitySelectionMenu(
+                    selection: sectionSelection,
+                    options: SavedLibrarySection.allCases,
+                    title: "Saved section",
+                    label: { $0.rawValue }
+                )
+            } else {
+                MugshotSegmentedControl(
+                    options: SavedLibrarySection.allCases,
+                    selection: sectionSelection,
+                    title: { $0.rawValue }
+                )
+            }
+        }
+        .accessibilityIdentifier("saved.section")
+    }
+
     private var showsSectionPicker: Bool {
         guard phase4LightweightFriends else { return false }
         if authModel.authenticatedUser != nil { return true }
@@ -181,6 +186,70 @@ struct SavedTabView: View {
     }
 
     private var cafeLibrary: some View {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                MugshotScreenHeader("Saved", subtitle: "Your personal cafe library")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Section {
+                    cafeLibraryControls
+
+                    if let displayedLoadError {
+                        InlineSavedLibraryStatus(
+                            systemImage: "wifi.exclamationmark",
+                            message: cachedStatusMessage(error: displayedLoadError),
+                            actionTitle: "Retry"
+                        ) {
+                            retryRefresh()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    } else if displayedIsLoading, !projectedCafes.isEmpty {
+                        InlineSavedLibraryStatus(
+                            systemImage: "arrow.triangle.2.circlepath",
+                            message: "Refreshing your cafe library…"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
+
+                    Color.clear
+                        .frame(height: 4)
+                        .accessibilityHidden(true)
+
+                    if displayedIsLoading, projectedCafes.isEmpty {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SavedCafeCardPlaceholder(density: density)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+                    } else if projectedCafes.isEmpty {
+                        emptyState
+                            .padding(.horizontal, 16)
+                    } else {
+                        ForEach(projectedCafes) { cafe in
+                            cafeLibraryRow(cafe)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+                    }
+                } header: {
+                    if showsSectionPicker {
+                        savedSectionPicker
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.creamWhite)
+                            .zIndex(2)
+                    }
+                }
+            }
+            .padding(.bottom, 108)
+        }
+        .refreshable { await refreshLibrary() }
+        .accessibilityIdentifier("saved.cafeLibrary.scroll")
+    }
+
+    private var cafeLibraryControls: some View {
         VStack(spacing: 0) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
@@ -211,71 +280,37 @@ struct SavedTabView: View {
             libraryControls
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
+        }
+    }
 
-            if let displayedLoadError {
-                InlineSavedLibraryStatus(
-                    systemImage: "wifi.exclamationmark",
-                    message: cachedStatusMessage(error: displayedLoadError),
-                    actionTitle: "Retry"
-                ) {
-                    retryRefresh()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            } else if displayedIsLoading, !projectedCafes.isEmpty {
-                InlineSavedLibraryStatus(
-                    systemImage: "arrow.triangle.2.circlepath",
-                    message: "Refreshing your cafe library…"
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    if displayedIsLoading, projectedCafes.isEmpty {
-                        ForEach(0..<3, id: \.self) { _ in
-                            SavedCafeCardPlaceholder(density: density)
-                        }
-                    } else if projectedCafes.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(projectedCafes) { cafe in
-                            if density == .cards || dynamicTypeSize.isAccessibilitySize {
-                                SavedCafeComfortableCard(
-                                    cafe: currentCafe(cafe),
-                                    dataManager: dataManager,
-                                    communityImageURL: coverURLs[cafe.remoteCafeId ?? cafe.id],
-                                    isSyncing: mutationCoordinator.isSyncing(cafe.id),
-                                    onOpen: { activeSheet = .detail(cafe) },
-                                    onFavorite: { toggleFavorite(cafe) },
-                                    onWantToTry: { toggleWantToTry(cafe) },
-                                    onLogSip: { onLogVisitRequested?(cafe) },
-                                    onLists: { presentLists(for: cafe) },
-                                    onShowMap: { showOnMap(cafe) }
-                                )
-                            } else {
-                                SavedCafeCompactRow(
-                                    cafe: currentCafe(cafe),
-                                    dataManager: dataManager,
-                                    communityImageURL: coverURLs[cafe.remoteCafeId ?? cafe.id],
-                                    isSyncing: mutationCoordinator.isSyncing(cafe.id),
-                                    onOpen: { activeSheet = .detail(cafe) },
-                                    onFavorite: { toggleFavorite(cafe) },
-                                    onWantToTry: { toggleWantToTry(cafe) },
-                                    onLogSip: { onLogVisitRequested?(cafe) },
-                                    onLists: { presentLists(for: cafe) },
-                                    onShowMap: { showOnMap(cafe) }
-                                )
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-                .padding(.bottom, 120)
-            }
-            .refreshable { await refreshLibrary() }
+    @ViewBuilder
+    private func cafeLibraryRow(_ cafe: Cafe) -> some View {
+        if density == .cards || dynamicTypeSize.isAccessibilitySize {
+            SavedCafeComfortableCard(
+                cafe: currentCafe(cafe),
+                dataManager: dataManager,
+                communityImageURL: coverURLs[cafe.remoteCafeId ?? cafe.id],
+                isSyncing: mutationCoordinator.isSyncing(cafe.id),
+                onOpen: { activeSheet = .detail(cafe) },
+                onFavorite: { toggleFavorite(cafe) },
+                onWantToTry: { toggleWantToTry(cafe) },
+                onLogSip: { onLogVisitRequested?(cafe) },
+                onLists: { presentLists(for: cafe) },
+                onShowMap: { showOnMap(cafe) }
+            )
+        } else {
+            SavedCafeCompactRow(
+                cafe: currentCafe(cafe),
+                dataManager: dataManager,
+                communityImageURL: coverURLs[cafe.remoteCafeId ?? cafe.id],
+                isSyncing: mutationCoordinator.isSyncing(cafe.id),
+                onOpen: { activeSheet = .detail(cafe) },
+                onFavorite: { toggleFavorite(cafe) },
+                onWantToTry: { toggleWantToTry(cafe) },
+                onLogSip: { onLogVisitRequested?(cafe) },
+                onLists: { presentLists(for: cafe) },
+                onShowMap: { showOnMap(cafe) }
+            )
         }
     }
 

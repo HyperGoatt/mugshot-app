@@ -1,0 +1,12 @@
+{
+  "name": "saved-cafes-no-photo-2026-08-05",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "export": "node export.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}
