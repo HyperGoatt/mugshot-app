@@ -40,15 +40,14 @@ struct SavedCafeLibraryQuery: Equatable {
     var category: SavedCafeCategory = .favorites
     var searchText = ""
     var sort: SavedCafeSort = .recentActivity
-    var requiresVisit = false
-    var requiresDirections = false
 }
 
 enum SavedCafeLibraryProjector {
     static func project(
         cafes: [Cafe],
         visits: [Visit],
-        query: SavedCafeLibraryQuery
+        query: SavedCafeLibraryQuery,
+        remoteActivityDates: [UUID: Date] = [:]
     ) -> [Cafe] {
         let visitsByCafeID = Dictionary(grouping: visits.filter { $0.context == .cafe }, by: \.cafeId)
         let normalizedQuery = normalized(query.searchText)
@@ -63,12 +62,6 @@ enum SavedCafeLibraryProjector {
                 break
             }
 
-            if query.requiresVisit, visitsByCafeID[cafe.id, default: []].isEmpty, cafe.visitCount == 0 {
-                return false
-            }
-            if query.requiresDirections, cafe.location == nil {
-                return false
-            }
             guard !normalizedQuery.isEmpty else { return true }
             return normalized([
                 cafe.consumerDisplayName,
@@ -80,8 +73,14 @@ enum SavedCafeLibraryProjector {
         return filtered.sorted { lhs, rhs in
             switch query.sort {
             case .recentActivity:
-                let lhsDate = visitsByCafeID[lhs.id]?.map(\.createdAt).max() ?? .distantPast
-                let rhsDate = visitsByCafeID[rhs.id]?.map(\.createdAt).max() ?? .distantPast
+                let lhsDate = latestActivityDate(
+                    localVisits: visitsByCafeID[lhs.id, default: []],
+                    remoteDate: remoteActivityDates[lhs.id]
+                )
+                let rhsDate = latestActivityDate(
+                    localVisits: visitsByCafeID[rhs.id, default: []],
+                    remoteDate: remoteActivityDates[rhs.id]
+                )
                 if lhsDate == rhsDate {
                     if lhs.visitCount == rhs.visitCount {
                         return lhs.consumerDisplayName.localizedCaseInsensitiveCompare(rhs.consumerDisplayName) == .orderedAscending
@@ -104,5 +103,27 @@ enum SavedCafeLibraryProjector {
         value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private static func latestActivityDate(localVisits: [Visit], remoteDate: Date?) -> Date {
+        [localVisits.map(\.createdAt).max(), remoteDate]
+            .compactMap { $0 }
+            .max() ?? .distantPast
+    }
+}
+
+enum CafePhotoSelection {
+    static func mostRecentLocalPosterPath(in visits: [Visit]) -> String? {
+        visits
+            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap { $0.posterImagePath?.remoteTrimmedNonEmpty }
+            .first
+    }
+
+    static func mostRecentRemotePosterURL(in visits: [RemoteVisitSummary]) -> String? {
+        visits
+            .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
+            .compactMap { $0.visit.posterPhotoURL?.remoteTrimmedNonEmpty }
+            .first
     }
 }

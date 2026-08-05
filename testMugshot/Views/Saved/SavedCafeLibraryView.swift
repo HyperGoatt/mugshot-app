@@ -27,8 +27,6 @@ struct SavedTabView: View {
 
     @AppStorage("saved.library.sort") private var sortRaw = SavedCafeSort.recentActivity.rawValue
     @AppStorage("saved.library.density") private var densityRaw = SavedCafeDensity.cards.rawValue
-    @AppStorage("saved.library.filter.visited") private var requiresVisit = false
-    @AppStorage("saved.library.filter.directions") private var requiresDirections = false
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
 
     private var sort: SavedCafeSort {
@@ -45,17 +43,31 @@ struct SavedTabView: View {
         SavedCafeLibraryQuery(
             category: selectedCategory,
             searchText: searchText,
-            sort: sort,
-            requiresVisit: requiresVisit,
-            requiresDirections: requiresDirections
+            sort: sort
         )
+    }
+
+    private var remoteActivityDates: [UUID: Date] {
+        guard let userID = authModel.authenticatedUser?.id,
+              let snapshot = dataManager.personalMapSnapshot(for: userID) else {
+            return [:]
+        }
+
+        return snapshot.pins.reduce(into: [:]) { result, pin in
+            guard let date = pin.lastActivityAt else { return }
+            let localID = dataManager.appData.cafes.first(where: {
+                $0.remoteCafeId == pin.id || $0.id == pin.id
+            })?.id ?? pin.id
+            result[localID] = date
+        }
     }
 
     private var projectedCafes: [Cafe] {
         let projected = SavedCafeLibraryProjector.project(
             cafes: dataManager.personalLibraryCafes,
             visits: dataManager.appData.visits,
-            query: query
+            query: query,
+            remoteActivityDates: remoteActivityDates
         )
         let visibleIDs = Set(projected.map(\.id))
         let retained = pendingRows.values.filter { !visibleIDs.contains($0.id) && matchesSearchAndFilters($0) }
@@ -65,10 +77,9 @@ struct SavedTabView: View {
             query: SavedCafeLibraryQuery(
                 category: .all,
                 searchText: searchText,
-                sort: sort,
-                requiresVisit: requiresVisit,
-                requiresDirections: requiresDirections
-            )
+                sort: sort
+            ),
+            remoteActivityDates: remoteActivityDates
         )
     }
 
@@ -112,13 +123,6 @@ struct SavedTabView: View {
                     onAuthenticationRequired: onAuthenticationRequired
                 )
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
-            case .filters:
-                SavedCafeFilterSheet(
-                    requiresVisit: $requiresVisit,
-                    requiresDirections: $requiresDirections
-                )
-                .presentationDetents([.height(dynamicTypeSize.isAccessibilitySize ? 430 : 330)])
-                .presentationDragIndicator(.visible)
             case .lists(let cafe):
                 CafeListMembershipSheet(
                     cafe: cafe,
@@ -316,47 +320,31 @@ struct SavedTabView: View {
 
     private var searchAndFilter: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.roastBrown)
-                    .accessibilityHidden(true)
-                TextField(dynamicTypeSize.isAccessibilitySize ? "Search" : "Search your cafes", text: $searchText)
-                    .font(dynamicTypeSize.isAccessibilitySize ? .system(size: 22) : .body)
-                    .foregroundColor(.inputText)
-                    .submitLabel(.search)
-                    .accessibilityIdentifier("saved.search")
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.tertiaryText)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Clear search")
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.roastBrown)
+                .accessibilityHidden(true)
+            TextField(dynamicTypeSize.isAccessibilitySize ? "Search" : "Search your cafes", text: $searchText)
+                .font(dynamicTypeSize.isAccessibilitySize ? .system(size: 22) : .body)
+                .foregroundColor(.inputText)
+                .submitLabel(.search)
+                .accessibilityIdentifier("saved.search")
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.tertiaryText)
+                        .frame(width: 44, height: 44)
                 }
+                .accessibilityLabel("Clear search")
             }
-            .padding(.leading, 14)
-            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 64 : 52)
-            .background(Color.foamWhite)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
-
-            Button {
-                activeSheet = .filters
-            } label: {
-                Image(systemName: activeFilterCount == 0 ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 64 : 52, height: dynamicTypeSize.isAccessibilitySize ? 64 : 52)
-                    .background(Color.foamWhite)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(activeFilterCount > 0 ? Color.mugshotSageText : Color.mugshotLine, lineWidth: activeFilterCount > 0 ? 1.5 : 1))
-            }
-            .accessibilityLabel("Cafe filters")
-            .accessibilityValue(activeFilterCount == 0 ? "No filters applied" : "\(activeFilterCount) applied")
         }
+        .padding(.leading, 14)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 64 : 52)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
     }
 
     private var libraryControls: some View {
@@ -455,24 +443,21 @@ struct SavedTabView: View {
 
     private var emptyState: some View {
         let hasQuery = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasFilters = activeFilterCount > 0
         return VStack(spacing: 14) {
             MugsyModelView(configuration: emptyScene.configuration)
             .frame(width: 132, height: 132)
 
-            Text(hasQuery || hasFilters ? "No cafes match" : emptyTitle)
+            Text(hasQuery ? "No cafes match" : emptyTitle)
                 .mugshotDisplay(size: 24)
                 .foregroundColor(.espressoBrown)
-            Text(hasQuery || hasFilters ? "Try clearing your search or filters." : emptyMessage)
+            Text(hasQuery ? "Try clearing your search." : emptyMessage)
                 .font(.body)
                 .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            if hasQuery || hasFilters {
-                Button("Clear search and filters") {
+            if hasQuery {
+                Button("Clear search") {
                     searchText = ""
-                    requiresVisit = false
-                    requiresDirections = false
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -484,7 +469,7 @@ struct SavedTabView: View {
 
     private var emptyScene: MugsyScene {
         let family: MugsySceneFamily
-        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || activeFilterCount > 0 {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             family = .cheerfulCafeScout
         } else {
             switch selectedCategory {
@@ -510,10 +495,6 @@ struct SavedTabView: View {
         case .wantToTry: "Save a cafe you want to try and it will wait here until your first completed sip."
         case .all: "Favorite a cafe, mark it Want to Try, or log a sip to add it here."
         }
-    }
-
-    private var activeFilterCount: Int {
-        (requiresVisit ? 1 : 0) + (requiresDirections ? 1 : 0)
     }
 
     private var displayedIsLoading: Bool {
@@ -559,10 +540,9 @@ struct SavedTabView: View {
             query: SavedCafeLibraryQuery(
                 category: .all,
                 searchText: searchText,
-                sort: sort,
-                requiresVisit: requiresVisit,
-                requiresDirections: requiresDirections
-            )
+                sort: sort
+            ),
+            remoteActivityDates: remoteActivityDates
         ).isEmpty
     }
 
@@ -710,11 +690,17 @@ struct SavedTabView: View {
             )
             let (snapshot, coverRows) = try await (snapshotRequest, coversRequest)
             guard !Task.isCancelled else { return }
-            dataManager.applyPersonalMapSnapshot(snapshot)
-            coverURLs = Dictionary(uniqueKeysWithValues: (coverRows ?? []).compactMap { row in
+            dataManager.applyPersonalMapSnapshot(snapshot, for: userID)
+            var resolvedCovers: [UUID: String] = Dictionary(uniqueKeysWithValues: (coverRows ?? []).compactMap { row in
                 guard let url = row.recentCover?.remoteTrimmedNonEmpty else { return nil }
                 return (row.id, url)
             })
+            for pin in snapshot.pins {
+                if let url = pin.coverPhotoURL?.remoteTrimmedNonEmpty {
+                    resolvedCovers[pin.id] = url
+                }
+            }
+            coverURLs = resolvedCovers
             lastRefresh = .now
             loadError = nil
         } catch is CancellationError {
@@ -732,13 +718,11 @@ private enum SavedLibrarySection: String, CaseIterable {
 
 private enum SavedLibrarySheet: Identifiable {
     case detail(Cafe)
-    case filters
     case lists(Cafe)
 
     var id: String {
         switch self {
         case .detail(let cafe): "detail-\(cafe.id)"
-        case .filters: "filters"
         case .lists(let cafe): "lists-\(cafe.id)"
         }
     }
@@ -781,43 +765,6 @@ private struct SavedLibraryFeedbackBar: View {
         .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
         .shadow(color: DesignSystem.cardShadow.color, radius: 18, y: 6)
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct SavedCafeFilterSheet: View {
-    @Binding var requiresVisit: Bool
-    @Binding var requiresDirections: Bool
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Cafe history") {
-                    Toggle("Only cafes with a sip", isOn: $requiresVisit)
-                }
-                Section("Location") {
-                    Toggle("Only cafes with directions", isOn: $requiresDirections)
-                }
-                if requiresVisit || requiresDirections {
-                    Section {
-                        Button("Clear filters") {
-                            requiresVisit = false
-                            requiresDirections = false
-                        }
-                        .foregroundColor(.mugshotSageText)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.creamWhite)
-            .navigationTitle("Filter cafes")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
     }
 }
 

@@ -59,6 +59,10 @@ final class MapSearchRecentUITests: XCTestCase {
         XCTAssertTrue(searchField.waitForExistence(timeout: 3))
         searchField.tap()
 
+        searchField.typeText("Mugshot")
+        XCTAssertEqual(searchField.value as? String, "Mugshot")
+        app.buttons["Clear search"].tap()
+
         let searchResults = element(Identifier.mapSearchResults, in: app)
         XCTAssertTrue(searchResults.waitForExistence(timeout: 3))
         let recent = element(Identifier.mapSearchRecent, in: app)

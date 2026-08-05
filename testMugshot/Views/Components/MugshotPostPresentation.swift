@@ -128,6 +128,7 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
     let locationDetail: String?
     let score: Double
     let cornerRadius: CGFloat
+    let onLocationTap: (() -> Void)?
     private let content: Content
     @State private var aspectRatio: CGFloat
 
@@ -138,6 +139,7 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
         locationDetail: String? = nil,
         score: Double,
         cornerRadius: CGFloat = 18,
+        onLocationTap: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.ratioCacheKey = ratioCacheKey
@@ -146,6 +148,7 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
         self.locationDetail = locationDetail
         self.score = score
         self.cornerRadius = cornerRadius
+        self.onLocationTap = onLocationTap
         self.content = content()
         _aspectRatio = State(
             initialValue: MugshotPostAspectRatioCache.shared.ratio(for: ratioCacheKey)
@@ -175,14 +178,15 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
                     drinkName: drinkName,
                     locationName: locationName,
                     locationDetail: locationDetail,
-                    score: score
+                    score: score,
+                    onLocationTap: onLocationTap
                 )
                 .padding(.horizontal, 18)
                 .padding(.bottom, 17)
             }
             .aspectRatio(aspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .accessibilityElement(children: .ignore)
+            .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
             .accessibilityLabel("\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5")
     }
 
@@ -203,6 +207,7 @@ struct MugshotPostArtworkOverlay: View {
     let locationName: String
     let locationDetail: String?
     let score: Double
+    let onLocationTap: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 14) {
@@ -214,11 +219,30 @@ struct MugshotPostArtworkOverlay: View {
                     .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail))
-                    .font(.system(.subheadline, design: .default, weight: .semibold))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .opacity(0.92)
+                if let onLocationTap {
+                    Button(action: onLocationTap) {
+                        HStack(spacing: 5) {
+                            Text(MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail))
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("sip.detail.cafe")
+                    .accessibilityLabel("Open \(locationName) cafe details")
+                    .accessibilityHint("Opens this cafe")
+                } else {
+                    Text(MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail))
+                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(0.92)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

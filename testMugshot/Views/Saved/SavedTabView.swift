@@ -702,12 +702,11 @@ struct CafeDetailView: View {
     // Get hero image from most recent visit, or nil if no visits/photos
     var heroImagePath: String? {
         if shouldShowRemoteVisits,
-           let remotePosterURL = remoteVisits.first?.visit.posterPhotoURL?.remoteTrimmedNonEmpty {
+           let remotePosterURL = CafePhotoSelection.mostRecentRemotePosterURL(in: remoteVisits) {
             return remotePosterURL
         }
 
-        let sortedVisits = visits.sorted { $0.createdAt > $1.createdAt }
-        return sortedVisits.first?.posterImagePath
+        return CafePhotoSelection.mostRecentLocalPosterPath(in: visits)
     }
     
     var body: some View {
@@ -764,7 +763,8 @@ struct CafeDetailView: View {
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
-                        onAuthenticationRequired: onAuthenticationRequired
+                        onAuthenticationRequired: onAuthenticationRequired,
+                        onCafeRequested: { _ in selectedRemoteVisit = nil }
                     )
                     .onDisappear { Task { await loadRemoteVisits() } }
                 }
@@ -1899,7 +1899,11 @@ struct VisitRow: View {
         }
         .buttonStyle(.plain)
         .navigationDestination(isPresented: $showVisitDetail) {
-            VisitDetailView(visit: visit, dataManager: dataManager)
+            VisitDetailView(
+                visit: visit,
+                dataManager: dataManager,
+                onCafeRequested: { _ in showVisitDetail = false }
+            )
         }
     }
 }

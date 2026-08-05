@@ -122,6 +122,44 @@ final class SavedCafeRedesignUITests: XCTestCase {
     }
 
     @MainActor
+    func testSipCafeLinkReturnsToTheCafeDetail() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--saved-audit-scenario=populated"
+        ]
+        app.launch()
+
+        let harborlightCard = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Harborlight Coffee Roasters")
+        ).firstMatch
+        XCTAssertTrue(harborlightCard.waitForExistence(timeout: 6))
+        harborlightCard.tap()
+
+        let cafeDetail = element("cafe.detail.sheet", in: app)
+        XCTAssertTrue(cafeDetail.waitForExistence(timeout: 4))
+        cafeDetail.swipeUp()
+
+        let sip = app.staticTexts["Honey oat cortado"]
+        for _ in 0..<5 where !sip.isHittable {
+            cafeDetail.swipeUp()
+        }
+        XCTAssertTrue(sip.waitForExistence(timeout: 3) && sip.isHittable)
+        sip.tap()
+
+        let sipDetail = element("sip.detail.screen", in: app)
+        XCTAssertTrue(sipDetail.waitForExistence(timeout: 4))
+        let cafeLink = element("sip.detail.cafe", in: app)
+        XCTAssertTrue(cafeLink.waitForExistence(timeout: 3))
+        cafeLink.tap()
+
+        XCTAssertTrue(cafeDetail.waitForExistence(timeout: 4))
+        XCTAssertFalse(sipDetail.exists)
+        XCTAssertTrue(app.staticTexts["Harborlight Coffee Roasters"].exists)
+    }
+
+    @MainActor
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

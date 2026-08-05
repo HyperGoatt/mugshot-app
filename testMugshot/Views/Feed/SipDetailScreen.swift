@@ -838,6 +838,7 @@ struct SipDetailScreen: View {
     let onCancelReply: () -> Void
     let onSelectMention: (UUID) -> Void
     let onPhotoTap: (Int) -> Void
+    var onCafeTap: (() -> Void)? = nil
     let onRecipeAction: (SipDetailRecipeAction) -> Void
     let onTaggedAccount: (UUID) -> Void
     let onRemoveOwnTag: () -> Void
@@ -860,7 +861,8 @@ struct SipDetailScreen: View {
                         SipDetailHero(
                             model: presentation.content,
                             selectedPhotoIndex: $selectedPhotoIndex,
-                            onPhotoTap: onPhotoTap
+                            onPhotoTap: onPhotoTap,
+                            onCafeTap: onCafeTap
                         )
                         .id(heroAnchor)
 
@@ -1357,6 +1359,7 @@ private struct SipDetailHero: View {
     let model: SipDetailContentModel
     @Binding var selectedPhotoIndex: Int
     let onPhotoTap: (Int) -> Void
+    let onCafeTap: (() -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -1393,7 +1396,8 @@ private struct SipDetailHero: View {
                 drinkName: model.drinkName,
                 locationName: model.locationName,
                 locationDetail: model.locationSubtitle,
-                score: model.score
+                score: model.score,
+                onLocationTap: onCafeTap
             ) {
                 SipDetailPhotoPager(
                     photos: model.photos,

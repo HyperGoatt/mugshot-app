@@ -342,10 +342,9 @@ struct SavedCafeImage: View {
     let size: CGFloat
 
     private var imagePath: String? {
-        dataManager.getVisitsForCafe(cafe.id)
-            .sorted { $0.createdAt > $1.createdAt }
-            .first?.posterImagePath?
-            .remoteTrimmedNonEmpty
+        CafePhotoSelection.mostRecentLocalPosterPath(
+            in: dataManager.getVisitsForCafe(cafe.id)
+        )
     }
 
     private var resolvedCommunityImageURL: String? {

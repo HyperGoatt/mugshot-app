@@ -126,6 +126,27 @@ struct AccountScopedLocalStateTests {
         #expect(defaults.data(forKey: "MugshotAppData") == encodedLegacy)
     }
 
+    @Test func personalMapSnapshotNeverCrossesAccountOrGuestScopes() throws {
+        let suiteName = "PersonalMapSnapshotScope.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let firstUserID = UUID()
+        let secondUserID = UUID()
+        let manager = DataManager(defaults: defaults)
+        let snapshot = RemoteMapPinSnapshot(pins: [], cafeStates: [])
+
+        manager.applyAuthenticatedProfile(profile(id: firstUserID, username: "first"))
+        manager.applyPersonalMapSnapshot(snapshot, for: firstUserID)
+        #expect(manager.personalMapSnapshot(for: firstUserID) == snapshot)
+
+        manager.applyAuthenticatedProfile(profile(id: secondUserID, username: "second"))
+        #expect(manager.personalMapSnapshot(for: firstUserID) == nil)
+        #expect(manager.personalMapSnapshot(for: secondUserID) == nil)
+
+        manager.prepareGuestSession()
+        #expect(manager.personalMapSnapshot(for: secondUserID) == nil)
+    }
+
     @Test func deletedOwnerLegacyJournalCannotReappearAfterRelaunch() throws {
         let suiteName = "DeletedLegacyJournalOwner.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
