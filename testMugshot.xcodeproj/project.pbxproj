@@ -10,6 +10,7 @@
 		70A000032F00000000000003 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70A000022F00000000000002 /* Supabase */; };
 		71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 71B600032F00000000000003 /* MugshotWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		72C000032F00000000000003 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 72C000022F00000000000002 /* PostHog */; };
+		73D700012F00000000000001 /* MugshotShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 73D700032F00000000000003 /* MugshotShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,6 +35,13 @@
 			remoteGlobalIDString = 71B600062F00000000000006;
 			remoteInfo = MugshotWidgets;
 		};
+		73D700022F00000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40E276792EC7997A005528D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 73D700062F00000000000006;
+			remoteInfo = MugshotShareExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -44,6 +52,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */,
+				73D700012F00000000000001 /* MugshotShareExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -57,6 +66,7 @@
 		70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/SupabaseConfig.xcconfig; sourceTree = "<group>"; };
 		70A000062F00000000000006 /* Config/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Config/Info.plist; sourceTree = "<group>"; };
 		71B600032F00000000000003 /* MugshotWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MugshotWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		73D700032F00000000000003 /* MugshotShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MugshotShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -66,6 +76,13 @@
 				Info.plist,
 			);
 			target = 71B600062F00000000000006 /* MugshotWidgets */;
+		};
+		73D7000E2F0000000000000E /* Exceptions for "MugshotShareExtension" folder in "MugshotShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 73D700062F00000000000006 /* MugshotShareExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -91,6 +108,14 @@
 				71B6000E2F0000000000000E /* Exceptions for "MugshotWidgets" folder in "MugshotWidgets" target */,
 			);
 			path = MugshotWidgets;
+			sourceTree = "<group>";
+		};
+		73D700042F00000000000004 /* MugshotShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				73D7000E2F0000000000000E /* Exceptions for "MugshotShareExtension" folder in "MugshotShareExtension" target */,
+			);
+			path = MugshotShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -126,6 +151,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		73D700052F00000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -138,6 +170,7 @@
 				40E276912EC7997C005528D1 /* testMugshotTests */,
 				40E2769B2EC7997C005528D1 /* testMugshotUITests */,
 				71B600042F00000000000004 /* MugshotWidgets */,
+				73D700042F00000000000004 /* MugshotShareExtension */,
 				40E276822EC7997A005528D1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -149,6 +182,7 @@
 				40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */,
 				40E276982EC7997C005528D1 /* testMugshotUITests.xctest */,
 				71B600032F00000000000003 /* MugshotWidgets.appex */,
+				73D700032F00000000000003 /* MugshotShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -169,6 +203,7 @@
 			);
 			dependencies = (
 				71B6000A2F0000000000000A /* PBXTargetDependency */,
+				73D7000A2F0000000000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				40E276832EC7997A005528D1 /* testMugshot */,
@@ -250,6 +285,28 @@
 			productReference = 71B600032F00000000000003 /* MugshotWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		73D700062F00000000000006 /* MugshotShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 73D7000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotShareExtension" */;
+			buildPhases = (
+				73D700082F00000000000008 /* Sources */,
+				73D700052F00000000000005 /* Frameworks */,
+				73D700072F00000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				73D700042F00000000000004 /* MugshotShareExtension */,
+			);
+			name = MugshotShareExtension;
+			packageProductDependencies = (
+			);
+			productName = MugshotShareExtension;
+			productReference = 73D700032F00000000000003 /* MugshotShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -272,6 +329,9 @@
 						TestTargetID = 40E276802EC7997A005528D1;
 					};
 					71B600062F00000000000006 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					73D700062F00000000000006 = {
 						CreatedOnToolsVersion = 16.4;
 					};
 				};
@@ -298,6 +358,7 @@
 				40E2768D2EC7997C005528D1 /* testMugshotTests */,
 				40E276972EC7997C005528D1 /* testMugshotUITests */,
 				71B600062F00000000000006 /* MugshotWidgets */,
+				73D700062F00000000000006 /* MugshotShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -325,6 +386,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		71B600072F00000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		73D700072F00000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -362,6 +430,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		73D700082F00000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -379,6 +454,11 @@
 			isa = PBXTargetDependency;
 			target = 71B600062F00000000000006 /* MugshotWidgets */;
 			targetProxy = 71B600022F00000000000002 /* PBXContainerItemProxy */;
+		};
+		73D7000A2F0000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 73D700062F00000000000006 /* MugshotShareExtension */;
+			targetProxy = 73D700022F00000000000002 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -682,6 +762,59 @@
 			};
 			name = Release;
 		};
+		73D7000B2F0000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MugshotShareExtension/MugshotShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.1;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.share;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = co.mugshot.app.testMugshot.dev.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		73D7000C2F0000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MugshotShareExtension/MugshotShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D699BA3NLG;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MugshotShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.1;
+				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app.testMugshot.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -726,6 +859,15 @@
 			buildConfigurations = (
 				71B6000B2F0000000000000B /* Debug */,
 				71B6000C2F0000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		73D7000D2F0000000000000D /* Build configuration list for PBXNativeTarget "MugshotShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73D7000B2F0000000000000B /* Debug */,
+				73D7000C2F0000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -14,6 +14,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
     let latitude: Double?
     let longitude: Double?
     let applePlaceId: String?
+    let appleMapsPlaceID: String?
     let websiteURL: String?
     let identityKey: String?
 
@@ -25,6 +26,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
         case latitude
         case longitude
         case applePlaceId = "apple_place_id"
+        case appleMapsPlaceID = "apple_maps_place_id"
         case websiteURL = "website_url"
         case identityKey = "identity_key"
     }
@@ -37,6 +39,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
         latitude: Double?,
         longitude: Double?,
         applePlaceId: String?,
+        appleMapsPlaceID: String? = nil,
         websiteURL: String?,
         identityKey: String? = nil
     ) {
@@ -47,6 +50,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
         self.latitude = latitude
         self.longitude = longitude
         self.applePlaceId = applePlaceId
+        self.appleMapsPlaceID = appleMapsPlaceID
         self.websiteURL = websiteURL
         self.identityKey = identityKey
     }
@@ -78,6 +82,7 @@ struct SupabaseCafeSummary: Identifiable, Codable, Equatable {
             wantToTry: wantToTry,
             averageRating: averageRating,
             visitCount: visitCount,
+            appleMapsPlaceID: appleMapsPlaceID,
             mapItemURL: applePlaceId,
             websiteURL: websiteURL,
             remoteCafeId: id

@@ -64,14 +64,21 @@ final class CollaborativeCafeListService {
         accountID: UUID
     ) async throws -> CollaborativeCafeList {
         try await scoped(to: accountID) {
-            try await client.rpc(
+            let created: CollaborativeCafeList = try await client.rpc(
                 "create_cafe_list_v2",
                 params: CreateParameters(
                     pTitle: title,
                     pDescription: description,
-                    pVisibility: visibility.rawValue
+                    pVisibility: visibility == .public
+                        ? CafeListVisibility.private.rawValue
+                        : visibility.rawValue
                 )
             ).execute().value
+            guard visibility == .public else { return created }
+            return try await PublicCafeListService(client: client).setPublication(
+                listID: created.id,
+                isPublic: true
+            )
         }
     }
 
@@ -83,15 +90,21 @@ final class CollaborativeCafeListService {
         accountID: UUID
     ) async throws -> CollaborativeCafeList {
         try await scoped(to: accountID) {
-            try await client.rpc(
+            let updated: CollaborativeCafeList = try await client.rpc(
                 "update_cafe_list_v2",
                 params: UpdateParameters(
                     pListID: id,
                     pTitle: title,
                     pDescription: description,
-                    pVisibility: visibility.rawValue
+                    pVisibility: visibility == .public
+                        ? CafeListVisibility.private.rawValue
+                        : visibility.rawValue
                 )
             ).execute().value
+            return try await PublicCafeListService(client: client).setPublication(
+                listID: updated.id,
+                isPublic: visibility == .public
+            )
         }
     }
 

@@ -10,7 +10,7 @@ final class CafeService {
     private let client: SupabaseClient
 
     private let cafeColumns = """
-    id, name, address, city, latitude, longitude, apple_place_id, website_url, identity_key
+    id, name, address, city, latitude, longitude, apple_place_id, apple_maps_place_id, website_url, identity_key
     """
 
     init(client: SupabaseClient) {
@@ -47,7 +47,7 @@ final class CafeService {
                 pName: cafe.name,
                 pLatitude: cafe.location?.latitude,
                 pLongitude: cafe.location?.longitude,
-                pApplePlaceID: cafe.mapItemURL
+                pApplePlaceID: cafe.appleMapsPlaceID ?? cafe.mapItemURL
             )
         )
         .execute()
@@ -67,8 +67,13 @@ final class CafeService {
             return existingCafe
         }
 
+        if let appleMapsPlaceID = cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty,
+           let existingCafe = try await fetchCafe(appleMapsPlaceID: appleMapsPlaceID) {
+            return existingCafe
+        }
+
         if let applePlaceId = cafe.mapItemURL?.remoteTrimmedNonEmpty,
-           let existingCafe = try await fetchCafe(applePlaceId: applePlaceId) {
+           let existingCafe = try await fetchCafe(legacyApplePlaceId: applePlaceId) {
             return existingCafe
         }
 
@@ -112,11 +117,23 @@ final class CafeService {
         return cafes.first
     }
 
-    private func fetchCafe(applePlaceId: String) async throws -> SupabaseCafeSummary? {
+    private func fetchCafe(appleMapsPlaceID: String) async throws -> SupabaseCafeSummary? {
         let cafes: [SupabaseCafeSummary] = try await client
             .from("cafes")
             .select(cafeColumns)
-            .eq("apple_place_id", value: applePlaceId)
+            .eq("apple_maps_place_id", value: appleMapsPlaceID)
+            .limit(1)
+            .execute()
+            .value
+
+        return cafes.first
+    }
+
+    private func fetchCafe(legacyApplePlaceId: String) async throws -> SupabaseCafeSummary? {
+        let cafes: [SupabaseCafeSummary] = try await client
+            .from("cafes")
+            .select(cafeColumns)
+            .eq("apple_place_id", value: legacyApplePlaceId)
             .limit(1)
             .execute()
             .value
@@ -169,6 +186,7 @@ struct SupabaseCafeInsert: Encodable, Equatable {
     let latitude: Double?
     let longitude: Double?
     let applePlaceId: String?
+    let appleMapsPlaceID: String?
     let websiteURL: String?
     let identityKey: String
 
@@ -178,6 +196,7 @@ struct SupabaseCafeInsert: Encodable, Equatable {
         case latitude
         case longitude
         case applePlaceId = "apple_place_id"
+        case appleMapsPlaceID = "apple_maps_place_id"
         case websiteURL = "website_url"
         case identityKey = "identity_key"
     }
@@ -189,6 +208,7 @@ struct SupabaseCafeInsert: Encodable, Equatable {
             latitude: cafe.location?.latitude,
             longitude: cafe.location?.longitude,
             applePlaceId: cafe.mapItemURL?.remoteTrimmedNonEmpty,
+            appleMapsPlaceID: cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty,
             websiteURL: cafe.websiteURL?.remoteTrimmedNonEmpty,
             identityKey: CafeIdentity.key(for: cafe)
         )

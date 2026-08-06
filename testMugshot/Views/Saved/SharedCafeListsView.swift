@@ -45,6 +45,13 @@ struct SharedCafeListsView: View {
                 .accessibilityHint("Creates a private or shared cafe list")
             }
 
+            if DiscoveryFeatureFlags.isEnabled(.publicLists) {
+                PublicCafeListsSection(
+                    dataManager: dataManager,
+                    currentUserID: currentUserID
+                )
+            }
+
             if stateAccountID != currentUserID || (isLoading && !hasLoaded) {
                 MugshotLoadingState(layout: .collection, count: 3)
             } else if let errorMessage, !hasLoaded {
@@ -203,6 +210,18 @@ struct SharedCafeListsView: View {
                 activeRequestID: activeLoadRequestID
             ), stateAccountID == accountID else { return }
             lists = loadedLists
+            await PendingPlaceImportQueue.shared.cacheEligibleLists(
+                loadedLists
+                    .filter { $0.accessKind != .pendingInvitation }
+                    .map {
+                        ShareExtensionCafeListCacheEntry(
+                            id: $0.id,
+                            title: $0.title,
+                            accountID: accountID,
+                            canEdit: $0.canEditItems
+                        )
+                    }
+            )
             hasLoaded = true
             errorMessage = nil
         } catch CollaborativeCafeListServiceError.accountScopeMismatch,
@@ -465,6 +484,7 @@ private struct CollaborativeCafeListTile: View {
         case .private: "lock.fill"
         case .friends: "person.2.fill"
         case .invited: "person.crop.circle.badge.checkmark"
+        case .public: "globe.americas.fill"
         }
     }
 }
@@ -1390,6 +1410,8 @@ private struct CafeListEditorSheet: View {
             "Your friends can view it. Only accepted editors can change cafes."
         case .invited:
             "Only people you invite can decide whether to join."
+        case .public:
+            "Anyone can view it. Signed-in people can follow, copy, save, and comment."
         }
     }
 
@@ -1823,12 +1845,12 @@ private struct CafeListFriendPicker: View {
     }
 }
 
-private enum InlineCafeListNoticeStyle {
+enum InlineCafeListNoticeStyle {
     case warning
     case success
 }
 
-private struct InlineCafeListNotice: View {
+struct InlineCafeListNotice: View {
     let title: String
     let message: String
     var actionTitle: String?

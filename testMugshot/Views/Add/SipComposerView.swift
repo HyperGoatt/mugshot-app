@@ -3181,6 +3181,8 @@ struct LogVisitView: View {
 
             if submission.isRemoteFinalized {
                 saveOperation = .finishingLocalCompletion
+                await DiscoveryInteractionService(client: client)
+                    .consumeAttributionAndCapture(visitID: submission.id)
                 let postPublicationSetup = await SipPostPublicationSetupWorker(
                     client: client
                 ).finish(submission: submission)
@@ -3382,6 +3384,8 @@ struct LogVisitView: View {
             // before the durable write so even a local persistence error can
             // never enter the failed-upload or destructive-discard path.
             canonicalPublicationCommitted = true
+            await DiscoveryInteractionService(client: client)
+                .consumeAttributionAndCapture(visitID: submission.id)
             submission.remoteFinalizedAt = .now
             self.pendingSubmission = submission
             try pendingStore.save(submission)

@@ -31,10 +31,22 @@ enum CafeIdentityReconciler {
                 merged.wantToTry = merged.wantToTry || cafe.wantToTry
                 merged.location = merged.location ?? cafe.location
                 if merged.address.isEmpty { merged.address = cafe.address }
+                merged.appleMapsPlaceID = merged.appleMapsPlaceID ?? cafe.appleMapsPlaceID
                 merged.mapItemURL = merged.mapItemURL ?? cafe.mapItemURL
                 merged.websiteURL = merged.websiteURL ?? cafe.websiteURL
                 merged.placeCategory = merged.placeCategory ?? cafe.placeCategory
                 merged.remoteCafeId = merged.remoteCafeId ?? cafe.remoteCafeId
+                merged.discoveryNote = merged.discoveryNote ?? cafe.discoveryNote
+                merged.discoverySource = merged.discoverySource ?? cafe.discoverySource
+                merged.discoveredAt = [merged.discoveredAt, cafe.discoveredAt]
+                    .compactMap { $0 }
+                    .min()
+                merged.discoveryAttributionConsumedAt = [
+                    merged.discoveryAttributionConsumedAt,
+                    cafe.discoveryAttributionConsumedAt
+                ]
+                .compactMap { $0 }
+                .min()
                 if cafe.visitCount > merged.visitCount {
                     merged.visitCount = cafe.visitCount
                     merged.averageRating = cafe.averageRating

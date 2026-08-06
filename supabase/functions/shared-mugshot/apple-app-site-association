@@ -11,6 +11,10 @@
           {
             "/": "/m/*",
             "comment": "Open public Mugshot share links in the native app when it is installed."
+          },
+          {
+            "/": "/l/*",
+            "comment": "Open public cafe list links in the native app when it is installed."
           }
         ]
       }

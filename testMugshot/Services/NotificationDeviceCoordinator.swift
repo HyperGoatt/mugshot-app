@@ -290,13 +290,18 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        if let userInfo = launchOptions?[.remoteNotification] as? [AnyHashable: Any],
-           let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) {
-            Task { @MainActor in
-                ActivityDeepLinkRouter.shared.enqueue(
-                    route.destination,
-                    accountID: route.accountID
-                )
+        if let userInfo = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
+            if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
+                Task { @MainActor in
+                    NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
+                }
+            } else if let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) {
+                Task { @MainActor in
+                    ActivityDeepLinkRouter.shared.enqueue(
+                        route.destination,
+                        accountID: route.accountID
+                    )
+                }
             }
         }
         return true
@@ -324,6 +329,11 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        if NearbyCafeNotificationRoute.resolve(
+            userInfo: notification.request.content.userInfo
+        ) != nil {
+            return [.banner, .list, .sound]
+        }
         guard let route = ActivityPushRouteEnvelope.resolve(
             userInfo: notification.request.content.userInfo
         ), await MainActor.run(body: {
@@ -337,6 +347,12 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         didReceive response: UNNotificationResponse
     ) async {
         let userInfo = response.notification.request.content.userInfo
+        if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
+            await MainActor.run {
+                NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
+            }
+            return
+        }
         guard let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) else { return }
         guard await MainActor.run(body: {
             NotificationDeviceCoordinator.shared.acceptsPush(for: route.accountID)

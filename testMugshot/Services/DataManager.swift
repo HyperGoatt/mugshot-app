@@ -581,10 +581,15 @@ class DataManager: ObservableObject {
             wantToTry: summary.wantToTry,
             averageRating: summary.averageRating ?? existing.averageRating,
             visitCount: max(summary.visibleVisitCount, existing.visitCount),
+            appleMapsPlaceID: remote.appleMapsPlaceID ?? existing.appleMapsPlaceID,
             mapItemURL: existing.mapItemURL ?? remote.mapItemURL,
             websiteURL: remote.websiteURL ?? existing.websiteURL,
             placeCategory: existing.placeCategory,
-            remoteCafeId: summary.cafeID
+            remoteCafeId: summary.cafeID,
+            discoveryNote: existing.discoveryNote,
+            discoverySource: existing.discoverySource,
+            discoveredAt: existing.discoveredAt,
+            discoveryAttributionConsumedAt: existing.discoveryAttributionConsumedAt
         )
         save()
         return appData.cafes[index]
@@ -623,7 +628,7 @@ class DataManager: ObservableObject {
             name: remoteCafe.name,
             address: remoteCafe.address,
             location: remoteLocalCafe.location,
-            applePlaceId: remoteCafe.applePlaceId
+            applePlaceId: remoteCafe.appleMapsPlaceID ?? remoteCafe.applePlaceId
         )
         if let index = appData.cafes.firstIndex(where: { CafeIdentity.key(for: $0) == remoteIdentity }) {
             appData.cafes[index] = mergedCafe(
@@ -707,6 +712,56 @@ class DataManager: ObservableObject {
         }
     }
 
+    @discardableResult
+    func saveDiscoveryCandidate(
+        _ candidate: DiscoveryPlaceCandidate,
+        wantToTry: Bool,
+        note: String?,
+        source: DiscoveryAttributionSource
+    ) -> Cafe {
+        var cafe = candidate.cafe
+        if let existing = appData.cafes.first(where: {
+            ($0.appleMapsPlaceID != nil && $0.appleMapsPlaceID == candidate.appleMapsPlaceID)
+                || CafeIdentity.key(for: $0) == CafeIdentity.key(for: cafe)
+        }) {
+            cafe = existing
+        } else {
+            addCafe(cafe)
+        }
+
+        guard let index = appData.cafes.firstIndex(where: { $0.id == cafe.id }) else {
+            return cafe
+        }
+        appData.cafes[index].appleMapsPlaceID = candidate.appleMapsPlaceID
+            ?? appData.cafes[index].appleMapsPlaceID
+        appData.cafes[index].websiteURL = candidate.websiteURL
+            ?? appData.cafes[index].websiteURL
+        appData.cafes[index].wantToTry = wantToTry || appData.cafes[index].wantToTry
+        appData.cafes[index].discoveryNote = note?.remoteTrimmedNonEmpty
+            ?? appData.cafes[index].discoveryNote
+        appData.cafes[index].discoverySource = source
+        appData.cafes[index].discoveredAt = appData.cafes[index].discoveredAt ?? Date()
+        synchronizePersonalLibraryMembership(for: cafe.id)
+        save()
+        return appData.cafes[index]
+    }
+
+    func updateDiscoveryNote(_ note: String?, for cafeID: UUID) {
+        guard let index = appData.cafes.firstIndex(where: { $0.id == cafeID }) else { return }
+        appData.cafes[index].discoveryNote = note?.remoteTrimmedNonEmpty
+        save()
+    }
+
+    @discardableResult
+    func consumeDiscoveryAttribution(for cafeID: UUID, at date: Date = Date()) -> Bool {
+        guard let index = appData.cafes.firstIndex(where: { $0.id == cafeID }),
+              appData.cafes[index].discoverySource != nil,
+              appData.cafes[index].discoveryAttributionConsumedAt == nil else { return false }
+        appData.cafes[index].discoveryAttributionConsumedAt = date
+        save()
+        return true
+    }
+
     private func mergedCafe(
         existing: Cafe,
         remote: Cafe,
@@ -724,21 +779,27 @@ class DataManager: ObservableObject {
             wantToTry: wantToTry ?? existing.wantToTry,
             averageRating: averageRating ?? existing.averageRating,
             visitCount: visitCount ?? existing.visitCount,
+            appleMapsPlaceID: existing.appleMapsPlaceID ?? remote.appleMapsPlaceID,
             mapItemURL: existing.mapItemURL ?? remote.mapItemURL,
             websiteURL: existing.websiteURL ?? remote.websiteURL,
             placeCategory: existing.placeCategory,
-            remoteCafeId: remote.remoteCafeId ?? existing.remoteCafeId ?? remote.id
+            remoteCafeId: remote.remoteCafeId ?? existing.remoteCafeId ?? remote.id,
+            discoveryNote: existing.discoveryNote,
+            discoverySource: existing.discoverySource,
+            discoveredAt: existing.discoveredAt,
+            discoveryAttributionConsumedAt: existing.discoveryAttributionConsumedAt
         )
     }
     
     // Find existing Cafe by location (within ~50 meters) or create new one
     func findOrCreateCafe(from mapItem: MKMapItem) -> Cafe {
+        let appleMapsPlaceID = mapItem.identifier?.rawValue.remoteTrimmedNonEmpty
         guard let location = mapItem.placemark.location?.coordinate else {
             let cafe = Cafe(
                 name: mapItem.name ?? "Cafe",
                 address: formatAddress(from: mapItem.placemark),
-                mapItemURL: mapItem.url?.absoluteString,
-                websiteURL: mapItem.url?.absoluteString, // For now, use mapItem URL as fallback
+                appleMapsPlaceID: appleMapsPlaceID,
+                websiteURL: mapItem.url?.absoluteString,
                 placeCategory: mapItem.pointOfInterestCategory?.rawValue
             )
             if let existing = appData.cafes.first(where: {
@@ -754,7 +815,9 @@ class DataManager: ObservableObject {
             name: mapItem.name ?? "Cafe",
             location: location,
             address: formatAddress(from: mapItem.placemark),
-            mapItemURL: mapItem.url?.absoluteString
+            appleMapsPlaceID: appleMapsPlaceID,
+            websiteURL: mapItem.url?.absoluteString,
+            placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )
         let candidateIdentity = CafeIdentity.key(for: candidate)
         let threshold: Double = 0.00025
@@ -777,8 +840,8 @@ class DataManager: ObservableObject {
                 if !currentAddress.isEmpty {
                     updatedCafe.address = currentAddress
                 }
-                if updatedCafe.mapItemURL == nil {
-                    updatedCafe.mapItemURL = mapItem.url?.absoluteString
+                if updatedCafe.appleMapsPlaceID == nil {
+                    updatedCafe.appleMapsPlaceID = appleMapsPlaceID
                 }
                 if updatedCafe.websiteURL == nil {
                     updatedCafe.websiteURL = mapItem.url?.absoluteString
@@ -804,7 +867,7 @@ class DataManager: ObservableObject {
             name: mapItem.name ?? "Cafe",
             location: location,
             address: formatAddress(from: mapItem.placemark),
-            mapItemURL: mapItem.url?.absoluteString,
+            appleMapsPlaceID: appleMapsPlaceID,
             websiteURL: websiteURL,
             placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )

@@ -925,6 +925,8 @@ struct LegacyLogVisitView: View {
                 userId: submission.userId,
                 visibility: submission.visibility
             )
+            await DiscoveryInteractionService(client: client)
+                .consumeAttributionAndCapture(visitID: submission.id)
             if let remoteCafeId = attachedVisit.cafe?.id {
                 // Publication is the primary transaction. A failed state
                 // cleanup must never turn a completed sip back into a failed

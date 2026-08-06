@@ -247,7 +247,7 @@ struct SettingsView: View {
             }
 
             settingsGroup("Map, Location, and Distance Units") {
-                NavigationLink { MapLocationSettingsView() } label: {
+                NavigationLink { MapLocationSettingsView(dataManager: dataManager) } label: {
                     settingsRow("Map and Location", systemImage: "location.fill")
                 }
             }

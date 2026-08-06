@@ -644,6 +644,10 @@ struct CafeDetailView: View {
     let cafe: Cafe
     @ObservedObject var dataManager: DataManager
     let initialDetent: PresentationDetent
+    let discoveryReason: String?
+    let discoveryEvidence: [DiscoveryEvidence]
+    let discoverySource: DiscoveryAttributionSource?
+    let applePhoneNumber: String?
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
@@ -663,20 +667,35 @@ struct CafeDetailView: View {
     @State private var selectedDetent: PresentationDetent
     @State private var showListMembership = false
     @State private var showReportUnavailable = false
+    @State private var privateNoteDraft: String
+    @State private var isSavingPrivateNote = false
+    @State private var privateNoteStatus: String?
+    @ObservedObject private var nearbyReminders = NearbyCafeReminderCoordinator.shared
+    @State private var showsNearbyReminderEducation = false
+    @State private var nearbyReminderError: String?
 
     init(
         cafe: Cafe,
         dataManager: DataManager,
         initialDetent: PresentationDetent = .large,
+        discoveryReason: String? = nil,
+        discoveryEvidence: [DiscoveryEvidence] = [],
+        discoverySource: DiscoveryAttributionSource? = nil,
+        applePhoneNumber: String? = nil,
         onLogVisitRequested: ((Cafe) -> Void)? = nil,
         onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     ) {
         self.cafe = cafe
         self.dataManager = dataManager
         self.initialDetent = initialDetent
+        self.discoveryReason = discoveryReason
+        self.discoveryEvidence = discoveryEvidence
+        self.discoverySource = discoverySource
+        self.applePhoneNumber = applePhoneNumber
         self.onLogVisitRequested = onLogVisitRequested
         self.onAuthenticationRequired = onAuthenticationRequired
         _selectedDetent = State(initialValue: initialDetent)
+        _privateNoteDraft = State(initialValue: cafe.discoveryNote ?? "")
     }
 
     var currentCafe: Cafe {
@@ -750,6 +769,34 @@ struct CafeDetailView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Mugshot does not yet send cafe data reports. No report was submitted.")
+            }
+            .alert("Remember this cafe when you are nearby?", isPresented: $showsNearbyReminderEducation) {
+                Button("Not now", role: .cancel) {
+                    UserDefaults.standard.set(
+                        true,
+                        forKey: NearbyCafeReminderCoordinator.educationDismissedKey
+                    )
+                }
+                Button("Continue") {
+                    Task {
+                        let enabled = await nearbyReminders.requestEnable(
+                            cafes: dataManager.appData.cafes
+                        )
+                        if !enabled {
+                            nearbyReminderError = "Nearby reminders need notification and Always Location permission. You can change both in iOS Settings."
+                        }
+                    }
+                }
+            } message: {
+                Text("Mugshot can send one tasteful reminder when a cafe you deliberately saved is nearby. It asks for notifications first, then Always Location, and you can turn it off anytime.")
+            }
+            .alert("Nearby reminders are off", isPresented: Binding(
+                get: { nearbyReminderError != nil },
+                set: { if !$0 { nearbyReminderError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(nearbyReminderError ?? "Please try again.")
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -859,6 +906,7 @@ struct CafeDetailView: View {
 
                 detailPrimaryAction
                 detailUtilitiesSection
+                privateDiscoveryNoteSection
                 personalRelationshipSection
 
                 Button {
@@ -887,7 +935,12 @@ struct CafeDetailView: View {
                     cafeSummarySection
                     detailPrimaryAction
                     detailUtilitiesSection
+                    privateDiscoveryNoteSection
                     personalRelationshipSection
+
+                    if discoveryReason != nil || !discoveryEvidence.isEmpty {
+                        whyThisFitsSection
+                    }
 
                     recentVisitsSection
 
@@ -1355,6 +1408,59 @@ struct CafeDetailView: View {
         }
     }
 
+    private var privateDiscoveryNoteSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label("Private note", systemImage: "lock.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            TextField("Why do you want to try this cafe?", text: $privateNoteDraft, axis: .vertical)
+                .lineLimit(2 ... 4)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Text(privateNoteStatus ?? "Only you can see this note.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondaryText)
+                Spacer()
+                Button(isSavingPrivateNote ? "Saving…" : "Save note") {
+                    Task { await savePrivateDiscoveryNote() }
+                }
+                .font(.system(size: 12, weight: .bold))
+                .disabled(isSavingPrivateNote)
+            }
+        }
+        .padding(14)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
+    }
+
+    private var whyThisFitsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MugshotSectionTitle(
+                title: "Why this fits",
+                subtitle: discoveryReason ?? "Based on evidence visible to you."
+            )
+            ForEach(discoveryEvidence.prefix(3)) { evidence in
+                Label(evidence.reason, systemImage: discoveryEvidenceIcon(evidence.kind))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.espressoBrown)
+            }
+        }
+        .padding(16)
+        .cardStyle()
+    }
+
+    private func discoveryEvidenceIcon(_ kind: DiscoveryEvidenceKind) -> String {
+        switch kind {
+        case .friendVisit: "person.crop.circle.fill"
+        case .wantToTry: "bookmark.fill"
+        case .practicalFit: "checkmark.seal.fill"
+        case .drinkMatch: "cup.and.saucer.fill"
+        case .publicMugshot: "camera.fill"
+        case .publicList: "list.bullet.rectangle"
+        case .nearby: "location.fill"
+        }
+    }
+
     private var communityHighlightsSection: some View {
         let friendVisits = Set(communityRemoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
 
@@ -1453,7 +1559,24 @@ struct CafeDetailView: View {
             remoteRecentVisitsSection
         } else if !visits.isEmpty {
             localRecentVisitsSection
+        } else {
+            firstMugshotPrompt
         }
+    }
+
+    private var firstMugshotPrompt: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.mugshotSageText)
+            Text("Be the first to log a Mugshot here.")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.espressoBrown)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(Color.sandBeige.opacity(0.42), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var localRecentVisitsSection: some View {
@@ -1500,13 +1623,8 @@ struct CafeDetailView: View {
                             .padding(.horizontal)
                     }
                 } else {
-                    Text("No visits here yet.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondaryText)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
+                    firstMugshotPrompt
                         .padding(.horizontal)
-                        .padding(.vertical, 12)
                 }
             } else {
                 ForEach(ownRemoteVisits.prefix(5)) { visit in
@@ -1522,6 +1640,15 @@ struct CafeDetailView: View {
 
     private var secondaryActionsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let applePhoneNumber = applePhoneNumber?.remoteTrimmedNonEmpty {
+                Button {
+                    openPhone(number: applePhoneNumber)
+                } label: {
+                    secondaryActionRow(applePhoneNumber, systemImage: "phone.fill")
+                }
+                .buttonStyle(.plain)
+            }
+
             if let websiteURL = currentCafe.websiteURL?.remoteTrimmedNonEmpty {
                 Button {
                     openWebsite(urlString: websiteURL)
@@ -1607,6 +1734,74 @@ struct CafeDetailView: View {
     private func openWebsite(urlString: String) {
         guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
+    }
+
+    private func openPhone(number: String) {
+        let allowed = CharacterSet(charactersIn: "+0123456789")
+        let normalized = number.unicodeScalars.filter(allowed.contains).map(String.init).joined()
+        guard !normalized.isEmpty, let url = URL(string: "tel:\(normalized)") else { return }
+        UIApplication.shared.open(url)
+    }
+
+    @MainActor
+    private func savePrivateDiscoveryNote() async {
+        guard !isSavingPrivateNote else { return }
+        isSavingPrivateNote = true
+        defer { isSavingPrivateNote = false }
+        let note = privateNoteDraft.remoteTrimmedNonEmpty
+        let source = discoverySource ?? currentCafe.discoverySource
+        if let source {
+            _ = dataManager.saveDiscoveryCandidate(
+                DiscoveryPlaceCandidate(cafe: currentCafe),
+                wantToTry: true,
+                note: note,
+                source: source
+            )
+        } else {
+            if dataManager.getCafe(id: currentCafe.id) == nil {
+                dataManager.addCafe(currentCafe)
+            }
+            dataManager.setCafeState(
+                cafeId: currentCafe.id,
+                isFavorite: currentCafe.isFavorite,
+                wantToTry: true
+            )
+            dataManager.updateDiscoveryNote(note, for: currentCafe.id)
+        }
+
+        guard let userID = authModel.authenticatedUser?.id else {
+            privateNoteStatus = "Saved privately on this device and added to Want to Try."
+            return
+        }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let result = try await CafeStateService(client: client).setCafeState(
+                userId: userID,
+                cafe: currentCafe,
+                isFavorite: currentCafe.isFavorite,
+                wantToTry: true,
+                discoveryNote: note,
+                discoverySource: source,
+                discoveredAt: source == nil ? currentCafe.discoveredAt : currentCafe.discoveredAt ?? .now
+            )
+            _ = dataManager.upsertRemoteCafe(
+                result.cafe,
+                isFavorite: result.state.isFavorite,
+                wantToTry: result.state.wantToTry
+            )
+            dataManager.updateDiscoveryNote(note, for: currentCafe.id)
+            if let source {
+                _ = try? await DiscoveryInteractionService(client: client).record(
+                    cafeID: result.cafe.id,
+                    appleMapsPlaceID: result.cafe.appleMapsPlaceID,
+                    source: source,
+                    kind: .cafeSaved
+                )
+            }
+            privateNoteStatus = "Saved privately and added to Want to Try."
+        } catch {
+            privateNoteStatus = MugshotUserFacingError.message(for: error, context: .social)
+        }
     }
 
     @MainActor
@@ -1696,10 +1891,24 @@ struct CafeDetailView: View {
     }
 
     private func toggleWantToTry() {
+        let shouldOfferReminder = !currentCafe.wantToTry
         updateCafeState(
             isFavorite: currentCafe.isFavorite,
             wantToTry: !currentCafe.wantToTry
         )
+        if shouldOfferReminder {
+            offerNearbyReminderEducationIfUseful()
+        }
+    }
+
+    private func offerNearbyReminderEducationIfUseful() {
+        guard DiscoveryFeatureFlags.isEnabled(.nearbyReminders),
+              currentCafe.location != nil,
+              !nearbyReminders.isEnabled,
+              !UserDefaults.standard.bool(
+                forKey: NearbyCafeReminderCoordinator.educationDismissedKey
+              ) else { return }
+        showsNearbyReminderEducation = true
     }
 
     private func updateCafeState(isFavorite: Bool, wantToTry: Bool) {

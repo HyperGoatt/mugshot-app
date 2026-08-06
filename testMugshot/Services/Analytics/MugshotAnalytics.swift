@@ -173,6 +173,27 @@ enum MugshotAnalyticsSurface: String {
     case feed
     case sipDetail = "sip_detail"
     case remoteSipDetail = "remote_sip_detail"
+    case forYou = "for_you"
+    case forYouList = "for_you_list"
+    case publicList = "public_list"
+    case shareExtension = "share_extension"
+    case nearbyReminder = "nearby_reminder"
+}
+
+enum MugshotDiscoveryAnalyticsAction: String {
+    case scopeSelected = "discovery_scope_selected"
+    case recommendationOpened = "discovery_recommendation_opened"
+    case picksOpened = "discovery_picks_opened"
+    case directionsRequested = "discovery_directions_requested"
+    case cafeSaved = "discovery_cafe_saved"
+    case importStarted = "discovery_import_started"
+    case importCompleted = "discovery_import_completed"
+    case importFailed = "discovery_import_failed"
+    case publicListFollowed = "discovery_public_list_followed"
+    case publicListCopied = "discovery_public_list_copied"
+    case publicListCommented = "discovery_public_list_commented"
+    case nearbyReminderOpened = "discovery_nearby_reminder_opened"
+    case assistedMugshotCreated = "discovery_assisted_mugshot_created"
 }
 
 enum MugshotAnalyticsShareAction: String {
@@ -313,6 +334,13 @@ enum MugshotAnalyticsEvent: Equatable {
         surface: MugshotAnalyticsSurface
     )
     case commentAdded(surface: MugshotAnalyticsSurface)
+    case discovery(
+        action: MugshotDiscoveryAnalyticsAction,
+        source: DiscoveryAttributionSource,
+        surface: MugshotAnalyticsSurface,
+        rankingVersion: String?,
+        cafeID: UUID?
+    )
     case share(
         action: MugshotAnalyticsShareAction,
         destination: String?,
@@ -446,6 +474,18 @@ enum MugshotAnalyticsEvent: Equatable {
                 "comment_added",
                 ["surface": .string(surface.rawValue)]
             )
+        case .discovery(let action, let source, let surface, let rankingVersion, let cafeID):
+            var properties: [String: MugshotAnalyticsPropertyValue] = [
+                "source": .string(source.rawValue),
+                "surface": .string(surface.rawValue)
+            ]
+            if let rankingVersion {
+                properties["ranking_version"] = .string(rankingVersion)
+            }
+            if let cafeID {
+                properties["cafe_id"] = .string(cafeID.uuidString.lowercased())
+            }
+            return payload(action.rawValue, properties)
         case .share(
             let action,
             let destination,
