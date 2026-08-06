@@ -201,11 +201,7 @@ struct WelcomeStep: View {
         VStack(spacing: 22) {
             Spacer()
 
-            MugsyAnimatedView(
-                configuration: MugsyPlacement.onboarding.configuration,
-                action: .entering,
-                tapBehavior: MugsyPlacement.onboarding.tapBehavior
-            )
+            MugsyLogoTransformationView(target: .logo)
             .frame(width: 164, height: 164)
             .accessibilityHidden(true)
             

@@ -136,14 +136,12 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testMapExplainsCafeAndSipRatingFallback() throws {
+    func testMapShowsTheCompactRatingsLegend() throws {
         let app = launch(reset: true)
         app.buttons["mugshot.tab.map"].tap()
 
         XCTAssertTrue(app.staticTexts["Your ratings"].waitForExistence(timeout: 3))
-        XCTAssertTrue(
-            app.staticTexts["Cafe average when available · Sip average otherwise"].exists
-        )
+        XCTAssertFalse(app.staticTexts["Cafe average when available · Sip average otherwise"].exists)
         XCTAssertEqual(app.staticTexts["High"].value as? String, "4.0 or higher")
         XCTAssertEqual(app.staticTexts["Mid"].value as? String, "3.0 to 3.9")
         XCTAssertEqual(app.staticTexts["Low"].value as? String, "Below 3.0")

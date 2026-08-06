@@ -83,6 +83,42 @@ enum AdaptiveMapCameraPolicy {
     }
 }
 
+enum AdaptiveMapCafeClusteringPolicy {
+    static func isEnabled(
+        current: Bool,
+        groundFootprintMeters: Double,
+        visibleCafeCount: Int,
+        viewportSize: CGSize
+    ) -> Bool {
+        let entryThreshold = clusteringEntryThreshold(
+            visibleCafeCount: visibleCafeCount,
+            viewportSize: viewportSize
+        )
+        let exitThreshold = entryThreshold * 0.72
+        return current
+            ? groundFootprintMeters > exitThreshold
+            : groundFootprintMeters >= entryThreshold
+    }
+
+    static func clusteringEntryThreshold(
+        visibleCafeCount: Int,
+        viewportSize: CGSize
+    ) -> Double {
+        let comfortableCellArea = 90.0 * 90.0
+        let viewportArea = max(viewportSize.width * viewportSize.height, comfortableCellArea)
+        let comfortableCapacity = max(viewportArea / comfortableCellArea, 1)
+        let density = Double(max(visibleCafeCount, 0)) / comfortableCapacity
+
+        // At the close city scale from the July map, sparse cafe sets retain
+        // their individual scores. Dense maps consolidate slightly sooner,
+        // before the regional place-aggregate transition takes over.
+        if density >= 1.25 { return 3_600 }
+        if density <= 0.25 { return 5_600 }
+        let progress = (density - 0.25) / 1.0
+        return 5_600 - (2_000 * progress)
+    }
+}
+
 struct AdaptiveMapClusterSummary: Equatable {
     let cafeCount: Int
     let ratedCount: Int

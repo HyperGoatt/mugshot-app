@@ -6,7 +6,7 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
     }
 
     @MainActor
-    func testAdaptiveMapMovesFromClustersToPinsAndNamedPlaces() throws {
+    func testAdaptiveMapMovesFromPinsToClustersAndNamedPlaces() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
@@ -24,18 +24,16 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
         let gestureSurface = app.otherElements["map.gestureSurface"]
         XCTAssertTrue(gestureSurface.waitForExistence(timeout: 3))
 
-        let mediumCluster = element("map.cluster", in: app)
-        XCTAssertTrue(
-            mediumCluster.waitForExistence(timeout: 5),
-            "The city-scale fixture should consolidate overlapping cafes."
-        )
-        attachScreenshot(named: "06 After - Map aggregate")
-
         let northBeachPin = element(
             "map.pin.00000000-0000-4000-8001-000000000001",
             in: app
         )
-        XCTAssertTrue(northBeachPin.waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            northBeachPin.waitForExistence(timeout: 5),
+            "The close city-scale fixture should preserve individual cafe scores."
+        )
+        attachScreenshot(named: "06 After - Map individual scores")
+
         northBeachPin.tap()
         XCTAssertTrue(
             element("map.cafeDetail.sheet", in: app).waitForExistence(timeout: 5),
@@ -44,32 +42,21 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
         app.buttons["Close cafe card"].tap()
         XCTAssertTrue(map.waitForExistence(timeout: 3))
 
-        mediumCluster.tap()
-        let cafePin = element(
-            "map.pin.00000000-0000-4000-8001-000000000005",
-            in: app
-        )
+        gestureSurface.pinch(withScale: 0.2, velocity: -2)
+        let namedPlace = app.descendants(matching: .button).matching(
+            NSPredicate(
+                format: "identifier == %@ AND (label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@)",
+                "map.place",
+                "San Francisco",
+                "Oakland",
+                "Berkeley",
+                "Sacramento"
+            )
+        ).firstMatch
         XCTAssertTrue(
-            cafePin.waitForExistence(timeout: 5),
-            "Tapping a cluster should reveal the existing cafe pins."
+            namedPlace.waitForExistence(timeout: 6),
+            "Zooming out should replace pin-level detail with named place aggregates."
         )
-        attachScreenshot(named: "06b After - Map individual cafes")
-
-        gestureSurface.pinch(withScale: 0.25, velocity: -2)
-        gestureSurface.pinch(withScale: 0.25, velocity: -2)
-        gestureSurface.pinch(withScale: 0.25, velocity: -2)
-        let place = element("map.place", in: app)
-        XCTAssertTrue(
-            place.waitForExistence(timeout: 6),
-            "A far camera should replace pin-level detail with named place aggregates."
-        )
-        XCTAssertTrue(
-            ["San Francisco", "Oakland", "Berkeley", "Sacramento"].contains {
-                place.label.contains($0)
-            },
-            "Far aggregates should communicate a real place name."
-        )
-        XCTAssertTrue(place.label.contains("cafe"))
         let regionalCluster = app.descendants(matching: .button).matching(
             NSPredicate(
                 format: "identifier == %@ AND label BEGINSWITH %@",
@@ -78,17 +65,32 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(regionalCluster.waitForExistence(timeout: 3))
-        attachScreenshot(named: "06c After - Map named places")
+        attachScreenshot(named: "06b After - Map named places")
 
         regionalCluster.tap()
-        let revealedCluster = element("map.cluster", in: app)
+        XCTAssertTrue(namedPlace.waitForNonExistence(timeout: 6))
+        let cafeCluster = app.descendants(matching: .button).matching(
+            NSPredicate(
+                format: "identifier == %@ AND NOT label BEGINSWITH %@",
+                "map.cluster",
+                "Across "
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            cafeCluster.waitForExistence(timeout: 6),
+            "Tapping the regional cluster should reveal cafe-level clusters."
+        )
+        attachScreenshot(named: "06c After - Map cafe clusters")
+
+        cafeCluster.tap()
         let revealedPin = app.descendants(matching: .button).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "map.pin.")
         ).firstMatch
         XCTAssertTrue(
-            revealedCluster.waitForExistence(timeout: 6) || revealedPin.waitForExistence(timeout: 1),
-            "Tapping a place should zoom back toward its cafes."
+            revealedPin.waitForExistence(timeout: 6),
+            "Tapping a cafe cluster should reveal individual cafe scores."
         )
+        attachScreenshot(named: "06d After - Map revealed cafes")
     }
 
     @MainActor
