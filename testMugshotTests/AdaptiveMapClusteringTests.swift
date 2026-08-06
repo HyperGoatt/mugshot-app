@@ -111,6 +111,59 @@ struct AdaptiveMapClusteringTests {
         #expect(sparseThreshold == 26_000)
     }
 
+    @Test func closeCityScaleKeepsIndividualCafeScoresUntilZoomingOut() {
+        let viewport = CGSize(width: 390, height: 844)
+
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.isEnabled(
+                current: false,
+                groundFootprintMeters: 3_000,
+                visibleCafeCount: 8,
+                viewportSize: viewport
+            ) == false
+        )
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.isEnabled(
+                current: false,
+                groundFootprintMeters: 5_600,
+                visibleCafeCount: 8,
+                viewportSize: viewport
+            ) == true
+        )
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.isEnabled(
+                current: true,
+                groundFootprintMeters: 4_100,
+                visibleCafeCount: 8,
+                viewportSize: viewport
+            ) == true
+        )
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.isEnabled(
+                current: true,
+                groundFootprintMeters: 4_000,
+                visibleCafeCount: 8,
+                viewportSize: viewport
+            ) == false
+        )
+    }
+
+    @Test func denseCafeMapsClumpSoonerThanSparseCafeMaps() {
+        let viewport = CGSize(width: 390, height: 844)
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.clusteringEntryThreshold(
+                visibleCafeCount: 60,
+                viewportSize: viewport
+            ) == 3_600
+        )
+        #expect(
+            AdaptiveMapCafeClusteringPolicy.clusteringEntryThreshold(
+                visibleCafeCount: 3,
+                viewportSize: viewport
+            ) == 5_600
+        )
+    }
+
     @Test func clusterSummaryShowsBestScoreOnlyWithUsefulCoverage() {
         let cafes = (0..<4).map { index in
             Cafe(name: "Cafe \(index)")

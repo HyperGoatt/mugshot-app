@@ -628,11 +628,42 @@ struct testMugshotTests {
     @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
         #expect(
             MapDiscoveryScope.available(isAuthenticated: true) ==
-                [.visited, .friends, .favorites, .wantToTry, .all]
+                [.visited, .friends, .favorites, .wantToTry, .discovery, .all]
         )
         #expect(
             MapDiscoveryScope.available(isAuthenticated: false) ==
-                [.visited, .favorites, .wantToTry, .all]
+                [.visited, .favorites, .wantToTry, .discovery, .all]
+        )
+    }
+
+    @Test func mapDiscoveryOnlyIncludesNetNewCafes() {
+        #expect(
+            MapDiscoveryEligibility.isNetNew(
+                isVisited: false,
+                isSaved: false,
+                isInPersonalJournal: false
+            )
+        )
+        #expect(
+            !MapDiscoveryEligibility.isNetNew(
+                isVisited: true,
+                isSaved: false,
+                isInPersonalJournal: false
+            )
+        )
+        #expect(
+            !MapDiscoveryEligibility.isNetNew(
+                isVisited: false,
+                isSaved: true,
+                isInPersonalJournal: false
+            )
+        )
+        #expect(
+            !MapDiscoveryEligibility.isNetNew(
+                isVisited: false,
+                isSaved: false,
+                isInPersonalJournal: true
+            )
         )
     }
 
@@ -2766,7 +2797,10 @@ struct testMugshotTests {
         #expect(MapDiscoveryScope.visited.sections(isAuthenticated: true).isEmpty)
         #expect(MapDiscoveryScope.all.sections(isAuthenticated: true) == [.nearby, .lovedByFriends, .trending])
         #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
-        #expect(MapDiscoveryScope.available(isAuthenticated: false) == [.visited, .favorites, .wantToTry, .all])
+        #expect(
+            MapDiscoveryScope.available(isAuthenticated: false) ==
+                [.visited, .favorites, .wantToTry, .discovery, .all]
+        )
     }
 
     @Test func mapDiscoveryRadiusUsesAZeroToFiftyMileControl() {

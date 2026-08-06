@@ -25,18 +25,18 @@ enum MapDiscoveryRadius {
 }
 
 enum MapDiscoveryScope: String, CaseIterable, Identifiable {
-    case all = "All"
     case visited = "Visited"
     case friends = "Friends"
     case favorites = "Favorites"
     case wantToTry = "Want to Try"
     case discovery = "Discovery"
+    case all = "All"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .all: return "square.stack.3d.up.fill"
+        case .all: return "map.fill"
         case .discovery: return "sparkles"
         case .favorites: return "heart.fill"
         case .wantToTry: return "bookmark.fill"
@@ -48,7 +48,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     var explanation: String {
         switch self {
         case .all: return "Nearby, friend, and community cafes together"
-        case .discovery: return "Nearby and community cafes you have not necessarily saved"
+        case .discovery: return "Net-new cafes you have not visited, favorited, or saved to try"
         case .favorites: return "Only cafes you marked as favorites"
         case .wantToTry: return "Only cafes you saved to try later"
         case .visited: return "Only cafes where you logged a sip"
@@ -70,7 +70,37 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     }
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
-        isAuthenticated ? allCases : [.all, .visited, .favorites, .wantToTry, .discovery]
+        isAuthenticated
+            ? [.visited, .friends, .favorites, .wantToTry, .discovery, .all]
+            : [.visited, .favorites, .wantToTry, .discovery, .all]
+    }
+}
+
+enum MapDiscoveryEligibility {
+    static func isNetNew(
+        isVisited: Bool,
+        isSaved: Bool,
+        isInPersonalJournal: Bool
+    ) -> Bool {
+        !isVisited && !isSaved && !isInPersonalJournal
+    }
+
+    static func isNetNew(
+        _ cafe: DiscoveryCafe,
+        excluding personalJournalCafeIDs: Set<UUID>
+    ) -> Bool {
+        isNetNew(
+            isVisited: cafe.isVisited,
+            isSaved: cafe.isSaved,
+            isInPersonalJournal: personalJournalCafeIDs.contains(cafe.id)
+        )
+    }
+
+    static func personalJournalCafeIDs(in cafes: [Cafe]) -> Set<UUID> {
+        Set(cafes.compactMap { cafe in
+            guard cafe.visitCount > 0 || cafe.isFavorite || cafe.wantToTry else { return nil }
+            return cafe.remoteCafeId ?? cafe.id
+        })
     }
 }
 
@@ -401,25 +431,30 @@ struct MapTabView: View {
     }
 
     private var mapDiscoveryControls: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                HStack(spacing: 8) {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.espressoBrown.opacity(0.6))
                         .accessibilityHidden(true)
 
-                    TextField("Search cafes", text: $searchText)
+                    TextField("Search places", text: $searchText)
                         .accessibilityIdentifier("map.search.query")
                         .foregroundColor(.inputText)
                         .tint(.mugshotSage)
+                        .accentColor(.mugshotSage)
                         .focused($isSearchFieldFocused)
                         .submitLabel(.search)
                         .onChange(of: searchText) { _, newValue in
                             if newValue.remoteTrimmedNonEmpty != nil {
+                                isSearchActive = true
                                 searchService.search(query: newValue, region: effectiveRegion)
                             } else {
                                 searchService.cancelSearch()
                             }
+                        }
+                        .onTapGesture {
+                            isSearchActive = true
                         }
                         .onSubmit {
                             searchService.search(
@@ -437,89 +472,63 @@ struct MapTabView: View {
                             isSearchActive = true
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.espressoBrown.opacity(0.42))
-                                .frame(width: 44, height: 44)
+                                .foregroundColor(.espressoBrown.opacity(0.4))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear search")
                     }
                 }
-                .padding(.leading, 14)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(
-                    Color.foamWhite.opacity(0.78),
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.foamWhite.opacity(0.88))
+                .padding(.horizontal, 16)
+                .frame(height: 52)
+                .mugshotGlassSurface(
+                    radius: 26,
+                    tint: .foamWhite,
+                    stroke: Color.foamWhite.opacity(0.62),
+                    shadow: DesignSystem.Shadow(
+                        color: .black.opacity(0.10),
+                        radius: 16,
+                        x: 0,
+                        y: 6
+                    ),
+                    interactive: true
                 )
 
-                Button {
-                    if isSearchActive {
+                if isSearchActive {
+                    Button("Cancel") {
                         searchText = ""
                         searchService.cancelSearch()
                         isSearchActive = false
                         isSearchFieldFocused = false
-                    } else {
-                        discoveryMode = .list
                     }
-                } label: {
-                    Group {
-                        if isSearchActive {
-                            Text("Cancel")
-                                .font(.system(size: 14, weight: .semibold))
-                        } else {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 17, weight: .semibold))
-                        }
-                    }
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.espressoBrown)
-                    .frame(width: 58, height: 48)
-                    .background(
-                        isSearchActive ? Color.clear : Color.sandBeige.opacity(0.82),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
+                    .transition(.opacity)
+                    .accessibilityIdentifier("map.search.cancel")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(isSearchActive ? "map.search.cancel" : "map.mode.list")
-                .accessibilityLabel(isSearchActive ? "Cancel search" : "Show cafes as a list")
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, isSearchActive ? 12 : 8)
+            .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
+            .animation(DesignSystem.Motion.base, value: isSearchActive)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(MapDiscoveryScope.available(isAuthenticated: authModel.authenticatedUser != nil)) { scope in
-                        MugshotFilterChip(
-                            title: scope.rawValue,
-                            icon: scope.icon,
-                            isSelected: discoveryScope == scope
-                        ) {
-                            discoveryScope = scope
-                        }
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("map.scope.\(scope.rawValue)")
-                        .accessibilityHint(scope.explanation)
-                    }
+            if !isSearchActive {
+                MapDiscoveryFilterBar(
+                    selection: $discoveryScope,
+                    isAuthenticated: authModel.authenticatedUser != nil
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+
+                HStack {
+                    Spacer()
+                    MapDiscoveryModeControl(selection: $discoveryMode)
+                        .frame(width: 166)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .frame(height: isSearchActive ? 0 : 44)
-            .clipped()
-            .opacity(isSearchActive ? 0 : 1)
-            .allowsHitTesting(!isSearchActive)
-            .accessibilityHidden(isSearchActive)
-            .accessibilityLabel("Map cafe sources")
         }
-        .padding(10)
-        .mugshotGlassSurface(
-            radius: 24,
-            tint: .foamWhite,
-            stroke: Color.foamWhite.opacity(0.72),
-            shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
-            interactive: true
-        )
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, isSearchActive ? 12 : 8)
         .onChange(of: isSearchFieldFocused) { _, isFocused in
             if isFocused { isSearchActive = true }
         }
@@ -611,7 +620,7 @@ struct MapTabView: View {
             case .all:
                 source = localEligibleCafes + discoveryMapCafes
             case .discovery:
-                source = discoveryMapCafes
+                source = netNewDiscoveryMapCafes
             case .favorites:
                 source = dataManager.appData.cafes.filter(\.isFavorite)
             case .wantToTry:
@@ -626,7 +635,7 @@ struct MapTabView: View {
             case .all:
                 source = personalMapPins.map(\.localCafe) + discoveryMapCafes
             case .discovery:
-                source = discoveryMapCafes
+                source = netNewDiscoveryMapCafes
             case .favorites:
                 source = personalMapPins.filter(\.isFavorite).map(\.localCafe)
             case .wantToTry:
@@ -642,6 +651,27 @@ struct MapTabView: View {
             guard cafe.location != nil,
                   !cafes.contains(where: { $0.id == cafe.id }) else { return }
             cafes.append(cafe)
+        }
+    }
+
+    private var personalJournalCafeIDs: Set<UUID> {
+        let cafes: [Cafe]
+        if authModel.authenticatedUser == nil {
+            cafes = dataManager.appData.cafes
+        } else {
+            cafes = personalMapPins.map(\.localCafe)
+        }
+        return MapDiscoveryEligibility.personalJournalCafeIDs(in: cafes)
+    }
+
+    private var netNewDiscoveryMapCafes: [Cafe] {
+        discoveryMapCafes.filter { cafe in
+            let remoteID = cafe.remoteCafeId ?? cafe.id
+            guard let discoveryCafe = discoveryCafesByID[remoteID] else { return false }
+            return MapDiscoveryEligibility.isNetNew(
+                discoveryCafe,
+                excluding: personalJournalCafeIDs
+            )
         }
     }
 
@@ -1193,6 +1223,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         var lastPlaceNames: [UUID: String]
         var lastHighlightedCafeID: UUID?
         var displayMode: AdaptiveMapDisplayMode = .cafes
+        var cafeClusteringEnabled = false
         var isCameraChanging = false
         private var cameraSettledWorkItem: DispatchWorkItem?
 
@@ -1208,21 +1239,31 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
 
         func reconcileAnnotations(in mapView: MKMapView, forceRefresh: Bool = false) {
+            let groundFootprintMeters = AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView)
+            let visibleCafeCount = visibleCafeCount(in: mapView)
             let nextMode = AdaptiveMapCameraPolicy.displayMode(
                 current: displayMode,
-                groundFootprintMeters: AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView),
-                visibleCafeCount: visibleCafeCount(in: mapView),
+                groundFootprintMeters: groundFootprintMeters,
+                visibleCafeCount: visibleCafeCount,
+                viewportSize: mapView.bounds.size
+            )
+            let nextCafeClusteringEnabled = AdaptiveMapCafeClusteringPolicy.isEnabled(
+                current: cafeClusteringEnabled,
+                groundFootprintMeters: groundFootprintMeters,
+                visibleCafeCount: visibleCafeCount,
                 viewportSize: mapView.bounds.size
             )
             let modeChanged = nextMode != displayMode
-            guard forceRefresh || modeChanged || applicationAnnotations(in: mapView).isEmpty else {
+            let clusteringChanged = nextCafeClusteringEnabled != cafeClusteringEnabled
+            guard forceRefresh || modeChanged || clusteringChanged || applicationAnnotations(in: mapView).isEmpty else {
                 return
             }
 
-            if forceRefresh || modeChanged {
+            if forceRefresh || modeChanged || clusteringChanged {
                 mapView.removeAnnotations(applicationAnnotations(in: mapView))
             }
             displayMode = nextMode
+            cafeClusteringEnabled = nextCafeClusteringEnabled
 
             switch displayMode {
             case .cafes:
@@ -1324,9 +1365,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             annotationView?.addSubview(containerView)
             annotationView?.frame = CGRect(x: 0, y: 0, width: pinSize, height: pinSize)
             annotationView?.centerOffset = CGPoint(x: 0, y: -pinSize / 2)
-            annotationView?.clusteringIdentifier = parent.highlightedCafe?.id == cafe.id
-                ? nil
-                : "MugshotCafe"
+            annotationView?.clusteringIdentifier = clusteringIdentifier(for: cafe)
             annotationView?.collisionMode = .circle
             annotationView?.displayPriority = parent.highlightedCafe?.id == cafe.id
                 ? .required
@@ -1357,6 +1396,27 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
             
             return annotationView
+        }
+
+        private func clusteringIdentifier(for cafe: Cafe) -> String? {
+            if parent.highlightedCafe?.id == cafe.id { return nil }
+            if cafeClusteringEnabled { return "MugshotCafe" }
+            guard let coordinate = cafe.location else { return nil }
+
+            let overlappingCafeIDs = parent.displayedCafes.compactMap { candidate -> UUID? in
+                guard let candidateCoordinate = candidate.location,
+                      abs(candidateCoordinate.latitude - coordinate.latitude) < 0.000_01,
+                      abs(candidateCoordinate.longitude - coordinate.longitude) < 0.000_01 else {
+                    return nil
+                }
+                return candidate.id
+            }
+            guard overlappingCafeIDs.count > 1,
+                  let stableID = overlappingCafeIDs
+                    .map(\.uuidString)
+                    .sorted()
+                    .first else { return nil }
+            return "MugshotOverlap-\(stableID)"
         }
 
         private func clusterView(
@@ -2026,10 +2086,6 @@ struct RatingsLegend: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown)
 
-            Text("Cafe average when available · Sip average otherwise")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.tertiaryText)
-            
             HStack(spacing: 16) {
                 LegendItem(color: .mapPinHigh, text: "≥ 4.0", accessibilityText: "High", accessibilityValueText: "4.0 or higher")
                 LegendItem(color: .mapPinMiddle, text: "3.0–3.9", accessibilityText: "Mid", accessibilityValueText: "3.0 to 3.9")
@@ -2294,7 +2350,8 @@ struct MapDiscoveryModeControl: View {
             options: MapDiscoveryMode.allCases,
             selection: $selection,
             title: { $0.rawValue },
-            icon: { $0.icon }
+            icon: { $0.icon },
+            accessibilityIdentifier: { "map.mode.\($0.rawValue.lowercased())" }
         )
     }
 }
@@ -2314,6 +2371,7 @@ struct MapDiscoveryFilterBar: View {
                     ) {
                         selection = scope
                     }
+                    .accessibilityIdentifier("map.scope.\(scope.rawValue)")
                     .accessibilityHint(scope.explanation)
                 }
             }

@@ -30,6 +30,8 @@ struct MugsyStudioView: View {
             LazyVStack(alignment: .leading, spacing: 24) {
                 introduction
 
+                MugsyLogoTransformationSheet()
+
                 MugsyPositiveSceneFamilySheet()
 
                 MugsyStudioSection(
@@ -154,6 +156,55 @@ struct MugsyStudioView: View {
             .tint(MugsyStyleTokens.mintAccent.darker(by: 0.24))
 
             MugsyGazeControl(gaze: $gaze)
+        }
+    }
+}
+
+private struct MugsyLogoTransformationSheet: View {
+    @State private var target = MugsyLogoTransformationState.logo
+    @State private var duration = 3.0
+    @State private var replayID = 0
+
+    var body: some View {
+        MugsyStudioSection(
+            eyebrow: "BRAND MOTION",
+            title: "Mugsy to Mugshot",
+            note: "A reversible, centered transition with native vector motion and an exact approved-logo lockup."
+        ) {
+            VStack(spacing: 18) {
+                MugsyLogoTransformationView(target: target, duration: duration)
+                    .id(replayID)
+                    .frame(maxWidth: 320)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("mugsyStudio.logoTransformation")
+
+                HStack(spacing: 12) {
+                    Button(target == .logo ? "Transform to Mugsy" : "Transform to logo") {
+                        target = target.opposite
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Replay") {
+                        replayID += 1
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Duration")
+                        Spacer()
+                        Text(duration, format: .number.precision(.fractionLength(1)))
+                            .monospacedDigit()
+                        Text("seconds")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+
+                    Slider(value: $duration, in: 2.5...3.5, step: 0.1)
+                        .tint(MugsyStyleTokens.mintAccent.darker(by: 0.28))
+                }
+            }
         }
     }
 }

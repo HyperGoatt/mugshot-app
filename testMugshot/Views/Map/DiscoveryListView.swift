@@ -28,14 +28,8 @@ struct DiscoveryListView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     MugshotPullProgressReader(coordinateSpace: "discovery.refresh", restingOffset: 18)
-                    HStack(spacing: 10) {
-                        Text("Discover")
-                            .mugshotDisplay(size: 30)
-                            .foregroundColor(.espressoBrown)
-                        Spacer()
-                        MapDiscoveryModeControl(selection: $discoveryMode)
-                            .frame(width: 166)
-                    }
+
+                    searchField
 
                     MapDiscoveryFilterBar(
                         selection: $discoveryScope,
@@ -43,8 +37,13 @@ struct DiscoveryListView: View {
                     )
                     .padding(.horizontal, -16)
 
+                    HStack {
+                        Spacer()
+                        MapDiscoveryModeControl(selection: $discoveryMode)
+                            .frame(width: 166)
+                    }
+
                     discoveryContext
-                    searchField
 
                     if isLoading && visibleCafeCount == 0 {
                         MugshotLoadingState(layout: .journal, count: 4)
@@ -155,10 +154,10 @@ struct DiscoveryListView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondaryText)
-            TextField("Search these cafes", text: $searchText)
+                .foregroundColor(.espressoBrown.opacity(0.6))
+            TextField("Search places", text: $searchText)
                 .foregroundColor(.inputText)
                 .tint(.mugshotSage)
                 .submitLabel(.search)
@@ -167,18 +166,25 @@ struct DiscoveryListView: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.tertiaryText)
+                        .foregroundColor(.espressoBrown.opacity(0.4))
                         .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel("Clear cafe search")
+                .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 14)
-        .frame(height: 46)
-        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .mugshotGlassSurface(
+            radius: 26,
+            tint: .foamWhite,
+            stroke: Color.foamWhite.opacity(0.62),
+            shadow: DesignSystem.Shadow(
+                color: .black.opacity(0.10),
+                radius: 16,
+                x: 0,
+                y: 6
+            ),
+            interactive: true
         )
     }
 
@@ -247,6 +253,16 @@ struct DiscoveryListView: View {
         discoveryScope == .favorites || discoveryScope == .wantToTry || discoveryScope == .visited
     }
 
+    private var personalJournalCafeIDs: Set<UUID> {
+        let cafes: [Cafe]
+        if let userID = authModel.authenticatedUser?.id {
+            cafes = dataManager.personalMapSnapshot(for: userID)?.pins.map(\.localCafe) ?? []
+        } else {
+            cafes = dataManager.appData.cafes
+        }
+        return MapDiscoveryEligibility.personalJournalCafeIDs(in: cafes)
+    }
+
     private func cafes(for scope: MapDiscoveryScope, from cafes: [Cafe]) -> [Cafe] {
         switch scope {
         case .favorites: return cafes.filter(\.isFavorite)
@@ -310,7 +326,14 @@ struct DiscoveryListView: View {
                         radiusKM: effectiveRadiusKM
                     )
                 }
-                loaded[section] = cafes.filter { seenCafeIDs.insert($0.cafeID).inserted }
+                loaded[section] = cafes.filter { cafe in
+                    guard seenCafeIDs.insert(cafe.cafeID).inserted else { return false }
+                    guard discoveryScope == .discovery else { return true }
+                    return MapDiscoveryEligibility.isNetNew(
+                        cafe,
+                        excluding: personalJournalCafeIDs
+                    )
+                }
             }
             cafesBySection = loaded
             errorMessage = nil

@@ -5,6 +5,7 @@ import SwiftUI
 struct MugsyModelView: View {
     var configuration = MugsyModelConfiguration()
     var renderMode: MugsyRenderMode = .standard
+    var presentation = MugsyModelPresentation.identity
 
     var body: some View {
         GeometryReader { proxy in
@@ -18,19 +19,36 @@ struct MugsyModelView: View {
             )
 
             ZStack {
-                MugsyLegLayer(configuration: configuration, metrics: metrics)
+                MugsyLegLayer(
+                    configuration: configuration,
+                    metrics: metrics,
+                    retraction: presentation.limbRetraction
+                )
 
                 ZStack {
                     MugsyHandleLayer(metrics: metrics, renderMode: renderMode)
+                        .opacity(presentation.ceramicOpacity)
                     MugsyCeramicLayer(
                         configuration: configuration,
                         metrics: metrics,
                         renderMode: renderMode
                     )
+                    .opacity(presentation.ceramicOpacity)
                     MugsyOutfitLayer(configuration: configuration, metrics: metrics)
                     MugsyPropLayer(configuration: configuration, metrics: metrics)
-                    MugsyArmLayer(configuration: configuration, metrics: metrics)
-                    MugsyFaceLayer(configuration: configuration, metrics: metrics, renderMode: renderMode)
+                    MugsyArmLayer(
+                        configuration: configuration,
+                        metrics: metrics,
+                        presentation: presentation
+                    )
+                    MugsyFaceLayer(
+                        configuration: configuration,
+                        metrics: metrics,
+                        renderMode: renderMode,
+                        eyeOpenness: presentation.eyeOpenness
+                    )
+                    .scaleEffect(0.96 + presentation.faceOpacity * 0.04)
+                    .opacity(presentation.faceOpacity)
                 }
                 .offset(
                     x: configuration.legArticulation.bodyOffset.width,
@@ -46,6 +64,23 @@ struct MugsyModelView: View {
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(configuration.accessibilityLabel)
+    }
+}
+
+/// Optional articulation controls for composed transitions. The identity value
+/// preserves the canonical renderer used throughout the product.
+struct MugsyModelPresentation: Equatable {
+    var waveLift: CGFloat = 0
+    var waveSwing: CGFloat = 0
+    var limbRetraction: CGFloat = 0
+    var faceOpacity: CGFloat = 1
+    var eyeOpenness: CGFloat = 1
+    var ceramicOpacity: CGFloat = 1
+
+    static let identity = MugsyModelPresentation()
+
+    var usesTransitionArms: Bool {
+        waveLift > 0.001 || abs(waveSwing) > 0.001 || limbRetraction > 0.001
     }
 }
 
@@ -82,6 +117,7 @@ private struct MugsyHandleLayer: View {
 private struct MugsyLegLayer: View {
     let configuration: MugsyModelConfiguration
     let metrics: MugsyDrawingMetrics
+    let retraction: CGFloat
 
     var body: some View {
         ZStack {
@@ -97,6 +133,12 @@ private struct MugsyLegLayer: View {
                 .fill(MugsyStyleTokens.ink)
         }
         .frame(width: 500, height: 500)
+        .scaleEffect(
+            x: 1,
+            y: max(0.001, 1 - retraction),
+            anchor: UnitPoint(x: 0.5, y: 0.712)
+        )
+        .opacity(1 - retraction)
     }
 }
 
@@ -178,28 +220,48 @@ private struct MugsyCeramicLayer: View {
 private struct MugsyArmLayer: View {
     let configuration: MugsyModelConfiguration
     let metrics: MugsyDrawingMetrics
+    let presentation: MugsyModelPresentation
 
     var body: some View {
         ZStack {
-            MugsyArmsShape(pose: configuration.armPose)
-                .stroke(
-                    MugsyStyleTokens.ink,
-                    style: StrokeStyle(lineWidth: metrics.primary, lineCap: .round, lineJoin: .round)
+            if presentation.usesTransitionArms {
+                MugsyTransitionArmsShape(presentation: presentation)
+                    .stroke(
+                        MugsyStyleTokens.ink,
+                        style: StrokeStyle(lineWidth: metrics.primary, lineCap: .round, lineJoin: .round)
+                    )
+
+                MugsyTransitionHandShape(
+                    center: MugsyTransitionArmGeometry.leftHand(presentation: presentation)
                 )
+                .fill(MugsyStyleTokens.ink)
 
-            MugsyHandShape(
-                side: .left,
-                pose: configuration.armPose
-            )
-            .fill(MugsyStyleTokens.ink)
+                MugsyTransitionHandShape(
+                    center: MugsyTransitionArmGeometry.rightHand(presentation: presentation)
+                )
+                .fill(MugsyStyleTokens.ink)
+            } else {
+                MugsyArmsShape(pose: configuration.armPose)
+                    .stroke(
+                        MugsyStyleTokens.ink,
+                        style: StrokeStyle(lineWidth: metrics.primary, lineCap: .round, lineJoin: .round)
+                    )
 
-            MugsyHandShape(
-                side: .right,
-                pose: configuration.armPose
-            )
-            .fill(MugsyStyleTokens.ink)
+                MugsyHandShape(
+                    side: .left,
+                    pose: configuration.armPose
+                )
+                .fill(MugsyStyleTokens.ink)
+
+                MugsyHandShape(
+                    side: .right,
+                    pose: configuration.armPose
+                )
+                .fill(MugsyStyleTokens.ink)
+            }
         }
         .frame(width: 500, height: 500)
+        .opacity(1 - presentation.limbRetraction)
     }
 }
 
@@ -207,6 +269,7 @@ private struct MugsyFaceLayer: View {
     let configuration: MugsyModelConfiguration
     let metrics: MugsyDrawingMetrics
     let renderMode: MugsyRenderMode
+    let eyeOpenness: CGFloat
 
     private var gazeOffset: CGSize {
         CGSize(
@@ -311,6 +374,7 @@ private struct MugsyFaceLayer: View {
                     .offset(y: -layout.eyeHeight * 0.16)
             }
         }
+        .scaleEffect(x: 1, y: max(0.055, eyeOpenness), anchor: .center)
         .position(x: x, y: y)
     }
 }
@@ -939,6 +1003,139 @@ private struct MugsyHandShape: Shape {
         )
         path.closeSubpath()
         return path
+    }
+}
+
+private struct MugsyTransitionArmsShape: Shape {
+    let presentation: MugsyModelPresentation
+
+    func path(in rect: CGRect) -> Path {
+        let geometry = MugsyTransitionArmGeometry.self
+        var path = Path()
+
+        path.move(to: rect.mugsyPoint(geometry.leftShoulder.x, geometry.leftShoulder.y))
+        path.addCurve(
+            to: rect.mugsyPoint(
+                geometry.leftHand(presentation: presentation).x,
+                geometry.leftHand(presentation: presentation).y
+            ),
+            control1: rect.mugsyPoint(
+                geometry.leftControl1(presentation: presentation).x,
+                geometry.leftControl1(presentation: presentation).y
+            ),
+            control2: rect.mugsyPoint(
+                geometry.leftControl2(presentation: presentation).x,
+                geometry.leftControl2(presentation: presentation).y
+            )
+        )
+
+        path.move(to: rect.mugsyPoint(geometry.rightShoulder.x, geometry.rightShoulder.y))
+        path.addCurve(
+            to: rect.mugsyPoint(
+                geometry.rightHand(presentation: presentation).x,
+                geometry.rightHand(presentation: presentation).y
+            ),
+            control1: rect.mugsyPoint(
+                geometry.rightControl1(presentation: presentation).x,
+                geometry.rightControl1(presentation: presentation).y
+            ),
+            control2: rect.mugsyPoint(
+                geometry.rightControl2(presentation: presentation).x,
+                geometry.rightControl2(presentation: presentation).y
+            )
+        )
+        return path
+    }
+}
+
+private struct MugsyTransitionHandShape: Shape {
+    let center: CGPoint
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: rect.mugsyPoint(center.x - 8, center.y - 2))
+        path.addCurve(
+            to: rect.mugsyPoint(center.x + 8, center.y - 3),
+            control1: rect.mugsyPoint(center.x - 7, center.y - 12),
+            control2: rect.mugsyPoint(center.x + 6, center.y - 12)
+        )
+        path.addCurve(
+            to: rect.mugsyPoint(center.x + 7, center.y + 9),
+            control1: rect.mugsyPoint(center.x + 13, center.y + 1),
+            control2: rect.mugsyPoint(center.x + 11, center.y + 7)
+        )
+        path.addCurve(
+            to: rect.mugsyPoint(center.x - 8, center.y - 2),
+            control1: rect.mugsyPoint(center.x - 1, center.y + 13),
+            control2: rect.mugsyPoint(center.x - 11, center.y + 8)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private enum MugsyTransitionArmGeometry {
+    static let leftShoulder = CGPoint(x: 75, y: 251)
+    static let rightShoulder = CGPoint(x: 339, y: 252)
+
+    static func leftHand(presentation: MugsyModelPresentation) -> CGPoint {
+        interpolate(
+            from: CGPoint(x: 49, y: 322),
+            to: leftShoulder,
+            progress: presentation.limbRetraction
+        )
+    }
+
+    static func rightHand(presentation: MugsyModelPresentation) -> CGPoint {
+        let raised = CGPoint(x: 333 + presentation.waveSwing, y: 177)
+        let lifted = interpolate(
+            from: CGPoint(x: 355, y: 323),
+            to: raised,
+            progress: presentation.waveLift
+        )
+        return interpolate(from: lifted, to: rightShoulder, progress: presentation.limbRetraction)
+    }
+
+    static func leftControl1(presentation: MugsyModelPresentation) -> CGPoint {
+        interpolate(
+            from: CGPoint(x: 58, y: 270),
+            to: leftShoulder,
+            progress: presentation.limbRetraction
+        )
+    }
+
+    static func leftControl2(presentation: MugsyModelPresentation) -> CGPoint {
+        interpolate(
+            from: CGPoint(x: 49, y: 299),
+            to: leftShoulder,
+            progress: presentation.limbRetraction
+        )
+    }
+
+    static func rightControl1(presentation: MugsyModelPresentation) -> CGPoint {
+        let lifted = interpolate(
+            from: CGPoint(x: 352, y: 273),
+            to: CGPoint(x: 359 + presentation.waveSwing * 0.4, y: 244),
+            progress: presentation.waveLift
+        )
+        return interpolate(from: lifted, to: rightShoulder, progress: presentation.limbRetraction)
+    }
+
+    static func rightControl2(presentation: MugsyModelPresentation) -> CGPoint {
+        let lifted = interpolate(
+            from: CGPoint(x: 358, y: 300),
+            to: CGPoint(x: 358 + presentation.waveSwing * 0.72, y: 201),
+            progress: presentation.waveLift
+        )
+        return interpolate(from: lifted, to: rightShoulder, progress: presentation.limbRetraction)
+    }
+
+    private static func interpolate(from start: CGPoint, to end: CGPoint, progress: CGFloat) -> CGPoint {
+        let amount = progress.mugshotClamped(to: 0...1)
+        return CGPoint(
+            x: start.x + (end.x - start.x) * amount,
+            y: start.y + (end.y - start.y) * amount
+        )
     }
 }
 
