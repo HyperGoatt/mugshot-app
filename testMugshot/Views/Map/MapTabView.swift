@@ -30,7 +30,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .all: return "map.fill"
-        case .forYou: return "leaf.fill"
+        case .forYou: return "sparkles"
         case .favorites: return "heart.fill"
         case .wantToTry: return "bookmark.fill"
         case .visited: return "cup.and.saucer.fill"
@@ -67,8 +67,8 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
         isAuthenticated
-            ? [.forYou, .all, .wantToTry, .favorites, .visited, .friends]
-            : [.forYou, .all, .wantToTry, .favorites, .visited]
+            ? [.visited, .favorites, .wantToTry, .friends, .all, .forYou]
+            : [.visited, .favorites, .wantToTry, .all, .forYou]
     }
 }
 
@@ -123,7 +123,7 @@ struct MapTabView: View {
     @State private var remoteStateError: String?
     @State private var remoteMapPins: [RemoteMapPin] = []
     @State private var remoteMapPinUserId: UUID?
-    @AppStorage("MugshotMap.discoveryScope.v1") private var discoveryScope: MapDiscoveryScope = .forYou
+    @AppStorage("MugshotMap.discoveryScope.v1") private var discoveryScope: MapDiscoveryScope = .visited
     @State private var discoveryRadiusMiles = 10.0
     @State private var discoveryMapCafes: [Cafe] = []
     @State private var discoveryCafesByID: [UUID: DiscoveryCafe] = [:]
@@ -2155,7 +2155,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             container.layer.shadowRadius = 5
             container.layer.shadowOffset = CGSize(width: 0, height: 3)
 
-            let imageView = UIImageView(image: UIImage(systemName: "leaf.fill"))
+            let imageView = UIImageView(image: UIImage(systemName: "sparkles"))
             imageView.tintColor = UIColor(Color.foamWhite)
             imageView.contentMode = .scaleAspectFit
             imageView.frame = CGRect(x: 10, y: 10, width: size - 20, height: size - 20)

@@ -21,10 +21,17 @@ final class DiscoveryMapUITests: XCTestCase {
 
         let map = element("map.surface", in: app)
         let scope = element("map.discovery.scope", in: app)
-        let card = element("map.forYou.card", in: app)
-        let seeAll = element("map.forYou.seeAll", in: app)
         XCTAssertTrue(map.waitForExistence(timeout: 5))
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        XCTAssertEqual(scope.label, "Map view: Visited")
+
+        scope.tap()
+        let forYou = app.buttons["For You"]
+        XCTAssertTrue(forYou.waitForExistence(timeout: 3))
+        forYou.tap()
+
+        let card = element("map.forYou.card", in: app)
+        let seeAll = element("map.forYou.seeAll", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 8))
         XCTAssertTrue(seeAll.waitForExistence(timeout: 3))
         XCTAssertFalse(element("map.searchThisArea", in: app).exists)

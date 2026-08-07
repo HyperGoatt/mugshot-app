@@ -629,12 +629,13 @@ struct testMugshotTests {
     @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
         #expect(
             MapDiscoveryScope.available(isAuthenticated: true) ==
-                [.forYou, .all, .wantToTry, .favorites, .visited, .friends]
+                [.visited, .favorites, .wantToTry, .friends, .all, .forYou]
         )
         #expect(
             MapDiscoveryScope.available(isAuthenticated: false) ==
-                [.forYou, .all, .wantToTry, .favorites, .visited]
+                [.visited, .favorites, .wantToTry, .all, .forYou]
         )
+        #expect(MapDiscoveryScope.forYou.icon == "sparkles")
     }
 
     @Test func mapDiscoveryOnlyIncludesNetNewCafes() {
