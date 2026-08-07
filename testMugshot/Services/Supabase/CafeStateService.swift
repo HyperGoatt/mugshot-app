@@ -35,13 +35,7 @@ final class CafeStateService {
             return []
         }
 
-        let cafeIds = rows.map { $0.cafeId.uuidString }
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select("id, name, address, city, latitude, longitude, apple_place_id, website_url, identity_key")
-            .in("id", values: cafeIds)
-            .execute()
-            .value
+        let cafes = try await cafeService.fetchCafes(ids: rows.map(\.cafeId))
         let cafesById = Dictionary(uniqueKeysWithValues: cafes.map { ($0.id, $0) })
 
         return rows.compactMap { row in
@@ -57,7 +51,10 @@ final class CafeStateService {
         userId: UUID,
         cafe: Cafe,
         isFavorite: Bool,
-        wantToTry: Bool
+        wantToTry: Bool,
+        discoveryNote: String? = nil,
+        discoverySource: DiscoveryAttributionSource? = nil,
+        discoveredAt: Date? = nil
     ) async throws -> RemoteCafeStateSummary {
         let remoteCafe = try await cafeService.findOrCreateCafe(from: cafe)
         if !isFavorite && !wantToTry {
@@ -84,7 +81,10 @@ final class CafeStateService {
             userId: userId,
             cafeId: remoteCafe.id,
             isFavorite: isFavorite,
-            wantToTry: wantToTry
+            wantToTry: wantToTry,
+            discoveryNote: discoveryNote,
+            discoverySource: discoverySource?.rawValue,
+            discoveredAt: discoveredAt
         )
 
         let row: SupabaseCafeStateRow = try await client
@@ -179,11 +179,35 @@ struct SupabaseCafeStateUpsert: Encodable, Equatable {
     let cafeId: UUID
     let isFavorite: Bool
     let wantToTry: Bool
+    let discoveryNote: String?
+    let discoverySource: String?
+    let discoveredAt: Date?
+
+    init(
+        userId: UUID,
+        cafeId: UUID,
+        isFavorite: Bool,
+        wantToTry: Bool,
+        discoveryNote: String? = nil,
+        discoverySource: String? = nil,
+        discoveredAt: Date? = nil
+    ) {
+        self.userId = userId
+        self.cafeId = cafeId
+        self.isFavorite = isFavorite
+        self.wantToTry = wantToTry
+        self.discoveryNote = discoveryNote
+        self.discoverySource = discoverySource
+        self.discoveredAt = discoveredAt
+    }
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case cafeId = "cafe_id"
         case isFavorite = "is_favorite"
         case wantToTry = "want_to_try"
+        case discoveryNote = "discovery_note"
+        case discoverySource = "discovery_source"
+        case discoveredAt = "discovered_at"
     }
 }

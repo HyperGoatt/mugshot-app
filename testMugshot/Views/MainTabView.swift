@@ -17,8 +17,10 @@ struct MainTabView: View {
     @StateObject private var systemRouter = SipSystemRouter.shared
     @StateObject private var activityStore = ActivityCenterStore()
     @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
+    @StateObject private var nearbyReminderRouter = NearbyCafeReminderRouter.shared
     @StateObject private var enforcementStore = EnforcementNoticeStore()
     @StateObject private var automaticSipRecovery = AutomaticSipRecoveryCoordinator()
+    @StateObject private var placeImportCoordinator = PendingPlaceImportCoordinator()
     @State private var composerDraft: SipDraft?
     @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
@@ -29,6 +31,8 @@ struct MainTabView: View {
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
     @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
+    @State private var publicCafeListRoute: PublicCafeListLinkRoute?
+    @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
     
     var body: some View {
@@ -104,6 +108,19 @@ struct MainTabView: View {
             scheduleGuestIntroductionIfNeeded()
             captureSelectedScreen()
             synchronizeMapLocationUpdates()
+            NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
+            handlePendingNearbyReminder()
+            if DiscoveryFeatureFlags.isEnabled(.shareImport) {
+                Task {
+                    await refreshShareExtensionListCache(
+                        accountID: authModel.authenticatedUser?.id
+                    )
+                    await placeImportCoordinator.drain(
+                        dataManager: dataManager,
+                        accountID: authModel.authenticatedUser?.id
+                    )
+                }
+            }
         }
         .onChange(of: tabCoordinator.selectedTab) { _, _ in
             captureSelectedScreen()
@@ -127,9 +144,19 @@ struct MainTabView: View {
             enforcementStore.prepare(accountID: userId)
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
+            if DiscoveryFeatureFlags.isEnabled(.shareImport) {
+                Task {
+                    await refreshShareExtensionListCache(accountID: userId)
+                    await placeImportCoordinator.drain(
+                        dataManager: dataManager,
+                        accountID: userId
+                    )
+                }
+            }
         }
         .onChange(of: dataManager.journalRevision) { _, _ in
             activateLocalStorage()
+            NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
         }
         .onChange(of: automaticSipRecovery.completionRevision) { _, _ in
             dataManager.noteJournalMutation()
@@ -146,12 +173,28 @@ struct MainTabView: View {
         .onChange(of: activityRouter.pendingRoute?.id) { _, _ in
             handlePendingActivityRoute()
         }
+        .onChange(of: nearbyReminderRouter.pendingCafeID) { _, _ in
+            handlePendingNearbyReminder()
+        }
         .onChange(of: scenePhase) { _, phase in
             automaticSipRecovery.setAppActive(phase == .active)
             synchronizeMapLocationUpdates()
+            if phase == .active {
+                NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
+                handlePendingNearbyReminder()
+            }
             guard phase == .active,
                   let expectedAccountID = authModel.authenticatedUser?.id else { return }
             Task {
+                if DiscoveryFeatureFlags.isEnabled(.shareImport) {
+                    await refreshShareExtensionListCache(accountID: expectedAccountID)
+                    await placeImportCoordinator.drain(
+                        dataManager: dataManager,
+                        accountID: expectedAccountID
+                    )
+                }
+                guard !Task.isCancelled,
+                      authModel.authenticatedUser?.id == expectedAccountID else { return }
                 await activityStore.refresh()
                 guard !Task.isCancelled,
                       authModel.authenticatedUser?.id == expectedAccountID else { return }
@@ -174,6 +217,43 @@ struct MainTabView: View {
         .onChange(of: authModel.shouldOfferCapturePreferences) { _, shouldOffer in
             guard shouldOffer else { return }
             scheduleCapturePreferencesIfNeeded()
+        }
+        .confirmationDialog(
+            "Choose where to keep this cafe",
+            isPresented: Binding(
+                get: { placeImportCoordinator.recovery != nil },
+                set: { if !$0 { placeImportCoordinator.dismissRecovery() } }
+            ),
+            presenting: placeImportCoordinator.recovery
+        ) { recovery in
+            Button("Keep in Want to Try") {
+                Task {
+                    await placeImportCoordinator.keepInWantToTry(
+                        recovery.command,
+                        dataManager: dataManager,
+                        accountID: authModel.authenticatedUser?.id
+                    )
+                }
+            }
+            ForEach(Array(recovery.eligibleLists.prefix(5))) { list in
+                Button("Add to \(list.title)") {
+                    Task {
+                        await placeImportCoordinator.retry(
+                            recovery.command,
+                            in: list,
+                            dataManager: dataManager,
+                            accountID: authModel.authenticatedUser?.id
+                        )
+                    }
+                }
+            }
+            Button("Not now", role: .cancel) {
+                placeImportCoordinator.dismissRecovery()
+            }
+        } message: { recovery in
+            Text(
+                "\(recovery.command.name) is saved to Want to Try, but \(recovery.command.destinationListTitle ?? "the selected list") is no longer writable."
+            )
         }
     }
 
@@ -262,6 +342,32 @@ struct MainTabView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(item: $publicCafeListRoute) { route in
+            NavigationStack {
+                PublicCafeListLinkView(
+                    route: route,
+                    dataManager: dataManager,
+                    currentUserID: authModel.authenticatedUser?.id
+                )
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { publicCafeListRoute = nil }
+                    }
+                }
+            }
+            .environmentObject(authModel)
+            .presentationDetents([.large])
+        }
+        .sheet(item: $nearbyReminderCafe) { cafe in
+            CafeDetailView(
+                cafe: cafe,
+                dataManager: dataManager,
+                discoverySource: .nearbyReminder,
+                onLogVisitRequested: beginCafeSip,
+                onAuthenticationRequired: requestAuthentication
+            )
+            .environmentObject(authModel)
+        }
     }
 
     private var routedScene: some View {
@@ -281,6 +387,8 @@ struct MainTabView: View {
                 return
             } else if let route = MugshotSharedLinkRoute.resolve(url) {
                 sharedMugshotRoute = route
+            } else if let route = PublicCafeListLinkRoute.resolve(url) {
+                publicCafeListRoute = route
             } else if let accountID = authModel.authenticatedUser?.id,
                       activityRouter.enqueue(url: url, accountID: accountID) {
                 handlePendingActivityRoute()
@@ -503,6 +611,61 @@ struct MainTabView: View {
               let route = activityRouter.pendingRoute,
               route.accountID == accountID else { return }
         showsActivityCenter = true
+    }
+
+    private func handlePendingNearbyReminder() {
+        guard let cafeID = nearbyReminderRouter.pendingCafeID,
+              let cafe = dataManager.getCafe(id: cafeID) else { return }
+        nearbyReminderCafe = cafe
+        nearbyReminderRouter.consume()
+        MugshotAnalytics.shared.capture(.discovery(
+            action: .nearbyReminderOpened,
+            source: .nearbyReminder,
+            surface: .nearbyReminder,
+            rankingVersion: nil,
+            cafeID: cafe.remoteCafeId
+        ))
+        Task {
+            guard authModel.authenticatedUser?.id != nil,
+                  let client = try? SupabaseClientProvider.shared.client() else { return }
+            _ = try? await DiscoveryInteractionService(client: client).record(
+                cafeID: cafe.remoteCafeId,
+                appleMapsPlaceID: cafe.appleMapsPlaceID,
+                source: .nearbyReminder,
+                kind: .nearbyNudgeOpened
+            )
+        }
+    }
+
+    @MainActor
+    private func refreshShareExtensionListCache(accountID: UUID?) async {
+        guard DiscoveryFeatureFlags.isEnabled(.shareImport) else { return }
+        guard let accountID else {
+            await PendingPlaceImportQueue.shared.cacheEligibleLists([])
+            return
+        }
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let lists = try await CollaborativeCafeListService(client: client)
+                .lists(accountID: accountID)
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == accountID else { return }
+            await PendingPlaceImportQueue.shared.cacheEligibleLists(
+                lists
+                    .filter { $0.accessKind != .pendingInvitation && $0.canEditItems }
+                    .map {
+                        ShareExtensionCafeListCacheEntry(
+                            id: $0.id,
+                            title: $0.title,
+                            accountID: accountID,
+                            canEdit: true
+                        )
+                    }
+            )
+        } catch {
+            // Keep the last account-matched cache through a transient outage.
+            // The app validates write access again when it drains a command.
+        }
     }
 
     private func synchronizeActivityRouter() {

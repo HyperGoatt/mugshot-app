@@ -17,11 +17,17 @@ struct Cafe: Identifiable, Codable, Equatable {
     var wantToTry: Bool
     var averageRating: Double
     var visitCount: Int
-    // Apple Maps place reference
-    var mapItemURL: String? // URL to open this place in Maps app
+    // Stable Apple Maps place identity. Do not use the website URL as identity.
+    var appleMapsPlaceID: String?
+    // Legacy Apple/website reference retained for backward-compatible local data.
+    var mapItemURL: String?
     var websiteURL: String? // Website URL if available from Apple Maps
     var placeCategory: String? // Category like "Coffee Shop" from Apple Maps
     var remoteCafeId: UUID? // Supabase cafe id once this local cafe is resolved remotely
+    var discoveryNote: String?
+    var discoverySource: DiscoveryAttributionSource?
+    var discoveredAt: Date?
+    var discoveryAttributionConsumedAt: Date?
     
     init(
         id: UUID = UUID(),
@@ -32,10 +38,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         wantToTry: Bool = false,
         averageRating: Double = 0.0,
         visitCount: Int = 0,
+        appleMapsPlaceID: String? = nil,
         mapItemURL: String? = nil,
         websiteURL: String? = nil,
         placeCategory: String? = nil,
-        remoteCafeId: UUID? = nil
+        remoteCafeId: UUID? = nil,
+        discoveryNote: String? = nil,
+        discoverySource: DiscoveryAttributionSource? = nil,
+        discoveredAt: Date? = nil,
+        discoveryAttributionConsumedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -45,10 +56,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         self.wantToTry = wantToTry
         self.averageRating = averageRating
         self.visitCount = visitCount
+        self.appleMapsPlaceID = appleMapsPlaceID
         self.mapItemURL = mapItemURL
         self.websiteURL = websiteURL
         self.placeCategory = placeCategory
         self.remoteCafeId = remoteCafeId
+        self.discoveryNote = discoveryNote
+        self.discoverySource = discoverySource
+        self.discoveredAt = discoveredAt
+        self.discoveryAttributionConsumedAt = discoveryAttributionConsumedAt
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -60,10 +76,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         case wantToTry
         case averageRating
         case visitCount
+        case appleMapsPlaceID
         case mapItemURL
         case websiteURL
         case placeCategory
         case remoteCafeId
+        case discoveryNote
+        case discoverySource
+        case discoveredAt
+        case discoveryAttributionConsumedAt
     }
 
     private struct StoredCoordinate: Codable {
@@ -88,10 +109,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         wantToTry = try container.decode(Bool.self, forKey: .wantToTry)
         averageRating = try container.decode(Double.self, forKey: .averageRating)
         visitCount = try container.decode(Int.self, forKey: .visitCount)
+        appleMapsPlaceID = try container.decodeIfPresent(String.self, forKey: .appleMapsPlaceID)
         mapItemURL = try container.decodeIfPresent(String.self, forKey: .mapItemURL)
         websiteURL = try container.decodeIfPresent(String.self, forKey: .websiteURL)
         placeCategory = try container.decodeIfPresent(String.self, forKey: .placeCategory)
         remoteCafeId = try container.decodeIfPresent(UUID.self, forKey: .remoteCafeId)
+        discoveryNote = try container.decodeIfPresent(String.self, forKey: .discoveryNote)
+        discoverySource = try container.decodeIfPresent(DiscoveryAttributionSource.self, forKey: .discoverySource)
+        discoveredAt = try container.decodeIfPresent(Date.self, forKey: .discoveredAt)
+        discoveryAttributionConsumedAt = try container.decodeIfPresent(Date.self, forKey: .discoveryAttributionConsumedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -107,10 +133,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         try container.encode(wantToTry, forKey: .wantToTry)
         try container.encode(averageRating, forKey: .averageRating)
         try container.encode(visitCount, forKey: .visitCount)
+        try container.encodeIfPresent(appleMapsPlaceID, forKey: .appleMapsPlaceID)
         try container.encodeIfPresent(mapItemURL, forKey: .mapItemURL)
         try container.encodeIfPresent(websiteURL, forKey: .websiteURL)
         try container.encodeIfPresent(placeCategory, forKey: .placeCategory)
         try container.encodeIfPresent(remoteCafeId, forKey: .remoteCafeId)
+        try container.encodeIfPresent(discoveryNote, forKey: .discoveryNote)
+        try container.encodeIfPresent(discoverySource, forKey: .discoverySource)
+        try container.encodeIfPresent(discoveredAt, forKey: .discoveredAt)
+        try container.encodeIfPresent(discoveryAttributionConsumedAt, forKey: .discoveryAttributionConsumedAt)
     }
 
     static func == (lhs: Cafe, rhs: Cafe) -> Bool {
@@ -123,10 +154,15 @@ struct Cafe: Identifiable, Codable, Equatable {
         lhs.wantToTry == rhs.wantToTry &&
         lhs.averageRating == rhs.averageRating &&
         lhs.visitCount == rhs.visitCount &&
+        lhs.appleMapsPlaceID == rhs.appleMapsPlaceID &&
         lhs.mapItemURL == rhs.mapItemURL &&
         lhs.websiteURL == rhs.websiteURL &&
         lhs.placeCategory == rhs.placeCategory &&
-        lhs.remoteCafeId == rhs.remoteCafeId
+        lhs.remoteCafeId == rhs.remoteCafeId &&
+        lhs.discoveryNote == rhs.discoveryNote &&
+        lhs.discoverySource == rhs.discoverySource &&
+        lhs.discoveredAt == rhs.discoveredAt &&
+        lhs.discoveryAttributionConsumedAt == rhs.discoveryAttributionConsumedAt
     }
 }
 
@@ -136,7 +172,7 @@ enum CafeIdentity {
             name: cafe.name,
             address: cafe.address,
             location: cafe.location,
-            applePlaceId: cafe.mapItemURL
+            applePlaceId: cafe.appleMapsPlaceID ?? cafe.mapItemURL
         )
     }
 

@@ -366,6 +366,7 @@ enum CafeListVisibility: String, Codable, CaseIterable, Identifiable {
     case `private`
     case friends
     case invited
+    case `public`
 
     var id: String { rawValue }
 
@@ -374,6 +375,7 @@ enum CafeListVisibility: String, Codable, CaseIterable, Identifiable {
         case .private: "Private"
         case .friends: "Friends"
         case .invited: "Invited only"
+        case .public: "Public"
         }
     }
 }

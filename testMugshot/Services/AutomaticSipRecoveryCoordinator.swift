@@ -505,6 +505,9 @@ private struct PendingVisitPublicationWorker {
             try saveAndReload(&submission)
         }
 
+        await DiscoveryInteractionService(client: client)
+            .consumeAttributionAndCapture(visitID: submission.id)
+
         // Once the owner-bound server row proves the canonical post is
         // complete, the composer draft is no longer a draft. Remove it before
         // best-effort projection/setup work so a downstream retry can never

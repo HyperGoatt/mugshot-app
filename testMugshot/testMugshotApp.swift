@@ -23,6 +23,7 @@ struct testMugshotApp: App {
 #endif
         PerformanceMonitor.mark("App init")
         let manager = DataManager.shared
+        _ = NearbyCafeReminderCoordinator.shared
 #if DEBUG
         MugshotLaunchEnvironment.prepareDebugFailureHooks()
         if MugshotLaunchEnvironment.isUITesting {

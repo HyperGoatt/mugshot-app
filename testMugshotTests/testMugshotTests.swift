@@ -10,6 +10,7 @@ import CoreLocation
 import MapKit
 import UIKit
 import Testing
+import Supabase
 @testable import testMugshot
 
 struct testMugshotTests {
@@ -628,11 +629,11 @@ struct testMugshotTests {
     @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
         #expect(
             MapDiscoveryScope.available(isAuthenticated: true) ==
-                [.visited, .friends, .favorites, .wantToTry, .discovery, .all]
+                [.forYou, .all, .wantToTry, .favorites, .visited, .friends]
         )
         #expect(
             MapDiscoveryScope.available(isAuthenticated: false) ==
-                [.visited, .favorites, .wantToTry, .discovery, .all]
+                [.forYou, .all, .wantToTry, .favorites, .visited]
         )
     }
 
@@ -1477,6 +1478,32 @@ struct testMugshotTests {
             ]
         )
         #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(unrelatedMissingColumn))
+    }
+
+    @Test func cafeQueriesFallBackOnlyForMissingAppleMapsIdentityColumn() {
+        let missingAppleIdentity = PostgrestError(
+            code: "42703",
+            message: "column cafes.apple_maps_place_id does not exist"
+        )
+        #expect(SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            missingAppleIdentity
+        ))
+
+        let missingUnrelatedColumn = PostgrestError(
+            code: "42703",
+            message: "column cafes.name does not exist"
+        )
+        #expect(!SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            missingUnrelatedColumn
+        ))
+
+        let expiredSession = PostgrestError(
+            code: "PGRST301",
+            message: "JWT expired"
+        )
+        #expect(!SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            expiredSession
+        ))
     }
 
     @Test func v3ProjectionRequestsBatchEveryVisitWithoutDuplicates() {
@@ -2799,7 +2826,7 @@ struct testMugshotTests {
         #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
         #expect(
             MapDiscoveryScope.available(isAuthenticated: false) ==
-                [.visited, .favorites, .wantToTry, .discovery, .all]
+                [.forYou, .all, .wantToTry, .favorites, .visited]
         )
     }
 
@@ -2978,6 +3005,332 @@ struct testMugshotTests {
         }
         #expect(SipSystemRouter.destination(for: try #require(URL(string: "https://mugshotapp.co"))) == nil)
         #expect(SipSystemRouter.destination(for: try #require(URL(string: "mugshot://unknown"))) == nil)
+    }
+
+    @Test func forYouRankingIsDeterministicExplainableAndNeverInventsAggregateScores() throws {
+        let nearCafe = Cafe(
+            name: "Near Cafe",
+            location: .init(latitude: 40.0008, longitude: -74),
+            appleMapsPlaceID: "apple-near"
+        )
+        let friendCafe = Cafe(
+            name: "Friend Cafe",
+            location: .init(latitude: 40.02, longitude: -74),
+            appleMapsPlaceID: "apple-friend"
+        )
+        let near = DiscoveryPlaceCandidate(cafe: nearCafe, availability: .unknown)
+        let friend = DiscoveryPlaceCandidate(cafe: friendCafe, availability: .verifiedOpen)
+        let evidence = DiscoveryEvidence(
+            kind: .friendVisit,
+            reason: "Amanda loved the matcha",
+            strength: 1,
+            authorID: UUID(),
+            authorName: "Amanda"
+        )
+        let location = CLLocation(latitude: 40, longitude: -74)
+
+        let first = ForYouRankingService.rank(
+            candidates: [friend, near],
+            evidenceByCandidateID: [friend.id: [evidence]],
+            userLocation: location
+        )
+        let second = ForYouRankingService.rank(
+            candidates: [near, friend],
+            evidenceByCandidateID: [friend.id: [evidence]],
+            userLocation: location
+        )
+
+        #expect(first.map(\.id) == second.map(\.id))
+        #expect(first.first(where: { $0.id == friend.id })?.reason == "Amanda loved the matcha")
+        #expect(first.first(where: { $0.id == near.id })?.reason == "Close to you")
+        #expect(!first.map(\.reason).joined().contains("4."))
+        #expect(first.allSatisfy { $0.rankingVersion == ForYouRankingConfiguration.v1.version })
+    }
+
+    @Test func forYouSectionsRespectSavedFriendPracticalAndAvailabilityEvidence() throws {
+        let cafe = Cafe(
+            name: "Section Cafe",
+            location: .init(latitude: 34, longitude: -118),
+            wantToTry: true,
+            appleMapsPlaceID: "apple-section"
+        )
+        let candidate = DiscoveryPlaceCandidate(cafe: cafe, availability: .verifiedClosed)
+        let evidence = [
+            DiscoveryEvidence(kind: .friendVisit, reason: "Amanda visited", strength: 1),
+            DiscoveryEvidence(
+                kind: .practicalFit,
+                reason: "Quiet and has outlets",
+                strength: 1,
+                tags: ["quiet", "work_study", "outlets"]
+            )
+        ]
+        let result = try #require(ForYouRankingService.rank(
+            candidates: [candidate],
+            evidenceByCandidateID: [candidate.id: evidence],
+            userLocation: CLLocation(latitude: 34, longitude: -118)
+        ).first)
+
+        #expect(result.section == .wantToTryNearby)
+        #expect(result.section != .openNearYou)
+        #expect(result.reason == "Amanda visited")
+    }
+
+    @Test func discoveryCandidateEnrichmentMapsOnlyVisibleTraceableEvidence() throws {
+        let cafe = Cafe(
+            name: "Ritual Coffee Roasters",
+            location: .init(latitude: 37.7564, longitude: -122.4212),
+            appleMapsPlaceID: "mapkit-ritual"
+        )
+        let candidate = DiscoveryPlaceCandidate(cafe: cafe)
+        let remoteCafeID = try #require(
+            UUID(uuidString: "82000000-0000-4000-8000-000000000001")
+        )
+        let payload = """
+        [{
+          "candidate_index":1,
+          "apple_maps_place_id":"mapkit-ritual",
+          "cafe_id":"\(remoteCafeID.uuidString)",
+          "is_favorite":true,
+          "want_to_try":false,
+          "friend_evidence":[
+            {
+              "visit_id":"84000000-0000-4000-8000-000000000001",
+              "author":{"identity_state":"visible","user_id":"81000000-0000-4000-8000-000000000003","display_name":"Amanda","username":"amanda"},
+              "drink":"Matcha","score":4.5,"photo_url":"https://example.com/mugshot.jpg"
+            },
+            {
+              "visit_id":"84000000-0000-4000-8000-000000000002",
+              "author":{"identity_state":"hidden"},
+              "drink":"Latte","score":5,"photo_url":null
+            }
+          ],
+          "public_list_evidence":[{
+            "list_id":"83000000-0000-4000-8000-000000000001",
+            "title":"Mission coffee walk",
+            "creator":{"identity_state":"visible","user_id":"81000000-0000-4000-8000-000000000001","display_name":"Jordan","username":"jordan"}
+          }],
+          "practical_evidence":[{
+            "descriptor_id":"cafe.fit.work_study","session_count":5,"contributor_count":3
+          }]
+        }]
+        """
+        let rows = try JSONDecoder().decode(
+            [DiscoveryCandidateEnrichmentRow].self,
+            from: Data(payload.utf8)
+        )
+        let snapshot = DiscoveryCandidateEnrichmentMapper.map(
+            candidates: [candidate],
+            rows: rows
+        )
+        let enriched = try #require(snapshot.candidates.first)
+        let evidence = snapshot.evidenceByCandidateID[candidate.id] ?? []
+
+        #expect(enriched.remoteCafeID == remoteCafeID)
+        #expect(enriched.isFavorite)
+        #expect(evidence.filter { $0.kind == .friendVisit }.count == 1)
+        #expect(evidence.contains { $0.reason == "Amanda loved the matcha" })
+        #expect(evidence.contains { $0.reason == "From Jordan's Mission coffee walk" })
+        #expect(evidence.contains {
+            $0.kind == .practicalFit && $0.tags.contains("work_study")
+        })
+        #expect(!evidence.map(\.reason).joined().contains("4.5"))
+        #expect(!evidence.map(\.reason).joined().contains("Latte"))
+    }
+
+    @Test func stillLearningEndsAtFiveCafeMugshots() {
+        #expect(ForYouLearningPolicy.isStillLearning(mugshotCount: 0))
+        #expect(ForYouLearningPolicy.isStillLearning(mugshotCount: 4))
+        #expect(!ForYouLearningPolicy.isStillLearning(mugshotCount: 5))
+    }
+
+    @Test func sharedPlaceParserHandlesMapsSocialGeneralAndTextWithoutGuessing() throws {
+        let google = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://www.google.com/maps/search/?api=1&query=Ritual+Coffee")),
+            text: nil,
+            suggestedName: nil
+        )
+        #expect(google == PlaceShareClue(query: "Ritual Coffee", source: .googleMaps))
+
+        let shortened = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://maps.app.goo.gl/abc123")),
+            text: nil,
+            suggestedName: nil,
+            resolvedURL: try #require(URL(string: "https://www.google.com/maps/place/Sey+Coffee/data=!4m2"))
+        )
+        #expect(shortened == PlaceShareClue(query: "Sey Coffee", source: .googleMaps))
+
+        let apple = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://maps.apple.com/?q=Sightglass+Coffee")),
+            text: nil,
+            suggestedName: nil
+        )
+        #expect(apple == PlaceShareClue(query: "Sightglass Coffee", source: .appleMaps))
+
+        let tiktok = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://www.tiktok.com/t/Zabc")),
+            text: nil,
+            suggestedName: nil
+        )
+        #expect(tiktok == PlaceShareClue(query: "", source: .tiktok))
+
+        let instagram = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://www.instagram.com/reel/abc/")),
+            text: "Try Dayglow Coffee",
+            suggestedName: nil
+        )
+        #expect(instagram == PlaceShareClue(query: "Try Dayglow Coffee", source: .instagram))
+
+        let general = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://example.com/article")),
+            text: nil,
+            suggestedName: "Onyx Coffee Lab"
+        )
+        #expect(general == PlaceShareClue(query: "Onyx Coffee Lab", source: .generalURL))
+        #expect(SharedPlaceClueParser.clue(url: nil, text: "Cafe Grumpy", suggestedName: nil)
+            == PlaceShareClue(query: "Cafe Grumpy", source: .text))
+    }
+
+    @Test func pendingPlaceImportQueueIsIdempotentAndPreservesRecoveryCommands() async throws {
+        let suite = "PendingPlaceImportQueueTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let queue = PendingPlaceImportQueue(defaults: defaults)
+        let command = PendingPlaceImport(
+            commandID: UUID(),
+            appleMapsPlaceID: "apple-import",
+            name: "Imported Cafe",
+            address: "1 Coffee St",
+            latitude: 40,
+            longitude: -74,
+            phoneNumber: nil,
+            websiteURL: nil,
+            source: .googleMaps,
+            wantToTry: true,
+            destinationListID: UUID(),
+            destinationListTitle: "Weekend",
+            note: "Try the pourover",
+            accountContext: UUID(),
+            retryState: .queued,
+            createdAt: .now
+        )
+
+        await queue.append(command)
+        await queue.append(command)
+        #expect(await queue.imports().count == 1)
+
+        var recovery = command
+        recovery.retryState = .needsDestinationRecovery
+        await queue.update(recovery)
+        #expect(await queue.imports().first?.retryState == .needsDestinationRecovery)
+        #expect(await queue.imports().first?.note == "Try the pourover")
+
+        await queue.remove(command.id)
+        #expect(await queue.imports().isEmpty)
+    }
+
+    @Test func pendingPlaceImportOnlyOffersListRecoveryForAuthoritativeAccessLoss() {
+        let accessLoss = PostgrestError(
+            code: "42501",
+            message: "cafe list unavailable"
+        )
+        #expect(PendingPlaceImportFailurePolicy.disposition(
+            for: accessLoss,
+            hasDestination: true
+        ) == .destinationRecovery)
+        #expect(PendingPlaceImportFailurePolicy.disposition(
+            for: accessLoss,
+            hasDestination: false
+        ) == .retry)
+        #expect(PendingPlaceImportFailurePolicy.disposition(
+            for: URLError(.notConnectedToInternet),
+            hasDestination: true
+        ) == .retry)
+    }
+
+    @Test func nearbyReminderPolicyEnforcesHoursDailyAndThirtyDayCooldowns() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let cafeID = UUID()
+        let morning = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 6, hour: 9
+        )))
+        #expect(NearbyReminderPolicy.canDeliver(
+            cafeID: cafeID,
+            now: morning,
+            lastDailyDelivery: nil,
+            lastDeliveryByCafe: [:],
+            calendar: calendar
+        ))
+        #expect(!NearbyReminderPolicy.canDeliver(
+            cafeID: cafeID,
+            now: morning,
+            lastDailyDelivery: morning,
+            lastDeliveryByCafe: [:],
+            calendar: calendar
+        ))
+        #expect(!NearbyReminderPolicy.canDeliver(
+            cafeID: cafeID,
+            now: morning,
+            lastDailyDelivery: nil,
+            lastDeliveryByCafe: [cafeID: morning.addingTimeInterval(-29 * 24 * 60 * 60)],
+            calendar: calendar
+        ))
+        let tooEarly = try #require(calendar.date(bySettingHour: 6, minute: 30, second: 0, of: morning))
+        #expect(!NearbyReminderPolicy.canDeliver(
+            cafeID: cafeID,
+            now: tooEarly,
+            lastDailyDelivery: nil,
+            lastDeliveryByCafe: [:],
+            calendar: calendar
+        ))
+    }
+
+    @Test func publicCafeListLinksRequireTheMugshotHostAndOpaqueSlug() throws {
+        let slug = "abcdef012345abcdef012345"
+        let base = try #require(URL(string: "https://mugshotapp.co"))
+        #expect(PublicCafeListLinkRoute.resolve(
+            try #require(URL(string: "https://mugshotapp.co/l/\(slug)")),
+            publicBaseURL: base
+        )?.slug == slug)
+        #expect(PublicCafeListLinkRoute.resolve(
+            try #require(URL(string: "mugshot://l/\(slug)")),
+            publicBaseURL: base
+        )?.slug == slug)
+        #expect(PublicCafeListLinkRoute.resolve(
+            try #require(URL(string: "https://example.com/l/\(slug)")),
+            publicBaseURL: base
+        ) == nil)
+        #expect(PublicCafeListLinkRoute.resolve(
+            try #require(URL(string: "https://mugshotapp.co/l/short")),
+            publicBaseURL: base
+        ) == nil)
+    }
+
+    @Test func discoveryFeatureFlagsResolveRemoteRolloutsAndSafeFallbacks() throws {
+        #expect(DiscoveryFeatureFlags.resolvedEnabled(
+            remoteValue: true,
+            defaultValue: false
+        ))
+        #expect(!DiscoveryFeatureFlags.resolvedEnabled(
+            remoteValue: false,
+            defaultValue: true
+        ))
+        #expect(DiscoveryFeatureFlags.resolvedEnabled(
+            remoteValue: "treatment",
+            defaultValue: false
+        ))
+        #expect(!DiscoveryFeatureFlags.resolvedEnabled(
+            remoteValue: nil,
+            defaultValue: false
+        ))
+
+        let suite = "MugshotTests.DiscoveryFlags.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        DiscoveryFeatureFlags.setEnabled(false, for: .mapDiscovery, defaults: defaults)
+        #expect(!DiscoveryFeatureFlags.isEnabled(.mapDiscovery, defaults: defaults))
+        DiscoveryFeatureFlags.setEnabled(true, for: .mapDiscovery, defaults: defaults)
+        #expect(DiscoveryFeatureFlags.isEnabled(.mapDiscovery, defaults: defaults))
     }
 
     private static func reflectionEntry(

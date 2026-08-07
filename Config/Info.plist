@@ -59,6 +59,8 @@
 	<string>$(MUGSHOT_SUPABASE_URL)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Mugshot uses your location to show cafes near you on the map and help you discover new places.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Mugshot uses background location only for nearby reminders about cafes you deliberately saved.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Mugshot lets you choose photos from your library to attach to coffee visits.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

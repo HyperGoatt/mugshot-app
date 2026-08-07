@@ -9,13 +9,6 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-enum MapDiscoveryMode: String, CaseIterable {
-    case map = "Map"
-    case list = "List"
-
-    var icon: String { self == .map ? "map.fill" : "list.bullet" }
-}
-
 enum MapDiscoveryRadius {
     static let miles: ClosedRange<Double> = 0...50
 
@@ -25,19 +18,19 @@ enum MapDiscoveryRadius {
 }
 
 enum MapDiscoveryScope: String, CaseIterable, Identifiable {
+    case forYou = "For You"
+    case all = "All"
+    case wantToTry = "Want to Try"
+    case favorites = "Favorites"
     case visited = "Visited"
     case friends = "Friends"
-    case favorites = "Favorites"
-    case wantToTry = "Want to Try"
-    case discovery = "Discovery"
-    case all = "All"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
         case .all: return "map.fill"
-        case .discovery: return "sparkles"
+        case .forYou: return "leaf.fill"
         case .favorites: return "heart.fill"
         case .wantToTry: return "bookmark.fill"
         case .visited: return "cup.and.saucer.fill"
@@ -48,7 +41,7 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     var explanation: String {
         switch self {
         case .all: return "Nearby, friend, and community cafes together"
-        case .discovery: return "Net-new cafes you have not visited, favorited, or saved to try"
+        case .forYou: return "Nearby cafes ranked with your saves, friends, and Mugshots"
         case .favorites: return "Only cafes you marked as favorites"
         case .wantToTry: return "Only cafes you saved to try later"
         case .visited: return "Only cafes where you logged a sip"
@@ -65,14 +58,17 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
         case .favorites, .wantToTry, .visited:
             return []
         case .friends: return isAuthenticated ? [.lovedByFriends] : []
-        case .discovery: return [.nearby, .trending]
+        case .forYou:
+            return isAuthenticated
+                ? [.nearby, .lovedByFriends, .trending]
+                : [.nearby, .trending]
         }
     }
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
         isAuthenticated
-            ? [.visited, .friends, .favorites, .wantToTry, .discovery, .all]
-            : [.visited, .favorites, .wantToTry, .discovery, .all]
+            ? [.forYou, .all, .wantToTry, .favorites, .visited, .friends]
+            : [.forYou, .all, .wantToTry, .favorites, .visited]
     }
 }
 
@@ -112,6 +108,7 @@ struct MapTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var searchService = MapSearchService()
+    @StateObject private var appleCafeDiscovery = AppleCafeDiscoveryService()
     
     @State private var region: MKCoordinateRegion?
     @State private var selectedCafe: Cafe?
@@ -126,8 +123,7 @@ struct MapTabView: View {
     @State private var remoteStateError: String?
     @State private var remoteMapPins: [RemoteMapPin] = []
     @State private var remoteMapPinUserId: UUID?
-    @State private var discoveryScope: MapDiscoveryScope = .all
-    @State private var discoveryMode: MapDiscoveryMode = .map
+    @AppStorage("MugshotMap.discoveryScope.v1") private var discoveryScope: MapDiscoveryScope = .forYou
     @State private var discoveryRadiusMiles = 10.0
     @State private var discoveryMapCafes: [Cafe] = []
     @State private var discoveryCafesByID: [UUID: DiscoveryCafe] = [:]
@@ -137,6 +133,15 @@ struct MapTabView: View {
     @State private var clusterSelection: MapClusterSelection?
     @State private var userTrackingMode: MKUserTrackingMode = .none
     @State private var shouldCenterOnNextLocationUpdate = true
+    @State private var forYouRecommendations: [ForYouRecommendation] = []
+    @State private var enrichedCandidatesByID: [String: DiscoveryPlaceCandidate] = [:]
+    @State private var serverForYouEvidenceByCandidateID: [String: [DiscoveryEvidence]] = [:]
+    @State private var selectedRecommendationID: String?
+    @State private var selectedWalkingMinutes: Int?
+    @State private var forYouListPresentation: ForYouListPresentation?
+    @State private var hasPendingAreaSearch = false
+    @State private var showsNearbyReminderEducation = false
+    @State private var nearbyReminderError: String?
     
     // The deterministic fixture remains city-scale for adaptive-map UI tests.
     // Production never uses this as its unavailable-location fallback.
@@ -160,22 +165,7 @@ struct MapTabView: View {
     }
     
     var body: some View {
-        if discoveryMode == .map {
-            mapBody
-        } else {
-            DiscoveryListView(
-                dataManager: dataManager,
-                locationManager: locationManager,
-                discoveryMode: $discoveryMode,
-                discoveryScope: $discoveryScope,
-                radiusMiles: $discoveryRadiusMiles,
-                searchText: $searchText,
-                selectedMapCafe: $selectedCafe,
-                showMapCafeDetail: $showCafeDetail,
-                onLogVisitRequested: onLogVisitRequested,
-                onAuthenticationRequired: onAuthenticationRequired
-            )
-        }
+        mapBody
     }
 
     private var mapBody: some View {
@@ -197,7 +187,9 @@ struct MapTabView: View {
                     }
                 ),
                 cafes: displayedMapCafes,
-                highlightedCafe: showCafeDetail || friendPreviewCafe != nil ? selectedCafe : nil,
+                highlightedCafe: showCafeDetail || friendPreviewCafe != nil || discoveryScope == .forYou
+                    ? selectedCafe
+                    : nil,
                 friendCounts: friendCountsByCafeID,
                 pinScores: displayedPinScoresByCafeID,
                 placeNames: mapPlaceNamesByCafeID,
@@ -210,6 +202,10 @@ struct MapTabView: View {
                 },
                 onClusterListRequested: { cafes in
                     clusterSelection = MapClusterSelection(cafes: cafes)
+                },
+                onUserRegionChange: { updatedRegion in
+                    guard discoveryScope == .forYou || discoveryScope == .all else { return }
+                    hasPendingAreaSearch = appleCafeDiscovery.shouldSearch(updatedRegion)
                 }
             )
             .ignoresSafeArea()
@@ -297,7 +293,28 @@ struct MapTabView: View {
                     .padding(.top, 8)
                 }
 
-                mapDiscoveryControls
+                if DiscoveryFeatureFlags.isEnabled(.mapDiscovery) {
+                    mapDiscoveryControls
+                }
+
+                if hasPendingAreaSearch,
+                   !isSearchActive,
+                   DiscoveryFeatureFlags.isEnabled(.mapDiscovery),
+                   (discoveryScope == .forYou || discoveryScope == .all) {
+                    Button {
+                        Task { await refreshAppleCafeDiscovery() }
+                    } label: {
+                        Label("Search this area", systemImage: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                            .padding(.horizontal, 16)
+                            .frame(height: 38)
+                            .mugshotGlassSurface(radius: 19, tint: .foamWhite, interactive: true)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                    .accessibilityIdentifier("map.searchThisArea")
+                }
 
                 // Search results list (inline below search bar)
                 if isSearchActive {
@@ -345,14 +362,19 @@ struct MapTabView: View {
                 .transition(.opacity)
             }
             
-            // Ratings Legend - sticky at bottom above tab bar
+            // For You uses the selected recommendation overlay. Personal and
+            // friend scopes retain their familiar score legend.
             VStack {
                 Spacer()
                 if !showCafeDetail && friendPreviewCafe == nil && !isSearchActive {
-                    RatingsLegend(showsFriendContext: discoveryScope == .friends)
-                        .padding(.horizontal)
-                        .padding(.bottom, 100)
-                        .transition(.opacity)
+                    if DiscoveryFeatureFlags.isEnabled(.mapDiscovery), discoveryScope == .forYou {
+                        forYouBottomOverlay
+                    } else {
+                        RatingsLegend(showsFriendContext: discoveryScope == .friends)
+                            .padding(.horizontal)
+                            .padding(.bottom, 100)
+                            .transition(.opacity)
+                    }
                 }
             }
             
@@ -382,6 +404,14 @@ struct MapTabView: View {
         .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(discoveryScope.rawValue)-\(discoveryRadiusMiles)") {
             await loadRemoteMapPins()
         }
+        .task(id: "apple-cafes-\(discoveryScope.rawValue)-\(authModel.authenticatedUser?.id.uuidString ?? "guest")") {
+            guard DiscoveryFeatureFlags.isEnabled(.mapDiscovery) else { return }
+            guard discoveryScope == .forYou || discoveryScope == .all else { return }
+            await refreshAppleCafeDiscovery()
+        }
+        .task(id: selectedRecommendationID) {
+            await refreshWalkingETA()
+        }
         .onChange(of: tabCoordinator.pendingMapCafe?.id) { _, _ in
             presentPendingSavedCafeIfNeeded()
         }
@@ -389,6 +419,12 @@ struct MapTabView: View {
             friendPreviewCafe = nil
             showCafeDetail = false
             selectedCafe = nil
+            selectedRecommendationID = nil
+            rebuildForYouRecommendations()
+        }
+        .onChange(of: dataManager.journalRevision) { _, _ in
+            appleCafeDiscovery.refreshLocalState(knownCafes: dataManager.appData.cafes)
+            rebuildForYouRecommendations()
         }
         .onChange(of: showCafeDetail) { _, isPresented in
             guard !isPresented, authModel.authenticatedUser != nil else { return }
@@ -411,17 +447,61 @@ struct MapTabView: View {
                 }
             )
         }
+        .sheet(item: $forYouListPresentation) { _ in
+            ForYouListSheet(
+                recommendations: forYouRecommendations,
+                isStillLearning: isStillLearningTaste,
+                onSelect: { recommendation in
+                    selectRecommendation(recommendation)
+                }
+            )
+        }
         .sheet(isPresented: $showCafeDetail) {
             if let cafe = selectedCafe {
+                let recommendation = selectedForYouRecommendation.flatMap {
+                    $0.cafe.id == cafe.id ? $0 : nil
+                }
                 CafeDetailView(
                     cafe: cafe,
                     dataManager: dataManager,
-                    initialDetent: .height(258),
+                    initialDetent: .large,
+                    discoveryReason: recommendation?.reason,
+                    discoveryEvidence: recommendation?.evidence ?? [],
+                    discoverySource: recommendation == nil ? .appleSearch : .forYou,
+                    applePhoneNumber: recommendation?.candidate.phoneNumber,
                     onLogVisitRequested: onLogVisitRequested,
                     onAuthenticationRequired: onAuthenticationRequired
                 )
                 .accessibilityIdentifier("map.cafeDetail.sheet")
             }
+        }
+        .alert("Remember this cafe when you are nearby?", isPresented: $showsNearbyReminderEducation) {
+            Button("Not now", role: .cancel) {
+                UserDefaults.standard.set(
+                    true,
+                    forKey: NearbyCafeReminderCoordinator.educationDismissedKey
+                )
+            }
+            Button("Continue") {
+                Task {
+                    let enabled = await NearbyCafeReminderCoordinator.shared.requestEnable(
+                        cafes: dataManager.appData.cafes
+                    )
+                    if !enabled {
+                        nearbyReminderError = "Nearby reminders need notification and Always Location permission. You can change both in iOS Settings."
+                    }
+                }
+            }
+        } message: {
+            Text("Mugshot can send one tasteful reminder when a cafe you deliberately saved is nearby. It asks for notifications first, then Always Location, and you can turn it off anytime.")
+        }
+        .alert("Nearby reminders are off", isPresented: Binding(
+            get: { nearbyReminderError != nil },
+            set: { if !$0 { nearbyReminderError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(nearbyReminderError ?? "Please try again.")
         }
     }
 
@@ -504,6 +584,11 @@ struct MapTabView: View {
                     .foregroundColor(.espressoBrown)
                     .transition(.opacity)
                     .accessibilityIdentifier("map.search.cancel")
+                } else {
+                    MapDiscoveryScopeMenu(
+                        selection: $discoveryScope,
+                        isAuthenticated: authModel.authenticatedUser != nil
+                    )
                 }
             }
             .padding(.horizontal, 16)
@@ -512,26 +597,476 @@ struct MapTabView: View {
             .background(Color.creamWhite.opacity(isSearchActive ? 0.92 : 0))
             .animation(DesignSystem.Motion.base, value: isSearchActive)
 
-            if !isSearchActive {
-                MapDiscoveryFilterBar(
-                    selection: $discoveryScope,
-                    isAuthenticated: authModel.authenticatedUser != nil
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-
-                HStack {
-                    Spacer()
-                    MapDiscoveryModeControl(selection: $discoveryMode)
-                        .frame(width: 166)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
         }
         .onChange(of: isSearchFieldFocused) { _, isFocused in
             if isFocused { isSearchActive = true }
         }
+    }
+
+    @ViewBuilder
+    private var forYouBottomOverlay: some View {
+        VStack(spacing: 10) {
+            if let recommendation = selectedForYouRecommendation {
+                ForYouRecommendationCard(
+                    recommendation: recommendation,
+                    walkingMinutes: selectedWalkingMinutes,
+                    onOpen: { openRecommendation(recommendation) },
+                    onDirections: { openDirections(for: recommendation) },
+                    onWantToTry: { toggleWantToTry(for: recommendation) }
+                )
+                .padding(.horizontal, 16)
+            } else if appleCafeDiscovery.isLoading {
+                ProgressView("Finding nearby cafes…")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .padding(.horizontal, 20)
+                    .frame(height: 52)
+                    .mugshotGlassSurface(radius: 26, tint: .foamWhite)
+            } else {
+                StillLearningDiscoveryView()
+                    .padding(.horizontal, 16)
+            }
+
+            Button {
+                forYouListPresentation = ForYouListPresentation()
+                MugshotAnalytics.shared.capture(.discovery(
+                    action: .picksOpened,
+                    source: .forYou,
+                    surface: .forYouList,
+                    rankingVersion: ForYouRankingConfiguration.v1.version,
+                    cafeID: nil
+                ))
+            } label: {
+                HStack(spacing: 8) {
+                    Text("See all picks")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.mugshotSageText)
+                .padding(.horizontal, 18)
+                .frame(height: 38)
+                .mugshotGlassSurface(radius: 19, tint: .creamWhite, interactive: true)
+            }
+            .buttonStyle(.plain)
+            .disabled(forYouRecommendations.isEmpty)
+            .opacity(forYouRecommendations.isEmpty ? 0.55 : 1)
+            .accessibilityIdentifier("map.forYou.seeAll")
+        }
+        .padding(.bottom, 96)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var selectedForYouRecommendation: ForYouRecommendation? {
+        if let selectedRecommendationID,
+           let selected = forYouRecommendations.first(where: { $0.id == selectedRecommendationID }) {
+            return selected
+        }
+        return forYouRecommendations.first
+    }
+
+    private var isStillLearningTaste: Bool {
+        ForYouLearningPolicy.isStillLearning(
+            mugshotCount: dataManager.appData.visits.filter { $0.context == .cafe }.count
+        )
+    }
+
+    @MainActor
+    private func refreshAppleCafeDiscovery() async {
+        if MugshotLaunchEnvironment.isUITesting {
+            appleCafeDiscovery.refreshLocalState(knownCafes: dataManager.appData.cafes)
+            appleCafeDiscovery.markRegionAsSearched(effectiveRegion)
+            hasPendingAreaSearch = false
+            rebuildForYouRecommendations()
+            return
+        }
+        await appleCafeDiscovery.search(
+            region: effectiveRegion,
+            knownCafes: dataManager.appData.cafes,
+            limit: 100
+        )
+        hasPendingAreaSearch = false
+        rebuildForYouRecommendations()
+        await refreshDiscoveryEnrichment()
+    }
+
+    @MainActor
+    private func rebuildForYouRecommendations() {
+        let sourceCandidates = currentForYouCandidates()
+
+        var evidenceByCandidateID = forYouEvidence(for: sourceCandidates)
+        for candidate in sourceCandidates {
+            guard let serverEvidence = serverForYouEvidenceByCandidateID[candidate.id] else {
+                continue
+            }
+            var combined = evidenceByCandidateID[candidate.id] ?? []
+            for evidence in serverEvidence where !combined.contains(where: {
+                $0.kind == evidence.kind
+                    && $0.reason == evidence.reason
+                    && $0.authorID == evidence.authorID
+            }) {
+                combined.append(evidence)
+            }
+            evidenceByCandidateID[candidate.id] = combined
+        }
+
+        forYouRecommendations = ForYouRankingService.rank(
+            candidates: sourceCandidates,
+            evidenceByCandidateID: evidenceByCandidateID,
+            userLocation: discoveryRankingLocation,
+            limit: 20
+        )
+        if let selectedRecommendationID,
+           forYouRecommendations.contains(where: { $0.id == selectedRecommendationID }) {
+            return
+        }
+        selectedRecommendationID = forYouRecommendations.first?.id
+        selectedCafe = forYouRecommendations.first?.cafe
+    }
+
+    private func baseForYouCandidates() -> [DiscoveryPlaceCandidate] {
+        if appleCafeDiscovery.candidates.isEmpty {
+            return dataManager.appData.cafes
+                .filter { $0.location != nil }
+                .map { DiscoveryPlaceCandidate(cafe: $0) }
+        }
+        return appleCafeDiscovery.candidates
+    }
+
+    private func currentForYouCandidates() -> [DiscoveryPlaceCandidate] {
+        baseForYouCandidates().map { candidate in
+            guard let enriched = enrichedCandidatesByID[candidate.id] else { return candidate }
+            return candidate.applying(
+                remoteCafeID: enriched.remoteCafeID,
+                isFavorite: enriched.isFavorite,
+                isWantToTry: enriched.isWantToTry
+            )
+        }
+    }
+
+    @MainActor
+    private func refreshDiscoveryEnrichment() async {
+        guard authModel.authenticatedUser != nil else {
+            enrichedCandidatesByID = [:]
+            serverForYouEvidenceByCandidateID = [:]
+            rebuildForYouRecommendations()
+            return
+        }
+
+        let candidates = baseForYouCandidates()
+        let requestedIDs = candidates.map(\.id)
+        guard !candidates.isEmpty else {
+            enrichedCandidatesByID = [:]
+            serverForYouEvidenceByCandidateID = [:]
+            return
+        }
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let snapshot = try await DiscoveryCandidateEnrichmentService(client: client)
+                .enrich(candidates)
+            guard !Task.isCancelled,
+                  baseForYouCandidates().map(\.id) == requestedIDs else { return }
+            enrichedCandidatesByID = Dictionary(
+                uniqueKeysWithValues: snapshot.candidates.map { ($0.id, $0) }
+            )
+            serverForYouEvidenceByCandidateID = snapshot.evidenceByCandidateID
+            rebuildForYouRecommendations()
+        } catch {
+            guard !Task.isCancelled else { return }
+            // The Map remains useful while the additive RPC rolls out or if
+            // enrichment is temporarily unavailable. Never replace honest
+            // nearby results with invented evidence.
+            enrichedCandidatesByID = [:]
+            serverForYouEvidenceByCandidateID = [:]
+            rebuildForYouRecommendations()
+        }
+    }
+
+    private func forYouEvidence(
+        for candidates: [DiscoveryPlaceCandidate]
+    ) -> [String: [DiscoveryEvidence]] {
+        let favoriteDrink = Dictionary(grouping: dataManager.appData.visits, by: \.drinkType)
+            .max(by: { $0.value.count < $1.value.count })?
+            .key
+            .rawValue
+            .lowercased()
+
+        return candidates.reduce(into: [:]) { result, candidate in
+            var evidence: [DiscoveryEvidence] = []
+            if candidate.isWantToTry {
+                evidence.append(DiscoveryEvidence(
+                    kind: .wantToTry,
+                    reason: "Saved in your Want to Try"
+                ))
+            }
+
+            if let discovery = matchingDiscoveryCafe(for: candidate) {
+                if let friend = discovery.friends.first {
+                    let topDrink = discovery.topDrinks.first?.name.remoteTrimmedNonEmpty
+                    let reason = topDrink.map { "\(friend.displayName) loved the \($0.lowercased())" }
+                        ?? "\(friend.displayName) logged a Mugshot here"
+                    evidence.append(DiscoveryEvidence(
+                        kind: .friendVisit,
+                        reason: reason,
+                        strength: min(max(friend.averageRating / 5, 0.25), 1),
+                        authorID: friend.userID,
+                        authorName: friend.displayName
+                    ))
+                } else if discovery.friendCount > 0 {
+                    evidence.append(DiscoveryEvidence(
+                        kind: .friendVisit,
+                        reason: "\(discovery.friendCount) \(discovery.friendCount == 1 ? "friend was" : "friends were") here",
+                        strength: min(Double(discovery.friendCount) / 3, 1)
+                    ))
+                }
+
+                if let favoriteDrink,
+                   let drink = discovery.topDrinks.first(where: {
+                       $0.name.lowercased().contains(favoriteDrink)
+                           || favoriteDrink.contains($0.name.lowercased())
+                   }) {
+                    evidence.append(DiscoveryEvidence(
+                        kind: .drinkMatch,
+                        reason: "Known for \(drink.name.lowercased())",
+                        strength: min(Double(drink.count) / 3, 1)
+                    ))
+                }
+            }
+
+            let practicalTags = localPracticalTags(for: candidate.localID)
+            if !practicalTags.isEmpty {
+                let label = practicalTags.prefix(2)
+                    .map { $0.replacingOccurrences(of: "_", with: " ") }
+                    .joined(separator: " and ")
+                evidence.append(DiscoveryEvidence(
+                    kind: .practicalFit,
+                    reason: label.prefix(1).uppercased() + label.dropFirst(),
+                    strength: 0.8,
+                    tags: practicalTags
+                ))
+            }
+            result[candidate.id] = evidence
+        }
+    }
+
+    private func matchingDiscoveryCafe(for candidate: DiscoveryPlaceCandidate) -> DiscoveryCafe? {
+        if let remoteID = candidate.remoteCafeID,
+           let exact = discoveryCafesByID[remoteID] {
+            return exact
+        }
+        let candidateLocation = CLLocation(latitude: candidate.latitude, longitude: candidate.longitude)
+        return discoveryCafesByID.values.first { cafe in
+            guard cafe.name.compare(
+                candidate.name,
+                options: [.caseInsensitive, .diacriticInsensitive]
+            ) == .orderedSame else { return false }
+            return candidateLocation.distance(from: CLLocation(
+                latitude: cafe.latitude,
+                longitude: cafe.longitude
+            )) <= 100
+        }
+    }
+
+    private func localPracticalTags(for cafeID: UUID) -> [String] {
+        let mappings: [(String, String)] = [
+            ("wi-fi", "wifi"), ("wifi", "wifi"), ("outlet", "outlets"),
+            ("quiet", "quiet"), ("work", "work_study"), ("study", "work_study"),
+            ("table", "table_space"), ("access", "accessible"),
+            ("group", "group_friendly"), ("calm", "calm")
+        ]
+        let criteria = dataManager.appData.visits
+            .filter { $0.cafeId == cafeID && $0.context == .cafe }
+            .flatMap { $0.v3Reflection?.contextCriteria ?? [] }
+            .filter { $0.isRelevant && $0.score >= 4 }
+        return criteria.reduce(into: [String]()) { result, criterion in
+            let normalized = criterion.name.lowercased()
+            for (needle, tag) in mappings where normalized.contains(needle) {
+                if !result.contains(tag) { result.append(tag) }
+            }
+        }
+    }
+
+    private func selectRecommendation(_ recommendation: ForYouRecommendation) {
+        selectedRecommendationID = recommendation.id
+        selectedCafe = recommendation.cafe
+        discoveryScope = .forYou
+        if let coordinate = recommendation.cafe.location {
+            region = MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)
+            )
+        }
+    }
+
+    @MainActor
+    private func refreshWalkingETA() async {
+        selectedWalkingMinutes = nil
+        guard let recommendation = selectedForYouRecommendation else { return }
+        if MugshotLaunchEnvironment.isUITesting {
+            guard let distance = recommendation.distanceMeters else { return }
+            selectedWalkingMinutes = max(1, Int((distance / 80).rounded()))
+            return
+        }
+        guard let userLocation = locationManager.getCurrentLocation() else { return }
+        let destination = CLLocation(
+            latitude: recommendation.candidate.latitude,
+            longitude: recommendation.candidate.longitude
+        )
+        // Remote-city planning should never advertise a days-long walk from
+        // the person's current city. In that state, the card keeps the
+        // region-relative distance and omits walking time.
+        guard userLocation.distance(from: destination) <= 50_000 else { return }
+        let request = MKDirections.Request()
+        request.source = MKMapItem(
+            placemark: MKPlacemark(coordinate: userLocation.coordinate)
+        )
+        request.destination = recommendation.candidate.mapItem
+        request.transportType = .walking
+        do {
+            let eta = try await MKDirections(request: request).calculateETA()
+            guard recommendation.id == selectedForYouRecommendation?.id else { return }
+            selectedWalkingMinutes = max(1, Int((eta.expectedTravelTime / 60).rounded()))
+        } catch {
+            selectedWalkingMinutes = nil
+        }
+    }
+
+    private var discoveryRankingLocation: CLLocation? {
+        let regionLocation = CLLocation(
+            latitude: effectiveRegion.center.latitude,
+            longitude: effectiveRegion.center.longitude
+        )
+        guard !MugshotLaunchEnvironment.isUITesting,
+              let currentLocation = locationManager.getCurrentLocation(),
+              currentLocation.distance(from: regionLocation) <= 50_000 else {
+            return regionLocation
+        }
+        return currentLocation
+    }
+
+    private func openRecommendation(_ recommendation: ForYouRecommendation) {
+        selectRecommendation(recommendation)
+        showCafeDetail = true
+        MugshotAnalytics.shared.capture(.discovery(
+            action: .recommendationOpened,
+            source: .forYou,
+            surface: .forYou,
+            rankingVersion: recommendation.rankingVersion,
+            cafeID: recommendation.candidate.remoteCafeID
+        ))
+        recordDiscoveryInteraction(
+            recommendation,
+            kind: .recommendationOpened
+        )
+    }
+
+    private func openDirections(for recommendation: ForYouRecommendation) {
+        recommendation.candidate.mapItem.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
+        ])
+        MugshotAnalytics.shared.capture(.discovery(
+            action: .directionsRequested,
+            source: .forYou,
+            surface: .forYou,
+            rankingVersion: recommendation.rankingVersion,
+            cafeID: recommendation.candidate.remoteCafeID
+        ))
+        recordDiscoveryInteraction(
+            recommendation,
+            kind: .directionsRequested
+        )
+    }
+
+    private func toggleWantToTry(for recommendation: ForYouRecommendation) {
+        let targetValue = !recommendation.candidate.isWantToTry
+        let cafe: Cafe
+        if targetValue {
+            cafe = dataManager.saveDiscoveryCandidate(
+                recommendation.candidate,
+                wantToTry: true,
+                note: recommendation.candidate.discoveryNote,
+                source: .forYou
+            )
+        } else {
+            dataManager.toggleCafeWantToTry(recommendation.candidate.localID)
+            cafe = dataManager.getCafe(id: recommendation.candidate.localID)
+                ?? recommendation.cafe
+        }
+
+        appleCafeDiscovery.refreshLocalState(knownCafes: dataManager.appData.cafes)
+        rebuildForYouRecommendations()
+        if targetValue {
+            offerNearbyReminderEducationIfUseful(for: cafe)
+        }
+        MugshotAnalytics.shared.capture(.discovery(
+            action: .cafeSaved,
+            source: .forYou,
+            surface: .forYou,
+            rankingVersion: recommendation.rankingVersion,
+            cafeID: cafe.remoteCafeId
+        ))
+
+        guard let userID = authModel.authenticatedUser?.id else { return }
+        Task {
+            do {
+                let client = try SupabaseClientProvider.shared.client()
+                let summary = try await CafeStateService(client: client).setCafeState(
+                    userId: userID,
+                    cafe: cafe,
+                    isFavorite: cafe.isFavorite,
+                    wantToTry: targetValue,
+                    discoveryNote: cafe.discoveryNote,
+                    discoverySource: targetValue ? .forYou : nil,
+                    discoveredAt: targetValue ? cafe.discoveredAt ?? .now : nil
+                )
+                if targetValue {
+                    _ = try? await DiscoveryInteractionService(client: client).record(
+                        cafeID: summary.cafe.id,
+                        appleMapsPlaceID: summary.cafe.appleMapsPlaceID,
+                        source: .forYou,
+                        kind: .cafeSaved,
+                        rankingVersion: recommendation.rankingVersion
+                    )
+                }
+                await MainActor.run {
+                    _ = dataManager.applyRemoteCafeState(summary)
+                    appleCafeDiscovery.refreshLocalState(knownCafes: dataManager.appData.cafes)
+                    rebuildForYouRecommendations()
+                }
+            } catch {
+                await MainActor.run {
+                    remoteStateError = MugshotUserFacingError.message(for: error, context: .social)
+                }
+            }
+        }
+    }
+
+    private func recordDiscoveryInteraction(
+        _ recommendation: ForYouRecommendation,
+        kind: DiscoveryInteractionKind
+    ) {
+        guard authModel.authenticatedUser?.id != nil else { return }
+        Task {
+            guard let client = try? SupabaseClientProvider.shared.client() else { return }
+            _ = try? await DiscoveryInteractionService(client: client).record(
+                cafeID: recommendation.candidate.remoteCafeID,
+                appleMapsPlaceID: recommendation.candidate.appleMapsPlaceID,
+                source: .forYou,
+                kind: kind,
+                rankingVersion: recommendation.rankingVersion
+            )
+        }
+    }
+
+    private func offerNearbyReminderEducationIfUseful(for cafe: Cafe) {
+        guard DiscoveryFeatureFlags.isEnabled(.nearbyReminders),
+              cafe.location != nil,
+              !NearbyCafeReminderCoordinator.shared.isEnabled,
+              !UserDefaults.standard.bool(
+                forKey: NearbyCafeReminderCoordinator.educationDismissedKey
+              ) else { return }
+        showsNearbyReminderEducation = true
     }
 
     private var localAccountScope: LocalAccountScope {
@@ -551,7 +1086,6 @@ struct MapTabView: View {
     @MainActor
     private func presentPendingSavedCafeIfNeeded() {
         guard let cafe = tabCoordinator.consumePendingMapCafe() else { return }
-        discoveryMode = .map
         discoveryScope = .all
         isSearchActive = false
         isSearchFieldFocused = false
@@ -618,9 +1152,9 @@ struct MapTabView: View {
             }
             switch discoveryScope {
             case .all:
-                source = localEligibleCafes + discoveryMapCafes
-            case .discovery:
-                source = netNewDiscoveryMapCafes
+                source = localEligibleCafes + appleCafeDiscovery.candidates.map(\.cafe) + discoveryMapCafes
+            case .forYou:
+                source = forYouRecommendations.map(\.cafe)
             case .favorites:
                 source = dataManager.appData.cafes.filter(\.isFavorite)
             case .wantToTry:
@@ -633,9 +1167,11 @@ struct MapTabView: View {
         } else {
             switch discoveryScope {
             case .all:
-                source = personalMapPins.map(\.localCafe) + discoveryMapCafes
-            case .discovery:
-                source = netNewDiscoveryMapCafes
+                source = personalMapPins.map(\.localCafe)
+                    + appleCafeDiscovery.candidates.map(\.cafe)
+                    + discoveryMapCafes
+            case .forYou:
+                source = forYouRecommendations.map(\.cafe)
             case .favorites:
                 source = personalMapPins.filter(\.isFavorite).map(\.localCafe)
             case .wantToTry:
@@ -724,9 +1260,11 @@ struct MapTabView: View {
     /// Friend and discovery eligibility can add neutral pins to All, but never
     /// lends those pins somebody else's score.
     private var pinScoresByCafeID: [UUID: MapPinScore] {
-        discoveryScope == .friends
-            ? friendPinScoresByCafeID
-            : personalPinScoresByCafeID
+        switch discoveryScope {
+        case .forYou: [:]
+        case .friends: friendPinScoresByCafeID
+        default: personalPinScoresByCafeID
+        }
     }
 
     private var displayedPinScoresByCafeID: [UUID: MapPinScore] {
@@ -793,7 +1331,7 @@ struct MapTabView: View {
             name: mapItem.name ?? "Place",
             location: location,
             address: MapSearchService.subtitle(for: mapItem),
-            mapItemURL: mapItem.url?.absoluteString,
+            appleMapsPlaceID: mapItem.identifier?.rawValue,
             websiteURL: mapItem.url?.absoluteString,
             placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )
@@ -816,6 +1354,7 @@ struct MapTabView: View {
                 friendSipSummariesByID = [:]
                 remoteStateError = nil
                 remoteMapPinUserId = nil
+                rebuildForYouRecommendations()
             } catch {
                 guard !Task.isCancelled else { return }
                 remoteMapPins = []
@@ -882,6 +1421,7 @@ struct MapTabView: View {
                 uniqueKeysWithValues: (friendSipSummaries ?? []).map { ($0.cafeID, $0) }
             )
             remoteStateError = nil
+            rebuildForYouRecommendations()
         } catch {
             guard !Task.isCancelled else { return }
             remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
@@ -930,7 +1470,11 @@ struct MapTabView: View {
 
     private func handleMapCafeTap(_ cafe: Cafe) {
         selectedCafe = cafe
-        if discoveryScope == .friends {
+        if discoveryScope == .forYou {
+            selectedRecommendationID = forYouRecommendations.first(where: { $0.cafe.id == cafe.id })?.id
+            friendPreviewCafe = nil
+            showCafeDetail = false
+        } else if discoveryScope == .friends {
             friendPreviewCafe = cafe
             showCafeDetail = false
         } else {
@@ -939,6 +1483,10 @@ struct MapTabView: View {
         }
         isSearchActive = false
     }
+}
+
+private struct ForYouListPresentation: Identifiable {
+    let id = UUID()
 }
 
 private struct MapClusterSelection: Identifiable {
@@ -1051,6 +1599,7 @@ enum MapPinRatingBand: String, Equatable {
 }
 
 enum MapPinPrimaryKind: String, Equatable {
+    case forYou
     case journal
     case friends
     case favorite
@@ -1085,13 +1634,15 @@ struct MapPinPresentation: Equatable {
     ) -> MapPinPresentation {
         let primaryKind: MapPinPrimaryKind
         switch scope {
+        case .forYou:
+            primaryKind = .forYou
         case .friends:
             primaryKind = .friends
         case .favorites:
             primaryKind = .favorite
         case .wantToTry:
             primaryKind = .wantToTry
-        case .visited, .all, .discovery:
+        case .visited, .all:
             primaryKind = .journal
         }
 
@@ -1121,6 +1672,7 @@ struct MapViewRepresentable: UIViewRepresentable {
     @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
     let onClusterListRequested: ([Cafe]) -> Void
+    var onUserRegionChange: (MKCoordinateRegion) -> Void = { _ in }
 
     private var displayedCafes: [Cafe] {
         var seenIDs: Set<UUID> = []
@@ -1225,6 +1777,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         var displayMode: AdaptiveMapDisplayMode = .cafes
         var cafeClusteringEnabled = false
         var isCameraChanging = false
+        private var cameraChangeWasUserInitiated = false
         private var cameraSettledWorkItem: DispatchWorkItem?
 
         init(parent: MapViewRepresentable) {
@@ -1545,6 +2098,8 @@ struct MapViewRepresentable: UIViewRepresentable {
 
             let primaryView: UIView
             switch presentation.primaryKind {
+            case .forYou:
+                primaryView = createForYouPin(size: primarySize)
             case .journal:
                 primaryView = createDefaultPin(size: primarySize, presentation: presentation)
             case .favorite:
@@ -1586,6 +2141,25 @@ struct MapViewRepresentable: UIViewRepresentable {
                     )
                 )
             }
+            return container
+        }
+
+        private func createForYouPin(size: CGFloat) -> UIView {
+            let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
+            container.backgroundColor = UIColor(Color.mugshotSage)
+            container.layer.cornerRadius = size / 2
+            container.layer.borderWidth = 2
+            container.layer.borderColor = UIColor(Color.foamWhite).cgColor
+            container.layer.shadowColor = UIColor.black.cgColor
+            container.layer.shadowOpacity = 0.18
+            container.layer.shadowRadius = 5
+            container.layer.shadowOffset = CGSize(width: 0, height: 3)
+
+            let imageView = UIImageView(image: UIImage(systemName: "leaf.fill"))
+            imageView.tintColor = UIColor(Color.foamWhite)
+            imageView.contentMode = .scaleAspectFit
+            imageView.frame = CGRect(x: 10, y: 10, width: size - 20, height: size - 20)
+            container.addSubview(imageView)
             return container
         }
 
@@ -1872,11 +2446,23 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
             isCameraChanging = true
+            var isUserInitiated = false
+            for view in mapView.subviews {
+                for gesture in view.gestureRecognizers ?? []
+                where gesture.state == .began || gesture.state == .changed {
+                    isUserInitiated = true
+                    break
+                }
+                if isUserInitiated { break }
+            }
+            cameraChangeWasUserInitiated = isUserInitiated
             cameraSettledWorkItem?.cancel()
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             let updatedRegion = mapView.region
+            let wasUserInitiated = cameraChangeWasUserInitiated
+            cameraChangeWasUserInitiated = false
             cameraSettledWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self, weak mapView] in
                 guard let self, let mapView else { return }
@@ -1893,6 +2479,9 @@ struct MapViewRepresentable: UIViewRepresentable {
                 // representable. The debounce also avoids rebuilding semantic
                 // aggregates during every frame of a rapid pan or pinch.
                 self.parent.region = updatedRegion
+                if wasUserInitiated {
+                    self.parent.onUserRegionChange(updatedRegion)
+                }
             }
             cameraSettledWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
@@ -2338,45 +2927,6 @@ private struct LocationPermissionEducationSheet: View {
                     .font(.system(size: 12))
                     .foregroundColor(.secondaryText)
             }
-        }
-    }
-}
-
-struct MapDiscoveryModeControl: View {
-    @Binding var selection: MapDiscoveryMode
-
-    var body: some View {
-        MugshotSegmentedControl(
-            options: MapDiscoveryMode.allCases,
-            selection: $selection,
-            title: { $0.rawValue },
-            icon: { $0.icon },
-            accessibilityIdentifier: { "map.mode.\($0.rawValue.lowercased())" }
-        )
-    }
-}
-
-struct MapDiscoveryFilterBar: View {
-    @Binding var selection: MapDiscoveryScope
-    let isAuthenticated: Bool
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(MapDiscoveryScope.available(isAuthenticated: isAuthenticated)) { scope in
-                    MugshotFilterChip(
-                        title: scope.rawValue,
-                        icon: scope.icon,
-                        isSelected: selection == scope
-                    ) {
-                        selection = scope
-                    }
-                    .accessibilityIdentifier("map.scope.\(scope.rawValue)")
-                    .accessibilityHint(scope.explanation)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 2)
         }
     }
 }

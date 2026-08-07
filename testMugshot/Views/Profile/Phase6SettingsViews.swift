@@ -69,7 +69,11 @@ struct FriendsDiscoverabilitySettingsView: View {
 }
 
 struct MapLocationSettingsView: View {
+    @ObservedObject var dataManager: DataManager
+    @ObservedObject private var reminders = NearbyCafeReminderCoordinator.shared
     @AppStorage(DistanceUnitPreference.storageKey) private var distanceUnit = DistanceUnitPreference.automatic.rawValue
+    @State private var showsReminderEducation = false
+    @State private var reminderError: String?
 
     var body: some View {
         Form {
@@ -84,10 +88,49 @@ struct MapLocationSettingsView: View {
                 LabeledContent("Permission", value: permissionLabel)
                 Text("Location is requested only when you ask for nearby cafes or center the Map. Search remains available without it.")
             }
+            if DiscoveryFeatureFlags.isEnabled(.nearbyReminders) {
+            Section("Nearby saved cafes") {
+                Toggle("Nearby reminders", isOn: Binding(
+                    get: { reminders.isEnabled },
+                    set: { isEnabled in
+                        if isEnabled {
+                            showsReminderEducation = true
+                        } else {
+                            reminders.setEnabled(false, cafes: dataManager.appData.cafes)
+                        }
+                    }
+                ))
+                if reminders.isEnabled {
+                    LabeledContent("Monitored cafes", value: "\(reminders.monitoredCafeCount)")
+                }
+                Text("Mugshot can notify you when one of your strongest saved cafes is nearby. It monitors at most 20 cafes, sends no more than one reminder a day, and keeps exact location history on this device.")
+            }
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Map and Location")
+        .alert("Turn on nearby reminders?", isPresented: $showsReminderEducation) {
+            Button("Not now", role: .cancel) {}
+            Button("Continue") {
+                Task {
+                    let enabled = await reminders.requestEnable(cafes: dataManager.appData.cafes)
+                    if !enabled {
+                        reminderError = "Nearby reminders need notification and Always Location permission. You can change both in iOS Settings."
+                    }
+                }
+            }
+        } message: {
+            Text("Mugshot will ask for notification permission first, then Always Location. Monitoring applies only to cafes you deliberately saved and can be disabled immediately here.")
+        }
+        .alert("Nearby reminders are off", isPresented: Binding(
+            get: { reminderError != nil },
+            set: { if !$0 { reminderError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(reminderError ?? "Please try again.")
+        }
     }
 
     private var permissionLabel: String {
