@@ -22,30 +22,27 @@ struct MapDiscoveryScopeMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: selection.icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.mugshotSageText)
-                Text(selection.rawValue)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.roastBrown)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.roastBrown.opacity(0.65))
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 52)
-            .mugshotGlassSurface(
-                radius: 26,
-                tint: .creamWhite,
-                stroke: Color.foamWhite.opacity(0.78),
-                shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6),
-                interactive: true
-            )
+            Image(systemName: selection.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.mugshotSageText)
+                .frame(width: 52, height: 52)
+                .contentShape(Circle())
+                .mugshotGlassSurface(
+                    radius: 26,
+                    tint: .creamWhite,
+                    stroke: Color.foamWhite.opacity(0.78),
+                    shadow: DesignSystem.Shadow(
+                        color: .black.opacity(0.10),
+                        radius: 16,
+                        x: 0,
+                        y: 6
+                    ),
+                    interactive: true
+                )
         }
         .accessibilityIdentifier("map.discovery.scope")
         .accessibilityLabel("Map view: \(selection.rawValue)")
+        .accessibilityHint("Shows map view choices")
     }
 }
 
@@ -281,7 +278,7 @@ private struct ForYouRecommendationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "leaf.fill")
+            Image(systemName: "sparkles")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.foamWhite)
                 .frame(width: 38, height: 38)
