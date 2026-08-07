@@ -1,4 +1,5 @@
 import MapKit
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
@@ -35,7 +36,7 @@ final class ShareImportViewModel: ObservableObject {
         case searching
         case results
         case noResults
-        case offline(String)
+        case searchFailed(String)
         case saved
     }
 
@@ -51,6 +52,10 @@ final class ShareImportViewModel: ObservableObject {
     private(set) var source: ExtensionPlaceImportSource = .text
     private weak var extensionContext: NSExtensionContext?
     private var searchTask: Task<Void, Never>?
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "co.mugshot.app.share",
+        category: "AppleMapsSearch"
+    )
 
     init(extensionContext: NSExtensionContext?) {
         self.extensionContext = extensionContext
@@ -68,10 +73,7 @@ final class ShareImportViewModel: ObservableObject {
         state = .searching
         searchTask = Task {
             do {
-                let request = MKLocalSearch.Request()
-                request.naturalLanguageQuery = trimmed
-                request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.cafe])
-                let response = try await MKLocalSearch(request: request).start()
+                let response = try await searchAppleMaps(query: trimmed)
                 try Task.checkCancellation()
                 var seen = Set<String>()
                 results = response.mapItems.compactMap { item in
@@ -85,10 +87,70 @@ final class ShareImportViewModel: ObservableObject {
             } catch is CancellationError {
                 return
             } catch {
+                let nsError = error as NSError
+                logger.error(
+                    "Apple Maps search failed: domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) description=\(nsError.localizedDescription, privacy: .public)"
+                )
                 results = []
-                state = .offline("Apple Maps search needs a connection. Check your network and try again.")
+                state = .searchFailed(Self.searchFailureMessage(for: error))
             }
         }
+    }
+
+    /// Google Maps often shares a place name plus a complete street address. An
+    /// exact cafe-only request can reject valid mixed-category places (for
+    /// example, a coffee and wine bar), so retry with Apple's broader point-of-
+    /// interest search before surfacing an error.
+    private func searchAppleMaps(query: String) async throws -> MKLocalSearch.Response {
+        do {
+            let response = try await performSearch(query: query, cafeOnly: true)
+            guard response.mapItems.isEmpty else { return response }
+            logger.notice("Cafe-only Apple Maps search returned no results; retrying broadly")
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if (error as? MKError)?.code == .loadingThrottled {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            logger.notice("Retrying Apple Maps search without the cafe-only filter")
+        }
+        return try await performSearch(query: query, cafeOnly: false)
+    }
+
+    private func performSearch(
+        query: String,
+        cafeOnly: Bool
+    ) async throws -> MKLocalSearch.Response {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        if cafeOnly {
+            request.resultTypes = [.pointOfInterest]
+            request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.cafe])
+        } else {
+            request.resultTypes = [.pointOfInterest, .address]
+        }
+        return try await MKLocalSearch(request: request).start()
+    }
+
+    private static func searchFailureMessage(for error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain,
+           nsError.code == NSURLErrorNotConnectedToInternet {
+            return "Apple Maps search needs a connection. Check your network and try again."
+        }
+        if let mapError = error as? MKError {
+            switch mapError.code {
+            case .loadingThrottled:
+                return "Apple Maps is receiving too many searches right now. Wait a moment and try again."
+            case .placemarkNotFound:
+                return "Apple Maps couldn't find that place. Try searching with just the cafe name and city."
+            case .serverFailure:
+                return "Apple Maps couldn't complete the search right now. Try again in a moment."
+            default:
+                break
+            }
+        }
+        return "Apple Maps couldn't complete the search. Try the cafe name and city, then search again."
     }
 
     func choose(_ item: MKMapItem) {
@@ -216,11 +278,11 @@ private struct ShareImportView: View {
                 Spacer()
                 ProgressView(model.state == .loading ? "Reading shared place…" : "Searching Apple Maps…")
                 Spacer()
-            case .offline(let message):
+            case .searchFailed(let message):
                 Spacer()
                 ContentUnavailableView(
-                    "Apple Maps is unavailable",
-                    systemImage: "wifi.exclamationmark",
+                    "Apple Maps search failed",
+                    systemImage: "mappin.slash",
                     description: Text(message)
                 )
                 Button("Try again", action: model.search)
@@ -298,7 +360,7 @@ private struct ShareImportView: View {
                     do {
                         try model.save()
                     } catch {
-                        model.state = .offline("Mugshot couldn’t save this import. Please try again.")
+                        model.state = .searchFailed("Mugshot couldn't save this import. Please try again.")
                     }
                 } label: {
                     Text("Save to Mugshot")

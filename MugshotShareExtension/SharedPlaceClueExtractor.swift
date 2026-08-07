@@ -7,9 +7,17 @@ struct SharedPlaceClue: Equatable {
 
 enum SharedPlaceClueExtractor {
     static func clue(url: URL?, text: String?, suggestedName: String?) async -> SharedPlaceClue {
-        let resolvedURL = await resolvedURLIfNeeded(url)
-        let source = source(for: resolvedURL ?? url)
         let cleanedText = clean(text)
+        let source = source(for: url)
+
+        // A readable Google Maps text attachment is both faster and more
+        // reliable than resolving its short link from an extension process.
+        // Bare-link shares still resolve below so they remain supported.
+        if isShortGoogleMapsURL(url), let cleanedText {
+            return SharedPlaceClue(query: cleanedText, source: .googleMaps)
+        }
+
+        let resolvedURL = await resolvedURLIfNeeded(url)
 
         if let urlQuery = query(from: resolvedURL ?? url, source: source) {
             return SharedPlaceClue(query: urlQuery, source: source)
@@ -64,9 +72,7 @@ enum SharedPlaceClueExtractor {
 
     private static func resolvedURLIfNeeded(_ url: URL?) async -> URL? {
         guard let url else { return nil }
-        let host = url.host?.lowercased() ?? ""
-        let isShort = host == "maps.app.goo.gl" || host == "goo.gl" || host == "g.co"
-        guard isShort else { return url }
+        guard isShortGoogleMapsURL(url) else { return url }
         var request = URLRequest(url: url)
         request.timeoutInterval = 8
         request.httpMethod = "GET"
@@ -78,13 +84,28 @@ enum SharedPlaceClueExtractor {
         }
     }
 
+    private static func isShortGoogleMapsURL(_ url: URL?) -> Bool {
+        let host = url?.host?.lowercased() ?? ""
+        return host == "maps.app.goo.gl" || host == "goo.gl" || host == "g.co"
+    }
+
     private static func clean(_ value: String?) -> String? {
         guard let value else { return nil }
         let cleaned = value
+            // Google Maps can put the readable place and its share URL in the
+            // same text attachment. The URL is provenance, not part of the
+            // Apple Maps natural-language query.
+            .replacingOccurrences(
+                of: #"(?i)https?://\S+"#,
+                with: "",
+                options: .regularExpression
+            )
             .replacingOccurrences(of: "\n", with: " ")
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(
+                CharacterSet(charactersIn: ",;|•·-")
+            ))
         guard !cleaned.isEmpty else { return nil }
         return String(cleaned.prefix(180))
     }

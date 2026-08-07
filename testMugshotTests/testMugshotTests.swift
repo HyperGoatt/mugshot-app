@@ -3152,6 +3152,16 @@ struct testMugshotTests {
         )
         #expect(google == PlaceShareClue(query: "Ritual Coffee", source: .googleMaps))
 
+        let googleMixedText = SharedPlaceClueParser.clue(
+            url: try #require(URL(string: "https://maps.app.goo.gl/example")),
+            text: "Blüm Coffee & Wine Bar, 511 Meeting Street, Charleston, SC https://maps.app.goo.gl/example",
+            suggestedName: nil
+        )
+        #expect(googleMixedText == PlaceShareClue(
+            query: "Blüm Coffee & Wine Bar, 511 Meeting Street, Charleston, SC",
+            source: .googleMaps
+        ))
+
         let shortened = SharedPlaceClueParser.clue(
             url: try #require(URL(string: "https://maps.app.goo.gl/abc123")),
             text: nil,

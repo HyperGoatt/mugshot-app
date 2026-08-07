@@ -65,10 +65,18 @@ enum SharedPlaceClueParser {
 
     private static func clean(_ value: String?) -> String? {
         guard let value else { return nil }
-        let cleaned = value.replacingOccurrences(of: "\n", with: " ")
+        let cleaned = value
+            .replacingOccurrences(
+                of: #"(?i)https?://\S+"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(of: "\n", with: " ")
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(
+                CharacterSet(charactersIn: ",;|•·-")
+            ))
         return cleaned.isEmpty ? nil : String(cleaned.prefix(180))
     }
 
