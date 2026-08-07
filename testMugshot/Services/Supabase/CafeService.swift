@@ -13,17 +13,23 @@ final class CafeService {
     id, name, address, city, latitude, longitude, apple_place_id, apple_maps_place_id, website_url, identity_key
     """
 
+    private let legacyCafeColumns = """
+    id, name, address, city, latitude, longitude, apple_place_id, website_url, identity_key
+    """
+
     init(client: SupabaseClient) {
         self.client = client
     }
 
     func fetchCafe(id: UUID) async throws -> SupabaseCafeSummary? {
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select(cafeColumns)
-            .eq("id", value: id.uuidString)
-            .execute()
-            .value
+        let cafes: [SupabaseCafeSummary] = try await withCafeColumnCompatibility { columns in
+            try await client
+                .from("cafes")
+                .select(columns)
+                .eq("id", value: id.uuidString)
+                .execute()
+                .value
+        }
 
         return cafes.first
     }
@@ -32,12 +38,14 @@ final class CafeService {
         let identifiers = Array(Set(ids))
         guard !identifiers.isEmpty else { return [] }
 
-        return try await client
-            .from("cafes")
-            .select(cafeColumns)
-            .in("id", values: identifiers.map(\.uuidString))
-            .execute()
-            .value
+        return try await withCafeColumnCompatibility { columns in
+            try await client
+                .from("cafes")
+                .select(columns)
+                .in("id", values: identifiers.map(\.uuidString))
+                .execute()
+                .value
+        }
     }
 
     func resolveSummary(for cafe: Cafe) async throws -> ResolvedCafeSummary? {
@@ -107,36 +115,48 @@ final class CafeService {
     }
 
     private func fetchCafe(identityKey: String) async throws -> SupabaseCafeSummary? {
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select(cafeColumns)
-            .eq("identity_key", value: identityKey)
-            .limit(1)
-            .execute()
-            .value
+        let cafes: [SupabaseCafeSummary] = try await withCafeColumnCompatibility { columns in
+            try await client
+                .from("cafes")
+                .select(columns)
+                .eq("identity_key", value: identityKey)
+                .limit(1)
+                .execute()
+                .value
+        }
         return cafes.first
     }
 
     private func fetchCafe(appleMapsPlaceID: String) async throws -> SupabaseCafeSummary? {
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select(cafeColumns)
-            .eq("apple_maps_place_id", value: appleMapsPlaceID)
-            .limit(1)
-            .execute()
-            .value
+        let cafes: [SupabaseCafeSummary]
+        do {
+            cafes = try await client
+                .from("cafes")
+                .select(cafeColumns)
+                .eq("apple_maps_place_id", value: appleMapsPlaceID)
+                .limit(1)
+                .execute()
+                .value
+        } catch {
+            guard SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(error) else {
+                throw error
+            }
+            return nil
+        }
 
         return cafes.first
     }
 
     private func fetchCafe(legacyApplePlaceId: String) async throws -> SupabaseCafeSummary? {
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select(cafeColumns)
-            .eq("apple_place_id", value: legacyApplePlaceId)
-            .limit(1)
-            .execute()
-            .value
+        let cafes: [SupabaseCafeSummary] = try await withCafeColumnCompatibility { columns in
+            try await client
+                .from("cafes")
+                .select(columns)
+                .eq("apple_place_id", value: legacyApplePlaceId)
+                .limit(1)
+                .execute()
+                .value
+        }
 
         return cafes.first
     }
@@ -148,21 +168,36 @@ final class CafeService {
         }
 
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        var query = client
-            .from("cafes")
-            .select(cafeColumns)
-            .eq("name", value: trimmedName)
+        let cafes: [SupabaseCafeSummary] = try await withCafeColumnCompatibility { columns in
+            var query = client
+                .from("cafes")
+                .select(columns)
+                .eq("name", value: trimmedName)
 
-        if !trimmedAddress.isEmpty {
-            query = query.eq("address", value: trimmedAddress)
+            if !trimmedAddress.isEmpty {
+                query = query.eq("address", value: trimmedAddress)
+            }
+
+            return try await query
+                .limit(1)
+                .execute()
+                .value
         }
 
-        let cafes: [SupabaseCafeSummary] = try await query
-            .limit(1)
-            .execute()
-            .value
-
         return cafes.first
+    }
+
+    private func withCafeColumnCompatibility<Value>(
+        _ operation: (String) async throws -> Value
+    ) async throws -> Value {
+        do {
+            return try await operation(cafeColumns)
+        } catch {
+            guard SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(error) else {
+                throw error
+            }
+            return try await operation(legacyCafeColumns)
+        }
     }
 }
 

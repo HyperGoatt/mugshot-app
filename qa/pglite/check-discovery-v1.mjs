@@ -194,6 +194,11 @@ const migration = await fs.readFile(
   'utf8'
 )
 await db.exec(migration)
+const indexMigration = await fs.readFile(
+  repoPath + 'supabase/migrations/20260807013624_index_discovery_foreign_keys.sql',
+  'utf8'
+)
+await db.exec(indexMigration)
 
 const ids = {
   owner: '81000000-0000-4000-8000-000000000001',
@@ -349,6 +354,25 @@ const privileges = await db.query(`
 `)
 if (privileges.rows[0].interactions_insert || privileges.rows[0].comments_insert) {
   throw new Error('RPC-only discovery tables exposed direct writes')
+}
+
+const supportIndexes = await db.query(`
+  select count(*)::int count
+  from pg_indexes
+  where schemaname = 'public'
+    and indexname in (
+      'discovery_interactions_cafe_idx',
+      'discovery_interactions_source_list_idx',
+      'mugshot_discovery_attributions_cafe_idx',
+      'mugshot_discovery_attributions_interaction_idx',
+      'cafe_list_share_links_creator_idx',
+      'cafe_list_comments_author_idx',
+      'cafe_list_comments_deleted_by_idx',
+      'cafe_list_comment_reports_reporter_idx'
+    )
+`)
+if (supportIndexes.rows[0].count !== 8) {
+  throw new Error('discovery foreign-key support indexes are incomplete')
 }
 
 console.log('PASS discovery V1 identity, public-list, enrichment, and attribution contracts')

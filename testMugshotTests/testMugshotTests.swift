@@ -1480,6 +1480,32 @@ struct testMugshotTests {
         #expect(!VisitSchemaCompatibility.isMissingCafeSessionColumn(unrelatedMissingColumn))
     }
 
+    @Test func cafeQueriesFallBackOnlyForMissingAppleMapsIdentityColumn() {
+        let missingAppleIdentity = PostgrestError(
+            code: "42703",
+            message: "column cafes.apple_maps_place_id does not exist"
+        )
+        #expect(SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            missingAppleIdentity
+        ))
+
+        let missingUnrelatedColumn = PostgrestError(
+            code: "42703",
+            message: "column cafes.name does not exist"
+        )
+        #expect(!SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            missingUnrelatedColumn
+        ))
+
+        let expiredSession = PostgrestError(
+            code: "PGRST301",
+            message: "JWT expired"
+        )
+        #expect(!SupabaseBackendCompatibility.isMissingAppleMapsPlaceIDColumn(
+            expiredSession
+        ))
+    }
+
     @Test func v3ProjectionRequestsBatchEveryVisitWithoutDuplicates() {
         let identifiers = (0..<205).map { _ in UUID() }
         let batches = VisitService.v3ProjectionBatches(

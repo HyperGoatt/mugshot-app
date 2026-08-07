@@ -35,13 +35,7 @@ final class CafeStateService {
             return []
         }
 
-        let cafeIds = rows.map { $0.cafeId.uuidString }
-        let cafes: [SupabaseCafeSummary] = try await client
-            .from("cafes")
-            .select("id, name, address, city, latitude, longitude, apple_place_id, apple_maps_place_id, website_url, identity_key")
-            .in("id", values: cafeIds)
-            .execute()
-            .value
+        let cafes = try await cafeService.fetchCafes(ids: rows.map(\.cafeId))
         let cafesById = Dictionary(uniqueKeysWithValues: cafes.map { ($0.id, $0) })
 
         return rows.compactMap { row in
