@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 enum PerformanceMonitor {
-    private static let logger = Logger(subsystem: "co.mugshot.app.testMugshot", category: "Performance")
+    private static let logger = Logger(subsystem: "co.mugshot.app", category: "Performance")
     private static let signposter = OSSignposter(logger: logger)
 
     static func mark(_ name: StaticString) {

@@ -56,8 +56,8 @@ Deno.test("sandbox Debug and production Release use their own APNs topic", () =>
     keyID: "key",
     teamID: "team",
     topics: {
-      sandbox: "co.mugshot.app.testMugshot.dev",
-      production: "co.mugshot.app.testMugshot",
+      sandbox: "co.mugshot.app.dev",
+      production: "co.mugshot.app",
     },
     privateKeyPEM: "unused",
   };
@@ -71,12 +71,12 @@ Deno.test("sandbox Debug and production Release use their own APNs topic", () =>
   );
   assert(
     sandbox.host === "https://api.sandbox.push.apple.com" &&
-      sandbox.topic === "co.mugshot.app.testMugshot.dev",
+      sandbox.topic === "co.mugshot.app.dev",
     "physical Debug did not use the sandbox App ID",
   );
   assert(
     production.host === "https://api.push.apple.com" &&
-      production.topic === "co.mugshot.app.testMugshot",
+      production.topic === "co.mugshot.app",
     "Release did not use the production App ID",
   );
 });
@@ -128,8 +128,8 @@ Deno.test("a false fenced completion is counted as a receipt failure", async () 
     keyID: "key",
     teamID: "team",
     topics: {
-      sandbox: "co.mugshot.app.testMugshot.dev",
-      production: "co.mugshot.app.testMugshot",
+      sandbox: "co.mugshot.app.dev",
+      production: "co.mugshot.app",
     },
     privateKeyPEM: "unused",
   };
@@ -177,8 +177,8 @@ Deno.test("recipient eligibility is revalidated immediately before APNs", async 
     keyID: "key",
     teamID: "team",
     topics: {
-      sandbox: "co.mugshot.app.testMugshot.dev",
-      production: "co.mugshot.app.testMugshot",
+      sandbox: "co.mugshot.app.dev",
+      production: "co.mugshot.app",
     },
     privateKeyPEM: "unused",
   };

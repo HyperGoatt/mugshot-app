@@ -1,20 +1,26 @@
 # Activity delivery worker
 
-Deployment status: version 1 is active in the live Supabase project as of
-2026-07-22. In-app activity is fully available. APNs delivery remains
-configuration-gated until the Apple credentials and durable schedule below are
-installed; the worker reports `configuration_required` instead of dropping or
-pretending to deliver a push.
+Deployment status: version 1 is active in the live Supabase project. In-app
+activity is fully available. On 2026-08-09 the Candlewood Coffee LLC team-scoped
+APNs key, both environment topics, and the durable schedule were installed in
+production; the worker status endpoint reports `pushDelivery: configured`.
+Physical-device delivery and tapped cold-launch routing still require the
+planned first-build acceptance pass.
+
+A provider-token probe against both Apple hosts returned `BadDeviceToken` for
+an intentionally invalid token on 2026-08-09. That is the expected proof that
+Apple accepted the key, team, and each topic without risking a real device
+notification.
 
 Deployment readiness requires:
 
 - APNs-enabled App IDs for both physical Debug
-  (`co.mugshot.app.testMugshot.dev`) and distribution
-  (`co.mugshot.app.testMugshot`), with signed `aps-environment` and Sign in with
+  (`co.mugshot.app.dev`) and distribution
+  (`co.mugshot.app`), with signed `aps-environment` and Sign in with
   Apple entitlements matching each provisioning profile;
 - `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`,
-  `APNS_SANDBOX_TOPIC=co.mugshot.app.testMugshot.dev`, and
-  `APNS_PRODUCTION_TOPIC=co.mugshot.app.testMugshot` secrets;
+  `APNS_SANDBOX_TOPIC=co.mugshot.app.dev`, and
+  `APNS_PRODUCTION_TOPIC=co.mugshot.app` secrets;
 - a service-to-service invocation with the Supabase secret key in the `apikey`
   header;
 - platform JWT verification disabled for this service-only endpoint, because the

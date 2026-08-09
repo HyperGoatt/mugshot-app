@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 
 enum MugshotAppGroup {
-    static let identifier = "group.co.mugshot.app.discovery"
+    static let identifier = "group.co.mugshot.app.candlewood"
     static let pendingImportsKey = "MugshotDiscovery.pendingImports.v1"
     static let eligibleListsKey = "MugshotDiscovery.eligibleLists.v1"
 }
