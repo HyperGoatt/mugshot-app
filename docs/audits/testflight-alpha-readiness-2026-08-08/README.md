@@ -135,6 +135,11 @@ Use `docs/app-store-submission-data-inventory.md` and the packaged
 - Required-reason UserDefaults access: `CA92.1` and `1C8F.1` in the app, and
   `1C8F.1` in the share extension.
 
+The complete app-record fields, ready-to-paste beta copy, privacy mapping,
+age-rating evidence, review notes, external-group sequence, and human-only
+placeholders are collected in
+`docs/audits/testflight-alpha-readiness-2026-08-08/APP_STORE_CONNECT_SUBMISSION.md`.
+
 ## Verification record
 
 Tier 4 release gate, using the repository's one-session acceptance policy:
@@ -173,8 +178,11 @@ Tier 4 release gate, using the repository's one-session acceptance policy:
 - [ ] Sign in to the Apple Developer account in Xcode and App Store Connect;
       confirm active program membership and agreements.
 - [ ] Create the app record and set `MUGSHOT_APP_STORE_URL` to its final URL.
-- [ ] Complete App Privacy, age rating, EU trader status, beta description,
-      feedback contact, review notes, and review credentials.
+- [x] Prepare the App Privacy mapping, age-rating evidence, beta description,
+      feedback address, What to Test copy, review notes, and group sequence.
+- [ ] Enter those answers in App Store Connect and supply the account holder's
+      EU trader decision, review contact, reviewer credentials, and tester
+      emails.
 - [ ] Create and validate a signed distribution archive, including final
       entitlements and embedded distribution profiles.
 - [ ] Upload 0.5.1 (1), confirm TestFlight processing, answer export compliance,
