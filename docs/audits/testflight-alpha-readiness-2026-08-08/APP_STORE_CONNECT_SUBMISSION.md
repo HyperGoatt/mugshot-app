@@ -6,10 +6,30 @@ Release candidate: 0.5.1 (1)
 
 Production bundle ID: `co.mugshot.app.testMugshot`
 
+Apple Developer organization: `Candlewood Coffee LLC`
+
 This is the copy-and-answer source for the first external TestFlight alpha. It
 separates repository-proven facts from entries that require the Apple account
 holder's identity, credentials, or legal decision. Do not invent values for
 the bracketed fields.
+
+## Inputs still required from Candlewood Coffee LLC
+
+Everything else in this package is ready to paste. The account holder must
+still supply or approve only these items:
+
+1. Unlock the Mac and explicitly authorize Xcode to create the Apple
+   Distribution certificate and production provisioning profiles.
+2. Choose the legally accurate EU status: `Trader` or `Not a trader`.
+3. Supply a monitored review contact first name, last name, direct phone with
+   country code, and email.
+4. Approve the published Privacy Policy, Terms, support address, and the company
+   details Apple will display.
+5. Supply the friend testers' TestFlight email addresses when invitations are
+   ready to send.
+
+The dedicated reviewer account is created and validated against production; its
+password is stored in the Mac Keychain and is not committed to Git.
 
 ## App record
 
@@ -17,6 +37,8 @@ the bracketed fields.
 | --- | --- |
 | Platform | iOS |
 | Name | Mugshot |
+| Developer organization / seller | Candlewood Coffee LLC |
+| Developer name, if Apple prompts on the first app | Candlewood Coffee LLC, unless the account holder intentionally chooses a registered trade name or DBA |
 | Primary language | English (U.S.) |
 | Bundle ID | `co.mugshot.app.testMugshot` |
 | SKU | `MUGSHOT-IOS-001` (recommended permanent internal identifier) |
@@ -25,12 +47,19 @@ the bracketed fields.
 | Build | `1` |
 | Primary category | Food & Drink (recommended) |
 | Secondary category | Lifestyle (recommended) |
+| Content Rights | Yes — Mugshot displays user-generated text/photos and third-party cafe/place information; certify only after confirming the Terms and data licenses grant the necessary rights |
+| License Agreement | Apple's standard EULA; do not add a custom App Store Connect EULA for this alpha |
 
 Confirm that the app name is available before creating the record. Apple
 requires the record before build upload and may require the Account Holder to
 accept the latest agreement first. The Apple ID generated for the record must
 then replace the blank `MUGSHOT_APP_STORE_URL` build setting with the final App
 Store URL before a later customer-facing release.
+
+If Apple asks for the developer name because this is the organization's first
+app, treat that as a durable public identity choice. `Candlewood Coffee LLC` is
+the safe default provided here; use another name only if it is a registered
+trade name Apple permits.
 
 ## TestFlight test information
 
@@ -78,27 +107,28 @@ does not expire and does not require reviewer access to a personal inbox.
 | Field | Required entry |
 | --- | --- |
 | Sign-in required | Yes |
-| Username | `[DEDICATED APPLE REVIEW ACCOUNT EMAIL]` |
-| Password | `[DEDICATED APPLE REVIEW ACCOUNT PASSWORD]` |
+| Username | `app-review@mugshot.app` |
+| Password | Retrieve the `Mugshot App Review` item for this username from the Mac Keychain immediately before submission |
 
-The account should start with enough curated, non-personal data to exercise
-Feed, Map, Saved, Profile, and a visit detail. Verify the credentials on the
-production backend immediately before submission. Do not place 2FA, magic-link,
-or one-time-code requirements in Apple's path.
+The account was created and password sign-in was verified against production on
+2026-08-09. It has a non-personal profile and one saved cafe. It does not
+require 2FA, magic-link, or one-time-code access. Reverify the credentials
+immediately before submission.
 
 ### Beta App Review notes
 
 > Mugshot is an authenticated coffee journal with optional social sharing.
-> Use the supplied reviewer account to open the existing journal, Feed, Map,
-> Saved, Profile, and Settings surfaces. To create a visit, tap Add, select or
-> capture a non-sensitive coffee photo, select a cafe, enter the drink and
-> rating details, choose visibility, and save. Location permission is optional;
-> a cafe can be found by search instead. Photo-library or camera permission is
-> requested only when the reviewer chooses that source. The app includes
-> user-generated photos and text, a social feed, likes, comments, friend
-> relationships, blocking/reporting controls, and account-deletion initiation
-> in Settings. There are no purchases, paid features, advertisements, or
-> non-exempt encryption. Privacy Policy: https://mugshotapp.co/privacy . Terms:
+> Use the supplied reviewer account to open Feed, Map, Saved, Profile, and
+> Settings. The account begins with one saved cafe and no personal content. To
+> create a journal visit, tap Add, select or capture a non-sensitive coffee
+> photo, select a cafe, enter the drink and rating details, choose visibility,
+> and save. Location permission is optional; a cafe can be found by search
+> instead. Photo-library or camera permission is requested only when the
+> reviewer chooses that source. The app includes user-generated photos and
+> text, a social feed, likes, comments, friend relationships,
+> blocking/reporting controls, and account-deletion initiation in Settings.
+> There are no purchases, paid features, advertisements, or non-exempt
+> encryption. Privacy Policy: https://mugshotapp.co/privacy . Terms:
 > https://mugshotapp.co/terms . Support: support@mugshot.app .
 
 Use these notes only after production account deletion and all named moderation
@@ -137,9 +167,10 @@ Use the packaged `testMugshot/PrivacyInfo.xcprivacy` and
 - Support URL: `https://mugshotapp.co/`.
 - Terms URL for review notes: `https://mugshotapp.co/terms`.
 
-All three URLs returned HTTP 200 on 2026-08-09. The legal owner must still
-approve the hosted policy, retention/deletion statements, third-party
-disclosures, and contact address before submission.
+All three URLs returned HTTP 200 on 2026-08-09. An authorized representative of
+Candlewood Coffee LLC must still approve the hosted policy,
+retention/deletion statements, third-party disclosures, and contact address
+before submission.
 
 ## Age rating questionnaire
 
@@ -157,22 +188,50 @@ guessed final rating.
 | Social Media Disabled for Users Under 13 | No; the app does not currently call Apple's Declared Age Range API to gate social capabilities |
 | Messaging and Chat | Yes; Apple's definition includes public posting, and the app supports comments |
 | Advertising | No |
-| Made for Kids | Not Applicable |
-| Override to Higher Age Rating | Not Applicable unless the final Terms or account policy sets a higher minimum age than Apple's calculated rating |
+| Made for Kids | No |
+| Override to Higher Age Rating | No, unless the final Terms or account policy sets a higher minimum age than Apple's calculated rating |
 
-For every content-frequency question, inspect the production moderation rules
-and the final seeded reviewer content at submission time. Do not answer `None`
-merely because the app owner does not create that content: user-generated text
-and photos can affect the truthful response. Save Apple's calculated rating and
-regional results in this audit after completing the live form.
+For the current coffee-journal product scope and clean reviewer seed, enter
+`None` for every mature-content frequency field:
+
+- Profanity or Crude Humor
+- Horror/Fear Themes
+- Alcohol, Tobacco, or Drug Use or References
+- Medical or Treatment Information
+- Health or Wellness Topics
+- Mature or Suggestive Themes
+- Sexual Content or Nudity
+- Graphic Sexual Content and Nudity
+- Cartoon or Fantasy Violence
+- Realistic Violence
+- Prolonged Graphic or Sadistic Realistic Violence
+- Guns or Other Weapons
+- Gambling
+- Simulated Gambling
+- Contests
+- Loot Boxes
+
+These answers describe Mugshot's intended and moderated experience; the
+separate `User-Generated Content`, `Social Media`, and `Messaging and Chat`
+answers disclose the user-content capabilities. Recheck the production seed at
+submission time and save Apple's calculated global and regional ratings. With
+`Social Media = Yes`, Apple's current iOS 26+ matrix should calculate at least
+13+ globally and 16+ in Australia, but App Store Connect's live result is the
+authority.
 
 ## EU Digital Services Act trader status
 
 The account holder must choose the legally accurate status in App Store
 Connect. This cannot be inferred from source code.
 
+Apple's published factors make `Trader` the likely selection for an app offered
+by an enrolled LLC in connection with its business, but Candlewood Coffee LLC
+must make or legally confirm that classification.
+
 - If distributing in the EU as a trader, provide and verify the required legal
-  name, address, phone, and email shown by Apple.
+  name, address, phone, and email shown by Apple. For an organization, Apple
+  uses the D-U-N-S address and asks for a display phone number and email, payment
+  account details, email/phone verification, and business/address evidence.
 - If not a trader, make that declaration knowingly and retain the supporting
   rationale.
 - Record the chosen status and verification result here before external review:
@@ -203,6 +262,8 @@ notes above; invite friends after Apple approves the group build.
 ## Execution checklist
 
 - [ ] Account Holder accepts any pending Apple Developer agreement.
+- [ ] Confirm that Candlewood Coffee LLC's legal entity details in Apple
+      Developer and App Store Connect are current.
 - [ ] Create the iOS app record using the fields above and record its Apple ID.
 - [ ] Set the final `MUGSHOT_APP_STORE_URL` in the release build configuration.
 - [ ] Complete App Privacy exactly as mapped above.
