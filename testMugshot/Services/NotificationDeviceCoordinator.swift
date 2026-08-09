@@ -258,7 +258,7 @@ final class NotificationDeviceCoordinator: ObservableObject {
     private func clearVisibleNotifications() {
         center.removeAllDeliveredNotifications()
         center.removeAllPendingNotificationRequests()
-        UIApplication.shared.applicationIconBadgeNumber = 0
+        center.setBadgeCount(0) { _ in }
     }
 
     private static func permissionState(
