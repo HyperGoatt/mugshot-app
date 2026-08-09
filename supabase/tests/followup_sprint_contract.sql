@@ -228,10 +228,10 @@ do $$ begin
     where user_id = (select id from sprint_users where n=2)
   ) then raise exception 'owner could not tag a person'; end if;
   if not exists (
-    select 1 from public.companion_suggestions(10)
+    select 1 from public.visit_tag_suggestions_v1(10)
     where user_id = (select id from sprint_users where n=2)
       and shared_sip_count >= 1
-  ) then raise exception 'companion suggestions did not learn from prior sips'; end if;
+  ) then raise exception 'visit tag suggestions did not learn from prior sips'; end if;
   perform public.set_visit_tags_v1(
     (select friend_visit from sprint_visits),
     array[(select id from sprint_users where n=3)]
@@ -257,10 +257,10 @@ select set_config('request.jwt.claims', jsonb_build_object(
 )::text, true);
 do $$ begin
   if exists (
-    select 1 from public.companion_suggestions(10)
+    select 1 from public.visit_tag_suggestions_v1(10)
     where user_id = (select id from sprint_users where n = 2)
   ) then
-    raise exception 'suspended companion remained selectable';
+    raise exception 'suspended visit tag suggestion remained selectable';
   end if;
 end $$;
 reset role;
@@ -274,10 +274,10 @@ select set_config('request.jwt.claims', jsonb_build_object(
 )::text, true);
 do $$ begin
   if not exists (
-    select 1 from public.companion_suggestions(10)
+    select 1 from public.visit_tag_suggestions_v1(10)
     where user_id = (select id from sprint_users where n = 2)
   ) then
-    raise exception 'companion did not return after suspension revocation';
+    raise exception 'visit tag suggestion did not return after suspension revocation';
   end if;
 end $$;
 
