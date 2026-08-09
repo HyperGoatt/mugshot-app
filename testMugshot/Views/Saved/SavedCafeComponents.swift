@@ -463,7 +463,7 @@ private func openCafeDirections(_ cafe: Cafe) {
         return
     }
     let name = cafe.consumerDisplayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Cafe"
-    if let url = URL(string: "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(name)") {
+    if let url = URL(string: "https://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(name)") {
         UIApplication.shared.open(url)
     }
 }

@@ -2827,7 +2827,7 @@ struct testMugshotTests {
         #expect(MapDiscoveryScope.all.explanation.lowercased().contains("together"))
         #expect(
             MapDiscoveryScope.available(isAuthenticated: false) ==
-                [.forYou, .all, .wantToTry, .favorites, .visited]
+                [.visited, .favorites, .wantToTry, .all, .forYou]
         )
     }
 
