@@ -1,7 +1,7 @@
 import Foundation
 
 enum ExtensionAppGroup {
-    static let identifier = "group.co.mugshot.app.discovery"
+    static let identifier = "group.co.mugshot.app.candlewood"
     static let pendingImportsKey = "MugshotDiscovery.pendingImports.v1"
     static let eligibleListsKey = "MugshotDiscovery.eligibleLists.v1"
 }

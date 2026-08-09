@@ -4,7 +4,7 @@ Prepared: 2026-08-09
 
 Release candidate: 0.5.1 (1)
 
-Production bundle ID: `co.mugshot.app.testMugshot`
+Production bundle ID: `co.mugshot.app`
 
 Apple Developer organization: `Candlewood Coffee LLC`
 
@@ -15,14 +15,18 @@ the bracketed fields.
 
 ## Inputs still required from Candlewood Coffee LLC
 
-Everything else in this package is ready to paste. The account holder must
-still supply or approve only these items:
+Everything else in this package is ready to paste. The signed archive and IPA
+are complete. The account holder must still supply or approve only these
+items:
 
-1. Unlock the Mac and explicitly authorize Xcode to create the Apple
-   Distribution certificate and production provisioning profiles.
+1. Decide whether the durable public developer name should be `Candlewood
+   Labs`. Apple permits that name only if it is a registered trade name, DBA,
+   or fictitious business name of Candlewood Coffee LLC; otherwise use the
+   legal name `Candlewood Coffee LLC`.
 2. Choose the legally accurate EU status: `Trader` or `Not a trader`.
-3. Supply a monitored review contact first name, last name, direct phone with
-   country code, and email.
+3. Supply the one missing review-contact field: a direct phone number with
+   country code. The current Account Holder name and Apple Account email are
+   prefilled below; confirm them or replace them with another monitored contact.
 4. Approve the published Privacy Policy, Terms, support address, and the company
    details Apple will display.
 5. Supply the friend testers' TestFlight email addresses when invitations are
@@ -37,10 +41,10 @@ password is stored in the Mac Keychain and is not committed to Git.
 | --- | --- |
 | Platform | iOS |
 | Name | Mugshot |
+| Company Name (public developer name on this first app) | `Candlewood Labs` only if it is a registered trade name, DBA, or fictitious business name of Candlewood Coffee LLC; otherwise `Candlewood Coffee LLC` |
 | Developer organization / seller | Candlewood Coffee LLC |
-| Developer name, if Apple prompts on the first app | Candlewood Coffee LLC, unless the account holder intentionally chooses a registered trade name or DBA |
 | Primary language | English (U.S.) |
-| Bundle ID | `co.mugshot.app.testMugshot` |
+| Bundle ID | `co.mugshot.app` |
 | SKU | `MUGSHOT-IOS-001` (recommended permanent internal identifier) |
 | User access | Full Access, unless the account holder intentionally limits the app to selected App Store Connect users |
 | Version | `0.5.1` |
@@ -50,16 +54,38 @@ password is stored in the Mac Keychain and is not committed to Git.
 | Content Rights | Yes — Mugshot displays user-generated text/photos and third-party cafe/place information; certify only after confirming the Terms and data licenses grant the necessary rights |
 | License Agreement | Apple's standard EULA; do not add a custom App Store Connect EULA for this alpha |
 
-Confirm that the app name is available before creating the record. Apple
-requires the record before build upload and may require the Account Holder to
-accept the latest agreement first. The Apple ID generated for the record must
-then replace the blank `MUGSHOT_APP_STORE_URL` build setting with the final App
-Store URL before a later customer-facing release.
+App Store Connect accepted the complete new-app form with `Mugshot`, the
+production bundle ID, and the recommended SKU on 2026-08-09; the form was
+cancelled without creating the user-owned record. Apple requires that record
+before build upload. The Apple ID generated for it must then replace the blank
+`MUGSHOT_APP_STORE_URL` build setting with the final App Store URL before a
+later customer-facing release.
 
-If Apple asks for the developer name because this is the organization's first
-app, treat that as a durable public identity choice. `Candlewood Coffee LLC` is
-the safe default provided here; use another name only if it is a registered
-trade name Apple permits.
+Because this is the organization's first app, the `Company Name` field sets the
+public developer name shown beneath Mugshot on the App Store. Apple says this
+can differ from the legal organization name only when it is a registered trade
+name, DBA, or fictitious business name. It can be set only while adding the
+first app and cannot be edited later. The legal Apple Developer organization
+and seller remain `Candlewood Coffee LLC`.
+
+## Signed release package
+
+The App Store export completed and passed package, signature, entitlement, and
+embedded-profile validation on 2026-08-09.
+
+| Artifact | Value |
+| --- | --- |
+| IPA | `~/Library/Application Support/Mugshot/Releases/0.5.1-1/Mugshot-0.5.1-1.ipa` |
+| Archive | `~/Library/Application Support/Mugshot/Releases/0.5.1-1/Mugshot-0.5.1-1.xcarchive` |
+| IPA SHA-256 | `aac2a4802eb92a9ec80550181262d8ee88731a02ff44b2f0268fa68a864b237d` |
+| Signing identity | `Apple Distribution: Candlewood Coffee LLC (R389G6U968)` |
+| App bundle | `co.mugshot.app`, version `0.5.1`, build `1` |
+| Embedded extensions | `co.mugshot.app.share`; `co.mugshot.app.widgets` |
+
+The release files are stored outside Git with owner-only permissions. The IPA
+is ready for the account holder's App Store Connect upload. Its internal binary
+and Xcode archive names still use `testMugshot`; users and App Store Connect see
+the display name `Mugshot` and production bundle ID `co.mugshot.app`.
 
 ## TestFlight test information
 
@@ -91,10 +117,10 @@ trade name Apple permits.
 
 | Field | Required entry |
 | --- | --- |
-| First name | `[ACCOUNT HOLDER OR REVIEW CONTACT FIRST NAME]` |
-| Last name | `[ACCOUNT HOLDER OR REVIEW CONTACT LAST NAME]` |
+| First name | `Joe` |
+| Last name | `Rosso` |
 | Phone | `[DIRECT PHONE WITH COUNTRY CODE]` |
-| Email | `[MONITORED REVIEW CONTACT EMAIL]` |
+| Email | `uscbaseball5@gmail.com` |
 
 These details are for Apple review contact, not tester feedback. They must be
 real and monitored during review.
@@ -259,13 +285,37 @@ The first external build of the version requires TestFlight App Review. Submit
 the build with the description, What to Test, contact, credentials, and review
 notes above; invite friends after Apple approves the group build.
 
+## One internal-device gate before external review
+
+The upload itself unlocks the only acceptance work that cannot be completed
+from this Mac without a registered physical device. Add the processed build to
+`Alpha Internal`, install it on one iPhone, and verify these items before
+submitting `Alpha Friends` for Beta App Review:
+
+1. Sign in with Apple creates or restores the correct Mugshot account.
+2. A production notification arrives and a cold-launch tap opens the intended
+   activity without crossing accounts.
+3. The Share extension imports one supported place link and the widget renders.
+4. A disposable password account can complete step-up and account deletion;
+   repeat with a disposable Apple identity if Apple sign-in is offered to the
+   first external group.
+
+After that pass, set the production
+`ACCOUNT_DELETION_STEP_UP_CLIENT_READY=true` flag and rerun the empty deletion
+worker check. Until then the deletion API remains deliberately fail-closed, so
+do not submit the external build for review.
+
 ## Execution checklist
 
-- [ ] Account Holder accepts any pending Apple Developer agreement.
+- [x] Free Apps Agreement is active through August 7, 2027. The Paid Apps
+      Agreement remains unsigned and is not required for this free alpha with
+      no purchases or paid features.
 - [ ] Confirm that Candlewood Coffee LLC's legal entity details in Apple
       Developer and App Store Connect are current.
 - [ ] Create the iOS app record using the fields above and record its Apple ID.
-- [ ] Set the final `MUGSHOT_APP_STORE_URL` in the release build configuration.
+- [ ] After the app record supplies its Apple ID, set the final
+      `MUGSHOT_APP_STORE_URL` for a later customer-facing release. It is not a
+      TestFlight alpha blocker and is not used by the current share flow.
 - [ ] Complete App Privacy exactly as mapped above.
 - [ ] Complete the live age-rating questionnaire; record calculated and
       regional results.
@@ -282,6 +332,7 @@ notes above; invite friends after Apple approves the group build.
 ## Apple references
 
 - [Create the app record](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/)
+- [Set the developer name](https://developer.apple.com/help/app-store-connect/create-an-app-record/set-your-developer-name)
 - [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
 - [Provide TestFlight information](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-test-information)
 - [Invite external testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers)
