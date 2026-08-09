@@ -1,6 +1,6 @@
 # Mugshot TestFlight Alpha Readiness Audit
 
-Date: 2026-08-08
+Date: 2026-08-08; updated 2026-08-09
 Release candidate: 0.5.1 (1)
 Production app bundle: `co.mugshot.app.testMugshot`
 
@@ -8,9 +8,10 @@ Production app bundle: `co.mugshot.app.testMugshot`
 
 The iOS source and unsigned Release package pass the local release gate after
 the fixes recorded below. The build is not yet distributable to TestFlight.
-Apple signing access, the App Store Connect app record, four missing production
-database migrations, account-deletion activation, the hosted associated-domain
-file, and the unavailable canonical Codex Security report are open blockers.
+Apple signing access, the App Store Connect app record, five missing production
+database migrations, account-deletion activation, and the unavailable canonical
+Codex Security report are open blockers. The associated-domain hosting blocker
+is resolved.
 
 Do not invite external friends until the database branch rehearsal, signed
 archive validation, upload processing, and first external-group Beta App Review
@@ -24,8 +25,8 @@ are complete.
 | Codex Security Deep Security Scan | Blocked by host | Preflight passed, but discovery refused to start because this Codex task has no managed filesystem permission profile. No canonical report exists and no substitute report is claimed. |
 | App Review, privacy, moderation, and account lifecycle audit | Complete | Privacy/terms/support/moderation surfaces exist. Privacy disclosures were reconciled with shipped behavior. |
 | Scoped source and packaging fixes | Complete | Privacy manifests, export-compliance flag, iPad orientations, HTTPS Maps links, dependency pin, and shared XCTest scheme are present. |
-| Deterministic and runtime verification | Local portion complete | Full static gate passed; 16 Deno tests passed; hermetic PostgreSQL contracts passed; effective XCTest result 356/356; app built, installed, launched, and settled on iOS 18.6; unsigned Release archive passed Xcode store validation. |
-| Production backend release | Blocked pending isolated QA | Four repository migrations are absent from production and must be rehearsed on a disposable Supabase branch before deployment. |
+| Deterministic and runtime verification | Local portion complete | Full static gate passed; 16 Deno tests passed; hermetic PostgreSQL contracts, including adversarial legacy-notification checks, passed; effective XCTest result 357/357; app built, installed, launched, and settled on iOS 18.6; unsigned Release archive passed Xcode store validation. |
+| Production backend release | Blocked pending isolated QA | Five repository migrations are absent from production and must be rehearsed on a disposable Supabase branch before deployment. |
 | Signed distribution archive | Blocked by Apple account | Xcode has no valid signed-in account, Apple Distribution identity, or distribution profiles for the app and two extensions. |
 | App Store Connect record and upload | Blocked by Apple account | No app record exists. App Store Connect and Xcode require account authentication and any prompted 2FA. |
 | External TestFlight group | Pending | Requires processed upload, export-compliance answer, beta metadata, Beta App Review, and tester invitations. |
@@ -47,25 +48,43 @@ are complete.
   enabled test bundles and could not run tests in CI or another checkout.
 - Reconciled one stale Map scope expectation with the repository's newer,
   explicitly approved journal-first order.
+- Replaced the deprecated application badge API with
+  `UNUserNotificationCenter.setBadgeCount`.
+- Constrained the legacy PWA notification INSERT path to authenticated social
+  actions with verified actors, recipients, references, block state, and exact
+  column grants. Added compatibility for the PWA's `friend_accept` event name.
+- Published the associated-domain file at the production domain and verified
+  its status, content type, redirect count, and repository-exact body.
 
 ## Production backend blockers
 
 Read-only production inspection used Supabase project `quskamnfwglctqewwfln`.
 No production schema, data, secrets, functions, or settings were mutated.
 
-The repository has 110 migrations and production reports 106. Production is
+The repository has 111 migrations and production reports 106. Production is
 missing these migrations in order:
 
 1. `20260723154204_post_publish_share_hub.sql`
 2. `20260731143430_enforce_visit_caption_length.sql`
 3. `20260803143000_edit_owned_visit_content_v2.sql`
 4. `20260804204427_tag_only_social_edit_v2.sql`
+5. `20260809022000_harden_legacy_notification_inserts.sql`
 
 The app already calls capabilities from this missing schema, so sharing and
 editing behavior cannot be considered alpha-ready. The safe next action is a
 data-less Supabase branch rehearsal followed by
 `./scripts/verify-supabase-qa.sh <branch-id>`. The quoted branch rate at audit
 time was $0.01344 per hour; creation requires explicit cost confirmation.
+
+The production `notifications` INSERT policy currently checks only that the
+caller matches `actor_user_id`; an authenticated caller can still choose an
+arbitrary recipient and references. Read-only production inspection confirmed
+that the newer native `activity_events` pipeline is generated by authoritative
+database triggers, while the hosted PWA has seven legacy client-side INSERT
+sites. Migration `20260809022000` preserves those legitimate PWA actions while
+rejecting spoofed actors, recipients, types, references, blocked pairs, and
+content mutation. It passed a focused hermetic adversarial contract but remains
+unapplied until the paid isolated-branch rehearsal is authorized.
 
 Account deletion remains intentionally fail-closed. Production has no composed
 PostgREST live-session hook, no durable deletion drain schedule, and no signed
@@ -74,16 +93,19 @@ until the full gate in `docs/ALPHA_ACCOUNT_DELETION_DEPLOYMENT_GATE.md` passes.
 Because Mugshot offers account creation, deletion must be working before the
 build is presented for external Beta App Review.
 
-## Apple and hosting blockers
+## Apple blockers and hosting state
 
 - App Store Connect currently contains no Mugshot app record.
 - Xcode reports an invalid/missing account credential and no distribution
   profiles for `co.mugshot.app.testMugshot`, `.share`, and `.widgets`.
 - `MUGSHOT_APP_STORE_URL` is intentionally blank until the app record supplies
   an Apple ID.
-- `https://mugshotapp.co/.well-known/apple-app-site-association` returns 404,
-  while the release entitlement advertises `applinks:mugshotapp.co`. Publish a
-  valid AASA file or remove the entitlement before distribution.
+- `https://mugshotapp.co/.well-known/apple-app-site-association` now returns
+  HTTP 200 directly with no redirects and `application/json`; its response is
+  byte-for-byte identical to the repository copy and covers production and
+  development bundle IDs for `/m/*` and `/l/*`.
+- Publishing through the current Lovable plan restored its small
+  "Edit with Lovable" site badge. This is not an iOS or TestFlight blocker.
 - App Store Connect reported incomplete EU trader-status information and a
   pending age-rating questionnaire update. Resolve both before external review.
 
@@ -115,21 +137,18 @@ Tier 4 release gate, using the repository's one-session acceptance policy:
   target privacy manifests and dependency manifests were present and valid.
 - Signed Release archive: stopped at signing before compile because no valid
   Xcode account or distribution profiles were available.
-
-One accepted non-blocking warning remains:
-`UIApplication.shared.applicationIconBadgeNumber` is deprecated on iOS 17 in
-`NotificationDeviceCoordinator`. It does not block compilation, archive, or
-TestFlight processing, but should be migrated to `UNUserNotificationCenter`
-in a focused follow-up.
+- Follow-up full-static gate after the notification hardening: 11 passed, 0
+  failed, 1 optional parser check skipped; the focused legacy PWA compatibility
+  test passed. Effective XCTest result: 357/357.
 
 ## Upload completion checklist
 
 - [ ] Start and complete the canonical Codex Security Deep Security Scan.
-- [ ] Rehearse the four migrations on a data-less Supabase branch, run the
+- [ ] Rehearse the five migrations on a data-less Supabase branch, run the
       complete QA harness, deploy in order, and prove zero drift without
       mutating tester data.
 - [ ] Finish the account-deletion activation matrix with disposable accounts.
-- [ ] Publish and validate the AASA file.
+- [x] Publish and validate the AASA file.
 - [ ] Sign in to the Apple Developer account in Xcode and App Store Connect;
       confirm active program membership and agreements.
 - [ ] Create the app record and set `MUGSHOT_APP_STORE_URL` to its final URL.

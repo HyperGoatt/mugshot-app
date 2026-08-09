@@ -37,7 +37,8 @@ begin
     ('cafe_sessions_and_pulse', array['20260717142724']),
     ('private_visit_photo_storage', array['20260717150000']),
     ('session_balanced_map_pin_scores', array['20260717185855']),
-    ('post_publish_share_hub', array['20260723154204'])
+    ('post_publish_share_hub', array['20260723154204']),
+    ('harden_legacy_notification_inserts', array['20260809022000'])
   ) required(name, versions)
   where not exists (
     select 1

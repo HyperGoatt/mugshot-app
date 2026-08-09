@@ -692,7 +692,7 @@ struct LegacyActivityNotification: Decodable, Equatable {
         case "comment", "reply": .comment
         case "mention": .commentMention
         case "friend_request": .friendRequest
-        case "friend_request_accepted", "follow": .friendRequestAccepted
+        case "friend_accept", "friend_request_accepted", "follow": .friendRequestAccepted
         case "new_visit_from_friend": .friendPost
         default: nil
         }

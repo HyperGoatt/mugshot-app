@@ -45,6 +45,27 @@ struct ActivityDeliveryTests {
         #expect(defaults.collaborativeListInvitations)
     }
 
+    @Test func legacyPWANameForAcceptedFriendRequestRemainsReadable() throws {
+        let actorID = UUID()
+        let notification = LegacyActivityNotification(
+            id: UUID(),
+            userID: UUID(),
+            actorUserID: actorID,
+            type: "friend_accept",
+            visitID: nil,
+            commentID: nil,
+            createdAt: "2026-08-09T00:00:00Z",
+            readAt: nil,
+            actorUsername: "friend",
+            actorDisplayName: "Alpha Friend",
+            actorAvatarURL: nil
+        )
+
+        let event = try #require(notification.activityEvent)
+        #expect(event.kind == .friendRequestAccepted)
+        #expect(event.actorUserID == actorID)
+    }
+
     @Test func activityAccountScopeRequiresTheExactActiveSession() {
         let accountID = UUID()
         do {
