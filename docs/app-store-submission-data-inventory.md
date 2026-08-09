@@ -11,7 +11,8 @@ Connect before uploading a release. It is a launch checklist, not legal advice.
 | Visit photos | Journal covers and user-selected sharing | Supabase Storage `visit-photos` | Per-visit audience, delete visit, or delete account | User content; account-linked |
 | Captions, private notes, ratings, drink details | Save the personal coffee journal and taste insights | Supabase Postgres | Edit/delete visit or delete account | User content; account-linked |
 | Likes, comments, saved cafes | Lightweight social feedback and personal cafe library | Supabase Postgres | Remove the action or delete account | User content; account-linked |
-| Cafe/map searches and requested location | Find a cafe while creating a visit | Apple MapKit on-device/service request; selected cafe is stored with a visit | Deny location; type/search a cafe instead | Confirm precise/coarse location collection and linkage based on final behavior |
+| Current location and saved cafe coordinates | Find nearby cafes and associate a visit or saved item with a cafe | Apple MapKit for real-time search; Supabase stores the selected cafe and its coordinates | Deny location and type/search a cafe instead; edit or delete the associated content | Precise location; account-linked; app functionality; not tracking |
+| Product interaction and other usage events | Measure feature use and improve reliability | PostHog, identified by the account UUID | Sign out or delete account | Usage data; account-linked; analytics; not tracking |
 
 ## Submission gate
 
@@ -21,8 +22,11 @@ Connect before uploading a release. It is a launch checklist, not legal advice.
       summary.
 - [ ] Settings exposes the Privacy Policy, Terms, selectable support email,
       mail fallback, and in-app Delete Account initiation.
-- [ ] The App Privacy answers match the table above, including whether each
-      category is linked to identity and whether it is used for tracking.
+- [ ] The App Privacy answers match the table above and
+      `testMugshot/PrivacyInfo.xcprivacy`. The release declares no tracking;
+      email, name, user ID, device ID, precise location, photos/videos, other
+      user content, product interaction, and other usage data are linked to the
+      account for app functionality or analytics as recorded in the manifest.
 - [ ] The legal owner has confirmed retention, deletion timing, third-party
       service disclosures, and the final contact address.
 - [ ] Test account deletion removes both owner storage prefixes, relational

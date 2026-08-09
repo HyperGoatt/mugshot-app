@@ -621,7 +621,7 @@ struct CafeCard: View {
         if let mapURLString = cafe.mapItemURL, let url = URL(string: mapURLString) {
             UIApplication.shared.open(url)
         } else {
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            let urlString = "https://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(cafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
             if let url = URL(string: urlString) {
                 UIApplication.shared.open(url)
             }
@@ -1724,7 +1724,7 @@ struct CafeDetailView: View {
             UIApplication.shared.open(url)
         } else {
             // Fallback: open Maps with coordinates
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(currentCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            let urlString = "https://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(currentCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
             if let url = URL(string: urlString) {
                 UIApplication.shared.open(url)
             }

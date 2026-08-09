@@ -879,16 +879,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
+				kind = exactVersion;
+				version = 2.54.1;
 			};
 		};
 		72C000042F00000000000004 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.56.0;
+				kind = exactVersion;
+				version = 3.68.4;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

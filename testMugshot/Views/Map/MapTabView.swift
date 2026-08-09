@@ -3588,7 +3588,7 @@ struct CafeDetailSheet: View {
             UIApplication.shared.open(url)
         } else {
             let encodedName = displayCafe.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let urlString = "http://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
+            let urlString = "https://maps.apple.com/?ll=\(location.latitude),\(location.longitude)&q=\(encodedName)"
             if let url = URL(string: urlString) {
                 UIApplication.shared.open(url)
             }
