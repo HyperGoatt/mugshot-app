@@ -1,14 +1,16 @@
 # Alpha Account Deletion V3 Deployment Gate
 
 Status: database foundation and `delete-account` v4 deployed on 2026-07-22;
-new deletion initiation remains intentionally disabled.
+the production live-session hook and durable worker were enabled and verified
+on 2026-08-09. New deletion initiation remains intentionally disabled pending
+signed-client acceptance and the destructive disposable-account pass.
 
 The migrations and recovery worker are live so the contract cannot drift behind
-the client. The three activation prerequisites remain false because production
-does not yet have a reviewed PostgREST live-session hook, a durable deletion
-drain schedule, or signed-client fresh-session acceptance evidence. This is the
-required fail-closed state: the app cannot begin a new deletion, while the
-worker remains available to recover a prepared job if one ever exists.
+the client. Production now has a reviewed PostgREST live-session hook and a
+Vault-backed five-minute deletion drain schedule. The signed-client prerequisite
+remains false. This is the required fail-closed state: the app cannot begin a
+new deletion, while the worker remains available to recover a prepared job if
+one ever exists.
 
 This gate exists because the current Supabase project contains valuable pre-alpha posts and social data. Do not exercise deletion against an existing owner. Use a newly created disposable account only after every gate below passes.
 
@@ -54,9 +56,18 @@ This hook covers the Data API only. V3 separately enforces Storage writes and de
 
 Set the Edge Function secret `ACCOUNT_DELETION_LIVE_SESSION_GATE=true` only after those checks pass.
 
-Current production state: `pgrst.db_pre_request` is not configured for `anon`,
-`authenticated`, or `authenticator`; `ACCOUNT_DELETION_LIVE_SESSION_GATE` must
-therefore remain false.
+Production verification on 2026-08-09:
+
+- migration `20260809144548_enable_account_deletion_live_session_gate` set the
+  `authenticator` pre-request hook without replacing another configured hook;
+- a live password session received HTTP 200;
+- the same JWT received HTTP 401 / `PGRST301` after global sign-out;
+- an active synthetic deletion job caused HTTP 401 / `PGRST301`, and exact
+  fixture removal restored HTTP 200;
+- anonymous cafe access remained HTTP 200; and
+- `ACCOUNT_DELETION_LIVE_SESSION_GATE=true` is set in production.
+
+The deleted-subject check remains part of the final disposable deletion run.
 
 ## Fresh-session client gate
 
@@ -86,10 +97,20 @@ The request must use the service-role key as its Bearer token. Keep that secret 
 
 The iOS client refuses to initiate V3 deletion unless the live-session gate, fresh-session client gate, and scheduled-worker gate are all true. Recovery and worker actions remain available so an already-prepared job can finish if a flag is later removed.
 
-Current production state: `delete-account` v4 is active, but no durable
-`drain_deletions_v3` schedule is configured. Keep
-`ACCOUNT_DELETION_WORKER_SCHEDULED=false` until an empty scheduled invocation is
-visible in logs.
+Production verification on 2026-08-09:
+
+- the service-role bearer is encrypted in Supabase Vault and is not present in
+  repository SQL or the cron command;
+- migration `20260809145717_enable_account_deletion_worker_schedule` installed
+  active job `mugshot-account-deletion-v3` at `*/5 * * * *`;
+- the first cron run succeeded at 15:00 UTC and its `pg_net` response was HTTP
+  200 with zero claimed, completed, or pending jobs; and
+- `ACCOUNT_DELETION_WORKER_SCHEDULED=true` is set in production.
+
+The production password protocol also proved that the initiating session cannot
+authorize, a newly authenticated same-subject session can authorize exactly
+once, replay is rejected, and no deletion job is prepared while
+`ACCOUNT_DELETION_STEP_UP_CLIENT_READY=false`.
 
 ## Read-only Storage preflight
 

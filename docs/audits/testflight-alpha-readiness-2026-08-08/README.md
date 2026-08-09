@@ -6,12 +6,14 @@ Production app bundle: `co.mugshot.app.testMugshot`
 
 ## Verdict
 
-The iOS source and unsigned Release package pass the local release gate after
-the fixes recorded below. The build is not yet distributable to TestFlight.
-Apple signing access, the App Store Connect app record, six missing production
-database migrations, account-deletion activation, and the unavailable canonical
-Codex Security report are open blockers. The associated-domain hosting blocker
-is resolved.
+The iOS source, production schema, live-session enforcement, durable deletion
+worker, and unsigned Release package pass their completed release gates. The
+six rehearsed migrations and two account-deletion operations migrations are
+live, and production migration history matches all 114 repository migrations.
+The build is not yet distributable to TestFlight because an Apple Distribution
+identity and three distribution profiles are still missing. Signed-client
+account-deletion acceptance and the unavailable canonical Codex Security report
+also remain open.
 
 Do not invite external friends until the database branch rehearsal, signed
 archive validation, upload processing, and first external-group Beta App Review
@@ -26,9 +28,10 @@ are complete.
 | App Review, privacy, moderation, and account lifecycle audit | Complete | Privacy/terms/support/moderation surfaces exist. Privacy disclosures were reconciled with shipped behavior. |
 | Scoped source and packaging fixes | Complete | Privacy manifests, export-compliance flag, iPad orientations, HTTPS Maps links, dependency pin, and shared XCTest scheme are present. |
 | Deterministic and runtime verification | Local portion complete | Full static gate passed; 16 Deno tests passed; hermetic PostgreSQL contracts, including adversarial legacy-notification checks, passed; effective XCTest result 357/357; app built, installed, launched, and settled on iOS 18.6; unsigned Release archive passed Xcode store validation. |
-| Production backend release | QA complete; production approval pending | All 112 migrations replayed with zero drift and an effective 49/49 remote contract result on a data-less branch. Production deployment pauses because the tag-only migration will convert and retire one live legacy Shared Mugshot container. |
-| Signed distribution archive | Blocked by Apple account | Xcode has no valid signed-in account, Apple Distribution identity, or distribution profiles for the app and two extensions. |
-| App Store Connect record and upload | Blocked by Apple account | No app record exists. App Store Connect and Xcode require account authentication and any prompted 2FA. |
+| Production backend release | Complete | A fresh logical backup preceded deployment. All 114 migrations are live with zero drift; the approved legacy Shared Mugshot was converted to reciprocal tags and retired without losing either visit. |
+| Account-deletion backend gates | Backend complete | Live/revoked/active-job/anonymous session checks passed. The Vault-backed five-minute worker produced a successful scheduled empty drain. Signed-client and destructive disposable-account acceptance remain. |
+| Signed distribution archive | Blocked by signing assets | Xcode recognizes Candlewood Coffee LLC Developer Team, but the Mac has no Apple Distribution identity or production profiles for the app and two extensions. |
+| App Store Connect record and upload | User-owned submission step | No upload will be performed by this task. The account holder will create/complete the record, upload the validated archive, and submit the first external build. |
 | External TestFlight group | Pending | Requires processed upload, export-compliance answer, beta metadata, Beta App Review, and tester invitations. |
 
 ## Findings fixed in this branch
@@ -59,13 +62,13 @@ are complete.
   wrappers instead of sealed private helpers, and reconciled the remote
   contracts with the current tag-only suggestion API.
 
-## Production backend blockers
+## Production backend release
 
-Read-only production inspection used Supabase project `quskamnfwglctqewwfln`.
-No production schema, data, secrets, functions, or settings were mutated.
-
-The repository has 112 migrations and production reports 106. Production is
-missing these migrations in order:
+Production project `quskamnfwglctqewwfln` was backed up before mutation. The
+logical archive is stored outside Git at
+`~/Library/Application Support/Mugshot/Backups/2026-08-09-pre-release/public-private.dump`
+(SHA-256 `e6ae8dc7afe838bbe5c3d026ad9cca8022e98a2626591af370ec876c7e4e86f8`).
+The approved six migrations were then applied in order:
 
 1. `20260723154204_post_publish_share_hub.sql`
 2. `20260731143430_enforce_visit_caption_length.sql`
@@ -74,44 +77,28 @@ missing these migrations in order:
 5. `20260809022000_harden_legacy_notification_inserts.sql`
 6. `20260809022500_fix_alpha_qa_contracts.sql`
 
-The app already calls capabilities from this missing schema, so sharing and
-editing behavior cannot be considered alpha-ready. The data-less Supabase
-branch rehearsal is complete: all 112 migrations replayed in order, migration
-history matched the repository with zero drift, and the remote contract result
-was effectively 49/49 after the one corrected focused assertion. The temporary
-branch was deleted immediately after verification, so there is no continuing
-hourly branch charge.
+Post-deployment verification found all eight tag rows intact, both former Shared
+Mugshot contributions represented as reciprocal tags, zero rows in each retired
+legacy container table, the caption constraint present, both new edit/share
+RPCs present, and the authenticated-only legacy notification policy calling its
+validation function. Production and repository now report the same 114
+migrations.
 
-The production `notifications` INSERT policy currently checks only that the
-caller matches `actor_user_id`; an authenticated caller can still choose an
-arbitrary recipient and references. Read-only production inspection confirmed
-that the newer native `activity_events` pipeline is generated by authoritative
-database triggers, while the hosted PWA has seven legacy client-side INSERT
-sites. Migration `20260809022000` preserves those legitimate PWA actions while
-rejecting spoofed actors, recipients, types, references, blocked pairs, and
-content mutation. It passed both hermetic adversarial checks and the disposable
-remote suite but remains unapplied in production.
-
-The production impact check found zero captions over the new limit and no visit
-deletions. The tag-only migration will rename eight existing tag rows, preserve
-both contributed visits, convert the two Shared Mugshot contributions into
-ordinary reciprocal tags, then delete one legacy Shared Mugshot container with
-two membership rows and two contribution-link rows. That intentional retirement
-is the only material destructive effect found and requires explicit approval
-before production deployment.
-
-Account deletion remains intentionally fail-closed. Production has no composed
-PostgREST live-session hook, no durable deletion drain schedule, and no signed
-fresh-session client acceptance evidence. Keep all three activation flags false
-until the full gate in `docs/ALPHA_ACCOUNT_DELETION_DEPLOYMENT_GATE.md` passes.
-Because Mugshot offers account creation, deletion must be working before the
-build is presented for external Beta App Review.
+Account deletion is still intentionally fail-closed for initiation. The
+PostgREST hook and durable worker are now live and their two Edge Function flags
+are true. Password step-up semantics passed directly against production, but
+`ACCOUNT_DELETION_STEP_UP_CLIENT_READY` remains false until the signed client
+and complete disposable-account flow pass. See
+`docs/ALPHA_ACCOUNT_DELETION_DEPLOYMENT_GATE.md` for the evidence and final
+matrix.
 
 ## Apple blockers and hosting state
 
 - App Store Connect currently contains no Mugshot app record.
-- Xcode reports an invalid/missing account credential and no distribution
-  profiles for `co.mugshot.app.testMugshot`, `.share`, and `.widgets`.
+- Xcode recognizes `Candlewood Coffee LLC Developer Team` (Team ID
+  `D699BA3NLG`), but the local keychain has only an Apple Development identity.
+  Production profiles for `co.mugshot.app.testMugshot`, `.share`, and
+  `.widgets` are absent.
 - `MUGSHOT_APP_STORE_URL` is intentionally blank until the app record supplies
   an Apple ID.
 - `https://mugshotapp.co/.well-known/apple-app-site-association` now returns
@@ -164,6 +151,14 @@ Tier 4 release gate, using the repository's one-session acceptance policy:
   underlying compatibility defects were fixed. The 48 unaffected contracts and
   corrected focused contract then passed, for an effective 49/49 result. The
   branch was deleted after verification.
+- Production deployment: six rehearsed migrations applied after a fresh logical
+  backup; all conversion counts and zero-drift checks passed.
+- Account-deletion live-session gate: rollback test passed; authenticated 200,
+  revoked 401, active deletion job 401, post-cleanup 200, and anonymous 200.
+- Account-deletion worker: rollback test and backend suite passed; the first
+  scheduled cron run and `pg_net` response succeeded with an empty drain.
+- Password step-up: initiating session rejected, fresh same-subject session
+  accepted once, replay rejected, and gated deletion created zero jobs.
 
 ## Upload completion checklist
 
@@ -171,12 +166,14 @@ Tier 4 release gate, using the repository's one-session acceptance policy:
 - [x] Rehearse the six migrations on a data-less Supabase branch, run the
       complete QA harness, replay in order, and prove zero drift without
       mutating tester data.
-- [ ] Approve the one-container Shared Mugshot retirement, then deploy the six
+- [x] Approve the one-container Shared Mugshot retirement, then deploy the six
       rehearsed migrations to production and verify zero drift.
-- [ ] Finish the account-deletion activation matrix with disposable accounts.
+- [ ] Finish signed-client and destructive disposable-account deletion
+      acceptance; backend hook and worker gates are complete.
 - [x] Publish and validate the AASA file.
-- [ ] Sign in to the Apple Developer account in Xcode and App Store Connect;
-      confirm active program membership and agreements.
+- [x] Sign in to the Candlewood Coffee LLC Developer Team in Xcode.
+- [ ] Create the Apple Distribution certificate and three production profiles;
+      accept any agreements presented by Apple.
 - [ ] Create the app record and set `MUGSHOT_APP_STORE_URL` to its final URL.
 - [x] Prepare the App Privacy mapping, age-rating evidence, beta description,
       feedback address, What to Test copy, review notes, and group sequence.
