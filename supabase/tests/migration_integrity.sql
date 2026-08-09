@@ -38,7 +38,8 @@ begin
     ('private_visit_photo_storage', array['20260717150000']),
     ('session_balanced_map_pin_scores', array['20260717185855']),
     ('post_publish_share_hub', array['20260723154204']),
-    ('harden_legacy_notification_inserts', array['20260809022000'])
+    ('harden_legacy_notification_inserts', array['20260809022000']),
+    ('fix_alpha_qa_contracts', array['20260809022500'])
   ) required(name, versions)
   where not exists (
     select 1
@@ -373,8 +374,9 @@ begin
   ) then raise exception 'visit tag policy bypasses caller-bound visibility wrappers'; end if;
   if has_function_privilege('anon','public.set_visit_tags_v1(uuid,uuid[])','EXECUTE')
      or not has_function_privilege('authenticated','public.set_visit_tags_v1(uuid,uuid[])','EXECUTE')
-     or has_function_privilege('anon','public.companion_suggestions(integer)','EXECUTE')
-     or not has_function_privilege('authenticated','public.companion_suggestions(integer)','EXECUTE') then
+     or to_regprocedure('public.companion_suggestions(integer)') is not null
+     or has_function_privilege('anon','public.visit_tag_suggestions_v1(integer)','EXECUTE')
+     or not has_function_privilege('authenticated','public.visit_tag_suggestions_v1(integer)','EXECUTE') then
     raise exception 'tag RPC grants are incorrect';
   end if;
   if not has_function_privilege(

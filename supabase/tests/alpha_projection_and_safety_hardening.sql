@@ -25,10 +25,10 @@ begin
   end if;
 
   select pg_get_functiondef(
-    'public.companion_suggestions(integer)'::regprocedure
+    'public.visit_tag_suggestions_v1(integer)'::regprocedure
   ) into definition;
   if definition not ilike '%can_view_user_as(profile.id, input.actor)%' then
-    raise exception 'companion suggestions expose unavailable accounts';
+    raise exception 'visit tag suggestions expose unavailable accounts';
   end if;
 
   select pg_get_functiondef(
