@@ -166,9 +166,13 @@ struct MugshotAnalyticsTests {
         )
         let payloads = [
             MugshotAnalyticsEvent.onboardingStarted.payload,
-            MugshotAnalyticsEvent.onboardingStepCompleted(step: 1, totalSteps: 1).payload,
-            MugshotAnalyticsEvent.onboardingAbandoned(step: 1, totalSteps: 1).payload,
+            MugshotAnalyticsEvent.onboardingStepCompleted(step: 1, totalSteps: 8).payload,
+            MugshotAnalyticsEvent.onboardingSkipped(step: 2, totalSteps: 8).payload,
+            MugshotAnalyticsEvent.onboardingAbandoned(step: 1, totalSteps: 8).payload,
             MugshotAnalyticsEvent.onboardingCompleted(durationSeconds: 12).payload,
+            MugshotAnalyticsEvent.guestIntroductionStarted.payload,
+            MugshotAnalyticsEvent.guestIntroductionCompleted(durationSeconds: 8).payload,
+            MugshotAnalyticsEvent.guestIntroductionDismissed.payload,
             MugshotAnalyticsEvent.timeToFirstValue(
                 value: "map_available",
                 durationSeconds: 12
@@ -196,8 +200,12 @@ struct MugshotAnalyticsTests {
         #expect(payloads.map(\.event) == [
             "onboarding_started",
             "onboarding_step_completed",
+            "onboarding_skipped",
             "onboarding_abandoned",
             "onboarding_completed",
+            "guest_introduction_started",
+            "guest_introduction_completed",
+            "guest_introduction_dismissed",
             "time_to_first_value",
             "auth_prompt_viewed",
             "auth_started",
@@ -215,8 +223,8 @@ struct MugshotAnalyticsTests {
                 && !payload.properties.keys.contains("cafe_name")
                 && !payload.properties.keys.contains("user_id")
         })
-        #expect(payloads[10].properties["was_guest"] == .boolean(true))
-        #expect(payloads[11].properties["from_visibility"] == .string("private"))
-        #expect(payloads[11].properties["to_visibility"] == .string("friends"))
+        #expect(payloads[14].properties["was_guest"] == .boolean(true))
+        #expect(payloads[15].properties["from_visibility"] == .string("private"))
+        #expect(payloads[15].properties["to_visibility"] == .string("friends"))
     }
 }

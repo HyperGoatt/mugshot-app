@@ -21,6 +21,7 @@ struct LogASipV3ProductionView: View {
     let completionStatusMessage: String?
     let completion: LogASipV3PassportSummary?
     let wantToTryAchievementCafeName: String?
+    let showsFirstSipGuidance: Bool
     let canUseLastSipSetup: Bool
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
@@ -32,6 +33,7 @@ struct LogASipV3ProductionView: View {
     let onDiscardProtectedSave: (() -> Void)?
     let onUseLastSipSetup: () -> Void
     let onUseLastContextSetup: () -> Void
+    let onDismissFirstSipGuidance: () -> Void
     let onPublish: () -> Void
     let onViewPublishedMugshot: () -> Void
     let onViewPassport: () -> Void
@@ -56,6 +58,7 @@ struct LogASipV3ProductionView: View {
         completionStatusMessage: String? = nil,
         completion: LogASipV3PassportSummary? = nil,
         wantToTryAchievementCafeName: String? = nil,
+        showsFirstSipGuidance: Bool = false,
         canUseLastSipSetup: Bool = false,
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
@@ -67,6 +70,7 @@ struct LogASipV3ProductionView: View {
         onDiscardProtectedSave: (() -> Void)? = nil,
         onUseLastSipSetup: @escaping () -> Void = {},
         onUseLastContextSetup: @escaping () -> Void = {},
+        onDismissFirstSipGuidance: @escaping () -> Void = {},
         onPublish: @escaping () -> Void,
         onViewPublishedMugshot: @escaping () -> Void = {},
         onViewPassport: @escaping () -> Void = {},
@@ -85,6 +89,7 @@ struct LogASipV3ProductionView: View {
         self.completionStatusMessage = completionStatusMessage
         self.completion = completion
         self.wantToTryAchievementCafeName = wantToTryAchievementCafeName
+        self.showsFirstSipGuidance = showsFirstSipGuidance
         self.canUseLastSipSetup = canUseLastSipSetup
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
@@ -96,6 +101,7 @@ struct LogASipV3ProductionView: View {
         self.onDiscardProtectedSave = onDiscardProtectedSave
         self.onUseLastSipSetup = onUseLastSipSetup
         self.onUseLastContextSetup = onUseLastContextSetup
+        self.onDismissFirstSipGuidance = onDismissFirstSipGuidance
         self.onPublish = onPublish
         self.onViewPublishedMugshot = onViewPublishedMugshot
         self.onViewPassport = onViewPassport
@@ -149,6 +155,14 @@ struct LogASipV3ProductionView: View {
                     currentSurface
                         .id(step)
                         .transition(stepTransition)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if showsFirstSipGuidance {
+                                MugshotFirstSipGuideBanner(
+                                    step: step,
+                                    onDismiss: onDismissFirstSipGuidance
+                                )
+                            }
+                        }
                 }
             }
             .foregroundStyle(Color.espressoBrown)

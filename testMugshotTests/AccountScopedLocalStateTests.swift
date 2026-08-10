@@ -93,8 +93,7 @@ struct AccountScopedLocalStateTests {
             ),
             cafes: [firstCafe],
             visits: [],
-            ratingTemplate: RatingTemplate(),
-            hasCompletedOnboarding: true
+            ratingTemplate: RatingTemplate()
         )
         defaults.set(try JSONEncoder().encode(legacy), forKey: "MugshotAppData")
         let manager = DataManager(defaults: defaults)
@@ -162,8 +161,7 @@ struct AccountScopedLocalStateTests {
             ),
             cafes: [Cafe(name: "Departing Owner Cafe", isFavorite: true)],
             visits: [],
-            ratingTemplate: RatingTemplate(),
-            hasCompletedOnboarding: true
+            ratingTemplate: RatingTemplate()
         )
         defaults.set(try JSONEncoder().encode(legacy), forKey: "MugshotAppData")
 

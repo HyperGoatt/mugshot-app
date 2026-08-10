@@ -801,7 +801,12 @@ final class AppAuthModel: ObservableObject {
     }
 
     func skipCapturePreferences() async -> Bool {
-        await saveCapturePreferences(.empty)
+        await saveCapturePreferences(capturePreferences)
+    }
+
+    func deferCapturePreferencesForSession() {
+        capturePreferencesError = nil
+        shouldOfferCapturePreferences = false
     }
 
     func updateAvatar(_ image: UIImage, dataManager: DataManager) async -> Bool {

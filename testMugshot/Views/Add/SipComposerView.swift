@@ -10,6 +10,9 @@ struct LogVisitView: View {
     var preselectedCafe: Cafe? = nil
     private let explicitLaunchDraft: SipDraft?
     private let onAuthenticationRequired: () -> Void
+    private let isFirstSipGuidanceEnabled: Bool
+    private let onFirstSipGuidanceDismissed: () -> Void
+    private let onFirstSipGuidanceCompleted: () -> Void
 
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @EnvironmentObject private var authModel: AppAuthModel
@@ -174,12 +177,18 @@ struct LogVisitView: View {
         dataManager: DataManager,
         preselectedCafe: Cafe? = nil,
         initialDraft: SipDraft? = nil,
-        onAuthenticationRequired: @escaping () -> Void = {}
+        onAuthenticationRequired: @escaping () -> Void = {},
+        isFirstSipGuidanceEnabled: Bool = false,
+        onFirstSipGuidanceDismissed: @escaping () -> Void = {},
+        onFirstSipGuidanceCompleted: @escaping () -> Void = {}
     ) {
         self.dataManager = dataManager
         self.preselectedCafe = preselectedCafe
         self.explicitLaunchDraft = initialDraft
         self.onAuthenticationRequired = onAuthenticationRequired
+        self.isFirstSipGuidanceEnabled = isFirstSipGuidanceEnabled
+        self.onFirstSipGuidanceDismissed = onFirstSipGuidanceDismissed
+        self.onFirstSipGuidanceCompleted = onFirstSipGuidanceCompleted
         let restoredImages = initialDraft.flatMap {
             SipDraftStore.shared.load(
                 id: $0.id,
@@ -490,6 +499,7 @@ struct LogVisitView: View {
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
             wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
+            showsFirstSipGuidance: isFirstSipGuidanceEnabled,
             canUseLastSipSetup: !RecentCriterionSetupStore.shared
                 .names(scope: pinnedSipScope).isEmpty,
             canUseLastContextSetup: !RecentCriterionSetupStore.shared
@@ -511,11 +521,17 @@ struct LogVisitView: View {
                 : nil,
             onUseLastSipSetup: useLastSipCriteriaSetup,
             onUseLastContextSetup: useLastContextCriteriaSetup,
+            onDismissFirstSipGuidance: onFirstSipGuidanceDismissed,
             onPublish: saveSip,
             onViewPublishedMugshot: viewPublishedMugshot,
             onViewPassport: viewPassportAfterCompletion,
             onUndoWantToTryRemoval: undoWantToTryRemoval,
-            onFinish: finishSuccessfulSave,
+            onFinish: {
+                if isFirstSipGuidanceEnabled {
+                    onFirstSipGuidanceCompleted()
+                }
+                finishSuccessfulSave()
+            },
             onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
         )
     }

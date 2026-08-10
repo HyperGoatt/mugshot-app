@@ -79,8 +79,7 @@ enum SavedAuditFixtures {
             cafes: fixtureCafes,
             personalLibraryCafeIDs: Set(fixtureCafes.map(\.id)),
             visits: populated ? visits : [],
-            ratingTemplate: RatingTemplate(),
-            hasCompletedOnboarding: true
+            ratingTemplate: RatingTemplate()
         )
     }
 

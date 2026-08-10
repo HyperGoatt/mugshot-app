@@ -460,6 +460,31 @@ struct SavedTabView: View {
                     searchText = ""
                 }
                 .buttonStyle(SecondaryButtonStyle())
+            } else {
+                VStack(spacing: 10) {
+                    Button {
+                        withAnimation(DesignSystem.Motion.base) {
+                            tabCoordinator.selectedTab = 0
+                        }
+                    } label: {
+                        Label("Explore Map", systemImage: "map.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityHint("Switches to Map to discover cafes")
+
+                    Button {
+                        withAnimation(DesignSystem.Motion.base) {
+                            tabCoordinator.selectedTab = 2
+                        }
+                    } label: {
+                        Label("Log a Sip", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityHint("Opens the guided sip composer")
+                }
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)

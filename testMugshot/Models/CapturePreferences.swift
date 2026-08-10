@@ -1,5 +1,14 @@
 import Foundation
 
+enum CapturePreferenceGoal: String, CaseIterable, Identifiable, Codable {
+    case nearby
+    case taste
+    case journal
+    case friends
+
+    var id: String { rawValue }
+}
+
 struct CapturePreferences: Codable, Equatable {
     var usualDrinkFamilies: [String]
     var cafeHomeHabit: String?
@@ -12,6 +21,20 @@ struct CapturePreferences: Codable, Equatable {
         discoveryIntents: [],
         setupCompletedAt: nil
     )
+
+    var onboardingGoal: CapturePreferenceGoal? {
+        CapturePreferenceGoal.allCases.first {
+            discoveryIntents.contains($0.rawValue)
+        }
+    }
+
+    func applyingOnboardingGoal(_ goal: CapturePreferenceGoal) -> CapturePreferences {
+        var updated = self
+        let onboardingIntentIDs = Set(CapturePreferenceGoal.allCases.map(\.rawValue))
+        updated.discoveryIntents.removeAll { onboardingIntentIDs.contains($0) }
+        updated.discoveryIntents.append(goal.rawValue)
+        return updated
+    }
 }
 
 struct SupabaseCapturePreferences: Codable, Equatable {

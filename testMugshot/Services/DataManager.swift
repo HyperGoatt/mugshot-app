@@ -65,9 +65,6 @@ class DataManager: ObservableObject {
     func applyAuthenticatedProfile(_ profile: SupabaseUserProfile) {
         activateUserStorage(userId: profile.id)
         appData.currentUser = profile.localUser
-        if !appData.hasCompletedOnboarding {
-            appData.hasCompletedOnboarding = true
-        }
         save()
     }
 
@@ -285,8 +282,7 @@ class DataManager: ObservableObject {
                 )
             ],
             visits: adaptiveMapFixture?.visits ?? [],
-            ratingTemplate: RatingTemplate(),
-            hasCompletedOnboarding: true
+            ratingTemplate: RatingTemplate()
         )
         seedUITestMapSearchRecentIfRequested(key: mapSearchRecentsKey)
         defaults.set(
@@ -1123,12 +1119,6 @@ class DataManager: ObservableObject {
     // MARK: - Rating Template Operations
     func updateRatingTemplate(_ template: RatingTemplate) {
         appData.ratingTemplate = template
-        save()
-    }
-    
-    // MARK: - Onboarding
-    func completeOnboarding() {
-        appData.hasCompletedOnboarding = true
         save()
     }
     

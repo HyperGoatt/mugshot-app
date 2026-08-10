@@ -284,8 +284,12 @@ enum MugshotAnalyticsEvent: Equatable {
     case screenViewed(MugshotAnalyticsScreen, source: MugshotAnalyticsScreenSource)
     case onboardingStarted
     case onboardingStepCompleted(step: Int, totalSteps: Int)
+    case onboardingSkipped(step: Int, totalSteps: Int)
     case onboardingAbandoned(step: Int, totalSteps: Int)
     case onboardingCompleted(durationSeconds: Int)
+    case guestIntroductionStarted
+    case guestIntroductionCompleted(durationSeconds: Int)
+    case guestIntroductionDismissed
     case timeToFirstValue(value: String, durationSeconds: Int)
     case authPromptViewed(source: String)
     case authenticationStarted(
@@ -391,6 +395,11 @@ enum MugshotAnalyticsEvent: Equatable {
                 "onboarding_step_completed",
                 Self.onboardingProperties(step: step, totalSteps: totalSteps)
             )
+        case .onboardingSkipped(let step, let totalSteps):
+            return payload(
+                "onboarding_skipped",
+                Self.onboardingProperties(step: step, totalSteps: totalSteps)
+            )
         case .onboardingAbandoned(let step, let totalSteps):
             return payload(
                 "onboarding_abandoned",
@@ -401,6 +410,15 @@ enum MugshotAnalyticsEvent: Equatable {
                 "onboarding_completed",
                 ["duration_seconds": .integer(Self.boundedDuration(durationSeconds))]
             )
+        case .guestIntroductionStarted:
+            return payload("guest_introduction_started")
+        case .guestIntroductionCompleted(let durationSeconds):
+            return payload(
+                "guest_introduction_completed",
+                ["duration_seconds": .integer(Self.boundedDuration(durationSeconds))]
+            )
+        case .guestIntroductionDismissed:
+            return payload("guest_introduction_dismissed")
         case .timeToFirstValue(let value, let durationSeconds):
             return payload(
                 "time_to_first_value",
@@ -449,7 +467,7 @@ enum MugshotAnalyticsEvent: Equatable {
                 [
                     "drink_family_count": .integer(min(max(drinkFamilyCount, 0), 4)),
                     "discovery_intent_count": .integer(
-                        min(max(discoveryIntentCount, 0), 4)
+                        min(max(discoveryIntentCount, 0), 5)
                     ),
                     "has_habit": .boolean(hasHabit)
                 ]

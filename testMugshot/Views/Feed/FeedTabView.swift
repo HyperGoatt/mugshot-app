@@ -81,6 +81,7 @@ struct FeedTabView: View {
     var activityUnreadCount = 0
     var onActivityRequested: (() -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
+    @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
     @State private var selectedPostRoute: FeedPostRoute?
@@ -353,13 +354,17 @@ struct FeedTabView: View {
             MugsyEmptyStateView(
                 placement: selectedScope == .friends ? .friendsEmpty : .feedEmpty,
                 title: selectedScope == .friends ? "No friend-visible visits yet" : "No public visits yet",
-                message: selectedScope == .friends ? "Sips from friends will appear here as your circle grows." : "Public sips will appear here as people log them."
+                message: selectedScope == .friends ? "Sips from friends will appear here as your circle grows." : "Public sips will appear here as people log them.",
+                primaryAction: logSipEmptyAction,
+                secondaryAction: selectedScope == .friends ? findPeopleEmptyAction : exploreMapEmptyAction
             )
         } else if filteredRemoteVisits.isEmpty {
             MugsyEmptyStateView(
                 placement: .feedFiltered,
                 title: "No matching sips",
-                message: "Try another drink, cafe, caption, or username."
+                message: "Try another drink, cafe, caption, or username.",
+                primaryAction: clearSearchEmptyAction,
+                secondaryAction: exploreMapEmptyAction
             )
         } else {
             ForEach(filteredRemoteVisits) { visit in
@@ -415,13 +420,17 @@ struct FeedTabView: View {
             MugsyEmptyStateView(
                 placement: .feedEmpty,
                 title: "Your feed starts with a sip",
-                message: "Log a cafe or Home sip and your memories will begin gathering here."
+                message: "Log a cafe or Home sip and your memories will begin gathering here.",
+                primaryAction: logSipEmptyAction,
+                secondaryAction: exploreMapEmptyAction
             )
         } else if filteredLocalVisits.isEmpty {
             MugsyEmptyStateView(
                 placement: .feedFiltered,
                 title: "No matching sips",
-                message: "Try another drink, cafe, or note."
+                message: "Try another drink, cafe, or note.",
+                primaryAction: clearSearchEmptyAction,
+                secondaryAction: exploreMapEmptyAction
             )
         } else {
             ForEach(filteredLocalVisits) { visit in
@@ -453,6 +462,51 @@ struct FeedTabView: View {
                 .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
                 .split(whereSeparator: \.isWhitespace)
             return tokens.allSatisfy { searchableText.contains(String($0)) }
+        }
+    }
+
+    private var logSipEmptyAction: MugsyEmptyStateAction {
+        MugsyEmptyStateAction(
+            "Log a Sip",
+            systemImage: "plus.circle.fill",
+            accessibilityHint: "Opens the guided sip composer"
+        ) {
+            withAnimation(DesignSystem.Motion.base) {
+                tabCoordinator.selectedTab = 2
+            }
+        }
+    }
+
+    private var exploreMapEmptyAction: MugsyEmptyStateAction {
+        MugsyEmptyStateAction(
+            "Explore Map",
+            systemImage: "map.fill",
+            accessibilityHint: "Switches to Map to discover cafes"
+        ) {
+            withAnimation(DesignSystem.Motion.base) {
+                tabCoordinator.selectedTab = 0
+            }
+        }
+    }
+
+    private var findPeopleEmptyAction: MugsyEmptyStateAction {
+        MugsyEmptyStateAction(
+            "Find people",
+            systemImage: "person.2.fill",
+            accessibilityHint: "Opens people search and friend requests"
+        ) {
+            isPeopleHubPresented = true
+        }
+    }
+
+    private var clearSearchEmptyAction: MugsyEmptyStateAction {
+        MugsyEmptyStateAction(
+            "Clear search",
+            systemImage: "xmark.circle.fill",
+            accessibilityHint: "Clears the search and shows all available sips"
+        ) {
+            feedSearchQuery = ""
+            isFeedSearchFocused = false
         }
     }
 

@@ -23,10 +23,31 @@ enum MugsyEmptyStateAsset: String {
     }
 }
 
+struct MugsyEmptyStateAction {
+    let title: String
+    let systemImage: String
+    let accessibilityHint: String
+    let action: () -> Void
+
+    init(
+        _ title: String,
+        systemImage: String,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.accessibilityHint = accessibilityHint
+        self.action = action
+    }
+}
+
 struct MugsyEmptyStateView: View {
     let placement: MugsyPlacement
     let title: String
     let message: String
+    let primaryAction: MugsyEmptyStateAction?
+    let secondaryAction: MugsyEmptyStateAction?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
@@ -35,16 +56,36 @@ struct MugsyEmptyStateView: View {
 
     private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
 
-    init(placement: MugsyPlacement, title: String, message: String) {
+    init(
+        placement: MugsyPlacement,
+        title: String,
+        message: String,
+        primaryAction: MugsyEmptyStateAction? = nil,
+        secondaryAction: MugsyEmptyStateAction? = nil
+    ) {
         self.placement = placement
         self.title = title
         self.message = message
+        self.primaryAction = primaryAction
+        self.secondaryAction = secondaryAction
     }
 
     /// Transitional initializer for callsites that still name an immutable
     /// reference asset. Rendering always uses the canonical layered model.
-    init(asset: MugsyEmptyStateAsset, title: String, message: String) {
-        self.init(placement: asset.placement, title: title, message: message)
+    init(
+        asset: MugsyEmptyStateAsset,
+        title: String,
+        message: String,
+        primaryAction: MugsyEmptyStateAction? = nil,
+        secondaryAction: MugsyEmptyStateAction? = nil
+    ) {
+        self.init(
+            placement: asset.placement,
+            title: title,
+            message: message,
+            primaryAction: primaryAction,
+            secondaryAction: secondaryAction
+        )
     }
 
     private var configuration: MugsyModelConfiguration {
@@ -85,6 +126,29 @@ struct MugsyEmptyStateView: View {
                 .foregroundColor(.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if primaryAction != nil || secondaryAction != nil {
+                VStack(spacing: 10) {
+                    if let primaryAction {
+                        Button(action: primaryAction.action) {
+                            Label(primaryAction.title, systemImage: primaryAction.systemImage)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityHint(primaryAction.accessibilityHint)
+                    }
+
+                    if let secondaryAction {
+                        Button(action: secondaryAction.action) {
+                            Label(secondaryAction.title, systemImage: secondaryAction.systemImage)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityHint(secondaryAction.accessibilityHint)
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 30)
@@ -101,8 +165,7 @@ struct MugsyEmptyStateView: View {
             x: DesignSystem.cardShadow.x,
             y: DesignSystem.cardShadow.y
         )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title). \(message)")
+        .accessibilityElement(children: primaryAction == nil && secondaryAction == nil ? .combine : .contain)
     }
 
     private func settle() {
