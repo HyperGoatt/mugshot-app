@@ -236,6 +236,9 @@ class DataManager: ObservableObject {
             RecentCriterionSetupStore.shared.removeAllForTesting()
             PinnedCriterionStore.shared.removeAllForTesting()
             defaults.removeObject(forKey: mapSearchRecentsKey)
+            defaults.removeObject(forKey: "MugshotMap.discoveryScope.v1")
+            defaults.removeObject(forKey: "saved.library.sort")
+            defaults.removeObject(forKey: "saved.library.density")
             MugshotLaunchEnvironment.resetDeterministicFailures()
         }
 
@@ -266,6 +269,14 @@ class DataManager: ObservableObject {
         }
 
         let adaptiveMapFixture = adaptiveMapUITestFixture(userID: userID)
+        let fixtureCafes = adaptiveMapFixture?.cafes ?? [
+            Cafe(
+                id: cafeID,
+                name: "Mugshot Test Cafe",
+                address: "1 Test Street, Charleston, SC",
+                isFavorite: true
+            )
+        ]
         appData = AppData(
             currentUser: User(
                 id: userID,
@@ -273,14 +284,8 @@ class DataManager: ObservableObject {
                 displayName: "Mugshot Test",
                 location: "Charleston, SC"
             ),
-            cafes: adaptiveMapFixture?.cafes ?? [
-                Cafe(
-                    id: cafeID,
-                    name: "Mugshot Test Cafe",
-                    address: "1 Test Street, Charleston, SC",
-                    isFavorite: true
-                )
-            ],
+            cafes: fixtureCafes,
+            personalLibraryCafeIDs: Set(fixtureCafes.map(\.id)),
             visits: adaptiveMapFixture?.visits ?? [],
             ratingTemplate: RatingTemplate()
         )

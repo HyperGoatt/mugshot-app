@@ -284,21 +284,32 @@ struct SavedCafeCompactRow: View {
                         Text(cafe.consumerDisplayName)
                             .font(.headline)
                             .foregroundColor(.espressoBrown)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text(compactMetadata)
                             .font(.caption)
                             .foregroundColor(.secondaryText)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(compactAccessibilityLabel)
             .accessibilityHint("Opens cafe details")
 
             Spacer(minLength: 2)
-            compactStateButton(systemImage: cafe.isFavorite ? "heart.fill" : "heart", selected: cafe.isFavorite, label: "Favorite", action: onFavorite)
-            compactStateButton(systemImage: cafe.wantToTry ? "bookmark.fill" : "bookmark", selected: cafe.wantToTry, label: "Want to Try", action: onWantToTry)
+            compactStateButton(
+                systemImage: cafe.isFavorite ? "heart.fill" : "heart",
+                selected: cafe.isFavorite,
+                label: cafe.isFavorite ? "Favorited" : "Favorite",
+                action: onFavorite
+            )
+            compactStateButton(
+                systemImage: cafe.wantToTry ? "bookmark.fill" : "bookmark",
+                selected: cafe.wantToTry,
+                label: cafe.wantToTry ? "Saved to try" : "Want to Try",
+                action: onWantToTry
+            )
             cafeOverflowMenu(cafe: cafe, onLogSip: onLogSip, onLists: onLists, onShowMap: onShowMap)
         }
         .padding(10)
@@ -319,6 +330,12 @@ struct SavedCafeCompactRow: View {
             .joined(separator: "\n")
     }
 
+    private var compactAccessibilityLabel: String {
+        [cafe.consumerDisplayName, compactMetadata.remoteTrimmedNonEmpty]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
     private func compactStateButton(systemImage: String, selected: Bool, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
@@ -328,6 +345,8 @@ struct SavedCafeCompactRow: View {
                 .background(selected ? Color.mugshotMint.opacity(0.30) : Color.clear, in: RoundedRectangle(cornerRadius: 11))
         }
         .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
         .disabled(isSyncing)
         .accessibilityLabel(label)
         .accessibilityValue(selected ? "Selected" : "Not selected")
