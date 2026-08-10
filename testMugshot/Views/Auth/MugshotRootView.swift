@@ -14,7 +14,9 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
+            if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
+                MainTabView(dataManager: dataManager)
+            } else if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
                 AutomaticSipRecoveryBannerPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowMugsySceneDesignQA {
                 NavigationStack {

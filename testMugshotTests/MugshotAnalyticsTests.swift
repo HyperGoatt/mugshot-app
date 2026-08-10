@@ -65,7 +65,7 @@ struct MugshotAnalyticsTests {
         #expect(spy.payloads[1].properties["is_authenticated"] == .boolean(true))
         #expect(spy.payloads[2].properties["is_authenticated"] == .boolean(false))
         #expect(spy.payloads.allSatisfy {
-            $0.properties["analytics_version"] == .integer(1)
+            $0.properties["analytics_version"] == .integer(2)
                 && $0.properties["platform"] == .string("ios")
                 && $0.properties["build_configuration"] == .string("test")
         })
@@ -151,5 +151,80 @@ struct MugshotAnalyticsTests {
         #expect(payload.properties["sip_criteria_count"] == .integer(20))
         #expect(payload.properties["context_criteria_count"] == .integer(20))
         #expect(payload.properties["duration_seconds"] == .integer(14_400))
+    }
+
+    @Test func activationEventsUseExactNamesAndOnlyCoarseProperties() {
+        let snapshot = MugshotSipAnalyticsSnapshot(
+            draft: SipDraft(
+                launchContext: .centralAdd,
+                context: .home,
+                drinkName: "never emitted",
+                visibility: .private
+            ),
+            photoCount: 0,
+            isDraftResume: true
+        )
+        let payloads = [
+            MugshotAnalyticsEvent.onboardingStarted.payload,
+            MugshotAnalyticsEvent.onboardingStepCompleted(step: 1, totalSteps: 8).payload,
+            MugshotAnalyticsEvent.onboardingSkipped(step: 2, totalSteps: 8).payload,
+            MugshotAnalyticsEvent.onboardingAbandoned(step: 1, totalSteps: 8).payload,
+            MugshotAnalyticsEvent.onboardingCompleted(durationSeconds: 12).payload,
+            MugshotAnalyticsEvent.guestIntroductionStarted.payload,
+            MugshotAnalyticsEvent.guestIntroductionCompleted(durationSeconds: 8).payload,
+            MugshotAnalyticsEvent.guestIntroductionDismissed.payload,
+            MugshotAnalyticsEvent.timeToFirstValue(
+                value: "map_available",
+                durationSeconds: 12
+            ).payload,
+            MugshotAnalyticsEvent.authPromptViewed(source: "guest_publish").payload,
+            MugshotAnalyticsEvent.authenticationStarted(
+                flow: .signUp,
+                method: .email
+            ).payload,
+            MugshotAnalyticsEvent.authAbandoned(source: "guest_publish").payload,
+            MugshotAnalyticsEvent.guestDraftCreated(snapshot).payload,
+            MugshotAnalyticsEvent.guestDraftSavedAfterSignup(snapshot).payload,
+            MugshotAnalyticsEvent.draftRestored(snapshot, wasGuest: true).payload,
+            MugshotAnalyticsEvent.visibilityChanged(
+                snapshot,
+                from: .private,
+                to: .friends
+            ).payload,
+            MugshotAnalyticsEvent.logAbandoned(
+                snapshot,
+                durationSeconds: 20
+            ).payload
+        ]
+
+        #expect(payloads.map(\.event) == [
+            "onboarding_started",
+            "onboarding_step_completed",
+            "onboarding_skipped",
+            "onboarding_abandoned",
+            "onboarding_completed",
+            "guest_introduction_started",
+            "guest_introduction_completed",
+            "guest_introduction_dismissed",
+            "time_to_first_value",
+            "auth_prompt_viewed",
+            "auth_started",
+            "auth_abandoned",
+            "guest_draft_created",
+            "guest_draft_saved_after_signup",
+            "draft_restored",
+            "visibility_changed",
+            "log_abandoned"
+        ])
+        #expect(payloads.allSatisfy { payload in
+            !payload.properties.keys.contains("email")
+                && !payload.properties.keys.contains("drink_name")
+                && !payload.properties.keys.contains("notes")
+                && !payload.properties.keys.contains("cafe_name")
+                && !payload.properties.keys.contains("user_id")
+        })
+        #expect(payloads[14].properties["was_guest"] == .boolean(true))
+        #expect(payloads[15].properties["from_visibility"] == .string("private"))
+        #expect(payloads[15].properties["to_visibility"] == .string("friends"))
     }
 }

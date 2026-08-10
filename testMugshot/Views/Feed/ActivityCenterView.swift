@@ -40,6 +40,8 @@ struct ActivityCenterView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject private var notificationCoordinator = NotificationDeviceCoordinator.shared
     let accountID: UUID
+    var onLogSipRequested: (() -> Void)? = nil
+    var onExploreMapRequested: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var path: [ActivityDeepLinkDestination] = []
@@ -122,7 +124,21 @@ struct ActivityCenterView: View {
                         MugsyEmptyStateView(
                             placement: .friendsEmpty,
                             title: "All quiet for now",
-                            message: "Friend posts, tags, invitations, likes, comments, and requests will collect here."
+                            message: "Friend posts, tags, invitations, likes, comments, and requests will collect here.",
+                            primaryAction: MugsyEmptyStateAction(
+                                "Log a Sip",
+                                systemImage: "plus.circle.fill",
+                                accessibilityHint: "Closes Activity and opens the guided sip composer"
+                            ) {
+                                leaveActivity(then: onLogSipRequested)
+                            },
+                            secondaryAction: MugsyEmptyStateAction(
+                                "Explore Map",
+                                systemImage: "map.fill",
+                                accessibilityHint: "Closes Activity and opens Map"
+                            ) {
+                                leaveActivity(then: onExploreMapRequested)
+                            }
                         )
                     }
                     .padding(16)
@@ -163,6 +179,14 @@ struct ActivityCenterView: View {
     private var pushEducationDismissalKey: String {
         "MugshotActivity.pushEducationDismissed.v1."
             + accountID.uuidString.lowercased()
+    }
+
+    private func leaveActivity(then action: (() -> Void)?) {
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            action?()
+        }
     }
 
     private var shouldShowPushEducation: Bool {

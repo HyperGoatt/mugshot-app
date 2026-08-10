@@ -24,9 +24,20 @@ struct MainTabView: View {
     @State private var composerDraft: SipDraft?
     @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
+    @State private var authenticationPromptAnalyticsSource: String?
     @State private var showsGuestSavedMerge = false
-    @State private var showsCapturePreferences = false
+    @State private var showsSignedInOnboarding = false
+    @State private var signedInOnboardingInitialStep: MugshotOnboardingStep = .welcome
+    @State private var signedInOnboardingStartedAt: Date?
+    @State private var productTourStep: MugshotProductTourStep?
+    @State private var productTourGoal: CapturePreferenceGoal = .nearby
+    @State private var completedProductTourSteps: Set<MugshotProductTourStep> = []
+    @State private var isCompletingProductTour = false
+    @State private var isGuidingFirstSip = false
+    @State private var didPresentOnboardingDesignQA = false
     @State private var showsGuestIntroduction = false
+    @State private var guestIntroductionStartedAt: Date?
+    @State private var guestIntroductionCompleted = false
     @State private var showsActivityCenter = false
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
@@ -49,6 +60,20 @@ struct MainTabView: View {
                 MugshotBottomNav(selectedTab: gatedTabSelection)
                     .transition(.opacity)
                     .zIndex(1)
+            }
+
+            if let productTourStep {
+                MugshotProductTourOverlay(
+                    step: productTourStep,
+                    isWorking: isCompletingProductTour,
+                    errorMessage: authModel.capturePreferencesError,
+                    onNext: advanceProductTour,
+                    onBack: goBackInProductTour,
+                    onSkip: skipProductTour,
+                    onStartFirstSip: { completeProductTour(startsFirstSip: true) },
+                    onLater: { completeProductTour(startsFirstSip: false) }
+                )
+                .zIndex(5)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -96,6 +121,9 @@ struct MainTabView: View {
 #endif
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
             activateLocalStorage()
+            isGuidingFirstSip = MugshotFirstSipGuideStore.isActive(
+                accountID: authModel.authenticatedUser?.id
+            )
             automaticSipRecovery.activate(accountID: authModel.authenticatedUser?.id)
             automaticSipRecovery.setAppActive(scenePhase == .active)
             if !hasAuthenticatedNavigation,
@@ -110,6 +138,7 @@ struct MainTabView: View {
             synchronizeMapLocationUpdates()
             NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
             handlePendingNearbyReminder()
+            presentOnboardingDesignQAIfNeeded()
             if DiscoveryFeatureFlags.isEnabled(.shareImport) {
                 Task {
                     await refreshShareExtensionListCache(
@@ -138,6 +167,13 @@ struct MainTabView: View {
             } else if !hasAuthenticatedNavigation,
                       !Self.guestTabs.contains(tabCoordinator.selectedTab) {
                 tabCoordinator.selectedTab = 0
+            }
+            if userId == nil {
+                showsSignedInOnboarding = false
+                productTourStep = nil
+                isGuidingFirstSip = false
+            } else {
+                isGuidingFirstSip = MugshotFirstSipGuideStore.isActive(accountID: userId)
             }
             handlePendingSystemRoute()
             synchronizeActivityRouter()
@@ -206,7 +242,7 @@ struct MainTabView: View {
         }
         .onChange(of: authModel.pendingGuestSavedCafes.count) { _, count in
             guard count > 0 else {
-                scheduleCapturePreferencesIfNeeded()
+                scheduleSignedInOnboardingIfNeeded()
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
@@ -216,7 +252,7 @@ struct MainTabView: View {
         }
         .onChange(of: authModel.shouldOfferCapturePreferences) { _, shouldOffer in
             guard shouldOffer else { return }
-            scheduleCapturePreferencesIfNeeded()
+            scheduleSignedInOnboardingIfNeeded()
         }
         .confirmationDialog(
             "Choose where to keep this cafe",
@@ -259,7 +295,7 @@ struct MainTabView: View {
 
     private var presentedScene: some View {
         lifecycleScene
-        .sheet(item: $authenticationPrompt, onDismiss: scheduleCapturePreferencesIfNeeded) { prompt in
+        .sheet(item: $authenticationPrompt, onDismiss: handleAuthenticationPromptDismissed) { prompt in
             AuthEntryView(
                 dataManager: dataManager,
                 contextTitle: prompt.title,
@@ -268,22 +304,28 @@ struct MainTabView: View {
             )
             .environmentObject(authModel)
         }
-        .sheet(isPresented: $showsGuestIntroduction, onDismiss: {
-            hasSeenGuestIntroduction = true
-        }) {
-            MugsyGuestIntroductionView {
-                hasSeenGuestIntroduction = true
-                showsGuestIntroduction = false
-            }
+        .sheet(isPresented: $showsGuestIntroduction, onDismiss: handleGuestIntroductionDismissed) {
+            MugsyGuestIntroductionView(onContinue: completeGuestIntroduction)
         }
-        .sheet(isPresented: $showsGuestSavedMerge, onDismiss: scheduleCapturePreferencesIfNeeded) {
+        .sheet(isPresented: $showsGuestSavedMerge, onDismiss: scheduleSignedInOnboardingIfNeeded) {
             GuestSavedMergeView(dataManager: dataManager)
                 .environmentObject(authModel)
                 .interactiveDismissDisabled(authModel.isMergingGuestSaved)
         }
-        .sheet(isPresented: $showsCapturePreferences) {
-            CapturePreferencesView(allowsSkipping: true)
-                .environmentObject(authModel)
+        .fullScreenCover(isPresented: $showsSignedInOnboarding) {
+            MugshotSignedInOnboardingView(
+                initialGoal: productTourGoal,
+                initialStep: signedInOnboardingInitialStep,
+                onStarted: {
+                    if signedInOnboardingStartedAt == nil {
+                        signedInOnboardingStartedAt = .now
+                    }
+                },
+                onBeginTour: beginProductTour,
+                onSkip: {
+                    await skipSignedInOnboarding()
+                }
+            )
         }
         .sheet(isPresented: $showsActivityCenter) {
             if let accountID = authModel.authenticatedUser?.id {
@@ -291,7 +333,17 @@ struct MainTabView: View {
                     store: activityStore,
                     router: activityRouter,
                     dataManager: dataManager,
-                    accountID: accountID
+                    accountID: accountID,
+                    onLogSipRequested: {
+                        withAnimation(DesignSystem.Motion.base) {
+                            tabCoordinator.selectedTab = 2
+                        }
+                    },
+                    onExploreMapRequested: {
+                        withAnimation(DesignSystem.Motion.base) {
+                            tabCoordinator.selectedTab = 0
+                        }
+                    }
                 )
                 .environmentObject(authModel)
             } else {
@@ -458,7 +510,14 @@ struct MainTabView: View {
                 }
             )
         case 2:
-            AddTabView(dataManager: dataManager, initialDraft: composerDraft)
+            AddTabView(
+                dataManager: dataManager,
+                initialDraft: composerDraft,
+                onAuthenticationRequired: requestDraftAuthentication,
+                isFirstSipGuidanceEnabled: isGuidingFirstSip,
+                onFirstSipGuidanceDismissed: dismissFirstSipGuidance,
+                onFirstSipGuidanceCompleted: completeFirstSipGuidance
+            )
                 .id(composerSessionID)
                 .onAppear {
                     if composerDraft != nil {
@@ -484,7 +543,7 @@ struct MainTabView: View {
         }
     }
 
-    private static let guestTabs: Set<Int> = [0, 3]
+    private static let guestTabs: Set<Int> = [0, 2, 3]
 
     private func captureSelectedScreen() {
         let screen: MugshotAnalyticsScreen
@@ -511,14 +570,6 @@ struct MainTabView: View {
     }
 
     private func beginCafeSip(_ cafe: Cafe) {
-        guard hasAuthenticatedNavigation else {
-            requestAuthentication(
-                title: "Keep this sip in your journal",
-                message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
-            )
-            return
-        }
-
         composerDraft = Self.cafeDraft(
             cafe,
             dataManager: dataManager,
@@ -565,10 +616,7 @@ struct MainTabView: View {
                         message: "Sign in to see friend sips and Your Mix. You can keep exploring Map and Saved without an account."
                     )
                 case 2:
-                    requestAuthentication(
-                        title: "Start your sip journal",
-                        message: "Sign in to save a sip privately, with friends, or for Everyone. Your current guest saves will stay on this device."
-                    )
+                    tabCoordinator.selectedTab = requestedTab
                 default:
                     requestAuthentication(
                         title: "Your journal lives here",
@@ -580,7 +628,39 @@ struct MainTabView: View {
     }
 
     private func requestAuthentication(title: String, message: String) {
+        requestAuthentication(
+            title: title,
+            message: message,
+            analyticsSource: "product_gate"
+        )
+    }
+
+    private func requestDraftAuthentication() {
+        requestAuthentication(
+            title: "Save this draft to your journal",
+            message: "Your draft is safe on this device. Sign in or create an account to keep it in your journal. Nothing publishes until you return and tap Publish.",
+            analyticsSource: "guest_publish"
+        )
+    }
+
+    private func requestAuthentication(
+        title: String,
+        message: String,
+        analyticsSource: String
+    ) {
+        guard authenticationPrompt == nil else { return }
+        authenticationPromptAnalyticsSource = analyticsSource
+        MugshotAnalytics.shared.capture(.authPromptViewed(source: analyticsSource))
         authenticationPrompt = AuthenticationPrompt(title: title, message: message)
+    }
+
+    private func handleAuthenticationPromptDismissed() {
+        if authModel.authenticatedUser == nil,
+           let source = authenticationPromptAnalyticsSource {
+            MugshotAnalytics.shared.capture(.authAbandoned(source: source))
+        }
+        authenticationPromptAnalyticsSource = nil
+        scheduleSignedInOnboardingIfNeeded()
     }
 
     private func handlePendingSystemRoute() {
@@ -755,26 +835,208 @@ struct MainTabView: View {
             launchContext: SipComposerLaunchContext(source: .cafeDetail, preselectedCafe: cafe),
             context: .cafe,
             cafe: cafe,
-            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
-                in: .forUserID(userID)
-            )
+            visibility: userID == nil
+                ? .private
+                : CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
+                    in: .forUserID(userID)
+                )
         )
         draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         return draft
     }
 
-    private func scheduleCapturePreferencesIfNeeded() {
+    private func beginProductTour(goal: CapturePreferenceGoal) {
+        productTourGoal = goal
+        signedInOnboardingInitialStep = .welcome
+        showsSignedInOnboarding = false
+        setProductTourStep(.map)
+    }
+
+    private func advanceProductTour() {
+        guard let current = productTourStep,
+              let next = MugshotProductTourStep(rawValue: current.rawValue + 1) else { return }
+        recordProductTourStepCompletion(current)
+        setProductTourStep(next)
+        MugshotHaptic.selection.play()
+    }
+
+    private func goBackInProductTour() {
+        guard let current = productTourStep else { return }
+        if let previous = MugshotProductTourStep(rawValue: current.rawValue - 1) {
+            setProductTourStep(previous)
+        } else {
+            productTourStep = nil
+            signedInOnboardingInitialStep = .personalize
+            showsSignedInOnboarding = true
+        }
+        MugshotHaptic.selection.play()
+    }
+
+    private func setProductTourStep(_ step: MugshotProductTourStep) {
+        withAnimation(DesignSystem.Motion.slow) {
+            tabCoordinator.selectedTab = step.tabIndex
+            productTourStep = step
+        }
+    }
+
+    private func skipProductTour() {
+        guard let current = productTourStep, !isCompletingProductTour else { return }
+        isCompletingProductTour = true
+        Task {
+            if !isOnboardingDesignQA,
+               !(await authModel.skipCapturePreferences()) {
+                authModel.deferCapturePreferencesForSession()
+            }
+            MugshotAnalytics.shared.capture(
+                .onboardingSkipped(
+                    step: current.number,
+                    totalSteps: MugshotOnboardingPlan.totalSteps
+                )
+            )
+            MugshotAnalytics.shared.capture(.capturePreferencesSkipped)
+            isCompletingProductTour = false
+            productTourStep = nil
+            completedProductTourSteps = []
+            signedInOnboardingStartedAt = nil
+            tabCoordinator.selectedTab = preferredLandingTab(for: productTourGoal)
+        }
+    }
+
+    private func completeProductTour(startsFirstSip: Bool) {
+        guard productTourStep == .firstSip, !isCompletingProductTour else { return }
+        isCompletingProductTour = true
+        Task {
+            let didSave = await saveOnboardingGoal(productTourGoal)
+            if !didSave, !isOnboardingDesignQA {
+                authModel.deferCapturePreferencesForSession()
+            }
+
+            recordProductTourStepCompletion(.firstSip)
+            MugshotAnalytics.shared.capture(
+                .onboardingCompleted(durationSeconds: signedInOnboardingDurationSeconds)
+            )
+            MugshotAnalytics.shared.capture(
+                .capturePreferencesCompleted(
+                    selectedDrinkFamilyCount: 0,
+                    selectedDiscoveryIntentCount: 1,
+                    hasHabit: false
+                )
+            )
+
+            if startsFirstSip {
+                isGuidingFirstSip = true
+                MugshotFirstSipGuideStore.setActive(
+                    true,
+                    accountID: authModel.authenticatedUser?.id
+                )
+                tabCoordinator.selectedTab = 2
+            } else {
+                tabCoordinator.selectedTab = preferredLandingTab(for: productTourGoal)
+            }
+
+            isCompletingProductTour = false
+            productTourStep = nil
+            completedProductTourSteps = []
+            signedInOnboardingStartedAt = nil
+            MugshotHaptic.success.play()
+        }
+    }
+
+    private func skipSignedInOnboarding() async {
+        if !isOnboardingDesignQA,
+           !(await authModel.skipCapturePreferences()) {
+            authModel.deferCapturePreferencesForSession()
+        }
+        showsSignedInOnboarding = false
+        signedInOnboardingStartedAt = nil
+    }
+
+    private func saveOnboardingGoal(_ goal: CapturePreferenceGoal) async -> Bool {
+        if isOnboardingDesignQA { return true }
+        return await authModel.saveCapturePreferences(
+            authModel.capturePreferences.applyingOnboardingGoal(goal)
+        )
+    }
+
+    private func recordProductTourStepCompletion(_ step: MugshotProductTourStep) {
+        guard completedProductTourSteps.insert(step).inserted else { return }
+        MugshotAnalytics.shared.capture(
+            .onboardingStepCompleted(
+                step: step.number,
+                totalSteps: MugshotOnboardingPlan.totalSteps
+            )
+        )
+    }
+
+    private var signedInOnboardingDurationSeconds: Int {
+        guard let signedInOnboardingStartedAt else { return 0 }
+        return Int(Date().timeIntervalSince(signedInOnboardingStartedAt).rounded())
+    }
+
+    private func preferredLandingTab(for goal: CapturePreferenceGoal) -> Int {
+        switch goal {
+        case .nearby: 0
+        case .friends: 1
+        case .taste, .journal: 4
+        }
+    }
+
+    private func dismissFirstSipGuidance() {
+        isGuidingFirstSip = false
+        MugshotFirstSipGuideStore.setActive(
+            false,
+            accountID: authModel.authenticatedUser?.id
+        )
+    }
+
+    private func completeFirstSipGuidance() {
+        dismissFirstSipGuidance()
+        MugshotHaptic.success.play()
+    }
+
+    private var isOnboardingDesignQA: Bool {
+#if DEBUG
+        MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA
+#else
+        false
+#endif
+    }
+
+    private func presentOnboardingDesignQAIfNeeded() {
+#if DEBUG
+        guard MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA,
+              !didPresentOnboardingDesignQA else { return }
+        didPresentOnboardingDesignQA = true
+        productTourGoal = .nearby
+        completedProductTourSteps = []
+        signedInOnboardingInitialStep = .welcome
+        signedInOnboardingStartedAt = .now
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            showsSignedInOnboarding = true
+        }
+#endif
+    }
+
+    private func scheduleSignedInOnboardingIfNeeded() {
         guard authModel.authenticatedUser != nil,
               authModel.shouldOfferCapturePreferences,
               authModel.pendingGuestSavedCafes.isEmpty,
               authenticationPrompt == nil,
-              !showsGuestSavedMerge else { return }
+              !showsGuestSavedMerge,
+              !showsSignedInOnboarding,
+              productTourStep == nil else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             guard authModel.shouldOfferCapturePreferences,
                   authModel.pendingGuestSavedCafes.isEmpty,
                   authenticationPrompt == nil,
-                  !showsGuestSavedMerge else { return }
-            showsCapturePreferences = true
+                  !showsGuestSavedMerge,
+                  !showsSignedInOnboarding,
+                  productTourStep == nil else { return }
+            productTourGoal = authModel.capturePreferences.onboardingGoal ?? .nearby
+            completedProductTourSteps = []
+            signedInOnboardingInitialStep = .welcome
+            signedInOnboardingStartedAt = nil
+            showsSignedInOnboarding = true
         }
     }
 
@@ -786,7 +1048,7 @@ struct MainTabView: View {
         ),
         authenticationPrompt == nil,
         !showsGuestSavedMerge,
-        !showsCapturePreferences,
+        !showsSignedInOnboarding,
         !showsGuestIntroduction else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -797,9 +1059,39 @@ struct MainTabView: View {
             ),
             authenticationPrompt == nil,
             !showsGuestSavedMerge,
-            !showsCapturePreferences else { return }
+            !showsSignedInOnboarding else { return }
+            guestIntroductionStartedAt = .now
+            guestIntroductionCompleted = false
+            MugshotAnalytics.shared.capture(.guestIntroductionStarted)
             showsGuestIntroduction = true
         }
+    }
+
+    private func completeGuestIntroduction() {
+        guestIntroductionCompleted = true
+        hasSeenGuestIntroduction = true
+        let duration = guestIntroductionDurationSeconds
+        MugshotAnalytics.shared.capture(
+            .guestIntroductionCompleted(durationSeconds: duration)
+        )
+        MugshotAnalytics.shared.capture(
+            .timeToFirstValue(value: "map_available", durationSeconds: duration)
+        )
+        showsGuestIntroduction = false
+    }
+
+    private func handleGuestIntroductionDismissed() {
+        if !guestIntroductionCompleted {
+            MugshotAnalytics.shared.capture(.guestIntroductionDismissed)
+        }
+        hasSeenGuestIntroduction = true
+        guestIntroductionStartedAt = nil
+        guestIntroductionCompleted = false
+    }
+
+    private var guestIntroductionDurationSeconds: Int {
+        guard let guestIntroductionStartedAt else { return 0 }
+        return Int(Date().timeIntervalSince(guestIntroductionStartedAt).rounded())
     }
 
     private var localAccountScope: LocalAccountScope {

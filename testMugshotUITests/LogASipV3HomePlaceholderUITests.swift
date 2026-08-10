@@ -15,7 +15,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         static let sipScore = "logASipV3.sipScore"
         static let makeAgainYes = "logASipV3.homeMakeAgain.yes"
         static let caption = "logASipV3.caption"
-        static let passport = "logASipV3.passport"
+        static let shareHub = "logASipV3.shareHub"
     }
 
     override func setUpWithError() throws {
@@ -72,19 +72,17 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
         attachScreenshot(named: "04-publish", app: app)
         type("A quiet home experiment worth keeping.", into: Identifier.caption, in: app)
-        if !element(Identifier.passport, in: app).waitForExistence(timeout: 1) {
+        if !element(Identifier.shareHub, in: app).waitForExistence(timeout: 1) {
             tapPrimaryAction(in: app)
         }
 
-        let passport = element(Identifier.passport, in: app)
+        let shareHub = element(Identifier.shareHub, in: app)
         XCTAssertTrue(
-            passport.waitForExistence(timeout: 5),
-            "A successful V3 Home publication should land on Taste Passport."
+            shareHub.waitForExistence(timeout: 5),
+            "A successful V3 Home publication should land on the post-publish share hub."
         )
-        XCTAssertTrue(app.staticTexts["Taste Passport"].exists)
         XCTAssertTrue(app.staticTexts["Mugshot published"].exists)
-        XCTAssertTrue(app.staticTexts["Placeholder ritual latte"].exists)
-        attachScreenshot(named: "05-passport", app: app)
+        attachScreenshot(named: "05-share-hub", app: app)
     }
 
     @MainActor
@@ -220,7 +218,10 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         let field = element(identifier, in: app)
         reveal(field, in: app)
         field.tap()
-        field.typeText(value)
+        for character in value {
+            field.typeText(String(character))
+        }
+        XCTAssertEqual(field.value as? String, value)
     }
 
     @MainActor

@@ -14,12 +14,14 @@ struct LogASipV3ProductionView: View {
     @Binding var step: SipV3ComposerStep
 
     let isSaving: Bool
+    let isDraftSaved: Bool
     let isRecoveryLocked: Bool
     let statusMessage: String?
     let isOpeningPublishedMugshot: Bool
     let completionStatusMessage: String?
     let completion: LogASipV3PassportSummary?
     let wantToTryAchievementCafeName: String?
+    let showsFirstSipGuidance: Bool
     let canUseLastSipSetup: Bool
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
@@ -31,6 +33,7 @@ struct LogASipV3ProductionView: View {
     let onDiscardProtectedSave: (() -> Void)?
     let onUseLastSipSetup: () -> Void
     let onUseLastContextSetup: () -> Void
+    let onDismissFirstSipGuidance: () -> Void
     let onPublish: () -> Void
     let onViewPublishedMugshot: () -> Void
     let onViewPassport: () -> Void
@@ -48,12 +51,14 @@ struct LogASipV3ProductionView: View {
         photoImages: Binding<[UIImage]>,
         step: Binding<SipV3ComposerStep>,
         isSaving: Bool,
+        isDraftSaved: Bool = false,
         isRecoveryLocked: Bool = false,
         statusMessage: String? = nil,
         isOpeningPublishedMugshot: Bool = false,
         completionStatusMessage: String? = nil,
         completion: LogASipV3PassportSummary? = nil,
         wantToTryAchievementCafeName: String? = nil,
+        showsFirstSipGuidance: Bool = false,
         canUseLastSipSetup: Bool = false,
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
@@ -65,6 +70,7 @@ struct LogASipV3ProductionView: View {
         onDiscardProtectedSave: (() -> Void)? = nil,
         onUseLastSipSetup: @escaping () -> Void = {},
         onUseLastContextSetup: @escaping () -> Void = {},
+        onDismissFirstSipGuidance: @escaping () -> Void = {},
         onPublish: @escaping () -> Void,
         onViewPublishedMugshot: @escaping () -> Void = {},
         onViewPassport: @escaping () -> Void = {},
@@ -76,12 +82,14 @@ struct LogASipV3ProductionView: View {
         _photoImages = photoImages
         _step = step
         self.isSaving = isSaving
+        self.isDraftSaved = isDraftSaved
         self.isRecoveryLocked = isRecoveryLocked
         self.statusMessage = statusMessage
         self.isOpeningPublishedMugshot = isOpeningPublishedMugshot
         self.completionStatusMessage = completionStatusMessage
         self.completion = completion
         self.wantToTryAchievementCafeName = wantToTryAchievementCafeName
+        self.showsFirstSipGuidance = showsFirstSipGuidance
         self.canUseLastSipSetup = canUseLastSipSetup
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
@@ -93,6 +101,7 @@ struct LogASipV3ProductionView: View {
         self.onDiscardProtectedSave = onDiscardProtectedSave
         self.onUseLastSipSetup = onUseLastSipSetup
         self.onUseLastContextSetup = onUseLastContextSetup
+        self.onDismissFirstSipGuidance = onDismissFirstSipGuidance
         self.onPublish = onPublish
         self.onViewPublishedMugshot = onViewPublishedMugshot
         self.onViewPassport = onViewPassport
@@ -146,6 +155,14 @@ struct LogASipV3ProductionView: View {
                     currentSurface
                         .id(step)
                         .transition(stepTransition)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if showsFirstSipGuidance {
+                                MugshotFirstSipGuideBanner(
+                                    step: step,
+                                    onDismiss: onDismissFirstSipGuidance
+                                )
+                            }
+                        }
                 }
             }
             .foregroundStyle(Color.espressoBrown)
@@ -184,6 +201,7 @@ struct LogASipV3ProductionView: View {
             LogASipV3SetupSurface(
                 draft: $draft,
                 photoImages: $photoImages,
+                isDraftSaved: isDraftSaved,
                 isRecoveryLocked: isRecoveryLocked,
                 onAddPhoto: onAddPhoto,
                 onOrganizePhotos: onOrganizePhotos,
@@ -427,6 +445,7 @@ private struct LogASipV3SetupSurface: View {
     @Binding var draft: SipDraft
     @Binding var photoImages: [UIImage]
 
+    let isDraftSaved: Bool
     let isRecoveryLocked: Bool
     let onAddPhoto: () -> Void
     let onOrganizePhotos: () -> Void
@@ -482,9 +501,14 @@ private struct LogASipV3SetupSurface: View {
             action: onContinue
         ) {
             MugshotScreenHeader("Log a Sip") {
-                Label("Draft saved", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.mugshotSage)
+                Label(
+                    isDraftSaved ? "Draft saved" : "Drafts save automatically",
+                    systemImage: isDraftSaved ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath"
+                )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isDraftSaved ? Color.mugshotSage : Color.tertiaryText)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             MugshotSegmentedControl(

@@ -1878,7 +1878,7 @@ struct testMugshotTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let preferences = CafeVisibilityPreferenceStore(defaults: defaults)
 
-        #expect(preferences.defaultCafeVisibility == .friends)
+        #expect(preferences.defaultCafeVisibility == .private)
         preferences.rememberCafeVisibility(.everyone)
         #expect(preferences.defaultCafeVisibility == .everyone)
 

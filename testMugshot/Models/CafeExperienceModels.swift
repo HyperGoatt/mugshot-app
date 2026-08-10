@@ -760,7 +760,7 @@ struct CafeSessionDraft: Identifiable, Codable, Equatable {
         startedAt: Date = .now,
         updatedAt: Date = .now,
         status: CafeSessionStatus = .draft,
-        visibility: VisitVisibility = .friends,
+        visibility: VisitVisibility = .private,
         primaryVisitID: UUID? = nil,
         primarySipDraftID: UUID,
         sipDraftIDs: [UUID]? = nil,

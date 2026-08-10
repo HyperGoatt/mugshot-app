@@ -21,7 +21,6 @@ struct AppData: Codable {
     var visits: [Visit]
     var cafeSessions: [CafeSession]
     var ratingTemplate: RatingTemplate
-    var hasCompletedOnboarding: Bool
     
     init(
         currentUser: User? = nil,
@@ -29,8 +28,7 @@ struct AppData: Codable {
         personalLibraryCafeIDs: Set<UUID> = [],
         visits: [Visit] = [],
         cafeSessions: [CafeSession] = [],
-        ratingTemplate: RatingTemplate = RatingTemplate(),
-        hasCompletedOnboarding: Bool = false
+        ratingTemplate: RatingTemplate = RatingTemplate()
     ) {
         self.currentUser = currentUser
         self.cafes = cafes
@@ -38,7 +36,6 @@ struct AppData: Codable {
         self.visits = visits
         self.cafeSessions = cafeSessions
         self.ratingTemplate = ratingTemplate
-        self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -48,7 +45,6 @@ struct AppData: Codable {
         case visits
         case cafeSessions
         case ratingTemplate
-        case hasCompletedOnboarding
     }
 
     init(from decoder: Decoder) throws {
@@ -66,10 +62,6 @@ struct AppData: Codable {
             RatingTemplate.self,
             forKey: .ratingTemplate
         ) ?? RatingTemplate()
-        hasCompletedOnboarding = try container.decodeIfPresent(
-            Bool.self,
-            forKey: .hasCompletedOnboarding
-        ) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -80,6 +72,5 @@ struct AppData: Codable {
         try container.encode(visits, forKey: .visits)
         try container.encode(cafeSessions, forKey: .cafeSessions)
         try container.encode(ratingTemplate, forKey: .ratingTemplate)
-        try container.encode(hasCompletedOnboarding, forKey: .hasCompletedOnboarding)
     }
 }

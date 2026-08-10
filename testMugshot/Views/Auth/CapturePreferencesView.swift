@@ -21,6 +21,7 @@ struct CapturePreferencesView: View {
         PreferenceOption(id: "nearby", title: "Find nearby cafes", icon: "location.fill"),
         PreferenceOption(id: "friends", title: "Follow friends’ finds", icon: "person.2.fill"),
         PreferenceOption(id: "taste", title: "Understand my taste", icon: "sparkles"),
+        PreferenceOption(id: "journal", title: "Remember every sip", icon: "cup.and.saucer.fill"),
         PreferenceOption(id: "home", title: "Improve home brewing", icon: "scalemass.fill")
     ]
 

@@ -9,6 +9,10 @@ struct LogVisitView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
     private let explicitLaunchDraft: SipDraft?
+    private let onAuthenticationRequired: () -> Void
+    private let isFirstSipGuidanceEnabled: Bool
+    private let onFirstSipGuidanceDismissed: () -> Void
+    private let onFirstSipGuidanceCompleted: () -> Void
 
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @EnvironmentObject private var authModel: AppAuthModel
@@ -21,6 +25,7 @@ struct LogVisitView: View {
     @StateObject private var composerModel: SipComposerModel
     @State private var photoImages: [UIImage] = []
     @State private var didRestoreDraft = false
+    @State private var isDraftPersisted = false
     @State private var suppressContextDefaults = false
     @State private var showTastingLens2 = false
     @State private var showPhotoSourceDialog = false
@@ -65,6 +70,8 @@ struct LogVisitView: View {
     @State private var analyticsDidCaptureOpen = false
     @State private var analyticsDidCaptureRecovery = false
     @State private var analyticsDidCaptureDeduplication = false
+    @State private var analyticsDidCaptureGuestDraft = false
+    @State private var analyticsDidCaptureGuestAdoption = false
     @State private var analyticsPublishWasRecovery = false
 
     @StateObject private var searchService = MapSearchService()
@@ -169,11 +176,19 @@ struct LogVisitView: View {
     init(
         dataManager: DataManager,
         preselectedCafe: Cafe? = nil,
-        initialDraft: SipDraft? = nil
+        initialDraft: SipDraft? = nil,
+        onAuthenticationRequired: @escaping () -> Void = {},
+        isFirstSipGuidanceEnabled: Bool = false,
+        onFirstSipGuidanceDismissed: @escaping () -> Void = {},
+        onFirstSipGuidanceCompleted: @escaping () -> Void = {}
     ) {
         self.dataManager = dataManager
         self.preselectedCafe = preselectedCafe
         self.explicitLaunchDraft = initialDraft
+        self.onAuthenticationRequired = onAuthenticationRequired
+        self.isFirstSipGuidanceEnabled = isFirstSipGuidanceEnabled
+        self.onFirstSipGuidanceDismissed = onFirstSipGuidanceDismissed
+        self.onFirstSipGuidanceCompleted = onFirstSipGuidanceCompleted
         let restoredImages = initialDraft.flatMap {
             SipDraftStore.shared.load(
                 id: $0.id,
@@ -205,7 +220,9 @@ struct LogVisitView: View {
                 preselectedCafe: preselectedCafe
             ),
             cafe: preselectedCafe,
-            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
+            visibility: ownerUserID == nil
+                ? .private
+                : CafeVisibilityPreferenceStore.shared.defaultCafeVisibility
         )
         return draft
     }
@@ -382,7 +399,10 @@ struct LogVisitView: View {
             .task(id: authModel.authenticatedUser?.id) {
                 await refreshCafeSessionsCapability()
             }
-            .onChange(of: draft) { _, _ in persistDraft() }
+            .onChange(of: draft) { _, _ in
+                isDraftPersisted = false
+                persistDraft()
+            }
             .onChange(of: draft.drinkName) { _, _ in refreshDrinkAnalysis() }
             .onChange(of: draft.brewDetails.servingVolumeMilliliters) { _, _ in refreshDrinkAnalysis() }
             .onChange(of: draft.brewDetails.espressoShotCount) { _, _ in refreshDrinkAnalysis() }
@@ -398,12 +418,20 @@ struct LogVisitView: View {
                     .sipContextSelected(analyticsSnapshot)
                 )
             }
-            .onChange(of: draft.visibility) { _, _ in
+            .onChange(of: draft.visibility) { oldVisibility, newVisibility in
                 confirmedTextOnlyEveryone = false
                 constrainRawNoteVisibility()
                 if draft.cafeSessionDraft != nil {
                     draft.cafeSessionDraft?.visibility = draft.visibility
                 }
+                guard oldVisibility != newVisibility else { return }
+                MugshotAnalytics.shared.capture(
+                    .visibilityChanged(
+                        analyticsSnapshot,
+                        from: oldVisibility,
+                        to: newVisibility
+                    )
+                )
             }
             .onChange(of: draft.cafe?.id) { oldCafeID, newCafeID in
                 guard oldCafeID != newCafeID else { return }
@@ -425,12 +453,19 @@ struct LogVisitView: View {
                 if let location { updateSearchRegion(for: location) }
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, userID in
-                activateLocalState(scope: .forUserID(userID))
                 guard let userID else {
+                    activateLocalState(scope: .guest)
                     pendingSubmission = nil
                     conflictingPendingSubmission = nil
                     return
                 }
+                if draft.ownerUserID == nil,
+                   draft.hasDraftWorthyUserContent || !photoImages.isEmpty {
+                    adoptGuestDraft(for: userID)
+                    reconcilePendingSubmission(for: userID)
+                    return
+                }
+                activateLocalState(scope: .user(userID))
                 if explicitLaunchDraft == nil,
                    !showSavedConfirmation,
                    restorePublishedV3CompletionIfNeeded() {
@@ -457,12 +492,14 @@ struct LogVisitView: View {
             photoImages: $photoImages,
             step: $v3Step,
             isSaving: isSaving,
+            isDraftSaved: isDraftPersisted,
             isRecoveryLocked: pendingSubmission != nil || isSaving,
             statusMessage: errorMessage ?? uploadRecoveryMessage,
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
             wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
+            showsFirstSipGuidance: isFirstSipGuidanceEnabled,
             canUseLastSipSetup: !RecentCriterionSetupStore.shared
                 .names(scope: pinnedSipScope).isEmpty,
             canUseLastContextSetup: !RecentCriterionSetupStore.shared
@@ -484,11 +521,17 @@ struct LogVisitView: View {
                 : nil,
             onUseLastSipSetup: useLastSipCriteriaSetup,
             onUseLastContextSetup: useLastContextCriteriaSetup,
+            onDismissFirstSipGuidance: onFirstSipGuidanceDismissed,
             onPublish: saveSip,
             onViewPublishedMugshot: viewPublishedMugshot,
             onViewPassport: viewPassportAfterCompletion,
             onUndoWantToTryRemoval: undoWantToTryRemoval,
-            onFinish: finishSuccessfulSave,
+            onFinish: {
+                if isFirstSipGuidanceEnabled {
+                    onFirstSipGuidanceCompleted()
+                }
+                finishSuccessfulSave()
+            },
             onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
         )
     }
@@ -1909,6 +1952,10 @@ struct LogVisitView: View {
             draft = stored.draft
             photoImages = stored.images
             v3Step = stored.draft.v3Step ?? .setup
+            isDraftPersisted = true
+            MugshotAnalytics.shared.capture(
+                .draftRestored(analyticsSnapshot, wasGuest: stored.draft.ownerUserID == nil)
+            )
             DispatchQueue.main.async { suppressContextDefaults = false }
         } else {
             draft.ownerUserID = authModel.authenticatedUser?.id
@@ -2721,6 +2768,11 @@ struct LogVisitView: View {
 
     private func persistDraft() {
         guard didRestoreDraft, draft.hasDraftWorthyUserContent || !photoImages.isEmpty else { return }
+        if let userID = authModel.authenticatedUser?.id,
+           draft.ownerUserID == nil {
+            adoptGuestDraft(for: userID)
+            return
+        }
         do {
             let stored = try SipDraftStore.shared.save(
                 draft,
@@ -2731,8 +2783,44 @@ struct LogVisitView: View {
                 draft.localPhotoNames = stored.localPhotoNames
                 draft.posterPhotoIndex = stored.posterPhotoIndex
             }
+            isDraftPersisted = true
+            if localAccountScope == .guest,
+               !analyticsDidCaptureGuestDraft {
+                analyticsDidCaptureGuestDraft = true
+                MugshotAnalytics.shared.capture(
+                    .guestDraftCreated(analyticsSnapshot)
+                )
+            }
         } catch {
+            isDraftPersisted = false
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func adoptGuestDraft(for userID: UUID) {
+        do {
+            let adopted = try SipDraftStore.shared.adoptGuestDraft(
+                draft,
+                images: photoImages,
+                for: userID
+            )
+            suppressContextDefaults = true
+            draft = adopted.draft
+            photoImages = adopted.images
+            isDraftPersisted = true
+            errorMessage = nil
+            activateLocalState(scope: .user(userID))
+            if !analyticsDidCaptureGuestAdoption {
+                analyticsDidCaptureGuestAdoption = true
+                MugshotAnalytics.shared.capture(
+                    .guestDraftSavedAfterSignup(analyticsSnapshot)
+                )
+            }
+            DispatchQueue.main.async { suppressContextDefaults = false }
+        } catch {
+            isDraftPersisted = false
+            errorMessage = error.localizedDescription
+            activateLocalState(scope: .user(userID))
         }
     }
 
@@ -2759,6 +2847,12 @@ struct LogVisitView: View {
         if draft.hasDraftWorthyUserContent || !photoImages.isEmpty {
             MugshotAnalytics.shared.capture(
                 .sipDraftSaved(
+                    analyticsSnapshot,
+                    durationSeconds: analyticsDurationSeconds
+                )
+            )
+            MugshotAnalytics.shared.capture(
+                .logAbandoned(
                     analyticsSnapshot,
                     durationSeconds: analyticsDurationSeconds
                 )
@@ -2860,6 +2954,19 @@ struct LogVisitView: View {
         }
 #endif
 
+        guard authModel.authenticatedUser != nil
+                || dataManager.appData.currentUser != nil else {
+            persistDraft()
+            MugshotAnalytics.shared.capture(
+                .sipPublishBlocked(
+                    analyticsSnapshot,
+                    reason: .authenticationRequired
+                )
+            )
+            onAuthenticationRequired()
+            return
+        }
+
         if draft.context == .cafe {
             CafeVisibilityPreferenceStore.shared.rememberCafeVisibility(
                 draft.visibility,
@@ -2935,9 +3042,6 @@ struct LogVisitView: View {
             confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
         ) == .needsTextOrPhoto {
             return "Add a one-line thought or photo before sharing this sip with Everyone."
-        }
-        if authModel.authenticatedUser == nil && dataManager.appData.currentUser == nil {
-            return "Sign back in to save. Your draft will stay here."
         }
         return nil
     }

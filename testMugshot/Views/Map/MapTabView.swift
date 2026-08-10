@@ -142,6 +142,7 @@ struct MapTabView: View {
     @State private var hasPendingAreaSearch = false
     @State private var showsNearbyReminderEducation = false
     @State private var nearbyReminderError: String?
+    @State private var isPresentingPendingSavedCafe = false
     
     // The deterministic fixture remains city-scale for adaptive-map UI tests.
     // Production never uses this as its unavailable-location fallback.
@@ -416,6 +417,10 @@ struct MapTabView: View {
             presentPendingSavedCafeIfNeeded()
         }
         .onChange(of: discoveryScope) { _, _ in
+            if isPresentingPendingSavedCafe {
+                rebuildForYouRecommendations()
+                return
+            }
             friendPreviewCafe = nil
             showCafeDetail = false
             selectedCafe = nil
@@ -1086,6 +1091,7 @@ struct MapTabView: View {
     @MainActor
     private func presentPendingSavedCafeIfNeeded() {
         guard let cafe = tabCoordinator.consumePendingMapCafe() else { return }
+        isPresentingPendingSavedCafe = true
         discoveryScope = .all
         isSearchActive = false
         isSearchFieldFocused = false
@@ -1099,6 +1105,9 @@ struct MapTabView: View {
         }
         withAnimation(DesignSystem.Motion.base) {
             showCafeDetail = true
+        }
+        DispatchQueue.main.async {
+            isPresentingPendingSavedCafe = false
         }
     }
 

@@ -65,9 +65,6 @@ class DataManager: ObservableObject {
     func applyAuthenticatedProfile(_ profile: SupabaseUserProfile) {
         activateUserStorage(userId: profile.id)
         appData.currentUser = profile.localUser
-        if !appData.hasCompletedOnboarding {
-            appData.hasCompletedOnboarding = true
-        }
         save()
     }
 
@@ -239,6 +236,9 @@ class DataManager: ObservableObject {
             RecentCriterionSetupStore.shared.removeAllForTesting()
             PinnedCriterionStore.shared.removeAllForTesting()
             defaults.removeObject(forKey: mapSearchRecentsKey)
+            defaults.removeObject(forKey: "MugshotMap.discoveryScope.v1")
+            defaults.removeObject(forKey: "saved.library.sort")
+            defaults.removeObject(forKey: "saved.library.density")
             MugshotLaunchEnvironment.resetDeterministicFailures()
         }
 
@@ -269,6 +269,14 @@ class DataManager: ObservableObject {
         }
 
         let adaptiveMapFixture = adaptiveMapUITestFixture(userID: userID)
+        let fixtureCafes = adaptiveMapFixture?.cafes ?? [
+            Cafe(
+                id: cafeID,
+                name: "Mugshot Test Cafe",
+                address: "1 Test Street, Charleston, SC",
+                isFavorite: true
+            )
+        ]
         appData = AppData(
             currentUser: User(
                 id: userID,
@@ -276,17 +284,10 @@ class DataManager: ObservableObject {
                 displayName: "Mugshot Test",
                 location: "Charleston, SC"
             ),
-            cafes: adaptiveMapFixture?.cafes ?? [
-                Cafe(
-                    id: cafeID,
-                    name: "Mugshot Test Cafe",
-                    address: "1 Test Street, Charleston, SC",
-                    isFavorite: true
-                )
-            ],
+            cafes: fixtureCafes,
+            personalLibraryCafeIDs: Set(fixtureCafes.map(\.id)),
             visits: adaptiveMapFixture?.visits ?? [],
-            ratingTemplate: RatingTemplate(),
-            hasCompletedOnboarding: true
+            ratingTemplate: RatingTemplate()
         )
         seedUITestMapSearchRecentIfRequested(key: mapSearchRecentsKey)
         defaults.set(
@@ -1123,12 +1124,6 @@ class DataManager: ObservableObject {
     // MARK: - Rating Template Operations
     func updateRatingTemplate(_ template: RatingTemplate) {
         appData.ratingTemplate = template
-        save()
-    }
-    
-    // MARK: - Onboarding
-    func completeOnboarding() {
-        appData.hasCompletedOnboarding = true
         save()
     }
     
