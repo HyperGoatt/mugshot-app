@@ -60,6 +60,27 @@ struct testMugshotTests {
         #expect(AuthService.passwordRecoveryURL.absoluteString == "mugshot://auth/recovery")
     }
 
+    @Test func sessionRestorationRequiresFreshSignInOnlyForTerminalAuthFailures() {
+        let terminalCodes = [
+            "session_not_found",
+            "session_expired",
+            "refresh_token_not_found",
+            "refresh_token_already_used",
+            "user_not_found",
+            "user_banned",
+            "bad_jwt",
+            "invalid_jwt",
+        ]
+
+        for code in terminalCodes {
+            #expect(MugshotSessionRestorationPolicy.requiresFreshSignIn(errorCode: code))
+        }
+
+        for code in ["request_timeout", "unexpected_failure", "hook_timeout"] {
+            #expect(!MugshotSessionRestorationPolicy.requiresFreshSignIn(errorCode: code))
+        }
+    }
+
     @Test func authCallbackQueueDefersColdLinksAndConsumesEachLinkOnce() throws {
         let coldURL = try #require(URL(
             string: "mugshot://auth/recovery?code=one-time-recovery-code"
