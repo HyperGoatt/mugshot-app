@@ -348,7 +348,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
         overallScore: Double = 0,
         socialCaption: String = "",
         privateNotes: String = "",
-        visibility: VisitVisibility = .friends,
+        visibility: VisitVisibility = .private,
         ratingCriteria: [SipRatingCriterionSnapshot] = [],
         orderNotes: String = "",
         tags: [String] = [],

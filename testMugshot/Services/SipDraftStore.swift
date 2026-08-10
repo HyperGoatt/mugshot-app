@@ -198,6 +198,56 @@ final class SipDraftStore {
         }
     }
 
+    /// Moves current guest work into an authenticated account without ever
+    /// deleting the guest copy before a complete destination write can be read
+    /// back. The caller supplies the in-memory draft so the last edit is not
+    /// lost if authentication completes between autosave callbacks.
+    func adoptGuestDraft(
+        _ draft: SipDraft,
+        images: [UIImage],
+        for userID: UUID
+    ) throws -> StoredSipDraft {
+        lock.lock()
+        defer { lock.unlock() }
+        try migrateLegacyDataIfNeeded()
+        guard draft.ownerUserID == nil else {
+            throw SipDraftStoreError.ownerMismatch
+        }
+
+        let guestDraft = try save(draft, images: images, in: .guest)
+        var adoptedDraft = guestDraft
+        adoptedDraft.ownerUserID = userID
+        if adoptedDraft.cafeSessionDraft != nil {
+            adoptedDraft.cafeSessionDraft?.ownerUserID = userID
+        }
+        if let reference = adoptedDraft.cafeSessionReference {
+            adoptedDraft.cafeSessionReference = CafeSessionReference(
+                id: reference.id,
+                ownerUserID: userID,
+                cafeID: reference.cafeID,
+                startedAt: reference.startedAt,
+                visibility: reference.visibility,
+                primaryVisitID: reference.primaryVisitID,
+                returnIntention: reference.returnIntention
+            )
+        }
+
+        let destinationScope = LocalAccountScope.user(userID)
+        _ = try save(adoptedDraft, images: images, in: destinationScope)
+        guard let verified = load(id: adoptedDraft.id, in: destinationScope),
+              verified.draft.ownerUserID == userID,
+              verified.draft.cafeSessionDraft?.ownerUserID == userID
+                || verified.draft.cafeSessionDraft == nil,
+              verified.draft.cafeSessionReference?.ownerUserID == userID
+                || verified.draft.cafeSessionReference == nil else {
+            throw SipDraftStoreError.adoptionVerificationFailed
+        }
+
+        remove(guestDraft, in: .guest)
+        activeScope = destinationScope
+        return verified
+    }
+
     // Compatibility entry points use the active account scope. Saving a draft
     // with a proven owner also activates that owner's scope; these APIs never
     // search every account scope.
@@ -546,11 +596,14 @@ final class SipDraftStore {
 }
 
 enum SipDraftStoreError: LocalizedError {
+    case adoptionVerificationFailed
     case photoEncodingFailed
     case ownerMismatch
 
     var errorDescription: String? {
         switch self {
+        case .adoptionVerificationFailed:
+            return "Mugshot couldn’t verify the account copy. Your guest draft is still safe on this device."
         case .photoEncodingFailed:
             return "One selected photo could not be preserved in this draft."
         case .ownerMismatch:
@@ -586,7 +639,7 @@ final class CafeVisibilityPreferenceStore {
     func defaultCafeVisibility(in scope: LocalAccountScope) -> VisitVisibility {
         guard let rawValue = defaults.string(forKey: Self.storageKey(for: scope)),
               let visibility = VisitVisibility(rawValue: rawValue) else {
-            return .friends
+            return .private
         }
         return visibility
     }

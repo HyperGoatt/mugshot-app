@@ -67,9 +67,14 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testSignedOutShellKeepsMapAndSavedOpenAndGatesJournalActions() throws {
+    func testSignedOutShellKeepsDiscoveryOpenAndRequestsAuthAfterGuestDraft() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out"]
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-signed-out",
+            "--ui-testing-seed-photo"
+        ]
         app.launch()
 
         XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 5))
@@ -81,10 +86,30 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.textFields["Search places"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.alerts.firstMatch.exists, "Guest discovery should not request permission at launch.")
 
-        app.buttons["Add"].tap()
-        XCTAssertTrue(app.staticTexts["Start your sip journal"].waitForExistence(timeout: 3))
+        openV3HomeDraftToPublish(
+            in: app,
+            drinkName: "Guest cortado",
+            caption: "A guest-created memory",
+            usesSeededPhoto: true
+        )
+        let privateAudience = app.buttons["Private"].firstMatch
+        XCTAssertTrue(privateAudience.waitForExistence(timeout: 2))
+        XCTAssertTrue(privateAudience.isSelected)
+        attachScreenshot(named: "After - Guest private publish preview")
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Save this draft to your journal"].waitForExistence(timeout: 3))
+        let preservationMessage = app.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS %@",
+                "Nothing publishes until you return and tap Publish."
+            )
+        ).firstMatch
+        XCTAssertTrue(preservationMessage.waitForExistence(timeout: 2))
+        attachScreenshot(named: "After - Guest auth preservation boundary")
         XCTAssertTrue(app.buttons["Keep exploring"].exists)
         app.buttons["Keep exploring"].tap()
+        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 2))
+        app.buttons["Close Log a Sip"].tap()
 
         XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 2))
         app.buttons["Feed"].tap()

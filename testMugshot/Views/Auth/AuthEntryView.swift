@@ -104,6 +104,12 @@ struct AuthEntryView: View {
                         ) {
                             providerMessage = nil
                             authModel.clearAccountRecoveryFeedback()
+                            MugshotAnalytics.shared.capture(
+                                .authenticationStarted(
+                                    flow: isCreatingAccount ? .signUp : .signIn,
+                                    method: .google
+                                )
+                            )
                             Task {
                                 await authModel.signInWithGoogle(dataManager: dataManager)
                             }
@@ -116,6 +122,12 @@ struct AuthEntryView: View {
                                 providerMessage = nil
                                 request.requestedScopes = [.email, .fullName]
                                 request.nonce = AppleSignInNonce.sha256(nonce)
+                                MugshotAnalytics.shared.capture(
+                                    .authenticationStarted(
+                                        flow: isCreatingAccount ? .signUp : .signIn,
+                                        method: .apple
+                                    )
+                                )
                             } catch {
                                 appleNonce = nil
                                 providerMessage = "Mugshot couldn’t prepare Apple sign-in. Please try again."
@@ -280,6 +292,12 @@ struct AuthEntryView: View {
     private func submit() {
         providerMessage = nil
         authModel.clearAccountRecoveryFeedback()
+        MugshotAnalytics.shared.capture(
+            .authenticationStarted(
+                flow: isCreatingAccount ? .signUp : .signIn,
+                method: .email
+            )
+        )
         Task {
             if isCreatingAccount {
                 await authModel.signUp(email: email, password: password, dataManager: dataManager)

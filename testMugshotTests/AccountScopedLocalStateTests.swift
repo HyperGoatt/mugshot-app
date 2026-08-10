@@ -219,6 +219,86 @@ struct AccountScopedLocalStateTests {
         }
     }
 
+    @Test func guestDraftAdoptionVerifiesDestinationBeforeRemovingGuestCopy() throws {
+        let directory = temporaryDirectory(named: "GuestDraftAdoption")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SipDraftStore(baseDirectory: directory)
+        let ownerID = UUID()
+        let draftID = UUID()
+        let session = CafeSessionDraft(
+            cafeID: UUID(),
+            primarySipDraftID: draftID
+        )
+        let reference = CafeSessionReference(
+            id: UUID(),
+            ownerUserID: nil,
+            cafeID: UUID(),
+            startedAt: .now,
+            visibility: .private,
+            primaryVisitID: nil,
+            returnIntention: nil
+        )
+        let guestDraft = SipDraft(
+            id: draftID,
+            context: .cafe,
+            drinkName: "Guest draft",
+            visibility: .private,
+            cafeSessionDraft: session,
+            cafeSessionReference: reference
+        )
+        _ = try store.save(
+            guestDraft,
+            images: [testImage(.systemMint)],
+            in: .guest
+        )
+
+        let adopted = try store.adoptGuestDraft(
+            guestDraft,
+            images: [testImage(.systemMint)],
+            for: ownerID
+        )
+
+        #expect(adopted.draft.ownerUserID == ownerID)
+        #expect(adopted.draft.cafeSessionDraft?.ownerUserID == ownerID)
+        #expect(adopted.draft.cafeSessionReference?.ownerUserID == ownerID)
+        #expect(adopted.images.count == 1)
+        #expect(store.load(id: draftID, in: .guest) == nil)
+        #expect(store.load(id: draftID, in: .user(ownerID)) != nil)
+    }
+
+    @Test func failedGuestDraftAdoptionRetainsTheGuestSource() throws {
+        let directory = temporaryDirectory(named: "FailedGuestDraftAdoption")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SipDraftStore(baseDirectory: directory)
+        let guestDraft = SipDraft(
+            context: .home,
+            drinkName: "Protected guest draft",
+            visibility: .private
+        )
+        _ = try store.save(guestDraft, images: [], in: .guest)
+        let blockedUsersDirectory = directory
+            .appendingPathComponent("v2", isDirectory: true)
+            .appendingPathComponent("users", isDirectory: true)
+        try Data("destination-blocked".utf8).write(
+            to: blockedUsersDirectory,
+            options: .atomic
+        )
+
+        do {
+            _ = try store.adoptGuestDraft(
+                guestDraft,
+                images: [],
+                for: UUID()
+            )
+            Issue.record("Adoption should fail when the destination directory is blocked.")
+        } catch {
+            let retained = try #require(store.load(id: guestDraft.id, in: .guest))
+            #expect(retained.draft.id == guestDraft.id)
+            #expect(retained.draft.drinkName == guestDraft.drinkName)
+            #expect(retained.draft.ownerUserID == nil)
+        }
+    }
+
     @Test func draftReadReportPreservesAndSurfacesUnreadableMetadata() throws {
         let directory = temporaryDirectory(named: "UnreadableSipDraft")
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -357,7 +437,7 @@ struct AccountScopedLocalStateTests {
         store.rememberCafeVisibility(.private, in: .guest)
 
         #expect(store.defaultCafeVisibility(in: firstScope) == .everyone)
-        #expect(store.defaultCafeVisibility(in: secondScope) == .friends)
+        #expect(store.defaultCafeVisibility(in: secondScope) == .private)
         #expect(store.defaultCafeVisibility(in: .guest) == .private)
         #expect(defaults.string(forKey: CafeVisibilityPreferenceStore.valueKey) == nil)
     }

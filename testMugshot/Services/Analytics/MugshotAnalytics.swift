@@ -282,6 +282,17 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
 
 enum MugshotAnalyticsEvent: Equatable {
     case screenViewed(MugshotAnalyticsScreen, source: MugshotAnalyticsScreenSource)
+    case onboardingStarted
+    case onboardingStepCompleted(step: Int, totalSteps: Int)
+    case onboardingAbandoned(step: Int, totalSteps: Int)
+    case onboardingCompleted(durationSeconds: Int)
+    case timeToFirstValue(value: String, durationSeconds: Int)
+    case authPromptViewed(source: String)
+    case authenticationStarted(
+        flow: MugshotAuthenticationFlow,
+        method: MugshotAuthenticationMethod
+    )
+    case authAbandoned(source: String)
     case authenticationCompleted(
         flow: MugshotAuthenticationFlow,
         method: MugshotAuthenticationMethod
@@ -319,6 +330,18 @@ enum MugshotAnalyticsEvent: Equatable {
         recoveryState: MugshotSipRecoveryState
     )
     case sipDraftSaved(
+        MugshotSipAnalyticsSnapshot,
+        durationSeconds: Int
+    )
+    case guestDraftCreated(MugshotSipAnalyticsSnapshot)
+    case guestDraftSavedAfterSignup(MugshotSipAnalyticsSnapshot)
+    case draftRestored(MugshotSipAnalyticsSnapshot, wasGuest: Bool)
+    case visibilityChanged(
+        MugshotSipAnalyticsSnapshot,
+        from: VisitVisibility,
+        to: VisitVisibility
+    )
+    case logAbandoned(
         MugshotSipAnalyticsSnapshot,
         durationSeconds: Int
     )
@@ -361,6 +384,41 @@ enum MugshotAnalyticsEvent: Equatable {
                     "source": .string(source.rawValue)
                 ]
             )
+        case .onboardingStarted:
+            return payload("onboarding_started")
+        case .onboardingStepCompleted(let step, let totalSteps):
+            return payload(
+                "onboarding_step_completed",
+                Self.onboardingProperties(step: step, totalSteps: totalSteps)
+            )
+        case .onboardingAbandoned(let step, let totalSteps):
+            return payload(
+                "onboarding_abandoned",
+                Self.onboardingProperties(step: step, totalSteps: totalSteps)
+            )
+        case .onboardingCompleted(let durationSeconds):
+            return payload(
+                "onboarding_completed",
+                ["duration_seconds": .integer(Self.boundedDuration(durationSeconds))]
+            )
+        case .timeToFirstValue(let value, let durationSeconds):
+            return payload(
+                "time_to_first_value",
+                [
+                    "value": .string(value),
+                    "duration_seconds": .integer(Self.boundedDuration(durationSeconds))
+                ]
+            )
+        case .authPromptViewed(let source):
+            return payload("auth_prompt_viewed", ["source": .string(source)])
+        case .authenticationStarted(let flow, let method):
+            return authenticationPayload(
+                "auth_started",
+                flow: flow,
+                method: method
+            )
+        case .authAbandoned(let source):
+            return payload("auth_abandoned", ["source": .string(source)])
         case .authenticationCompleted(let flow, let method):
             return authenticationPayload(
                 "authentication_completed",
@@ -443,6 +501,33 @@ enum MugshotAnalyticsEvent: Equatable {
         case .sipDraftSaved(let snapshot, let durationSeconds):
             return sipPayload(
                 "sip_draft_saved",
+                snapshot: snapshot,
+                additional: [
+                    "duration_seconds": .integer(Self.boundedDuration(durationSeconds))
+                ]
+            )
+        case .guestDraftCreated(let snapshot):
+            return sipPayload("guest_draft_created", snapshot: snapshot)
+        case .guestDraftSavedAfterSignup(let snapshot):
+            return sipPayload("guest_draft_saved_after_signup", snapshot: snapshot)
+        case .draftRestored(let snapshot, let wasGuest):
+            return sipPayload(
+                "draft_restored",
+                snapshot: snapshot,
+                additional: ["was_guest": .boolean(wasGuest)]
+            )
+        case .visibilityChanged(let snapshot, let oldVisibility, let newVisibility):
+            return sipPayload(
+                "visibility_changed",
+                snapshot: snapshot,
+                additional: [
+                    "from_visibility": .string(oldVisibility.rawValue.lowercased()),
+                    "to_visibility": .string(newVisibility.rawValue.lowercased())
+                ]
+            )
+        case .logAbandoned(let snapshot, let durationSeconds):
+            return sipPayload(
+                "log_abandoned",
                 snapshot: snapshot,
                 additional: [
                     "duration_seconds": .integer(Self.boundedDuration(durationSeconds))
@@ -554,6 +639,17 @@ enum MugshotAnalyticsEvent: Equatable {
     private static func boundedDuration(_ durationSeconds: Int) -> Int {
         min(max(durationSeconds, 0), 14_400)
     }
+
+    private static func onboardingProperties(
+        step: Int,
+        totalSteps: Int
+    ) -> [String: MugshotAnalyticsPropertyValue] {
+        let boundedTotal = min(max(totalSteps, 1), 20)
+        return [
+            "step": .integer(min(max(step, 1), boundedTotal)),
+            "total_steps": .integer(boundedTotal)
+        ]
+    }
 }
 
 protocol MugshotAnalyticsTransport: AnyObject {
@@ -617,7 +713,7 @@ final class MugshotAnalytics {
     ) {
         self.transport = transport
         metadata = [
-            "analytics_version": .integer(1),
+            "analytics_version": .integer(2),
             "platform": .string("ios"),
             "app_version": .string(
                 bundle.object(

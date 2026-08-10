@@ -15,12 +15,14 @@ struct AddTabView: View {
     @ObservedObject var dataManager: DataManager
     var preselectedCafe: Cafe? = nil
     var initialDraft: SipDraft? = nil
+    var onAuthenticationRequired: () -> Void = {}
     
     var body: some View {
         LogVisitView(
             dataManager: dataManager,
             preselectedCafe: preselectedCafe,
-            initialDraft: initialDraft
+            initialDraft: initialDraft,
+            onAuthenticationRequired: onAuthenticationRequired
         )
     }
 }

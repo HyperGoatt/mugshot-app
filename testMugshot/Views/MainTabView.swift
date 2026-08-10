@@ -24,9 +24,12 @@ struct MainTabView: View {
     @State private var composerDraft: SipDraft?
     @State private var composerSessionID = UUID()
     @State private var authenticationPrompt: AuthenticationPrompt?
+    @State private var authenticationPromptAnalyticsSource: String?
     @State private var showsGuestSavedMerge = false
     @State private var showsCapturePreferences = false
     @State private var showsGuestIntroduction = false
+    @State private var guestIntroductionStartedAt: Date?
+    @State private var guestIntroductionCompleted = false
     @State private var showsActivityCenter = false
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
@@ -259,7 +262,7 @@ struct MainTabView: View {
 
     private var presentedScene: some View {
         lifecycleScene
-        .sheet(item: $authenticationPrompt, onDismiss: scheduleCapturePreferencesIfNeeded) { prompt in
+        .sheet(item: $authenticationPrompt, onDismiss: handleAuthenticationPromptDismissed) { prompt in
             AuthEntryView(
                 dataManager: dataManager,
                 contextTitle: prompt.title,
@@ -268,13 +271,8 @@ struct MainTabView: View {
             )
             .environmentObject(authModel)
         }
-        .sheet(isPresented: $showsGuestIntroduction, onDismiss: {
-            hasSeenGuestIntroduction = true
-        }) {
-            MugsyGuestIntroductionView {
-                hasSeenGuestIntroduction = true
-                showsGuestIntroduction = false
-            }
+        .sheet(isPresented: $showsGuestIntroduction, onDismiss: handleGuestIntroductionDismissed) {
+            MugsyGuestIntroductionView(onContinue: completeGuestIntroduction)
         }
         .sheet(isPresented: $showsGuestSavedMerge, onDismiss: scheduleCapturePreferencesIfNeeded) {
             GuestSavedMergeView(dataManager: dataManager)
@@ -458,7 +456,11 @@ struct MainTabView: View {
                 }
             )
         case 2:
-            AddTabView(dataManager: dataManager, initialDraft: composerDraft)
+            AddTabView(
+                dataManager: dataManager,
+                initialDraft: composerDraft,
+                onAuthenticationRequired: requestDraftAuthentication
+            )
                 .id(composerSessionID)
                 .onAppear {
                     if composerDraft != nil {
@@ -484,7 +486,7 @@ struct MainTabView: View {
         }
     }
 
-    private static let guestTabs: Set<Int> = [0, 3]
+    private static let guestTabs: Set<Int> = [0, 2, 3]
 
     private func captureSelectedScreen() {
         let screen: MugshotAnalyticsScreen
@@ -511,14 +513,6 @@ struct MainTabView: View {
     }
 
     private func beginCafeSip(_ cafe: Cafe) {
-        guard hasAuthenticatedNavigation else {
-            requestAuthentication(
-                title: "Keep this sip in your journal",
-                message: "Sign in when you are ready to log this cafe. Your Map and Saved cafes stay available while you explore."
-            )
-            return
-        }
-
         composerDraft = Self.cafeDraft(
             cafe,
             dataManager: dataManager,
@@ -565,10 +559,7 @@ struct MainTabView: View {
                         message: "Sign in to see friend sips and Your Mix. You can keep exploring Map and Saved without an account."
                     )
                 case 2:
-                    requestAuthentication(
-                        title: "Start your sip journal",
-                        message: "Sign in to save a sip privately, with friends, or for Everyone. Your current guest saves will stay on this device."
-                    )
+                    tabCoordinator.selectedTab = requestedTab
                 default:
                     requestAuthentication(
                         title: "Your journal lives here",
@@ -580,7 +571,39 @@ struct MainTabView: View {
     }
 
     private func requestAuthentication(title: String, message: String) {
+        requestAuthentication(
+            title: title,
+            message: message,
+            analyticsSource: "product_gate"
+        )
+    }
+
+    private func requestDraftAuthentication() {
+        requestAuthentication(
+            title: "Save this draft to your journal",
+            message: "Your draft is safe on this device. Sign in or create an account to keep it in your journal. Nothing publishes until you return and tap Publish.",
+            analyticsSource: "guest_publish"
+        )
+    }
+
+    private func requestAuthentication(
+        title: String,
+        message: String,
+        analyticsSource: String
+    ) {
+        guard authenticationPrompt == nil else { return }
+        authenticationPromptAnalyticsSource = analyticsSource
+        MugshotAnalytics.shared.capture(.authPromptViewed(source: analyticsSource))
         authenticationPrompt = AuthenticationPrompt(title: title, message: message)
+    }
+
+    private func handleAuthenticationPromptDismissed() {
+        if authModel.authenticatedUser == nil,
+           let source = authenticationPromptAnalyticsSource {
+            MugshotAnalytics.shared.capture(.authAbandoned(source: source))
+        }
+        authenticationPromptAnalyticsSource = nil
+        scheduleCapturePreferencesIfNeeded()
     }
 
     private func handlePendingSystemRoute() {
@@ -755,9 +778,11 @@ struct MainTabView: View {
             launchContext: SipComposerLaunchContext(source: .cafeDetail, preselectedCafe: cafe),
             context: .cafe,
             cafe: cafe,
-            visibility: CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
-                in: .forUserID(userID)
-            )
+            visibility: userID == nil
+                ? .private
+                : CafeVisibilityPreferenceStore.shared.defaultCafeVisibility(
+                    in: .forUserID(userID)
+                )
         )
         draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         return draft
@@ -798,8 +823,43 @@ struct MainTabView: View {
             authenticationPrompt == nil,
             !showsGuestSavedMerge,
             !showsCapturePreferences else { return }
+            guestIntroductionStartedAt = .now
+            guestIntroductionCompleted = false
+            MugshotAnalytics.shared.capture(.onboardingStarted)
             showsGuestIntroduction = true
         }
+    }
+
+    private func completeGuestIntroduction() {
+        guestIntroductionCompleted = true
+        hasSeenGuestIntroduction = true
+        let duration = guestIntroductionDurationSeconds
+        MugshotAnalytics.shared.capture(
+            .onboardingStepCompleted(step: 1, totalSteps: 1)
+        )
+        MugshotAnalytics.shared.capture(
+            .onboardingCompleted(durationSeconds: duration)
+        )
+        MugshotAnalytics.shared.capture(
+            .timeToFirstValue(value: "map_available", durationSeconds: duration)
+        )
+        showsGuestIntroduction = false
+    }
+
+    private func handleGuestIntroductionDismissed() {
+        if !guestIntroductionCompleted {
+            MugshotAnalytics.shared.capture(
+                .onboardingAbandoned(step: 1, totalSteps: 1)
+            )
+        }
+        hasSeenGuestIntroduction = true
+        guestIntroductionStartedAt = nil
+        guestIntroductionCompleted = false
+    }
+
+    private var guestIntroductionDurationSeconds: Int {
+        guard let guestIntroductionStartedAt else { return 0 }
+        return Int(Date().timeIntervalSince(guestIntroductionStartedAt).rounded())
     }
 
     private var localAccountScope: LocalAccountScope {
