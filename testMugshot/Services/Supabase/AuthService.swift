@@ -83,6 +83,24 @@ enum TransientSessionAccountResolver {
     }
 }
 
+enum MugshotSessionRestorationPolicy {
+    static func requiresFreshSignIn(errorCode: String) -> Bool {
+        switch errorCode {
+        case "session_not_found",
+             "session_expired",
+             "refresh_token_not_found",
+             "refresh_token_already_used",
+             "user_not_found",
+             "user_banned",
+             "bad_jwt",
+             "invalid_jwt":
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 final class AuthService {
     static let callbackURL = URL(string: "mugshot://auth/callback")!
     static let passwordRecoveryURL = URL(string: "mugshot://auth/recovery")!
@@ -107,9 +125,16 @@ final class AuthService {
     
     func restoreSession() async throws -> AuthenticatedUser? {
         do {
-            let session = try await client.auth.session
-            return authenticatedUser(from: session.user)
-        } catch let error as AuthError where error == .sessionMissing {
+            // Refresh when needed, then prove that the cached identity still
+            // belongs to an active server-side session before exposing it.
+            _ = try await client.auth.session
+            let verifiedUser = try await client.auth.user()
+            return authenticatedUser(from: verifiedUser)
+        } catch let error as AuthError where
+            MugshotSessionRestorationPolicy.requiresFreshSignIn(
+                errorCode: error.errorCode.rawValue
+            ) {
+            _ = await discardCurrentLocalSession()
             return nil
         }
     }
