@@ -1,0 +1,7 @@
+project_id = "quskamnfwglctqewwfln"
+
+[functions.shared-mugshot]
+verify_jwt = false
+
+[functions.public-cafe-list]
+verify_jwt = false
