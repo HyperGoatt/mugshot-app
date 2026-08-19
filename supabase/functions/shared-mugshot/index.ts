@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getPublicSupabaseKey } from "../_shared/public-key.ts";
 
 type PublicMugshot = {
   visit_id: string;
@@ -13,13 +14,24 @@ type PublicMugshot = {
   created_at: string;
 };
 
-const htmlHeaders = {
+const sharedHeaders = {
   "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
   "X-Content-Type-Options": "nosniff",
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
   "Referrer-Policy": "no-referrer",
+  "Cross-Origin-Resource-Policy": "same-site",
   "Content-Security-Policy":
     "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+};
+
+const successHeaders = {
+  ...sharedHeaders,
+  "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
+};
+
+const unavailableHeaders = {
+  ...sharedHeaders,
+  "Cache-Control": "private, no-store",
 };
 
 function escapeHTML(value: string): string {
@@ -35,7 +47,7 @@ function validSlug(value: string): boolean {
   return /^[A-Za-z0-9_-]{24,128}$/.test(value);
 }
 
-function neutralPage(appStoreURL: string): Response {
+function neutralPage(downloadURL: string): Response {
   return new Response(
     page({
       title: "This Mugshot is not available",
@@ -46,16 +58,18 @@ function neutralPage(appStoreURL: string): Response {
         <h1>This Mugshot is not available.</h1>
         <p>It may have been removed or its audience may have changed.</p>
         ${
-        appStoreURL
+        downloadURL
           ? `<a class="button" href="${
-            escapeHTML(appStoreURL)
-          }">Open Mugshot</a>`
+            escapeHTML(
+              downloadURL,
+            )
+          }">Get Mugshot</a>`
           : ""
       }
       </main>
     `,
     }),
-    { status: 404, headers: htmlHeaders },
+    { status: 404, headers: unavailableHeaders },
   );
 }
 
@@ -64,9 +78,15 @@ function page(input: {
   description: string;
   body: string;
   image?: string | null;
+  canonical?: string;
 }): string {
   const imageMeta = input.image
-    ? `<meta property="og:image" content="${escapeHTML(input.image)}">`
+    ? `<meta property="og:image" content="${escapeHTML(input.image)}">
+  <meta name="twitter:image" content="${escapeHTML(input.image)}">`
+    : "";
+  const canonicalMeta = input.canonical
+    ? `<link rel="canonical" href="${escapeHTML(input.canonical)}">
+  <meta property="og:url" content="${escapeHTML(input.canonical)}">`
     : "";
   return `<!doctype html>
 <html lang="en">
@@ -75,9 +95,14 @@ function page(input: {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${escapeHTML(input.title)}</title>
   <meta name="description" content="${escapeHTML(input.description)}">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  ${canonicalMeta}
   <meta property="og:type" content="article">
   <meta property="og:title" content="${escapeHTML(input.title)}">
   <meta property="og:description" content="${escapeHTML(input.description)}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHTML(input.title)}">
+  <meta name="twitter:description" content="${escapeHTML(input.description)}">
   ${imageMeta}
   <style>
     :root { color-scheme: light; --cream:#f6f0e4; --foam:#fffdf8; --espresso:#33231d; --sage:#607763; --mint:#cfe0cf; --line:#d9d0c1; }
@@ -97,7 +122,7 @@ function page(input: {
     .score span { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--sage); font-size:11px; letter-spacing:.12em; }
     blockquote { margin:22px 0 0; padding-left:16px; border-left:3px solid var(--mint); color:#5a4941; font-family:Georgia,serif; font-size:20px; line-height:1.45; }
     .byline { margin:24px 0 0; color:#76675e; font-size:13px; }
-    .button { display:inline-flex; min-height:48px; margin-top:24px; padding:0 22px; align-items:center; justify-content:center; border-radius:999px; background:var(--sage); color:white; text-decoration:none; font-weight:800; }
+  .button { display:inline-flex; min-height:48px; margin-top:24px; padding:0 22px; align-items:center; justify-content:center; border-radius:14px; background:#143d31; color:white; text-decoration:none; font-weight:800; }
     .neutral { min-height:80vh; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; }
     .neutral h1 { max-width:560px; }
     .neutral p { color:#715f54; font-size:18px; }
@@ -109,22 +134,25 @@ function page(input: {
 
 Deno.serve(async (request) => {
   if (request.method !== "GET" && request.method !== "HEAD") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: { ...unavailableHeaders, Allow: "GET, HEAD" },
+    });
   }
 
   const requestURL = new URL(request.url);
   const slug = requestURL.searchParams.get("slug") ??
     requestURL.pathname.split("/").filter(Boolean).at(-1) ??
     "";
-  const destinationURL = Deno.env.get("MUGSHOT_APP_STORE_URL") ??
-    Deno.env.get("MUGSHOT_PWA_URL") ??
-    "https://mugshotapp.co/";
-  if (!validSlug(slug)) return neutralPage(destinationURL);
+  const marketingURL = Deno.env.get("MUGSHOT_MARKETING_URL") ??
+    "https://mugshotapp.co";
+  const downloadURL = Deno.env.get("MUGSHOT_DOWNLOAD_URL") ??
+    `${marketingURL}/download?placement=share`;
+  if (!validSlug(slug)) return neutralPage(downloadURL);
 
   const supabaseURL = Deno.env.get("SUPABASE_URL");
-  const publicKey = Deno.env.get("SUPABASE_ANON_KEY") ??
-    Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
-  if (!supabaseURL || !publicKey) return neutralPage(destinationURL);
+  const publicKey = getPublicSupabaseKey();
+  if (!supabaseURL || !publicKey) return neutralPage(downloadURL);
 
   const client = createClient(supabaseURL, publicKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -133,9 +161,9 @@ Deno.serve(async (request) => {
     p_slug: slug,
   });
   const mugshot = !error && Array.isArray(data)
-    ? data[0] as PublicMugshot | undefined
+    ? (data[0] as PublicMugshot | undefined)
     : undefined;
-  if (!mugshot) return neutralPage(destinationURL);
+  if (!mugshot) return neutralPage(downloadURL);
   await client.rpc("record_public_mugshot_share_event_v1", {
     p_slug: slug,
     p_event_name: "landing_visit",
@@ -148,7 +176,9 @@ Deno.serve(async (request) => {
     : "";
   const cover = mugshot.cover_photo_url
     ? `<img class="cover" src="${
-      escapeHTML(mugshot.cover_photo_url)
+      escapeHTML(
+        mugshot.cover_photo_url,
+      )
     }" alt="Photo of ${escapeHTML(mugshot.drink_name)}">`
     : "";
   const date = new Intl.DateTimeFormat("en", {
@@ -162,20 +192,26 @@ Deno.serve(async (request) => {
         ${cover}
         <div class="content">
           <div class="route">${escapeHTML(mugshot.context_name)} · ${
-    escapeHTML(date)
+    escapeHTML(
+      date,
+    )
   }</div>
           <h1>${escapeHTML(mugshot.drink_name)}</h1>
           <div class="meta">${escapeHTML(mugshot.context_name)}</div>
           <div class="score">${
-    Number(mugshot.rating).toFixed(1)
+    Number(mugshot.rating).toFixed(
+      1,
+    )
   } <span>OUT OF 5</span></div>
           ${caption}
           <p class="byline">Remembered by ${escapeHTML(mugshot.author_name)}</p>
           ${
-    destinationURL
+    downloadURL
       ? `<a class="button" href="${
-        escapeHTML(destinationURL)
-      }">Open in Mugshot</a>`
+        escapeHTML(
+          downloadURL,
+        )
+      }">Get Mugshot</a>`
       : ""
   }
         </div>
@@ -188,8 +224,9 @@ Deno.serve(async (request) => {
       description,
       body,
       image: mugshot.cover_photo_url,
+      canonical: `${marketingURL}/m/${encodeURIComponent(slug)}`,
     }),
-    { status: 200, headers: htmlHeaders },
+    { status: 200, headers: successHeaders },
   );
   return request.method === "HEAD"
     ? new Response(null, { status: response.status, headers: response.headers })

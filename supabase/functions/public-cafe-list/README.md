@@ -9,9 +9,11 @@ function while preserving the canonical URL. Serve the shared
 Required runtime variables:
 
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`
-- `MUGSHOT_PWA_URL=https://mugshotapp.co/`
-- `MUGSHOT_APP_STORE_URL` once the App Store destination exists
+- `SUPABASE_PUBLISHABLE_KEYS` (preferred named JSON map), `SUPABASE_ANON_KEY`,
+  or `SUPABASE_PUBLISHABLE_KEY`
+- `MUGSHOT_MARKETING_URL=https://mugshotapp.co` (optional default)
+- `MUGSHOT_DOWNLOAD_URL=https://mugshotapp.co/download?placement=share`
+  (optional default)
 
 Missing, private, deleted, moderated, revoked, and malformed links all receive
 the same neutral unavailable response.

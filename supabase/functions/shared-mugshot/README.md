@@ -8,10 +8,11 @@ Associated Domains `apple-app-site-association` file.
 Required runtime variables:
 
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`
-- `MUGSHOT_PWA_URL=https://mugshotapp.co/` before App Store launch
-- `MUGSHOT_APP_STORE_URL` once the App Store destination exists; it takes
-  precedence over the PWA destination
+- `SUPABASE_PUBLISHABLE_KEYS` (preferred named JSON map), `SUPABASE_ANON_KEY`,
+  or `SUPABASE_PUBLISHABLE_KEY`
+- `MUGSHOT_MARKETING_URL=https://mugshotapp.co` (optional default)
+- `MUGSHOT_DOWNLOAD_URL=https://mugshotapp.co/download?placement=share`
+  (optional default)
 
 The function deliberately returns the same neutral unavailable state for
 missing, private, deleted, moderated, revoked, and malformed links.
