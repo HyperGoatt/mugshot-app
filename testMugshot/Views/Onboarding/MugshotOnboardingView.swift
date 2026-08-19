@@ -143,6 +143,24 @@ enum MugshotOnboardingPlan {
     static let totalSteps = 8
 }
 
+enum MugshotSignedInOnboardingGate {
+    static func requiresPresentation(
+        isSignedIn: Bool,
+        shouldOfferCapturePreferences: Bool,
+        hasPendingGuestSavedCafes: Bool,
+        hasAuthenticationPrompt: Bool,
+        isGuestSavedMergePresented: Bool,
+        isProductTourActive: Bool
+    ) -> Bool {
+        isSignedIn
+            && shouldOfferCapturePreferences
+            && !hasPendingGuestSavedCafes
+            && !hasAuthenticationPrompt
+            && !isGuestSavedMergePresented
+            && !isProductTourActive
+    }
+}
+
 struct MugshotSignedInOnboardingView: View {
     let initialGoal: CapturePreferenceGoal
     let initialStep: MugshotOnboardingStep
