@@ -139,6 +139,7 @@ struct MainTabView: View {
             NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
             handlePendingNearbyReminder()
             presentOnboardingDesignQAIfNeeded()
+            scheduleSignedInOnboardingIfNeeded()
             if DiscoveryFeatureFlags.isEnabled(.shareImport) {
                 Task {
                     await refreshShareExtensionListCache(
@@ -180,6 +181,7 @@ struct MainTabView: View {
             enforcementStore.prepare(accountID: userId)
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
+            scheduleSignedInOnboardingIfNeeded()
             if DiscoveryFeatureFlags.isEnabled(.shareImport) {
                 Task {
                     await refreshShareExtensionListCache(accountID: userId)
@@ -202,6 +204,7 @@ struct MainTabView: View {
             handlePendingSystemRoute()
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
+            scheduleSignedInOnboardingIfNeeded()
         }
         .onChange(of: systemRouter.pendingRoute?.id) { _, _ in
             handlePendingSystemRoute()
@@ -218,6 +221,7 @@ struct MainTabView: View {
             if phase == .active {
                 NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
                 handlePendingNearbyReminder()
+                scheduleSignedInOnboardingIfNeeded()
             }
             guard phase == .active,
                   let expectedAccountID = authModel.authenticatedUser?.id else { return }
@@ -312,9 +316,9 @@ struct MainTabView: View {
                 .environmentObject(authModel)
                 .interactiveDismissDisabled(authModel.isMergingGuestSaved)
         }
-        .fullScreenCover(isPresented: $showsSignedInOnboarding) {
+        .fullScreenCover(isPresented: signedInOnboardingPresentation) {
             MugshotSignedInOnboardingView(
-                initialGoal: productTourGoal,
+                initialGoal: authModel.capturePreferences.onboardingGoal ?? productTourGoal,
                 initialStep: signedInOnboardingInitialStep,
                 onStarted: {
                     if signedInOnboardingStartedAt == nil {
@@ -1018,26 +1022,37 @@ struct MainTabView: View {
     }
 
     private func scheduleSignedInOnboardingIfNeeded() {
-        guard authModel.authenticatedUser != nil,
-              authModel.shouldOfferCapturePreferences,
-              authModel.pendingGuestSavedCafes.isEmpty,
-              authenticationPrompt == nil,
-              !showsGuestSavedMerge,
-              !showsSignedInOnboarding,
-              productTourStep == nil else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            guard authModel.shouldOfferCapturePreferences,
-                  authModel.pendingGuestSavedCafes.isEmpty,
-                  authenticationPrompt == nil,
-                  !showsGuestSavedMerge,
-                  !showsSignedInOnboarding,
-                  productTourStep == nil else { return }
-            productTourGoal = authModel.capturePreferences.onboardingGoal ?? .nearby
-            completedProductTourSteps = []
-            signedInOnboardingInitialStep = .welcome
-            signedInOnboardingStartedAt = nil
-            showsSignedInOnboarding = true
-        }
+        guard requiresSignedInOnboarding,
+              !showsSignedInOnboarding else { return }
+        productTourGoal = authModel.capturePreferences.onboardingGoal ?? .nearby
+        completedProductTourSteps = []
+        signedInOnboardingInitialStep = .welcome
+        signedInOnboardingStartedAt = nil
+        showsSignedInOnboarding = true
+    }
+
+    private var requiresSignedInOnboarding: Bool {
+        MugshotSignedInOnboardingGate.requiresPresentation(
+            isSignedIn: authModel.authenticatedUser != nil,
+            shouldOfferCapturePreferences: authModel.shouldOfferCapturePreferences,
+            hasPendingGuestSavedCafes: !authModel.pendingGuestSavedCafes.isEmpty,
+            hasAuthenticationPrompt: authenticationPrompt != nil,
+            isGuestSavedMergePresented: showsGuestSavedMerge,
+            isProductTourActive: productTourStep != nil
+        )
+    }
+
+    private var signedInOnboardingPresentation: Binding<Bool> {
+        Binding(
+            get: { showsSignedInOnboarding || requiresSignedInOnboarding },
+            set: { isPresented in
+                if isPresented {
+                    showsSignedInOnboarding = true
+                } else if !requiresSignedInOnboarding {
+                    showsSignedInOnboarding = false
+                }
+            }
+        )
     }
 
     private func scheduleGuestIntroductionIfNeeded() {

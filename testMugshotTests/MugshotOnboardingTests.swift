@@ -41,6 +41,28 @@ struct MugshotOnboardingTests {
         #expect(MugshotProductTourStep.allCases.map(\.tabIndex) == [0, 1, 3, 4, 2])
     }
 
+    @Test func signedInOnboardingRemainsRequiredUntilCompletedOrSkipped() {
+        let requiredAfterRelaunch = MugshotSignedInOnboardingGate.requiresPresentation(
+            isSignedIn: true,
+            shouldOfferCapturePreferences: true,
+            hasPendingGuestSavedCafes: false,
+            hasAuthenticationPrompt: false,
+            isGuestSavedMergePresented: false,
+            isProductTourActive: false
+        )
+        let dismissedByCompletionOrSkip = MugshotSignedInOnboardingGate.requiresPresentation(
+            isSignedIn: true,
+            shouldOfferCapturePreferences: false,
+            hasPendingGuestSavedCafes: false,
+            hasAuthenticationPrompt: false,
+            isGuestSavedMergePresented: false,
+            isProductTourActive: false
+        )
+
+        #expect(requiredAfterRelaunch)
+        #expect(!dismissedByCompletionOrSkip)
+    }
+
     @Test func firstSipGuideStateIsScopedToTheSignedInAccount() {
         let firstAccount = UUID()
         let secondAccount = UUID()
