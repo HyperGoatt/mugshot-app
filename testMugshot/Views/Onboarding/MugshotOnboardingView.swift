@@ -172,6 +172,7 @@ struct MugshotSignedInOnboardingView: View {
     @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
     @State private var step: MugshotOnboardingStep
     @State private var selectedGoal: CapturePreferenceGoal
+    @State private var hasChosenGoal = false
     @State private var completedStepNumbers: Set<Int> = []
     @State private var hasStarted = false
     @State private var hasFinished = false
@@ -287,10 +288,11 @@ struct MugshotSignedInOnboardingView: View {
     private var welcomeStep: some View {
         VStack(spacing: 22) {
             MugshotOnboardingHero(
-                configuration: MugsySceneFamily.joyfulJournalKeeper.configuration,
+                configuration: MugsySceneFamily.playfulWavingMugsy.configuration,
                 action: .entering,
-                height: 300,
-                backdropOpacity: 0.36
+                height: 258,
+                backdropOpacity: 0.44,
+                speech: "I’ll help you remember the sip, the cafe, and the little moment."
             )
 
             VStack(spacing: 12) {
@@ -314,8 +316,9 @@ struct MugshotSignedInOnboardingView: View {
             MugshotOnboardingHero(
                 configuration: MugsySceneFamily.cheerfulCafeScout.configuration,
                 action: .entering,
-                height: 320,
-                backdropOpacity: 0.68
+                height: 274,
+                backdropOpacity: 0.72,
+                speech: "Each rating becomes a pin—then your whole coffee world comes into view."
             )
 
             VStack(alignment: .leading, spacing: 12) {
@@ -336,10 +339,15 @@ struct MugshotSignedInOnboardingView: View {
     private var personalizationStep: some View {
         VStack(spacing: 20) {
             MugshotOnboardingHero(
-                configuration: MugsySceneFamily.joyfulJournalKeeper.configuration,
-                action: .focusing,
-                height: 230,
-                backdropOpacity: 0.32
+                configuration: hasChosenGoal
+                    ? MugsySceneFamily.excitedFirstSipCelebration.configuration
+                    : MugsySceneFamily.joyfulJournalKeeper.configuration,
+                action: hasChosenGoal ? .celebrating : .focusing,
+                height: 144,
+                backdropOpacity: 0.38,
+                speech: hasChosenGoal
+                    ? "Perfect. I’ll start there—and show you the rest."
+                    : "What should we make easiest first?"
             )
 
             VStack(spacing: 8) {
@@ -368,8 +376,11 @@ struct MugshotSignedInOnboardingView: View {
     private func goalRow(_ goal: CapturePreferenceGoal) -> some View {
         let isSelected = selectedGoal == goal
         return Button {
-            selectedGoal = goal
-            MugshotHaptic.selection.play()
+            withAnimation(effectiveReduceMotion ? nil : MugshotMotion.character) {
+                selectedGoal = goal
+                hasChosenGoal = true
+            }
+            MugshotHaptic.success.play()
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: goal.systemImage)
@@ -516,28 +527,48 @@ private struct MugshotOnboardingHero: View {
     let action: MugsyActionState
     let height: CGFloat
     let backdropOpacity: Double
+    let speech: String
 
     var body: some View {
-        ZStack {
-            Image("V3TastePassportBackdrop")
-                .resizable()
-                .scaledToFill()
-                .opacity(backdropOpacity)
-                .accessibilityHidden(true)
-
-            MugsyAnimatedView(
-                configuration: configuration,
-                action: action,
-                tapBehavior: .playfulCycle
-            )
-            .frame(width: min(height * 0.72, 220), height: min(height * 0.72, 220))
+        Image("V3TastePassportBackdrop")
+            .resizable()
+            .scaledToFill()
+            .opacity(backdropOpacity)
             .accessibilityHidden(true)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
-        .clipped()
-        .background(Color.mugshotMint.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                HStack(alignment: .bottom, spacing: -12) {
+                    MugsyAnimatedView(
+                        configuration: configuration,
+                        action: action,
+                        tapBehavior: .playfulCycle
+                    )
+                    .frame(width: min(height * 0.62, 158), height: min(height * 0.62, 158))
+                    .accessibilityHidden(true)
+
+                    Text(speech)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.espressoBrown)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: 188, alignment: .leading)
+                        .background(Color.foamWhite.opacity(0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.mugshotLine, lineWidth: 1)
+                        }
+                        .shadow(color: Color.espressoBrown.opacity(0.10), radius: 10, y: 4)
+                        .padding(.bottom, 28)
+                        .accessibilityLabel("Mugsy says: \(speech)")
+                }
+                .padding(.horizontal, 14)
+            }
+            .background(Color.mugshotMint.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
     }
 }
 
@@ -548,7 +579,7 @@ enum MugshotProductTourStep: Int, CaseIterable, Identifiable {
     case feed
     case saved
     case journal
-    case firstSip
+    case shareImport
 
     var id: Int { rawValue }
     var number: Int { rawValue + 4 }
@@ -559,52 +590,27 @@ enum MugshotProductTourStep: Int, CaseIterable, Identifiable {
         case .feed: 1
         case .saved: 3
         case .journal: 4
-        case .firstSip: 2
+        case .shareImport: 0
         }
     }
 
-    var eyebrow: String {
+    var label: String {
         switch self {
-        case .map: "MAP · PINS + RANKINGS"
-        case .feed: "FEED · YOUR MIX"
-        case .saved: "SAVED · LISTS"
-        case .journal: "JOURNAL · YOUR MEMORY"
-        case .firstSip: "THE MAIN EVENT"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .map: "Read your coffee world at a glance"
-        case .feed: "See the sips worth noticing"
-        case .saved: "Turn curiosity into a plan"
-        case .journal: "Everything you log comes home here"
-        case .firstSip: "Ready to capture your first sip?"
+        case .map: "YOUR COFFEE MAP"
+        case .feed: "THE FEED"
+        case .saved: "YOUR CAFE LIBRARY"
+        case .journal: "YOUR JOURNAL"
+        case .shareImport: "A SHORTCUT YOU’LL LOVE"
         }
     }
 
     var message: String {
         switch self {
-        case .map:
-            "Scores live right on the pins, and their colors reinforce the rating. Hearts, bookmarks, and friend badges show why a cafe matters to you. For You ranks nearby options and explains each match."
-        case .feed:
-            "Your Mix ranks the most relevant Mugshots first. Switch to Friends for people you follow or Everyone when you want to roam. Save a cafe straight from any post."
-        case .saved:
-            "Favorites are proven loves. Want to Try is your coffee queue. Lists organize a plan—and shared lists let friends build one together."
-        case .journal:
-            "This is your private record of drinks, places, notes, recipes, and people. Every new Mugshot also teaches your Taste Passport what feels like you."
-        case .firstSip:
-            "The fastest way to understand Mugshot is to make one. Mugsy can guide the real flow, one small decision at a time, and your first Mugshot starts Private."
-        }
-    }
-
-    var callout: String {
-        switch self {
-        case .map: "Tap a pin to see the cafe and the reason behind it."
-        case .feed: "Relevance first; endless scrolling is not the goal."
-        case .saved: "Save now, decide where it belongs later."
-        case .journal: "Private means private until you choose otherwise."
-        case .firstSip: "About two minutes—and you can stop anytime."
+        case .map: "Every cafe you rate becomes a pin. Zoom out and watch your whole coffee world come into view."
+        case .feed: "Your Mix brings the sips most relevant to you forward. Switch to Friends for the intimate view."
+        case .saved: "Favorites, Want to Try, and Lists keep every cafe plan in one place."
+        case .journal: "Every sip, private note, recipe, and Taste Passport signal comes home here."
+        case .shareImport: "In Google Maps, tap Share, choose Mugshot, and save the cafe straight to Want to Try."
         }
     }
 
@@ -614,14 +620,44 @@ enum MugshotProductTourStep: Int, CaseIterable, Identifiable {
         case .feed: .welcomingFriendsPhone
         case .saved: .delightedWishlistHolder
         case .journal: .joyfulJournalKeeper
-        case .firstSip: .proudCameraCompanion
+        case .shareImport: .playfulWavingMugsy
         }
     }
 
-    var cardAtTop: Bool {
+    var action: MugsyActionState {
         switch self {
-        case .journal: true
-        case .map, .feed, .saved, .firstSip: false
+        case .map: .entering
+        case .feed: .focusing
+        case .saved: .saving
+        case .journal: .composing(progress: 0.72)
+        case .shareImport: .celebrating
+        }
+    }
+
+    var overlayAlignment: Alignment {
+        switch self {
+        case .map, .saved, .shareImport: .bottomLeading
+        case .feed, .journal: .bottomTrailing
+        }
+    }
+
+    var referenceImageName: String? {
+        switch self {
+        case .map: "OnboardingMapTour"
+        case .feed: "OnboardingFeedTour"
+        case .saved: "OnboardingSavedTour"
+        case .journal: nil
+        case .shareImport: "GoogleMapsShareOnboarding"
+        }
+    }
+
+    var referenceAccessibilityLabel: String? {
+        switch self {
+        case .map: "Mugshot map filled with seven rated cafe pins"
+        case .feed: "Mugshot feed showing an iced pistachio latte at Nook Tiny Cafe and Market"
+        case .saved: "Mugshot Saved library showing cafes, favorites, and Want to Try controls"
+        case .journal: nil
+        case .shareImport: "Google Maps share sheet with Mugshot in the app row"
         }
     }
 }
@@ -643,133 +679,193 @@ struct MugshotProductTourOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.espressoBrown.opacity(0.13)
+            if let referenceImageName = step.referenceImageName {
+                Image(referenceImageName)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+                    .accessibilityLabel(step.referenceAccessibilityLabel ?? "Mugshot product tour")
+            }
+
+            if step == .map {
+                mapPrivacyCover
+            }
+
+            Color.clear
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {}
 
-            VStack(spacing: 0) {
-                if !step.cardAtTop { Spacer(minLength: step == .firstSip ? 100 : 180) }
-                coachCard
-                    .id(step)
-                    .transition(cardTransition)
-                if step.cardAtTop { Spacer(minLength: 180) }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 64)
-            .padding(.bottom, step == .firstSip ? 28 : 104)
+            coachConversation
+                .id(step)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: step.overlayAlignment)
+                .padding(.horizontal, 12)
+                .padding(.bottom, step == .shareImport ? 24 : 104)
+                .transition(cardTransition)
         }
         .animation(effectiveReduceMotion ? nil : MugshotMotion.reveal, value: step)
     }
 
-    private var cardTransition: AnyTransition {
-        guard !effectiveReduceMotion else { return .opacity }
-        return .move(edge: step.cardAtTop ? .top : .bottom).combined(with: .opacity)
+    private var mapPrivacyCover: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color.foamWhite.opacity(0.98)
+                    .frame(height: 54)
+                    .position(x: proxy.size.width / 2, y: 27)
+                    .accessibilityHidden(true)
+
+                Label("Location hidden", systemImage: "lock.fill")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(.espressoBrown)
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
+                    .background(Color.foamWhite.opacity(0.97), in: Capsule())
+                    .overlay(Capsule().stroke(Color.mugshotLine, lineWidth: 1))
+                    .shadow(color: Color.espressoBrown.opacity(0.14), radius: 10, y: 4)
+                    .position(x: proxy.size.width * 0.424, y: proxy.size.height * 0.421)
+                    .accessibilityLabel("Your precise location is hidden during this tour")
+            }
+        }
+        .ignoresSafeArea()
     }
 
-    private var coachCard: some View {
-        VStack(spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                MugsyAnimatedView(
-                    configuration: step.scene.configuration,
-                    action: step == .firstSip ? .celebrating : .entering,
-                    tapBehavior: .playfulCycle
-                )
-                .frame(width: 92, height: 92)
-                .accessibilityHidden(true)
+    private var cardTransition: AnyTransition {
+        guard !effectiveReduceMotion else { return .opacity }
+        return .move(edge: step == .feed || step == .journal ? .trailing : .leading)
+            .combined(with: .opacity)
+    }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(step.eyebrow)
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .tracking(0.7)
-                        .foregroundColor(.mugshotSageText)
-                    Text(step.title)
-                        .mugshotDisplay(size: step == .firstSip ? 27 : 25)
-                        .foregroundColor(.espressoBrown)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    private var coachConversation: some View {
+        HStack(alignment: .bottom, spacing: -10) {
+            if step == .feed || step == .journal {
+                speechBubble
+                canonicalMugsy
+            } else {
+                canonicalMugsy
+                speechBubble
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var canonicalMugsy: some View {
+        MugsyAnimatedView(
+            configuration: step.scene.configuration,
+            action: step.action,
+            tapBehavior: .playfulCycle
+        )
+        .frame(width: 88, height: 88)
+        .accessibilityHidden(true)
+        .zIndex(1)
+    }
+
+    private var speechBubble: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: 6) {
+                Text("\(step.number) OF \(MugshotOnboardingPlan.totalSteps) · \(step.label)")
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .tracking(0.50)
+                    .foregroundColor(.mugshotSageText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
 
                 Spacer(minLength: 0)
+
+                Button(action: onSkip) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 28, height: 28)
+                        .background(Color.sandBeige.opacity(0.70), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isWorking)
+                .accessibilityLabel("Skip tour")
+                .accessibilityIdentifier("mugshot.productTour.skip")
+            }
+
+            if step == .map {
+                Text("7 cafes · 3.6 average")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.mugshotSageText)
             }
 
             Text(step.message)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Label(step.callout, systemImage: step == .firstSip ? "lock.fill" : "hand.tap.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.espressoBrown)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color.mugshotMint.opacity(0.20))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .fixedSize(horizontal: false, vertical: true)
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "wifi.exclamationmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.roastBrown)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            if step == .firstSip {
+            if step == .shareImport {
                 Button(action: onStartFirstSip) {
-                    HStack(spacing: 9) {
+                    HStack(spacing: 7) {
                         if isWorking { ProgressView().tint(.foamWhite) }
                         Text("Log my first sip")
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "arrow.right")
                     }
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.foamWhite)
                     .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(Color.mugshotSage, in: Capsule())
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(.plain)
                 .disabled(isWorking)
                 .accessibilityIdentifier("mugshot.productTour.startFirstSip")
 
                 Button("I’ll do this later", action: onLater)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.mugshotSageText)
-                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 32)
                     .disabled(isWorking)
                     .accessibilityIdentifier("mugshot.productTour.later")
             } else {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .bold))
-                            .frame(width: 48, height: 48)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.espressoBrown)
+                            .frame(width: 40, height: 40)
+                            .background(Color.sandBeige.opacity(0.70), in: Circle())
                     }
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Previous tour step")
                     .accessibilityIdentifier("mugshot.productTour.back")
 
                     Button(action: onNext) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Text("Next")
                             Image(systemName: "arrow.right")
                         }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.foamWhite)
                         .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color.mugshotSage, in: Capsule())
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("mugshot.productTour.next")
                 }
-
-                Button("Skip tour", action: onSkip)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.mugshotSageText)
-                    .frame(minHeight: 44)
-                    .disabled(isWorking)
-                    .accessibilityIdentifier("mugshot.productTour.skip")
             }
         }
-        .padding(18)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 270, alignment: .leading)
+        .background(Color.foamWhite.opacity(0.97))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.mugshotLine, lineWidth: 1)
         }
-        .shadow(color: Color.espressoBrown.opacity(0.20), radius: 24, y: 10)
+        .shadow(color: Color.espressoBrown.opacity(0.18), radius: 16, y: 7)
+        .accessibilityLabel("Mugsy says: \(step.message)")
     }
 }
 
@@ -794,51 +890,85 @@ struct MugshotFirstSipGuideBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            MugsyAnimatedView(
-                configuration: scene.configuration,
-                action: .focusing,
-                tapBehavior: .playfulCycle
-            )
-            .frame(width: 62, height: 62)
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("MUGSY’S FIRST SIP TIP · \(stepNumber) OF 4")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .tracking(0.5)
-                    .foregroundColor(.mugshotSageText)
-                Text(title)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.espressoBrown)
-                Text(message)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .bottom, spacing: -9) {
+            if characterOnTrailingEdge {
+                speechBubble
+                canonicalMugsy
+            } else {
+                canonicalMugsy
+                speechBubble
             }
-
-            Spacer(minLength: 0)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 32, height: 32)
-                    .background(Color.sandBeige.opacity(0.7), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Stop first sip tips")
         }
-        .padding(12)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.mugshotSage.opacity(0.55), lineWidth: 1.5)
-        }
-        .shadow(color: Color.espressoBrown.opacity(0.12), radius: 12, y: 5)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: characterOnTrailingEdge ? .trailing : .leading)
+        .padding(.horizontal, 12)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("mugshot.firstSipGuide.\(step.rawValue)")
+    }
+
+    private var canonicalMugsy: some View {
+        MugsyAnimatedView(
+            configuration: scene.configuration,
+            action: action,
+            tapBehavior: .playfulCycle
+        )
+        .frame(width: 74, height: 74)
+        .accessibilityHidden(true)
+        .zIndex(1)
+    }
+
+    private var speechBubble: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 6) {
+                Text("MUGSY · \(stepNumber) OF 4")
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .tracking(0.5)
+                    .foregroundColor(.mugshotSageText)
+
+                Spacer(minLength: 0)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                        .frame(width: 28, height: 28)
+                        .background(Color.sandBeige.opacity(0.70), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stop first sip tips")
+            }
+
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.espressoBrown)
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 272, alignment: .leading)
+        .background(Color.foamWhite.opacity(0.97))
+        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(Color.mugshotSage.opacity(0.55), lineWidth: 1.25)
+        }
+        .shadow(color: Color.espressoBrown.opacity(0.14), radius: 13, y: 5)
+        .accessibilityLabel("Mugsy says: \(title). \(message)")
+    }
+
+    private var characterOnTrailingEdge: Bool {
+        step == .sip || step == .publish
+    }
+
+    private var action: MugsyActionState {
+        switch step {
+        case .setup: .capturing
+        case .sip: .focusing
+        case .context: .pulling(progress: 0.64)
+        case .publish: .success
+        }
     }
 
     private var stepNumber: Int {
@@ -861,10 +991,10 @@ struct MugshotFirstSipGuideBanner: View {
 
     private var message: String {
         switch step {
-        case .setup: "Choose Cafe, Home, or Elsewhere. A photo adds texture, but Private and Friends sips can stay text-only."
-        case .sip: "Name the drink, then rate how it felt to you. There is no expert answer to match."
-        case .context: "Rate the setting separately from the drink so a great latte and a great room do not blur together."
-        case .publish: "Private is the safe starting point. Change the audience only when you want to share this Mugshot."
+        case .setup: "Choose the scene, add the photos you love, then pick the cafe."
+        case .sip: "Name the drink and rate how it felt to you—there’s no expert answer to match."
+        case .context: "Rate the setting separately so a great drink and a great room stay distinct."
+        case .publish: "Private is the safe starting point. Share only when you want to."
         }
     }
 

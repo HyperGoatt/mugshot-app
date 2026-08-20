@@ -489,6 +489,7 @@ struct MainTabView: View {
             MapTabView(
                 dataManager: dataManager,
                 locationManager: mapLocationManager,
+                hidesUserLocation: productTourStep == .map,
                 onLogVisitRequested: beginCafeSip,
                 onAuthenticationRequired: requestAuthentication
             )
@@ -904,7 +905,7 @@ struct MainTabView: View {
     }
 
     private func completeProductTour(startsFirstSip: Bool) {
-        guard productTourStep == .firstSip, !isCompletingProductTour else { return }
+        guard productTourStep == .shareImport, !isCompletingProductTour else { return }
         isCompletingProductTour = true
         Task {
             let didSave = await saveOnboardingGoal(productTourGoal)
@@ -912,7 +913,7 @@ struct MainTabView: View {
                 authModel.deferCapturePreferencesForSession()
             }
 
-            recordProductTourStepCompletion(.firstSip)
+            recordProductTourStepCompletion(.shareImport)
             MugshotAnalytics.shared.capture(
                 .onboardingCompleted(durationSeconds: signedInOnboardingDurationSeconds)
             )

@@ -103,6 +103,7 @@ enum MapDiscoveryEligibility {
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var locationManager: LocationManager
+    var hidesUserLocation = false
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
@@ -196,7 +197,7 @@ struct MapTabView: View {
                 placeNames: mapPlaceNamesByCafeID,
                 showsFriendContext: discoveryScope == .friends,
                 scope: discoveryScope,
-                showsUserLocation: locationAccessAuthorized,
+                showsUserLocation: locationAccessAuthorized && !hidesUserLocation,
                 trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
                     handleMapCafeTap(cafe)
