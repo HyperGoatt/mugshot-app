@@ -15,3 +15,12 @@
 - Debug and Release builds are not both routine. Run Release only for release gates, build settings, compiler/optimization issues, availability checks, packaging, or an explicit user request.
 - For documentation-only changes, inspect the diff and formatting only; do not build the app.
 - If verification will materially exceed the tier's expected time, tell the user why before starting the longer check.
+
+## TestFlight Upload Handoff
+
+- Every TestFlight archive, upload, or testing-group handoff must include a ready-to-paste **What to Test** blurb in the final response.
+- Tailor the blurb to the exact version/build and its meaningful product changes. Lead with the primary new behavior, then name the most important regression paths and failure states.
+- Keep the copy tester-facing, concise, and suitable for App Store Connect's 4,000-character field. Do not include implementation jargon, secrets, private identifiers, fabricated claims, or features that are not present in the uploaded build.
+- Include explicit privacy or access-control expectations whenever the build changes sharing, authentication, user content, permissions, or public links.
+- If the build has already been uploaded, report its processing status and current testing-group state alongside the blurb so the user can assign it without reconstructing release context.
+- Use [`docs/TESTFLIGHT_UPLOAD_HANDOFF.md`](docs/TESTFLIGHT_UPLOAD_HANDOFF.md) as the reusable format.
