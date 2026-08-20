@@ -589,6 +589,19 @@ final class VisitService {
             .execute()
     }
 
+    /// Deletes one visit through an owner-bound backend transaction and
+    /// returns the media references that are now safe to remove from Storage.
+    func deleteOwnedVisit(visitId: UUID) async throws -> [String] {
+        let rows: [DeletedOwnedVisitPhotoRow] = try await client
+            .rpc(
+                "delete_owned_visit_v1",
+                params: DeleteOwnedVisitParameters(pVisitID: visitId)
+            )
+            .execute()
+            .value
+        return rows.map(\.photoURL)
+    }
+
     /// Returns only the owner-visible upload state so recovery can reconcile
     /// an ambiguous publication without hydrating any secondary resources.
     func fetchOwnedVisitUploadState(
@@ -1148,6 +1161,22 @@ private struct RemoveCommentParameters: Encodable {
     enum CodingKeys: String, CodingKey {
         case pCommentID = "p_comment_id"
         case pReason = "p_reason"
+    }
+}
+
+private struct DeleteOwnedVisitParameters: Encodable {
+    let pVisitID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case pVisitID = "p_visit_id"
+    }
+}
+
+private struct DeletedOwnedVisitPhotoRow: Decodable {
+    let photoURL: String
+
+    enum CodingKeys: String, CodingKey {
+        case photoURL = "photo_url"
     }
 }
 

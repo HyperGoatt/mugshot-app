@@ -438,6 +438,27 @@ struct testMugshotTests {
     }
 
     @MainActor
+    @Test func mapSearchNearbyChoicesAreDistanceOrderedAndLimitedToFive() {
+        let center = CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93)
+        let distances = [0.030, 0.005, 0.020, 0.010, 0.040, 0.015]
+        let cafes = distances.enumerated().map { index, offset in
+            let item = MKMapItem(placemark: MKPlacemark(
+                coordinate: CLLocationCoordinate2D(
+                    latitude: center.latitude + offset,
+                    longitude: center.longitude
+                )
+            ))
+            item.name = "Cafe \(index)"
+            return item
+        }
+
+        let nearest = MapSearchService.nearest(cafes, to: center, limit: 5)
+
+        #expect(nearest.count == 5)
+        #expect(nearest.map(\.name) == ["Cafe 1", "Cafe 3", "Cafe 5", "Cafe 2", "Cafe 0"])
+    }
+
+    @MainActor
     @Test func mapSearchRejectsUnrelatedAndImplausiblyDistantFallbacks() {
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),

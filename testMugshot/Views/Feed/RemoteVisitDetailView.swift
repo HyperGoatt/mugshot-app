@@ -1848,7 +1848,7 @@ struct RemoteVisitDetailView: View {
             isDeletingVisit = false
             dismiss()
         } catch {
-            socialError = "Could not delete sip."
+            socialError = MugshotUserFacingError.message(for: error, context: .social)
             isDeletingVisit = false
         }
     }
@@ -2855,7 +2855,7 @@ struct SipShareButton: View {
                 sipScore: payload.rating,
                 contextScore: nil,
                 mugshotScore: payload.rating,
-                identityTitle: "Your Mugshot Passport",
+                identityTitle: "Your Taste Passport",
                 identityDetail: "This memory is already part of the story your Passport is learning.",
                 memoryCount: 0,
                 criteria: [],

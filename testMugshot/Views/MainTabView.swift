@@ -140,16 +140,14 @@ struct MainTabView: View {
             handlePendingNearbyReminder()
             presentOnboardingDesignQAIfNeeded()
             scheduleSignedInOnboardingIfNeeded()
-            if DiscoveryFeatureFlags.isEnabled(.shareImport) {
-                Task {
-                    await refreshShareExtensionListCache(
-                        accountID: authModel.authenticatedUser?.id
-                    )
-                    await placeImportCoordinator.drain(
-                        dataManager: dataManager,
-                        accountID: authModel.authenticatedUser?.id
-                    )
-                }
+            Task {
+                await refreshShareExtensionListCache(
+                    accountID: authModel.authenticatedUser?.id
+                )
+                await placeImportCoordinator.drain(
+                    dataManager: dataManager,
+                    accountID: authModel.authenticatedUser?.id
+                )
             }
         }
         .onChange(of: tabCoordinator.selectedTab) { _, _ in
@@ -182,14 +180,12 @@ struct MainTabView: View {
             handlePendingActivityRoute()
             scheduleGuestIntroductionIfNeeded()
             scheduleSignedInOnboardingIfNeeded()
-            if DiscoveryFeatureFlags.isEnabled(.shareImport) {
-                Task {
-                    await refreshShareExtensionListCache(accountID: userId)
-                    await placeImportCoordinator.drain(
-                        dataManager: dataManager,
-                        accountID: userId
-                    )
-                }
+            Task {
+                await refreshShareExtensionListCache(accountID: userId)
+                await placeImportCoordinator.drain(
+                    dataManager: dataManager,
+                    accountID: userId
+                )
             }
         }
         .onChange(of: dataManager.journalRevision) { _, _ in
@@ -223,16 +219,18 @@ struct MainTabView: View {
                 handlePendingNearbyReminder()
                 scheduleSignedInOnboardingIfNeeded()
             }
-            guard phase == .active,
-                  let expectedAccountID = authModel.authenticatedUser?.id else { return }
+            guard phase == .active else { return }
+            let expectedAccountID = authModel.authenticatedUser?.id
             Task {
-                if DiscoveryFeatureFlags.isEnabled(.shareImport) {
-                    await refreshShareExtensionListCache(accountID: expectedAccountID)
-                    await placeImportCoordinator.drain(
-                        dataManager: dataManager,
-                        accountID: expectedAccountID
-                    )
-                }
+                // A share extension success is a durable promise. Always drain
+                // its app-group queue, including Release builds where discovery
+                // experiments may otherwise be disabled.
+                await refreshShareExtensionListCache(accountID: expectedAccountID)
+                await placeImportCoordinator.drain(
+                    dataManager: dataManager,
+                    accountID: expectedAccountID
+                )
+                guard let expectedAccountID else { return }
                 guard !Task.isCancelled,
                       authModel.authenticatedUser?.id == expectedAccountID else { return }
                 await activityStore.refresh()
@@ -723,7 +721,6 @@ struct MainTabView: View {
 
     @MainActor
     private func refreshShareExtensionListCache(accountID: UUID?) async {
-        guard DiscoveryFeatureFlags.isEnabled(.shareImport) else { return }
         guard let accountID else {
             await PendingPlaceImportQueue.shared.cacheEligibleLists([])
             return

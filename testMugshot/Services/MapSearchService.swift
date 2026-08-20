@@ -35,14 +35,20 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     @Published private(set) var completedQuery = ""
     @Published private(set) var correctedQuery: String?
     @Published private(set) var searchedExpandedArea = false
+    @Published private(set) var nearbyCafeResults: [MKMapItem] = []
+    @Published private(set) var isLoadingNearbyCafes = false
+    @Published private(set) var nearbyCafeError: String?
 
     private let completer = MKLocalSearchCompleter()
     private let defaults: UserDefaults
     private var scope: LocalAccountScope
     private var currentSearch: MKLocalSearch?
+    private var currentNearbySearch: MKLocalSearch?
     private var pendingSearchTask: Task<Void, Never>?
     private var activeSearchID = UUID()
+    private var activeNearbySearchID = UUID()
     private var lastRegion: MKCoordinateRegion?
+    private var lastNearbyCenter: CLLocation?
     private var lastRawQuery = ""
 
     init(defaults: UserDefaults = .standard, scope: LocalAccountScope = .guest) {
@@ -192,6 +198,69 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     func retry() {
         guard let lastRegion, !lastRawQuery.isEmpty else { return }
         search(query: lastRawQuery, region: lastRegion, immediately: true)
+    }
+
+    /// Loads the five closest cafes for the composer before a person types.
+    /// This search stays separate from type-ahead so clearing a query restores
+    /// the nearby choices immediately instead of starting another request.
+    func loadNearbyCafes(region: MKCoordinateRegion, force: Bool = false) {
+        let center = CLLocation(
+            latitude: region.center.latitude,
+            longitude: region.center.longitude
+        )
+        if !force,
+           let lastNearbyCenter,
+           center.distance(from: lastNearbyCenter) < 50,
+           (isLoadingNearbyCafes || !nearbyCafeResults.isEmpty) {
+            return
+        }
+
+        lastNearbyCenter = center
+        activeNearbySearchID = UUID()
+        let searchID = activeNearbySearchID
+        currentNearbySearch?.cancel()
+        nearbyCafeError = nil
+        isLoadingNearbyCafes = true
+
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = "coffee"
+        request.region = region
+        request.regionPriority = .required
+        request.resultTypes = [.pointOfInterest]
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.cafe])
+
+        let search = MKLocalSearch(request: request)
+        currentNearbySearch = search
+        search.start { [weak self] response, error in
+            Task { @MainActor [weak self] in
+                guard let self, searchID == self.activeNearbySearchID else { return }
+                self.currentNearbySearch = nil
+                self.isLoadingNearbyCafes = false
+
+                if let error {
+                    let nsError = error as NSError
+                    guard !(nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) else {
+                        return
+                    }
+                    self.nearbyCafeResults = []
+                    self.nearbyCafeError = "Nearby cafes could not load. Search by name or try again."
+                    return
+                }
+
+                self.nearbyCafeResults = Self.nearest(
+                    response?.mapItems ?? [],
+                    to: region.center,
+                    limit: 5
+                )
+            }
+        }
+    }
+
+    func cancelNearbyCafeSearch() {
+        activeNearbySearchID = UUID()
+        currentNearbySearch?.cancel()
+        currentNearbySearch = nil
+        isLoadingNearbyCafes = false
     }
 
     func recordRecent(_ item: MKMapItem) {
@@ -429,6 +498,32 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             }
             return value
         }
+    }
+
+    static func nearest(
+        _ items: [MKMapItem],
+        to coordinate: CLLocationCoordinate2D,
+        limit: Int
+    ) -> [MKMapItem] {
+        guard limit > 0 else { return [] }
+        let center = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        var seen = Set<String>()
+
+        return items
+            .compactMap { item -> (item: MKMapItem, location: CLLocation, key: String)? in
+                guard let location = item.placemark.location,
+                      let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty else { return nil }
+                let key = "\(normalized(name))|\(String(format: "%.5f", location.coordinate.latitude))|\(String(format: "%.5f", location.coordinate.longitude))"
+                return (item, location, key)
+            }
+            .sorted { $0.location.distance(from: center) < $1.location.distance(from: center) }
+            .compactMap { candidate in
+                guard seen.insert(candidate.key).inserted else { return nil }
+                return candidate.item
+            }
+            .prefix(limit)
+            .map { $0 }
     }
 
     /// Keeps generic discovery local while allowing a named place plus city
