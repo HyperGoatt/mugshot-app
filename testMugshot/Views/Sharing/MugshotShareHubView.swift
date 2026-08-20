@@ -113,7 +113,7 @@ struct MugshotShareHubView: View {
                 presentSystemShare()
             }
         } message: {
-            Text("This image will leave Mugshot and will not follow your in-app audience. No public Mugshot link will be included.")
+            Text("Anyone with this unlisted share link can view the post, even if they are not signed in or are not yet your friend. Changing the post to Private stops link access.")
         }
         .alert(
             "Sharing is still here",
@@ -344,7 +344,11 @@ struct MugshotShareHubView: View {
                     Text("Instagram, Stories, Messages & more")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Color.espressoBrown)
-                    Text("Mugshot sends one finished image to Apple’s share menu. Installed apps appear automatically.")
+                    Text(
+                        publicURL == nil
+                            ? "Mugshot sends one finished image to Apple’s share menu. Installed apps appear automatically."
+                            : "Mugshot sends your finished image and a clickable post link. The link opens the iOS app first, with the web as a fallback."
+                    )
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -536,7 +540,7 @@ struct MugshotShareHubView: View {
             content: content,
             storyArtwork: story,
             postArtwork: post,
-            publicURL: content.visibility == .everyone ? publicURL : nil
+            publicURL: publicURL
         )
     }
 
@@ -583,7 +587,7 @@ struct MugshotShareHubView: View {
         }
 
         systemSharePresentation = MugshotSystemSharePresentation(
-            items: [package.artwork(for: selectedFormat)],
+            items: package.activityItems(for: selectedFormat),
             format: selectedFormat
         )
         successMessage = "Share again anytime—your export stays ready."
@@ -621,7 +625,7 @@ struct MugshotShareHubView: View {
     private func copyPublicLink() {
         guard let publicURL else { return }
         UIPasteboard.general.url = publicURL
-        successMessage = "Public Mugshot link copied."
+        successMessage = "Mugshot share link copied."
     }
 
     private func copyCurrentArtwork() {

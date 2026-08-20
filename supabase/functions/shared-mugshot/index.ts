@@ -1,16 +1,25 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  type MediaSigningClient,
+  resolvedCapabilityMediaURL,
+  safeHTTPSURL,
+} from "../_shared/capability-media.ts";
 import { getPublicSupabaseKey } from "../_shared/public-key.ts";
+import { getSecretSupabaseKey } from "../_shared/secret-key.ts";
 
 type PublicMugshot = {
   visit_id: string;
   slug: string;
   author_name: string;
   author_username: string | null;
+  author_avatar_url: string | null;
   drink_name: string;
   context_name: string;
   rating: number;
+  ratings: Record<string, unknown>;
   caption: string | null;
   cover_photo_url: string | null;
+  photo_urls: string[];
   created_at: string;
 };
 
@@ -26,7 +35,7 @@ const sharedHeaders = {
 
 const successHeaders = {
   ...sharedHeaders,
-  "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
+  "Cache-Control": "private, no-store",
 };
 
 const unavailableHeaders = {
@@ -45,6 +54,60 @@ function escapeHTML(value: string): string {
 
 function validSlug(value: string): boolean {
   return /^[A-Za-z0-9_-]{24,128}$/.test(value);
+}
+
+async function resolveMugshotMedia(
+  mugshot: PublicMugshot,
+  adminClient: MediaSigningClient | null,
+): Promise<PublicMugshot> {
+  const rawCandidates = [
+    mugshot.cover_photo_url,
+    ...(Array.isArray(mugshot.photo_urls) ? mugshot.photo_urls : []),
+  ].filter((value): value is string =>
+    typeof value === "string" && value.length > 0
+  ).filter((value, index, values) => values.indexOf(value) === index)
+    .slice(0, 10);
+  const resolved = await Promise.all(
+    rawCandidates.map((value) =>
+      resolvedCapabilityMediaURL(value, adminClient)
+    ),
+  );
+  const mediaByReference = new Map(
+    rawCandidates.map((value, index) => [value, resolved[index]]),
+  );
+  const photoURLs = rawCandidates
+    .map((value) => mediaByReference.get(value))
+    .filter((value): value is string => Boolean(value));
+  const coverPhotoURL = typeof mugshot.cover_photo_url === "string"
+    ? mediaByReference.get(mugshot.cover_photo_url) ?? null
+    : null;
+  return {
+    ...mugshot,
+    author_avatar_url: safeHTTPSURL(mugshot.author_avatar_url),
+    cover_photo_url: coverPhotoURL ?? photoURLs[0] ?? null,
+    photo_urls: photoURLs,
+  };
+}
+
+function ratingEntries(
+  value: Record<string, unknown>,
+): Array<[string, number]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value)
+    .filter((entry): entry is [string, number] =>
+      typeof entry[1] === "number" &&
+      Number.isFinite(entry[1]) &&
+      entry[1] >= 0 &&
+      entry[1] <= 5
+    )
+    .slice(0, 12);
+}
+
+function ratingLabel(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .slice(0, 60);
 }
 
 function neutralPage(downloadURL: string): Response {
@@ -109,11 +172,19 @@ function page(input: {
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; background:var(--cream); color:var(--espresso); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.22; background:radial-gradient(circle at 15% 12%,var(--mint),transparent 32%),radial-gradient(circle at 85% 88%,#e8d8bd,transparent 28%); }
-    main { position:relative; width:min(94vw,680px); margin:0 auto; padding:40px 20px 64px; }
+    main { position:relative; width:min(94vw,760px); margin:0 auto; padding:32px 20px 64px; }
     .mark { color:var(--sage); font-size:12px; font-weight:900; letter-spacing:.24em; margin-bottom:18px; }
     .card { overflow:hidden; border:1px solid var(--line); border-radius:28px; background:var(--foam); box-shadow:0 18px 44px rgba(51,35,29,.12); }
+    .gallery { display:grid; grid-auto-flow:column; grid-auto-columns:100%; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; background:#dfd2bd; }
+    .gallery::-webkit-scrollbar { display:none; }
+    .photo { position:relative; margin:0; scroll-snap-align:start; }
     .cover { display:block; width:100%; aspect-ratio:4/5; object-fit:cover; background:#dfd2bd; }
+    .count { position:absolute; right:16px; top:16px; padding:7px 11px; border-radius:999px; color:white; background:rgba(24,18,14,.72); font-size:12px; font-weight:800; }
     .content { padding:28px; }
+    .author { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .avatar { width:44px; height:44px; border-radius:50%; object-fit:cover; background:var(--mint); }
+    .author-name { font-weight:850; }
+    .author-handle { margin-top:2px; color:#76675e; font-size:13px; }
     .route { display:flex; align-items:center; gap:9px; color:var(--sage); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }
     .route::before { content:""; width:9px; height:9px; border-radius:50%; background:var(--sage); box-shadow:18px 0 0 -3px var(--sage); margin-right:16px; }
     h1 { margin:14px 0 8px; font-family:Georgia,serif; font-size:clamp(36px,8vw,62px); line-height:1; letter-spacing:-.035em; }
@@ -121,11 +192,19 @@ function page(input: {
     .score { margin:24px 0 0; display:flex; align-items:baseline; gap:8px; font-family:Georgia,serif; font-size:54px; font-weight:700; }
     .score span { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--sage); font-size:11px; letter-spacing:.12em; }
     blockquote { margin:22px 0 0; padding-left:16px; border-left:3px solid var(--mint); color:#5a4941; font-family:Georgia,serif; font-size:20px; line-height:1.45; }
-    .byline { margin:24px 0 0; color:#76675e; font-size:13px; }
-  .button { display:inline-flex; min-height:48px; margin-top:24px; padding:0 22px; align-items:center; justify-content:center; border-radius:14px; background:#143d31; color:white; text-decoration:none; font-weight:800; }
+    .ratings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:24px; }
+    .rating { padding:13px 14px; border:1px solid var(--line); border-radius:14px; background:#fbf8f1; }
+    .rating-name { color:#76675e; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .rating-value { margin-top:5px; font-family:Georgia,serif; font-size:24px; }
+    .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:24px; }
+    .button { display:inline-flex; min-height:50px; padding:0 18px; align-items:center; justify-content:center; border-radius:14px; background:#143d31; color:white; text-align:center; text-decoration:none; font-weight:800; }
+    .button.secondary { border:1px solid var(--line); background:var(--foam); color:var(--espresso); }
+    .signup { display:block; margin-top:14px; color:var(--sage); text-align:center; font-size:13px; font-weight:750; }
+    .note { margin:22px 0 0; color:#76675e; font-size:13px; line-height:1.5; }
     .neutral { min-height:80vh; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; }
     .neutral h1 { max-width:560px; }
     .neutral p { color:#715f54; font-size:18px; }
+    @media (max-width:540px) { .content { padding:22px; } .ratings,.actions { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>${input.body}</body>
@@ -146,6 +225,8 @@ Deno.serve(async (request) => {
     "";
   const marketingURL = Deno.env.get("MUGSHOT_MARKETING_URL") ??
     "https://mugshotapp.co";
+  const webAppURL = Deno.env.get("MUGSHOT_WEB_APP_URL") ??
+    "https://app.mugshotapp.co";
   const downloadURL = Deno.env.get("MUGSHOT_DOWNLOAD_URL") ??
     `${marketingURL}/download?placement=share`;
   if (!validSlug(slug)) return neutralPage(downloadURL);
@@ -164,54 +245,131 @@ Deno.serve(async (request) => {
     ? (data[0] as PublicMugshot | undefined)
     : undefined;
   if (!mugshot) return neutralPage(downloadURL);
+  const secretKey = getSecretSupabaseKey();
+  const adminClient = secretKey
+    ? createClient(supabaseURL, secretKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    : null;
+  const resolvedMugshot = await resolveMugshotMedia(mugshot, adminClient);
+
+  if (requestURL.searchParams.get("format") === "json") {
+    return new Response(JSON.stringify(resolvedMugshot), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+        "Referrer-Policy": "no-referrer",
+      },
+    });
+  }
+
   await client.rpc("record_public_mugshot_share_event_v1", {
     p_slug: slug,
     p_event_name: "landing_visit",
   });
 
-  const title = `${mugshot.drink_name} at ${mugshot.context_name}`;
-  const description = `${mugshot.author_name} remembered this on Mugshot.`;
-  const caption = mugshot.caption
-    ? `<blockquote>${escapeHTML(mugshot.caption)}</blockquote>`
+  const title =
+    `${resolvedMugshot.drink_name} at ${resolvedMugshot.context_name}`;
+  const description =
+    `${resolvedMugshot.author_name} remembered this on Mugshot.`;
+  const caption = resolvedMugshot.caption
+    ? `<blockquote>${escapeHTML(resolvedMugshot.caption)}</blockquote>`
     : "";
-  const cover = mugshot.cover_photo_url
-    ? `<img class="cover" src="${
-      escapeHTML(
-        mugshot.cover_photo_url,
-      )
-    }" alt="Photo of ${escapeHTML(mugshot.drink_name)}">`
+  const gallery = resolvedMugshot.photo_urls.length > 0
+    ? `<div class="gallery" aria-label="${resolvedMugshot.photo_urls.length} post photo${
+      resolvedMugshot.photo_urls.length === 1 ? "" : "s"
+    }">${
+      resolvedMugshot.photo_urls.map((url, index) =>
+        `<figure class="photo">
+          <img class="cover" src="${escapeHTML(url)}" alt="${
+          escapeHTML(resolvedMugshot.drink_name)
+        }, photo ${index + 1} of ${resolvedMugshot.photo_urls.length}">
+          ${
+          resolvedMugshot.photo_urls.length > 1
+            ? `<span class="count">${
+              index + 1
+            }/${resolvedMugshot.photo_urls.length}</span>`
+            : ""
+        }
+        </figure>`
+      ).join("")
+    }</div>`
+    : "";
+  const avatar = resolvedMugshot.author_avatar_url
+    ? `<img class="avatar" src="${
+      escapeHTML(resolvedMugshot.author_avatar_url)
+    }" alt="">`
+    : `<span class="avatar" aria-hidden="true"></span>`;
+  const handle = resolvedMugshot.author_username
+    ? `@${resolvedMugshot.author_username}`
+    : "Mugshot member";
+  const ratings = ratingEntries(resolvedMugshot.ratings);
+  const ratingGrid = ratings.length > 0
+    ? `<div class="ratings" aria-label="Taste ratings">${
+      ratings.map(([label, value]) =>
+        `<div class="rating"><div class="rating-name">${
+          escapeHTML(ratingLabel(label))
+        }</div><div class="rating-value">${value.toFixed(1)}</div></div>`
+      ).join("")
+    }</div>`
     : "";
   const date = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeZone: "UTC",
-  }).format(new Date(mugshot.created_at));
+  }).format(new Date(resolvedMugshot.created_at));
+  const appRoute = `mugshot://m/${encodeURIComponent(slug)}`;
+  const browseURL =
+    `${webAppURL}/feed?utm_source=shared_mugshot&utm_medium=capability_link`;
+  const signupURL =
+    `${webAppURL}/auth?utm_source=shared_mugshot&utm_medium=capability_link`;
   const body = `
     <main>
       <div class="mark">MUGSHOT</div>
       <article class="card">
-        ${cover}
+        ${gallery}
         <div class="content">
-          <div class="route">${escapeHTML(mugshot.context_name)} · ${
+          <div class="author">
+            ${avatar}
+            <div>
+              <div class="author-name">${
+    escapeHTML(resolvedMugshot.author_name)
+  }</div>
+              <div class="author-handle">${escapeHTML(handle)} · ${
+    escapeHTML(date)
+  }</div>
+            </div>
+          </div>
+          <div class="route">${escapeHTML(resolvedMugshot.context_name)} · ${
     escapeHTML(
       date,
     )
   }</div>
-          <h1>${escapeHTML(mugshot.drink_name)}</h1>
-          <div class="meta">${escapeHTML(mugshot.context_name)}</div>
+          <h1>${escapeHTML(resolvedMugshot.drink_name)}</h1>
+          <div class="meta">${escapeHTML(resolvedMugshot.context_name)}</div>
           <div class="score">${
-    Number(mugshot.rating).toFixed(
+    Number(resolvedMugshot.rating).toFixed(
       1,
     )
   } <span>OUT OF 5</span></div>
           ${caption}
-          <p class="byline">Remembered by ${escapeHTML(mugshot.author_name)}</p>
+          ${ratingGrid}
+          <div class="actions">
+            <a class="button" href="${escapeHTML(appRoute)}">Open in Mugshot</a>
+            <a class="button secondary" href="${
+    escapeHTML(browseURL)
+  }">Browse the web app</a>
+          </div>
+          <a class="signup" href="${
+    escapeHTML(signupURL)
+  }">New here? Create a Mugshot account</a>
           ${
     downloadURL
-      ? `<a class="button" href="${
-        escapeHTML(
-          downloadURL,
-        )
-      }">Get Mugshot</a>`
+      ? `<p class="note">For the complete Mugshot experience on iPhone, <a href="${
+        escapeHTML(downloadURL)
+      }">join Mugshot on iOS</a>.</p>`
       : ""
   }
         </div>
@@ -223,7 +381,7 @@ Deno.serve(async (request) => {
       title,
       description,
       body,
-      image: mugshot.cover_photo_url,
+      image: resolvedMugshot.cover_photo_url,
       canonical: `${marketingURL}/m/${encodeURIComponent(slug)}`,
     }),
     { status: 200, headers: successHeaders },

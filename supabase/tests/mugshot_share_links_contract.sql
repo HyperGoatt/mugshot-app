@@ -39,6 +39,7 @@ begin
   end if;
 
   foreach function_name in array array[
+    'private.is_capability_shareable_visit_v1(uuid)',
     'public.create_visit_share_link_v1(uuid)',
     'public.get_visit_share_slug_v1(uuid)',
     'public.revoke_visit_share_link_v1(uuid)',
@@ -60,6 +61,11 @@ begin
   end loop;
 
   if has_function_privilege(
+       'anon',
+       'private.is_capability_shareable_visit_v1(uuid)',
+       'EXECUTE'
+     )
+     or has_function_privilege(
        'anon', 'public.create_visit_share_link_v1(uuid)', 'EXECUTE'
      )
      or has_function_privilege(
@@ -99,20 +105,24 @@ begin
       '(private_note|visit_private_notes|brew_details|recipe_version|latitude|longitude|location_name|passport)' then
     raise exception 'public Mugshot projection references a private field';
   end if;
+  if projection_definition not like
+      '%private.is_capability_shareable_visit_v1(visit.id)%' then
+    raise exception 'public Mugshot projection lost the capability boundary';
+  end if;
 end;
 $$;
 
 create temp table mugshot_share_fixture as
 select visit.id visit_id, visit.user_id owner_id, visit.visibility
 from public.visits visit
-where private.is_public_visit_discoverable_v3(visit.id)
+where private.is_capability_shareable_visit_v1(visit.id)
 order by visit.created_at desc
 limit 1;
 
 do $$
 begin
   if not exists (select 1 from mugshot_share_fixture) then
-    raise exception 'share-link contract requires one discoverable public visit fixture';
+    raise exception 'share-link contract requires one capability-shareable visit fixture';
   end if;
 end;
 $$;
@@ -125,8 +135,9 @@ do $$
 declare
   projection jsonb;
   expected_keys constant text[] := array[
-    'visit_id', 'slug', 'author_name', 'author_username', 'drink_name',
-    'context_name', 'rating', 'caption', 'cover_photo_url', 'created_at'
+    'visit_id', 'slug', 'author_name', 'author_username',
+    'author_avatar_url', 'drink_name', 'context_name', 'rating', 'ratings',
+    'caption', 'cover_photo_url', 'photo_urls', 'created_at'
   ];
 begin
   select to_jsonb(result)
@@ -171,11 +182,11 @@ where id = (select visit_id from mugshot_share_fixture);
 
 do $$
 begin
-  if exists (
+  if not exists (
     select 1
     from public.get_public_mugshot_share_v1(repeat('a', 48))
   ) then
-    raise exception 'friends audience did not revoke anonymous share access';
+    raise exception 'friends capability link lost anonymous share access';
   end if;
 end;
 $$;
