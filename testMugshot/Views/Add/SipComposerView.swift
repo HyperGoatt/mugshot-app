@@ -283,6 +283,7 @@ struct LogVisitView: View {
                     dataManager: dataManager,
                     selectedCafe: $composerModel.draft.cafe,
                     region: $cafeSearchRegion,
+                    hasCurrentLocation: locationManager.location != nil,
                     searchAreaDescription: searchAreaDescription,
                     locationActionTitle: locationActionTitle,
                     onLocationAction: useCurrentLocation
@@ -4090,7 +4091,7 @@ struct LogVisitView: View {
             sipScore: sipScore,
             contextScore: contextScore,
             mugshotScore: mugshotScore,
-            identityTitle: "Your Mugshot Passport is forming",
+            identityTitle: "Your Taste Passport is forming",
             identityDetail: identityDetail,
             memoryCount: knownMemoryCount ?? 0,
             criteria: Array(criteria.prefix(8)),

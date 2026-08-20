@@ -26,7 +26,7 @@ Date: 2026-07-14
 | 9 | Focused memory ritual | Guided composer headings, progress, and success overlay | Each step has one clear question, progress and back behavior are accessible, and completion returns to Journal with the saved memory summarized. |
 | 10 | Memory-first feed cards | Remote and local feed cards | Photo, drink, cafe, rating, and one memorable phrase dominate; author, recommendation reason, and social controls remain secondary. |
 | 11 | Visual cafe collections | Shared lists, invitations, roles, reorder, cafe search | Lists have a visual cover treatment, count, visibility, collaborators, and map context without changing collaboration semantics. |
-| 12 | Evidence-backed taste profile | Mugshot Passport and Taste Signal evidence | Taste Identity shows recent-period context, personal map footprint, and drill-down evidence; no competitive percentile scoring. |
+| 12 | Evidence-backed taste profile | Taste Passport and Taste Signal evidence | Taste Identity shows recent-period context, personal map footprint, and drill-down evidence; no competitive percentile scoring. |
 | 13 | Monthly coffee recap | Reflection engine and detail view | Monthly recap tells a paced coffee story using existing visit history, comparisons, photos, places, and an explicit share action. |
 | 14 | Branded Sip Card sharing | Text/photo sharing and ImageRenderer passport sharing | Visit sharing generates a Mugshot-branded image with drink, cafe, rating, date, and public caption only; private notes never render. |
 | 15 | Photographic Journal archive | Timeline, calendar, and map archive modes | Timeline groups entries by month or week and adds photo strips while retaining search, filters, and direct visit access. |

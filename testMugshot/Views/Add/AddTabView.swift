@@ -2523,6 +2523,7 @@ struct CafeSearchSheet: View {
     @ObservedObject var dataManager: DataManager
     @Binding var selectedCafe: Cafe?
     @Binding var region: MKCoordinateRegion
+    let hasCurrentLocation: Bool
     let searchAreaDescription: String
     let locationActionTitle: String
     let onLocationAction: () -> Void
@@ -2546,6 +2547,7 @@ struct CafeSearchSheet: View {
                     showCafeDetail: $showCafeDetail,
                     isSearchActive: $isSearchActive,
                     isSearchFieldFocused: $isSearchFieldFocused,
+                    showsNearbyCafeSuggestions: hasCurrentLocation,
                     onSelectCafe: { _ in dismiss() }
                 )
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -2559,12 +2561,30 @@ struct CafeSearchSheet: View {
                     Button("Cancel", action: cancel)
                 }
             }
-            .onAppear { isSearchActive = true }
+            .onAppear {
+                isSearchActive = true
+                if hasCurrentLocation {
+                    searchService.loadNearbyCafes(region: region)
+                }
+            }
+            .onChange(of: hasCurrentLocation) { _, hasLocation in
+                guard hasLocation else { return }
+                searchService.loadNearbyCafes(region: region)
+            }
+            .onChange(of: region.center.latitude) { _, _ in
+                guard hasCurrentLocation else { return }
+                searchService.loadNearbyCafes(region: region)
+            }
+            .onChange(of: region.center.longitude) { _, _ in
+                guard hasCurrentLocation else { return }
+                searchService.loadNearbyCafes(region: region)
+            }
             .onDisappear {
                 searchText = ""
                 isSearchFieldFocused = false
                 isSearchActive = false
                 searchService.cancelSearch()
+                searchService.cancelNearbyCafeSearch()
             }
         }
     }

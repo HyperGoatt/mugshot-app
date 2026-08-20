@@ -155,11 +155,17 @@ struct LogASipV3ProductionView: View {
                     currentSurface
                         .id(step)
                         .transition(stepTransition)
-                        .safeAreaInset(edge: .top, spacing: 0) {
+                        .overlay(alignment: firstSipGuideAlignment) {
                             if showsFirstSipGuidance {
                                 MugshotFirstSipGuideBanner(
                                     step: step,
                                     onDismiss: onDismissFirstSipGuidance
+                                )
+                                .padding(.top, firstSipGuideTopPadding)
+                                .padding(.bottom, firstSipGuideBottomPadding)
+                                .transition(
+                                    .move(edge: firstSipGuideAtTop ? .top : .bottom)
+                                        .combined(with: .opacity)
                                 )
                             }
                         }
@@ -192,6 +198,22 @@ struct LogASipV3ProductionView: View {
                 )
             }
         }
+    }
+
+    private var firstSipGuideAtTop: Bool {
+        step == .sip || step == .publish
+    }
+
+    private var firstSipGuideAlignment: Alignment {
+        firstSipGuideAtTop ? .top : .bottom
+    }
+
+    private var firstSipGuideTopPadding: CGFloat {
+        firstSipGuideAtTop ? 58 : 0
+    }
+
+    private var firstSipGuideBottomPadding: CGFloat {
+        firstSipGuideAtTop ? 0 : 78
     }
 
     @ViewBuilder

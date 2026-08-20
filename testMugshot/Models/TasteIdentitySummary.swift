@@ -103,7 +103,7 @@ struct TasteIdentitySummary: Equatable {
     static let possiblePassportTitles = 512
 
     static let empty = TasteIdentitySummary(
-        title: "Your Mugshot Passport is forming",
+        title: "Your Taste Passport is forming",
         descriptors: ["Taste forming", "Lens forming", "Ritual forming"],
         description: "Every journal entry gives Mugshot a little more to learn from.",
         patterns: [

@@ -37,7 +37,7 @@ struct MugshotPassportCard: View {
                     .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Mugshot Passport, \(identity.title)")
+            .accessibilityLabel("Taste Passport, \(identity.title)")
             .accessibilityHint(showsStats ? "Shows tasting identity. Double tap to return" : "Shows passport statistics. Double tap to open")
 
             HStack(spacing: 10) {
@@ -198,7 +198,7 @@ struct MugshotPassportCard: View {
             .background(Color.creamWhite)
         let renderer = ImageRenderer(content: artwork)
         renderer.scale = 2
-        let text = "\(displayName)’s Mugshot Passport — \(identity.title) · \(identity.descriptors.joined(separator: " · "))"
+        let text = "\(displayName)’s Taste Passport — \(identity.title) · \(identity.descriptors.joined(separator: " · "))"
         if let image = renderer.uiImage {
             shareItems = MugshotPassportShareItems(items: [image, text])
         } else {

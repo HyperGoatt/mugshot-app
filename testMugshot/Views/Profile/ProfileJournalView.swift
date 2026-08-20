@@ -1513,7 +1513,7 @@ private struct TasteIdentityJournalSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Mugshot Passport")
+                Text("Taste Passport")
                     .mugshotDisplay(size: 28)
                     .foregroundColor(.espressoBrown)
                 Spacer()

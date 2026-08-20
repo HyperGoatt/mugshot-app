@@ -103,6 +103,7 @@ enum MapDiscoveryEligibility {
 struct MapTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var locationManager: LocationManager
+    var hidesUserLocation = false
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
@@ -196,7 +197,7 @@ struct MapTabView: View {
                 placeNames: mapPlaceNamesByCafeID,
                 showsFriendContext: discoveryScope == .friends,
                 scope: discoveryScope,
-                showsUserLocation: locationAccessAuthorized,
+                showsUserLocation: locationAccessAuthorized && !hidesUserLocation,
                 trackingMode: $userTrackingMode,
                 onCafeTap: { cafe in
                     handleMapCafeTap(cafe)
@@ -3792,6 +3793,7 @@ struct SearchResultsList: View {
     @Binding var showCafeDetail: Bool
     @Binding var isSearchActive: Bool
     var isSearchFieldFocused: FocusState<Bool>.Binding
+    var showsNearbyCafeSuggestions = false
     var onSelectCafe: ((Cafe) -> Void)? = nil
     @State private var resolvingRecentID: MapSearchRecent.ID?
     @State private var selectionResolutionTask: Task<Void, Never>?
@@ -3859,21 +3861,10 @@ struct SearchResultsList: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    SearchSectionTitle(
-                        title: "Explore nearby",
-                        subtitle: "Coffee-first suggestions for this map area"
-                    )
-
-                    LazyVGrid(
-                        columns: [GridItem(.flexible()), GridItem(.flexible())],
-                        spacing: 10
-                    ) {
-                        discoveryButton("Coffee", icon: "cup.and.saucer.fill", query: "coffee")
-                        discoveryButton("Roasters", icon: "flame.fill", query: "coffee roaster")
-                        discoveryButton("Bakeries", icon: "birthday.cake.fill", query: "bakery")
-                        discoveryButton("Brunch", icon: "fork.knife", query: "brunch")
-                    }
+                if onSelectCafe != nil {
+                    closestCafeSection
+                } else {
+                    exploreNearbySection
                 }
 
                 let mapCenter = CLLocation(
@@ -3916,6 +3907,80 @@ struct SearchResultsList: View {
             .padding(.bottom, 22)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var closestCafeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SearchSectionTitle(
+                title: "Closest cafes",
+                subtitle: showsNearbyCafeSuggestions
+                    ? "Five nearby choices, ready to tap"
+                    : "Use your location to see the five closest"
+            )
+
+            if showsNearbyCafeSuggestions {
+                if searchService.isLoadingNearbyCafes && searchService.nearbyCafeResults.isEmpty {
+                    HStack(spacing: 10) {
+                        ProgressView().controlSize(.small)
+                        Text("Finding cafes near you…")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.vertical, 12)
+                    .accessibilityLabel("Finding nearby cafes")
+                } else if let error = searchService.nearbyCafeError {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(error)
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondaryText)
+                        Button("Try nearby again") {
+                            searchService.loadNearbyCafes(region: region, force: true)
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.mugshotSage)
+                    }
+                    .padding(.vertical, 8)
+                } else if searchService.nearbyCafeResults.isEmpty {
+                    Text("No cafes appeared nearby. Search by name or neighborhood.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondaryText)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(searchService.nearbyCafeResults, id: \.self) { mapItem in
+                            SearchResultRow(mapItem: mapItem, region: region) {
+                                handleSearchResult(mapItem)
+                            }
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            } else {
+                Label("Tap Near me above to show nearby cafes.", systemImage: "location")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private var exploreNearbySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SearchSectionTitle(
+                title: "Explore nearby",
+                subtitle: "Coffee-first suggestions for this map area"
+            )
+
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 10
+            ) {
+                discoveryButton("Coffee", icon: "cup.and.saucer.fill", query: "coffee")
+                discoveryButton("Roasters", icon: "flame.fill", query: "coffee roaster")
+                discoveryButton("Bakeries", icon: "birthday.cake.fill", query: "bakery")
+                discoveryButton("Brunch", icon: "fork.knife", query: "brunch")
+            }
+        }
     }
 
     private var activeSearchResults: some View {

@@ -435,7 +435,7 @@ struct MugshotShareHubView: View {
     private var passportReceipt: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Mugshot Passport updated", systemImage: "book.closed.fill")
+                Label("Taste Passport updated", systemImage: "book.closed.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
                 Spacer()

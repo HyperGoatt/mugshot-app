@@ -554,8 +554,8 @@ struct AuthLoadingView: View {
             
             VStack(spacing: 16) {
                 MugsyAnimatedView(
-                    configuration: MugsyModelConfiguration(expression: .focused),
-                    action: .focusing,
+                    configuration: MugsyModelConfiguration(expression: .delighted),
+                    action: .resting,
                     isPaused: true
                 )
                 .frame(width: 92, height: 92)

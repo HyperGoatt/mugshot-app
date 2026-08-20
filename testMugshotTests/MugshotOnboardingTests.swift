@@ -35,10 +35,11 @@ struct MugshotOnboardingTests {
         #expect(preferences.onboardingGoal == .taste)
     }
 
-    @Test func productTourVisitsEveryCoreDestinationBeforeFirstSip() {
+    @Test func productTourVisitsEveryCoreDestinationAndShareShortcutBeforeFirstSip() {
         #expect(MugshotOnboardingPlan.totalSteps == 8)
         #expect(MugshotProductTourStep.allCases.map(\.number) == [4, 5, 6, 7, 8])
-        #expect(MugshotProductTourStep.allCases.map(\.tabIndex) == [0, 1, 3, 4, 2])
+        #expect(MugshotProductTourStep.allCases.map(\.tabIndex) == [0, 1, 3, 4, 0])
+        #expect(MugshotProductTourStep.shareImport.number == 8)
     }
 
     @Test func signedInOnboardingRemainsRequiredUntilCompletedOrSkipped() {

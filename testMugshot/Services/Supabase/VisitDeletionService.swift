@@ -101,16 +101,14 @@ final class VisitDeletionService {
     }
 
     func deleteVisit(visitId: UUID, userId: UUID) async throws {
-        let photoRows = try await visitService.fetchVisitPhotoRows(visitId: visitId)
+        let deletedPhotoURLs = try await visitService.deleteOwnedVisit(visitId: visitId)
         let ownerPrefix = userId.uuidString.lowercased() + "/"
-        let locations = photoRows
-            .compactMap { VisitPhotoObjectPath.location(fromStoredValue: $0.photoURL) }
+        let locations = deletedPhotoURLs
+            .compactMap { VisitPhotoObjectPath.location(fromStoredValue: $0) }
             .filter { $0.objectPath.lowercased().hasPrefix(ownerPrefix) }
 
-        // Delete the journal record first so a cleanup outage can never leave
-        // a visible sip pointing at already-deleted media. Storage cleanup is
-        // durable and retried separately if it fails.
-        try await visitService.deleteVisit(visitId: visitId, userId: userId)
+        // The RPC has already committed the journal deletion. Storage cleanup
+        // remains durable and retried separately if object removal fails.
         guard !locations.isEmpty else { return }
 
         do {

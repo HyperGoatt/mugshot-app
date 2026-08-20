@@ -149,6 +149,69 @@ final result: passed
 
 ---
 
+# Mugshot 0.5.3 onboarding — canonical Mugsy product tour QA
+
+## Comparison setup
+
+- Primary visual direction: `/Users/joe.rosso/.codex/generated_images/01a020fa-6c79-7811-b31e-b6d1e6f480b0/exec-467cf2b2-c7cb-4f32-91e4-e72c8628dc29.png` (852 × 1846 pixels).
+- Real product sources:
+  - Map: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-460601e1-f23b-4f91-bdc9-463ab8fdddd1.png` (1206 × 2622 pixels).
+  - Privacy-sanitized Map derivative: `/Users/joe.rosso/.codex/generated_images/01a020fa-6c79-7811-b31e-b6d1e6f480b0/exec-773d8cca-fafc-4ed1-9fa9-2049b3d5a88d.png` (853 × 1844 pixels); the precise blue location marker is removed from the bundled source itself.
+  - Feed: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-cfcdd652-09cf-420e-aaba-7a25c464a33d.png` (1206 × 2488 pixels).
+  - Saved: `/var/folders/n7/700n6bmn1vv_j9x6yw1p7njh0000gp/T/codex-clipboard-3369f80b-b102-48bb-8dce-a5b68cbcfd30.png` (1206 × 2504 pixels).
+- Rendered implementation: `/Users/joe.rosso/.codex/visualizations/2026/08/20/01a020fa-6c79-7811-b31e-b6d1e6f480b0/onboarding-0.5.3-final/`.
+- Full-view same-input comparisons:
+  - `design-qa/map-target-vs-implementation.jpg`
+  - `design-qa/feed-source-vs-implementation.jpg`
+  - `design-qa/saved-source-vs-implementation.jpg`
+- Focused coach comparison: `design-qa/map-coach-focused.jpg`.
+- Simulator viewport: iPhone 17 Pro, 368 × 800 points-equivalent optimized screenshot pixels, light appearance.
+- CSS viewport and device scale factor: not applicable to the native SwiftUI implementation. Source images were normalized to 368 × 800 by proportional scale plus crop or padding; implementation captures were already 368 × 800. No cross-density visual finding was filed.
+- States: Capture Every Sip, map story, personalization celebration, Map, Feed, Saved, Journal, Google Maps share shortcut, and the real first Log a Sip setup screen.
+
+## Findings
+
+No actionable P0, P1, or P2 visual or interaction differences remain.
+
+- Fonts and typography: Passed. Editorial serif titles and rounded/system sans-serif coach copy preserve the existing Mugshot hierarchy. Labels, messages, and actions remain readable at 368 × 800 without truncation.
+- Spacing and layout rhythm: Passed. The coach occupies a compact lower corner rather than a centered takeover. Map, Feed, Saved, and Journal remain substantially visible; progress and dismissal moved inside the conversation bubble so product headers are unobstructed.
+- Colors and visual tokens: Passed. Cream, foam, sage, mint, espresso, sand, border, and shadow treatments come from the existing app tokens and preserve adequate contrast.
+- Image quality and asset fidelity: Passed. Feed and Saved use the supplied real product captures, while Map uses a surgical privacy-sanitized derivative with the location marker removed. The Google Maps lesson uses the privacy-sanitized real share-sheet treatment. Every floating Mugsy is the code-native `MugsyAnimatedView`/`MugsyModelView`; no generated Mugsy artwork ships.
+- Copy and content: Passed. The tour names `cafe`, `cafes`, Friends, Want to Try, Lists, Journal, and Taste Passport consistently. Map includes the visible seven-cafe count and 3.6 average for the displayed pins.
+- Icons and affordances: Passed. Back, next, dismiss, privacy, and primary actions use consistent SF Symbols and practical touch targets.
+- Accessibility and resilience: Passed for the scoped Simulator acceptance. Coach actions expose stable identifiers and explicit labels, the Map source image has an accessibility description, the privacy cover explains that precise location is hidden, and canonical Mugsy remains decorative within the combined coach element. Reduce Motion continues to use the existing Mugsy motion environment.
+
+## Comparison history
+
+### Iteration 1 — blocked
+
+- [P1] Mugsy and his speech bubble were clipped out of all three introduction heroes.
+  - Fix: constrained the real product backdrop to the hero frame before applying the code-native Mugsy overlay.
+- [P2] The separate progress and dismiss pills covered the real Saved and Journal titles and competed with the Feed header.
+  - Fix: moved step count and dismiss into the compact speech bubble.
+- [P2] Live empty Map, Feed, and Saved fixtures did not communicate the promised product value or the requested map wow moment.
+  - Fix: used the supplied real product captures, retained live Journal, added the displayed cafe count and average, removed the Map location dot from the bundled image, and retained an explicit visible privacy treatment.
+- [P2] The first-sip guide obscured the context selector and Photos heading it was explaining.
+  - Fix: converted the guide from a layout inset to a compact floating coach, placed it in lower nonessential whitespace on setup/context, and alternated Mugsy’s side by composer step.
+
+### Final iteration — passed
+
+- Rebuilt and relaunched the complete onboarding route on the iPhone 17 Pro Simulator.
+- Captured all eight onboarding states plus the first Log a Sip guide.
+- Compared the selected visual direction and supplied product sources with the rendered implementation in the same comparison images.
+- Inspected the focused coach region for canonical Mugsy identity, copy density, control placement, map visibility, and dock clearance.
+- No actionable P0/P1/P2 issue remained.
+
+## Follow-up polish
+
+- [P3] The Map tour uses a solid cream status-area privacy mask above the real map capture. This is an intentional tradeoff that prevents a duplicated source status bar from appearing beneath the live iOS status bar.
+
+## Final result
+
+final result: passed
+
+---
+
 # Dynamic Mugsy scene system — implementation QA
 
 ## Comparison setup
