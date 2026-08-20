@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import testMugshot
 
 struct MugshotShareTests {
@@ -64,7 +65,7 @@ struct MugshotShareTests {
         #expect(content.mayHavePublicLink)
     }
 
-    @Test func privateAndFriendsHandoffsRequireOneExplicitWarningAndNeverQualifyForLinks() {
+    @Test func nonEveryoneHandoffsRequireOneExplicitWarning() {
         for visibility in [VisitVisibility.private, .friends] {
             let content = MugshotShareContent(
                 visitID: visitID,
@@ -79,8 +80,38 @@ struct MugshotShareTests {
                 caption: nil
             )
             #expect(content.requiresExternalAudienceWarning)
-            #expect(!content.mayHavePublicLink)
+            #expect(content.mayHavePublicLink == (visibility == .friends))
         }
+    }
+
+    @Test func friendsSharePackageIncludesItsCapabilityURLInSystemItems() {
+        let content = MugshotShareContent(
+            visitID: visitID,
+            isOwner: true,
+            isRemote: true,
+            visibility: .friends,
+            authorName: "Owner",
+            drinkName: "Cortado",
+            contextName: "Test Cafe",
+            rating: 4.2,
+            createdAt: .now,
+            caption: nil
+        )
+        let url = URL(
+            string: "https://mugshotapp.co/m/\(String(repeating: "a", count: 48))"
+        )!
+        let package = MugshotSharePackage(
+            content: content,
+            storyArtwork: UIImage(),
+            postArtwork: UIImage(),
+            publicURL: url
+        )
+
+        let items = package.activityItems(for: .post)
+
+        #expect(items.count == 2)
+        #expect(items[0] is UIImage)
+        #expect(items[1] as? URL == url)
     }
 
     @Test func publicLinkRouteAcceptsOnlyConfiguredCanonicalAndCustomRoutes() {

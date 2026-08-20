@@ -165,7 +165,7 @@ struct MugshotShareContent: Equatable {
     }
 
     var mayHavePublicLink: Bool {
-        isOwner && isRemote && visibility == .everyone
+        isOwner && isRemote && visibility != .private
     }
 
     private static func safeText(_ value: String, fallback: String, limit: Int) -> String {
@@ -189,6 +189,14 @@ struct MugshotSharePackage {
         case .post: return postArtwork
         }
     }
+
+    func activityItems(for format: MugshotShareFormat) -> [Any] {
+        var items: [Any] = [artwork(for: format)]
+        if let publicURL {
+            items.append(publicURL)
+        }
+        return items
+    }
 }
 
 struct MugshotPublicProjection: Decodable, Identifiable, Equatable {
@@ -196,11 +204,14 @@ struct MugshotPublicProjection: Decodable, Identifiable, Equatable {
     let slug: String
     let authorName: String
     let authorUsername: String?
+    let authorAvatarURL: String?
     let drinkName: String
     let contextName: String
     let rating: Double
+    let ratings: [String: Double]
     let caption: String?
     let coverPhotoURL: String?
+    let photoURLs: [String]
     let createdAt: Date
 
     var id: UUID { visitID }
@@ -210,11 +221,14 @@ struct MugshotPublicProjection: Decodable, Identifiable, Equatable {
         case slug
         case authorName = "author_name"
         case authorUsername = "author_username"
+        case authorAvatarURL = "author_avatar_url"
         case drinkName = "drink_name"
         case contextName = "context_name"
         case rating
+        case ratings
         case caption
         case coverPhotoURL = "cover_photo_url"
+        case photoURLs = "photo_urls"
         case createdAt = "created_at"
     }
 }

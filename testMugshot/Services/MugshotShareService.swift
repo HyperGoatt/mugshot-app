@@ -112,6 +112,28 @@ final class MugshotShareLinkService {
 
     func publicProjection(slug: String) async throws -> MugshotPublicProjection? {
         guard MugshotSharedLinkRoute.isValidSlug(slug) else { return nil }
+        if let endpoint = configuration.publicURL(slug: slug),
+           var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) {
+            components.queryItems = [URLQueryItem(name: "format", value: "json")]
+            if let url = components.url {
+                var request = URLRequest(url: url)
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+                request.timeoutInterval = 15
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let response = response as? HTTPURLResponse {
+                    if response.statusCode == 404 { return nil }
+                    guard (200..<300).contains(response.statusCode) else {
+                        throw URLError(.badServerResponse)
+                    }
+                }
+                return try Self.publicProjectionDecoder.decode(
+                    MugshotPublicProjection.self,
+                    from: data
+                )
+            }
+        }
+
         let rows: [MugshotPublicProjection] = try await client.rpc(
             "get_public_mugshot_share_v1",
             params: ["p_slug": slug]
@@ -119,6 +141,29 @@ final class MugshotShareLinkService {
         .execute()
         .value
         return rows.first
+    }
+
+    private static var publicProjectionDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) {
+                return date
+            }
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            if let date = standard.date(from: value) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid Mugshot share timestamp"
+            )
+        }
+        return decoder
     }
 
     func recordPublicEvent(slug: String, eventName: String) async {

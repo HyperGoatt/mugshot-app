@@ -36,7 +36,8 @@ create type public.report_reason as enum ('spam');
 create table public.users (
   id uuid primary key,
   display_name text,
-  username text not null
+  username text not null,
+  avatar_url text
 );
 create table public.cafes (
   id uuid primary key,
@@ -53,8 +54,16 @@ create table public.visits (
   visibility text not null,
   upload_state text not null,
   overall_score double precision not null,
+  ratings jsonb not null default '{}'::jsonb,
   poster_photo_url text,
   context_type text,
+  created_at timestamptz not null default now()
+);
+create table public.visit_photos (
+  id uuid primary key,
+  visit_id uuid not null references public.visits(id) on delete cascade,
+  photo_url text not null,
+  sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
 create table private.suppressed_visits (
@@ -77,19 +86,42 @@ returns boolean language sql stable security definer set search_path = '' as $$
   )
 $$;
 
-insert into public.users (id, display_name, username) values
-  ('${ownerID}', 'Journal Owner', 'owner'),
-  ('${otherID}', 'Other Person', 'other');
+create function private.is_live_account_as(p_user_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.users where id = p_user_id)
+$$;
+
+create function private.has_active_moderation_action(
+  p_subject_kind text,
+  p_subject_id uuid,
+  p_action_kinds text[],
+  p_at timestamptz default now()
+)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select p_subject_kind = 'visit'
+    and 'content_hidden' = any(p_action_kinds)
+    and exists (
+      select 1 from private.suppressed_visits
+      where visit_id = p_subject_id
+    )
+$$;
+
+insert into public.users (id, display_name, username, avatar_url) values
+  ('${ownerID}', 'Journal Owner', 'owner', 'https://example.com/avatar.jpg'),
+  ('${otherID}', 'Other Person', 'other', null);
 insert into public.cafes (id, name) values
   ('${cafeID}', 'Public Test Cafe');
 insert into public.visits (
   id, user_id, cafe_id, drink_type, drink_subtype, caption, visibility,
-  upload_state, overall_score, poster_photo_url, context_type
+  upload_state, overall_score, ratings, poster_photo_url, context_type
 ) values (
   '${visitID}', '${ownerID}', '${cafeID}', 'Coffee', 'Cortado',
-  'A bright finish', 'everyone', 'complete', 4.5,
+  'A bright finish', 'friends', 'complete', 4.5, '{"Body":4,"Sweetness":3.5}',
   'https://example.com/cover.jpg', 'cafe'
 );
+insert into public.visit_photos (id, visit_id, photo_url, sort_order) values
+  ('40000000-0000-4000-8000-000000000001', '${visitID}', 'https://example.com/cover.jpg', 0),
+  ('40000000-0000-4000-8000-000000000002', '${visitID}', 'mugshot-storage://visit-photos-private/owner/visit/second.jpg', 1);
 `)
 
 const migration = await fs.readFile(
@@ -97,6 +129,11 @@ const migration = await fs.readFile(
   'utf8',
 )
 await db.exec(migration)
+const capabilityMigration = await fs.readFile(
+  repoPath + 'supabase/migrations/20260820150833_friends_capability_share_links.sql',
+  'utf8',
+)
+await db.exec(capabilityMigration)
 const contract = await fs.readFile(
   repoPath + 'supabase/tests/mugshot_share_links_contract.sql',
   'utf8',
@@ -158,6 +195,7 @@ await db.exec('reset role;')
 assert(projection.rows.length === 1, 'anonymous public projection was missing')
 
 const expectedKeys = [
+  'author_avatar_url',
   'author_name',
   'author_username',
   'caption',
@@ -165,7 +203,9 @@ const expectedKeys = [
   'cover_photo_url',
   'created_at',
   'drink_name',
+  'photo_urls',
   'rating',
+  'ratings',
   'slug',
   'visit_id',
 ]
@@ -178,6 +218,11 @@ assert(
   projection.rows[0].projection.context_name === 'Public Test Cafe',
   'public projection lost the safe cafe label',
 )
+assert(
+  projection.rows[0].projection.photo_urls.length === 2 &&
+    projection.rows[0].projection.photo_urls[0] === 'https://example.com/cover.jpg',
+  'capability projection lost the ordered real post photos',
+)
 const metrics = await db.query(
   `select landing_visits, app_opens
    from public.visit_share_link_metrics where visit_id = '${visitID}'`,
@@ -188,18 +233,27 @@ assert(
   'anonymous-safe public share metrics were not attributed',
 )
 
-for (const visibility of ['friends', 'private']) {
+for (const visibility of ['friends', 'everyone']) {
   await db.exec(
     `update public.visits set visibility = '${visibility}' where id = '${visitID}'`,
   )
-  const hidden = await db.query(
+  const visible = await db.query(
     `select * from public.get_public_mugshot_share_v1('${slug}')`,
   )
-  assert(hidden.rows.length === 0, `${visibility} link remained public`)
+  assert(visible.rows.length === 1, `${visibility} capability link disappeared`)
 }
 
 await db.exec(
-  `update public.visits set visibility = 'everyone', upload_state = 'pending'
+  `update public.visits set visibility = 'private', upload_state = 'complete'
+   where id = '${visitID}'`,
+)
+const privateProjection = await db.query(
+  `select * from public.get_public_mugshot_share_v1('${slug}')`,
+)
+assert(privateProjection.rows.length === 0, 'private visit remained capability-visible')
+
+await db.exec(
+  `update public.visits set visibility = 'friends', upload_state = 'pending'
    where id = '${visitID}'`,
 )
 const unpublished = await db.query(
