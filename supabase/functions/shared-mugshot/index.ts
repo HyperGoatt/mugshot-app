@@ -6,6 +6,14 @@ import {
 } from "../_shared/capability-media.ts";
 import { getPublicSupabaseKey } from "../_shared/public-key.ts";
 import { getSecretSupabaseKey } from "../_shared/secret-key.ts";
+import {
+  mugshotOGAlt,
+  mugshotOGDescription,
+  mugshotOGHeight,
+  mugshotOGImageResponse,
+  mugshotOGTitle,
+  mugshotOGWidth,
+} from "./og.tsx";
 
 type PublicMugshot = {
   visit_id: string;
@@ -110,8 +118,8 @@ function ratingLabel(value: string): string {
     .slice(0, 60);
 }
 
-function neutralPage(downloadURL: string): Response {
-  return new Response(
+function neutralPage(downloadURL: string, head = false): Response {
+  const response = new Response(
     page({
       title: "This Mugshot is not available",
       description: "It may have been removed or its audience may have changed.",
@@ -134,6 +142,9 @@ function neutralPage(downloadURL: string): Response {
     }),
     { status: 404, headers: unavailableHeaders },
   );
+  return head
+    ? new Response(null, { status: response.status, headers: response.headers })
+    : response;
 }
 
 function page(input: {
@@ -141,11 +152,20 @@ function page(input: {
   description: string;
   body: string;
   image?: string | null;
+  imageAlt?: string;
   canonical?: string;
 }): string {
   const imageMeta = input.image
     ? `<meta property="og:image" content="${escapeHTML(input.image)}">
-  <meta name="twitter:image" content="${escapeHTML(input.image)}">`
+  <meta property="og:image:width" content="${mugshotOGWidth}">
+  <meta property="og:image:height" content="${mugshotOGHeight}">
+  <meta property="og:image:alt" content="${
+      escapeHTML(input.imageAlt ?? mugshotOGTitle)
+    }">
+  <meta name="twitter:image" content="${escapeHTML(input.image)}">
+  <meta name="twitter:image:alt" content="${
+      escapeHTML(input.imageAlt ?? mugshotOGTitle)
+    }">`
     : "";
   const canonicalMeta = input.canonical
     ? `<link rel="canonical" href="${escapeHTML(input.canonical)}">
@@ -229,11 +249,15 @@ Deno.serve(async (request) => {
     "https://app.mugshotapp.co";
   const downloadURL = Deno.env.get("MUGSHOT_DOWNLOAD_URL") ??
     `${marketingURL}/download?placement=share`;
-  if (!validSlug(slug)) return neutralPage(downloadURL);
+  if (!validSlug(slug)) {
+    return neutralPage(downloadURL, request.method === "HEAD");
+  }
 
   const supabaseURL = Deno.env.get("SUPABASE_URL");
   const publicKey = getPublicSupabaseKey();
-  if (!supabaseURL || !publicKey) return neutralPage(downloadURL);
+  if (!supabaseURL || !publicKey) {
+    return neutralPage(downloadURL, request.method === "HEAD");
+  }
 
   const client = createClient(supabaseURL, publicKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -244,7 +268,7 @@ Deno.serve(async (request) => {
   const mugshot = !error && Array.isArray(data)
     ? (data[0] as PublicMugshot | undefined)
     : undefined;
-  if (!mugshot) return neutralPage(downloadURL);
+  if (!mugshot) return neutralPage(downloadURL, request.method === "HEAD");
   const secretKey = getSecretSupabaseKey();
   const adminClient = secretKey
     ? createClient(supabaseURL, secretKey, {
@@ -254,7 +278,7 @@ Deno.serve(async (request) => {
   const resolvedMugshot = await resolveMugshotMedia(mugshot, adminClient);
 
   if (requestURL.searchParams.get("format") === "json") {
-    return new Response(JSON.stringify(resolvedMugshot), {
+    const response = new Response(JSON.stringify(resolvedMugshot), {
       status: 200,
       headers: {
         "Content-Type": "application/json; charset=utf-8",
@@ -264,17 +288,47 @@ Deno.serve(async (request) => {
         "Referrer-Policy": "no-referrer",
       },
     });
+    return request.method === "HEAD"
+      ? new Response(null, {
+        status: response.status,
+        headers: response.headers,
+      })
+      : response;
   }
 
-  await client.rpc("record_public_mugshot_share_event_v1", {
-    p_slug: slug,
-    p_event_name: "landing_visit",
-  });
+  const canonicalURL = `${marketingURL}/m/${encodeURIComponent(slug)}`;
+  const ogInput = {
+    authorName: resolvedMugshot.author_name,
+    drinkName: resolvedMugshot.drink_name,
+    contextName: resolvedMugshot.context_name,
+    coverPhotoURL: resolvedMugshot.cover_photo_url,
+    appIconURL: `${marketingURL}/icons/app-icon.png`,
+  };
+  if (requestURL.searchParams.get("format") === "og") {
+    if (request.method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+          "X-Robots-Tag": "noindex, nofollow, noarchive",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+    return mugshotOGImageResponse(ogInput);
+  }
 
-  const title =
-    `${resolvedMugshot.drink_name} at ${resolvedMugshot.context_name}`;
-  const description =
-    `${resolvedMugshot.author_name} remembered this on Mugshot.`;
+  if (request.method === "GET") {
+    await client.rpc("record_public_mugshot_share_event_v1", {
+      p_slug: slug,
+      p_event_name: "landing_visit",
+    });
+  }
+
+  const title = mugshotOGTitle;
+  const description = mugshotOGDescription(ogInput);
   const caption = resolvedMugshot.caption
     ? `<blockquote>${escapeHTML(resolvedMugshot.caption)}</blockquote>`
     : "";
@@ -381,8 +435,9 @@ Deno.serve(async (request) => {
       title,
       description,
       body,
-      image: resolvedMugshot.cover_photo_url,
-      canonical: `${marketingURL}/m/${encodeURIComponent(slug)}`,
+      image: `${canonicalURL}?format=og`,
+      imageAlt: mugshotOGAlt(ogInput),
+      canonical: canonicalURL,
     }),
     { status: 200, headers: successHeaders },
   );
