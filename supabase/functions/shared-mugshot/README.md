@@ -10,7 +10,8 @@ Associated Domains `apple-app-site-association` file.
 The HTML response shows the real allowlisted post, including its ordered photos
 and taste ratings. Private-bucket media is signed server-side for five minutes
 only after the capability projection succeeds. `?format=json` exposes that
-same resolved allowlist to the native Universal Link viewer.
+same resolved allowlist to the native Universal Link viewer. `?format=og`
+returns the branded 1200×630 PNG used by Messages and social link previews.
 
 Required runtime variables:
 

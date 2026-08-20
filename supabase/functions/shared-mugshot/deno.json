@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
-    "lib": ["deno.window", "dom", "dom.iterable"]
+    "lib": ["deno.window", "dom", "dom.iterable"],
+    "types": ["npm:@types/react@^19"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "npm:react"
   }
 }

@@ -65,53 +65,61 @@ struct MugshotShareTests {
         #expect(content.mayHavePublicLink)
     }
 
-    @Test func nonEveryoneHandoffsRequireOneExplicitWarning() {
-        for visibility in [VisitVisibility.private, .friends] {
-            let content = MugshotShareContent(
-                visitID: visitID,
-                isOwner: true,
-                isRemote: true,
-                visibility: visibility,
-                authorName: "Owner",
-                drinkName: "Cortado",
-                contextName: "Cafe",
-                rating: 4.2,
-                createdAt: .now,
-                caption: nil
-            )
-            #expect(content.requiresExternalAudienceWarning)
-            #expect(content.mayHavePublicLink == (visibility == .friends))
-        }
+    @Test func friendsLinksRequireWarningWhilePrivatePostsRemainArtworkOnly() {
+        let friends = shareContent(visibility: .friends)
+        let privatePost = shareContent(visibility: .private)
+
+        #expect(friends.requiresExternalAudienceWarning)
+        #expect(friends.mayHavePublicLink)
+        #expect(!privatePost.requiresExternalAudienceWarning)
+        #expect(!privatePost.mayHavePublicLink)
     }
 
-    @Test func friendsSharePackageIncludesItsCapabilityURLInSystemItems() {
-        let content = MugshotShareContent(
-            visitID: visitID,
-            isOwner: true,
-            isRemote: true,
-            visibility: .friends,
-            authorName: "Owner",
-            drinkName: "Cortado",
-            contextName: "Test Cafe",
-            rating: 4.2,
-            createdAt: .now,
-            caption: nil
-        )
+    @MainActor
+    @Test func friendsSharePackageCreatesOneURLBackedLinkCard() {
+        let content = shareContent(visibility: .friends)
         let url = URL(
             string: "https://mugshotapp.co/m/\(String(repeating: "a", count: 48))"
         )!
+        let preview = UIImage()
         let package = MugshotSharePackage(
             content: content,
             storyArtwork: UIImage(),
             postArtwork: UIImage(),
+            linkPreviewArtwork: preview,
             publicURL: url
         )
 
-        let items = package.activityItems(for: .post)
+        let items = package.primaryActivityItems(for: .post)
 
-        #expect(items.count == 2)
-        #expect(items[0] is UIImage)
-        #expect(items[1] as? URL == url)
+        #expect(items.count == 1)
+        let source = items.first as? MugshotShareLinkItemSource
+        #expect(source?.url == url)
+        let metadata = MugshotShareLinkItemSource.linkMetadata(
+            url: url,
+            previewImage: preview
+        )
+        #expect(metadata.title == "Mugshot: Capture Every Sip")
+        #expect(metadata.url == url)
+        #expect(metadata.originalURL == url)
+        #expect(metadata.imageProvider != nil)
+        #expect(package.artworkActivityItems(for: .post).count == 1)
+        #expect(package.artworkActivityItems(for: .post).first is UIImage)
+    }
+
+    @MainActor
+    @Test func privateSharePackageFallsBackToOneArtworkItem() {
+        let package = MugshotSharePackage(
+            content: shareContent(visibility: .private),
+            storyArtwork: UIImage(),
+            postArtwork: UIImage(),
+            linkPreviewArtwork: UIImage(),
+            publicURL: nil
+        )
+
+        let items = package.primaryActivityItems(for: .story)
+        #expect(items.count == 1)
+        #expect(items.first is UIImage)
     }
 
     @Test func publicLinkRouteAcceptsOnlyConfiguredCanonicalAndCustomRoutes() {
@@ -179,6 +187,21 @@ struct MugshotShareTests {
         #expect(!fields.contains("url"))
         #expect(!fields.contains("photo"))
         #expect(!fields.contains("visitID"))
+    }
+
+    private func shareContent(visibility: VisitVisibility) -> MugshotShareContent {
+        MugshotShareContent(
+            visitID: visitID,
+            isOwner: true,
+            isRemote: true,
+            visibility: visibility,
+            authorName: "Owner",
+            drinkName: "Cortado",
+            contextName: "Test Cafe",
+            rating: 4.2,
+            createdAt: .now,
+            caption: nil
+        )
     }
 }
 

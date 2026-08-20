@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import LinkPresentation
 import UIKit
 
 enum MugshotShareFormat: String, CaseIterable, Identifiable {
@@ -161,7 +162,7 @@ struct MugshotShareContent: Equatable {
     }
 
     var requiresExternalAudienceWarning: Bool {
-        visibility != .everyone
+        visibility == .friends
     }
 
     var mayHavePublicLink: Bool {
@@ -181,6 +182,7 @@ struct MugshotSharePackage {
     let content: MugshotShareContent
     let storyArtwork: UIImage
     let postArtwork: UIImage
+    let linkPreviewArtwork: UIImage
     let publicURL: URL?
 
     func artwork(for format: MugshotShareFormat) -> UIImage {
@@ -190,12 +192,63 @@ struct MugshotSharePackage {
         }
     }
 
-    func activityItems(for format: MugshotShareFormat) -> [Any] {
-        var items: [Any] = [artwork(for: format)]
-        if let publicURL {
-            items.append(publicURL)
+    @MainActor
+    func primaryActivityItems(for format: MugshotShareFormat) -> [Any] {
+        guard let publicURL else {
+            return artworkActivityItems(for: format)
         }
-        return items
+        return [
+            MugshotShareLinkItemSource(
+                url: publicURL,
+                previewImage: linkPreviewArtwork
+            )
+        ]
+    }
+
+    func artworkActivityItems(for format: MugshotShareFormat) -> [Any] {
+        [artwork(for: format)]
+    }
+}
+
+@MainActor
+final class MugshotShareLinkItemSource: NSObject, @preconcurrency UIActivityItemSource {
+    static let title = "Mugshot: Capture Every Sip"
+
+    let url: URL
+    private let previewImage: UIImage
+
+    init(url: URL, previewImage: UIImage) {
+        self.url = url
+        self.previewImage = previewImage
+        super.init()
+    }
+
+    func activityViewControllerPlaceholderItem(
+        _ activityViewController: UIActivityViewController
+    ) -> Any {
+        url
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        url
+    }
+
+    func activityViewControllerLinkMetadata(
+        _ activityViewController: UIActivityViewController
+    ) -> LPLinkMetadata? {
+        Self.linkMetadata(url: url, previewImage: previewImage)
+    }
+
+    static func linkMetadata(url: URL, previewImage: UIImage) -> LPLinkMetadata {
+        let metadata = LPLinkMetadata()
+        metadata.title = title
+        metadata.originalURL = url
+        metadata.url = url
+        metadata.imageProvider = NSItemProvider(object: previewImage)
+        return metadata
     }
 }
 
