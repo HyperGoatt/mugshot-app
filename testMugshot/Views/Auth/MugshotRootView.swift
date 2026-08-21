@@ -10,6 +10,10 @@ struct MugshotRootView: View {
     @ObservedObject var dataManager: DataManager
     @StateObject private var authModel = AppAuthModel()
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
+    @AppStorage(MugshotFirstLaunchPolicy.completedKey) private var completedFirstLaunchEducation = false
+    @AppStorage(MugshotFirstLaunchPolicy.landingTabKey) private var firstLaunchLandingTab = 1
+    @State private var startsCreatingAccount = true
+    @State private var profileSetupGate: ProfileSetupGate = .checking
     
     var body: some View {
         Group {
@@ -32,12 +36,16 @@ struct MugshotRootView: View {
                 SipDetailPreviewHost(presentation: .previewOwner)
             } else if MugshotLaunchEnvironment.isUITesting {
                 MainTabView(dataManager: dataManager)
+            } else if !completedFirstLaunchEducation {
+                firstLaunchEducation
             } else {
                 authenticatedRoot
             }
 #else
             if MugshotLaunchEnvironment.isUITesting {
                 MainTabView(dataManager: dataManager)
+            } else if !completedFirstLaunchEducation {
+                firstLaunchEducation
             } else {
                 authenticatedRoot
             }
@@ -74,6 +82,10 @@ struct MugshotRootView: View {
             if let userID {
                 MugshotAnalytics.shared.identify(userID: userID)
             }
+            profileSetupGate = .checking
+        }
+        .task(id: authModel.authenticatedUser?.id) {
+            await refreshProfileSetupGate()
         }
     }
 
@@ -84,8 +96,66 @@ struct MugshotRootView: View {
             AuthLoadingView()
         case .configurationRequired(let message):
             SupabaseConfigurationRequiredView(message: message)
-        case .working, .signedOut, .sessionUnavailable, .failed, .signedIn:
-            MainTabView(dataManager: dataManager)
+        case .working:
+            AuthLoadingView()
+        case .signedOut, .sessionUnavailable, .failed:
+            AuthEntryView(
+                dataManager: dataManager,
+                contextTitle: startsCreatingAccount ? "Create your Mugshot account" : "Welcome back",
+                contextMessage: "Sign in to keep your sips, friends, and profile together.",
+                showsCloseButton: false,
+                startsCreatingAccount: startsCreatingAccount
+            )
+        case .signedIn:
+            signedInRoot
+        }
+    }
+
+    private var firstLaunchEducation: some View {
+        MugshotFirstLaunchOnboardingView(
+            onCreateAccount: { landingTab in
+                firstLaunchLandingTab = landingTab
+                startsCreatingAccount = true
+                completedFirstLaunchEducation = true
+            },
+            onSignIn: { landingTab in
+                firstLaunchLandingTab = landingTab
+                startsCreatingAccount = false
+                completedFirstLaunchEducation = true
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var signedInRoot: some View {
+        switch profileSetupGate {
+        case .checking:
+            AuthLoadingView()
+        case .required:
+            RequiredProfileSetupView(dataManager: dataManager) {
+                profileSetupGate = .complete
+            }
+        case .complete:
+            MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab)
+        }
+    }
+
+    @MainActor
+    private func refreshProfileSetupGate() async {
+        guard authModel.status == .signedIn,
+              authModel.authenticatedUser != nil else {
+            profileSetupGate = .checking
+            return
+        }
+        do {
+            let service = ProfileSetupService(client: try SupabaseClientProvider.shared.client())
+            let state = try await service.state()
+            guard !Task.isCancelled else { return }
+            profileSetupGate = state.isComplete ? .complete : .required
+        } catch {
+            // Older environments do not have the additive gate yet. Preserve
+            // established-account access until the migration is deployed.
+            profileSetupGate = .complete
         }
     }
 
@@ -106,6 +176,12 @@ struct MugshotRootView: View {
             }
         }
     }
+}
+
+private enum ProfileSetupGate: Equatable {
+    case checking
+    case required
+    case complete
 }
 
 private struct MugshotDebugDynamicTypeModifier: ViewModifier {

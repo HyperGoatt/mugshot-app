@@ -35,7 +35,35 @@ final class ProfileMediaService {
         return try storage.getPublicURL(path: path).absoluteString
     }
 
+    func uploadBanner(userId: UUID, image: UIImage) async throws -> String {
+        let normalized = image.profileBanner(maxWidth: 1600)
+        guard let data = normalized.jpegData(compressionQuality: 0.84) else {
+            throw ProfileMediaError.encodingFailed
+        }
+
+        let path = "\(userId.uuidString.lowercased())/banner-\(UUID().uuidString.lowercased()).jpg"
+        let storage = client.storage.from(bucketName)
+        try await storage.upload(
+            path,
+            data: data,
+            options: FileOptions(
+                cacheControl: "31536000",
+                contentType: "image/jpeg",
+                upsert: false
+            )
+        )
+        return try storage.getPublicURL(path: path).absoluteString
+    }
+
     func removeAvatar(at publicURL: String?) async {
+        await removeProfileMedia(at: publicURL)
+    }
+
+    func removeBanner(at publicURL: String?) async {
+        await removeProfileMedia(at: publicURL)
+    }
+
+    private func removeProfileMedia(at publicURL: String?) async {
         guard let publicURL,
               let url = URL(string: publicURL),
               let range = url.path.range(of: "/object/public/\(bucketName)/") else {
@@ -76,6 +104,32 @@ private extension UIImage {
                 height: sourceSize.height * scale
             )
             draw(in: drawRect)
+        }
+    }
+
+    func profileBanner(maxWidth: CGFloat) -> UIImage {
+        let targetRatio: CGFloat = 3
+        let sourceRatio = size.width / max(size.height, 1)
+        let cropSize: CGSize
+        if sourceRatio > targetRatio {
+            cropSize = CGSize(width: size.height * targetRatio, height: size.height)
+        } else {
+            cropSize = CGSize(width: size.width, height: size.width / targetRatio)
+        }
+        let cropOrigin = CGPoint(
+            x: (size.width - cropSize.width) / 2,
+            y: (size.height - cropSize.height) / 2
+        )
+        let outputWidth = min(maxWidth, cropSize.width)
+        let outputSize = CGSize(width: outputWidth, height: outputWidth / targetRatio)
+        let scale = outputWidth / cropSize.width
+        return UIGraphicsImageRenderer(size: outputSize).image { _ in
+            draw(in: CGRect(
+                x: -cropOrigin.x * scale,
+                y: -cropOrigin.y * scale,
+                width: size.width * scale,
+                height: size.height * scale
+            ))
         }
     }
 }
