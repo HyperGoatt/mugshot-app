@@ -3,36 +3,93 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Confirm your Mugshot account</title>
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light only">
+    <title>Welcome to Mugshot</title>
+    <style>
+      :root {
+        color-scheme: light only;
+        supported-color-schemes: light only;
+      }
+
+      @media only screen and (max-width: 620px) {
+        .page-pad { padding: 16px 10px !important; }
+        .card-pad { padding: 30px 22px 28px !important; }
+        .hero-pad { padding: 16px 12px 12px !important; }
+        .mugsy-image { width: 360px !important; max-width: 100% !important; }
+        .headline { font-size: 43px !important; line-height: 0.98 !important; }
+        .body-copy { font-size: 17px !important; line-height: 1.55 !important; }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .page-shell { background-color: #FAF6F0 !important; }
+        .email-card { background-color: #FFFFFF !important; }
+        .headline, .primary-copy, .footer-copy { color: #1F1712 !important; }
+        .body-copy, .secondary-copy { color: #5B4636 !important; }
+      }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background:#FAF6F0;color:#1F1712;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-      One quick tap and your Mugshot journal is ready.
+  <body class="page-shell" style="margin:0;padding:0;background-color:#FAF6F0;color:#1F1712;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;-webkit-text-size-adjust:100%;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">
+      Your coffee journal is ready. Confirm your email to begin.
     </div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FAF6F0;">
+    <table class="page-shell" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#FAF6F0" style="width:100%;background-color:#FAF6F0;">
       <tr>
-        <td align="center" style="padding:40px 16px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#FFFFFF;border:1px solid #EEE6D8;border-radius:24px;">
+        <td class="page-pad" align="center" style="padding:34px 16px;">
+          <table class="email-card" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#FFFFFF" style="width:100%;max-width:600px;background-color:#FFFFFF;border:1px solid #DCC8A6;border-radius:26px;border-collapse:separate;overflow:hidden;">
             <tr>
-              <td style="padding:40px 36px;">
-                <p style="margin:0 0 20px;color:#6E8F7C;font-size:14px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Mugshot</p>
-                <h1 style="margin:0 0 16px;color:#1F1712;font-size:30px;line-height:1.2;">Confirm your account</h1>
-                <p style="margin:0 0 28px;color:#5B4636;font-size:16px;line-height:1.6;">
-                  Welcome to Mugshot. Confirm your email to start keeping your photo-backed sips, ratings, and private notes together.
-                </p>
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+              <td class="card-pad" align="center" style="padding:36px 38px 30px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                   <tr>
-                    <td bgcolor="#6E8F7C" style="border-radius:14px;">
-                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 24px;color:#FFFFFF;font-size:16px;font-weight:700;text-decoration:none;">Confirm my account</a>
+                    <td width="22%" valign="middle"><div style="height:1px;background-color:#A8CDB8;line-height:1px;font-size:1px;">&nbsp;</div></td>
+                    <td align="center" class="primary-copy" style="padding:0 15px;color:#4D6F5D;font-size:14px;font-weight:800;letter-spacing:4px;line-height:1;text-transform:uppercase;white-space:nowrap;">Mugshot</td>
+                    <td width="22%" valign="middle"><div style="height:1px;background-color:#A8CDB8;line-height:1px;font-size:1px;">&nbsp;</div></td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;">
+                  <tr>
+                    <td class="hero-pad" align="center" bgcolor="#E6EFE9" style="padding:18px 18px 14px;background-color:#E6EFE9;border-radius:999px;">
+                      <img class="mugsy-image" src="https://quskamnfwglctqewwfln.supabase.co/storage/v1/object/public/brand-assets/email/mugsy-journal-v1.png" width="430" alt="Mugsy happily writing in a coffee journal" style="display:block;width:430px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;">
                     </td>
                   </tr>
                 </table>
-                <p style="margin:28px 0 0;color:#5B4636;font-size:13px;line-height:1.55;">
-                  If the button does not work, open this link:<br>
-                  <a href="{{ .ConfirmationURL }}" style="color:#4D6F5D;word-break:break-all;">{{ .ConfirmationURL }}</a>
+
+                <h1 class="headline" style="margin:28px 0 0;color:#1F1712;font-family:Georgia,'Times New Roman',serif;font-size:54px;font-weight:400;letter-spacing:-1.8px;line-height:0.98;text-align:center;">
+                  Welcome to<br>Mugshot.
+                </h1>
+
+                <table role="presentation" width="72%" cellspacing="0" cellpadding="0" border="0" style="margin:24px auto 20px;">
+                  <tr>
+                    <td style="height:1px;background-color:#A8CDB8;line-height:1px;font-size:1px;">&nbsp;</td>
+                  </tr>
+                </table>
+
+                <p class="body-copy" style="margin:0;color:#5B4636;font-size:18px;line-height:1.58;text-align:center;">
+                  Your coffee journal is ready. Confirm your email to start keeping every sip, cafe, and memory together.
                 </p>
-                <p style="margin:28px 0 0;padding-top:24px;border-top:1px solid #EEE6D8;color:#5B4636;font-size:12px;line-height:1.55;">
-                  You received this because someone used this address to create a Mugshot account. If that was not you, you can safely ignore this email.
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:26px;">
+                  <tr>
+                    <td align="center" bgcolor="#6E8F7C" style="background-color:#6E8F7C;border-radius:14px;">
+                      <a href="{{ .ConfirmationURL }}" style="display:block;padding:17px 24px;color:#FFFFFF;font-size:18px;font-weight:800;line-height:1.2;text-align:center;text-decoration:none;">Confirm my email</a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p class="secondary-copy" style="margin:22px 0 0;color:#5B4636;font-size:13px;line-height:1.55;text-align:center;">
+                  Button not working?
+                  <a href="{{ .ConfirmationURL }}" style="color:#4D6F5D;font-weight:700;text-decoration:underline;">Open your confirmation link.</a>
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:26px;">
+                  <tr>
+                    <td style="height:1px;background-color:#EEE6D8;line-height:1px;font-size:1px;">&nbsp;</td>
+                  </tr>
+                </table>
+
+                <p class="footer-copy" style="margin:22px 0 0;color:#1F1712;font-size:12px;line-height:1.55;text-align:center;">
+                  If you didn't create a Mugshot account, you can ignore this email.
                 </p>
               </td>
             </tr>
