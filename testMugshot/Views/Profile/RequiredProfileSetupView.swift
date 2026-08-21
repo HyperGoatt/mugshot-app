@@ -137,13 +137,19 @@ struct RequiredProfileSetupView: View {
     }
 
     private var profileMedia: some View {
-        ZStack(alignment: .bottomLeading) {
+        let selectedBannerImage = bannerImage
+        let selectedAvatarImage = avatarImage
+        let profileBannerURL = authModel.profile?.bannerURL
+        let profileAvatarURL = authModel.profile?.avatarURL
+        let avatarName = displayName.remoteTrimmedNonEmpty ?? "Mugshot user"
+
+        return ZStack(alignment: .bottomLeading) {
             PhotosPicker(selection: $bannerItem, matching: .images) {
                 Group {
-                    if let bannerImage {
-                        Image(uiImage: bannerImage).resizable().scaledToFill()
+                    if let selectedBannerImage {
+                        Image(uiImage: selectedBannerImage).resizable().scaledToFill()
                     } else {
-                        MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 132)
+                        MugshotProfileBanner(imageURL: profileBannerURL, height: 132)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -163,13 +169,13 @@ struct RequiredProfileSetupView: View {
 
             PhotosPicker(selection: $avatarItem, matching: .images) {
                 Group {
-                    if let avatarImage {
-                        Image(uiImage: avatarImage).resizable().scaledToFill()
+                    if let selectedAvatarImage {
+                        Image(uiImage: selectedAvatarImage).resizable().scaledToFill()
                     } else {
                         MugshotAvatar(
-                            name: displayName.remoteTrimmedNonEmpty ?? "Mugshot user",
+                            name: avatarName,
                             size: 82,
-                            imageURL: authModel.profile?.avatarURL
+                            imageURL: profileAvatarURL
                         )
                     }
                 }

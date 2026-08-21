@@ -626,67 +626,24 @@ private struct OwnerPassportProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                MugshotScreenHeader("Profile", subtitle: "Your coffee identity and its audience") {
-                    MugshotIconButton(systemName: "gearshape.fill", size: 36) {
-                        showSettings = true
-                    }
-                    .accessibilityLabel("Settings")
-                }
-
-                TastePassportProjectionSection(
-                    state: passportState,
-                    context: .owner,
-                    onRetry: {
-                        Task { await loadPassport() }
-                    }
+        Group {
+            if let userID = authModel.authenticatedUser?.id {
+                SharedProfileView(
+                    source: .user(userID, asEveryone: false),
+                    dataManager: dataManager,
+                    showsOwnerControls: true,
+                    onEditProfile: {
+                        authModel.clearProfileUpdateError()
+                        showEditProfile = true
+                    },
+                    onOpenSettings: { showSettings = true }
                 )
-                .padding(.horizontal, 16)
-
-                if let bio = profile?.bio?.remoteTrimmedNonEmpty {
-                    Text(bio)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(15)
-                        .cardStyle()
-                        .padding(.horizontal, 16)
-                }
-
-                Button {
-                    authModel.clearProfileUpdateError()
-                    showEditProfile = true
-                } label: {
-                    Label("Edit profile", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .padding(.horizontal, 16)
-
-                if !cafeRanking.entries.isEmpty {
-                    topCafesSection
-                }
-
-                if !visits.isEmpty {
-                    MugshotSectionTitle(
-                        title: "Your visible profile",
-                        subtitle: "This is how your recent shared journal reads to other people."
-                    )
-                    .padding(.horizontal, 16)
-
-                    VStack(spacing: 10) {
-                        ForEach(visits.filter { $0.visit.visibility.lowercased() != "private" }.prefix(6)) { visit in
-                            Button { selectedVisit = visit } label: {
-                                RemoteJournalRow(visit: visit)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
+            } else {
+                ContentUnavailableView(
+                    "Sign in to view your profile",
+                    systemImage: "person.crop.circle"
+                )
             }
-            .padding(.bottom, 40)
         }
         .background(Color.creamWhite)
         .navigationBarTitleDisplayMode(.inline)
