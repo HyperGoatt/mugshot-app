@@ -74,6 +74,7 @@ struct RemoteVisitDetailView: View {
     @State private var replyingTo: RemoteVisitComment?
     @State private var mentionSuggestions: [PeopleSearchResult] = []
     @State private var mentionedUserIDs: Set<UUID> = []
+    @State private var mentionedHandlesByUserID: [UUID: String] = [:]
     @State private var reportTarget: SocialSafetyTarget?
     @State private var reportDetailsRequest: SafetyReportDetailsRequest?
     @State private var queuedReportDetailsRequest: SafetyReportDetailsRequest?
@@ -138,7 +139,13 @@ struct RemoteVisitDetailView: View {
                     isWorking: isSavingSocialAction || isDeletingVisit,
                     statusMessage: socialError ?? socialStatus,
                     mentionSuggestions: mentionSuggestions.map {
-                        SipDetailMentionSuggestion(id: $0.id, username: $0.username)
+                        SipDetailMentionSuggestion(
+                            id: $0.id,
+                            username: $0.username,
+                            displayName: $0.displayName,
+                            avatarURL: $0.avatarURL,
+                            isFriend: $0.friendshipState == .friends
+                        )
                     },
                     onAction: perform,
                     onSubmitComment: { Task { await postComment() } },
@@ -154,6 +161,7 @@ struct RemoteVisitDetailView: View {
                             locationName: detail.summary.locationTitle
                         )
                     },
+                    onAuthorTap: openAuthorProfile,
                     onCafeTap: postCafe == nil ? nil : openPostCafe,
                     onRecipeAction: performRecipeAction,
                     onTaggedAccount: openTaggedProfile,
@@ -512,6 +520,16 @@ struct RemoteVisitDetailView: View {
             displayName: tag.personLabel,
             username: tag.username,
             state: tag.userID == currentUserId ? .self : .none
+        )
+    }
+
+    private func openAuthorProfile() {
+        guard let detail else { return }
+        selectedTaggedProfile = PeopleProfileRoute(
+            id: detail.summary.visit.userId,
+            displayName: detail.summary.authorDisplayName,
+            username: detail.summary.authorUsername,
+            state: detail.summary.visit.userId == currentUserId ? .self : .none
         )
     }
 
@@ -1497,12 +1515,16 @@ struct RemoteVisitDetailView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
+            let resolvedMentionIDs = mentionedUserIDs.filter { userID in
+                guard let handle = mentionedHandlesByUserID[userID] else { return false }
+                return text.localizedCaseInsensitiveContains("@\(handle)")
+            }
             _ = try await service.addComment(
                 visitId: visitId,
                 userId: currentUserId,
                 text: text,
                 parentCommentId: replyingTo?.id,
-                mentionedUserIds: Array(mentionedUserIDs)
+                mentionedUserIds: Array(resolvedMentionIDs)
             )
             self.detail = try await service.fetchVisitDetail(
                 visitId: visitId,
@@ -1514,6 +1536,7 @@ struct RemoteVisitDetailView: View {
             commentText = ""
             replyingTo = nil
             mentionedUserIDs = []
+            mentionedHandlesByUserID = [:]
             mentionSuggestions = []
             isCommentFocused = false
             isSavingSocialAction = false
@@ -1549,6 +1572,7 @@ struct RemoteVisitDetailView: View {
         tokens.append("@\(person.username)")
         commentText = tokens.joined(separator: " ") + " "
         mentionedUserIDs.insert(person.id)
+        mentionedHandlesByUserID[person.id] = person.username
         mentionSuggestions = []
         isCommentFocused = true
     }

@@ -8,15 +8,21 @@
 import SwiftUI
 
 class TabCoordinator: ObservableObject {
-    @Published var selectedTab: Int = 1 {
+    @Published var selectedTab: Int {
         didSet {
             if selectedTab != 2 {
                 lastNonAddTab = selectedTab
             }
         }
     }
-    private(set) var lastNonAddTab: Int = 1
+    private(set) var lastNonAddTab: Int
     @Published private(set) var pendingMapCafe: Cafe?
+
+    init(selectedTab: Int = 1) {
+        let safeTab = (0...4).contains(selectedTab) ? selectedTab : 1
+        self.selectedTab = safeTab
+        self.lastNonAddTab = safeTab == 2 ? 1 : safeTab
+    }
     
     func switchToFeed() {
         selectedTab = 1

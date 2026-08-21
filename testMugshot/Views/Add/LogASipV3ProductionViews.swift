@@ -271,7 +271,7 @@ struct LogASipV3ProductionView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            HStack(spacing: 4) {
+            if completion != nil || step == .setup {
                 Button(action: completion == nil ? onCancel : onFinish) {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
@@ -281,30 +281,25 @@ struct LogASipV3ProductionView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isSaving)
-                .accessibilityLabel(completion == nil ? "Close Log a Sip" : "Close Taste Passport")
-
-                if completion == nil, step != .setup {
-                    Button(action: moveBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .bold))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSaving)
-                    .accessibilityLabel("Previous step")
+                .accessibilityLabel(completion == nil ? "Close Log a Sip" : "Close published Mugshot")
+            } else {
+                Button(action: moveBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .bold))
+                        .frame(width: 44, height: 44)
                 }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+                .accessibilityLabel("Previous step")
             }
         }
 
         ToolbarItem(placement: .topBarTrailing) {
             if completion != nil {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.seal.fill")
-                    Text("5 of 5")
-                }
-                    .font(.system(size: 12, weight: .bold))
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
-                    .accessibilityLabel("Step 5 of 5, published")
+                    .accessibilityLabel("Published")
             } else {
                 Text("\(stepNumber) of 5")
                     .font(.system(size: 12, weight: .bold))
@@ -323,7 +318,10 @@ struct LogASipV3ProductionView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         case .addCriterion(let target):
-            LogASipV3AddCriterionSheet(target: target) { name in
+            LogASipV3AddCriterionSheet(
+                target: target,
+                existingNames: (target == .sip ? draft.ratingCriteria : draft.contextRatingCriteria).map(\.name)
+            ) { name in
                 addCustomCriterion(name, to: target)
             }
             .presentationDetents([.medium])
@@ -758,14 +756,6 @@ private struct LogASipV3SipSurface: View {
             )
             .padding(.horizontal, DesignSystem.Space.md)
 
-            LogASipV3JournalEditor(
-                title: "Just for my journal",
-                prompt: "What hit first? What stayed with you?",
-                text: $draft.privateNotes,
-                privacyLabel: "Private unless you choose otherwise"
-            )
-            .padding(.horizontal, DesignSystem.Space.md)
-
             LogASipV3MugsyCoach(
                 prompts: LogASipV3CoachPrompt.sip,
                 index: $coachIndex,
@@ -786,7 +776,7 @@ private struct LogASipV3SipSurface: View {
                 subtitle: "Optional",
                 suggestionLabel: "Suggested for this drink",
                 criteria: $draft.ratingCriteria,
-                suggestions: LogASipV3CriterionSuggestion.sip,
+                suggestions: LogASipV3CriterionSuggestion.sip(for: draft),
                 accessibilityScope: "sip",
                 canUseLastSetup: canUseLastSetup,
                 onUseLastSetup: onUseLastSetup,
@@ -802,6 +792,14 @@ private struct LogASipV3SipSurface: View {
                 )
                 .padding(.horizontal, DesignSystem.Space.md)
             }
+
+            LogASipV3JournalEditor(
+                title: "Just for my journal",
+                prompt: "What hit first? What stayed with you?",
+                text: $draft.privateNotes,
+                privacyLabel: "Private unless you choose otherwise"
+            )
+            .padding(.horizontal, DesignSystem.Space.md)
         }
     }
 
@@ -863,15 +861,6 @@ private struct LogASipV3ContextSurface: View {
         ) {
             MugshotScreenHeader(reflectionTitle, subtitle: draft.contextDisplayNameV3)
 
-            LogASipV3JournalEditor(
-                title: isHome ? "What did you change?" : "Just for my journal",
-                prompt: journalPrompt,
-                text: $draft.contextNotes,
-                privacyLabel: "Private unless you choose otherwise",
-                minimumHeight: 112
-            )
-            .padding(.horizontal, DesignSystem.Space.md)
-
             LogASipV3MugsyCoach(
                 prompts: contextPrompts,
                 index: $coachIndex,
@@ -920,6 +909,15 @@ private struct LogASipV3ContextSurface: View {
                     .padding(.horizontal, DesignSystem.Space.md)
                 }
             }
+
+            LogASipV3JournalEditor(
+                title: isHome ? "What did you change?" : "Just for my journal",
+                prompt: journalPrompt,
+                text: $draft.contextNotes,
+                privacyLabel: "Private unless you choose otherwise",
+                minimumHeight: 112
+            )
+            .padding(.horizontal, DesignSystem.Space.md)
         }
     }
 
@@ -2059,6 +2057,9 @@ private struct LogASipV3CriteriaEditor: View {
     let onUseLastSetup: () -> Void
     let onAddOwn: () -> Void
 
+    @State private var renameCriterionID: UUID?
+    @State private var renameText = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -2088,6 +2089,7 @@ private struct LogASipV3CriteriaEditor: View {
                             criterion: $criterion,
                             systemImage: systemImage(for: criterion.name),
                             accessibilityBaseIdentifier: criterionIdentifier(for: criterion.name),
+                            onRename: { beginRename(criterion) },
                             onRemove: {
                                 criteria.removeAll { $0.id == criterion.id }
                                 reindexCriteria()
@@ -2141,6 +2143,59 @@ private struct LogASipV3CriteriaEditor: View {
                 }
             }
         }
+        .alert("Rename criterion", isPresented: renameAlertPresented) {
+            TextField("Criterion name", text: $renameText)
+            Button("Cancel", role: .cancel) {
+                renameCriterionID = nil
+                renameText = ""
+            }
+            Button("Save") {
+                commitRename()
+            }
+            .disabled(renameValidationMessage != nil)
+        } message: {
+            Text(renameValidationMessage ?? "Use a name that is distinct from your other criteria.")
+        }
+    }
+
+    private var renameAlertPresented: Binding<Bool> {
+        Binding(
+            get: { renameCriterionID != nil },
+            set: { isPresented in
+                if !isPresented {
+                    renameCriterionID = nil
+                    renameText = ""
+                }
+            }
+        )
+    }
+
+    private var renameValidationMessage: String? {
+        guard let name = renameText.remoteTrimmedNonEmpty else {
+            return "Enter a criterion name."
+        }
+        if criteria.contains(where: {
+            $0.id != renameCriterionID && $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }) {
+            return "That criterion is already in this sip."
+        }
+        return nil
+    }
+
+    private func beginRename(_ criterion: SipRatingCriterionSnapshot) {
+        renameCriterionID = criterion.id
+        renameText = criterion.name
+    }
+
+    private func commitRename() {
+        guard renameValidationMessage == nil,
+              let id = renameCriterionID,
+              let name = renameText.remoteTrimmedNonEmpty,
+              let index = criteria.firstIndex(where: { $0.id == id }) else { return }
+        criteria[index].name = name
+        renameCriterionID = nil
+        renameText = ""
+        MugshotHaptic.softImpact.play()
     }
 
     private func add(_ suggestion: LogASipV3CriterionSuggestion) {
@@ -2169,7 +2224,7 @@ private struct LogASipV3CriteriaEditor: View {
             return exactMatch.systemImage
         }
 
-        if criterionName.caseInsensitiveCompare("Orange balance") == .orderedSame {
+        if criterionName.caseInsensitiveCompare("Flavor balance") == .orderedSame {
             return "circle.lefthalf.filled"
         }
 
@@ -2189,6 +2244,7 @@ private struct LogASipV3CriterionCard: View {
     @Binding var criterion: SipRatingCriterionSnapshot
     let systemImage: String
     let accessibilityBaseIdentifier: String
+    let onRename: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
@@ -2202,6 +2258,7 @@ private struct LogASipV3CriterionCard: View {
                 set: { criterion.isPinned = $0 }
             ),
             accessibilityBaseIdentifier: accessibilityBaseIdentifier,
+            onRename: onRename,
             onRemove: onRemove
         )
     }
@@ -2793,10 +2850,23 @@ private enum LogASipV3CriterionTarget: String {
 
 private struct LogASipV3AddCriterionSheet: View {
     let target: LogASipV3CriterionTarget
+    let existingNames: [String]
     let onAdd: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+
+    private var validationMessage: String? {
+        guard let trimmedName = name.remoteTrimmedNonEmpty else {
+            return "Enter a criterion name."
+        }
+        if existingNames.contains(where: {
+            $0.caseInsensitiveCompare(trimmedName) == .orderedSame
+        }) {
+            return "That criterion is already in this sip."
+        }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -2805,7 +2875,7 @@ private struct LogASipV3AddCriterionSheet: View {
                     "Add your own",
                     subtitle: "Name what mattered in plain language."
                 )
-                TextField(target == .sip ? "Orange balance" : "Menu clarity", text: $name)
+                TextField(target == .sip ? "Flavor balance" : "Menu clarity", text: $name)
                     .textInputAutocapitalization(.sentences)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 52)
@@ -2817,14 +2887,21 @@ private struct LogASipV3AddCriterionSheet: View {
                     )
 
                 Button {
-                    onAdd(name)
+                    guard let trimmedName = name.remoteTrimmedNonEmpty,
+                          validationMessage == nil else { return }
+                    onAdd(trimmedName)
                     dismiss()
                 } label: {
                     Text("Add criterion")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                .disabled(name.remoteTrimmedNonEmpty == nil)
+                .disabled(validationMessage != nil)
+                if let validationMessage, name.remoteTrimmedNonEmpty != nil {
+                    Text(validationMessage)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.red)
+                }
                 Spacer()
             }
             .padding(.horizontal, DesignSystem.Space.md)
@@ -2979,13 +3056,13 @@ struct LogASipV3CriterionSuggestion: Identifiable {
     let title: String
     let systemImage: String
 
-    static let sip: [Self] = [
+    private static let sipCatalog: [Self] = [
         item("aroma", "Aroma", "wind"),
         item("flavor", "Flavor", "mouth"),
         item("sweetness", "Sweetness", "cube.fill"),
         item("brightness", "Brightness", "sun.max"),
         item("bitterness", "Bitterness", "drop.triangle"),
-        item("body", "Body", "water.waves"),
+        item("body", "Body / Smoothness", "water.waves"),
         item("texture", "Texture", "waveform.path"),
         item("balance", "Balance", "scale.3d"),
         item("finish", "Finish", "hourglass.bottomhalf.filled"),
@@ -2993,7 +3070,7 @@ struct LogASipV3CriterionSuggestion: Identifiable {
         item("coffee-presence", "Coffee presence", "cup.and.saucer"),
         item("milk-integration", "Milk integration", "cloud.fill"),
         item("flavor-accuracy", "Flavor accuracy", "scope"),
-        item("orange-balance", "Orange balance", "circle.lefthalf.filled"),
+        item("flavor-balance", "Flavor balance", "circle.lefthalf.filled"),
         item("refreshment", "Refreshment", "snowflake"),
         item("aftertaste", "Aftertaste", "arrow.uturn.forward"),
         item("intensity", "Intensity", "dial.medium"),
@@ -3003,8 +3080,55 @@ struct LogASipV3CriterionSuggestion: Identifiable {
         item("value", "Value", "dollarsign"),
         item("novelty", "Novelty", "lightbulb"),
         item("comfort", "Comfort", "heart"),
-        item("nostalgia", "Nostalgia", "clock.arrow.circlepath")
+        item("nostalgia", "Nostalgia", "clock.arrow.circlepath"),
+        item("umami", "Umami", "leaf.fill"),
+        item("astringency", "Astringency", "drop.degreesign"),
+        item("whisk-texture", "Whisk texture", "tornado"),
+        item("vegetal-character", "Vegetal character", "leaf.circle")
     ]
+
+    static let sip = sipCatalog
+
+    static func sip(for draft: SipDraft) -> [Self] {
+        let words = [draft.drinkName, draft.customDrinkType]
+            .joined(separator: " ")
+            .localizedLowercase
+        let preparation = draft.drinkAnalysis?.preparation
+        let milkPreparations: Set<DrinkPreparation> = [
+            .latte, .cappuccino, .cortado, .flatWhite, .mocha, .macchiato
+        ]
+        let isMilkDrink = preparation.map(milkPreparations.contains) == true
+            || ["latte", "cappuccino", "cortado", "flat white", "mocha", "macchiato"]
+                .contains(where: words.contains)
+        let isTeaDrink = [.matcha, .hojicha, .tea, .chai].contains(draft.drinkType)
+        let priority: [String]
+
+        if isTeaDrink {
+            priority = [
+                "umami", "astringency", "whisk-texture", "vegetal-character",
+                "texture", "flavor-balance", "aroma", "finish"
+            ]
+        } else if isMilkDrink {
+            priority = [
+                "milk-integration", "texture", "body", "flavor-balance",
+                "sweetness", "coffee-presence", "finish", "temperature"
+            ]
+        } else if draft.drinkType == .coffee {
+            priority = [
+                "coffee-presence", "aroma", "flavor", "sweetness",
+                "brightness", "bitterness", "body", "flavor-balance", "finish"
+            ]
+        } else {
+            priority = ["flavor", "aroma", "flavor-balance", "texture", "finish"]
+        }
+
+        let rank = Dictionary(uniqueKeysWithValues: priority.enumerated().map { ($1, $0) })
+        return sipCatalog.enumerated().sorted { lhs, rhs in
+            let lhsRank = rank[lhs.element.id] ?? priority.count + lhs.offset
+            let rhsRank = rank[rhs.element.id] ?? priority.count + rhs.offset
+            return lhsRank < rhsRank
+        }.map(\.element)
+    }
 
     static let cafe: [Self] = [
         item("atmosphere", "Atmosphere", "sun.max"),

@@ -15,6 +15,23 @@ struct LogASipV3DomainTests {
         #expect(Set(LogASipV3CriterionSuggestion.cafe.map(\.id)).count == LogASipV3CriterionSuggestion.cafe.count)
     }
 
+    @Test func sipCriterionCatalogIsBroadRenamedAndContextAware() {
+        #expect(LogASipV3CriterionSuggestion.sip.count == 28)
+        #expect(!LogASipV3CriterionSuggestion.sip.contains { $0.title == "Orange balance" })
+        #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Flavor balance" })
+        #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Body / Smoothness" })
+
+        let latte = SipDraft(drinkType: .coffee, drinkName: "Oat milk latte")
+        #expect(Array(LogASipV3CriterionSuggestion.sip(for: latte).prefix(3).map(\.id)) == [
+            "milk-integration", "texture", "body"
+        ])
+
+        let matcha = SipDraft(drinkType: .matcha, drinkName: "Ceremonial matcha")
+        #expect(Array(LogASipV3CriterionSuggestion.sip(for: matcha).prefix(4).map(\.id)) == [
+            "umami", "astringency", "whisk-texture", "vegetal-character"
+        ])
+    }
+
     @Test func legacySipDraftDecodesWhenV3OptionalStorageIsAbsent() throws {
         let sipCriterion = SipRatingCriterionSnapshot(
             name: "Taste",

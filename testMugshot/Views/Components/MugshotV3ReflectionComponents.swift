@@ -91,6 +91,7 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
     @Binding var importance: Importance
     @Binding var isPinned: Bool
     var accessibilityBaseIdentifier: String? = nil
+    var onRename: (() -> Void)? = nil
     var onRemove: () -> Void
 
     @State private var showsImportancePicker = false
@@ -107,10 +108,23 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
+                    Button {
+                        onRename?()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(title)
+                                .lineLimit(2)
+                            if onRename != nil {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                        }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.espressoBrown)
-                        .lineLimit(2)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(onRename == nil)
+                    .accessibilityLabel(onRename == nil ? title : "Rename \(title)")
                     Text(rating > 0 ? "How well this worked for you" : "Tap a star when it matters")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.tertiaryText)

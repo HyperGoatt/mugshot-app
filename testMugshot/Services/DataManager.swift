@@ -370,7 +370,7 @@ class DataManager: ObservableObject {
         let sipCriteria = [
             SipRatingCriterionSnapshot(
                 id: UUID(uuidString: "00000000-0000-4000-8000-000000000101")!,
-                name: "Body",
+                name: "Body / Smoothness",
                 score: 1.5,
                 weight: SipCriterionImportance.more.weight,
                 sortOrder: 0,
@@ -386,7 +386,7 @@ class DataManager: ObservableObject {
             ),
             SipRatingCriterionSnapshot(
                 id: UUID(uuidString: "00000000-0000-4000-8000-000000000103")!,
-                name: "Orange balance",
+                name: "Flavor balance",
                 score: 3,
                 weight: SipCriterionImportance.normal.weight,
                 sortOrder: 2,

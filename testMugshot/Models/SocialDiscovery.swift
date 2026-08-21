@@ -258,6 +258,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     let ratings: [String: Double]?
     let overallScore: Double
     let posterPhotoURL: String?
+    let photoURLs: [String]?
     let contextType: String?
     let locationName: String?
     let createdAt: String
@@ -277,6 +278,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
         case visibility, ratings
         case overallScore = "overall_score"
         case posterPhotoURL = "poster_photo_url"
+        case photoURLs = "photo_urls"
         case contextType = "context_type"
         case locationName = "location_name"
         case createdAt = "created_at"

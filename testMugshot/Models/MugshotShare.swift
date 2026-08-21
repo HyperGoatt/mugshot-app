@@ -40,6 +40,10 @@ enum MugshotShareTemplate: String, CaseIterable, Identifiable {
 
 enum MugshotSharePhotoLayout: String, CaseIterable, Identifiable {
     case singlePhoto
+    case twoPhoto
+    case threePhoto
+    case fourPhoto
+    /// Retained for decoding analytics produced by older builds.
     case smartCollage
 
     var id: String { rawValue }
@@ -47,16 +51,34 @@ enum MugshotSharePhotoLayout: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .singlePhoto: return "Single photo"
+        case .twoPhoto: return "2 photos"
+        case .threePhoto: return "3 photos"
+        case .fourPhoto: return "4 photos"
         case .smartCollage: return "Smart collage"
         }
     }
 
+    var photoLimit: Int {
+        switch self {
+        case .singlePhoto: return 1
+        case .twoPhoto: return 2
+        case .threePhoto: return 3
+        case .fourPhoto, .smartCollage: return 4
+        }
+    }
+
+    var isCollage: Bool { self != .singlePhoto }
+
     static func availableLayouts(photoCount: Int) -> [MugshotSharePhotoLayout] {
-        photoCount > 1 ? allCases : [.singlePhoto]
+        var layouts: [MugshotSharePhotoLayout] = [.singlePhoto]
+        if photoCount >= 2 { layouts.append(.twoPhoto) }
+        if photoCount >= 3 { layouts.append(.threePhoto) }
+        if photoCount >= 4 { layouts.append(.fourPhoto) }
+        return layouts
     }
 
     static func defaultLayout(photoCount: Int) -> MugshotSharePhotoLayout {
-        photoCount > 1 ? .smartCollage : .singlePhoto
+        .singlePhoto
     }
 }
 

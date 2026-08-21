@@ -1,17 +1,19 @@
-# Shared Mugshot landing
+# Shared Mugshot metadata and routing
 
-This public Edge Function renders only `get_public_mugshot_share_v1` output.
+This public Edge Function resolves only `get_public_mugshot_share_v1` output.
 The opaque slug is a revocable capability: an owner may share a complete
 `Everyone` or `Friends` post, while `Private` posts never qualify.
 Configure the production reverse proxy so `/m/{opaqueSlug}` reaches this
 function while preserving the canonical URL, then serve the same domain in the
 Associated Domains `apple-app-site-association` file.
 
-The HTML response shows the real allowlisted post, including its ordered photos
-and taste ratings. Private-bucket media is signed server-side for five minutes
-only after the capability projection succeeds. `?format=json` exposes that
-same resolved allowlist to the native Universal Link viewer. `?format=og`
-returns the branded 1200×630 PNG used by Messages and social link previews.
+Human browsers receive a redirect to the PWA's canonical `/m/{slug}` route,
+which renders the real `VisitDetail` component. Link preview crawlers receive a
+metadata-only document after the capability projection succeeds; no separate
+human-facing post UI is served here. Private-bucket media is signed server-side
+for five minutes. `?format=json` remains available to established clients and
+`?format=og` returns the branded 1200×630 PNG used by Messages and social link
+previews.
 
 Required runtime variables:
 

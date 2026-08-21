@@ -26,6 +26,7 @@ struct MugshotShareHubView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
     @State private var isPreparing = false
+    @State private var showsShareCustomization = false
 
     private var content: MugshotShareContent {
         MugshotShareContent(
@@ -60,31 +61,36 @@ struct MugshotShareHubView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                exportPreview
-                formatAndTemplateControls
-                if photos.count > 1 {
-                    photoControls
+            if isPostPublish && !showsShareCustomization {
+                postPublishReceipt
+            } else {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    exportPreview
+                    formatAndTemplateControls
+                    if photos.count > 1 {
+                        photoControls
+                    }
+                    destinationSection
+                    secondaryActions
+                    if isPostPublish {
+                        completionActions
+                    } else {
+                        Button("Done", action: dismissHub)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .buttonStyle(SecondaryButtonStyle())
+                    }
                 }
-                destinationSection
-                secondaryActions
-                if isPostPublish {
-                    passportReceipt
-                    completionActions
-                } else {
-                    Button("Done", action: dismissHub)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .buttonStyle(SecondaryButtonStyle())
-                }
+                .padding(.horizontal, 18)
+                .padding(.top, 10)
+                .padding(.bottom, 120)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 10)
-            .padding(.bottom, 120)
         }
         .background(Color.creamWhite)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            bottomAction
+            if !isPostPublish || showsShareCustomization {
+                bottomAction
+            }
         }
         .task(id: summary.visitID) {
             await prepareInitialPackage()
@@ -142,6 +148,85 @@ struct MugshotShareHubView: View {
             )
         }
         .accessibilityIdentifier("logASipV3.shareHub")
+    }
+
+    private var postPublishReceipt: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Mugshot published.")
+                        .mugshotDisplay(size: 34)
+                        .foregroundStyle(Color.espressoBrown)
+                    Text("Your sip is live and safely in your journal.")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                }
+                Spacer(minLength: 10)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.foamWhite)
+                    .frame(width: 38, height: 38)
+                    .background(Color.mugshotSage, in: Circle())
+                    .accessibilityLabel("Published")
+            }
+
+            Group {
+                if let coverImage = summary.coverImage {
+                    Image(uiImage: coverImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Color.sandBeige
+                        MugsyModelView(configuration: MugsyPlacement.ritual.configuration)
+                            .padding(54)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+            .clipped()
+
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+            }
+
+            VStack(spacing: 10) {
+                Button(action: onViewMugshot) {
+                    Label(
+                        isOpeningMugshot ? "Opening Mugshot…" : "View Mugshot",
+                        systemImage: "checkmark.seal"
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(isOpeningMugshot)
+
+                Button {
+                    withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
+                        showsShareCustomization = true
+                    }
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                Button("Done", action: onFinish)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(SecondaryButtonStyle())
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 28)
     }
 
     private var header: some View {
@@ -283,10 +368,10 @@ struct MugshotShareHubView: View {
     private var photoControls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(selectedPhotoLayout == .smartCollage ? "Lead photo" : "Published photo")
+                Text(selectedPhotoLayout.isCollage ? "Lead photo" : "Published photo")
                 Spacer()
-                if selectedPhotoLayout == .smartCollage {
-                    Text("Uses up to 4 photos")
+                if selectedPhotoLayout.isCollage {
+                    Text("Uses \(min(selectedPhotoLayout.photoLimit, photos.count)) photos")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.tertiaryText)
                 }
@@ -316,7 +401,7 @@ struct MugshotShareHubView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(
-                            selectedPhotoLayout == .smartCollage
+                            selectedPhotoLayout.isCollage
                                 ? "Use photo \(index + 1) as the lead photo"
                                 : "Use published photo \(index + 1)"
                         )
@@ -982,8 +1067,10 @@ struct MugshotShareArtworkView: View {
     @ViewBuilder
     private var sharePhoto: some View {
         if let photo = photos.first {
-            if photoLayout == .smartCollage, photos.count > 1 {
-                MugshotSmartCollageView(photos: Array(photos.prefix(4)))
+            if photoLayout.isCollage, photos.count > 1 {
+                MugshotSmartCollageView(
+                    photos: Array(photos.prefix(min(photoLayout.photoLimit, photos.count)))
+                )
             } else {
                 Image(uiImage: photo)
                     .resizable()
