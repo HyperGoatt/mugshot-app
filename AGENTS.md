@@ -18,6 +18,9 @@
 
 ## TestFlight Upload Handoff
 
+- TestFlight is a manual release gate. Never archive, export, upload, or assign a build unless the user explicitly asks after local validation is complete.
+- Before any TestFlight handoff, build and run the candidate on a local Simulator and on the user's connected iPhone. Report either gate as blocked instead of bypassing it.
+- Keep prerelease candidates on the currently approved App Store marketing version unless the user explicitly approves a version bump. Increment build numbers because App Store Connect does not permit reusing a version/build pair.
 - Every TestFlight archive, upload, or testing-group handoff must include a ready-to-paste **What to Test** blurb in the final response.
 - Tailor the blurb to the exact version/build and its meaningful product changes. Lead with the primary new behavior, then name the most important regression paths and failure states.
 - Keep the copy tester-facing, concise, and suitable for App Store Connect's 4,000-character field. Do not include implementation jargon, secrets, private identifiers, fabricated claims, or features that are not present in the uploaded build.
