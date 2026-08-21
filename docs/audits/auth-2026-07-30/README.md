@@ -63,7 +63,7 @@ The hosted project contains five email identities and no Apple or Google identit
 | Area | Status | Evidence or remaining requirement |
 | --- | --- | --- |
 | Redirects | Complete | Hosted allowlist includes `mugshot://auth/callback` and `mugshot://auth/recovery`. |
-| Email confirmation | Complete | Confirmation remains required. The hosted subject and HTML use the versioned Mugshot template in this folder, and a safe plus-addressed signup test was reported delivered by Resend. |
+| Email confirmation | Complete | Confirmation remains required. The hosted subject and HTML use the selected editorial welcome template in this folder. The hero loads the unchanged canonical Mugsy PNG from the service-managed public `brand-assets` bucket, and a safe plus-addressed signup test was previously reported delivered by Resend. |
 | Password recovery | Complete | The hosted subject and HTML use the versioned Mugshot template in this folder, the app enforces the new-password policy, and a recovery request for an existing safe account was reported delivered by Resend. |
 | Apple | Complete | Hosted Apple Auth is enabled for `co.mugshot.app.testMugshot` and `co.mugshot.app.testMugshot.dev` using Supabase's native token flow. |
 | Google | Complete | The existing Google Cloud project has a Web OAuth client named `Mugshot Supabase Auth`, its redirect URI is Supabase's exact callback, the credentials are stored only in the hosted provider configuration, and the external OAuth app is published to production. |
@@ -85,6 +85,8 @@ The hosted project contains five email identities and no Apple or Google identit
 - `auth.mugshotapp.co` is verified for sending in Resend. Its DKIM, return-path MX/SPF, and root DMARC records resolved from Spaceship's authoritative nameserver, Cloudflare DNS, and Google Public DNS.
 - Supabase custom SMTP remained enabled after a hard reload with the intended sender, host, port, and username.
 - A live password-recovery request and a safe plus-addressed signup request both returned HTTP 200 from Supabase Auth and were reported delivered in Resend.
+- The refreshed signup-confirmation HTML was rendered at 600-pixel desktop and 390-pixel mobile widths, compared beside the selected visual direction, and applied through the Supabase Management API. The hosted subject and 6,021-byte template exactly match the versioned source, both visible actions retain `{{ .ConfirmationURL }}`, and no unrelated Auth setting was included in the patch.
+- The hosted `brand-assets/email/mugsy-journal-v1.png` object is byte-for-byte identical to `MugsyNoCafes.png` with SHA-256 `0c47ebb14efe29f085b838aeba4f42c4681a72ba77bc4b9a88511986a1bbd435`.
 - A second disposable plus-addressed account proved the complete recovery mutation without touching an existing account: its branded confirmation link returned to `mugshot://auth/callback`, its branded recovery link returned to `mugshot://auth/recovery`, Supabase accepted the password update for the same user, the old password then returned HTTP 400, and the new password returned HTTP 200.
 - Both temporary signup users were deleted after their delivery and recovery checks. A credential exposed during browser-state verification was rotated immediately, replaced in Supabase, and deleted from Resend before the delivery tests.
 - Google Auth Platform saved Mugshot's logo, `https://mugshotapp.co/company` home page, privacy and terms URLs, and the `mugshotapp.co` authorized domain.

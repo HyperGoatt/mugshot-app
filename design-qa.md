@@ -149,6 +149,54 @@ final result: passed
 
 ---
 
+# Supabase signup confirmation email — implementation QA
+
+## Comparison setup
+
+- Source visual truth: `docs/audits/auth-2026-07-30/confirm-signup-selected-concept.png` (1024 × 1536 pixels).
+- Production template: `docs/audits/auth-2026-07-30/confirm-signup.html`.
+- Browser-rendered implementation: `docs/audits/auth-2026-07-30/screenshots/confirm-signup-implementation.png` (1280 × 1063 pixels).
+- Email-card crop: `docs/audits/auth-2026-07-30/screenshots/confirm-signup-implementation-card.png` (600 × 995 pixels).
+- Same-input comparison: `docs/audits/auth-2026-07-30/screenshots/confirm-signup-design-comparison.png`.
+- Browser viewport: 1280 × 720 CSS pixels at device scale factor 2; the email card renders at its production 600-pixel maximum width.
+- Responsive check: an isolated 390-pixel email viewport rendered a 370-pixel card with `documentScrollWidth == documentClientWidth == 390`; the canonical Mugsy image resolved to 300 pixels and the headline to 43 pixels without overflow.
+- State: signup confirmation with the Supabase `{{ .ConfirmationURL }}` placeholder intact.
+
+## Findings
+
+No actionable P0, P1, or P2 visual or interaction differences remain.
+
+- Fonts and typography: Passed. Georgia provides the email-safe editorial serif headline; the system sans-serif stack preserves the product's functional copy hierarchy. The headline, body, CTA, backup link, and footer wrap cleanly at desktop and mobile widths.
+- Spacing and layout rhythm: Passed. The compact masthead, large illustrated hero, editorial welcome, CTA, backup link, and quiet footer preserve the selected vertical sequence. The production card uses a 600-pixel email-safe frame and removes nonessential decoration rather than leaving blank space.
+- Colors and visual tokens: Passed. Cream, foam, espresso, roast, sage, mint, latte, sand, and line values come from the canonical Mugshot palette. Text and CTA contrast remain accessible, and explicit light color-scheme hints reduce destructive client inversion.
+- Image quality and asset fidelity: Passed. The email loads the unchanged 500 × 500 production `MugsyNoCafes.png` through the public `brand-assets` path. Local and hosted files share SHA-256 `0c47ebb14efe29f085b838aeba4f42c4681a72ba77bc4b9a88511986a1bbd435`; no generated Mugsy ships.
+- Copy and content: Passed. The message uses one primary action, keeps `cafe` unaccented, hides the raw Supabase URL behind a readable backup link, and explains how to ignore an unrequested signup.
+- Interaction and runtime: Passed. Both visible links retain `{{ .ConfirmationURL }}` exactly, the hosted Mugsy asset reports complete at its natural 500 × 500 size, and the browser console produced no warnings or errors.
+
+## Comparison history
+
+### Initial production render — blocked
+
+- [P2] Canonical Mugsy appeared too small relative to the selected concept because the transparent source canvas was sized at 330 pixels.
+  - Fix: increased the email image frame to 430 pixels on desktop and 360 pixels on mobile while retaining the exact source pixels and proportions.
+
+### Final render — passed
+
+- Reloaded the local production template after the asset-size correction.
+- Captured the 600-pixel email card and placed it beside the selected source in one comparison board.
+- Checked the 390-pixel responsive metrics, final copy, CTA template value, remote image completion, and console output.
+- The omitted leaf, envelope, pin, and route ornaments are an intentional email-client compatibility tradeoff; the canonical Mugsy hero and Mugshot hierarchy remain intact.
+
+## Focused-region evidence
+
+Separate focused crops were unnecessary because the source and production card remain fully legible in the same-input comparison. The canonical Mugsy region was additionally verified by hosted-file checksum rather than visual approximation.
+
+## Final result
+
+final result: passed
+
+---
+
 # Mugshot 0.5.3 onboarding — canonical Mugsy product tour QA
 
 ## Comparison setup
