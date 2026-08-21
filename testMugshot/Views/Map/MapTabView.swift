@@ -66,9 +66,13 @@ enum MapDiscoveryScope: String, CaseIterable, Identifiable {
     }
 
     static func available(isAuthenticated: Bool) -> [MapDiscoveryScope] {
-        isAuthenticated
-            ? [.visited, .favorites, .wantToTry, .friends, .all, .forYou]
-            : [.visited, .favorites, .wantToTry, .all, .forYou]
+        var scopes: [MapDiscoveryScope] = isAuthenticated
+            ? [.visited, .favorites, .wantToTry, .friends, .all]
+            : [.visited, .favorites, .wantToTry, .all]
+        if DiscoveryFeatureFlags.isEnabled(.mapDiscovery) {
+            scopes.append(.forYou)
+        }
+        return scopes
     }
 }
 
@@ -295,9 +299,7 @@ struct MapTabView: View {
                     .padding(.top, 8)
                 }
 
-                if DiscoveryFeatureFlags.isEnabled(.mapDiscovery) {
-                    mapDiscoveryControls
-                }
+                mapDiscoveryControls
 
                 if hasPendingAreaSearch,
                    !isSearchActive,
@@ -606,6 +608,11 @@ struct MapTabView: View {
         }
         .onChange(of: isSearchFieldFocused) { _, isFocused in
             if isFocused { isSearchActive = true }
+        }
+        .onAppear {
+            if !DiscoveryFeatureFlags.isEnabled(.mapDiscovery), discoveryScope == .forYou {
+                discoveryScope = .visited
+            }
         }
     }
 

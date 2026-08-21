@@ -133,12 +133,7 @@ struct FeedTabView: View {
                             isPeopleHubPresented = true
                         }
                         .accessibilityLabel("People, requests, and friends")
-                        MugshotStatPill(
-                            icon: "flame.fill",
-                            value: "\(canonicalSipCount)",
-                            label: "sips",
-                            accent: true
-                        )
+                        MugsySipCountPill(value: canonicalSipCount)
                         MugshotIconButton(
                             systemName: "magnifyingglass",
                             size: 36,
@@ -772,6 +767,40 @@ struct FeedTabView: View {
             cafePulseProjection: visit.cafePulseProjection,
             v3FeedProjection: visit.v3FeedProjection
         )
+    }
+}
+
+private struct MugsySipCountPill: View {
+    let value: Int
+
+    var body: some View {
+        HStack(spacing: 5) {
+            MugsyModelView()
+                .frame(width: 22, height: 22)
+                .accessibilityHidden(true)
+            Text("\(value)")
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            Text("sips")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.foamWhite.opacity(0.86))
+                .lineLimit(1)
+        }
+        .foregroundColor(.foamWhite)
+        .padding(.leading, 7)
+        .padding(.trailing, 10)
+        .padding(.vertical, 6)
+        .background(Color.mugshotSage)
+        .clipShape(Capsule())
+        .shadow(
+            color: DesignSystem.subtleShadow.color,
+            radius: DesignSystem.subtleShadow.radius,
+            x: DesignSystem.subtleShadow.x,
+            y: DesignSystem.subtleShadow.y
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(value) total sips")
     }
 }
 

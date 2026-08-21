@@ -5108,7 +5108,7 @@ struct SipCompanionPicker: View {
                     }
                 }
 
-                Section(query.isEmpty ? "People you know" : "Matches") {
+                Section(query.isEmpty ? "Friends and past tags" : "Matches") {
                     if isLoading || isSearching {
                         HStack(spacing: 10) {
                             ProgressView()

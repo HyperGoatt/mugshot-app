@@ -385,7 +385,17 @@ struct PublicProfileView: View {
     }
 
     var body: some View {
-        profileContent
+        Group {
+            if state == .blocked {
+                profileContent
+            } else {
+                SharedProfileView(
+                    source: .user(route.id, asEveryone: false),
+                    dataManager: dataManager,
+                    supplementaryContent: AnyView(sharedProfileSocialControls)
+                )
+            }
+        }
             .background(Color.creamWhite)
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -444,6 +454,34 @@ struct PublicProfileView: View {
             } message: { _ in
                 Text(SocialSafetyCopy.reportFailed)
             }
+    }
+
+    private var sharedProfileSocialControls: some View {
+        VStack(spacing: 10) {
+            if let safetyStatus {
+                MugshotStatusCard(
+                    title: "Safety update",
+                    message: safetyStatus,
+                    systemImage: "checkmark.shield.fill"
+                )
+            }
+
+            if phase4LightweightFriends,
+               state == .friends,
+               let compatibility {
+                compatibilityCard(compatibility)
+            }
+
+            relationshipButton
+
+            if state == .incoming {
+                Button("Decline request", role: .destructive) {
+                    Task { await declineRequest() }
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .disabled(isWorking)
+            }
+        }
     }
 
     private var profileContent: some View {

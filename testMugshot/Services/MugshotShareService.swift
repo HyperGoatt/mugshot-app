@@ -110,6 +110,17 @@ final class MugshotShareLinkService {
         return slug.flatMap(configuration.publicURL(slug:))
     }
 
+    func resolveVisitID(slug: String) async throws -> UUID? {
+        guard MugshotSharedLinkRoute.isValidSlug(slug) else { return nil }
+        let visitID: UUID? = try await client.rpc(
+            "resolve_visit_share_link_v2",
+            params: ["p_slug": slug]
+        )
+        .execute()
+        .value
+        return visitID
+    }
+
     func publicProjection(slug: String) async throws -> MugshotPublicProjection? {
         guard MugshotSharedLinkRoute.isValidSlug(slug) else { return nil }
         if let endpoint = configuration.publicURL(slug: slug),

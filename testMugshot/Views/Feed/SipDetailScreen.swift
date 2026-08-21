@@ -123,6 +123,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
     let id: UUID
     let authorName: String
     let username: String
+    let avatarURL: String?
     let text: String
     let timestamp: String
     let canReply: Bool
@@ -132,6 +133,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         id: UUID,
         authorName: String,
         username: String,
+        avatarURL: String? = nil,
         text: String,
         timestamp: String,
         canReply: Bool,
@@ -140,6 +142,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         self.id = id
         self.authorName = authorName
         self.username = username
+        self.avatarURL = avatarURL
         self.text = text
         self.timestamp = timestamp
         self.canReply = canReply
@@ -150,6 +153,23 @@ struct SipDetailCommentModel: Identifiable, Equatable {
 struct SipDetailMentionSuggestion: Identifiable, Equatable {
     let id: UUID
     let username: String
+    let displayName: String
+    let avatarURL: String?
+    let isFriend: Bool
+
+    init(
+        id: UUID,
+        username: String,
+        displayName: String? = nil,
+        avatarURL: String? = nil,
+        isFriend: Bool = false
+    ) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName?.remoteTrimmedNonEmpty ?? username
+        self.avatarURL = avatarURL
+        self.isFriend = isFriend
+    }
 }
 
 enum SipDetailSection: String, CaseIterable, Equatable {
@@ -499,6 +519,7 @@ enum SipDetailPresentationAdapter {
                     id: comment.id,
                     authorName: comment.authorDisplayName,
                     username: "@\(comment.authorUsername)",
+                    avatarURL: comment.author?.avatarURL,
                     text: comment.comment.text,
                     timestamp: SipDetailFormat.relative(comment.comment.createdAtDate),
                     canReply: currentUserID != nil && comment.comment.parentCommentId == nil,
@@ -838,6 +859,7 @@ struct SipDetailScreen: View {
     let onCancelReply: () -> Void
     let onSelectMention: (UUID) -> Void
     let onPhotoTap: (Int) -> Void
+    var onAuthorTap: () -> Void = {}
     var onCafeTap: (() -> Void)? = nil
     let onRecipeAction: (SipDetailRecipeAction) -> Void
     let onTaggedAccount: (UUID) -> Void
@@ -862,6 +884,7 @@ struct SipDetailScreen: View {
                             model: presentation.content,
                             selectedPhotoIndex: $selectedPhotoIndex,
                             onPhotoTap: onPhotoTap,
+                            onAuthorTap: onAuthorTap,
                             onCafeTap: onCafeTap
                         )
                         .id(heroAnchor)
@@ -924,6 +947,25 @@ struct SipDetailScreen: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 24)
 
+            if let rawNote = presentation.content.sharedRawNote {
+                SipSharedRawNoteSection(
+                    text: rawNote,
+                    title: presentation.content.journalNoteTitle,
+                    visibility: presentation.content.journalVisibility
+                        ?? presentation.content.visibility,
+                    isExpanded: $isJournalExpanded
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 14)
+            }
+
+            if presentation.capabilities.isOwner,
+               let privateNote = presentation.content.privateNote {
+                SipPrivateNoteSection(text: privateNote)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 14)
+            }
+
             SipDetailActionDock(
                 actions: presentation.capabilities.dockActions,
                 model: presentation.content,
@@ -984,25 +1026,6 @@ struct SipDetailScreen: View {
                 .padding(.top, 14)
             }
 
-            if let rawNote = presentation.content.sharedRawNote {
-                SipSharedRawNoteSection(
-                    text: rawNote,
-                    title: presentation.content.journalNoteTitle,
-                    visibility: presentation.content.journalVisibility
-                        ?? presentation.content.visibility,
-                    isExpanded: $isJournalExpanded
-                )
-                .padding(.horizontal, 22)
-                .padding(.top, 14)
-            }
-
-            if presentation.capabilities.isOwner,
-               let privateNote = presentation.content.privateNote {
-                SipPrivateNoteSection(text: privateNote)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 26)
-            }
-
             if presentation.capabilities.canComment || !presentation.content.comments.isEmpty {
                 SipConversationSection(
                     comments: presentation.content.comments,
@@ -1018,6 +1041,14 @@ struct SipDetailScreen: View {
                 .padding(.top, 24)
                 .id(commentsAnchor)
             }
+
+            Button(action: onAuthorTap) {
+                SipDetailCreatorCard(model: presentation.content)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .accessibilityHint("Opens this creator’s profile")
         }
         .padding(.bottom, 42)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1359,29 +1390,35 @@ private struct SipDetailHero: View {
     let model: SipDetailContentModel
     @Binding var selectedPhotoIndex: Int
     let onPhotoTap: (Int) -> Void
+    let onAuthorTap: () -> Void
     let onCafeTap: (() -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                MugshotAvatar(
-                    name: model.authorName,
-                    size: 44,
-                    imageURL: model.authorAvatarURL
-                )
+            Button(action: onAuthorTap) {
+                HStack(spacing: 12) {
+                    MugshotAvatar(
+                        name: model.authorName,
+                        size: 44,
+                        imageURL: model.authorAvatarURL
+                    )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.authorName)
-                        .font(.system(.subheadline, design: .default, weight: .bold))
-                        .foregroundStyle(Color.espressoBrown)
-                    Text("\(model.authorUsername) · \(model.timestamp)")
-                        .font(.system(.caption, design: .default, weight: .medium))
-                        .foregroundStyle(Color.secondaryText)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.authorName)
+                            .font(.system(.subheadline, design: .default, weight: .bold))
+                            .foregroundStyle(Color.espressoBrown)
+                        Text("\(model.authorUsername) · \(model.timestamp)")
+                            .font(.system(.caption, design: .default, weight: .medium))
+                            .foregroundStyle(Color.secondaryText)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens this creator’s profile")
             .padding(.horizontal, 22)
             .frame(
                 maxWidth: .infinity,
@@ -1503,6 +1540,8 @@ struct SipDetailPhotoViewer: View {
     let presentation: SipDetailPhotoViewerPresentation
     @Environment(\.dismiss) private var dismiss
     @State private var selectedIndex: Int
+    @State private var currentPhotoIsZoomed = false
+    @State private var resetTokens: [Int: Int] = [:]
 
     init(presentation: SipDetailPhotoViewerPresentation) {
         self.presentation = presentation
@@ -1531,6 +1570,19 @@ struct SipDetailPhotoViewer: View {
                         .accessibilityLabel("Close photo viewer")
 
                         Spacer()
+
+                        if currentPhotoIsZoomed {
+                            Button {
+                                resetTokens[selectedIndex, default: 0] += 1
+                            } label: {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(.body, design: .default, weight: .bold))
+                                    .foregroundStyle(Color.creamWhite)
+                                    .frame(width: 44, height: 44)
+                                    .background(.black.opacity(0.22), in: Circle())
+                            }
+                            .accessibilityLabel("Reset photo zoom")
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -1538,7 +1590,14 @@ struct SipDetailPhotoViewer: View {
 
                 TabView(selection: $selectedIndex) {
                     ForEach(Array(presentation.photos.enumerated()), id: \.element.id) { index, source in
-                        SipDetailViewerPhoto(source: source)
+                        SipDetailViewerPhoto(
+                            source: source,
+                            resetToken: resetTokens[index, default: 0],
+                            onZoomStateChange: { isZoomed in
+                                guard selectedIndex == index else { return }
+                                currentPhotoIsZoomed = isZoomed
+                            }
+                        )
                             .tag(index)
                             .padding(.horizontal, 10)
                     }
@@ -1583,13 +1642,54 @@ struct SipDetailPhotoViewer: View {
                     .padding(.vertical, 16)
             }
         }
+        .onChange(of: selectedIndex) { _, newIndex in
+            currentPhotoIsZoomed = false
+            resetTokens[newIndex, default: 0] += 1
+        }
     }
 }
 
 private struct SipDetailViewerPhoto: View {
     let source: SipDetailPhotoSource
+    let resetToken: Int
+    let onZoomStateChange: (Bool) -> Void
+
+    @State private var scale: CGFloat = 1
+    @State private var settledScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var settledOffset: CGSize = .zero
 
     var body: some View {
+        GeometryReader { proxy in
+            photo
+                .scaleEffect(scale)
+                .offset(offset)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .contentShape(Rectangle())
+                .clipped()
+                .simultaneousGesture(magnificationGesture(in: proxy.size))
+                .highPriorityGesture(panGesture(in: proxy.size))
+                .onTapGesture(count: 2) {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        if scale > 1.01 {
+                            reset()
+                        } else {
+                            scale = 2.5
+                            settledScale = 2.5
+                            offset = .zero
+                            settledOffset = .zero
+                            onZoomStateChange(true)
+                        }
+                    }
+                }
+                .onChange(of: resetToken) { _, _ in
+                    withAnimation(.easeInOut(duration: 0.2)) { reset() }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var photo: some View {
         switch source {
         case .local(let path):
             PhotoImageView(photoPath: path, contentMode: .fit)
@@ -1607,6 +1707,59 @@ private struct SipDetailViewerPhoto: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func magnificationGesture(in size: CGSize) -> some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = min(max(settledScale * value, 1), 5)
+                offset = clamped(offset, in: size, at: scale)
+                onZoomStateChange(scale > 1.01)
+            }
+            .onEnded { _ in
+                if scale < 1.05 {
+                    reset()
+                } else {
+                    settledScale = scale
+                    offset = clamped(offset, in: size, at: scale)
+                    settledOffset = offset
+                    onZoomStateChange(true)
+                }
+            }
+    }
+
+    private func panGesture(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: scale > 1.01 ? 0 : .greatestFiniteMagnitude)
+            .onChanged { value in
+                guard scale > 1.01 else { return }
+                let proposed = CGSize(
+                    width: settledOffset.width + value.translation.width,
+                    height: settledOffset.height + value.translation.height
+                )
+                offset = clamped(proposed, in: size, at: scale)
+            }
+            .onEnded { _ in
+                guard scale > 1.01 else { return }
+                settledOffset = clamped(offset, in: size, at: scale)
+                offset = settledOffset
+            }
+    }
+
+    private func clamped(_ proposed: CGSize, in size: CGSize, at scale: CGFloat) -> CGSize {
+        let maxX = max(0, size.width * (scale - 1) / 2)
+        let maxY = max(0, size.height * (scale - 1) / 2)
+        return CGSize(
+            width: min(max(proposed.width, -maxX), maxX),
+            height: min(max(proposed.height, -maxY), maxY)
+        )
+    }
+
+    private func reset() {
+        scale = 1
+        settledScale = 1
+        offset = .zero
+        settledOffset = .zero
+        onZoomStateChange(false)
     }
 }
 
@@ -2159,6 +2312,21 @@ private struct SipSharedRawNoteSection: View {
             .accessibilityIdentifier("sip.detail.journal.toggle")
             .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
+            if !isExpanded {
+                Text(text)
+                    .font(.system(.body, design: .serif, weight: .regular))
+                    .foregroundStyle(Color.espressoBrown)
+                    .lineLimit(3)
+                    .lineSpacing(3)
+                    .padding(.bottom, 8)
+
+                Button("Read journal note", action: toggle)
+                    .font(.system(.footnote, design: .default, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .frame(minHeight: 36)
+                    .buttonStyle(.plain)
+            }
+
             if isExpanded {
                 VStack(alignment: .leading, spacing: 16) {
                     Label(readerDescription, systemImage: visibilitySystemImage)
@@ -2217,6 +2385,46 @@ private struct SipSharedRawNoteSection: View {
         withAnimation(MugshotMotion.animation(MugshotMotion.reveal, reduceMotion: reduceMotion)) {
             isExpanded.toggle()
         }
+    }
+}
+
+private struct SipDetailCreatorCard: View {
+    let model: SipDetailContentModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            MugshotAvatar(
+                name: model.authorName,
+                size: 46,
+                imageURL: model.authorAvatarURL
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Creator")
+                    .font(.system(.caption2, design: .default, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(1.1)
+                    .foregroundStyle(Color.mugshotSage)
+                Text(model.authorName)
+                    .font(.system(.headline, design: .serif, weight: .semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                Text(model.authorUsername)
+                    .font(.system(.caption, design: .default, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.mugshotSage)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("sip.detail.creator")
     }
 }
 
@@ -2288,7 +2496,7 @@ private struct SipDetailCommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            MugshotAvatar(name: comment.authorName, size: 36)
+            MugshotAvatar(name: comment.authorName, size: 36, imageURL: comment.avatarURL)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
@@ -2361,15 +2569,36 @@ private struct SipDetailComposerBar: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(mentionSuggestions) { suggestion in
-                            Button("@\(suggestion.username)") {
+                            Button {
                                 onSelectMention(suggestion.id)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    MugshotAvatar(
+                                        name: suggestion.displayName,
+                                        size: 30,
+                                        imageURL: suggestion.avatarURL
+                                    )
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(suggestion.displayName)
+                                            .font(.system(.caption, design: .default, weight: .bold))
+                                            .foregroundStyle(Color.espressoBrown)
+                                        Text("@\(suggestion.username)")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.secondaryText)
+                                    }
+                                    if suggestion.isFriend {
+                                        Image(systemName: "person.2.fill")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(Color.mugshotSage)
+                                            .accessibilityLabel("Friend")
+                                    }
+                                }
+                                .padding(.horizontal, 9)
+                                .frame(minHeight: 42)
+                                .background(Color.creamWhite, in: Capsule())
+                                .overlay(Capsule().stroke(Color.mugshotLine, lineWidth: 1))
                             }
-                            .font(.system(.caption, design: .default, weight: .semibold))
-                            .foregroundStyle(Color.mugshotSage)
-                            .padding(.horizontal, 11)
-                            .frame(minHeight: 36)
-                            .background(Color.creamWhite, in: Capsule())
-                            .overlay(Capsule().stroke(Color.mugshotLine, lineWidth: 1))
+                            .buttonStyle(.plain)
                         }
                     }
                 }

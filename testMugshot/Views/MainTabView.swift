@@ -12,7 +12,7 @@ struct MainTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(MugshotGuestIntroductionPolicy.storageKey) private var hasSeenGuestIntroduction = false
-    @StateObject private var tabCoordinator = TabCoordinator()
+    @StateObject private var tabCoordinator: TabCoordinator
     @StateObject private var mapLocationManager = LocationManager()
     @StateObject private var systemRouter = SipSystemRouter.shared
     @StateObject private var activityStore = ActivityCenterStore()
@@ -42,9 +42,15 @@ struct MainTabView: View {
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
     @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
+    @State private var sharedProfileRoute: MugshotProfileSharedLinkRoute?
     @State private var publicCafeListRoute: PublicCafeListLinkRoute?
     @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
+
+    init(dataManager: DataManager, initialTab: Int = 1) {
+        self.dataManager = dataManager
+        _tabCoordinator = StateObject(wrappedValue: TabCoordinator(selectedTab: initialTab))
+    }
     
     var body: some View {
         routedScene
@@ -387,14 +393,21 @@ struct MainTabView: View {
         }
         .sheet(item: $sharedMugshotRoute) { route in
             NavigationStack {
-                PublicMugshotLinkView(route: route)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { sharedMugshotRoute = nil }
-                        }
-                    }
+                CanonicalMugshotLinkRouteView(
+                    route: route,
+                    currentUserID: authModel.authenticatedUser?.id,
+                    dataManager: dataManager
+                )
             }
-            .presentationDetents([.large])
+        }
+        .sheet(item: $sharedProfileRoute) { route in
+            NavigationStack {
+                SharedProfileView(
+                    source: .share(slug: route.slug),
+                    dataManager: dataManager
+                )
+                .environmentObject(authModel)
+            }
         }
         .sheet(item: $publicCafeListRoute) { route in
             NavigationStack {
@@ -441,6 +454,8 @@ struct MainTabView: View {
                 return
             } else if let route = MugshotSharedLinkRoute.resolve(url) {
                 sharedMugshotRoute = route
+            } else if let route = MugshotProfileSharedLinkRoute.resolve(url) {
+                sharedProfileRoute = route
             } else if let route = PublicCafeListLinkRoute.resolve(url) {
                 publicCafeListRoute = route
             } else if let accountID = authModel.authenticatedUser?.id,
@@ -1030,14 +1045,12 @@ struct MainTabView: View {
     }
 
     private var requiresSignedInOnboarding: Bool {
-        MugshotSignedInOnboardingGate.requiresPresentation(
-            isSignedIn: authModel.authenticatedUser != nil,
-            shouldOfferCapturePreferences: authModel.shouldOfferCapturePreferences,
-            hasPendingGuestSavedCafes: !authModel.pendingGuestSavedCafes.isEmpty,
-            hasAuthenticationPrompt: authenticationPrompt != nil,
-            isGuestSavedMergePresented: showsGuestSavedMerge,
-            isProductTourActive: productTourStep != nil
-        )
+#if DEBUG
+        if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
+            return true
+        }
+#endif
+        return false
     }
 
     private var signedInOnboardingPresentation: Binding<Bool> {

@@ -13,17 +13,21 @@ struct MugshotShareTests {
         #expect(MugshotShareFormat.post.pixelSize.height == 1_350)
     }
 
-    @Test func multiplePhotosDefaultToSmartCollage() {
+    @Test func sharingDefaultsToOnePhotoAndOffersDeterministicCollageSizes() {
         #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 0) == .singlePhoto)
         #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 1) == .singlePhoto)
-        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 2) == .smartCollage)
+        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 2) == .singlePhoto)
+        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 4) == .singlePhoto)
         #expect(
             MugshotSharePhotoLayout.availableLayouts(photoCount: 1) == [.singlePhoto]
         )
         #expect(
             MugshotSharePhotoLayout.availableLayouts(photoCount: 4)
-                == [.singlePhoto, .smartCollage]
+                == [.singlePhoto, .twoPhoto, .threePhoto, .fourPhoto]
         )
+        #expect(MugshotSharePhotoLayout.twoPhoto.photoLimit == 2)
+        #expect(MugshotSharePhotoLayout.threePhoto.photoLimit == 3)
+        #expect(MugshotSharePhotoLayout.fourPhoto.photoLimit == 4)
     }
 
     @Test func destinationDefaultsMatchNativeHandoffs() {
