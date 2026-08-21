@@ -25,6 +25,8 @@ final class AppAuthModel: ObservableObject {
     @Published private(set) var profile: SupabaseUserProfile?
     @Published private(set) var isUpdatingProfile = false
     @Published private(set) var profileUpdateError: String?
+    @Published private(set) var isCompletingProfileSetup = false
+    @Published private(set) var profileSetupError: String?
     @Published private(set) var pendingGuestSavedCafes: [Cafe] = []
     @Published private(set) var isMergingGuestSaved = false
     @Published private(set) var guestSavedMergeError: String?
@@ -850,6 +852,105 @@ final class AppAuthModel: ObservableObject {
             isUpdatingProfile = false
             return false
         }
+    }
+
+    func updateBanner(_ image: UIImage, dataManager: DataManager) async -> Bool {
+        guard let authenticatedUser,
+              let profileService,
+              let authService else { return false }
+        let expectedAccountID = authenticatedUser.id
+        let mutationID = UUID()
+        profileMutationID = mutationID
+        isUpdatingProfile = true
+        profileUpdateError = nil
+
+        do {
+            let client = try SupabaseClientProvider.shared.client()
+            let mediaService = ProfileMediaService(client: client)
+            let previousBannerURL = profile?.bannerURL
+            let bannerURL = try await mediaService.uploadBanner(
+                userId: expectedAccountID,
+                image: image
+            )
+            guard profileMutationID == mutationID,
+                  isCurrentAccount(expectedAccountID, authService: authService) else {
+                return false
+            }
+            let updatedProfile = try await profileService.updateBanner(
+                userId: expectedAccountID,
+                bannerURL: bannerURL
+            )
+            guard profileMutationID == mutationID,
+                  isCurrentAccount(expectedAccountID, authService: authService) else {
+                return false
+            }
+            profile = updatedProfile
+            dataManager.applyAuthenticatedProfile(updatedProfile)
+            isUpdatingProfile = false
+            await mediaService.removeBanner(at: previousBannerURL)
+            return true
+        } catch {
+            guard profileMutationID == mutationID,
+                  isCurrentAccount(expectedAccountID, authService: authService) else {
+                return false
+            }
+            profileUpdateError = MugshotUserFacingError.message(for: error, context: .account)
+            isUpdatingProfile = false
+            return false
+        }
+    }
+
+    func completeProfileSetup(
+        displayName: String,
+        username: String,
+        bio: String,
+        location: String,
+        instagramHandle: String,
+        websiteURL: String,
+        favoriteDrink: String,
+        dataManager: DataManager
+    ) async -> Bool {
+        guard let authenticatedUser,
+              let authService else { return false }
+        let expectedAccountID = authenticatedUser.id
+        isCompletingProfileSetup = true
+        profileSetupError = nil
+        defer {
+            if self.authenticatedUser?.id == expectedAccountID {
+                isCompletingProfileSetup = false
+            }
+        }
+
+        do {
+            let service = ProfileSetupService(
+                client: try SupabaseClientProvider.shared.client()
+            )
+            let completedProfile = try await service.complete(
+                displayName: displayName,
+                username: username,
+                bio: bio,
+                location: location,
+                instagramHandle: instagramHandle,
+                websiteURL: websiteURL,
+                favoriteDrink: favoriteDrink
+            )
+            guard isCurrentAccount(expectedAccountID, authService: authService) else {
+                return false
+            }
+            profile = completedProfile
+            dataManager.applyAuthenticatedProfile(completedProfile)
+            return true
+        } catch {
+            guard isCurrentAccount(expectedAccountID, authService: authService) else {
+                return false
+            }
+            profileSetupError = MugshotUserFacingError.message(for: error, context: .account)
+            return false
+        }
+    }
+
+    func clearProfileSetupError() {
+        profileSetupError = nil
     }
 
     func deleteAccount(

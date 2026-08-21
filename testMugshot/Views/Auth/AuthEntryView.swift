@@ -11,6 +11,7 @@ struct AuthEntryView: View {
     var contextTitle: String? = nil
     var contextMessage: String? = nil
     var showsCloseButton = false
+    var startsCreatingAccount = false
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
     
@@ -253,6 +254,11 @@ struct AuthEntryView: View {
                     
                     Spacer(minLength: 40)
                 }
+            }
+        }
+        .onAppear {
+            if startsCreatingAccount {
+                isCreatingAccount = true
             }
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in

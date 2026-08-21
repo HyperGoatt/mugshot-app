@@ -36,10 +36,25 @@ struct MugshotOnboardingTests {
     }
 
     @Test func productTourVisitsEveryCoreDestinationAndShareShortcutBeforeFirstSip() {
-        #expect(MugshotOnboardingPlan.totalSteps == 8)
+        #expect(MugshotOnboardingPlan.totalSteps == 10)
         #expect(MugshotProductTourStep.allCases.map(\.number) == [4, 5, 6, 7, 8])
         #expect(MugshotProductTourStep.allCases.map(\.tabIndex) == [0, 1, 3, 4, 0])
         #expect(MugshotProductTourStep.shareImport.number == 8)
+    }
+
+    @Test func firstLaunchEducationCoversCoreTabsFriendsAndGoogleMapsBeforeAuthentication() {
+        #expect(MugshotFirstLaunchStep.allCases.count == 10)
+        #expect(MugshotFirstLaunchStep.allCases.map(\.number) == Array(1...10))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.map))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.feed))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.add))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.saved))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.journal))
+        #expect(MugshotFirstLaunchStep.allCases.contains(.friends))
+        #expect(MugshotFirstLaunchStep.allCases.last == .googleMaps)
+        #expect(MugshotFirstLaunchStep.friends.message.contains("confirmed mutual friends"))
+        #expect(MugshotFirstLaunchStep.friends.message.contains("Private is owner-only"))
+        #expect(MugshotFirstLaunchStep.friends.message.contains("Everyone is public"))
     }
 
     @Test func signedInOnboardingRemainsRequiredUntilCompletedOrSkipped() {
