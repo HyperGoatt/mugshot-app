@@ -37,7 +37,8 @@ evidence confirms it.
 - In-app Activity with unread count, pagination, read actions, notification
   category preferences, and account-bound deep links.
 - Caller-bound APNs registration and a durable Supabase delivery worker with
-  production credentials and scheduling configured.
+  production credentials; the missing durable schedule is being restored by
+  the current release.
 
 ## Data authority
 
@@ -52,9 +53,9 @@ No local sample, cache, or fallback count may be presented as remote truth.
 
 ## Notification status
 
-The notification system is implemented and production configured, not
-physically accepted. The Release/TestFlight app carries the production APNs
-entitlement and the backend has both Apple topics. Physical Debug currently
+The notification system is implemented but not yet fully production-scheduled
+or physically accepted. The Release/TestFlight app carries the production APNs
+entitlement and the backend worker has both Apple topics. Physical Debug currently
 lacks its sandbox entitlement and lifecycle hardening; those are active sprint
 work. Badge-aware v3 registration, final unread-count revalidation, worker
 payloads, and canonical scheduling are implemented and locally verified in
@@ -79,7 +80,7 @@ remaining acceptance matrix.
 
 `./scripts/verify-no-simulator.sh full-static` passed 11 checks with zero
 failures for the documentation baseline. The notification backend branch later
-passed full-static 13/0/0 on 2026-08-24, including local parsing of 183 SQL
+passed full-static 13/0/0 on 2026-08-24, including local parsing of 184 SQL
 files. A data-less disposable Supabase branch then replayed to repository head
 and passed all 54 remote SQL contracts plus the canonical minute worker's
 fail-closed invocation. This proves source and disposable-QA readiness, not

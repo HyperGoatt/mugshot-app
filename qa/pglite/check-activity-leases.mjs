@@ -344,5 +344,51 @@ if (
   throw new Error('v3 revalidation did not return the authoritative badge contract')
 }
 
-console.log('PGlite fenced lease, retry, invalidity, eligibility, and badge-count checks passed')
+const staleCutoverEvent = '92000000-0000-4000-8000-000000000008'
+const freshCutoverEvent = '92000000-0000-4000-8000-000000000009'
+const cutoverDevice = '93000000-0000-4000-8000-000000000006'
+const staleCutoverDelivery = '94000000-0000-4000-8000-000000000006'
+const freshCutoverDelivery = '94000000-0000-4000-8000-000000000007'
+await db.exec(`
+insert into public.activity_events(id,recipient_id,kind,title,body,deep_link)
+values
+  ('${staleCutoverEvent}','${recipient}','comment','Title','Body','mugshot://activity'),
+  ('${freshCutoverEvent}','${recipient}','tag','Title','Body','mugshot://activity');
+insert into public.user_devices(id,user_id,device_id,push_token,environment)
+values (
+  '${cutoverDevice}','${recipient}','95000000-0000-4000-8000-000000000006',
+  '${'f'.repeat(64)}','production'
+);
+insert into private.activity_push_deliveries(
+  id,activity_event_id,device_record_id,created_at
+) values
+  ('${staleCutoverDelivery}','${staleCutoverEvent}','${cutoverDevice}',now()-interval '1 hour'),
+  ('${freshCutoverDelivery}','${freshCutoverEvent}','${cutoverDevice}',now()-interval '5 minutes');
+`)
+const cutoverMigration = await fs.readFile(
+  repoPath +
+    'supabase/migrations/20260824171405_expire_pre_schedule_activity_backlog.sql',
+  'utf8',
+)
+await db.exec(cutoverMigration)
+const cutoverState = await db.query(`
+  select id,status,last_error_code
+  from private.activity_push_deliveries
+  where id in ('${staleCutoverDelivery}','${freshCutoverDelivery}','${badgeDelivery}')
+  order by id
+`)
+const stateByID = new Map(cutoverState.rows.map((row) => [row.id, row]))
+if (
+  stateByID.get(staleCutoverDelivery)?.status !== 'cancelled' ||
+  stateByID.get(staleCutoverDelivery)?.last_error_code !==
+    'pre_schedule_backlog_expired' ||
+  stateByID.get(freshCutoverDelivery)?.status !== 'pending' ||
+  stateByID.get(badgeDelivery)?.status !== 'processing'
+) {
+  throw new Error('schedule cutover did not expire only the stale pending backlog')
+}
+
+console.log(
+  'PGlite fenced lease, retry, invalidity, eligibility, badge-count, and schedule-cutover checks passed',
+)
 await db.close()
