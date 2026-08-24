@@ -60,6 +60,32 @@ struct AdaptiveMapClusteringTests {
         #expect(region.span.latitudeDelta >= 0.08)
     }
 
+    @Test func launchCameraQueuesTheFirstLocationWhileTheFallbackSettles() {
+        let currentLocationRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.7765, longitude: -79.9311),
+            span: MapInitialCameraPolicy.nearbySpan
+        )
+
+        #expect(MapCameraReconciliationPolicy.shouldQueueExternalRegion(
+            cameraIsChanging: true,
+            cameraSourceRegion: MapInitialCameraPolicy.broadFallbackRegion,
+            requestedRegion: currentLocationRegion
+        ))
+    }
+
+    @Test func cameraDoesNotQueueAnUnchangedBindingDuringMapKitMovement() {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 32.7765, longitude: -79.9311),
+            span: MapInitialCameraPolicy.nearbySpan
+        )
+
+        #expect(!MapCameraReconciliationPolicy.shouldQueueExternalRegion(
+            cameraIsChanging: true,
+            cameraSourceRegion: region,
+            requestedRegion: region
+        ))
+    }
+
     @Test func cameraPolicyUsesHysteresisAcrossSemanticBoundary() {
         #expect(
             AdaptiveMapCameraPolicy.displayMode(

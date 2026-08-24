@@ -261,15 +261,21 @@ struct MugshotIconButton: View {
 struct MugshotScreenHeader<Trailing: View>: View {
     let title: String
     let subtitle: String?
+    let subtitleLineLimit: Int?
+    let subtitleMinimumScaleFactor: CGFloat
     @ViewBuilder var trailing: Trailing
 
     init(
         _ title: String,
         subtitle: String? = nil,
+        subtitleLineLimit: Int? = nil,
+        subtitleMinimumScaleFactor: CGFloat = 1,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.subtitleLineLimit = subtitleLineLimit
+        self.subtitleMinimumScaleFactor = subtitleMinimumScaleFactor
         self.trailing = trailing()
     }
 
@@ -284,6 +290,9 @@ struct MugshotScreenHeader<Trailing: View>: View {
                     Text(subtitle)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.tertiaryText)
+                        .lineLimit(subtitleLineLimit)
+                        .minimumScaleFactor(subtitleMinimumScaleFactor)
+                        .allowsTightening(subtitleMinimumScaleFactor < 1)
                 }
             }
 

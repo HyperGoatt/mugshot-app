@@ -32,6 +32,8 @@ this file.
 | ID | Received | Build | Severity | Summary | Reproduction | Verification tier | Branch/PR | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | IOS-001 | 2026-08-24 | 0.5.3 (5), signed Debug | P2 | Feed Activity bell stayed at `1` after marking the only unread item read inside the Activity sheet; relaunch reconciled it to zero | Receive one unread item, open Activity, open the item, return, and dismiss Activity | Tier 3 | `codex/activity-unread-badge-sync` | Resolved: full-static 12/0/1 and signed-device reproduction passed; Feed cleared immediately without relaunch |
+| IOS-002 | 2026-08-24 | 0.5.3 (5), signed Debug | P3 | Feed left too much space below its scope control and wrapped the Your Mix subtitle across three lines | Open Feed with Your Mix selected and its education card dismissed | Tier 1 | `codex/feed-map-launch-polish` / PR #57 | Resolved in source: the control-to-post gap is reduced from 18 to 8 points and the subtitle is constrained to two lines; full-static passed 12/0/1 |
+| IOS-003 | 2026-08-24 | 0.5.3 (5), signed Debug | P2 | Map opened on the broad zero-coordinate fallback instead of an already-authorized user's active location until the location button was tapped | Launch the app with location already authorized and Map selected | Tier 3 | `codex/feed-map-launch-polish` / PR #57 | Implemented and locally verified: the initial MapKit delegate transition can no longer overwrite the first current-location camera request; full-static passed 12/0/1 and focused arbitration tests compile, with signed-device launch acceptance remaining |
 
 ## Current iOS acceptance matrix
 
