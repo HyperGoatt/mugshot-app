@@ -8,7 +8,9 @@ last_verified: 2026-08-24
 
 ## Now: real notifications and TestFlight learning
 
-- Adopt the live `push_badge_sync` capability in the hardened iOS coordinator.
+- Enable Push Notifications for the Debug App ID, regenerate its development
+  profile, and finish signed-device acceptance for the implemented
+  `push_badge_sync` capability adoption and hardened coordinator.
 - Physically accept sandbox and production APNs across foreground, background,
   terminated launch, deep links, badges, preferences, sign-out, and account
   changes.

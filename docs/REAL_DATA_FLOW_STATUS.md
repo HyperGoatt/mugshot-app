@@ -24,9 +24,9 @@ must not overrule an authoritative remote result.
 | Likes, comments, mentions, reactions and tags | Supabase social rows/RPCs | Optimistic UI only | Reconcile to server result; stale account responses are discarded |
 | Friends, blocks, reports and enforcement | Supabase caller-bound RPCs | Presentation cache | Privacy and block checks fail closed |
 | Saved cafes and cafe lists | `user_cafe_states` and cafe-list RPCs | Guest saved state and merge queue | Preserve explicit user intent until merged or dismissed |
-| Activity and unread count | `activity_events` through caller-bound RPCs | Current page and pending route | Push failure never removes Activity history |
-| Push preferences and device ownership | Versioned preference/device RPCs; v3 badge capability defaults false | Installation ID, last token hint, uncertainty flag | Register only for the exact authenticated account; malformed capability data disables remote registration |
-| Nearby reminders | iOS notification/location state | Region/cooldown store | Independent of remote Activity delivery |
+| Activity and unread count | `activity_events` through caller-bound RPCs | Current page, pending route and app-icon presentation | Push failure never removes Activity history; successful refresh/read actions apply the authoritative unread badge |
+| Push preferences and device ownership | Versioned preference/device RPCs plus `get_backend_capabilities_v1`; v3 badge capability defaults false | Installation ID, last token hint, uncertainty flag | Register v3 only for the exact authenticated account and typed build environment; malformed capability data disables remote registration |
+| Nearby reminders | Shared iOS notification authorization plus local location state | Region/cooldown store | Independent of APNs delivery while still triggering one safe registration reconciliation after permission changes |
 | Analytics | PostHog project | SDK queue | No private content or product identifiers |
 
 ## Compatibility behavior
@@ -34,8 +34,9 @@ must not overrule an authoritative remote result.
 The client uses versioned RPCs and treats missing functions as compatibility
 states, not empty data. Existing Activity code retains a hardened legacy read
 fallback. The backend now advertises additive `push_badge_sync` support while
-retaining v2 device registration and delivery revalidation; the client-side
-capability read remains the next implementation stage.
+retaining v2 device registration and delivery revalidation. Source build 5 now
+loads and validates that contract at account activation, registers badge support
+only through v3, and reports missing layers without disabling Activity.
 
 ## Current migration boundary
 

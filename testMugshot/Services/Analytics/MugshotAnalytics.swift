@@ -78,6 +78,50 @@ enum MugshotAnalyticsScreenSource: String {
     case notification
 }
 
+enum ActivityNotificationEducationSource: String {
+    case activityCenter = "activity_center"
+    case notificationSettings = "notification_settings"
+    case nearbyReminder = "nearby_reminder"
+
+    var requiresRemotePush: Bool { self != .nearbyReminder }
+}
+
+enum ActivityNotificationRegistrationResult: String {
+    case registered
+    case tokenRotated = "token_rotated"
+    case unregistered
+    case offlineUnregister = "offline_unregister"
+    case capabilityUnavailable = "capability_unavailable"
+    case ownershipFailed = "ownership_failed"
+    case apnsFailed = "apns_failed"
+    case backendFailed = "backend_failed"
+}
+
+enum ActivityNotificationPreference: String, CaseIterable {
+    case pushEnabled = "push_enabled"
+    case friendPosts = "friend_posts"
+    case tags
+    case collaborativeListInvitations = "collaborative_list_invitations"
+    case likes
+    case comments
+    case reactions
+    case friendRequests = "friend_requests"
+}
+
+enum ActivityOpenSource: String, Codable {
+    case activityBell = "activity_bell"
+    case pushTap = "push_tap"
+    case coldLaunchPush = "cold_launch_push"
+    case deepLink = "deep_link"
+}
+
+enum ActivityRouteResult: String {
+    case accepted
+    case accountRejected = "account_rejected"
+    case malformed
+    case unavailableDestination = "unavailable_destination"
+}
+
 enum MugshotAuthenticationFlow: String {
     case signIn = "sign_in"
     case signUp = "sign_up"
@@ -374,6 +418,21 @@ enum MugshotAnalyticsEvent: Equatable {
         surface: MugshotAnalyticsSurface
     )
     case commentAdded(surface: MugshotAnalyticsSurface)
+    case notificationEducationViewed(source: ActivityNotificationEducationSource)
+    case notificationPermissionResult(
+        ActivityPushPermissionState,
+        source: ActivityNotificationEducationSource
+    )
+    case notificationRegistrationResult(
+        ActivityNotificationRegistrationResult,
+        environment: ActivityPushEnvironment?
+    )
+    case notificationPreferenceChanged(
+        ActivityNotificationPreference,
+        enabled: Bool
+    )
+    case activityOpened(source: ActivityOpenSource)
+    case activityRouteResult(ActivityRouteResult, source: ActivityOpenSource)
     case discovery(
         action: MugshotDiscoveryAnalyticsAction,
         source: DiscoveryAttributionSource,
@@ -594,6 +653,48 @@ enum MugshotAnalyticsEvent: Equatable {
             return payload(
                 "comment_added",
                 ["surface": .string(surface.rawValue)]
+            )
+        case .notificationEducationViewed(let source):
+            return payload(
+                "notification_education_viewed",
+                ["source": .string(source.rawValue)]
+            )
+        case .notificationPermissionResult(let result, let source):
+            return payload(
+                "notification_permission_result",
+                [
+                    "result": .string(result.rawValue),
+                    "source": .string(source.rawValue)
+                ]
+            )
+        case .notificationRegistrationResult(let result, let environment):
+            var properties: [String: MugshotAnalyticsPropertyValue] = [
+                "result": .string(result.rawValue)
+            ]
+            if let environment {
+                properties["environment"] = .string(environment.rawValue)
+            }
+            return payload("notification_registration_result", properties)
+        case .notificationPreferenceChanged(let preference, let enabled):
+            return payload(
+                "notification_preference_changed",
+                [
+                    "preference": .string(preference.rawValue),
+                    "enabled": .boolean(enabled)
+                ]
+            )
+        case .activityOpened(let source):
+            return payload(
+                "activity_opened",
+                ["source": .string(source.rawValue)]
+            )
+        case .activityRouteResult(let result, let source):
+            return payload(
+                "activity_route_result",
+                [
+                    "result": .string(result.rawValue),
+                    "source": .string(source.rawValue)
+                ]
             )
         case .discovery(let action, let source, let surface, let rankingVersion, let cafeID):
             var properties: [String: MugshotAnalyticsPropertyValue] = [

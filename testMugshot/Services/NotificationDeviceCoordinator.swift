@@ -2,112 +2,187 @@ import Combine
 import UIKit
 @preconcurrency import UserNotifications
 
-/// Owns the narrow boundary between iOS notification authorization and
-/// Mugshot's caller-bound device RPCs. The last token is retained only as an
-/// installation claim hint and is never registered unless both the current
-/// account and its server preference allow push.
+/// Owns the narrow boundary between shared iOS notification authorization and
+/// Mugshot's caller-bound device RPCs. The APNs token is retained only as an
+/// installation claim hint and is never sent unless the current account,
+/// backend capabilities, preference, permission, and APNs environment agree.
 @MainActor
 final class NotificationDeviceCoordinator: ObservableObject {
     static let shared = NotificationDeviceCoordinator()
 
     private static let tokenKey = "MugshotActivity.lastAPNSToken.v2"
     private static let ownershipUncertainKey = "MugshotActivity.pushOwnershipUncertain.v2"
+    private static let installationKey = "MugshotActivity.installationID.v1"
 
     @Published private(set) var capability: ActivityPushCapability
+    @Published private(set) var backendState: ActivityPushBackendState = .unchecked
     @Published private(set) var permissionState: ActivityPushPermissionState = .notRequested
     @Published private(set) var registrationState: ActivityRegistrationState = .idle
 
-    private let center: UNUserNotificationCenter
+    private let authorizationProvider: any NotificationAuthorizationProviding
+    private let remoteRegistrar: any RemoteNotificationRegistering
+    private let badgeUpdater: any ActivityBadgeUpdating
+    private let clientFactory: any ActivityNotificationClientCreating
     private let defaults: UserDefaults
     private let installationID: UUID
+    private let captureAnalytics: (MugshotAnalyticsEvent) -> Void
+
     private var accountID: UUID?
+    private var activationID = UUID()
+    private var deviceService: (any ActivityDeviceServicing)?
     private var serverPushEnabled = false
     private var token: String?
     private var ownershipUncertain = false
 
     init(
-        center: UNUserNotificationCenter = .current(),
+        authorizationProvider: (any NotificationAuthorizationProviding)? = nil,
+        remoteRegistrar: (any RemoteNotificationRegistering)? = nil,
+        badgeUpdater: (any ActivityBadgeUpdating)? = nil,
+        clientFactory: (any ActivityNotificationClientCreating)? = nil,
         defaults: UserDefaults = .standard,
-        capability: ActivityPushCapability? = nil
+        capability: ActivityPushCapability? = nil,
+        installationID: UUID? = nil,
+        captureAnalytics: @escaping (MugshotAnalyticsEvent) -> Void = {
+            MugshotAnalytics.shared.capture($0)
+        }
     ) {
-        self.center = center
+        self.authorizationProvider = authorizationProvider
+            ?? SystemNotificationAuthorizationProvider()
+        self.remoteRegistrar = remoteRegistrar ?? SystemRemoteNotificationRegistrar()
+        self.badgeUpdater = badgeUpdater ?? SystemActivityBadgeUpdater.shared
+        self.clientFactory = clientFactory ?? LiveActivityNotificationClientFactory()
         self.defaults = defaults
         self.capability = capability ?? Self.detectCapability()
+        self.captureAnalytics = captureAnalytics
 
-        let key = "MugshotActivity.installationID.v1"
-        if let stored = defaults.string(forKey: key),
-           let identifier = UUID(uuidString: stored) {
-            installationID = identifier
+        if let installationID {
+            self.installationID = installationID
+        } else if let stored = defaults.string(forKey: Self.installationKey),
+                  let identifier = UUID(uuidString: stored) {
+            self.installationID = identifier
         } else {
             let identifier = UUID()
-            installationID = identifier
-            defaults.set(identifier.uuidString.lowercased(), forKey: key)
+            self.installationID = identifier
+            defaults.set(identifier.uuidString.lowercased(), forKey: Self.installationKey)
         }
         token = defaults.string(forKey: Self.tokenKey)
         ownershipUncertain = defaults.bool(forKey: Self.ownershipUncertainKey)
     }
 
     func activate(accountID newAccountID: UUID?) async {
-        guard accountID != newAccountID else {
-            await refreshPermission()
-            guard accountID == newAccountID else { return }
-            await reconcileRegistration(expectedAccountID: newAccountID)
+        let currentActivationID = UUID()
+        activationID = currentActivationID
+        accountID = newAccountID
+        deviceService = nil
+        token = defaults.string(forKey: Self.tokenKey)
+        serverPushEnabled = false
+        backendState = newAccountID == nil ? .unchecked : .checking
+        registrationState = .idle
+        await refreshPermission(reconcileRegistration: false)
+        guard activationID == currentActivationID else { return }
+
+        guard let newAccountID else {
+            remoteRegistrar.unregisterForRemoteNotifications()
+            await badgeUpdater.setBadgeCount(0)
             return
         }
 
-        accountID = newAccountID
-        token = defaults.string(forKey: Self.tokenKey)
-        serverPushEnabled = false
-        registrationState = .idle
-        await refreshPermission()
-        guard let newAccountID,
-              accountID == newAccountID else { return }
-
         do {
-            let client = try SupabaseClientProvider.shared.client()
-            guard client.auth.currentUser?.id == newAccountID else { return }
-            let enabled = try await ActivityService(client: client).preferences(
+            let service = try clientFactory.makeDeviceService(accountID: newAccountID)
+            let capabilities = try await service.backendCapabilities()
+            guard activationID == currentActivationID,
+                  accountID == newAccountID else { return }
+            guard let unavailableReason = Self.unavailableBackendReason(capabilities) else {
+                backendState = .unavailable(
+                    "Mugshot’s push capability response was incomplete. In-app Activity still works."
+                )
+                registrationState = .failed(
+                    "Push capability couldn’t be verified. In-app Activity is still available."
+                )
+                remoteRegistrar.unregisterForRemoteNotifications()
+                captureRegistration(.capabilityUnavailable)
+                return
+            }
+            if !unavailableReason.isEmpty {
+                backendState = .unavailable(unavailableReason)
+                registrationState = .failed(unavailableReason)
+                remoteRegistrar.unregisterForRemoteNotifications()
+                captureRegistration(.capabilityUnavailable)
+                return
+            }
+
+            let preferences = try await service.preferences()
+            guard activationID == currentActivationID,
+                  accountID == newAccountID else { return }
+            deviceService = service
+            backendState = .available(schemaRelease: capabilities.schemaRelease)
+            serverPushEnabled = preferences.pushEnabled
+            await reconcileRegistration(
+                expectedAccountID: newAccountID,
+                expectedActivationID: currentActivationID
+            )
+        } catch ActivityServiceError.backendCapabilitiesUnavailable {
+            handleCapabilityFailure(
+                "This Mugshot backend does not advertise push capabilities. In-app Activity still works.",
+                activationID: currentActivationID,
                 accountID: newAccountID
-            ).pushEnabled
-            guard accountID == newAccountID,
-                  client.auth.currentUser?.id == newAccountID else { return }
-            serverPushEnabled = enabled
-            await reconcileRegistration(expectedAccountID: newAccountID)
+            )
+        } catch ActivityServiceError.backendCapabilitiesMalformed, DecodingError.dataCorrupted,
+                DecodingError.keyNotFound, DecodingError.typeMismatch, DecodingError.valueNotFound {
+            handleCapabilityFailure(
+                "Mugshot couldn’t verify the backend push contract. In-app Activity still works.",
+                activationID: currentActivationID,
+                accountID: newAccountID
+            )
         } catch ActivityServiceError.notificationPreferencesUnavailable {
-            guard accountID == newAccountID else { return }
-            registrationState = .failed("Push isn’t available yet. In-app Activity still works.")
+            handleCapabilityFailure(
+                "Push preferences are unavailable in this backend. In-app Activity still works.",
+                activationID: currentActivationID,
+                accountID: newAccountID
+            )
         } catch {
-            guard accountID == newAccountID else { return }
-            // In-app activity remains available. Do not register a token when
-            // the account's current push preference cannot be proven.
-            registrationState = .failed("Push settings couldn’t be verified. In-app activity is still available.")
+            handleCapabilityFailure(
+                "Mugshot couldn’t reach the push capability service. In-app Activity still works.",
+                activationID: currentActivationID,
+                accountID: newAccountID
+            )
         }
     }
 
-    func refreshPermission() async {
-        guard capability.isConfigured else {
-            permissionState = .unavailable
-            return
-        }
-        let settings = await center.notificationSettings()
-        permissionState = Self.permissionState(for: settings.authorizationStatus)
+    func refreshPermission(reconcileRegistration shouldReconcile: Bool = true) async {
+        let previousState = permissionState
+        permissionState = await authorizationProvider.currentPermissionState()
+        guard shouldReconcile,
+              previousState != permissionState else { return }
+        await reconcileRegistration(
+            expectedAccountID: accountID,
+            expectedActivationID: activationID
+        )
     }
 
     @discardableResult
-    func requestAuthorization() async -> Bool {
-        guard capability.isConfigured else {
-            permissionState = .unavailable
+    func requestAuthorization(source: ActivityNotificationEducationSource) async -> Bool {
+        captureAnalytics(.notificationEducationViewed(source: source))
+        if source.requiresRemotePush, !capability.isConfigured {
+            captureAnalytics(.notificationPermissionResult(.unavailable, source: source))
             return false
         }
 
         do {
-            _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-            await refreshPermission()
-            await reconcileRegistration(expectedAccountID: accountID)
+            _ = try await authorizationProvider.requestAuthorization()
+            await refreshPermission(reconcileRegistration: false)
+            captureAnalytics(.notificationPermissionResult(permissionState, source: source))
+            await reconcileRegistration(
+                expectedAccountID: accountID,
+                expectedActivationID: activationID
+            )
             return permissionState == .authorized || permissionState == .provisional
         } catch {
-            registrationState = .failed("iOS couldn’t finish notification permission. You can try again in Settings.")
-            await refreshPermission()
+            registrationState = .failed(
+                "iOS couldn’t finish notification permission. You can try again in Settings."
+            )
+            await refreshPermission(reconcileRegistration: false)
+            captureAnalytics(.notificationPermissionResult(.unsupported, source: source))
             return false
         }
     }
@@ -116,7 +191,10 @@ final class NotificationDeviceCoordinator: ObservableObject {
         guard accountID == expectedAccountID else { return }
         serverPushEnabled = enabled
         if enabled {
-            await reconcileRegistration(expectedAccountID: expectedAccountID)
+            await reconcileRegistration(
+                expectedAccountID: expectedAccountID,
+                expectedActivationID: activationID
+            )
         } else {
             await unregisterCurrentInstallation(
                 clearAccount: false,
@@ -131,84 +209,125 @@ final class NotificationDeviceCoordinator: ObservableObject {
 
     func deactivateAfterAccountDeletion(accountID deletedAccountID: UUID) {
         guard accountID == deletedAccountID else { return }
+        activationID = UUID()
         accountID = nil
+        deviceService = nil
         serverPushEnabled = false
+        backendState = .unchecked
         setOwnershipUncertain(false)
         registrationState = .idle
-        UIApplication.shared.unregisterForRemoteNotifications()
-        clearVisibleNotifications()
+        remoteRegistrar.unregisterForRemoteNotifications()
+        authorizationProvider.clearVisibleNotifications()
+        Task { await badgeUpdater.setBadgeCount(0) }
     }
 
-    func didRegisterForRemoteNotifications(deviceToken: Data) {
+    func didRegisterForRemoteNotifications(deviceToken: Data) async {
         let resolvedToken = deviceToken.map { String(format: "%02x", $0) }.joined()
-        if token != resolvedToken {
+        let hadToken = token != nil
+        let rotated = token != resolvedToken
+        if rotated {
             token = resolvedToken
             defaults.set(resolvedToken, forKey: Self.tokenKey)
             setOwnershipUncertain(true)
         }
-        Task { await registerCurrentTokenIfAllowed() }
+        await registerCurrentTokenIfAllowed()
+        if rotated, hadToken {
+            captureRegistration(
+                registrationState == .registered ? .tokenRotated : .backendFailed
+            )
+        }
     }
 
     func didFailToRegisterForRemoteNotifications(_ error: Error) {
         guard capability.isConfigured else { return }
-        registrationState = .failed("This device couldn’t register for push. In-app activity is still available.")
+        registrationState = .failed(
+            "This iPhone couldn’t register with APNs. In-app Activity is still available."
+        )
+        captureRegistration(.apnsFailed)
     }
 
-    private func reconcileRegistration(expectedAccountID: UUID?) async {
+    func acceptsPush(for recipientID: UUID) -> Bool {
+        accountID == recipientID && !ownershipUncertain
+    }
+
+    private func reconcileRegistration(
+        expectedAccountID: UUID?,
+        expectedActivationID: UUID
+    ) async {
         guard let expectedAccountID,
+              activationID == expectedActivationID,
               accountID == expectedAccountID,
               serverPushEnabled,
-              capability.isConfigured else { return }
-        guard permissionState == .authorized || permissionState == .provisional else { return }
+              case .available = backendState,
+              capability.isConfigured,
+              let deviceService else { return }
+        guard permissionState == .authorized || permissionState == .provisional else {
+            remoteRegistrar.unregisterForRemoteNotifications()
+            return
+        }
         registrationState = .registering
         do {
             guard case .configured(let environment) = capability else { return }
-            let client = try SupabaseClientProvider.shared.client()
-            guard client.auth.currentUser?.id == expectedAccountID else { return }
-            try await ActivityService(client: client).claimDeviceInstallation(
+            try await deviceService.claimDeviceInstallation(
                 installationID: installationID,
                 knownPushToken: token,
-                environment: environment,
-                accountID: expectedAccountID
+                environment: environment
             )
-            guard accountID == expectedAccountID,
-                  client.auth.currentUser?.id == expectedAccountID else { return }
+            guard activationID == expectedActivationID,
+                  accountID == expectedAccountID else { return }
             setOwnershipUncertain(false)
-            UIApplication.shared.registerForRemoteNotifications()
-            await registerCurrentTokenIfAllowed(expectedAccountID: expectedAccountID)
+            remoteRegistrar.registerForRemoteNotifications()
+            await registerCurrentTokenIfAllowed(
+                expectedAccountID: expectedAccountID,
+                expectedActivationID: expectedActivationID
+            )
         } catch {
-            guard accountID == expectedAccountID else { return }
-            UIApplication.shared.unregisterForRemoteNotifications()
+            guard activationID == expectedActivationID,
+                  accountID == expectedAccountID else { return }
+            remoteRegistrar.unregisterForRemoteNotifications()
             setOwnershipUncertain(true)
-            registrationState = .failed("Push ownership couldn’t be verified. In-app activity is still available.")
+            registrationState = .failed(
+                "Push ownership couldn’t be verified with Mugshot. In-app Activity is still available."
+            )
+            captureRegistration(.ownershipFailed)
         }
     }
 
-    private func registerCurrentTokenIfAllowed(expectedAccountID: UUID? = nil) async {
-        guard let activeAccountID = accountID,
+    private func registerCurrentTokenIfAllowed(
+        expectedAccountID: UUID? = nil,
+        expectedActivationID: UUID? = nil
+    ) async {
+        let activeActivationID = activationID
+        guard expectedActivationID == nil || expectedActivationID == activeActivationID,
+              let activeAccountID = accountID,
               expectedAccountID == nil || expectedAccountID == activeAccountID,
               serverPushEnabled,
               permissionState == .authorized || permissionState == .provisional,
+              case .available = backendState,
               case .configured(let environment) = capability,
-              let token else { return }
+              let token,
+              let deviceService else { return }
         do {
-            let client = try SupabaseClientProvider.shared.client()
-            guard client.auth.currentUser?.id == activeAccountID else { return }
-            try await ActivityService(client: client).registerDevice(
+            try await deviceService.registerDevice(
                 installationID: installationID,
                 pushToken: token,
                 environment: environment,
-                accountID: activeAccountID
+                supportsBadgeSync: true
             )
-            guard accountID == activeAccountID,
-                  client.auth.currentUser?.id == activeAccountID else { return }
+            guard activationID == activeActivationID,
+                  accountID == activeAccountID else { return }
             setOwnershipUncertain(false)
             registrationState = .registered
+            captureRegistration(.registered)
         } catch {
-            guard accountID == activeAccountID else { return }
-            UIApplication.shared.unregisterForRemoteNotifications()
+            guard activationID == activeActivationID,
+                  accountID == activeAccountID else { return }
+            remoteRegistrar.unregisterForRemoteNotifications()
             setOwnershipUncertain(true)
-            registrationState = .failed("Push registration couldn’t reach Mugshot. In-app activity is still available.")
+            registrationState = .failed(
+                "Push registration couldn’t reach Mugshot. In-app Activity is still available."
+            )
+            captureRegistration(.backendFailed)
         }
     }
 
@@ -217,37 +336,59 @@ final class NotificationDeviceCoordinator: ObservableObject {
         expectedAccountID: UUID? = nil
     ) async {
         let activeAccountID = accountID
+        let activeActivationID = activationID
         guard expectedAccountID == nil || expectedAccountID == activeAccountID else { return }
         var unregisterConfirmed = activeAccountID == nil
-        if let activeAccountID {
+        if activeAccountID != nil, let deviceService {
             do {
-                let client = try SupabaseClientProvider.shared.client()
-                if client.auth.currentUser?.id == activeAccountID {
-                    try await ActivityService(client: client)
-                        .unregisterDevice(
-                            installationID: installationID,
-                            accountID: activeAccountID
-                        )
-                    unregisterConfirmed = true
-                }
+                try await deviceService.unregisterDevice(installationID: installationID)
+                unregisterConfirmed = true
             } catch {
-                // Best effort: server rows also cascade on account deletion,
-                // and token reassignment removes stale ownership on next login.
+                // Best effort: account deletion cascades device rows, while a
+                // later login reclaims a matching token before registration.
             }
         }
-        guard accountID == activeAccountID else { return }
-        UIApplication.shared.unregisterForRemoteNotifications()
+        guard activationID == activeActivationID,
+              accountID == activeAccountID else { return }
+        remoteRegistrar.unregisterForRemoteNotifications()
         setOwnershipUncertain(!unregisterConfirmed)
-        clearVisibleNotifications()
-        registrationState = .idle
         if clearAccount {
+            authorizationProvider.clearVisibleNotifications()
+            await badgeUpdater.setBadgeCount(0)
+        }
+        registrationState = .idle
+        captureRegistration(unregisterConfirmed ? .unregistered : .offlineUnregister)
+        if clearAccount {
+            activationID = UUID()
             accountID = nil
+            deviceService = nil
             serverPushEnabled = false
+            backendState = .unchecked
         }
     }
 
-    func acceptsPush(for recipientID: UUID) -> Bool {
-        accountID == recipientID && !ownershipUncertain
+    private func handleCapabilityFailure(
+        _ message: String,
+        activationID expectedActivationID: UUID,
+        accountID expectedAccountID: UUID
+    ) {
+        guard activationID == expectedActivationID,
+              accountID == expectedAccountID else { return }
+        deviceService = nil
+        backendState = .unavailable(message)
+        registrationState = .failed(message)
+        remoteRegistrar.unregisterForRemoteNotifications()
+        captureRegistration(.capabilityUnavailable)
+    }
+
+    private func captureRegistration(_ result: ActivityNotificationRegistrationResult) {
+        let environment: ActivityPushEnvironment?
+        if case .configured(let configuredEnvironment) = capability {
+            environment = configuredEnvironment
+        } else {
+            environment = nil
+        }
+        captureAnalytics(.notificationRegistrationResult(result, environment: environment))
     }
 
     private func setOwnershipUncertain(_ value: Bool) {
@@ -255,31 +396,70 @@ final class NotificationDeviceCoordinator: ObservableObject {
         defaults.set(value, forKey: Self.ownershipUncertainKey)
     }
 
-    private func clearVisibleNotifications() {
-        center.removeAllDeliveredNotifications()
-        center.removeAllPendingNotificationRequests()
-        center.setBadgeCount(0) { _ in }
+    /// Returns nil only when the response itself is structurally inconsistent.
+    /// A non-empty string names the first unavailable backend layer.
+    private static func unavailableBackendReason(_ response: BackendCapabilitiesV1) -> String? {
+        guard response.contractVersion == 1,
+              !response.schemaRelease.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        guard response.capabilities.activityCenter else {
+            return "The backend Activity contract is unavailable. In-app Activity will keep using its existing data path."
+        }
+        guard response.capabilities.notificationPreferences else {
+            return "Push preferences are unavailable in this backend. In-app Activity still works."
+        }
+        guard response.capabilities.pushRegistration else {
+            return "Device registration is unavailable in this backend. In-app Activity still works."
+        }
+        guard response.capabilities.pushBadgeSync else {
+            return "This backend does not support authoritative badge sync, so this build will not register for push. In-app Activity still works."
+        }
+        return ""
     }
 
-    private static func permissionState(
-        for status: UNAuthorizationStatus
-    ) -> ActivityPushPermissionState {
-        switch status {
-        case .notDetermined: .notRequested
-        case .denied: .denied
-        case .authorized: .authorized
-        case .provisional, .ephemeral: .provisional
-        @unknown default: .unsupported
+    static func resolvedCapability(
+        isSimulator: Bool,
+        sandboxBuild: Bool,
+        productionBuild: Bool
+    ) -> ActivityPushCapability {
+        if isSimulator {
+            return .unavailable(
+                "Remote push requires a signed iPhone build. In-app Activity works in Simulator."
+            )
         }
+        if sandboxBuild { return .configured(environment: .sandbox) }
+        if productionBuild { return .configured(environment: .production) }
+        return .unavailable(
+            "This build does not include an APNs entitlement. In-app Activity remains available."
+        )
     }
 
     private static func detectCapability() -> ActivityPushCapability {
 #if targetEnvironment(simulator)
-        return .unavailable("Push requires a signed device build. In-app activity works in Simulator.")
+        return resolvedCapability(
+            isSimulator: true,
+            sandboxBuild: false,
+            productionBuild: false
+        )
+#elseif MUGSHOT_PUSH_SANDBOX
+        return resolvedCapability(
+            isSimulator: false,
+            sandboxBuild: true,
+            productionBuild: false
+        )
 #elseif MUGSHOT_PUSH_CAPABLE
-        return .configured(environment: "production")
+        return resolvedCapability(
+            isSimulator: false,
+            sandboxBuild: false,
+            productionBuild: true
+        )
 #else
-        return .unavailable("This build does not include the APNs entitlement. In-app activity remains available.")
+        return resolvedCapability(
+            isSimulator: false,
+            sandboxBuild: false,
+            productionBuild: false
+        )
 #endif
     }
 }
@@ -290,18 +470,30 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        if let userInfo = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
-            if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
-                Task { @MainActor in
-                    NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
-                }
-            } else if let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) {
-                Task { @MainActor in
-                    ActivityDeepLinkRouter.shared.enqueue(
-                        route.destination,
-                        accountID: route.accountID
-                    )
-                }
+        guard let userInfo = launchOptions?[.remoteNotification] as? [AnyHashable: Any] else {
+            return true
+        }
+        if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
+            Task { @MainActor in
+                NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
+            }
+        } else if let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) {
+            Task { @MainActor in
+                _ = await AccountBoundActivityUpdateSignal.shared.refresh(
+                    accountID: route.accountID
+                )
+                ActivityDeepLinkRouter.shared.enqueue(
+                    route.destination,
+                    accountID: route.accountID,
+                    source: .coldLaunchPush
+                )
+                MugshotAnalytics.shared.capture(.activityOpened(source: .coldLaunchPush))
+            }
+        } else if userInfo["mugshot"] != nil {
+            Task { @MainActor in
+                MugshotAnalytics.shared.capture(
+                    .activityRouteResult(.malformed, source: .coldLaunchPush)
+                )
             }
         }
         return true
@@ -312,7 +504,9 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         Task { @MainActor in
-            NotificationDeviceCoordinator.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+            await NotificationDeviceCoordinator.shared.didRegisterForRemoteNotifications(
+                deviceToken: deviceToken
+            )
         }
     }
 
@@ -339,6 +533,7 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         ), await MainActor.run(body: {
             NotificationDeviceCoordinator.shared.acceptsPush(for: route.accountID)
         }) else { return [] }
+        _ = await AccountBoundActivityUpdateSignal.shared.refresh(accountID: route.accountID)
         return [.banner, .list, .sound, .badge]
     }
 
@@ -353,15 +548,43 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
             }
             return
         }
-        guard let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) else { return }
+        guard let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) else {
+            if userInfo["mugshot"] != nil {
+                await MainActor.run {
+                    MugshotAnalytics.shared.capture(
+                        .activityRouteResult(.malformed, source: .pushTap)
+                    )
+                }
+            }
+            return
+        }
         guard await MainActor.run(body: {
             NotificationDeviceCoordinator.shared.acceptsPush(for: route.accountID)
-        }) else { return }
+        }) else {
+            await MainActor.run {
+                MugshotAnalytics.shared.capture(
+                    .activityRouteResult(.accountRejected, source: .pushTap)
+                )
+            }
+            return
+        }
+        guard await AccountBoundActivityUpdateSignal.shared.refresh(
+            accountID: route.accountID
+        ) else {
+            await MainActor.run {
+                MugshotAnalytics.shared.capture(
+                    .activityRouteResult(.accountRejected, source: .pushTap)
+                )
+            }
+            return
+        }
         await MainActor.run {
             ActivityDeepLinkRouter.shared.enqueue(
                 route.destination,
-                accountID: route.accountID
+                accountID: route.accountID,
+                source: .pushTap
             )
+            MugshotAnalytics.shared.capture(.activityOpened(source: .pushTap))
         }
     }
 }

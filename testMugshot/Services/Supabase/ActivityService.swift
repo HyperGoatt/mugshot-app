@@ -231,6 +231,23 @@ final class ActivityService {
         return preferences
     }
 
+    func backendCapabilities(accountID: UUID) async throws -> BackendCapabilitiesV1 {
+        try requireAccount(accountID)
+        let capabilities: BackendCapabilitiesV1
+        do {
+            capabilities = try await client.rpc(
+                "get_backend_capabilities_v1"
+            ).execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            throw ActivityServiceError.backendCapabilitiesUnavailable
+        }
+        try requireAccount(accountID)
+        guard capabilities.contractVersion == 1 else {
+            throw ActivityServiceError.backendCapabilitiesMalformed
+        }
+        return capabilities
+    }
+
     func savePreferences(
         _ preferences: ActivityNotificationPreferences,
         accountID: UUID
@@ -262,17 +279,19 @@ final class ActivityService {
     func registerDevice(
         installationID: UUID,
         pushToken: String,
-        environment: String,
+        environment: ActivityPushEnvironment,
+        supportsBadgeSync: Bool,
         accountID: UUID
     ) async throws {
         try requireAccount(accountID)
         do {
             try await client.rpc(
-                "register_user_device_v2",
+                "register_user_device_v3",
                 params: ActivityDeviceRegistrationParameters(
                     pDeviceID: installationID,
                     pPushToken: pushToken,
-                    pEnvironment: environment
+                    pEnvironment: environment.rawValue,
+                    pSupportsBadgeSync: supportsBadgeSync
                 )
             ).execute()
         } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
@@ -284,7 +303,7 @@ final class ActivityService {
     func claimDeviceInstallation(
         installationID: UUID,
         knownPushToken: String?,
-        environment: String,
+        environment: ActivityPushEnvironment,
         accountID: UUID
     ) async throws {
         try requireAccount(accountID)
@@ -293,7 +312,7 @@ final class ActivityService {
                 "claim_user_device_installation_v2",
                 params: ActivityDeviceClaimParameters(
                     pDeviceID: installationID,
-                    pEnvironment: environment,
+                    pEnvironment: environment.rawValue,
                     pKnownPushToken: knownPushToken
                 )
             ).execute()
@@ -347,6 +366,8 @@ private struct ActivityDeviceClaimParameters: Encodable {
 
 enum ActivityServiceError: LocalizedError, Equatable {
     case accountScopeChanged
+    case backendCapabilitiesUnavailable
+    case backendCapabilitiesMalformed
     case notificationPreferencesUnavailable
     case pushRegistrationUnavailable
 
@@ -354,6 +375,10 @@ enum ActivityServiceError: LocalizedError, Equatable {
         switch self {
         case .accountScopeChanged:
             "The signed-in account changed before Mugshot could finish refreshing activity."
+        case .backendCapabilitiesUnavailable:
+            "Mugshot’s backend capability contract is unavailable."
+        case .backendCapabilitiesMalformed:
+            "Mugshot’s backend capability contract could not be verified."
         case .notificationPreferencesUnavailable:
             "Push preferences aren’t available in this Mugshot backend yet."
         case .pushRegistrationUnavailable:
@@ -400,15 +425,18 @@ final class ActivityCenterStore: ObservableObject {
 
     private let pageSize: Int
     private let clientFactory: (UUID) throws -> ActivityCenterClient
+    private let badgeUpdater: any ActivityBadgeUpdating
     private var accountID: UUID?
     private var requestID: UUID?
 
     init(
         pageSize: Int = 30,
-        clientFactory: @escaping (UUID) throws -> ActivityCenterClient = ActivityCenterClient.live
+        clientFactory: @escaping (UUID) throws -> ActivityCenterClient = ActivityCenterClient.live,
+        badgeUpdater: (any ActivityBadgeUpdating)? = nil
     ) {
         self.pageSize = min(max(pageSize, 1), 50)
         self.clientFactory = clientFactory
+        self.badgeUpdater = badgeUpdater ?? SystemActivityBadgeUpdater.shared
     }
 
     func activate(accountID: UUID?) async {
@@ -424,7 +452,10 @@ final class ActivityCenterStore: ObservableObject {
         hasMore = false
         actionError = nil
         state = accountID == nil ? .idle : .loading
-        guard accountID != nil else { return }
+        guard accountID != nil else {
+            await badgeUpdater.setBadgeCount(0)
+            return
+        }
         await refresh()
     }
 
@@ -445,6 +476,7 @@ final class ActivityCenterStore: ObservableObject {
             unreadCount = max(resolvedUnread, 0)
             hasMore = resolvedEvents.count == pageSize
             state = .loaded
+            await badgeUpdater.setBadgeCount(unreadCount)
         } catch is CancellationError {
             return
         } catch {
@@ -487,12 +519,13 @@ final class ActivityCenterStore: ObservableObject {
     func markRead(_ event: MugshotActivityEvent) async {
         guard let expectedAccountID = accountID, !event.isRead else { return }
         do {
-            _ = try await clientFactory(expectedAccountID).markRead(event.id)
+            let resolvedUnread = try await clientFactory(expectedAccountID).markRead(event.id)
             guard accountID == expectedAccountID else { return }
             if let index = events.firstIndex(where: { $0.id == event.id }) {
                 events[index].readAt = ISO8601DateFormatter().string(from: Date())
             }
-            unreadCount = max(unreadCount - 1, 0)
+            unreadCount = max(resolvedUnread, 0)
+            await badgeUpdater.setBadgeCount(unreadCount)
         } catch {
             guard accountID == expectedAccountID else { return }
             actionError = "Mugshot couldn’t mark that activity as read yet."
@@ -502,13 +535,14 @@ final class ActivityCenterStore: ObservableObject {
     func markAllRead() async {
         guard let expectedAccountID = accountID, unreadCount > 0 else { return }
         do {
-            _ = try await clientFactory(expectedAccountID).markRead(nil)
+            let resolvedUnread = try await clientFactory(expectedAccountID).markRead(nil)
             guard accountID == expectedAccountID else { return }
             let timestamp = ISO8601DateFormatter().string(from: Date())
             for index in events.indices where events[index].readAt == nil {
                 events[index].readAt = timestamp
             }
-            unreadCount = 0
+            unreadCount = max(resolvedUnread, 0)
+            await badgeUpdater.setBadgeCount(unreadCount)
         } catch {
             guard accountID == expectedAccountID else { return }
             actionError = "Mugshot couldn’t mark all activity as read yet."
@@ -521,7 +555,8 @@ final class ActivityCenterStore: ObservableObject {
               event.canRemoveTag,
               let visitID = event.visitID else { return }
         do {
-            guard try await clientFactory(expectedAccountID).removeTag(visitID) else {
+            let client = try clientFactory(expectedAccountID)
+            guard try await client.removeTag(visitID) else {
                 guard accountID == expectedAccountID else { return }
                 actionError = "That tag is no longer available."
                 await refresh()
@@ -529,8 +564,17 @@ final class ActivityCenterStore: ObservableObject {
             }
             guard accountID == expectedAccountID else { return }
             events.removeAll { $0.id == event.id }
-            if !event.isRead { unreadCount = max(unreadCount - 1, 0) }
+            do {
+                let authoritativeUnread = try await client.unreadCount()
+                guard accountID == expectedAccountID else { return }
+                unreadCount = max(authoritativeUnread, 0)
+            } catch {
+                guard accountID == expectedAccountID else { return }
+                actionError = "Your tag was removed, but Mugshot couldn’t refresh the unread badge yet. It will reconcile the next time Activity refreshes."
+                return
+            }
             actionError = nil
+            await badgeUpdater.setBadgeCount(unreadCount)
         } catch {
             guard accountID == expectedAccountID else { return }
             actionError = "Mugshot couldn’t remove that tag. Your post access did not change—please try again."
@@ -577,15 +621,28 @@ final class ActivityDeepLinkRouter: ObservableObject {
     }
 
     @discardableResult
-    func enqueue(url: URL, accountID: UUID) -> Bool {
+    func enqueue(
+        url: URL,
+        accountID: UUID,
+        source: ActivityOpenSource = .deepLink
+    ) -> Bool {
+        guard activeAccountID == nil || activeAccountID == accountID else { return false }
         guard let destination = ActivityDeepLinkDestination.resolve(url) else { return false }
-        enqueue(destination, accountID: accountID)
+        enqueue(destination, accountID: accountID, source: source)
         return true
     }
 
-    func enqueue(_ destination: ActivityDeepLinkDestination, accountID: UUID) {
+    func enqueue(
+        _ destination: ActivityDeepLinkDestination,
+        accountID: UUID,
+        source: ActivityOpenSource? = nil
+    ) {
         guard activeAccountID == nil || activeAccountID == accountID else { return }
-        let route = PendingActivityRoute(accountID: accountID, destination: destination)
+        let route = PendingActivityRoute(
+            accountID: accountID,
+            destination: destination,
+            source: source
+        )
         pendingRoute = route
         if let data = try? JSONEncoder().encode(route) {
             defaults.set(data, forKey: Self.storageKey)
@@ -778,11 +835,13 @@ private struct ActivityDeviceRegistrationParameters: Encodable {
     let pDeviceID: UUID
     let pPushToken: String
     let pEnvironment: String
+    let pSupportsBadgeSync: Bool
 
     enum CodingKeys: String, CodingKey {
         case pDeviceID = "p_device_id"
         case pPushToken = "p_push_token"
         case pEnvironment = "p_environment"
+        case pSupportsBadgeSync = "p_supports_badge_sync"
     }
 }
 

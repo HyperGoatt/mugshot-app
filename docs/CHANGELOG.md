@@ -8,6 +8,22 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Implemented the source-build-5 iOS notification lifecycle: typed sandbox and
+  production APNs environments, development/production entitlements,
+  capability-gated v3 badge registration, shared authorization with nearby
+  reminders, account-bound foreground/tap refresh, authoritative icon badges,
+  injectable system/backend interfaces, truthful availability copy, and
+  privacy-safe lifecycle analytics. Added focused coordinator, badge, signal,
+  environment, and analytics tests. Full-static passed 12/0/1 with only the
+  optional `pglast` parser skipped; 34 focused Simulator-hosted tests and a
+  Simulator build/install/launch with Activity-surface inspection passed. A
+  connected-iPhone build verified the Debug bundle/entitlement/environment
+  selection and then failed closed because the Apple App ID/profile lacks Push
+  Notifications and `aps-environment`; physical delivery remains pending.
+  Updated Notification system, Current sprint, Current product status, Feature
+  status matrix, Real data flow status, Repository map, Product roadmap,
+  PostHog analytics plan, and TestFlight handoff. Published the implementation
+  as PR #50.
 - Added backward-compatible v3 APNs device registration and final delivery
   revalidation, including opt-in authoritative unread badges while retaining
   both v2 RPCs and the existing route envelope. Updated Notification system,

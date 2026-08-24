@@ -39,6 +39,7 @@ struct MainTabView: View {
     @State private var guestIntroductionStartedAt: Date?
     @State private var guestIntroductionCompleted = false
     @State private var showsActivityCenter = false
+    @State private var lastReportedActivityRouteID: UUID?
     @State private var showsEnforcementCenter = false
     @State private var systemRouteError: String?
     @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
@@ -161,6 +162,10 @@ struct MainTabView: View {
             synchronizeMapLocationUpdates()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+            AccountBoundActivityUpdateSignal.shared.activate(
+                accountID: nil,
+                refresh: nil
+            )
             if showsActivityCenter {
                 showsActivityCenter = false
             }
@@ -459,7 +464,12 @@ struct MainTabView: View {
             } else if let route = PublicCafeListLinkRoute.resolve(url) {
                 publicCafeListRoute = route
             } else if let accountID = authModel.authenticatedUser?.id,
-                      activityRouter.enqueue(url: url, accountID: accountID) {
+                      activityRouter.enqueue(
+                          url: url,
+                          accountID: accountID,
+                          source: .deepLink
+                      ) {
+                MugshotAnalytics.shared.capture(.activityOpened(source: .deepLink))
                 handlePendingActivityRoute()
             } else {
                 systemRouter.enqueue(url: url)
@@ -471,6 +481,13 @@ struct MainTabView: View {
             await activityStore.activate(accountID: userId)
             guard !Task.isCancelled,
                   authModel.authenticatedUser?.id == userId else { return }
+            AccountBoundActivityUpdateSignal.shared.activate(
+                accountID: userId,
+                activationAlreadyRefreshed: userId != nil,
+                refresh: userId == nil ? nil : {
+                    await activityStore.refresh()
+                }
+            )
             await NotificationDeviceCoordinator.shared.activate(accountID: userId)
             guard !Task.isCancelled,
                   authModel.authenticatedUser?.id == userId else { return }
@@ -523,6 +540,9 @@ struct MainTabView: View {
                 onActivityRequested: {
                     MugshotAnalytics.shared.capture(
                         .screenViewed(.activityCenter, source: .sheet)
+                    )
+                    MugshotAnalytics.shared.capture(
+                        .activityOpened(source: .activityBell)
                     )
                     showsActivityCenter = true
                 }
@@ -708,6 +728,7 @@ struct MainTabView: View {
               let accountID = authModel.authenticatedUser?.id,
               let route = activityRouter.pendingRoute,
               route.accountID == accountID else { return }
+        reportActivityRoute(route, result: .accepted)
         showsActivityCenter = true
     }
 
@@ -767,10 +788,30 @@ struct MainTabView: View {
 
     private func synchronizeActivityRouter() {
         if case .signedOut = authModel.status {
+            if let route = activityRouter.pendingRoute {
+                reportActivityRoute(route, result: .accountRejected)
+            }
             activityRouter.deactivateForSignedOutSession()
         } else {
-            activityRouter.activate(accountID: authModel.authenticatedUser?.id)
+            let accountID = authModel.authenticatedUser?.id
+            if let accountID,
+               let route = activityRouter.pendingRoute,
+               route.accountID != accountID {
+                reportActivityRoute(route, result: .accountRejected)
+            }
+            activityRouter.activate(accountID: accountID)
         }
+    }
+
+    private func reportActivityRoute(
+        _ route: PendingActivityRoute,
+        result: ActivityRouteResult
+    ) {
+        guard lastReportedActivityRouteID != route.id else { return }
+        lastReportedActivityRouteID = route.id
+        MugshotAnalytics.shared.capture(
+            .activityRouteResult(result, source: route.source ?? .deepLink)
+        )
     }
 
     private func openComposer(for route: SipSystemRoute) async {

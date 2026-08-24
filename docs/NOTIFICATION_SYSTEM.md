@@ -15,7 +15,11 @@ version 6, and the canonical one-minute schedule are live. The 2026-08-24
 release restored the schedule after read-only inventory found the previously
 recorded job absent.
 The archived 0.5.3 (4) app is signed with `aps-environment=production`; source
-is currently 0.5.3 (5).
+is currently 0.5.3 (5). Source build 5 now includes the badge-aware iOS v3
+lifecycle, signed sandbox Debug path, and production Release environment
+selection. It has passed a generic Debug app/test compile, deterministic tests,
+and a focused Simulator runtime gate. Physical acceptance remains a gate until
+recorded below.
 
 No document may describe remote delivery as physically accepted yet. A real
 notification and tapped cold launch on a signed sandbox build and a TestFlight
@@ -34,7 +38,11 @@ production build remain acceptance gates.
    the activity event ID, recipient ID, and deep link. Only an installation
    registered as badge-capable receives `aps.badge`; the envelope is unchanged.
 5. The app rejects an envelope for any account other than the active confirmed
-   owner and routes valid taps to Activity, a visit, a profile, or cafe lists.
+   owner, requests an account-bound Activity refresh before tap routing, and
+   routes valid taps to Activity, a visit, a profile, or cafe lists.
+6. Successful Activity refreshes, read actions, tag removal, activation,
+   sign-out, and deletion synchronize the app icon to the authoritative visible
+   unread count. Cross-device changes converge on activation or the next push.
 
 Activity history does not depend on push. Disabling push or denying iOS
 permission never removes in-app Activity.
@@ -75,8 +83,11 @@ permission never removes in-app Activity.
 | Build | Bundle/topic | APNs host | Current status |
 | --- | --- | --- | --- |
 | Simulator | none | none | In-app Activity only; push unavailable by design |
-| Physical Debug | `co.mugshot.app.dev` | sandbox | Apple App ID/backend topic configured; client entitlement work is in this sprint |
-| Release/TestFlight | `co.mugshot.app` | production | Signed and production configured; physical delivery acceptance pending |
+| Physical Debug | `co.mugshot.app.dev` | sandbox | Development entitlement and `MUGSHOT_PUSH_SANDBOX` source path implemented; Xcode resolves both correctly, but Apple provisioning is blocked until Push Notifications is enabled for this App ID and its development profile is regenerated |
+| Release/TestFlight | `co.mugshot.app` | production | Production entitlement and `MUGSHOT_PUSH_CAPABLE` source path implemented; physical delivery acceptance pending |
+
+The client models these values as `ActivityPushEnvironment.sandbox` and
+`.production`; it never derives an APNs host or topic from server data.
 
 ## Worker scheduling
 
@@ -127,6 +138,27 @@ collaborative lists, likes, comments and mentions, reactions, and friend
 requests. Friend-post delivery remains the alpha all-friends experiment.
 Per-friend mute is deferred unless feedback demonstrates a concrete need.
 
+Notification authorization is shared with nearby cafe reminders. A permission
+change performs one account-checked registration reconciliation; a nearby
+reminder may request local notification permission on Simulator without
+claiming that remote Activity push is supported there.
+
+## iOS lifecycle boundary
+
+- `BackendCapabilitiesV1` loads at account activation. Missing, malformed, or
+  incomplete Activity, preference, registration, or badge capability disables
+  remote registration and names the unavailable layer while Activity continues.
+- `NotificationAuthorizationProviding`, `RemoteNotificationRegistering`,
+  `ActivityDeviceServicing`, `ActivityNotificationClientCreating`, and
+  `ActivityBadgeUpdating` isolate Apple and Supabase effects for deterministic
+  coordinator tests. The shared coordinator remains the production owner.
+- `AccountBoundActivityUpdateSignal` connects accepted foreground pushes and
+  taps to the active Activity store. Cold-launch refresh intent remains queued
+  until the matching session restores; another account cannot consume it.
+- APNs token rotation reuses the installation ID, reclaims ownership through
+  v2, and registers through v3 with `supports_badge_sync=true`. Tokens and
+  account/content identifiers never enter analytics.
+
 ## Failure behavior
 
 - Missing backend capability, permission denial, registration failure, worker
@@ -137,6 +169,11 @@ Per-friend mute is deferred unless feedback demonstrates a concrete need.
   installation.
 - Blocked, moderated, private, removed, or suspended content is suppressed
   before delivery and checked again before opening.
+
+The client records only coarse education source, permission result,
+registration result/environment, preference category/value, Activity open
+source, and route outcome. It never records push tokens, actor IDs, visit IDs,
+notification content, or deep links.
 
 ## Troubleshooting
 
@@ -164,13 +201,22 @@ Monitor delivery outcomes, retry volume, disabled devices, registration counts
 by environment, category opt-outs, and tester reports. Never monitor message
 content, push tokens, social identifiers, or deep-link identifiers.
 
-No signed-device or TestFlight v3 acceptance evidence has been recorded yet.
-Evidence on 2026-08-24 is full-static verification 13/0/0, including parsing all
-184 SQL files, plus a data-less disposable branch replayed through all 126
-migrations to `20260824171405` with all 54 remote SQL contracts passing. QA held
-exactly one minute worker job; its authenticated calls reached the expected
-fail-closed `push_configuration_required` response because APNs credentials
-were deliberately absent. Live release aligned the same 126-migration head,
-preserved all protected product/content fingerprints, activated worker version
-6, and recorded a scheduled protocol-v3 HTTP 200 with no pending work. Physical
-delivery remains unaccepted.
+No signed-device or TestFlight v3 delivery evidence has been recorded yet. On
+2026-08-24, the iOS branch passed full-static verification 12/0/1; the only
+skip was the optional local `pglast` parser. Thirty-four focused
+Simulator-hosted tests passed: 12 coordinator lifecycle tests, 15 Activity and
+badge/signal tests, and 7 privacy-safe analytics tests. A normal Simulator
+build installed and launched, and the deterministic app fixture opened the
+Activity surface; the fixture intentionally had no live signed-in session, so
+it displayed the account-safe session-change state. Environment tests verify
+that Simulator remote push reports signed-device unavailability while in-app
+Activity remains available.
+
+The connected iPhone build resolved `co.mugshot.app.dev`, the development
+entitlement, and `MUGSHOT_PUSH_SANDBOX`, then failed closed because Apple's
+current development profile lacks the Push Notifications capability and
+`aps-environment`. No entitlement was removed or bypassed. The earlier backend
+release replayed all 126 migrations to `20260824171405`, passed all 54 remote
+SQL contracts, preserved protected product/content fingerprints, activated
+worker version 6, and recorded a scheduled protocol-v3 HTTP 200 with no pending
+work. Physical delivery remains unaccepted.

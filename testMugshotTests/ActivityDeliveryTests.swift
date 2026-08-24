@@ -103,6 +103,12 @@ struct ActivityDeliveryTests {
         firstRouter.activate(accountID: firstAccountID)
         firstRouter.enqueue(.visit(visitID), accountID: firstAccountID)
         #expect(firstRouter.pendingRoute?.accountID == firstAccountID)
+        #expect(!firstRouter.enqueue(
+            url: ActivityDeepLinkDestination.center.url,
+            accountID: secondAccountID,
+            source: .deepLink
+        ))
+        #expect(firstRouter.pendingRoute?.accountID == firstAccountID)
 
         let reloadedForSecondAccount = ActivityDeepLinkRouter(defaults: defaults)
         reloadedForSecondAccount.activate(accountID: secondAccountID)
@@ -125,13 +131,19 @@ struct ActivityDeliveryTests {
         ]))
 
         let router = ActivityDeepLinkRouter(defaults: defaults)
-        router.enqueue(envelope.destination, accountID: envelope.accountID)
+        router.enqueue(
+            envelope.destination,
+            accountID: envelope.accountID,
+            source: .coldLaunchPush
+        )
         #expect(router.pendingRoute?.accountID == recipientID)
         #expect(router.pendingRoute?.destination == .visit(visitID))
+        #expect(router.pendingRoute?.source == .coldLaunchPush)
 
         let restored = ActivityDeepLinkRouter(defaults: defaults)
         restored.activate(accountID: recipientID)
         #expect(restored.pendingRoute?.destination == .visit(visitID))
+        #expect(restored.pendingRoute?.source == .coldLaunchPush)
 
         #expect(ActivityPushRouteEnvelope.resolve(userInfo: [
             "mugshot": ["deep_link": "mugshot://activity"]
@@ -312,10 +324,93 @@ struct ActivityDeliveryTests {
         #expect(store.actionError == nil)
     }
 
-    private static func event(title: String) -> MugshotActivityEvent {
+    @MainActor
+    @Test func authoritativeUnreadCountsDriveBadgeAcrossRefreshAndReadActions() async {
+        let accountID = UUID()
+        let unreadEvent = Self.event(title: "Unread")
+        let badge = ActivityBadgeUpdaterFake()
+        let store = ActivityCenterStore(
+            clientFactory: { _ in
+                ActivityCenterClient(
+                    events: { _, _ in [unreadEvent] },
+                    unreadCount: { 4 },
+                    markRead: { eventID in eventID == nil ? 0 : 2 },
+                    removeTag: { _ in true }
+                )
+            },
+            badgeUpdater: badge
+        )
+
+        await store.activate(accountID: accountID)
+        await store.markRead(unreadEvent)
+        await store.markAllRead()
+        await store.activate(accountID: nil)
+
+        #expect(badge.counts == [4, 2, 0, 0])
+        #expect(store.unreadCount == 0)
+    }
+
+    @MainActor
+    @Test func tagRemovalUsesThePostMutationAuthoritativeBadgeCount() async {
+        let accountID = UUID()
+        let taggedEvent = Self.event(
+            title: "Tagged",
+            kind: .tag,
+            canRemoveTag: true
+        )
+        let unread = ActivityUnreadSequence([4, 1])
+        let badge = ActivityBadgeUpdaterFake()
+        let store = ActivityCenterStore(
+            clientFactory: { _ in
+                ActivityCenterClient(
+                    events: { _, _ in [taggedEvent] },
+                    unreadCount: { await unread.next() },
+                    markRead: { _ in 0 },
+                    removeTag: { _ in true }
+                )
+            },
+            badgeUpdater: badge
+        )
+
+        await store.activate(accountID: accountID)
+        await store.removePrivateTag(taggedEvent)
+
+        #expect(store.events.isEmpty)
+        #expect(store.unreadCount == 1)
+        #expect(badge.counts == [4, 1])
+        #expect(store.actionError == nil)
+    }
+
+    @MainActor
+    @Test func foregroundSignalRefreshesOnlyItsActiveAccount() async {
+        let firstAccountID = UUID()
+        let secondAccountID = UUID()
+        var refreshCount = 0
+        let signal = AccountBoundActivityUpdateSignal()
+        signal.activate(accountID: firstAccountID) {
+            refreshCount += 1
+        }
+
+        #expect(await signal.refresh(accountID: firstAccountID))
+        #expect(refreshCount == 1)
+        #expect(!(await signal.refresh(accountID: secondAccountID)))
+        #expect(refreshCount == 1)
+
+        signal.activate(accountID: secondAccountID) {
+            refreshCount += 1
+        }
+        #expect(await signal.refresh(accountID: secondAccountID))
+        #expect(refreshCount == 2)
+    }
+
+    private static func event(
+        title: String,
+        kind: MugshotActivityKind = .friendPost,
+        canRemoveTag: Bool = false
+    ) -> MugshotActivityEvent {
         MugshotActivityEvent(
             id: UUID(),
-            kind: .friendPost,
+            kind: kind,
             actorUserID: UUID(),
             actorDisplayName: "Mugshot tester",
             actorUsername: "tester",
@@ -328,10 +423,22 @@ struct ActivityDeliveryTests {
             friendRequestID: nil,
             deepLink: "mugshot://activity",
             canOpenVisit: true,
-            canRemoveTag: false,
+            canRemoveTag: canRemoveTag,
             createdAt: "2026-07-21T20:00:00Z",
             readAt: nil
         )
+    }
+}
+
+private actor ActivityUnreadSequence {
+    private var values: [Int]
+
+    init(_ values: [Int]) {
+        self.values = values
+    }
+
+    func next() -> Int {
+        values.isEmpty ? 0 : values.removeFirst()
     }
 }
 

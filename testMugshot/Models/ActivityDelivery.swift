@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import UserNotifications
 
 enum MugshotActivityKind: String, Codable, CaseIterable {
     case friendPost = "friend_post"
@@ -181,15 +182,18 @@ struct PendingActivityRoute: Codable, Equatable, Identifiable {
     let id: UUID
     let accountID: UUID
     let destination: ActivityDeepLinkDestination
+    let source: ActivityOpenSource?
 
     init(
         id: UUID = UUID(),
         accountID: UUID,
-        destination: ActivityDeepLinkDestination
+        destination: ActivityDeepLinkDestination,
+        source: ActivityOpenSource? = nil
     ) {
         self.id = id
         self.accountID = accountID
         self.destination = destination
+        self.source = source
     }
 }
 
@@ -213,9 +217,48 @@ struct ActivityPushRouteEnvelope: Equatable {
     }
 }
 
+enum ActivityPushEnvironment: String, Codable, Equatable {
+    case sandbox
+    case production
+}
+
+struct BackendCapabilitiesV1: Decodable, Equatable {
+    let contractVersion: Int
+    let schemaRelease: String
+    let capabilities: Capabilities
+
+    struct Capabilities: Decodable, Equatable {
+        let activityCenter: Bool
+        let notificationPreferences: Bool
+        let pushRegistration: Bool
+        let pushBadgeSync: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case activityCenter = "activity_center"
+            case notificationPreferences = "notification_preferences"
+            case pushRegistration = "push_registration"
+            case pushBadgeSync = "push_badge_sync"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case schemaRelease = "schema_release"
+        case capabilities
+    }
+
+    var supportsActivityPushV3: Bool {
+        contractVersion == 1
+            && capabilities.activityCenter
+            && capabilities.notificationPreferences
+            && capabilities.pushRegistration
+            && capabilities.pushBadgeSync
+    }
+}
+
 enum ActivityPushCapability: Equatable {
     case unavailable(String)
-    case configured(environment: String)
+    case configured(environment: ActivityPushEnvironment)
 
     var isConfigured: Bool {
         if case .configured = self { true } else { false }
@@ -229,6 +272,23 @@ enum ActivityPushPermissionState: String, Equatable {
     case authorized
     case provisional
     case unavailable
+
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .notDetermined: self = .notRequested
+        case .denied: self = .denied
+        case .authorized: self = .authorized
+        case .provisional, .ephemeral: self = .provisional
+        @unknown default: self = .unsupported
+        }
+    }
+}
+
+enum ActivityPushBackendState: Equatable {
+    case unchecked
+    case checking
+    case available(schemaRelease: String)
+    case unavailable(String)
 }
 
 enum ActivityRegistrationState: Equatable {

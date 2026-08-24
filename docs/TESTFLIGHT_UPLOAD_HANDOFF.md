@@ -48,9 +48,15 @@ handoff.
 Use only after the exact candidate has passed Simulator and connected-iPhone
 gates and the user has explicitly requested upload:
 
+Source 0.5.3 (5) contains the v3 notification lifecycle but is not yet eligible
+for upload. Deterministic verification and the Simulator runtime gate passed,
+but connected-iPhone sandbox acceptance is blocked until Push Notifications is
+enabled for the Debug App ID and its development profile is regenerated. Do
+not infer candidate readiness from the production worker being configured.
+
 > Please focus on Mugshot Activity and iOS notifications. From a second test
-> account, create normal friend-post, tag, conversation, friend-request, and
-> collaborative-list activity. Confirm the recipient sees the correct in-app
+> account, create normal friend-post, tag, like, comment/mention,
+> friend-request, and collaborative-list activity. Confirm the recipient sees the correct in-app
 > Activity item and, when its category is enabled, a notification. Test with the
 > app open, in the background, and fully closed; tapping must open the intended
 > Mugshot content for the signed-in recipient. Read one item and then all items

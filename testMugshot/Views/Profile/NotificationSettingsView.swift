@@ -11,6 +11,7 @@ private final class NotificationSettingsStore: ObservableObject {
     @Published var errorMessage: String?
     @Published var confirmationMessage: String?
     private var accountID: UUID?
+    private var lastSavedPreferences = ActivityNotificationPreferences.alphaDefaults
 
     func load(accountID expectedAccountID: UUID?) async {
         accountID = expectedAccountID
@@ -38,6 +39,7 @@ private final class NotificationSettingsStore: ObservableObject {
             guard accountID == expectedAccountID,
                   client.auth.currentUser?.id == expectedAccountID else { return }
             preferences = loaded
+            lastSavedPreferences = loaded
             backendPreferencesAvailable = true
             errorMessage = nil
         } catch ActivityServiceError.notificationPreferencesUnavailable {
@@ -83,6 +85,8 @@ private final class NotificationSettingsStore: ObservableObject {
             guard accountID == expectedAccountID,
                   client.auth.currentUser?.id == expectedAccountID else { return }
             preferences = saved
+            Self.capturePreferenceChanges(from: lastSavedPreferences, to: saved)
+            lastSavedPreferences = saved
             await NotificationDeviceCoordinator.shared.applyPushPreference(
                 enabled: saved.pushEnabled,
                 accountID: expectedAccountID
@@ -93,6 +97,31 @@ private final class NotificationSettingsStore: ObservableObject {
         } catch {
             guard accountID == expectedAccountID else { return }
             errorMessage = "Mugshot couldn’t save those push preferences. Your previous settings are unchanged."
+        }
+    }
+
+    private static func capturePreferenceChanges(
+        from old: ActivityNotificationPreferences,
+        to new: ActivityNotificationPreferences
+    ) {
+        let changes: [(ActivityNotificationPreference, Bool, Bool)] = [
+            (.pushEnabled, old.pushEnabled, new.pushEnabled),
+            (.friendPosts, old.friendPosts, new.friendPosts),
+            (.tags, old.tags, new.tags),
+            (
+                .collaborativeListInvitations,
+                old.collaborativeListInvitations,
+                new.collaborativeListInvitations
+            ),
+            (.likes, old.likes, new.likes),
+            (.comments, old.comments, new.comments),
+            (.reactions, old.reactions, new.reactions),
+            (.friendRequests, old.friendRequests, new.friendRequests)
+        ]
+        for (preference, previous, current) in changes where previous != current {
+            MugshotAnalytics.shared.capture(
+                .notificationPreferenceChanged(preference, enabled: current)
+            )
         }
     }
 }
@@ -182,18 +211,26 @@ struct NotificationSettingsView: View {
             Text(reason)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Text("The delivery worker is local-only until APNs credentials, scheduling, and a signed push-capable build are configured.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         case .configured:
-            if !store.backendPreferencesAvailable {
-                Label("Push isn’t available yet", systemImage: "bell.slash.fill")
+            switch deviceCoordinator.backendState {
+            case .unchecked, .checking:
+                ProgressView("Checking Mugshot push services…")
+            case .unavailable(let reason):
+                Label("Push service unavailable", systemImage: "bell.slash.fill")
                     .foregroundStyle(.secondary)
-                Text("Mugshot will keep in-app Activity available without asking iOS for notification permission.")
+                Text(reason)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else {
-                configuredPushContent
+            case .available:
+                if !store.backendPreferencesAvailable {
+                    Label("Push preferences unavailable", systemImage: "bell.slash.fill")
+                        .foregroundStyle(.secondary)
+                    Text("In-app Activity remains available without asking iOS for notification permission.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    configuredPushContent
+                }
             }
         }
     }
@@ -206,7 +243,11 @@ struct NotificationSettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Enable Push on This iPhone") {
-                    Task { _ = await deviceCoordinator.requestAuthorization() }
+                    Task {
+                        _ = await deviceCoordinator.requestAuthorization(
+                            source: .notificationSettings
+                        )
+                    }
                 }
             case .denied:
                 Label("Push is off in iOS Settings", systemImage: "bell.slash.fill")
