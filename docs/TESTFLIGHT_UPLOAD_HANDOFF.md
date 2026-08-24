@@ -49,12 +49,17 @@ Use only after the exact candidate has passed Simulator and connected-iPhone
 gates and the user has explicitly requested upload:
 
 Source 0.5.3 (5) contains the v3 notification lifecycle but is not yet eligible
-for upload. Deterministic verification and the Simulator runtime gate passed,
-but connected-iPhone sandbox acceptance is blocked until the replacement Debug
-build receives normal cross-account Activity. Signed build/install/launch,
-permission, active sandbox v3 registration, preference-off removal,
-re-registration, and terminated cold launch passed; real delivery, tap, route,
-badge, sign-out, and the remaining device matrix still remain.
+for upload. Deterministic verification and the Simulator runtime gate passed.
+Signed build/install/launch, permission, active sandbox v3 registration,
+preference-off removal/re-registration, terminated cold launch, one real
+background sandbox send, unread Activity presentation, mark-one-read authority,
+and in-app routing passed. That pass exposed a Feed bell that stayed stale until
+activation. Its direct shared-store observation fix passed full-static 12/0/1
+and a second signed-device delivery/read reproduction: the authoritative count,
+Activity marker, and Feed bell cleared immediately without relaunch. Foreground
+alert, visually observed background alert/app-icon badge, notification-tapped
+cold launch, category suppression, sign-out, and the remaining device matrix
+still remain.
 Do not infer candidate readiness from the production worker being configured.
 
 > Please focus on Mugshot Activity and iOS notifications. From a second test

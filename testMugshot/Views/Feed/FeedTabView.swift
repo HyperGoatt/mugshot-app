@@ -76,9 +76,9 @@ private final class RemoteFeedMemoryCache {
 
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
+    @ObservedObject var activityStore: ActivityCenterStore
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onComposeDraft: ((SipDraft) -> Void)? = nil
-    var activityUnreadCount = 0
     var onActivityRequested: (() -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
@@ -126,7 +126,7 @@ struct FeedTabView: View {
             VStack(spacing: 0) {
                 MugshotScreenHeader("Feed", subtitle: feedSubtitle) {
                     HStack(spacing: 8) {
-                        ActivityBellButton(unreadCount: activityUnreadCount) {
+                        ActivityBellButton(unreadCount: activityStore.unreadCount) {
                             onActivityRequested?()
                         }
                         MugshotIconButton(systemName: "person.2.fill", size: 36) {

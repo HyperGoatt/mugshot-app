@@ -528,6 +528,7 @@ struct MainTabView: View {
         case 1:
             FeedTabView(
                 dataManager: dataManager,
+                activityStore: activityStore,
                 onLogVisitRequested: beginCafeSip,
                 onComposeDraft: { draft in
                     composerDraft = draft
@@ -536,7 +537,6 @@ struct MainTabView: View {
                         tabCoordinator.selectedTab = 2
                     }
                 },
-                activityUnreadCount: activityStore.unreadCount,
                 onActivityRequested: {
                     MugshotAnalytics.shared.capture(
                         .screenViewed(.activityCenter, source: .sheet)

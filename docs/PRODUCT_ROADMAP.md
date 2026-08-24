@@ -8,9 +8,10 @@ last_verified: 2026-08-24
 
 ## Now: real notifications and TestFlight learning
 
-- Trigger normal Activity from a second account, then finish signed-device
-  delivery acceptance for the implemented
-  `push_badge_sync` capability adoption and hardened coordinator.
+- Finish signed-device alert, app-icon badge, terminated-tap, category, and
+  sign-out acceptance for the implemented `push_badge_sync` lifecycle. The
+  immediate Feed unread-count issue found during the first real delivery is
+  fixed and physically verified.
 - Physically accept sandbox and production APNs across foreground, background,
   terminated launch, deep links, badges, preferences, sign-out, and account
   changes.
