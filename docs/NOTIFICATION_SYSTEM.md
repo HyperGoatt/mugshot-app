@@ -10,12 +10,10 @@ last_verified: 2026-08-24
 
 In-app Activity, notification preferences, caller-bound device registration,
 the durable delivery queue, and the `deliver-activity` Edge Function are
-implemented. Production APNs credentials remain configured. A 2026-08-24 live
-inventory found that the previously recorded worker schedule was absent. Source on
-`codex/notification-backend-v3` adds the badge-aware v3 contracts and a
-canonical one-minute schedule. Those changes are locally and disposable-QA
-verified but are not production-configured until the live release workflow
-closes.
+implemented. Production APNs credentials, the badge-aware v3 contracts, worker
+version 6, and the canonical one-minute schedule are live. The 2026-08-24
+release restored the schedule after read-only inventory found the previously
+recorded job absent.
 The archived 0.5.3 (4) app is signed with `aps-environment=production`; source
 is currently 0.5.3 (5).
 
@@ -95,13 +93,18 @@ when more than one delivery job exists, or when the one existing job contains
 an embedded credential. At most one safe existing delivery job is adopted and
 replaced by the canonical definition. The 2026-08-24 live inventory found no
 Activity delivery job or Activity Vault entries, despite the earlier deployment
-record; this migration restores the missing durable schedule.
+record; this migration restored the missing durable schedule.
 
 `20260824171405_expire_pre_schedule_activity_backlog.sql` is the one-time live
 cutover guard. It cancels only pending delivery attempts older than 15 minutes
 with `pre_schedule_backlog_expired`; it does not delete or suppress the
 authoritative Activity event. Fresh queued work and any already processing
 lease remain untouched.
+
+Production has exactly one active `mugshot-activity-delivery-v3` job. Its first
+post-activation evidence at 2026-08-24 17:21 UTC was HTTP 200, protocol version
+3, with zero claims after 69 stale attempts were safely expired. All five
+pre-v3 production device records defaulted to badge support off.
 
 `supabase/config.toml` sets `deliver-activity.verify_jwt=false` because this is
 a service-only endpoint, not a user-JWT endpoint. The function independently
@@ -110,6 +113,12 @@ performs a constant-time comparison of the `apikey` header with
 branch/project admin key for compatibility. The caller credential and the
 admin key used for service-role RPCs are resolved separately, so a dedicated
 cron credential does not become a database credential.
+
+Supabase's security advisor reports the authenticated `SECURITY DEFINER` v3
+registration RPC. This is intentional: the sealed device table cannot be
+written directly, and the function binds the device mutation to `auth.uid()`
+through the already hardened v2 contract. The service-only v3 revalidation RPC
+is not client-executable.
 
 ## User controls
 
@@ -158,7 +167,10 @@ content, push tokens, social identifiers, or deep-link identifiers.
 No signed-device or TestFlight v3 acceptance evidence has been recorded yet.
 Evidence on 2026-08-24 is full-static verification 13/0/0, including parsing all
 184 SQL files, plus a data-less disposable branch replayed through all 126
-migrations to `20260824171405` with all 54 remote SQL contracts passing. QA held exactly one
-minute worker job; its authenticated calls reached the expected fail-closed
-`push_configuration_required` response because APNs credentials were
-deliberately absent.
+migrations to `20260824171405` with all 54 remote SQL contracts passing. QA held
+exactly one minute worker job; its authenticated calls reached the expected
+fail-closed `push_configuration_required` response because APNs credentials
+were deliberately absent. Live release aligned the same 126-migration head,
+preserved all protected product/content fingerprints, activated worker version
+6, and recorded a scheduled protocol-v3 HTTP 200 with no pending work. Physical
+delivery remains unaccepted.

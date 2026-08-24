@@ -17,9 +17,9 @@ ownership, or the core sip journey.
 | Stage | Status | Evidence or gate |
 | --- | --- | --- |
 | Documentation baseline | Completed and merged | PR #46; living index, policy, current-state rewrite, automated freshness check |
-| Home Workbench branch | Merged; production deployment separate | PR #46; `main` at merge `f91e2a4`; full-static gate passed 2026-08-24 |
-| Supabase badge and scheduler contracts | Implemented and disposable-QA verified; live release pending | PR #47 on `codex/notification-backend-v3`; full-static 13/0/0, 183 SQL files parsed, disposable replay at migration head `20260824165630`, remote contracts 54/54, one canonical minute schedule, and authenticated fail-closed worker invocation on 2026-08-24 |
-| Production schedule cutover | In progress | Live inventory found 69 pending delivery attempts older than 15 minutes and no Activity cron job; forward guard preserves Activity while expiring only stale push attempts before enabling the minute worker; full-static 13/0/0, 184 SQL files parsed, QA head `20260824171405`, remote contracts 54/54 |
+| Home Workbench branch | Completed and production-configured | PR #46; migrations live through the aligned 126-migration head; protected-data fingerprints preserved 2026-08-24 |
+| Supabase badge and scheduler contracts | Completed and production-configured | PR #47; worker version 6, `push_badge_sync`, compatible v2/v3 RPCs, and exactly one Vault-backed minute schedule are live |
+| Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
 | iOS sandbox and lifecycle hardening | Planned | Signed Debug entitlement, capability gate, reconciliation, refresh, badge tests |
 | Physical sandbox acceptance | Pending | Connected iPhone, real event, lifecycle matrix |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |

@@ -9,15 +9,14 @@ last_verified: 2026-08-24
 ## Release baseline
 
 Mugshot is a native SwiftUI social coffee journal distributed through
-TestFlight. `main` includes the Home Workbench and documentation baseline from
-merged PR #46. Active notification backend work is isolated on
-`codex/notification-backend-v3`. Source remains version 0.5.3 build 5; the most
-recent archived distributed candidate is 0.5.3 (4).
+TestFlight. `main` includes the Home Workbench/documentation baseline from PR
+#46, notification backend v3 from PR #47, and the safe schedule cutover from PR
+#48. Source remains version 0.5.3 build 5; the most recent archived distributed
+candidate is 0.5.3 (4).
 
-The Home Workbench branch is implemented and passed the repository full-static
-no-Simulator gate on 2026-08-24. Its backend migrations are present in source;
-living documentation does not assume a migration is live until deployment
-evidence confirms it.
+The Home Workbench and notification backend migrations are live through
+`20260824171405`. Local, disposable-QA, live drift, and protected-data
+fingerprint evidence closed on 2026-08-24.
 
 ## What works now
 
@@ -37,8 +36,7 @@ evidence confirms it.
 - In-app Activity with unread count, pagination, read actions, notification
   category preferences, and account-bound deep links.
 - Caller-bound APNs registration and a durable Supabase delivery worker with
-  production credentials; the missing durable schedule is being restored by
-  the current release.
+  production credentials and one Vault-backed minute schedule.
 
 ## Data authority
 
@@ -53,14 +51,13 @@ No local sample, cache, or fallback count may be presented as remote truth.
 
 ## Notification status
 
-The notification system is implemented but not yet fully production-scheduled
-or physically accepted. The Release/TestFlight app carries the production APNs
-entitlement and the backend worker has both Apple topics. Physical Debug currently
-lacks its sandbox entitlement and lifecycle hardening; those are active sprint
-work. Badge-aware v3 registration, final unread-count revalidation, worker
-payloads, and canonical scheduling are implemented and locally verified in
-source but not yet production-configured. In-app Activity remains available
-regardless of push state.
+The notification backend is implemented and production-configured, but remote
+delivery is not physically accepted. The Release/TestFlight app carries the
+production APNs entitlement and the backend worker has both Apple topics.
+Physical Debug currently lacks its sandbox entitlement and lifecycle hardening;
+those are active sprint work. Badge-aware v3 registration, final unread-count
+revalidation, worker payloads, and canonical scheduling are live. In-app
+Activity remains available regardless of push state.
 
 See [Notification system](NOTIFICATION_SYSTEM.md) for the precise contract and
 remaining acceptance matrix.
@@ -70,9 +67,6 @@ remaining acceptance matrix.
 - Physical sandbox and production notification delivery, cold launch, deep
   links, and account lifecycle still require signed-device acceptance.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
-- Home Workbench and notification v3 migrations passed the data-less Supabase
-  QA gate and must still complete the live snapshot, dry-run, deployment, and
-  drift closure before the client relies on them in production.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
 
@@ -83,6 +77,8 @@ failures for the documentation baseline. The notification backend branch later
 passed full-static 13/0/0 on 2026-08-24, including local parsing of 184 SQL
 files. A data-less disposable Supabase branch then replayed to repository head
 and passed all 54 remote SQL contracts plus the canonical minute worker's
-fail-closed invocation. This proves source and disposable-QA readiness, not
-production configuration, physical notification delivery, or TestFlight
-acceptance.
+fail-closed invocation. Live release then aligned all 126 migrations, preserved
+the counts and whole-row fingerprints of users, visits, Activity events,
+notification preferences, Home data, and Storage objects, and recorded a
+scheduled protocol-v3 200 response with zero claims. This proves production
+configuration, not physical notification delivery or TestFlight acceptance.
