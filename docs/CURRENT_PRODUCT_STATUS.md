@@ -59,10 +59,10 @@ The notification backend is implemented and production-configured, but remote
 delivery is not physically accepted. The Release/TestFlight app carries the
 production APNs entitlement and the backend worker has both Apple topics.
 The Physical Debug sandbox entitlement and lifecycle hardening are implemented
-on `codex/notification-ios-lifecycle`. A connected-iPhone build confirmed the
-Debug bundle, entitlement file, and sandbox compilation condition, then stopped
-because the Apple Developer App ID/profile does not yet include Push
-Notifications or `aps-environment`.
+in PR #50 on `codex/notification-ios-lifecycle`. A connected-iPhone build
+confirmed the Debug bundle, entitlement file, and sandbox compilation condition,
+then stopped because the Apple Developer App ID/profile does not yet include
+Push Notifications or `aps-environment`.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.

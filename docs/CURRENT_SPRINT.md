@@ -20,7 +20,7 @@ ownership, or the core sip journey.
 | Home Workbench branch | Completed and production-configured | PR #46; migrations live through the aligned 126-migration head; protected-data fingerprints preserved 2026-08-24 |
 | Supabase badge and scheduler contracts | Completed and production-configured | PR #47; worker version 6, `push_badge_sync`, compatible v2/v3 RPCs, and exactly one Vault-backed minute schedule are live |
 | Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
-| iOS sandbox and lifecycle hardening | Implemented and locally verified | `codex/notification-ios-lifecycle`; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
+| iOS sandbox and lifecycle hardening | Implemented and locally verified | PR #50 on `codex/notification-ios-lifecycle`; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
 | Physical sandbox acceptance | Blocked at Apple provisioning | Connected iPhone found; Xcode resolves `co.mugshot.app.dev`, development entitlement, and sandbox condition, but the App ID/profile lacks Push Notifications and `aps-environment` |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |
 
