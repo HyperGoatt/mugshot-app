@@ -57,8 +57,9 @@ No local sample, cache, or fallback count may be presented as remote truth.
 ## Notification status
 
 The notification backend is implemented and production-configured, but remote
-delivery is not physically accepted. The Release/TestFlight app carries the
-production APNs entitlement and the backend worker has both Apple topics.
+delivery is not yet fully physically accepted. The Release/TestFlight app
+carries the production APNs entitlement and the backend worker has both Apple
+topics.
 The Physical Debug sandbox entitlement and lifecycle hardening are implemented
 on `main` through PR #50. A connected-iPhone build confirmed the Debug bundle,
 entitlement file, and sandbox compilation condition, then stopped because the
@@ -69,8 +70,13 @@ Apple Developer portal and includes Push Notifications. The profile is now
 downloaded and installed locally. Physical Debug uses that named profile only
 for `iphoneos`; Simulator signing remains automatic. A signed device build
 succeeded with `aps-environment=development`, and the app installed on Joe's
-iPhone. Runtime launch and notification acceptance remain pending because the
-first remote launch attempt found the device locked.
+iPhone. The unlocked app launched, restored the signed-in session, presented
+the just-in-time Activity education, received iOS authorization, and registered
+one active sandbox installation with badge sync. Push opt-out removed that
+sealed device row; restoring the preference recreated it, and a terminated
+cold launch refreshed it while preserving the session. A normal cross-account
+Activity action is still required to accept real foreground/background
+delivery, taps, routes, and badges.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.
@@ -82,8 +88,9 @@ remaining acceptance matrix.
 
 - Physical sandbox and production notification delivery, cold launch, deep
   links, and account lifecycle still require signed-device acceptance. The
-  sandbox build and install gate has passed; runtime launch and the delivery
-  matrix remain.
+  sandbox build, install, launch, permission, registration, preference-off,
+  preference-restore, and terminated-relaunch gates passed; real cross-account
+  delivery and routing remain.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
@@ -107,4 +114,8 @@ build reached provisioning and failed closed on its stale development profile;
 the App ID capability is enabled and a replacement profile was generated on
 2026-08-24. After local installation and an `iphoneos`-only named-profile
 selection, the signed device build and app installation passed. The first
-remote launch was denied only because the iPhone was locked.
+remote launch was denied only because the iPhone was locked. After unlocking,
+the app launched and the physical sandbox authorization, badge-capable v3
+registration, opt-out removal, restored registration, and cold-session restore
+all passed. No synthetic Activity row was inserted; delivery awaits a normal
+action from a second account.

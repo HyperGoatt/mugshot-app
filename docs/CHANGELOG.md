@@ -8,6 +8,16 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Physically launched the signed sandbox Debug app and accepted notification
+  permission through its just-in-time Activity education. The settings surface
+  reported the iPhone registered, and a privacy-safe aggregate backend check
+  confirmed one active sandbox installation with badge sync. Saving master
+  push off removed the sealed registration; restoring it recreated the row
+  with every category true. A terminated cold launch restored the account and
+  refreshed registration. No token, account ID, content, deep link, or synthetic
+  production Activity was used; real cross-account APNs delivery remains.
+  Updated Current product status, Current sprint, Feature status matrix,
+  Notification system, Product roadmap, and TestFlight handoff.
 - Installed the active `Mugshot Debug Push Development` profile and added
   device-only manual Debug signing so physical builds select it without
   changing Simulator or extension signing. The connected-iPhone build passed
