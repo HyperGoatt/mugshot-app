@@ -51,9 +51,9 @@ gates and the user has explicitly requested upload:
 Source 0.5.3 (5) contains the v3 notification lifecycle but is not yet eligible
 for upload. Deterministic verification and the Simulator runtime gate passed,
 but connected-iPhone sandbox acceptance is blocked until the replacement Debug
-development profile is installed. The App ID capability is enabled and the
-push-enabled profile is active; local download/installation and the device
-matrix remain.
+build is launched and exercised. The App ID capability is enabled, the
+push-enabled profile is installed, and the signed app installed successfully;
+runtime notification acceptance and the device matrix remain.
 Do not infer candidate readiness from the production worker being configured.
 
 > Please focus on Mugshot Activity and iOS notifications. From a second test

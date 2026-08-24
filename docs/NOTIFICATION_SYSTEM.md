@@ -83,7 +83,7 @@ permission never removes in-app Activity.
 | Build | Bundle/topic | APNs host | Current status |
 | --- | --- | --- | --- |
 | Simulator | none | none | In-app Activity only; push unavailable by design |
-| Physical Debug | `co.mugshot.app.dev` | sandbox | Development entitlement and `MUGSHOT_PUSH_SANDBOX` source path implemented; `Mugshot Debug Push Development` is active with Push Notifications but is not yet downloaded or installed locally |
+| Physical Debug | `co.mugshot.app.dev` | sandbox | `Mugshot Debug Push Development` is installed and selected only for `iphoneos`; signed build and installation passed with `aps-environment=development`; runtime acceptance pending |
 | Release/TestFlight | `co.mugshot.app` | production | Production entitlement and `MUGSHOT_PUSH_CAPABLE` source path implemented; physical delivery acceptance pending |
 
 The client models these values as `ActivityPushEnvironment.sandbox` and
@@ -223,8 +223,15 @@ and registered iPhone on 2026-08-24. Apple reports it active through 2027-08-24
 with App Groups, In-App Purchase, and Push Notifications. The controlled
 browser could not persist the downloaded file to the Mac, and Xcode
 command-line automatic retrieval failed because no Apple account is configured
-in Xcode. The stale local profile therefore remains installed. The earlier
-backend release replayed all 126 migrations to `20260824171405`, passed all 54 remote
+in Xcode. After the user downloaded the profile, it was installed in Xcode's
+provisioning store. The Debug app target now selects the named profile and
+manual development signing only for `iphoneos`, preserving automatic Simulator
+signing and the extensions' existing Debug signing. The resulting physical
+build embedded profile `7f02017e-3740-4b52-ba42-480fff703cb5`, signed with the
+expected development identity, contained `aps-environment=development`, and
+installed successfully on Joe's iPhone. Its first remote launch was denied
+because the device was locked; no runtime delivery evidence is claimed. The
+earlier backend release replayed all 126 migrations to `20260824171405`, passed all 54 remote
 SQL contracts, preserved protected product/content fingerprints, activated
 worker version 6, and recorded a scheduled protocol-v3 HTTP 200 with no pending
 work. Physical delivery remains unaccepted.

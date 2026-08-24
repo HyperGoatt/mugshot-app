@@ -8,6 +8,16 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Installed the active `Mugshot Debug Push Development` profile and added
+  device-only manual Debug signing so physical builds select it without
+  changing Simulator or extension signing. The connected-iPhone build passed
+  with the expected development identity, named profile,
+  `co.mugshot.app.dev`, `MUGSHOT_PUSH_SANDBOX`, and
+  `aps-environment=development`; the app installed successfully. The first
+  remote launch was denied because the phone was locked, so runtime notification
+  acceptance remains pending. Updated Current product status, Current sprint,
+  Feature status matrix, Notification system, Repository map, Product roadmap,
+  and TestFlight handoff.
 - Generated `Mugshot Debug Push Development` for `co.mugshot.app.dev` with the
   existing development certificate and registered iPhone. Apple reports the
   profile active through 2027-08-24 with App Groups, In-App Purchase, and Push

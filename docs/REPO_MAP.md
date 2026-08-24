@@ -76,6 +76,11 @@ canonical Vault-backed `pg_cron` job owns one-minute worker invocation. Local
 nearby cafe notifications share the authorization coordinator but use a
 separate local route envelope.
 
+The main app target keeps Simulator Debug signing automatic. Physical Debug
+selects the named `Mugshot Debug Push Development` profile and Apple
+Development identity only for `iphoneos`; Release retains its separate manual
+App Store profile. Debug widgets and share-extension signing remain automatic.
+
 ## Verification
 
 `scripts/verify-no-simulator.sh` provides fast, backend, and full-static modes.
