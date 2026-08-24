@@ -83,7 +83,7 @@ permission never removes in-app Activity.
 | Build | Bundle/topic | APNs host | Current status |
 | --- | --- | --- | --- |
 | Simulator | none | none | In-app Activity only; push unavailable by design |
-| Physical Debug | `co.mugshot.app.dev` | sandbox | `Mugshot Debug Push Development` is installed and selected only for `iphoneos`; signed build and installation passed with `aps-environment=development`; runtime acceptance pending |
+| Physical Debug | `co.mugshot.app.dev` | sandbox | Signed build/install/launch, authorization, active badge-capable v3 registration, opt-out removal, restoration, and terminated cold launch passed; real delivery/tap acceptance pending |
 | Release/TestFlight | `co.mugshot.app` | production | Production entitlement and `MUGSHOT_PUSH_CAPABLE` source path implemented; physical delivery acceptance pending |
 
 The client models these values as `ActivityPushEnvironment.sandbox` and
@@ -230,8 +230,18 @@ signing and the extensions' existing Debug signing. The resulting physical
 build embedded profile `7f02017e-3740-4b52-ba42-480fff703cb5`, signed with the
 expected development identity, contained `aps-environment=development`, and
 installed successfully on Joe's iPhone. Its first remote launch was denied
-because the device was locked; no runtime delivery evidence is claimed. The
-earlier backend release replayed all 126 migrations to `20260824171405`, passed all 54 remote
-SQL contracts, preserved protected product/content fingerprints, activated
+because the device was locked. After unlocking, Mugshot launched through iPhone
+Mirroring with the signed-in session intact. Activity education led to the real
+iOS permission prompt; authorization succeeded, the settings surface reported
+the device registered, and a privacy-safe aggregate query showed exactly one
+active sandbox installation advertising badge sync. Saving master push off
+removed that device row without removing in-app Activity. Restoring it created
+one fresh active sandbox registration with every category restored true. A
+terminate-and-launch cycle restored the account and refreshed that registration.
+No token, account identifier, message, visit, or deep link was inspected. No
+synthetic production Activity was created, so real APNs receipt, taps, routes,
+and badges still await normal activity from a second account. The earlier
+backend release replayed all 126 migrations to `20260824171405`, passed all 54
+remote SQL contracts, preserved protected product/content fingerprints, activated
 worker version 6, and recorded a scheduled protocol-v3 HTTP 200 with no pending
-work. Physical delivery remains unaccepted.
+work. Physical registration is accepted; delivery remains unaccepted.

@@ -21,7 +21,7 @@ ownership, or the core sip journey.
 | Supabase badge and scheduler contracts | Completed and production-configured | PR #47; worker version 6, `push_badge_sync`, compatible v2/v3 RPCs, and exactly one Vault-backed minute schedule are live |
 | Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
-| Physical sandbox acceptance | Signed build and install complete; runtime pending | `Mugshot Debug Push Development` is installed and selected only for physical Debug; the signed build contains `aps-environment=development` and installed on Joe's iPhone; first launch was denied because the device was locked |
+| Physical sandbox acceptance | Partial acceptance complete; real delivery pending | Signed build/install/launch, Activity education, iOS authorization, active badge-capable sandbox registration, preference-off removal, preference restoration, and terminated cold launch passed; a normal action from a second account is required for foreground/background/terminated delivery and routing |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |
 
 ## Feedback ledger
@@ -38,7 +38,7 @@ this file.
 | Environment | Implemented source behavior | Remaining evidence |
 | --- | --- | --- |
 | Simulator | In-app Activity and nearby local authorization remain available; remote push reports signed-device unavailability | Build/install/launch and Activity surface passed; 34 focused lifecycle/Activity/analytics tests passed; authenticated live-session network acceptance remains part of later product regression testing |
-| Signed physical Debug | `co.mugshot.app.dev`, development entitlement, sandbox environment, v3 badge registration; build and install passed | Launch on the unlocked phone, then run APNs registration, foreground/background/terminated delivery, routes, badges, preferences, and sign-out |
+| Signed physical Debug | `co.mugshot.app.dev`, development entitlement, sandbox environment; build/install/launch, permission, v3 badge registration, opt-out/re-register, and terminated cold launch passed | Use normal second-account actions to verify foreground/background/terminated APNs delivery, routes, badges, then sign-out |
 | TestFlight | `co.mugshot.app`, production entitlement/environment, v3 badge registration | Explicitly authorized upload of an accepted candidate, processing, production matrix |
 
 Severity definitions:
