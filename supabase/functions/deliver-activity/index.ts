@@ -21,7 +21,7 @@ function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 }
 
-function resolveSecretKey(): string | null {
+function resolveAdminKey(): string | null {
   const modern = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (modern) {
     try {
@@ -39,6 +39,10 @@ function resolveSecretKey(): string | null {
     }
   }
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
+}
+
+function resolveRequestKey(adminKey: string | null): string | null {
+  return Deno.env.get("ACTIVITY_DELIVERY_WORKER_SECRET") ?? adminKey;
 }
 
 function apnsConfiguration(): APNSConfiguration | null {
@@ -82,11 +86,14 @@ Deno.serve(async (request) => {
   }
 
   const url = Deno.env.get("SUPABASE_URL");
-  const secretKey = resolveSecretKey();
+  const adminKey = resolveAdminKey();
+  const requestKey = resolveRequestKey(adminKey);
   const suppliedKey = request.headers.get("apikey");
   const configuration = apnsConfiguration();
-  if (!url || !secretKey) return json({ error: "service_unavailable" }, 503);
-  if (!suppliedKey || !constantTimeEqual(suppliedKey, secretKey)) {
+  if (!url || !adminKey || !requestKey) {
+    return json({ error: "service_unavailable" }, 503);
+  }
+  if (!suppliedKey || !constantTimeEqual(suppliedKey, requestKey)) {
     return json({ error: "unauthorized" }, 401);
   }
   if (!configuration) {
@@ -114,7 +121,7 @@ Deno.serve(async (request) => {
       : 25;
   const limit = Math.min(Math.max(requestedLimit, 1), 50);
 
-  const admin = createClient(url, secretKey, {
+  const admin = createClient(url, adminKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   }) as unknown as AdminClient;
   const { data, error } = await admin.rpc("claim_activity_push_batch_v2", {

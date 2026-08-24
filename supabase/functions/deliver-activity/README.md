@@ -23,8 +23,9 @@ Deployment readiness requires:
 - `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`,
   `APNS_SANDBOX_TOPIC=co.mugshot.app.dev`, and
   `APNS_PRODUCTION_TOPIC=co.mugshot.app` secrets;
-- a service-to-service invocation with the Supabase secret key in the `apikey`
-  header;
+- a service-to-service invocation with `ACTIVITY_DELIVERY_WORKER_SECRET` in the
+  `apikey` header when a dedicated cron credential is configured, or the
+  Supabase admin key as a compatibility fallback;
 - platform JWT verification disabled for this service-only endpoint, because the
   caller authenticates with the secret-key header rather than a user JWT;
 - the canonical one-minute `mugshot-activity-delivery-v3` schedule, installed by
@@ -34,7 +35,9 @@ Deployment readiness requires:
   `mugshot_activity_delivery_service_role` and its endpoint read from
   `mugshot_activity_delivery_worker_url`. The worker temporarily accepts
   `deliver_v2` during schedule rollout, and disposable QA uses its own URL/key
-  pair.
+  pair. Despite the compatibility-era Vault name, the value may be the
+  dedicated worker credential; the function resolves its database admin key
+  separately.
 
 The worker never trusts a client-supplied user ID, never logs a push token, and
 claims tokens only through the service-role-only `claim_activity_push_batch_v2`

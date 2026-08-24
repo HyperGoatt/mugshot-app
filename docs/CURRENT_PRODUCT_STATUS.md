@@ -69,8 +69,9 @@ remaining acceptance matrix.
 - Physical sandbox and production notification delivery, cold launch, deep
   links, and account lifecycle still require signed-device acceptance.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
-- Home Workbench and notification v3 migrations must follow the Supabase QA and
-  release workflow before the client relies on them in production.
+- Home Workbench and notification v3 migrations passed the data-less Supabase
+  QA gate and must still complete the live snapshot, dry-run, deployment, and
+  drift closure before the client relies on them in production.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
 
@@ -78,7 +79,9 @@ remaining acceptance matrix.
 
 `./scripts/verify-no-simulator.sh full-static` passed 11 checks with zero
 failures for the documentation baseline. The notification backend branch later
-passed the backend gate 12/0/0 and full-static gate 13/0/0 on 2026-08-24,
-including local parsing of 182 SQL files. This proves static contracts and
-compilation, not disposable-QA, production configuration, physical notification
-delivery, or TestFlight acceptance.
+passed full-static 13/0/0 on 2026-08-24, including local parsing of 183 SQL
+files. A data-less disposable Supabase branch then replayed to repository head
+and passed all 54 remote SQL contracts plus the canonical minute worker's
+fail-closed invocation. This proves source and disposable-QA readiness, not
+production configuration, physical notification delivery, or TestFlight
+acceptance.

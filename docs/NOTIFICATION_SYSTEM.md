@@ -13,8 +13,9 @@ the durable delivery queue, and the `deliver-activity` Edge Function are
 implemented. Production APNs credentials and the production worker schedule
 were configured on 2026-08-09. Source on
 `codex/notification-backend-v3` adds the badge-aware v3 contracts and a
-canonical one-minute schedule; those changes are locally verified but are not
-production-configured until the disposable-QA and live release workflow closes.
+canonical one-minute schedule. Those changes are locally and disposable-QA
+verified but are not production-configured until the live release workflow
+closes.
 The archived 0.5.3 (4) app is signed with `aps-environment=production`; source
 is currently 0.5.3 (5).
 
@@ -95,6 +96,14 @@ an embedded credential. At most one safe existing delivery job is adopted and
 replaced by the canonical definition. Production continues using the schedule
 configured on 2026-08-09 until this forward migration is released.
 
+`supabase/config.toml` sets `deliver-activity.verify_jwt=false` because this is
+a service-only endpoint, not a user-JWT endpoint. The function independently
+performs a constant-time comparison of the `apikey` header with
+`ACTIVITY_DELIVERY_WORKER_SECRET` when configured, falling back to the
+branch/project admin key for compatibility. The caller credential and the
+admin key used for service-role RPCs are resolved separately, so a dedicated
+cron credential does not become a database credential.
+
 ## User controls
 
 Push has a master toggle and category controls for friend posts, tags,
@@ -140,5 +149,9 @@ by environment, category opt-outs, and tester reports. Never monitor message
 content, push tokens, social identifiers, or deep-link identifiers.
 
 No signed-device or TestFlight v3 acceptance evidence has been recorded yet.
-Local evidence on 2026-08-24 is backend verification 12/0/0 and full-static
-verification 13/0/0, including parsing all 182 SQL files.
+Evidence on 2026-08-24 is full-static verification 13/0/0, including parsing all
+183 SQL files, plus a data-less disposable branch replayed to
+`20260824165630` with all 54 remote SQL contracts passing. QA held exactly one
+minute worker job; its authenticated calls reached the expected fail-closed
+`push_configuration_required` response because APNs credentials were
+deliberately absent.

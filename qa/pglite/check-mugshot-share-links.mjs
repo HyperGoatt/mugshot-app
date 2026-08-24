@@ -329,11 +329,6 @@ const capabilityMigration = await fs.readFile(
   'utf8',
 )
 await db.exec(capabilityMigration)
-const contract = await fs.readFile(
-  repoPath + 'supabase/tests/mugshot_share_links_contract.sql',
-  'utf8',
-)
-await db.exec(contract)
 const profileContractMigration = await fs.readFile(
   repoPath +
     'supabase/migrations/20260821162404_profile_sharing_and_canonical_post_v2.sql',
@@ -346,6 +341,11 @@ const profileTotalsAndMentionsMigration = await fs.readFile(
   'utf8',
 )
 await db.exec(profileTotalsAndMentionsMigration)
+const contract = await fs.readFile(
+  repoPath + 'supabase/tests/mugshot_share_links_contract.sql',
+  'utf8',
+)
+await db.exec(contract)
 
 const authenticatedAs = async (userID, statement) => {
   await db.exec(`

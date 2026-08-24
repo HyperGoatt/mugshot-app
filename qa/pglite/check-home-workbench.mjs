@@ -86,6 +86,11 @@ await database.exec(`
   create table public.visits (
     id uuid primary key,
     user_id uuid not null references auth.users(id) on delete cascade,
+    caption text not null,
+    visibility text not null,
+    overall_score double precision not null,
+    context_type text not null,
+    location_name text,
     brew_method text,
     equipment text,
     brew_details jsonb not null default '{}'::jsonb,

@@ -40,9 +40,10 @@ capability read remains the next implementation stage.
 ## Current migration boundary
 
 The repository migration head is
-`20260824163143_activity_delivery_schedule_v3.sql`. Source presence does not
-prove live deployment. Database migration, Edge Function deployment, and client
-capability adoption follow the order in
+`20260824165630_harden_visit_grants_and_share_contract.sql`. The complete head
+passed a data-less disposable replay and all remote SQL contracts; that evidence
+does not prove live deployment. Database migration, Edge Function deployment,
+and client capability adoption follow the order in
 [the Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).
 
 ## Non-negotiable invariants
