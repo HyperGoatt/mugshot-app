@@ -22,8 +22,8 @@ last_verified: 2026-08-24
   Notifications and `aps-environment`; physical delivery remains pending.
   Updated Notification system, Current sprint, Current product status, Feature
   status matrix, Real data flow status, Repository map, Product roadmap,
-  PostHog analytics plan, and TestFlight handoff. Published the implementation
-  as PR #50.
+  PostHog analytics plan, and TestFlight handoff. Published and merged the
+  implementation as PR #50 (`0d1cf21`).
 - Added backward-compatible v3 APNs device registration and final delivery
   revalidation, including opt-in authoritative unread badges while retaining
   both v2 RPCs and the existing route envelope. Updated Notification system,

@@ -11,8 +11,9 @@ last_verified: 2026-08-24
 Mugshot is a native SwiftUI social coffee journal distributed through
 TestFlight. `main` includes the Home Workbench/documentation baseline from PR
 #46, notification backend v3 from PR #47, and the safe schedule cutover from PR
-#48, with production release evidence from PR #49. Source remains version 0.5.3
-build 5; the most recent archived distributed candidate is 0.5.3 (4).
+#48, production release evidence from PR #49, and the hardened iOS notification
+lifecycle from PR #50. Source remains version 0.5.3 build 5; the most recent
+archived distributed candidate is 0.5.3 (4).
 
 The Home Workbench and notification backend migrations are live through
 `20260824171405`. Local, disposable-QA, live drift, and protected-data
@@ -59,10 +60,10 @@ The notification backend is implemented and production-configured, but remote
 delivery is not physically accepted. The Release/TestFlight app carries the
 production APNs entitlement and the backend worker has both Apple topics.
 The Physical Debug sandbox entitlement and lifecycle hardening are implemented
-in PR #50 on `codex/notification-ios-lifecycle`. A connected-iPhone build
-confirmed the Debug bundle, entitlement file, and sandbox compilation condition,
-then stopped because the Apple Developer App ID/profile does not yet include
-Push Notifications or `aps-environment`.
+on `main` through PR #50. A connected-iPhone build confirmed the Debug bundle,
+entitlement file, and sandbox compilation condition, then stopped because the
+Apple Developer App ID/profile does not yet include Push Notifications or
+`aps-environment`.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.
