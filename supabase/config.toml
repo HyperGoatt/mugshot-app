@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.public-cafe-list]
 verify_jwt = false
+
+[functions.deliver-activity]
+verify_jwt = false

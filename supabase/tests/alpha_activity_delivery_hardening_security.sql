@@ -32,6 +32,12 @@ declare
   revalidation_body text := pg_get_functiondef(
     'public.revalidate_activity_push_delivery_v2(uuid,uuid,bigint)'::regprocedure
   );
+  badge_revalidation_body text := pg_get_functiondef(
+    'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)'::regprocedure
+  );
+  badge_registration_body text := pg_get_functiondef(
+    'public.register_user_device_v3(uuid,text,text,boolean)'::regprocedure
+  );
 begin
   if to_regprocedure('private.activity_recipient_is_eligible_v2(uuid)') is null
      or to_regprocedure(
@@ -40,6 +46,12 @@ begin
      or to_regprocedure('public.claim_activity_push_batch_v2(integer)') is null
      or to_regprocedure(
        'public.revalidate_activity_push_delivery_v2(uuid,uuid,bigint)'
+     ) is null
+     or to_regprocedure(
+       'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)'
+     ) is null
+     or to_regprocedure(
+       'public.register_user_device_v3(uuid,text,text,boolean)'
      ) is null
      or to_regprocedure(
        'public.complete_activity_push_delivery_v2(uuid,uuid,bigint,text,text,integer)'
@@ -110,6 +122,16 @@ begin
     raise exception 'the final pre-APNs eligibility fence is incomplete';
   end if;
 
+  if badge_registration_body not ilike '%register_user_device_v2%'
+     or badge_registration_body not ilike '%device.user_id = actor%'
+     or badge_registration_body not ilike '%supports_badge_sync%'
+     or badge_revalidation_body not ilike '%revalidate_activity_push_delivery_v2%'
+     or badge_revalidation_body not ilike '%activity_event_is_visible%'
+     or badge_revalidation_body not ilike '%event.read_at is null%'
+     or badge_revalidation_body not ilike '%supports_badge_sync%' then
+    raise exception 'badge registration or authoritative unread revalidation is incomplete';
+  end if;
+
   if has_function_privilege(
        'service_role', 'public.claim_activity_push_batch_v1(integer)', 'EXECUTE'
      )
@@ -127,6 +149,11 @@ begin
      or has_function_privilege(
        'authenticated',
        'public.revalidate_activity_push_delivery_v2(uuid,uuid,bigint)',
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'authenticated',
+       'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)',
        'EXECUTE'
      )
      or has_function_privilege(

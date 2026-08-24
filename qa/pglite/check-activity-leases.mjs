@@ -22,6 +22,7 @@ create table public.user_devices (
   disabled_at timestamptz,
   failure_count integer not null default 0,
   last_failure_at timestamptz,
+  supports_badge_sync boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -32,6 +33,7 @@ create table public.activity_events (
   title text not null,
   body text not null,
   deep_link text not null,
+  read_at timestamptz,
   suppressed_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -97,6 +99,26 @@ if (leaseStart < 0 || leaseEnd <= leaseStart) {
   throw new Error('fenced lease section markers missing')
 }
 await db.exec(migration.slice(leaseStart, leaseEnd))
+
+const badgeMigration = await fs.readFile(
+  repoPath + 'supabase/migrations/20260824162710_activity_push_badge_v3.sql',
+  'utf8',
+)
+const badgeRevalidationStart = badgeMigration.indexOf(
+  '-- Badge-aware final revalidation.',
+)
+const badgeRevalidationEnd = badgeMigration.indexOf(
+  '-- Backend capability contract.',
+)
+if (
+  badgeRevalidationStart < 0 ||
+  badgeRevalidationEnd <= badgeRevalidationStart
+) {
+  throw new Error('badge revalidation section markers missing')
+}
+await db.exec(
+  badgeMigration.slice(badgeRevalidationStart, badgeRevalidationEnd),
+)
 
 const recipient = '91000000-0000-4000-8000-000000000001'
 const event = '92000000-0000-4000-8000-000000000001'
@@ -279,5 +301,48 @@ if (
   throw new Error('pre-send suspension did not cancel the exact lease')
 }
 
-console.log('PGlite fenced lease, retry, terminal, device-invalidity, and pre-send eligibility checks passed')
+const badgeEvent = '92000000-0000-4000-8000-000000000005'
+const otherUnreadEvent = '92000000-0000-4000-8000-000000000006'
+const readEvent = '92000000-0000-4000-8000-000000000007'
+const badgeDevice = '93000000-0000-4000-8000-000000000005'
+const badgeDelivery = '94000000-0000-4000-8000-000000000005'
+await db.exec(`
+update public.activity_events set read_at=now();
+delete from private.moderation_actions where id='${suspension}';
+insert into public.activity_events(id,recipient_id,kind,title,body,deep_link)
+values
+  ('${badgeEvent}','${recipient}','friend_post','Title','Body','mugshot://activity'),
+  ('${otherUnreadEvent}','${recipient}','tag','Title','Body','mugshot://activity');
+insert into public.activity_events(
+  id,recipient_id,kind,title,body,deep_link,read_at
+) values (
+  '${readEvent}','${recipient}','like','Title','Body','mugshot://activity',now()
+);
+insert into public.user_devices(
+  id,user_id,device_id,push_token,environment,supports_badge_sync
+) values (
+  '${badgeDevice}','${recipient}','95000000-0000-4000-8000-000000000005',
+  '${'e'.repeat(64)}','production',true
+);
+insert into private.activity_push_deliveries(
+  id,activity_event_id,device_record_id
+) values ('${badgeDelivery}','${badgeEvent}','${badgeDevice}');
+`)
+const badgeClaim = await db.query('select * from public.claim_activity_push_batch_v2(10)')
+const badgeRevalidation = await db.query(`
+  select public.revalidate_activity_push_delivery_v3(
+    '${badgeDelivery}',
+    '${badgeClaim.rows[0].claim_token}',
+    ${badgeClaim.rows[0].lease_version}
+  ) result
+`)
+if (
+  badgeRevalidation.rows[0]?.result?.eligible !== true ||
+  badgeRevalidation.rows[0]?.result?.unread_count !== 2 ||
+  badgeRevalidation.rows[0]?.result?.supports_badge_sync !== true
+) {
+  throw new Error('v3 revalidation did not return the authoritative badge contract')
+}
+
+console.log('PGlite fenced lease, retry, invalidity, eligibility, and badge-count checks passed')
 await db.close()

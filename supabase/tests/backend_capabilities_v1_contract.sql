@@ -14,6 +14,7 @@ declare
     'activity_center',
     'notification_preferences',
     'push_registration',
+    'push_badge_sync',
     'social_safety',
     'moderation_transparency',
     'collaborative_cafe_lists',
@@ -30,7 +31,7 @@ begin
   end if;
 
   if payload ->> 'schema_release'
-      <> '2026-08-04-tag-only-edit-v2' then
+      <> '2026-08-24-activity-push-badge-v3' then
     raise exception 'Unexpected backend schema release: %',
       payload ->> 'schema_release';
   end if;

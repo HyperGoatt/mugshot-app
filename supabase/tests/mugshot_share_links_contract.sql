@@ -106,8 +106,8 @@ begin
     raise exception 'public Mugshot projection references a private field';
   end if;
   if projection_definition not like
-      '%private.is_capability_shareable_visit_v1(visit.id)%' then
-    raise exception 'public Mugshot projection lost the capability boundary';
+      '%private.profile_visit_visible_v2(visit.id, auth.uid())%' then
+    raise exception 'public Mugshot projection lost the current viewer boundary';
   end if;
 end;
 $$;
@@ -130,6 +130,10 @@ $$;
 insert into public.visit_share_links (visit_id, owner_id, slug)
 select visit_id, owner_id, repeat('a', 48)
 from mugshot_share_fixture;
+
+update public.visits
+set visibility = 'everyone'
+where id = (select visit_id from mugshot_share_fixture);
 
 do $$
 declare
@@ -182,14 +186,39 @@ where id = (select visit_id from mugshot_share_fixture);
 
 do $$
 begin
+  if exists (
+    select 1
+    from public.get_public_mugshot_share_v1(repeat('a', 48))
+  ) then
+    raise exception 'friends share link granted anonymous audience access';
+  end if;
+end;
+$$;
+
+select set_config(
+  'request.jwt.claims',
+  (
+    select jsonb_build_object(
+      'sub', owner_id,
+      'role', 'authenticated'
+    )::text
+    from mugshot_share_fixture
+  ),
+  true
+);
+
+do $$
+begin
   if not exists (
     select 1
     from public.get_public_mugshot_share_v1(repeat('a', 48))
   ) then
-    raise exception 'friends capability link lost anonymous share access';
+    raise exception 'friends share link is unavailable to its signed-in owner';
   end if;
 end;
 $$;
+
+select set_config('request.jwt.claims', '{}', true);
 
 update public.visits
 set visibility = 'everyone',

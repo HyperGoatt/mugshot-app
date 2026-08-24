@@ -16,9 +16,9 @@ ownership, or the core sip journey.
 
 | Stage | Status | Evidence or gate |
 | --- | --- | --- |
-| Documentation baseline | In progress | Living index, policy, current-state rewrite, automated freshness check |
-| Home Workbench branch | Implemented and locally verified | `codex/home-workbench-sprint`; full-static gate passed 2026-08-24 |
-| Supabase badge and scheduler contracts | Planned | Backward-compatible v3 RPCs, worker tests, disposable QA branch |
+| Documentation baseline | Completed and merged | PR #46; living index, policy, current-state rewrite, automated freshness check |
+| Home Workbench branch | Merged; production deployment separate | PR #46; `main` at merge `f91e2a4`; full-static gate passed 2026-08-24 |
+| Supabase badge and scheduler contracts | Implemented and disposable-QA verified; live release pending | PR #47 on `codex/notification-backend-v3`; full-static 13/0/0, 183 SQL files parsed, disposable replay at migration head `20260824165630`, remote contracts 54/54, one canonical minute schedule, and authenticated fail-closed worker invocation on 2026-08-24 |
 | iOS sandbox and lifecycle hardening | Planned | Signed Debug entitlement, capability gate, reconciliation, refresh, badge tests |
 | Physical sandbox acceptance | Pending | Connected iPhone, real event, lifecycle matrix |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |

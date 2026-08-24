@@ -103,8 +103,21 @@ begin
     raise exception 'friend-post notification preference does not default enabled';
   end if;
 
+  if not exists (
+    select 1
+    from information_schema.columns column_row
+    where column_row.table_schema = 'public'
+      and column_row.table_name = 'user_devices'
+      and column_row.column_name = 'supports_badge_sync'
+      and column_row.is_nullable = 'NO'
+      and column_row.column_default ilike '%false%'
+  ) then
+    raise exception 'device badge capability is missing or unsafe by default';
+  end if;
+
   foreach signature in array array[
     'public.register_user_device_v2(uuid,text,text)',
+    'public.register_user_device_v3(uuid,text,text,boolean)',
     'public.unregister_user_device_v2(uuid)',
     'public.get_notification_preferences_v1()',
     'public.set_notification_preferences_v1(boolean,boolean,boolean,boolean,boolean,boolean,boolean,boolean)',
@@ -123,6 +136,8 @@ begin
 
   foreach signature in array array[
     'public.claim_activity_push_batch_v2(integer)',
+    'public.revalidate_activity_push_delivery_v2(uuid,uuid,bigint)',
+    'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)',
     'public.complete_activity_push_delivery_v2(uuid,uuid,bigint,text,text,integer)'
   ] loop
     if has_function_privilege('anon', signature, 'EXECUTE')
@@ -140,10 +155,13 @@ begin
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
       and procedure.proname in (
-        'register_user_device_v2', 'unregister_user_device_v2',
+        'register_user_device_v2', 'register_user_device_v3',
+        'unregister_user_device_v2',
         'get_notification_preferences_v1', 'set_notification_preferences_v1',
         'list_activity_events_v1', 'activity_unread_count_v1',
         'mark_activity_read_v1', 'claim_activity_push_batch_v2',
+        'revalidate_activity_push_delivery_v2',
+        'revalidate_activity_push_delivery_v3',
         'complete_activity_push_delivery_v2', 'build_owner_activity_export_v1'
       )
       and (

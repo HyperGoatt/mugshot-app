@@ -52,6 +52,18 @@ const registrationEnd = migration.indexOf(
 if (registrationEnd < 0) throw new Error('registration section marker missing')
 await db.exec(`${migration.slice(0, registrationEnd)}\ncommit;`)
 
+const badgeMigration = await fs.readFile(
+  repoPath + 'supabase/migrations/20260824162710_activity_push_badge_v3.sql',
+  'utf8',
+)
+const badgeRegistrationEnd = badgeMigration.indexOf(
+  '-- Badge-aware final revalidation.',
+)
+if (badgeRegistrationEnd < 0) {
+  throw new Error('badge registration section marker missing')
+}
+await db.exec(`${badgeMigration.slice(0, badgeRegistrationEnd)}\ncommit;`)
+
 const ids = {
   first: '81000000-0000-4000-8000-000000000001',
   second: '81000000-0000-4000-8000-000000000002',
@@ -149,6 +161,32 @@ if (
   throw new Error('registration did not atomically replace prior installation ownership')
 }
 
+let badgeState = await db.query(`
+  select supports_badge_sync from public.user_devices
+  where device_id='84000000-0000-4000-8000-000000000001'
+`)
+if (badgeState.rows[0]?.supports_badge_sync !== false) {
+  throw new Error('v2 registration unexpectedly opted into badge synchronization')
+}
+
+const v3Registration = await asUser(ids.third, `
+  select public.register_user_device_v3(
+    '84000000-0000-4000-8000-000000000001','${'c'.repeat(64)}','sandbox',true
+  ) registration
+`)
+badgeState = await db.query(`
+  select supports_badge_sync from public.user_devices
+  where user_id='${ids.third}'
+    and device_id='84000000-0000-4000-8000-000000000001'
+`)
+if (
+  badgeState.rows[0]?.supports_badge_sync !== true ||
+  v3Registration.rows[0]?.registration?.supports_badge_sync !== true ||
+  'push_token' in (v3Registration.rows[0]?.registration ?? {})
+) {
+  throw new Error('v3 registration did not safely persist badge capability')
+}
+
 for (let index = 1; index <= 6; index += 1) {
   const deviceID = `83000000-0000-4000-8000-${index.toString().padStart(12, '0')}`
   const token = (100 + index).toString(16).padStart(64, '0')
@@ -165,5 +203,5 @@ if (active.rows[0]?.active_count !== 5) {
   throw new Error('active device cap did not prune deterministically')
 }
 
-console.log('PGlite device registration heartbeat, ownership claim, churn, and fanout-cap checks passed')
+console.log('PGlite v2/v3 device registration, ownership, churn, badge, and fanout-cap checks passed')
 await db.close()

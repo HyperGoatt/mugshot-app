@@ -151,9 +151,21 @@ select owner_id from home_workbench_users
 union all
 select other_id from home_workbench_users;
 
+insert into public.users (id, display_name, username)
+select owner_id, 'Home owner', 'home_owner_fixture'
+from home_workbench_users
+union all
+select other_id, 'Home other', 'home_other_fixture'
+from home_workbench_users;
+
 insert into public.visits (
   id,
   user_id,
+  caption,
+  visibility,
+  overall_score,
+  context_type,
+  location_name,
   brew_method,
   equipment,
   brew_details,
@@ -163,6 +175,11 @@ insert into public.visits (
 select
   gen_random_uuid(),
   owner_id,
+  'Owner fixture',
+  'private',
+  8.0,
+  'Home',
+  'Home',
   'Espresso',
   'Owner grinder',
   '{"doseGrams":18,"ownerOnlyLabNote":"private"}'::jsonb,
@@ -173,6 +190,11 @@ union all
 select
   gen_random_uuid(),
   other_id,
+  'Other fixture',
+  'private',
+  8.0,
+  'Home',
+  'Home',
   'Pour Over',
   'Other grinder',
   '{"doseGrams":20,"ownerOnlyLabNote":"other private"}'::jsonb,
