@@ -1,3 +1,9 @@
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
+
 # Mugshot PostHog analytics plan
 
 ## Principles
@@ -21,6 +27,7 @@ All custom event names use lower-case `object_verb` spelling. Common properties 
 | Drop-off and recovery | `sip_publish_blocked`, `sip_publish_failed`, `sip_draft_saved`, `sip_recovery_resumed`, `sip_publication_deduplicated` | `reason`, `error_code`, `recovery_state`, the core-journey snapshot, `duration_seconds` |
 | Engagement | `cafe_state_changed`, `sip_liked`, `comment_added` | `surface`, `state`, `action` |
 | Sharing | `share_hub_viewed`, `share_format_selected`, `share_template_selected`, `share_photo_layout_selected`, `share_destination_tapped`, `share_handoff_opened`, `share_handoff_failed`, `system_share_completed`, `share_hub_dismissed` | `format`, `destination`, `template`, `photo_layout`, `visibility`, `has_public_link`; no shared content or identifiers |
+| Notifications | `notification_education_viewed`, `notification_permission_completed`, `push_registration_completed`, `notification_preference_changed`, `activity_opened`, `notification_route_completed` | coarse permission/result/category/source values only; never tokens, account/social/content IDs, notification text, or deep links |
 
 Anonymous installs use the SDK-generated random distinct ID. After authentication, Mugshot calls `identify` with the Supabase UUID so PostHog links the pre-authentication journey to the account. Sign-out calls `reset` so subsequent activity on a shared device receives a new anonymous identity. No account profile fields are attached.
 
@@ -50,6 +57,18 @@ Anonymous installs use the SDK-generated random distinct ID. After authenticatio
 - Missing required properties on `sip_published`
 - Authentication, publication, and sharing failures
 - Recovery and publication-deduplication signals
+- Push registration failure rate and notification route failures by build/environment
+
+### Mugshot — Notification tolerance
+
+- Education-to-permission outcome
+- Push master/category opt-out trends
+- Activity opens split by in-app and notification entry source
+- Registration outcomes split by sandbox and production
+
+Notification opens are diagnostic, never the primary success metric. Reconsider
+the all-friends default if roughly 20% disable all push or tester feedback
+repeatedly describes it as noisy.
 
 ## Cohorts and alerts
 

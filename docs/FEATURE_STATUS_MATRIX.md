@@ -1,35 +1,40 @@
-# Mugshot Feature Status Matrix
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
 
-Date: 2026-07-03
+# Mugshot feature status matrix
 
-Status labels: Working with real Supabase data, Partially working with real Supabase data, Working but local/demo only, UI exists but not functional, Broken, Missing, Unknown, Blocked.
+Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 
-| Feature | Status | Evidence/files | User impact | Risk | Priority | Recommended next step |
-| --- | --- | --- | --- | --- | --- | --- |
-| Auth/session restore | Working with real Supabase data | `AppAuthModel`, `AuthService`, `MugshotRootView` | Signed-in users can return without starting over | Medium | P0 private beta blocker | Add UI tests for signed-out, signed-in, failed, and missing-config states |
-| Profile bootstrap | Working with real Supabase data | `ProfileService.bootstrapProfile`, `SupabaseUserProfile` | User identity appears in app after auth | Medium | P0 private beta blocker | Keep as identity source; add username collision handling |
-| Profile text edit | Working with real Supabase data | `ProfileTabView`, `AppAuthModel.updateProfile` | Users can edit basic profile text | Medium | P1 core product | Add stronger validation and error copy |
-| Add Visit | Working with real Supabase data | `AddTabView`, `VisitService.createVisit`, `VisitPhotoUploadService`; 2026-07-03 smoke visit `587f8423-a56f-46fe-b15a-452b2f024ebf` | Photos are required before any Add Visit save; signed-in users save durable photo-backed visits | High | P0 private beta blocker | Add clearer per-photo progress/errors |
-| Photo upload/storage | Working with real Supabase data | `VisitPhotoUploadService`, `VisitService.attachPhotoURLs`, storage policy SQL | Visit photos survive relaunch and render remotely | High | P0 private beta blocker | Add cleanup/retry hardening for partial upload failures |
-| Visit Detail | Working with real Supabase data | `RemoteVisitDetailView`, `VisitService.fetchVisitDetail`, `toggleLike`, `addComment`, `updateVisit`, `deleteVisit` | Users can view, like, comment, save cafe, and owner-edit/delete remote visits | Medium | P1 core product | Polish error states and confirm RLS behavior with beta accounts |
-| Feed | Partially working with real Supabase data | `FeedTabView`, `VisitService.fetchFeedVisits` | Users see real remote cards with counts and quick like/save controls; friend graph semantics remain limited | Medium | P1 core product | Keep Friends scope honest until social graph exists |
-| Map | Partially working with real Supabase data | `MapTabView`, `MapSearchService`, `CafeStateService` | Users can see pins/search/local state; remote discovery is limited | Medium | P1 core product | Improve search reliability and distinguish remote/local pins |
-| Saved/favorites/wishlist | Working with real Supabase data | `SavedTabView`, `CafeStateService`, `user_cafe_states` | Favorites/want-to-try survive relaunch | Medium | P1 core product | Add better state-only empty/copy and remote aggregate counts |
-| Cafe Detail | Partially working with real Supabase data | `SavedTabView` cafe detail, `VisitService.fetchCafeVisits` | Users can inspect saved cafes and their own remote recent visits | Medium | P1 core product | Add aggregate stats, popular drinks, and friend context later |
-| User Profile | Working with real Supabase data | `ProfileTabView`, `RemoteProfileStats` | Signed-in recent visits, stats, and top cafes derive from remote visits | Medium | P1 core product | Add pagination beyond the current recent-visit sample |
-| Friends | Missing | No active native Friends surface | No social graph UI | Medium | P2 polish/retention | Build only after core loop/social mutations are safe |
-| Notifications | Blocked | Security docs, `VISIT_WRITE_BLOCKER.md`, no active UI | No notification center or push | High | P3 later enhancement | Rebuild backend notification path without embedded secrets first |
-| Settings | Working | `SettingsView`, `SettingsDestination` | Users can sign out and access About, Privacy, Terms, and support/contact | Medium | P1 core product | Replace placeholder legal copy with finalized beta legal text |
-| Privacy/legal/about | Working | `SettingsView`, `SettingsDetailView` | Private beta has in-app legal/about presence | Medium | P0 private beta blocker | Legal review before external distribution |
-| Comments/likes/social actions | Working with real Supabase data | `VisitService.toggleLike`, `VisitService.addComment`, `RemoteVisitDetailView`, `FeedTabView` | Users can like/unlike and comment on remote visits; feed counts refresh | Medium | P1 core product | Add abuse controls later; notifications remain deferred |
-| Search/discovery | Partially working with real Supabase data | `MKLocalSearch`; no remote discovery feed | Cafe search exists but discovery is thin and simulator can be flaky | Medium | P2 polish/retention | Decide Apple Maps-first vs Google/Edge search before expanding |
-| Empty states | Working | `MugsyEmptyStateView`, Saved/Profile/Feed empty states | Clear empty states use a small imported Mugsy slice | Low | P2 polish/retention | Keep Mugsy use limited to true empty states |
-| Mugsy mascot usage/assets | Working | `MugsyNoFavorites`, `MugsyNoWishlist`, `MugsyNoCafes`, `MugsyNoFriends`, `MugsyComingSoon` | Brand personality appears in clear empty states | Low | P2 polish/retention | Do not import old UI wholesale |
-| Loading states | Partially working with real Supabase data | Auth loading, Feed/Profile/Saved remote loading, Add save/upload states | Most core waits are understandable | Medium | P1 core product | Audit all network flows for retry and disabled states |
-| Error states | Partially working with real Supabase data | Auth errors, Add validation/backend errors, Feed/Profile/Saved errors | Failures are visible, but not fully polished | Medium | P1 core product | Normalize error language and recovery actions |
-| Offline/local/demo data | Working but local/demo only | `DataManager`, `SampleDataSeeder`, `PhotoCache` | Helps prototype but can blur truth | Medium | P1 core product | Gate demo data clearly; avoid mixing it into beta truth |
-| Tests | Partially working | 22 focused unit tests plus default UI tests pass | Contracts are covered; journeys are still light | Medium | P1 core product | Add journey tests around auth and photo picker when automation permits |
-| Simulator validation | Working for core beta loop | XcodeBuildMCP build/run/test/screenshot on 2026-07-03; Computer Use selected a seeded simulator image when XcodeBuildMCP picker taps did not present PhotosPicker | Build/runtime and fresh photo-backed creation/relaunch loop are validated | Medium | P0 private beta blocker | Keep Computer Use fallback documented for native Photos picker interaction |
-| Supabase data layer | Partially working with real Supabase data | Auth/Profile/Visit/Cafe/CafeState/Photo services, likes/comments helpers | Core loop and beta-useful social controls have real data; broader graph remains absent | High | P0/P1 | Keep services narrow; avoid old broad `DataManager` remote orchestration |
-| Security/config hygiene | Partially working | Ignored local config, secret-key rejection, SQL warnings | Good client hygiene; backend notifications still sensitive | High | P0 private beta blocker | Do not add notification code until backend path is safe |
-| Git/repo cleanliness | Working | Clean pushed branch `codex/private-beta-readiness-2026-07-03`; remote main not touched | Work is backed up without direct main push | High | P0 private beta blocker | Open/review PR when ready; no force push |
+| Area | Status | Current evidence | Remaining gate |
+| --- | --- | --- | --- |
+| Auth and session restore | Implemented, locally verified | Supabase Auth, callback queue, account-checked session restoration | Signed-build provider regression pass when auth configuration changes |
+| Profile and public identity | Implemented, locally verified | Profile bootstrap/edit, avatar/banner, public projection and share route | Continue feedback-driven polish |
+| Guided sip composer | Implemented, locally verified | Cafe, Home, Elsewhere, drafts, photos, publish recovery, edit/delete | Preserve zero-loss and privacy contracts in every change |
+| Home Workbench | Implemented, locally verified | Recipe templates, planned/actual brews, bag media, reuse, journal projection | Deploy new migrations through QA/live workflow |
+| Feed and visit detail | Implemented, locally verified | Remote cards, media, reactions, likes, comments, tags, sharing | TestFlight feedback and performance monitoring |
+| Journal and reflection | Implemented, locally verified | Canonical remote journal, filters, Taste Passport and reflections | Continue data-truth and accessibility checks |
+| Map and cafe discovery | Implemented with remote/local composition | MapKit, search, saved state, cafe detail and discovery | Feedback-driven search and place-identity tuning |
+| Saved and cafe lists | Implemented, locally verified | Favorite/want-to-try, private lists, collaboration lifecycle | Multi-account TestFlight feedback |
+| Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
+| Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
+| In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state and deep links | Foreground push refresh and badge convergence hardening |
+| Remote push | Production configured; physical acceptance pending | APNs worker, credentials, topics, queue, device RPCs | Sandbox/production device lifecycle matrix |
+| Notification preferences | Implemented, locally verified | Master and category controls; Activity always available | Correct stale capability copy and add analytics |
+| Widgets and share extension | Implemented, locally verified | App-group data, widgets, pending place import and share routes | Release regression gate when extension contracts change |
+| Public links | Implemented and production evidence recorded | Public Mugshot/profile/list routes and associated domains | Preserve audience/revocation guarantees |
+| Nearby cafe reminders | Implemented, device-sensitive | Local notifications and region monitoring | Unify authorization reconciliation with push |
+| Account export/deletion | Implemented with production backend gates | Export manifest, step-up deletion and scheduled cleanup | Follow destructive-flow acceptance policy |
+| Analytics | Implemented for core journeys | Pinned PostHog SDK and privacy-safe event taxonomy | Add notification lifecycle events without identifiers/content |
+| Documentation | Living baseline in progress | Canonical index, change log, policy and automated checks | Keep current in every PR |
+| TestFlight | Active distribution | 0.5.3 distributed; source build 5 | Explicit upload request and candidate device gates |
+
+## Notification sprint priority
+
+1. Publish and merge the documented Home Workbench checkpoint.
+2. Add backward-compatible badge and scheduler contracts.
+3. Enable physical Debug sandbox push and harden the coordinator.
+4. Complete physical sandbox acceptance.
+5. Prepare the next TestFlight candidate; upload only with explicit approval.

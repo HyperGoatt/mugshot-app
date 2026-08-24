@@ -1,3 +1,11 @@
+---
+document_type: decision_record
+status: locked
+implementation_status: CURRENT_PRODUCT_STATUS.md
+---
+
+> Locked product-direction record. Use [Current product status](CURRENT_PRODUCT_STATUS.md) for implementation and release evidence.
+
 # Mugshot V3 Product Interview
 
 **Status:** Locked product-direction record, with unresolved alpha hypotheses called out explicitly

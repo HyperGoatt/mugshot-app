@@ -1,76 +1,54 @@
-# Product Roadmap
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
 
-Date: 2026-07-03
+# Product roadmap
 
-## Core Logging Improvements
+## Now: real notifications and TestFlight learning
 
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Add Visit hardening | The journal must never lose a sip | Trust that logged visits persist | Medium | Beta | Now |
-| Photo retry/cleanup | Photos make memories feel real | Less confusion after partial failures | Medium | Beta | Partial: created-visit cleanup now exists; orphaned Storage cleanup later |
-| Edit/delete own visit | Logging should be forgiving | Fix typos and remove mistakes | Medium | Beta | Done for caption/notes/visibility/delete |
-| Drink subtype/favorite order polish | Mugshot is about remembering what to reorder | Faster repeat logging | Low | Beta+ | Soon |
-| Rating template sync | Taste scoring is a signature mechanic | Consistent personalized ratings | Medium | Beta+ | Later |
+- Physically accept sandbox and production APNs across foreground, background,
+  terminated launch, deep links, badges, preferences, sign-out, and account
+  changes.
+- Keep in-app Activity independent from remote delivery.
+- Preserve the alpha all-friends post experiment with category opt-outs; add
+  per-friend mute only if feedback establishes a real need.
+- Process TestFlight feedback through small, risk-classified fixes and update
+  living documentation with each change.
 
-## Personal Memory And History
+## Current product foundation
 
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Remote profile stats | Makes history feel earned | See visits, cafes, average, favorite drinks accurately | Medium | Beta | Done for signed-in recent window |
-| Personal tags | Adds memory without heavy social complexity | Find "date spot", "work cafe", "best matcha" later | Medium | Beta+ | Later |
-| Reorder list | Converts history into action | Remember exactly what to get again | Low | Beta+ | Soon |
-| Timeline filters | Helps users rediscover their own taste | Search by drink, cafe, score, city, date | Medium | Beta+ | Later |
+The V3 guided sip loop, Home Workbench, Feed, Map, Saved, Journal, Taste
+Passport, friends, collaborative lists, safety, public sharing, ownership,
+widgets, and share extension are implemented foundations. Work in these areas is
+feedback-driven hardening rather than an assumption that the surface is absent.
 
-## Social Discovery
+## Next after notification acceptance
 
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Remote like/comment mutations | Makes Feed feel alive | Lightweight feedback on sips | Medium | Beta+ | Done for like/unlike and comments; moderation later |
-| Friends MVP | Discovery through trusted people | See where friends are sipping | High | Beta+ | Later |
-| Public profiles | Lets people browse taste history | Share and discover personal cafe maps | Medium | Beta+ | Later |
-| Notifications | Closes the social loop | Know when friends interact | High | Later | Not yet |
+- Improve search and cafe identity when TestFlight evidence identifies concrete
+  duplication or discovery failures.
+- Refine Home recipe reuse and comparison from real repeated-brew behavior.
+- Improve sparse social states while preserving independent Journal value.
+- Complete accessibility, performance, and reliability fixes surfaced by the
+  distributed build.
+- Use cautious Taste Passport and recommendation improvements only when their
+  explanations remain inspectable and private inputs remain protected.
 
-## Cafe Discovery
+## Deferred
 
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Remote cafe aggregates | Makes cafe pages useful | Know if a place is loved and why | Medium | Beta | Soon |
-| Map list mode | Discovery needs scanning, not just pins | Compare nearby saved/visited places | Medium | Beta+ | Later |
-| Friend-loved cafes | Stronger than generic recommendations | Find places through trusted taste | High | Beta+ | Later |
-| Apple/Google place strategy | Prevents duplicate cafes | Cleaner history and discovery | High | Beta+ | Decide soon |
+- Per-friend push controls without noise evidence.
+- Merchant rewards, payments, loyalty, or partnership systems.
+- Popularity rankings, follower-pressure mechanics, consumption streaks, or
+  notification-open optimization.
+- Broad AI inference that invents taste facts, edits private content without
+  confirmation, or publishes for a user.
 
-## Retention And Delight
+## Go/no-go signals
 
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Mugsy empty states | Makes the app warm and memorable | Empty states feel personal | Low | Beta | Done as tiny empty-state slice |
-| Weekly sip recap | Turns logs into reflection | A reason to return | Medium | Beta+ | Later |
-| Milestones | Celebrates habits without bloat | Small dopamine moments | Low | Beta+ | Later |
-| Share card/postcard | Lets memories travel outside Mugshot | Social sharing without full social pressure | Medium | Later | Not yet |
-
-## Mugsy And Brand Personality
-
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Import Mugsy assets | Gives the native app its mascot | Warmer empty/loading states | Low | Beta | Done for five empty-state assets |
-| Mugsy no-favorites/no-wishlist/no-friends states | Guides users without generic copy | Better first-run feel | Low | Beta | Done for clear empty states |
-| Mugsy celebration after first real visit | Reinforces the core loop | Memorable first success | Low | Beta+ | Later |
-
-## Trust, Privacy, And Safety
-
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Privacy/terms/about | Required for credible beta | Trust and distribution readiness | Low | Beta | Placeholder in-app surface done; legal review next |
-| Visibility clarity | Users need confidence in what is public | Safer posting | Medium | Beta | Now |
-| Account deletion/export plan | Trust for real users | Control over data | Medium | Beta+ | Later |
-| Notification rebuild | Avoids old secret risk | Safe social growth | High | Later | Not yet |
-
-## Beta Readiness
-
-| Idea | Why it supports the mission | User value | Complexity | Phase | Build now? |
-| --- | --- | --- | --- | --- | --- |
-| Core smoke checklist | Prevents broken builds from shipping | Reliability | Low | Beta | Now |
-| Fresh photo-backed Add Visit smoke | Proves the beta posting loop after the photo-required change | Confidence that new visits appear in Profile, Feed, and detail after relaunch | Low | Beta | Done on 2026-07-03 with Computer Use picker fallback; keep in regression checklist |
-| Accessibility pass | Makes the app usable beyond ideal cases | Better UX for everyone | Medium | Beta | Now |
-| Demo/real-data separation | Avoids false confidence | Users understand what is theirs | Medium | Beta | Now |
-| TestFlight checklist | Reduces release scramble | Faster beta launch | Low | Beta | Now |
+- Reconsider all-friends push if roughly 20% disable all notifications or
+  repeated tester feedback calls it noisy.
+- Stop rollout for privacy, account isolation, destructive-flow, data-loss, or
+  migration-safety regressions.
+- Do not widen distribution until signed-device core journeys and current
+  backend gates are green.

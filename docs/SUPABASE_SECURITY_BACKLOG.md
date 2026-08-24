@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: SUPABASE_RELEASE_WORKFLOW.md
+---
+
+> Historical security backlog. Preserve the findings as dated evidence; use the [Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md) and current feature runbooks for active gates.
+
 # Supabase Security Backlog
 
 Date: 2026-07-01

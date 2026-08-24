@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_PRODUCT_STATUS.md
+---
+
+> Historical restart evidence. Use [Current product status](CURRENT_PRODUCT_STATUS.md) and [Repository map](REPO_MAP.md) for the active codebase.
+
 # Mugshot Restart Audit
 
 Date: 2026-06-30

@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: PRODUCT_ROADMAP.md
+---
+
+> Historical phase checkpoint. Use the living [Product roadmap](PRODUCT_ROADMAP.md) and [Notification system](NOTIFICATION_SYSTEM.md) for current delivery state.
+
 # Phase 5 — Reflection and Ethical Retention Checkpoint
 
 ## Outcome

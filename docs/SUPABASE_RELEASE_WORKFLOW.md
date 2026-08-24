@@ -1,4 +1,10 @@
-# MugShot Supabase release workflow
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
+
+# Mugshot Supabase release workflow
 
 Date established: 2026-07-22
 
@@ -10,9 +16,10 @@ changes. Every backend release must prove the same migration history in a
 disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
-The current schema release is `2026-07-22-alpha-social-foundations`, contract
-version 1. The live project reference is recorded in the existing Supabase link;
-scripts also refuse the known production reference explicitly.
+The repository migration head is
+`20260824142054_owner_journal_brew_projection.sql`. Repository head and live
+deployment state are separate facts; the live project reference is recorded in
+the existing Supabase link and QA scripts refuse that production reference.
 
 ## Non-negotiable invariants
 
@@ -102,19 +109,16 @@ the client UI.
 
 ## Current external gates
 
-- **APNs:** `deliver-activity` is deployed and in-app activity works, but APNs
-  delivery needs Apple key ID, team ID, private key, sandbox/production topics,
-  and a durable `deliver_v2` invocation schedule.
-- **Account deletion:** V3 schema and recovery worker are deployed. Initiation
-  remains off until the composed PostgREST live-session hook, separate fresh
-  Auth-session client proof, durable drain schedule, and disposable-account
-  acceptance matrix are all green.
-- **Apple and Google sign-in:** the iOS client routes are implemented, but provider
-  activation requires the app's Apple/Google credentials and redirect-domain
-  configuration. Email confirmation/reset and both providers need one batched
-  real-inbox/signed-build acceptance pass.
-- **Auth password defense:** Supabase's leaked-password protection is currently
-  disabled and must be enabled in Auth settings before widening alpha access.
+- **APNs:** the worker, team-scoped key, both topics, and production schedule are
+  configured. Real sandbox and TestFlight delivery/tap acceptance remains.
+- **Home Workbench:** three repository migrations dated 2026-08-23/24 require
+  the normal disposable-branch, live snapshot, dry-run, deployment, and drift
+  closure sequence before production reliance.
+- **TestFlight:** client upload and tester assignment remain manual gates after
+  Simulator and connected-device acceptance.
+- **Auth and destructive flows:** provider, password-defense, and account-
+  deletion state must be re-inventoried before a release that changes those
+  surfaces; historical audits are evidence, not a substitute for current checks.
 
 ## Drift response
 

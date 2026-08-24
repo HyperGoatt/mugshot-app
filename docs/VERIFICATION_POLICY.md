@@ -1,4 +1,10 @@
-# MugShot Development Verification Policy
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
+
+# Mugshot Development Verification Policy
 
 This policy keeps verification proportional to risk while avoiding repeated Simulator loops. The default is the lightest local check that can credibly catch a regression. Static analysis, pure tests, hermetic backend tests, and compile-only builds are the discovery tools; Simulator or physical-device work is a batched acceptance gate after those checks are green.
 
@@ -27,7 +33,8 @@ Use for:
 Required:
 
 - Review the scoped diff.
-- Run formatting or `git diff --check` only when relevant.
+- Run `./scripts/check-documentation.sh` for documentation changes.
+- Run formatting or `git diff --check` when relevant.
 
 Do not:
 

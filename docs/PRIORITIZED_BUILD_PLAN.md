@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: PRODUCT_ROADMAP.md
+---
+
+> Historical build plan. Use the living [Product roadmap](PRODUCT_ROADMAP.md) and [Current sprint](CURRENT_SPRINT.md).
+
 # Prioritized Build Plan
 
 Date: 2026-07-02

@@ -138,6 +138,10 @@ check_ascii_cafe_spelling() {
   return 1
 }
 
+check_documentation() {
+  "${REPO_ROOT}/scripts/check-documentation.sh"
+}
+
 check_migration_names() {
   local migration_dir="${REPO_ROOT}/supabase/migrations"
   local name
@@ -399,6 +403,7 @@ run_check "Staged diff integrity" check_staged_diff
 run_check "Untracked text whitespace" check_untracked_whitespace
 run_check "No unresolved conflict markers" check_conflict_markers
 run_check "ASCII cafe spelling" check_ascii_cafe_spelling
+run_check "Living documentation integrity" check_documentation
 run_check "Migration filename and timestamp integrity" check_migration_names
 
 if [ "${MODE}" = "backend" ] || [ "${MODE}" = "full-static" ]; then

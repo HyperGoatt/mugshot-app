@@ -1,3 +1,9 @@
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
+
 # TestFlight Upload Handoff
 
 Use this format for every Mugshot TestFlight archive, upload, or testing-group
@@ -17,7 +23,7 @@ handoff.
 > expectations when relevant. Keep the blurb under 4,000 characters and only
 > describe behavior present in this build.]
 
-## Build 0.5.2 (3)
+## Historical example: Build 0.5.2 (3)
 
 - App Store Connect status: Ready to Submit
 - Internal testing: Mugshot Team
@@ -36,3 +42,22 @@ handoff.
 > details still work normally. Please report broken or missing images, links
 > that open the wrong post, unexpected sign-in prompts, exposed private
 > information, or links that fail to open after relaunching the app.
+
+## Notification candidate template
+
+Use only after the exact candidate has passed Simulator and connected-iPhone
+gates and the user has explicitly requested upload:
+
+> Please focus on Mugshot Activity and iOS notifications. From a second test
+> account, create normal friend-post, tag, conversation, friend-request, and
+> collaborative-list activity. Confirm the recipient sees the correct in-app
+> Activity item and, when its category is enabled, a notification. Test with the
+> app open, in the background, and fully closed; tapping must open the intended
+> Mugshot content for the signed-in recipient. Read one item and then all items
+> and confirm both the Activity indicator and app-icon badge converge. Turning
+> push or a category off must stop new push for that choice without removing
+> in-app Activity. Signing out, switching accounts, blocking someone, or opening
+> removed/private content must never expose another account's activity or
+> content. Also confirm nearby cafe reminders still route correctly. Report
+> missing or duplicate alerts, stale badges, wrong destinations, noisy friend-
+> post volume, or any privacy or account mismatch immediately.

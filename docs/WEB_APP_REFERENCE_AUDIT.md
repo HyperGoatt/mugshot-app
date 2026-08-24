@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_PRODUCT_STATUS.md
+---
+
+> Historical web-to-native reference. Statements that native friends or notifications are absent describe the audit date. Use [Current product status](CURRENT_PRODUCT_STATUS.md).
+
 # Web App Reference Audit
 
 Date: 2026-06-30
@@ -415,4 +423,3 @@ This audit did not:
 - Rotate secrets.
 - Fix package dependencies.
 - Implement native auth, profile, media, feed, map, friends, notifications, or settings.
-
