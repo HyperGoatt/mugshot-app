@@ -21,7 +21,7 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
 | Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
 | In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state, durable deep links with source attribution, account-bound push refresh, authoritative badge updates; 15 focused tests and Simulator surface inspection passed | Signed-in physical lifecycle acceptance |
-| Remote push | V3 production-configured; client locally verified; physical acceptance pending | APNs worker v3, credentials, topics, queue, compatible v2/v3 backend, typed client environments, capability-gated v3 registration, canonical minute job; 12 coordinator tests passed | Enable Debug App ID push capability/profile, then complete sandbox/production device matrix |
+| Remote push | V3 production-configured; client locally verified; physical acceptance pending | APNs worker v3, credentials, topics, queue, compatible v2/v3 backend, typed client environments, capability-gated v3 registration, canonical minute job; Debug App ID push capability enabled; 12 coordinator tests passed | Generate/install the staged development profile, then complete sandbox/production device matrix |
 | Notification preferences | Implemented, locally verified | Master/category controls, shared iOS authorization reconciliation, truthful build/backend/device messaging; Activity always available | Physical permission acceptance |
 | Widgets and share extension | Implemented, locally verified | App-group data, widgets, pending place import and share routes | Release regression gate when extension contracts change |
 | Public links | Implemented and production evidence recorded | Public Mugshot/profile/list routes and associated domains | Preserve audience/revocation guarantees |
@@ -33,6 +33,6 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 
 ## Notification sprint priority
 
-1. Enable Push Notifications for the Debug App ID and regenerate its development profile.
+1. Generate, download, and install the staged Debug development profile.
 2. Complete physical Debug sandbox acceptance.
 3. Prepare the next TestFlight candidate; upload only with explicit approval.
