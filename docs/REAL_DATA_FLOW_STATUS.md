@@ -25,7 +25,7 @@ must not overrule an authoritative remote result.
 | Friends, blocks, reports and enforcement | Supabase caller-bound RPCs | Presentation cache | Privacy and block checks fail closed |
 | Saved cafes and cafe lists | `user_cafe_states` and cafe-list RPCs | Guest saved state and merge queue | Preserve explicit user intent until merged or dismissed |
 | Activity and unread count | `activity_events` through caller-bound RPCs | Current page and pending route | Push failure never removes Activity history |
-| Push preferences and device ownership | Preference/device RPCs | Installation ID, last token hint, uncertainty flag | Register only for the exact authenticated account |
+| Push preferences and device ownership | Versioned preference/device RPCs; v3 badge capability defaults false | Installation ID, last token hint, uncertainty flag | Register only for the exact authenticated account; malformed capability data disables remote registration |
 | Nearby reminders | iOS notification/location state | Region/cooldown store | Independent of remote Activity delivery |
 | Analytics | PostHog project | SDK queue | No private content or product identifiers |
 
@@ -33,15 +33,14 @@ must not overrule an authoritative remote result.
 
 The client uses versioned RPCs and treats missing functions as compatibility
 states, not empty data. Existing Activity code retains a hardened legacy read
-fallback while the current backend advertises the modern Activity and
-notification-preference contracts. The notification sprint adds a single
-backend-capability read so push registration can fail truthfully before calling
-an unavailable RPC.
+fallback. The backend now advertises additive `push_badge_sync` support while
+retaining v2 device registration and delivery revalidation; the client-side
+capability read remains the next implementation stage.
 
 ## Current migration boundary
 
 The repository migration head is
-`20260824142054_owner_journal_brew_projection.sql`. Source presence does not
+`20260824163143_activity_delivery_schedule_v3.sql`. Source presence does not
 prove live deployment. Database migration, Edge Function deployment, and client
 capability adoption follow the order in
 [the Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).

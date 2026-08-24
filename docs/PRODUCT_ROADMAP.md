@@ -8,6 +8,8 @@ last_verified: 2026-08-24
 
 ## Now: real notifications and TestFlight learning
 
+- Release the locally verified badge-aware backend and canonical worker schedule
+  through disposable QA before the iOS client depends on `push_badge_sync`.
 - Physically accept sandbox and production APNs across foreground, background,
   terminated launch, deep links, badges, preferences, sign-out, and account
   changes.

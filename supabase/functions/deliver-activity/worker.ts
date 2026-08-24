@@ -17,6 +17,7 @@ export interface PushDelivery {
   attempt_count: number;
   claim_token: string;
   lease_version: number;
+  badge?: number;
 }
 
 export interface APNSConfiguration {
@@ -214,6 +215,31 @@ export function resolveAPNSTarget(
     };
 }
 
+export function buildAPNSPayload(
+  delivery: PushDelivery,
+): Record<string, unknown> {
+  const aps: Record<string, unknown> = {
+    alert: { title: delivery.title, body: delivery.body },
+    sound: "default",
+  };
+  if (
+    typeof delivery.badge === "number" &&
+    Number.isSafeInteger(delivery.badge) &&
+    delivery.badge >= 0
+  ) {
+    aps.badge = delivery.badge;
+  }
+
+  return {
+    aps,
+    mugshot: {
+      activity_event_id: delivery.activity_event_id,
+      recipient_id: delivery.recipient_id,
+      deep_link: delivery.deep_link,
+    },
+  };
+}
+
 export async function fetchResponseWithTimeout(
   fetcher: Fetcher,
   input: string | URL | Request,
@@ -264,17 +290,7 @@ export async function sendAPNS(
           "apns-id": delivery.delivery_id,
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          aps: {
-            alert: { title: delivery.title, body: delivery.body },
-            sound: "default",
-          },
-          mugshot: {
-            activity_event_id: delivery.activity_event_id,
-            recipient_id: delivery.recipient_id,
-            deep_link: delivery.deep_link,
-          },
-        }),
+        body: JSON.stringify(buildAPNSPayload(delivery)),
       },
       10_000,
     );
@@ -322,20 +338,41 @@ async function complete(
   if (data !== true) throw new Error("stale_or_missing_delivery_lease");
 }
 
+type RevalidationDecision =
+  | { status: "eligible"; badge?: number }
+  | { status: "cancelled" | "unavailable" };
+
 async function revalidateImmediatelyBeforeSend(
   admin: AdminClient,
   delivery: PushDelivery,
-): Promise<"eligible" | "cancelled" | "unavailable"> {
+): Promise<RevalidationDecision> {
   const { data, error } = await admin.rpc(
-    "revalidate_activity_push_delivery_v2",
+    "revalidate_activity_push_delivery_v3",
     {
       p_delivery_id: delivery.delivery_id,
       p_claim_token: delivery.claim_token,
       p_lease_version: delivery.lease_version,
     },
   );
-  if (error) return "unavailable";
-  return data === true ? "eligible" : "cancelled";
+  if (error || typeof data !== "object" || data === null) {
+    return { status: "unavailable" };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (result.eligible === false) return { status: "cancelled" };
+  if (result.eligible !== true) return { status: "unavailable" };
+
+  if (result.supports_badge_sync !== true) {
+    return { status: "eligible" };
+  }
+  if (
+    typeof result.unread_count !== "number" ||
+    !Number.isSafeInteger(result.unread_count) ||
+    result.unread_count < 0
+  ) {
+    return { status: "unavailable" };
+  }
+  return { status: "eligible", badge: result.unread_count };
 }
 
 export async function processDeliveries(
@@ -357,18 +394,21 @@ export async function processDeliveries(
   for (let index = 0; index < deliveries.length; index += 5) {
     const batch = deliveries.slice(index, index + 5);
     const results = await Promise.all(batch.map(async (delivery) => {
-      const eligibility = await revalidateImmediatelyBeforeSend(
+      const revalidation = await revalidateImmediatelyBeforeSend(
         admin,
         delivery,
       );
-      if (eligibility !== "eligible") {
+      if (revalidation.status !== "eligible") {
         return {
           result: { outcome: "terminal" as const },
-          receiptFailed: eligibility === "unavailable",
-          cancelledBeforeSend: eligibility === "cancelled",
+          receiptFailed: revalidation.status === "unavailable",
+          cancelledBeforeSend: revalidation.status === "cancelled",
         };
       }
-      const result = await sender(delivery, configuration);
+      const deliveryForAPNS = revalidation.badge === undefined
+        ? delivery
+        : { ...delivery, badge: revalidation.badge };
+      const result = await sender(deliveryForAPNS, configuration);
       try {
         await complete(admin, delivery, result);
         return { result, receiptFailed: false, cancelledBeforeSend: false };

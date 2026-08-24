@@ -8,8 +8,9 @@ import {
 } from "./worker.ts";
 
 const protocol = "mugshot-activity-delivery";
-const protocolVersion = 2;
-const deliveryAction = "deliver_v2";
+const protocolVersion = 3;
+const deliveryAction = "deliver_v3";
+const compatibleDeliveryActions = new Set(["deliver_v2", deliveryAction]);
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -101,7 +102,10 @@ Deno.serve(async (request) => {
   } catch {
     return json({ error: "invalid_request" }, 400);
   }
-  if (body.action !== deliveryAction) {
+  if (
+    typeof body.action !== "string" ||
+    !compatibleDeliveryActions.has(body.action)
+  ) {
     return json({ error: "unsupported_action" }, 400);
   }
   const requestedLimit =

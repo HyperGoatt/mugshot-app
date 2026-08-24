@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260824142054_owner_journal_brew_projection.sql`. Repository head and live
+`20260824163143_activity_delivery_schedule_v3.sql`. Repository head and live
 deployment state are separate facts; the live project reference is recorded in
 the existing Supabase link and QA scripts refuse that production reference.
 
@@ -110,7 +110,10 @@ the client UI.
 ## Current external gates
 
 - **APNs:** the worker, team-scoped key, both topics, and production schedule are
-  configured. Real sandbox and TestFlight delivery/tap acceptance remains.
+  configured on the v2 production path. Badge-aware v3 contracts and the
+  canonical Vault-backed schedule are locally verified in source and still
+  require disposable-QA/live release. Real sandbox and TestFlight delivery/tap
+  acceptance remains.
 - **Home Workbench:** three repository migrations dated 2026-08-23/24 require
   the normal disposable-branch, live snapshot, dry-run, deployment, and drift
   closure sequence before production reliance.

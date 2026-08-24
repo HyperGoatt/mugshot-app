@@ -21,20 +21,19 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
 | Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
 | In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state and deep links | Foreground push refresh and badge convergence hardening |
-| Remote push | Production configured; physical acceptance pending | APNs worker, credentials, topics, queue, device RPCs | Sandbox/production device lifecycle matrix |
+| Remote push | V2 production configured; v3 locally verified; physical acceptance pending | APNs worker, credentials, topics, queue, compatible v2/v3 device and delivery RPCs, opt-in badge payload | QA/live v3 release, then sandbox/production device lifecycle matrix |
 | Notification preferences | Implemented, locally verified | Master and category controls; Activity always available | Correct stale capability copy and add analytics |
 | Widgets and share extension | Implemented, locally verified | App-group data, widgets, pending place import and share routes | Release regression gate when extension contracts change |
 | Public links | Implemented and production evidence recorded | Public Mugshot/profile/list routes and associated domains | Preserve audience/revocation guarantees |
 | Nearby cafe reminders | Implemented, device-sensitive | Local notifications and region monitoring | Unify authorization reconciliation with push |
 | Account export/deletion | Implemented with production backend gates | Export manifest, step-up deletion and scheduled cleanup | Follow destructive-flow acceptance policy |
 | Analytics | Implemented for core journeys | Pinned PostHog SDK and privacy-safe event taxonomy | Add notification lifecycle events without identifiers/content |
-| Documentation | Living baseline in progress | Canonical index, change log, policy and automated checks | Keep current in every PR |
+| Documentation | Living baseline merged | PR #46; canonical index, change log, policy and automated checks | Keep current in every PR |
 | TestFlight | Active distribution | 0.5.3 distributed; source build 5 | Explicit upload request and candidate device gates |
 
 ## Notification sprint priority
 
-1. Publish and merge the documented Home Workbench checkpoint.
-2. Add backward-compatible badge and scheduler contracts.
-3. Enable physical Debug sandbox push and harden the coordinator.
-4. Complete physical sandbox acceptance.
-5. Prepare the next TestFlight candidate; upload only with explicit approval.
+1. Release the backward-compatible badge and scheduler contracts through QA.
+2. Enable physical Debug sandbox push and harden the coordinator.
+3. Complete physical sandbox acceptance.
+4. Prepare the next TestFlight candidate; upload only with explicit approval.

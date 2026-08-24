@@ -1,6 +1,8 @@
 # Activity delivery worker
 
-Deployment status: version 1 is active in the live Supabase project. In-app
+Deployment status: version 1 is active in the live Supabase project. Source now
+implements the backward-compatible v3 worker contract and opt-in unread badge;
+that source is not live until the documented QA/deployment workflow completes. In-app
 activity is fully available. On 2026-08-09 the Candlewood Coffee LLC team-scoped
 APNs key, both environment topics, and the durable schedule were installed in
 production; the worker status endpoint reports `pushDelivery: configured`.
@@ -25,7 +27,14 @@ Deployment readiness requires:
   header;
 - platform JWT verification disabled for this service-only endpoint, because the
   caller authenticates with the secret-key header rather than a user JWT;
-- a scheduler or database webhook that invokes `{"action":"deliver_v2"}`.
+- the canonical one-minute `mugshot-activity-delivery-v3` schedule, installed by
+  `20260824163143_activity_delivery_schedule_v3.sql`, invoking
+  `{"action":"deliver_v3","protocolVersion":3,"limit":25}` with its
+  `apikey` read from the Vault secret
+  `mugshot_activity_delivery_service_role` and its endpoint read from
+  `mugshot_activity_delivery_worker_url`. The worker temporarily accepts
+  `deliver_v2` during schedule rollout, and disposable QA uses its own URL/key
+  pair.
 
 The worker never trusts a client-supplied user ID, never logs a push token, and
 claims tokens only through the service-role-only `claim_activity_push_batch_v2`
@@ -35,6 +44,13 @@ restoration and consumed only by that account. Each claim returns a token and
 monotonically increasing lease version; both are required by
 `complete_activity_push_delivery_v2`, so a stale worker cannot complete a newer
 lease or disable its device.
+
+Immediately before transport, the worker calls the service-only
+`revalidate_activity_push_delivery_v3`. That RPC retains the v2 eligibility and
+lease fence and adds the authoritative visible unread count plus the device's
+badge capability. `aps.badge` is present only when the device registered through
+v3 with badge sync enabled. The recipient ID, activity event ID, and deep link
+payload are unchanged for every build.
 
 The worker selects both APNs host and topic from the server-owned device
 environment: sandbox deliveries use `APNS_SANDBOX_TOPIC`, while production

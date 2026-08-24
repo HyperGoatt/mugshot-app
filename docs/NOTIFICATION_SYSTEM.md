@@ -11,8 +11,12 @@ last_verified: 2026-08-24
 In-app Activity, notification preferences, caller-bound device registration,
 the durable delivery queue, and the `deliver-activity` Edge Function are
 implemented. Production APNs credentials and the production worker schedule
-were configured on 2026-08-09. The archived 0.5.3 (4) app is signed with
-`aps-environment=production`; source is currently 0.5.3 (5).
+were configured on 2026-08-09. Source on
+`codex/notification-backend-v3` adds the badge-aware v3 contracts and a
+canonical one-minute schedule; those changes are locally verified but are not
+production-configured until the disposable-QA and live release workflow closes.
+The archived 0.5.3 (4) app is signed with `aps-environment=production`; source
+is currently 0.5.3 (5).
 
 No document may describe remote delivery as physically accepted yet. A real
 notification and tapped cold launch on a signed sandbox build and a TestFlight
@@ -25,9 +29,11 @@ production build remain acceptance gates.
    preference checks decide whether a per-device delivery is queued in
    `private.activity_push_deliveries`.
 3. A secret-authenticated Edge worker claims fenced leases and revalidates the
-   recipient immediately before APNs.
+   recipient immediately before APNs. V3 revalidation also returns the
+   authoritative visible unread count and the installation's badge capability.
 4. APNs receives an alert plus an account-bound `mugshot` envelope containing
-   the activity event ID, recipient ID, and deep link.
+   the activity event ID, recipient ID, and deep link. Only an installation
+   registered as badge-capable receives `aps.badge`; the envelope is unchanged.
 5. The app rejects an envelope for any account other than the active confirmed
    owner and routes valid taps to Activity, a visit, a profile, or cafe lists.
 
@@ -47,6 +53,24 @@ permission never removes in-app Activity.
 - A stale worker cannot finish a newer claim because completion requires the
   delivery ID, claim token, and lease version.
 
+## Versioned backend contract
+
+- `user_devices.supports_badge_sync` is non-null and defaults to `false`.
+- `register_user_device_v2(uuid,text,text)` remains executable by authenticated
+  clients. A device that has never used v3 therefore receives the original
+  badge-free payload.
+- `register_user_device_v3(uuid,text,text,boolean)` delegates token validation,
+  account checks, churn control, token ownership, and device caps to v2, then
+  records the caller installation's badge support without returning its token.
+- `revalidate_activity_push_delivery_v2(uuid,uuid,bigint)` remains available to
+  the service role during the compatibility window.
+- `revalidate_activity_push_delivery_v3(uuid,uuid,bigint)` is service-role-only
+  and returns final eligibility, authoritative visible unread count, and badge
+  support after the v2 fence passes.
+- `get_backend_capabilities_v1()` keeps contract version 1 and adds the Boolean
+  `push_badge_sync` flag under schema release
+  `2026-08-24-activity-push-badge-v3`.
+
 ## Environments
 
 | Build | Bundle/topic | APNs host | Current status |
@@ -54,6 +78,22 @@ permission never removes in-app Activity.
 | Simulator | none | none | In-app Activity only; push unavailable by design |
 | Physical Debug | `co.mugshot.app.dev` | sandbox | Apple App ID/backend topic configured; client entitlement work is in this sprint |
 | Release/TestFlight | `co.mugshot.app` | production | Signed and production configured; physical delivery acceptance pending |
+
+## Worker scheduling
+
+`20260824163143_activity_delivery_schedule_v3.sql` owns the canonical
+`mugshot-activity-delivery-v3` `pg_cron` job. It runs every minute and invokes
+`deliver_v3` through `pg_net`. The endpoint and `apikey` value are read at
+execution time from the single Vault entries
+`mugshot_activity_delivery_worker_url` and
+`mugshot_activity_delivery_service_role`; no credential is stored in SQL or the
+job command, and disposable QA can target its own worker.
+
+Installation fails closed when either Vault entry, `pg_cron`, or `pg_net` is unavailable,
+when more than one delivery job exists, or when the one existing job contains
+an embedded credential. At most one safe existing delivery job is adopted and
+replaced by the canonical definition. Production continues using the schedule
+configured on 2026-08-09 until this forward migration is released.
 
 ## User controls
 
@@ -73,6 +113,20 @@ Per-friend mute is deferred unless feedback demonstrates a concrete need.
 - Blocked, moderated, private, removed, or suspended content is suppressed
   before delivery and checked again before opening.
 
+## Troubleshooting
+
+- Capability missing or malformed: do not register; keep Activity available and
+  report backend capability as the unavailable layer.
+- Registration rejected: confirm the active account, token format, build APNs
+  environment, device cap, and churn bound without logging the token.
+- Worker not draining: inspect the single cron job, recent `pg_net` responses,
+  Edge Function health, lease/retry counts, and Vault-secret presence.
+- `BadDeviceToken`: verify the build entitlement, bundle topic, APNs host, and
+  registration environment. Only APNs `Unregistered` retires the device row.
+- Badge mismatch: compare v3 capability on the installation with
+  `activity_unread_count_v1()` after visibility filtering; never infer the
+  count from locally cached Activity rows.
+
 ## Acceptance and operations
 
 The complete gate covers foreground, background, terminated launch, deep links,
@@ -84,3 +138,7 @@ activity rows.
 Monitor delivery outcomes, retry volume, disabled devices, registration counts
 by environment, category opt-outs, and tester reports. Never monitor message
 content, push tokens, social identifiers, or deep-link identifiers.
+
+No signed-device or TestFlight v3 acceptance evidence has been recorded yet.
+Local evidence on 2026-08-24 is backend verification 12/0/0 and full-static
+verification 13/0/0, including parsing all 182 SQL files.
