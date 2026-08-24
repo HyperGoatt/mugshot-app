@@ -1,3 +1,11 @@
+---
+document_type: decision_record
+status: locked
+implementation_status: CURRENT_PRODUCT_STATUS.md
+---
+
+> Locked product-direction record. Use [Current product status](CURRENT_PRODUCT_STATUS.md) for implementation and release evidence.
+
 # Mugshot V3 Product Interview
 
 **Status:** Locked product-direction record, with unresolved alpha hypotheses called out explicitly
@@ -86,13 +94,13 @@ This preserves the distinction between:
 - **How it worked for me:** the evaluative star score.
 - **How much it mattered this time:** importance.
 
-### The overall score belongs to the user
+### The manual score is the baseline
 
-- Criteria produce an advisory weighted score.
-- The overall sip, cafe, or setting score remains whatever the user deliberately chose.
-- If criteria suggest 2.3 but the user's felt experience is 4.0, the historical and published score is 4.0.
-- Mugshot may quietly show "Your criteria suggest 2.3" with a voluntary `Use 2.3` action.
-- Machine learning may suggest or explain; it may never silently change a score.
+- A deliberate sip, cafe, or setting star score becomes the draft's manual baseline.
+- Once at least one numeric criterion is rated, the weighted one-decimal criteria average becomes the displayed and published score.
+- Importance changes recalculate that score immediately; typed observations remain nonnumeric.
+- Clearing every numeric criterion restores the last manual baseline.
+- This 0.5.3 (4) product decision supersedes the earlier advisory-score interview answers retained below as historical context.
 
 ### The Mugshot score represents the whole memory
 
@@ -123,7 +131,7 @@ This preserves the distinction between:
 
 **Joe's answer:** Four. This is their experience and perception, not a mathematical equation. The criteria are there to help. Even if they disliked several components and the criteria calculate to 2.3, they can still decide the experience was a 4 and publish it as a 4.
 
-**Agreed decision:** The explicit overall score is canonical. The weighted result is advisory and may be adopted only through a clear user action.
+**Historical decision (superseded in 0.5.3 (4)):** The explicit overall score was canonical and the weighted result was advisory. The current rule uses the manual score as a restorable baseline while active numeric criteria determine the score.
 
 ## 4. Does "Bitterness 5" mean very bitter, or that the bitterness was excellent for that person?
 
@@ -584,7 +592,7 @@ This preserves the distinction between:
 
 **Joe's answer:** Yes. Keep 4 and quietly show the suggested result with a `Use 2.3` action. Validate it in focus groups.
 
-**Agreed decision:** Locked for alpha as an explicit hypothesis. Track whether this clarifies reflection or creates doubt.
+**Historical decision (superseded in 0.5.3 (4)):** This was locked as an advisory-score hypothesis. The current implementation derives the score while criteria are active and restores the manual baseline when they are cleared.
 
 ## 8. Should importance use Less, Normal, More, and Most, and how should previous criteria return?
 
@@ -886,7 +894,7 @@ Raw sensory reaction and emotional context remain free-form.
 The following were intentionally not treated as permanent truths:
 
 1. **Equal blend clarity:** Does the simple sip + context average match how people understand the memory?
-2. **Criteria advisory:** Does showing a weighted suggestion help reflection, or undermine confidence in the overall score?
+2. **Criteria-derived score:** Does immediate weighted scoring help reflection while the restorable manual baseline preserves confidence?
 3. **Importance math:** What coefficients, if any, best match Less/Normal/More/Most without producing surprising averages?
 4. **Notification tolerance:** Are notifications for every friend's Mugshot delightful in a small network or quickly noisy?
 5. **Photo placeholder:** Does a Mugsy placeholder preserve publishing without reducing photo-taking motivation?
@@ -932,7 +940,7 @@ After testing the first V3 UI Lab in Simulator, Joe approved the following refin
 4. **Flavor exploration:** The Sip helper area includes an optional broad-to-specific Flavor, Body, and Character explorer. The internal prototype may evaluate the Counter Culture hierarchy with attribution, but commercial production requires permission or Mugshot's original licensed taxonomy and visuals.
 5. **Criteria depth:** Sip and context surfaces offer at least 20 relevant suggestions before "Add my own." Criterion stars are materially larger than the first prototype. Pin and remove controls are compact and stacked.
 6. **Importance interaction:** Importance uses the human-language order Most, More, Normal, Less in a Mugshot-branded popover, not a generic menu. Removing a criterion requires confirmation.
-7. **Exact advisory decimals:** Direct overall star taps remain half-step. A weighted criteria suggestion may be adopted at its exact one-decimal value, such as 2.4. The user's overall score always remains authoritative.
+7. **Exact criteria decimals:** Direct manual star taps remain half-step. Active numeric criteria produce the exact weighted one-decimal score, such as 2.4, and clearing them restores the manual baseline.
 8. **Publish score hierarchy:** Publish leads with the Mugshot score, then nests the smaller Sip and Cafe evidence underneath. The earlier side-by-side equation treatment is rejected.
 9. **Visibility consistency:** Audience and raw-note visibility use the same Private/Friends/Everyone control. A raw note can never be broader than the finished Mugshot.
 10. **Friend invitations:** Publish shows a compact recommended-friends strip with profile thumbnails and a plus action. Selecting friends creates invitations; it does not publish for them.

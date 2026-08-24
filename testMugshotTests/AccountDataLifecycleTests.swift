@@ -781,6 +781,66 @@ struct AccountDataLifecycleTests {
         #expect((enforcement["appeals"] as? [[String: Any]])?.count == 1)
     }
 
+    @Test func ownerExportIncludesLocalHomeLibraryAndBagPhotos() async throws {
+        let resources = try makePendingResources(named: "HomeLibraryExport")
+        defer { resources.cleanup() }
+        let ownerID = UUID()
+        let homeStore = HomeLibraryStore(
+            fileManager: .default,
+            baseDirectory: resources.directory.appendingPathComponent(
+                "HomeLibrary",
+                isDirectory: true
+            )
+        )
+        var bag = CoffeeBag(ownerUserID: ownerID, roaster: "Export Roaster", name: "Export Coffee")
+        bag.localPhotoPath = try homeStore.saveBagPhoto(
+            image(.brown),
+            bagID: bag.id,
+            in: .user(ownerID)
+        )
+        _ = try homeStore.upsert(bag, in: .user(ownerID))
+
+        let remote = OwnerExportTransportStub(userID: ownerID)
+        remote.v2Data = try JSONSerialization.data(withJSONObject: [
+            "schema_version": 2,
+            "export_manifest": [
+                "server_contract_completeness": "complete_as_of_schema_version_2",
+                "known_omissions": []
+            ],
+            "media_references": []
+        ])
+        remote.enforcementData = try JSONSerialization.data(withJSONObject: [
+            "enforcement_decisions": [],
+            "appeals": []
+        ])
+        let service = OwnerDataExportService(
+            remote: remote,
+            pendingStore: resources.store,
+            homeLibraryStore: homeStore,
+            fileManager: .default,
+            session: .shared
+        )
+
+        let package = try await service.prepareExport()
+        defer { try? FileManager.default.removeItem(at: package.directoryURL) }
+        let journal = try Data(contentsOf: package.shareURLs[0])
+        let object = try #require(
+            JSONSerialization.jsonObject(with: journal) as? [String: Any]
+        )
+        let home = try #require(object["local_home_workbench_cache"] as? [String: Any])
+        let bags = try #require(home["bags"] as? [[String: Any]])
+        let manifest = try #require(
+            object["home_coffee_bag_media_manifest"] as? [[String: String]]
+        )
+
+        #expect(package.completeness == .complete)
+        #expect(package.packagedMediaCount == 1)
+        #expect(bags.first?["localPhotoPath"] == nil)
+        #expect(bags.first?["name"] as? String == "Export Coffee")
+        #expect(manifest.first?["coffee_bag_id"] == bag.id.uuidString.lowercased())
+        #expect(package.shareURLs.contains { $0.lastPathComponent == "\(bag.id.uuidString.lowercased()).jpg" })
+    }
+
     @Test func missingEnforcementSupplementMakesV2ExportExplicitlyPartial() async throws {
         let resources = try makePendingResources(named: "EnforcementExportFallback")
         defer { resources.cleanup() }
@@ -1035,6 +1095,14 @@ struct AccountDataLifecycleTests {
 
         #expect(url == remote.signedURLValue)
         #expect(remote.signedRequests == ["visit-photos-private|\(path)|300"])
+
+        let bagPhotoReference = OwnerExportMediaReference(source: .storage(
+            bucket: "home-coffee-bag-photos",
+            path: "\(ownerID.uuidString.lowercased())/\(UUID()).jpg",
+            access: "private"
+        ))
+        _ = try await service.resolvedURL(for: bagPhotoReference, ownerID: ownerID)
+        #expect(remote.signedRequests.last?.hasPrefix("home-coffee-bag-photos|") == true)
 
         let rejected = OwnerDataExportService.mediaReferences(from: [
             "media_references": [

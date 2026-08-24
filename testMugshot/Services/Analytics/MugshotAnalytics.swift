@@ -208,6 +208,18 @@ enum MugshotAnalyticsShareAction: String {
     case hubDismissed = "share_hub_dismissed"
 }
 
+/// Structural Home Workbench signals only. The event intentionally carries no
+/// coffee identity, OCR output, recipe contents, measurements, or notes.
+enum MugshotHomeWorkbenchAnalyticsAction: String {
+    case viewed
+    case templateReused = "template_reused"
+    case advancedFieldsOpened = "advanced_fields_opened"
+    case scanSucceeded = "scan_succeeded"
+    case scanFallback = "scan_fallback"
+    case recipeSaved = "recipe_saved"
+    case completed
+}
+
 struct MugshotSipAnalyticsSnapshot: Equatable {
     let entryPoint: String
     let context: String
@@ -351,6 +363,7 @@ enum MugshotAnalyticsEvent: Equatable {
     )
     case sipRecoveryResumed(MugshotSipAnalyticsSnapshot)
     case sipPublicationDeduplicated(MugshotSipAnalyticsSnapshot)
+    case homeWorkbench(action: MugshotHomeWorkbenchAnalyticsAction)
     case cafeStateChanged(
         state: MugshotCafeState,
         action: MugshotAnalyticsMutationAction,
@@ -555,6 +568,11 @@ enum MugshotAnalyticsEvent: Equatable {
             return sipPayload("sip_recovery_resumed", snapshot: snapshot)
         case .sipPublicationDeduplicated(let snapshot):
             return sipPayload("sip_publication_deduplicated", snapshot: snapshot)
+        case .homeWorkbench(let action):
+            return payload(
+                "home_workbench",
+                ["action": .string(action.rawValue)]
+            )
         case .cafeStateChanged(let state, let action, let surface):
             return payload(
                 "cafe_state_changed",

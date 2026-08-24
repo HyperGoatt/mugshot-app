@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: REAL_DATA_FLOW_STATUS.md
+---
+
+> Historical backend snapshot. Counts, functions, risks, and missing-client claims below are not current. Use [Real data flow status](REAL_DATA_FLOW_STATUS.md), [Notification system](NOTIFICATION_SYSTEM.md), and the [Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).
+
 # Supabase Audit
 
 Date: 2026-06-30

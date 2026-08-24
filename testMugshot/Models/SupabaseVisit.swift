@@ -34,6 +34,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     let brewMethod: String?
     let equipment: String?
     let brewDetails: BrewDetails?
+    let homeCoffeeBagID: UUID?
     let recipeVersionID: UUID?
     let cafeSessionID: UUID?
     let cafeSessionOrder: Int?
@@ -60,6 +61,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         case brewMethod = "brew_method"
         case equipment
         case brewDetails = "brew_details"
+        case homeCoffeeBagID = "home_coffee_bag_id"
         case recipeVersionID = "recipe_version_id"
         case cafeSessionID = "cafe_session_id"
         case cafeSessionOrder = "cafe_session_order"
@@ -89,6 +91,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         createdAt: String,
         equipment: String? = nil,
         brewDetails: BrewDetails? = nil,
+        homeCoffeeBagID: UUID? = nil,
         recipeVersionID: UUID? = nil,
         cafeSessionID: UUID? = nil,
         cafeSessionOrder: Int? = nil,
@@ -114,6 +117,7 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
         self.brewMethod = brewMethod
         self.equipment = equipment
         self.brewDetails = brewDetails
+        self.homeCoffeeBagID = homeCoffeeBagID
         self.recipeVersionID = recipeVersionID
         self.cafeSessionID = cafeSessionID
         self.cafeSessionOrder = cafeSessionOrder
@@ -193,6 +197,44 @@ struct SupabaseVisitRow: Identifiable, Decodable, Equatable {
     }
 }
 
+extension SupabaseVisitRow {
+    /// Reattaches owner-only brew data that is intentionally absent from social visit queries.
+    func attachingOwnerBrewDetails(
+        brewMethod: String?,
+        equipment: String?,
+        brewDetails: BrewDetails?
+    ) -> SupabaseVisitRow {
+        SupabaseVisitRow(
+            id: id,
+            userId: userId,
+            cafeId: cafeId,
+            drinkType: drinkType,
+            drinkTypeCustom: drinkTypeCustom,
+            drinkSubtype: drinkSubtype,
+            caption: caption,
+            notes: notes,
+            visibility: visibility,
+            uploadState: uploadState,
+            ratings: ratings,
+            categoryScores: categoryScores,
+            overallScore: overallScore,
+            posterPhotoURL: posterPhotoURL,
+            contextType: contextType,
+            locationName: locationName,
+            cityState: cityState,
+            brewMethod: brewMethod,
+            createdAt: createdAt,
+            equipment: equipment,
+            brewDetails: brewDetails,
+            homeCoffeeBagID: homeCoffeeBagID,
+            recipeVersionID: recipeVersionID,
+            cafeSessionID: cafeSessionID,
+            cafeSessionOrder: cafeSessionOrder,
+            cafeSessionRole: cafeSessionRole
+        )
+    }
+}
+
 struct SupabaseVisitPhotoRow: Identifiable, Decodable, Equatable {
     let id: UUID
     let visitId: UUID
@@ -252,6 +294,75 @@ struct SupabaseVisitCommentRow: Identifiable, Decodable, Equatable {
 
     var createdAtDate: Date {
         createdAt.remoteISO8601Date ?? Date.distantPast
+    }
+}
+
+struct RemoteCommentMention: Identifiable, Decodable, Equatable {
+    let userID: UUID
+    let token: String
+    let displayName: String
+    let username: String
+    let avatarURL: String?
+
+    var id: UUID { userID }
+
+    enum CodingKeys: String, CodingKey {
+        case token, username
+        case userID = "user_id"
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+    }
+}
+
+struct SupabaseVisitCommentProjectionRow: Decodable, Equatable {
+    let id: UUID
+    let userID: UUID
+    let visitID: UUID
+    let text: String
+    let createdAt: String
+    let parentCommentID: UUID?
+    let authorDisplayName: String
+    let authorUsername: String
+    let authorAvatarURL: String?
+    let mentions: [RemoteCommentMention]
+    let repliesCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, text, mentions
+        case userID = "user_id"
+        case visitID = "visit_id"
+        case createdAt = "created_at"
+        case parentCommentID = "parent_comment_id"
+        case authorDisplayName = "author_display_name"
+        case authorUsername = "author_username"
+        case authorAvatarURL = "author_avatar_url"
+        case repliesCount = "replies_count"
+    }
+
+    var remoteComment: RemoteVisitComment {
+        RemoteVisitComment(
+            comment: SupabaseVisitCommentRow(
+                id: id,
+                userId: userID,
+                visitId: visitID,
+                text: text,
+                createdAt: createdAt,
+                parentCommentId: parentCommentID
+            ),
+            author: SupabaseUserProfile(
+                id: userID,
+                displayName: authorDisplayName,
+                username: authorUsername,
+                bio: nil,
+                location: nil,
+                favoriteDrink: nil,
+                instagramHandle: nil,
+                avatarURL: authorAvatarURL,
+                bannerURL: nil,
+                websiteURL: nil
+            ),
+            mentions: mentions
+        )
     }
 }
 
@@ -329,6 +440,17 @@ struct SupabaseVisitPrivateNoteUpsert: Encodable, Equatable {
 struct RemoteVisitComment: Identifiable, Equatable {
     let comment: SupabaseVisitCommentRow
     let author: SupabaseUserProfile?
+    let mentions: [RemoteCommentMention]
+
+    init(
+        comment: SupabaseVisitCommentRow,
+        author: SupabaseUserProfile?,
+        mentions: [RemoteCommentMention] = []
+    ) {
+        self.comment = comment
+        self.author = author
+        self.mentions = mentions
+    }
 
     var id: UUID { comment.id }
 

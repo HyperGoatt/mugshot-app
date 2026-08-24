@@ -3,6 +3,15 @@
 - In every user-facing string and product document, use the ASCII spellings `cafe` and `cafes`.
 - Never use an accented e in those words.
 
+## Documentation Freshness
+
+- Follow [`docs/DOCUMENTATION_POLICY.md`](docs/DOCUMENTATION_POLICY.md) for every change.
+- Before implementation, classify whether the change affects product behavior, architecture/data ownership, Supabase contracts, build/distribution, privacy/safety/analytics, or no living documentation.
+- Update [`docs/CHANGELOG.md`](docs/CHANGELOG.md) and every affected living document in the same change. Do not leave documentation cleanup for a later task.
+- Distinguish implemented, locally verified, production-configured, physically accepted, and TestFlight-accepted states. Never claim a stronger state than the evidence proves.
+- Preserve dated audits, checkpoints, and research as historical evidence. Add a supersession banner and current link instead of rewriting their chronology.
+- Run `./scripts/check-documentation.sh` before declaring any repository change complete.
+
 ## Verification Policy
 
 - Follow [`docs/VERIFICATION_POLICY.md`](docs/VERIFICATION_POLICY.md) for every change.

@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: REPO_MAP.md
+---
+
+> Historical translation notes. Deferred and unwired feature statements below are not current. Use the living [Repository map](REPO_MAP.md) and [Feature status matrix](FEATURE_STATUS_MATRIX.md).
+
 # Web To iOS Translation Notes
 
 Date: 2026-06-30

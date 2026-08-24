@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: MUGSHOT_V3_PRODUCT_INTERVIEW.md
+---
+
+> Historical private-beta translation. Product direction is now governed by the [Mugshot V3 decision record](MUGSHOT_V3_PRODUCT_INTERVIEW.md); implementation state lives in [Current product status](CURRENT_PRODUCT_STATUS.md).
+
 # Mugshot Product Spec
 
 Date: 2026-06-30

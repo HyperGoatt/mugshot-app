@@ -42,6 +42,7 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     let notes: String?
     let brewMethod: String?
     let equipment: String?
+    let homeCoffeeBagID: UUID?
     let brewDetails: BrewDetails?
     let visibility: VisitVisibility
     let ratings: [String: Double]
@@ -360,6 +361,7 @@ final class PendingVisitSubmissionStore {
         notes: String?,
         brewMethod: String? = nil,
         equipment: String? = nil,
+        homeCoffeeBagID: UUID? = nil,
         brewDetails: BrewDetails = .empty,
         visibility: VisitVisibility,
         ratings: [String: Double],
@@ -419,6 +421,7 @@ final class PendingVisitSubmissionStore {
             notes: notes,
             brewMethod: brewMethod,
             equipment: equipment,
+            homeCoffeeBagID: homeCoffeeBagID,
             brewDetails: brewDetails,
             visibility: visibility,
             ratings: ratings,

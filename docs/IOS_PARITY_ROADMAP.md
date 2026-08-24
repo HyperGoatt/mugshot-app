@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: PRODUCT_ROADMAP.md
+---
+
+> Historical roadmap. Use the living [Product roadmap](PRODUCT_ROADMAP.md) and [Feature status matrix](FEATURE_STATUS_MATRIX.md) for current sequencing.
+
 # iOS Parity Roadmap
 
 Date: 2026-06-30

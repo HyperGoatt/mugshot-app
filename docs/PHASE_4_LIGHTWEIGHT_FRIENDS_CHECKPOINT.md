@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: FEATURE_STATUS_MATRIX.md
+---
+
+> Historical phase checkpoint. Later Activity and notification work supersedes its delivery deferrals. Use the [Feature status matrix](FEATURE_STATUS_MATRIX.md).
+
 # Phase 4 — Lightweight Friends and Shared Discovery
 
 ## Outcome

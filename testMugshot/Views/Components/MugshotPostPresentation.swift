@@ -25,15 +25,31 @@ enum MugshotPostAspectRatioPolicy {
 enum MugshotPostLocationLine {
     static func locality(from rawValue: String?) -> String? {
         guard let rawValue else { return nil }
-        let components = rawValue
+        var components = rawValue
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        guard !components.isEmpty else { return nil }
+
+        if let last = components.last,
+           ["united states", "usa", "us"].contains(last.lowercased()) {
+            components.removeLast()
+        }
+
+        if let stateIndex = components.lastIndex(where: isStateComponent),
+           stateIndex > components.startIndex {
+            let city = components[components.index(before: stateIndex)]
+            let state = normalizedState(components[stateIndex])
+            guard !city.isEmpty, let state else { return nil }
+            return "\(city), \(state)"
+        }
+
         guard let first = components.first else { return nil }
 
-        if components.count >= 3,
-           first.contains(where: \.isNumber) {
-            return components[1]
+        if components.count >= 2,
+           first.contains(where: \.isNumber),
+           let last = components.last {
+            return last
         }
         return first
     }
@@ -44,7 +60,25 @@ enum MugshotPostLocationLine {
               locality.caseInsensitiveCompare(name) != .orderedSame else {
             return name
         }
-        return "\(name) · \(locality)"
+        return "\(name) | \(locality)"
+    }
+
+    private static func isStateComponent(_ value: String) -> Bool {
+        normalizedState(value) != nil
+    }
+
+    private static func normalizedState(_ value: String) -> String? {
+        let candidate = value
+            .split(whereSeparator: \.isWhitespace)
+            .first
+            .map(String.init)?
+            .uppercased()
+        guard let candidate,
+              candidate.count == 2,
+              candidate.allSatisfy(\.isLetter) else {
+            return nil
+        }
+        return candidate
     }
 }
 
@@ -63,6 +97,23 @@ final class MugshotPostAspectRatioCache: @unchecked Sendable {
 
 private struct MugshotImageSizeReporterKey: EnvironmentKey {
     static let defaultValue: ((CGSize) -> Void)? = nil
+}
+
+struct MugshotInMemoryPostImage: View {
+    let image: UIImage
+    @Environment(\.mugshotImageSizeReporter) private var reportImageSize
+
+    var body: some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .onAppear {
+                reportImageSize?(image.size)
+            }
+            .onChange(of: image.size) { _, newSize in
+                reportImageSize?(newSize)
+            }
+    }
 }
 
 extension EnvironmentValues {
@@ -222,7 +273,7 @@ struct MugshotPostArtworkOverlay: View {
                 if let onLocationTap {
                     Button(action: onLocationTap) {
                         HStack(spacing: 5) {
-                            Text(MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail))
+                            styledLocationLine
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             Image(systemName: "chevron.right")
@@ -237,11 +288,10 @@ struct MugshotPostArtworkOverlay: View {
                     .accessibilityLabel("Open \(locationName) cafe details")
                     .accessibilityHint("Opens this cafe")
                 } else {
-                    Text(MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail))
+                    styledLocationLine
                         .font(.system(.subheadline, design: .default, weight: .semibold))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                        .opacity(0.92)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -259,6 +309,19 @@ struct MugshotPostArtworkOverlay: View {
         }
         .foregroundStyle(Color.white)
         .shadow(color: .black.opacity(0.42), radius: 5, x: 0, y: 2)
+    }
+
+    private var styledLocationLine: Text {
+        let name = Text(locationName)
+            .foregroundColor(.white)
+        guard let locality = locationDetail?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !locality.isEmpty,
+              locality.caseInsensitiveCompare(locationName) != .orderedSame else {
+            return name
+        }
+        return name
+            + Text(" | ").foregroundColor(.white.opacity(0.78))
+            + Text(locality).foregroundColor(.mugshotMint)
     }
 }
 
@@ -387,39 +450,18 @@ struct MugshotFeedPostCard<Footer: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpen) {
-                MugshotAdaptivePostMedia(
-                    ratioCacheKey: presentation.mediaSource.cacheKey,
-                    drinkName: presentation.drinkName,
-                    locationName: presentation.locationName,
-                    locationDetail: presentation.locationDetail,
-                    score: presentation.score
-                ) {
-                    MugshotPostMediaImage(source: presentation.mediaSource)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open \(presentation.drinkName) at \(presentation.locationName)")
-            .accessibilityHint("Opens post details")
-
-            if let caption = presentation.caption {
-                MugshotExpandableCaption(caption: caption, mentions: presentation.mentions)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-            }
-
-            Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center, spacing: 9) {
                         MugshotAvatar(
                             name: presentation.authorName,
-                            size: 30,
+                            size: 34,
                             imageURL: presentation.avatarURL
                         )
 
                         VStack(alignment: .leading, spacing: 1) {
                             HStack(spacing: 6) {
                                 Text(presentation.authorName)
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.system(size: 13, weight: .bold))
                                     .lineLimit(1)
                                 if let badge = presentation.authorBadge {
                                     Text(badge)
@@ -452,8 +494,26 @@ struct MugshotFeedPostCard<Footer: View>: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .overlay(alignment: .top) {
-                Rectangle().fill(Color.mugshotLine).frame(height: 1)
+
+            Button(action: onOpen) {
+                MugshotAdaptivePostMedia(
+                    ratioCacheKey: presentation.mediaSource.cacheKey,
+                    drinkName: presentation.drinkName,
+                    locationName: presentation.locationName,
+                    locationDetail: presentation.locationDetail,
+                    score: presentation.score
+                ) {
+                    MugshotPostMediaImage(source: presentation.mediaSource)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(presentation.drinkName) at \(presentation.locationName)")
+            .accessibilityHint("Opens post details")
+
+            if let caption = presentation.caption {
+                MugshotExpandableCaption(caption: caption, mentions: presentation.mentions)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
             }
 
             footer()

@@ -127,6 +127,7 @@ const allowedBuckets = new Set([
   "visit-photos",
   "visit-photos-private",
   "profile-media",
+  "home-coffee-bag-photos",
 ]);
 
 /**

@@ -76,7 +76,8 @@ final class OwnerDataExportService {
     static let allowedStorageBuckets: Set<String> = [
         "visit-photos",
         "visit-photos-private",
-        "profile-media"
+        "profile-media",
+        "home-coffee-bag-photos"
     ]
     static let maximumMediaFileBytes: Int64 = 50 * 1_024 * 1_024
     static let maximumPackagedMediaBytes: Int64 = 500 * 1_024 * 1_024
@@ -98,6 +99,7 @@ final class OwnerDataExportService {
     private let draftStore: SipDraftStore
     private let reportStore: SafetyReportReceiptStore
     private let appealStore: ModerationAppealReceiptStore
+    private let homeLibraryStore: HomeLibraryStore
     private let fileManager: FileManager
     private let temporaryDirectory: URL
     private let session: URLSession
@@ -109,6 +111,7 @@ final class OwnerDataExportService {
         draftStore: SipDraftStore = .shared,
         reportStore: SafetyReportReceiptStore = .shared,
         appealStore: ModerationAppealReceiptStore = .shared,
+        homeLibraryStore: HomeLibraryStore = .shared,
         fileManager: FileManager = .default,
         session: URLSession = .shared,
         temporaryDirectory: URL? = nil,
@@ -119,6 +122,7 @@ final class OwnerDataExportService {
         self.draftStore = draftStore
         self.reportStore = reportStore
         self.appealStore = appealStore
+        self.homeLibraryStore = homeLibraryStore
         self.fileManager = fileManager
         self.temporaryDirectory = temporaryDirectory ?? fileManager.temporaryDirectory
         self.session = session
@@ -131,6 +135,7 @@ final class OwnerDataExportService {
         draftStore: SipDraftStore = .shared,
         reportStore: SafetyReportReceiptStore = .shared,
         appealStore: ModerationAppealReceiptStore = .shared,
+        homeLibraryStore: HomeLibraryStore = .shared,
         fileManager: FileManager,
         session: URLSession,
         temporaryDirectory: URL? = nil,
@@ -141,6 +146,7 @@ final class OwnerDataExportService {
         self.draftStore = draftStore
         self.reportStore = reportStore
         self.appealStore = appealStore
+        self.homeLibraryStore = homeLibraryStore
         self.fileManager = fileManager
         self.temporaryDirectory = temporaryDirectory ?? fileManager.temporaryDirectory
         self.session = session
@@ -234,6 +240,10 @@ final class OwnerDataExportService {
             )
         }
         object["local_sip_drafts"] = try Self.draftExportObject(from: localDrafts)
+        let localHomeLibrary = homeLibraryStore.load(in: .user(ownerID))
+        object["local_home_workbench_cache"] = try Self.homeLibraryExportObject(
+            from: localHomeLibrary
+        )
         object["local_data_read_status"] = [
             "pending_submission_outbox": [
                 "status": pendingOutboxReadComplete
@@ -248,6 +258,12 @@ final class OwnerDataExportService {
                 "readable_record_count": localDrafts.count,
                 "unreadable_draft_count": draftReadReport.unreadableDraftCount,
                 "issues": draftReadReport.issues.map(\.exportCode)
+            ],
+            "home_workbench_cache": [
+                "status": "complete",
+                "coffee_bag_count": localHomeLibrary.bags.count,
+                "equipment_profile_count": localHomeLibrary.equipment.count,
+                "recent_setup_count": localHomeLibrary.recentSetups.count
             ]
         ] as [String: Any]
         object["local_unconfirmed_safety_reports"] = try Self.jsonObject(
@@ -280,6 +296,8 @@ final class OwnerDataExportService {
         var pendingMediaFailures: [[String: String]] = []
         var draftMediaManifest: [[String: Any]] = []
         var draftMediaFailures: [[String: String]] = []
+        var homeBagMediaManifest: [[String: String]] = []
+        var homeBagMediaFailures: [[String: String]] = []
         var mediaURLs: [URL] = []
         var packaged = 0
         var unavailable = 0
@@ -412,6 +430,47 @@ final class OwnerDataExportService {
             ])
         }
 
+        let homeBagDirectory = directory.appendingPathComponent(
+            "Home-Coffee-Bag-Photos",
+            isDirectory: true
+        )
+        let bagsWithLocalPhotos = localHomeLibrary.bags.filter {
+            $0.localPhotoPath?.remoteTrimmedNonEmpty != nil
+        }
+        if !bagsWithLocalPhotos.isEmpty {
+            try fileManager.createDirectory(
+                at: homeBagDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+        for bag in bagsWithLocalPhotos {
+            let bagID = bag.id.uuidString.lowercased()
+            guard let image = homeLibraryStore.bagPhoto(
+                relativePath: bag.localPhotoPath,
+                in: .user(ownerID)
+            ),
+            let data = image.jpegData(compressionQuality: 0.9),
+            Int64(data.count) <= Self.maximumMediaFileBytes,
+            totalPackagedBytes + Int64(data.count) <= Self.maximumPackagedMediaBytes else {
+                homeBagMediaFailures.append([
+                    "coffee_bag_id": bagID,
+                    "reason": "local bag image could not be read or package size limit reached"
+                ])
+                unavailable += 1
+                continue
+            }
+            let filename = "\(bagID).jpg"
+            let destination = homeBagDirectory.appendingPathComponent(filename)
+            try data.write(to: destination, options: .atomic)
+            totalPackagedBytes += Int64(data.count)
+            packaged += 1
+            mediaURLs.append(destination)
+            homeBagMediaManifest.append([
+                "coffee_bag_id": bagID,
+                "file": "Home-Coffee-Bag-Photos/\(filename)"
+            ])
+        }
+
         let mediaDirectory = directory.appendingPathComponent("Media", isDirectory: true)
         let rawReferenceCount = (object["media_references"] as? [Any])?.count ?? 0
         let allReferences = Self.mediaReferences(from: object, ownerID: ownerID)
@@ -462,7 +521,10 @@ final class OwnerDataExportService {
             }
         }
 
-        if !pendingMediaFailures.isEmpty || !draftMediaFailures.isEmpty || unavailable > 0 {
+        if !pendingMediaFailures.isEmpty
+            || !draftMediaFailures.isEmpty
+            || !homeBagMediaFailures.isEmpty
+            || unavailable > 0 {
             completeness = .partial
             omittedCollections.append("one or more media files were unavailable")
         }
@@ -470,6 +532,8 @@ final class OwnerDataExportService {
         object["pending_outbox_media_failures"] = pendingMediaFailures
         object["draft_media_manifest"] = draftMediaManifest
         object["draft_media_failures"] = draftMediaFailures
+        object["home_coffee_bag_media_manifest"] = homeBagMediaManifest
+        object["home_coffee_bag_media_failures"] = homeBagMediaFailures
         object["client_export_manifest"] = [
             "contract": "mugshot-owner-data-export-package",
             "source_schema_version": sourceVersion,
@@ -489,6 +553,9 @@ final class OwnerDataExportService {
             "local_draft_media": !draftReadReport.isComplete
                 ? "partial_unavailable_preserved"
                 : (draftMediaFailures.isEmpty ? "packaged" : "partial"),
+            "local_home_coffee_bag_media": homeBagMediaFailures.isEmpty
+                ? "packaged"
+                : "partial",
             "packaged_media_count": packaged,
             "unavailable_media_count": unavailable,
             "packaged_media_bytes": totalPackagedBytes,
@@ -642,6 +709,21 @@ final class OwnerDataExportService {
             values[index]["localPhotoCount"] = localNames.count
         }
         return values
+    }
+
+    private static func homeLibraryExportObject(
+        from snapshot: HomeLibrarySnapshot
+    ) throws -> Any {
+        guard var object = try jsonObject(from: snapshot) as? [String: Any] else {
+            throw OwnerDataExportError.invalidServerExport
+        }
+        if var bags = object["bags"] as? [[String: Any]] {
+            for index in bags.indices {
+                bags[index].removeValue(forKey: "localPhotoPath")
+            }
+            object["bags"] = bags
+        }
+        return object
     }
 
     private static func safeRemoteURL(_ value: String) -> URL? {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Value model
 
@@ -125,6 +126,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
     let username: String
     let avatarURL: String?
     let text: String
+    let styledText: AttributedString?
     let timestamp: String
     let canReply: Bool
     let actions: [SipDetailCommentAction]
@@ -135,6 +137,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         username: String,
         avatarURL: String? = nil,
         text: String,
+        styledText: AttributedString? = nil,
         timestamp: String,
         canReply: Bool,
         actions: [SipDetailCommentAction] = []
@@ -144,6 +147,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         self.username = username
         self.avatarURL = avatarURL
         self.text = text
+        self.styledText = styledText
         self.timestamp = timestamp
         self.canReply = canReply
         self.actions = actions
@@ -472,7 +476,9 @@ enum SipDetailPresentationAdapter {
             locationName: detail.summary.locationTitle,
             locationSubtitle: visit.journalContext == .cafe
                 ? MugshotPostLocationLine.locality(
-                    from: detail.summary.cafe?.city ?? visit.cityState
+                    from: detail.summary.cafe?.address
+                        ?? visit.cityState
+                        ?? detail.summary.cafe?.city
                 )
                 : nil,
             locationSystemImage: visit.journalContext.systemImage,
@@ -521,6 +527,10 @@ enum SipDetailPresentationAdapter {
                     username: "@\(comment.authorUsername)",
                     avatarURL: comment.author?.avatarURL,
                     text: comment.comment.text,
+                    styledText: MentionTextFormatter.commentAttributedString(
+                        for: comment.comment.text,
+                        mentions: comment.mentions
+                    ),
                     timestamp: SipDetailFormat.relative(comment.comment.createdAtDate),
                     canReply: currentUserID != nil && comment.comment.parentCommentId == nil,
                     actions: SipDetailCommentActionPolicy.actions(
@@ -852,6 +862,7 @@ struct SipDetailScreen: View {
     let isWorking: Bool
     let statusMessage: String?
     let mentionSuggestions: [SipDetailMentionSuggestion]
+    let composerMentionTokens: [String]
     let onAction: (SipDetailAction) -> Void
     let onSubmitComment: () -> Void
     let onReply: (UUID) -> Void
@@ -906,6 +917,7 @@ struct SipDetailScreen: View {
                             replyingToUsername: presentation.content.replyingToUsername,
                             isWorking: isWorking,
                             mentionSuggestions: mentionSuggestions,
+                            mentionTokens: composerMentionTokens,
                             focus: commentFocus,
                             onCancelReply: onCancelReply,
                             onSelectMention: onSelectMention,
@@ -1035,6 +1047,7 @@ struct SipDetailScreen: View {
                         focusComposer(proxy: proxy)
                     },
                     onCompose: { focusComposer(proxy: proxy) },
+                    onMention: onTaggedAccount,
                     onCommentAction: onCommentAction
                 )
                 .padding(.horizontal, 22)
@@ -2433,6 +2446,7 @@ private struct SipConversationSection: View {
     let canComment: Bool
     let onReply: (UUID) -> Void
     let onCompose: () -> Void
+    let onMention: (UUID) -> Void
     let onCommentAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
@@ -2455,6 +2469,7 @@ private struct SipConversationSection: View {
                         SipDetailCommentRow(
                             comment: comment,
                             onReply: onReply,
+                            onMention: onMention,
                             onAction: onCommentAction
                         )
                         if comment.id != comments.last?.id {
@@ -2492,6 +2507,7 @@ private struct SipConversationSection: View {
 private struct SipDetailCommentRow: View {
     let comment: SipDetailCommentModel
     let onReply: (UUID) -> Void
+    let onMention: (UUID) -> Void
     let onAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
@@ -2524,10 +2540,19 @@ private struct SipDetailCommentRow: View {
                         .accessibilityLabel("Actions for \(comment.authorName)’s comment")
                     }
                 }
-                Text(comment.text)
+                Text(comment.styledText ?? AttributedString(comment.text))
                     .font(.body)
                     .foregroundStyle(Color.espressoBrown)
                     .fixedSize(horizontal: false, vertical: true)
+                    .tint(Color.mugshotMint)
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard url.scheme == "mugshot-mention",
+                              let userID = UUID(uuidString: url.lastPathComponent) else {
+                            return .systemAction
+                        }
+                        onMention(userID)
+                        return .handled
+                    })
                 if comment.canReply {
                     Button("Reply") { onReply(comment.id) }
                         .font(.system(.caption, design: .default, weight: .semibold))
@@ -2546,6 +2571,7 @@ private struct SipDetailComposerBar: View {
     let replyingToUsername: String?
     let isWorking: Bool
     let mentionSuggestions: [SipDetailMentionSuggestion]
+    let mentionTokens: [String]
     let focus: FocusState<Bool>.Binding
     let onCancelReply: () -> Void
     let onSelectMention: (UUID) -> Void
@@ -2605,19 +2631,30 @@ private struct SipDetailComposerBar: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Add a thought", text: $text, axis: .vertical)
-                    .focused(focus)
-                    .lineLimit(1...4)
-                    .font(.body)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .background(Color.creamWhite)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.mugshotLine, lineWidth: 1)
+                ZStack(alignment: .topLeading) {
+                    SipDetailMentionComposerField(
+                        text: $text,
+                        mentionTokens: mentionTokens,
+                        isFocused: focus.wrappedValue,
+                        onFocusChange: { focus.wrappedValue = $0 },
+                        onSubmit: onSubmit
                     )
-                    .submitLabel(.send)
-                    .onSubmit(onSubmit)
+                    if text.isEmpty {
+                        Text("Add a thought")
+                            .font(.body)
+                            .foregroundStyle(Color.secondaryText.opacity(0.72))
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 12)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .frame(minHeight: 46)
+                .background(Color.creamWhite)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.mugshotLine, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 Button(action: onSubmit) {
                     Image(systemName: isWorking ? "hourglass" : "arrow.up")
@@ -2637,6 +2674,167 @@ private struct SipDetailComposerBar: View {
         .padding(.bottom, 8)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) { Divider() }
+    }
+}
+
+enum SipDetailComposerFocusAction: Equatable {
+    case none
+    case focus
+    case blur
+}
+
+enum SipDetailComposerFocusPolicy {
+    static func action(
+        isFocusRequested: Bool,
+        wasFocusRequested: Bool,
+        isFirstResponder: Bool
+    ) -> SipDetailComposerFocusAction {
+        if isFocusRequested, !isFirstResponder {
+            return .focus
+        }
+        if !isFocusRequested, wasFocusRequested, isFirstResponder {
+            return .blur
+        }
+        return .none
+    }
+}
+
+private struct SipDetailMentionComposerField: UIViewRepresentable {
+    @Binding var text: String
+    let mentionTokens: [String]
+    let isFocused: Bool
+    let onFocusChange: (Bool) -> Void
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.backgroundColor = .clear
+        view.isScrollEnabled = false
+        view.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        view.textContainer.lineFragmentPadding = 0
+        view.returnKeyType = .send
+        view.adjustsFontForContentSizeCategory = true
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        applyStyles(to: view)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.parent = self
+        let selection = view.selectedRange
+        if view.text != text {
+            view.text = text
+        }
+        applyStyles(to: view)
+        view.selectedRange = NSRange(
+            location: min(selection.location, (view.text as NSString).length),
+            length: 0
+        )
+
+        let focusAction = SipDetailComposerFocusPolicy.action(
+            isFocusRequested: isFocused,
+            wasFocusRequested: context.coordinator.wasFocusRequested,
+            isFirstResponder: view.isFirstResponder
+        )
+        context.coordinator.wasFocusRequested = isFocused
+
+        switch focusAction {
+        case .focus:
+            DispatchQueue.main.async { [weak view, weak coordinator = context.coordinator] in
+                guard let view,
+                      let coordinator,
+                      coordinator.parent.isFocused,
+                      !view.isFirstResponder else { return }
+                view.becomeFirstResponder()
+            }
+        case .blur:
+            view.resignFirstResponder()
+        case .none:
+            break
+        }
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: UITextView,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        let measured = uiView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        return CGSize(width: width, height: min(max(measured.height, 46), 112))
+    }
+
+    private func applyStyles(to view: UITextView) {
+        let source = view.text ?? ""
+        let selectedRange = view.selectedRange
+        let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+        let fullRange = NSRange(location: 0, length: (source as NSString).length)
+        let bodyAttributes: [NSAttributedString.Key: Any] = [
+            .font: bodyFont,
+            .foregroundColor: UIColor(Color.espressoBrown)
+        ]
+
+        view.textStorage.beginEditing()
+        if fullRange.length > 0 {
+            view.textStorage.setAttributes(bodyAttributes, range: fullRange)
+        }
+
+        for token in mentionTokens
+        where MentionTextFormatter.containsAccountBackedToken(token, in: source) {
+            let escaped = NSRegularExpression.escapedPattern(for: token)
+            guard let expression = try? NSRegularExpression(
+                pattern: "(?<![\\p{L}\\p{N}_])\(escaped)(?![\\p{L}\\p{N}_])",
+                options: [.caseInsensitive]
+            ) else { continue }
+            for match in expression.matches(in: source, range: fullRange) {
+                view.textStorage.addAttributes([
+                    .font: UIFont.systemFont(ofSize: bodyFont.pointSize, weight: .bold),
+                    .foregroundColor: UIColor(Color.mugshotMint)
+                ], range: match.range)
+            }
+        }
+        view.textStorage.endEditing()
+
+        view.typingAttributes = bodyAttributes
+        view.selectedRange = selectedRange
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: SipDetailMentionComposerField
+        var wasFocusRequested = false
+
+        init(parent: SipDetailMentionComposerField) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.onFocusChange(true)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.onFocusChange(false)
+        }
+
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText text: String
+        ) -> Bool {
+            guard text == "\n" else { return true }
+            parent.onSubmit()
+            return false
+        }
     }
 }
 
@@ -3147,6 +3345,7 @@ struct SipDetailPreviewHost: View {
                 isWorking: false,
                 statusMessage: nil,
                 mentionSuggestions: [],
+                composerMentionTokens: [],
                 onAction: { _ in },
                 onSubmitComment: {},
                 onReply: { _ in },

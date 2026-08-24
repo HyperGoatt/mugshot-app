@@ -149,6 +149,123 @@ final result: passed
 
 ---
 
+# Home Workbench brew-first flow — implementation QA
+
+## Comparison setup
+
+- Source visual truth: `docs/design/home-workbench-cafe-spine-2026-08-23/01-log-a-sip-home-workbench.png` through `08-published-mugshot.png`.
+- Final implementation captures: `docs/design/home-workbench-cafe-spine-2026-08-23/production-evidence/final-ui-test/`.
+- Same-input comparisons: `docs/design/home-workbench-cafe-spine-2026-08-23/production-evidence/comparisons/`.
+- Viewport: iPhone 16 Pro Simulator, iOS 18.6, 402 x 874 points.
+- Density normalization: source boards are 852/853 x 1844/1846 pixels; native implementation captures are 1206 x 2622 pixels at 3x. Each side was aspect-fit into an 853 x 1844 comparison cell without cropping.
+- State: deterministic empty-library Home attempt using Espresso, 18.5 g in, 38 g planned yield, 42 g actual yield, a finished-cup placeholder, 4.0 sip score, make-again Yes, private Recipe v1, private Mugshot publication, and Brew Again with the 18.5 g setup restored.
+
+## Final findings
+
+No actionable P0, P1, or P2 visual or interaction mismatch remains.
+
+- **Journey fidelity:** Home begins beneath the unchanged Cafe/Home/Elsewhere selector, then advances through Brew this version, What changed, finished-cup capture, the existing sip-rating spine, recipe disposition, Review Mugshot, the existing published/share hub, and Brew Again.
+- **Progressive depth:** The planning screen keeps start source, bag, method, gear, and core brew values visible while method-specific fields remain behind Dial-in details. Every technical value stays optional.
+- **Comparison safety:** Actuals preserve the selected source snapshot, calculate ratio, summarize only recorded deltas, and explicitly avoid causal claims. Private comparison notes do not enter the post projection.
+- **Recipe lineage:** The tested blank attempt correctly creates Recipe v1. Domain tests separately prove that a v3 source stays immutable and produces v4 only when the user chooses a new version.
+- **Cafe-flow continuity:** Capture, score, journal reflection, Review Mugshot, publication, and the post-publish share hub reuse the established Mugshot controls and language. Home adds method-aware suggestions and the make-again/recipe decisions without creating a second rating system.
+- **Brand fidelity:** The native implementation retains Mugshot cream, foam, sage, mint, sand, espresso, serif headings, rounded quiet cards, Mugsy artwork, and restrained coaching.
+- **Accessibility and fixed-footer behavior:** Controls expose identifiers and selected traits. The consolidated UI test scrolls the make-again choice fully above the fixed action bar before selecting it and confirms the action state changes.
+
+## Comparison history
+
+### Pass 1
+
+- **P2 - The UI test typed actual values into prefilled fields instead of replacing them.**
+  - Fix: added a selection-and-replacement interaction so the test exercises the real prefilled editing behavior.
+- **P2 - The make-again choice could be queried while visually under the fixed action bar.**
+  - Fix: positioned the control above the footer before tapping and waited for the selected accessibility state.
+- **P2 - Brew Again asserted an off-screen lazy field before bringing it into the accessibility tree.**
+  - Fix: scrolled the restored dose field into view, then verified the preserved 18.5 g value.
+
+### Final pass
+
+- All 15 focused Home Workbench domain tests passed.
+- The complete seven-surface Simulator journey passed, including publish and Brew Again prefill.
+- Side-by-side review confirmed the approved hierarchy, typography, tokens, privacy language, and action placement across brew, actuals, sip, recipe, review, and published states.
+- The source boards use a richer saved-recipe/photo fixture; the production test intentionally uses the empty-library and missed-photo path. Those content differences exercise fallback behavior and are not visual regressions.
+
+## Verification evidence
+
+- Repository fast verification: 6 passed, 0 failed.
+- Full static verification: 11 passed, 0 failed, 1 optional `pglast` check skipped because that dependency is unavailable.
+- Hermetic Home Workbench migration, RLS, private storage, deletion, recipe projection, and export contract: passed; no linked Supabase project was touched.
+- Focused Home Workbench domain suite: 15 passed, 0 failed.
+- Consolidated iPhone 16 Pro Simulator journey: 1 passed, 0 failed.
+- Source-and-implementation comparison: passed.
+
+final result: passed
+
+---
+
+# First-launch marketing onboarding — implementation QA
+
+## Comparison setup
+
+- Source visual truth:
+  - `testMugshot/Assets.xcassets/OnboardingMarketing01Capture.imageset/onboarding-marketing-01-capture.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing02Map.imageset/onboarding-marketing-02-map.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing03Feed.imageset/onboarding-marketing-03-feed.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing04Friends.imageset/onboarding-marketing-04-friends.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing05Saved.imageset/onboarding-marketing-05-saved.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing06Journal.imageset/onboarding-marketing-06-journal.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing07TastePassport.imageset/onboarding-marketing-07-taste-passport.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing08GoogleMaps.imageset/onboarding-marketing-08-google-maps.png`
+  - `testMugshot/Assets.xcassets/OnboardingMarketing09Account.imageset/onboarding-marketing-09-account.png`
+- Implementation captures: `docs/design/onboarding-marketing-2026-08-22/implementation/`
+- Full same-input comparison: `docs/design/onboarding-marketing-2026-08-22/comparison/all-nine-contact-sheet.png`
+- Focused same-input comparisons: `docs/design/onboarding-marketing-2026-08-22/comparison/01-source-left-implementation-right.png` through `09-source-left-implementation-right.png`.
+- Simulator: iPhone 16 Pro.
+- Captured viewport: 368 × 800 optimized pixels.
+- Source pixels: 852–853 × 1844–1846. Each source was aspect-fit and normalized to 368 × 800 before comparison.
+- Implementation pixels: 368 × 800.
+- Appearance: forced light; Reduce Motion enabled.
+- State: deterministic DEBUG first-launch route with no session restore, authentication, analytics, or remote mutation.
+
+## Final findings
+
+No actionable P0, P1, or P2 visual or interaction differences remain.
+
+- Fonts and typography: the implementation displays the authored editorial serif and restrained sans hierarchy without a second native text layer, reflow, truncation, or fallback drift.
+- Spacing and layout rhythm: all nine artworks preserve their authored aspect ratio and fill the modern iPhone viewport. The visible content order, margins, media proportions, card shapes, and CTA placement match the approved sources.
+- Colors and tokens: cream, espresso, mint, sage, sand, map, and photography treatments are the exact approved raster artwork; no client-side recoloring or approximation is introduced.
+- Image quality and asset fidelity: every approved screen is bundled at roughly 2× the captured point-equivalent width and rendered with high interpolation. The Feed retains its selected portrait media treatment. Friends has one Mugsy. Journal uses the selected no-placeholder variant. Google Maps uses the official Mugshot app icon. The final screen has no Start my reflection CTA.
+- Copy and content: the opening says Capture Every Sip and names coffee, matcha, and tea. The Map headline is category-inclusive. Friendship and privacy meanings remain explicit. The final screen exposes only Create account and Sign in.
+- Icons and affordances: the artwork contains the approved real Mugshot surfaces and official brand icon. Native invisible hit regions align with the visible Skip, Continue, Skip to account setup, Create account, and Sign in controls.
+- Interaction states: Continue advanced through all nine screens in one Simulator session. Skip from the opening jumped directly to the final account-choice screen without selecting an authentication mode. Screen 9 exposed only Create account and Sign in; selecting Sign in completed first-launch education and retained Add as landing tab 2.
+- Accessibility: every visible action is backed by a native SwiftUI Button with a stable accessibility label and identifier. Each artwork exposes its step number, headline, and supporting narrative. Device chrome may briefly appear after touch; that is runtime-owned and does not obscure a required action.
+
+## Comparison history
+
+### Iteration 1 — blocked
+
+- [P1] The first Simulator render respected the safe-area content frame, producing cream letterboxing around artwork intended to be full bleed.
+  - Fix: extended the artwork geometry through the full screen while retaining aspect-fit mapping for the native tap regions.
+
+### Final iteration — passed
+
+- Rebuilt and relaunched the app on iPhone 16 Pro Simulator.
+- Captured all nine implementation states after advancing through the real native Continue targets.
+- Relaunched and confirmed Skip moves directly to the final Create account / Sign in choice.
+- Normalized every source and implementation pair to the same 368 × 800 comparison viewport.
+- Reviewed the full contact sheet plus focused comparisons for the opening, Feed, Friends/privacy, Google Maps logo, and final authentication states.
+- No actionable P0/P1/P2 mismatch remained.
+
+## Follow-up polish
+
+- [P3] The iOS home indicator or Dynamic Island may briefly reappear after touch even when persistent system overlays are requested hidden. This is expected runtime-owned device chrome and does not affect the artwork or hit targets.
+
+## Final result
+
+final result: passed
+
+---
+
 # Supabase signup confirmation email — implementation QA
 
 ## Comparison setup

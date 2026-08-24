@@ -70,7 +70,9 @@ enum MugshotSharePhotoLayout: String, CaseIterable, Identifiable {
     var isCollage: Bool { self != .singlePhoto }
 
     static func availableLayouts(photoCount: Int) -> [MugshotSharePhotoLayout] {
-        var layouts: [MugshotSharePhotoLayout] = [.singlePhoto]
+        var layouts: [MugshotSharePhotoLayout] = photoCount >= 2
+            ? [.smartCollage, .singlePhoto]
+            : [.singlePhoto]
         if photoCount >= 2 { layouts.append(.twoPhoto) }
         if photoCount >= 3 { layouts.append(.threePhoto) }
         if photoCount >= 4 { layouts.append(.fourPhoto) }
@@ -78,7 +80,7 @@ enum MugshotSharePhotoLayout: String, CaseIterable, Identifiable {
     }
 
     static func defaultLayout(photoCount: Int) -> MugshotSharePhotoLayout {
-        .singlePhoto
+        (2...4).contains(photoCount) ? .smartCollage : .singlePhoto
     }
 }
 
@@ -184,7 +186,7 @@ struct MugshotShareContent: Equatable {
     }
 
     var requiresExternalAudienceWarning: Bool {
-        visibility == .friends
+        visibility != .everyone
     }
 
     var mayHavePublicLink: Bool {
@@ -220,6 +222,7 @@ struct MugshotSharePackage {
             return artworkActivityItems(for: format)
         }
         return [
+            artwork(for: format),
             MugshotShareLinkItemSource(
                 url: publicURL,
                 previewImage: linkPreviewArtwork

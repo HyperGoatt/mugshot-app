@@ -247,35 +247,51 @@ struct SharedProfileView: View {
     }
 
     private var ownerActions: some View {
-        VStack(spacing: 9) {
-            HStack(spacing: 9) {
-                Button { onEditProfile?() } label: {
-                    Label("Edit profile", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button { Task { await shareProfile() } } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
+        HStack(spacing: 8) {
+            ownerAction(title: "Edit", systemImage: "pencil") {
+                onEditProfile?()
             }
-
-            HStack(spacing: 9) {
-                Button { showsEveryonePreview = true } label: {
-                    Label("Preview as Everyone", systemImage: "eye")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button { onOpenSettings?() } label: {
-                    Label("Settings", systemImage: "gearshape")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryButtonStyle())
+            ownerAction(title: "Share", systemImage: "square.and.arrow.up") {
+                Task { await shareProfile() }
+            }
+            ownerAction(
+                title: "Preview",
+                systemImage: "eye",
+                accessibilityLabel: "Preview as Everyone"
+            ) {
+                showsEveryonePreview = true
+            }
+            ownerAction(title: "Settings", systemImage: "gearshape") {
+                onOpenSettings?()
             }
         }
+    }
+
+    private func ownerAction(
+        title: String,
+        systemImage: String,
+        accessibilityLabel: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Color.espressoBrown)
+            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel ?? title)
     }
 
     private func highlightCard(_ highlight: SharedProfileHighlight) -> some View {
@@ -346,55 +362,70 @@ struct SharedProfileView: View {
         }
     }
 
+    @ViewBuilder
     private func sipGrid(_ projection: SharedProfileProjection) -> some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3),
-            spacing: 2
-        ) {
-            ForEach(sips) { sip in
-                Button {
-                    selectedVisit = sip.summary(profile: projection.profile)
-                } label: {
-                    Group {
-                        if let photo = sip.posterPhotoURL?.remoteTrimmedNonEmpty
-                            ?? sip.photoURLs?.first?.remoteTrimmedNonEmpty {
-                            RemotePhotoImageView(
-                                urlString: photo,
-                                placeholderSystemName: "cup.and.saucer.fill",
-                                contentMode: .fill
-                            )
-                        } else {
-                            MugsyPhotoPlaceholderView(
-                                scene: MugsySceneResolver.scene(for: .journalMemory, stableID: sip.id.uuidString),
-                                style: .thumbnail,
-                                photoDescription: "No sip photo"
-                            )
-                        }
-                    }
-                    .aspectRatio(1, contentMode: .fill)
-                    .clipped()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open \(sip.drinkDisplayName)")
-                .contextMenu {
-                    if showsOwnerControls {
-                        Button("Pin this sip") {
-                            Task { await setHighlight(type: "sip", targetID: sip.id) }
-                        }
-                    }
-                }
-                .onAppear {
-                    if sip.id == sips.last?.id { Task { await loadMore() } }
-                }
-            }
-        }
-        .overlay {
-            if sips.isEmpty && !isLoading {
-                ContentUnavailableView(
-                    "No visible sips yet",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text("Shared sips will fill this photo grid.")
+        if sips.isEmpty && !isLoading {
+            ContentUnavailableView(
+                projection.stats.sips > 0 ? "No sips shared with you yet" : "No sips yet",
+                systemImage: "photo.on.rectangle.angled",
+                description: Text(
+                    projection.stats.sips > 0
+                        ? "Only sips shared with your audience appear here."
+                        : "Published sips will fill this photo grid."
                 )
+            )
+            .frame(maxWidth: .infinity, minHeight: 260)
+        } else {
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 1),
+                    count: 3
+                ),
+                spacing: 1
+            ) {
+                ForEach(sips) { sip in
+                    GeometryReader { cell in
+                        Button {
+                            selectedVisit = sip.summary(profile: projection.profile)
+                        } label: {
+                            Group {
+                                if let photo = sip.posterPhotoURL?.remoteTrimmedNonEmpty
+                                    ?? sip.photoURLs?.first?.remoteTrimmedNonEmpty {
+                                    RemotePhotoImageView(
+                                        urlString: photo,
+                                        placeholderSystemName: "cup.and.saucer.fill",
+                                        contentMode: .fill
+                                    )
+                                } else {
+                                    MugsyPhotoPlaceholderView(
+                                        scene: MugsySceneResolver.scene(
+                                            for: .journalMemory,
+                                            stableID: sip.id.uuidString
+                                        ),
+                                        style: .thumbnail,
+                                        photoDescription: "No sip photo"
+                                    )
+                                }
+                            }
+                            .frame(width: cell.size.width, height: cell.size.height)
+                            .clipped()
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open \(sip.drinkDisplayName)")
+                        .contextMenu {
+                            if showsOwnerControls {
+                                Button("Pin this sip") {
+                                    Task { await setHighlight(type: "sip", targetID: sip.id) }
+                                }
+                            }
+                        }
+                        .onAppear {
+                            if sip.id == sips.last?.id { Task { await loadMore() } }
+                        }
+                    }
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                }
             }
         }
     }

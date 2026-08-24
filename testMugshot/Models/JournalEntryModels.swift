@@ -38,7 +38,7 @@ enum JournalEntryContext: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct BrewDetails: Codable, Equatable {
+struct BrewDetails: Codable, Equatable, Sendable {
     var beans: String?
     var doseGrams: Double?
     var yieldGrams: Double?
@@ -60,6 +60,11 @@ struct BrewDetails: Codable, Equatable {
     var additions: String?
     var servingVolumeMilliliters: Double?
     var espressoShotCount: Int?
+    /// Safe identity snapshot only. Owner IDs, inventory state, OCR text, and
+    /// private media paths remain in the owner-only Home library.
+    var coffeeBag: CoffeeBagSnapshot?
+    var equipmentSnapshots: [EquipmentSnapshot]?
+    var homeMethodDetails: HomeMethodDetails?
 
     static let empty = BrewDetails()
 
@@ -74,7 +79,8 @@ struct BrewDetails: Codable, Equatable {
             orderNotes?.remoteTrimmedNonEmpty != nil || !(tags ?? []).isEmpty ||
             !(companions ?? []).isEmpty ||
             additions?.remoteTrimmedNonEmpty != nil || servingVolumeMilliliters != nil ||
-            espressoShotCount != nil
+            espressoShotCount != nil || coffeeBag != nil ||
+            !(equipmentSnapshots ?? []).isEmpty || homeMethodDetails?.hasData == true
     }
 
     var recipeDisplayName: String? {
@@ -86,9 +92,25 @@ struct BrewDetails: Codable, Equatable {
     var extractionSummary: String? {
         var parts: [String] = []
         if let doseGrams { parts.append(Self.grams(doseGrams, suffix: "in")) }
-        if let yieldGrams { parts.append(Self.grams(yieldGrams, suffix: "out")) }
+        if let yieldGrams {
+            parts.append(Self.grams(yieldGrams, suffix: "out"))
+        } else if let waterGrams = homeMethodDetails?.waterGrams {
+            parts.append(Self.grams(waterGrams, suffix: "water"))
+        }
         if let brewTimeSeconds { parts.append("\(brewTimeSeconds) sec") }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    var brewRatio: Double? {
+        guard let doseGrams, doseGrams > 0 else { return nil }
+        let output = yieldGrams ?? homeMethodDetails?.waterGrams
+        guard let output, output > 0 else { return nil }
+        return output / doseGrams
+    }
+
+    var equipmentDisplayName: String? {
+        let names = (equipmentSnapshots ?? []).map(\.displayName)
+        return names.isEmpty ? nil : names.joined(separator: " · ")
     }
 
     private static func grams(_ value: Double, suffix: String) -> String {
@@ -99,7 +121,7 @@ struct BrewDetails: Codable, Equatable {
     }
 }
 
-struct BrewRecipeStep: Identifiable, Codable, Equatable {
+struct BrewRecipeStep: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var instruction: String
     var durationSeconds: Int?

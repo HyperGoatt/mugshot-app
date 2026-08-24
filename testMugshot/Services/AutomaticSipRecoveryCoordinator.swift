@@ -392,6 +392,7 @@ private struct PendingVisitPublicationWorker {
                     drinkSubtype: submission.drinkSubtype,
                     brewMethod: submission.brewMethod,
                     equipment: submission.equipment,
+                    homeCoffeeBagID: submission.homeCoffeeBagID,
                     brewDetails: submission.resolvedBrewDetails,
                     caption: submission.caption,
                     notes: submission.notes,

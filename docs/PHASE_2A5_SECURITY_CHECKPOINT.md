@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: NOTIFICATION_SYSTEM.md
+---
+
+> Historical security checkpoint. The legacy push path described below was quarantined and replaced. Use the living [Notification system](NOTIFICATION_SYSTEM.md).
+
 # Phase 2A.5 Security Checkpoint
 
 Date: 2026-07-01

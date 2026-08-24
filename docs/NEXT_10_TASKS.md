@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_SPRINT.md
+---
+
+> Historical task list. Do not execute it as the current backlog. Use [Current sprint](CURRENT_SPRINT.md) and the living [Product roadmap](PRODUCT_ROADMAP.md).
+
 # Next 10 Tasks
 
 Date: 2026-06-30

@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "958D8CC4-7F27-460D-999D-001898668FE1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-detail-accessibility-xxxl_0_877F56D5-8055-44A8-9246-87C9631A3171.png",
+        "timestamp" : 1785905069.883
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "586A5D75-2219-4B0B-B34E-A078202DB700.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-saved-accessibility-xxxl_0_79FA7F57-C223-4D3F-BD86-D73684708C19.png",
+        "timestamp" : 1785905066.643
+      }
+    ],
+    "testIdentifier" : "SavedCafeRedesignUITests/testAccessibilityXXXLReflowsSavedAndDetail()",
+    "testIdentifierURL" : "test://com.apple.xcode/testMugshot/testMugshotUITests/SavedCafeRedesignUITests/testAccessibilityXXXLReflowsSavedAndDetail"
+  }
+]

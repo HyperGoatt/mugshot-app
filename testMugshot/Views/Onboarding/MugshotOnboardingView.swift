@@ -1017,94 +1017,70 @@ enum MugshotFirstLaunchPolicy {
 
 enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
     case welcome
-    case mapStory
-    case personalize
     case map
     case feed
-    case add
+    case friends
     case saved
     case journal
-    case friends
+    case tastePassport
     case googleMaps
+    case add
 
     var id: Int { rawValue }
     var number: Int { rawValue + 1 }
 
-    var eyebrow: String {
+    var artworkName: String {
         switch self {
-        case .welcome: "MEET MUGSY"
-        case .mapStory: "YOUR COFFEE WORLD"
-        case .personalize: "MAKE IT YOURS"
-        case .map: "MAP"
-        case .feed: "FEED"
-        case .add: "ADD"
-        case .saved: "SAVED"
-        case .journal: "JOURNAL"
-        case .friends: "FRIENDS"
-        case .googleMaps: "GOOGLE MAPS"
+        case .welcome: "OnboardingMarketing01Capture"
+        case .map: "OnboardingMarketing02Map"
+        case .feed: "OnboardingMarketing03Feed"
+        case .friends: "OnboardingMarketing04Friends"
+        case .saved: "OnboardingMarketing05Saved"
+        case .journal: "OnboardingMarketing06Journal"
+        case .tastePassport: "OnboardingMarketing07TastePassport"
+        case .googleMaps: "OnboardingMarketing08GoogleMaps"
+        case .add: "OnboardingMarketing09Account"
         }
     }
 
     var title: String {
         switch self {
         case .welcome: "Capture Every Sip"
-        case .mapStory: "Every sip leaves a little map"
-        case .personalize: "Let’s make Mugshot yours"
-        case .map: "Your coffee map"
-        case .feed: "The sips worth seeing"
-        case .add: "Capture the whole moment"
-        case .saved: "Keep every cafe plan together"
-        case .journal: "Your memories come home here"
-        case .friends: "Friendship is mutual"
-        case .googleMaps: "Save a cafe from Google Maps"
+        case .map: "Watch your world take shape."
+        case .feed: "Share the sip, not the performance."
+        case .friends: "Your people. Your pace. Your privacy."
+        case .saved: "Never forget the cafe you meant to try."
+        case .journal: "A memory, not just a rating."
+        case .tastePassport: "Your taste has a story."
+        case .googleMaps: "Found it on Maps? Keep it in Mugshot."
+        case .add: "Ready to remember your first sip?"
         }
     }
 
     var message: String {
         switch self {
         case .welcome:
-            "The drink. The place. The little moment around it. Mugsy helps you remember it all."
-        case .mapStory:
-            "Each rating becomes a pin, so the cafes you love and the places you want to try stay easy to find."
-        case .personalize:
-            "Choose where you want to land first. You can still use every part of Mugshot."
+            "Coffee, matcha, tea, and everything between. Mugsy keeps the little moments that would otherwise disappear."
         case .map:
-            "Search Apple Maps and Mugshot cafes, filter your pins, and open the real cafe page whenever something looks good."
+            "Every sip becomes a pin—and every pin brings the memory back."
         case .feed:
-            "Your Mix brings relevant sips forward. Friends gives you the smaller, mutual-friends view."
-        case .add:
-            "Add a photo, rate the sip and setting, then decide whether the finished Mugshot stays Private, goes to Friends, or reaches Everyone."
-        case .saved:
-            "Favorites, Want to Try, and Lists keep every cafe plan in one place."
-        case .journal:
-            "Every sip, journal note, recipe, and Taste Passport signal is organized here for you."
+            "The people you care about—and the drinks actually worth talking about."
         case .friends:
-            "A request is not a friendship until it is accepted. Friends means confirmed mutual friends only. Private is owner-only. Everyone is public."
+            "Friendship is mutual. Share with close friends, keep it private, or open it to everyone. Private is owner-only, Friends means confirmed mutual friends, and Everyone is public."
+        case .saved:
+            "Favorites, Want to Try, and Lists keep the next plan one tap away."
+        case .journal:
+            "Keep the photo, the feeling, the recipe, and the details you would otherwise forget."
+        case .tastePassport:
+            "Mugshot finds the patterns in your memories—and turns them into a Taste Passport that keeps getting more personal."
         case .googleMaps:
-            "In Google Maps, tap Share, choose Mugshot, and save the cafe straight to Want to Try."
+            "Share any cafe from Google Maps straight to Want to Try—before you forget it."
+        case .add:
+            "Create your account, make your profile yours, and Mugsy will meet you right here. Your private memories stay private."
         }
     }
 
-    var scene: MugsySceneFamily {
-        switch self {
-        case .welcome, .googleMaps: .playfulWavingMugsy
-        case .mapStory, .map: .cheerfulCafeScout
-        case .personalize, .journal: .joyfulJournalKeeper
-        case .feed, .friends: .welcomingFriendsPhone
-        case .add: .proudCameraCompanion
-        case .saved: .delightedWishlistHolder
-        }
-    }
-
-    var referenceImageName: String? {
-        switch self {
-        case .map: "OnboardingMapTour"
-        case .feed: "OnboardingFeedTour"
-        case .saved: "OnboardingSavedTour"
-        case .googleMaps: "GoogleMapsShareOnboarding"
-        default: nil
-        }
-    }
+    var isAuthenticationStep: Bool { self == .add }
 }
 
 struct MugshotFirstLaunchOnboardingView: View {
@@ -1113,205 +1089,24 @@ struct MugshotFirstLaunchOnboardingView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: MugshotFirstLaunchStep = .welcome
-    @State private var selectedGoal: CapturePreferenceGoal = .nearby
 
     var body: some View {
-        ZStack {
-            Color.creamWhite.ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 18) {
-                    header
-                    hero
-                    copy
-                    if step == .personalize { goalPicker }
-                    if step == .friends { visibilityGuide }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, step == .googleMaps ? 190 : 110)
-            }
-            .scrollIndicators(.hidden)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) { actionBar }
+        MugshotFirstLaunchArtworkView(
+            step: step,
+            onContinue: advance,
+            onSkipToAccountSetup: skipToAccountSetup,
+            onCreateAccount: { onCreateAccount(landingTab) },
+            onSignIn: { onSignIn(landingTab) }
+        )
+        .id(step)
+        .transition(reduceMotion ? .identity : .opacity)
+        .statusBarHidden(true)
+        .persistentSystemOverlays(.hidden)
         .interactiveDismissDisabled(true)
     }
 
-    private var header: some View {
-        VStack(spacing: 10) {
-            HStack {
-                if step == .welcome {
-                    Button("Skip") { onCreateAccount(landingTab) }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .frame(minWidth: 44, minHeight: 44)
-                } else {
-                    Button { goBack() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .bold))
-                            .frame(width: 44, height: 44)
-                    }
-                    .foregroundStyle(Color.espressoBrown)
-                    .accessibilityLabel("Back")
-                }
-                Spacer()
-                Text("\(step.number) of \(MugshotFirstLaunchStep.allCases.count)")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.secondaryText)
-                Spacer()
-                Color.clear.frame(width: 44, height: 44)
-            }
-
-            HStack(spacing: 5) {
-                ForEach(MugshotFirstLaunchStep.allCases) { item in
-                    Capsule()
-                        .fill(item.rawValue <= step.rawValue ? Color.mugshotSage : Color.mugshotLine)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 4)
-                }
-            }
-        }
-        .padding(.top, 6)
-    }
-
-    @ViewBuilder
-    private var hero: some View {
-        if let imageName = step.referenceImageName {
-            ZStack(alignment: .bottomLeading) {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 300)
-                    .clipped()
-
-                MugsyAnimatedView(
-                    configuration: step.scene.configuration,
-                    action: step == .googleMaps ? .celebrating : .entering,
-                    tapBehavior: .playfulCycle
-                )
-                .frame(width: 96, height: 96)
-                .padding(12)
-                .accessibilityHidden(true)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
-        } else {
-            MugshotOnboardingHero(
-                configuration: step.scene.configuration,
-                action: step == .add ? .capturing : .entering,
-                height: 248,
-                backdropOpacity: 0.48,
-                speech: step.message
-            )
-        }
-    }
-
-    private var copy: some View {
-        VStack(spacing: 9) {
-            Text(step.eyebrow)
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .tracking(1.5)
-                .foregroundStyle(Color.mugshotSage)
-            Text(step.title)
-                .mugshotDisplay(size: 36)
-                .foregroundStyle(Color.espressoBrown)
-                .multilineTextAlignment(.center)
-            Text(step.message)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var goalPicker: some View {
-        VStack(spacing: 9) {
-            ForEach(CapturePreferenceGoal.allCases) { goal in
-                Button {
-                    selectedGoal = goal
-                    MugshotHaptic.selection.play()
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: goal.systemImage).frame(width: 24)
-                        Text(goal.title).frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: selectedGoal == goal ? "checkmark.circle.fill" : "circle")
-                    }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.espressoBrown)
-                    .padding(.horizontal, 15)
-                    .frame(minHeight: 54)
-                    .background(
-                        selectedGoal == goal ? Color.mugshotMint.opacity(0.28) : Color.foamWhite,
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(selectedGoal == goal ? Color.mugshotSage : Color.mugshotLine)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var visibilityGuide: some View {
-        VStack(spacing: 0) {
-            visibilityRow("Private", detail: "Only you", icon: "lock.fill")
-            Divider().padding(.leading, 48)
-            visibilityRow("Friends", detail: "Accepted, mutual friends", icon: "person.2.fill")
-            Divider().padding(.leading, 48)
-            visibilityRow("Everyone", detail: "Public", icon: "globe.americas.fill")
-        }
-        .cardStyle()
-    }
-
-    private func visibilityRow(_ title: String, detail: String, icon: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(Color.mugshotSage)
-                .frame(width: 32, height: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .bold))
-                Text(detail).font(.system(size: 12)).foregroundStyle(Color.secondaryText)
-            }
-            Spacer()
-        }
-        .padding(14)
-    }
-
-    private var actionBar: some View {
-        VStack(spacing: 8) {
-            if step == .googleMaps {
-                Button("Create account") { onCreateAccount(landingTab) }
-                    .buttonStyle(PrimaryButtonStyle())
-                Button("Sign in") { onSignIn(landingTab) }
-                    .buttonStyle(SecondaryButtonStyle())
-            } else {
-                Button { advance() } label: {
-                    Label("Continue", systemImage: "arrow.right")
-                        .labelStyle(.titleAndIcon)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-
-                Button("Skip to account setup") { onCreateAccount(landingTab) }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .frame(minHeight: 42)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-        .background(Color.creamWhite.opacity(0.98))
-        .overlay(alignment: .top) { Divider().opacity(0.45) }
-    }
-
     private var landingTab: Int {
-        switch selectedGoal {
-        case .nearby: 0
-        case .friends: 1
-        case .taste, .journal: 4
-        }
+        2
     }
 
     private func advance() {
@@ -1320,9 +1115,8 @@ struct MugshotFirstLaunchOnboardingView: View {
         MugshotHaptic.selection.play()
     }
 
-    private func goBack() {
-        guard let previous = MugshotFirstLaunchStep(rawValue: step.rawValue - 1) else { return }
-        withAnimation(reduceMotion ? nil : MugshotMotion.reveal) { step = previous }
+    private func skipToAccountSetup() {
+        withAnimation(reduceMotion ? nil : MugshotMotion.reveal) { step = .add }
         MugshotHaptic.selection.play()
     }
 }

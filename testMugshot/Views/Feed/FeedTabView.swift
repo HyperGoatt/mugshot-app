@@ -837,7 +837,9 @@ struct RemoteFeedVisitCard: View {
                 locationName: visit.locationTitle,
                 locationDetail: visit.visit.journalContext == .cafe
                     ? MugshotPostLocationLine.locality(
-                        from: visit.cafe?.city ?? visit.visit.cityState
+                        from: visit.cafe?.address
+                            ?? visit.visit.cityState
+                            ?? visit.cafe?.city
                     )
                     : nil,
                 score: displayedScore,
@@ -1251,6 +1253,7 @@ struct VisitDetailView: View {
             isWorking: false,
             statusMessage: nil,
             mentionSuggestions: [],
+            composerMentionTokens: [],
             onAction: perform,
             onSubmitComment: addComment,
             onReply: { _ in },

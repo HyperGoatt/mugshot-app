@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_PRODUCT_STATUS.md
+---
+
+> Historical checkpoint for its recorded branch. Use [Current product status](CURRENT_PRODUCT_STATUS.md) for current implementation and publication state.
+
 # Mugshot Full-Lifecycle Phases 0–6 Checkpoint
 
 ## Program outcome

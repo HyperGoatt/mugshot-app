@@ -43,18 +43,34 @@ struct MugshotOnboardingTests {
     }
 
     @Test func firstLaunchEducationCoversCoreTabsFriendsAndGoogleMapsBeforeAuthentication() {
-        #expect(MugshotFirstLaunchStep.allCases.count == 10)
-        #expect(MugshotFirstLaunchStep.allCases.map(\.number) == Array(1...10))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.map))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.feed))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.add))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.saved))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.journal))
-        #expect(MugshotFirstLaunchStep.allCases.contains(.friends))
-        #expect(MugshotFirstLaunchStep.allCases.last == .googleMaps)
+        #expect(MugshotFirstLaunchStep.allCases.count == 9)
+        #expect(MugshotFirstLaunchStep.allCases.map(\.number) == Array(1...9))
+        #expect(
+            MugshotFirstLaunchStep.allCases == [
+                .welcome, .map, .feed, .friends, .saved, .journal,
+                .tastePassport, .googleMaps, .add
+            ]
+        )
+        #expect(MugshotFirstLaunchStep.allCases.last == .add)
+        #expect(MugshotFirstLaunchStep.add.isAuthenticationStep)
+        #expect(MugshotFirstLaunchStep.welcome.title == "Capture Every Sip")
+        #expect(MugshotFirstLaunchStep.map.title == "Watch your world take shape.")
+        #expect(MugshotFirstLaunchStep.welcome.message.contains("matcha"))
+        #expect(MugshotFirstLaunchStep.welcome.message.contains("tea"))
         #expect(MugshotFirstLaunchStep.friends.message.contains("confirmed mutual friends"))
         #expect(MugshotFirstLaunchStep.friends.message.contains("Private is owner-only"))
         #expect(MugshotFirstLaunchStep.friends.message.contains("Everyone is public"))
+        #expect(MugshotFirstLaunchStep.allCases.map(\.artworkName) == [
+            "OnboardingMarketing01Capture",
+            "OnboardingMarketing02Map",
+            "OnboardingMarketing03Feed",
+            "OnboardingMarketing04Friends",
+            "OnboardingMarketing05Saved",
+            "OnboardingMarketing06Journal",
+            "OnboardingMarketing07TastePassport",
+            "OnboardingMarketing08GoogleMaps",
+            "OnboardingMarketing09Account"
+        ])
     }
 
     @Test func signedInOnboardingRemainsRequiredUntilCompletedOrSkipped() {

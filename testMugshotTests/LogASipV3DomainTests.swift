@@ -73,6 +73,10 @@ struct LogASipV3DomainTests {
             "v3RawNoteVisibility",
             "contextScore",
             "v3ContextRatingCriteria",
+            "v3ManualOverallScore",
+            "v3ManualContextScore",
+            "v3HomeCoffeeBagID",
+            "v3HomeComparisonSource",
             "photoFallback",
             "homeMakeAgain"
         ].forEach { legacyPayload.removeValue(forKey: $0) }
@@ -177,6 +181,67 @@ struct LogASipV3DomainTests {
         #expect(suggestion * 10 == (suggestion * 10).rounded())
     }
 
+    @Test func ratedCriteriaOverrideAndThenRestoreManualSipAndCafeBaselines() throws {
+        var draft = SipDraft(
+            context: .cafe,
+            cafe: Cafe(name: "Baseline Cafe"),
+            drinkName: "Latte",
+            overallScore: 4,
+            ratingCriteria: [
+                SipRatingCriterionSnapshot(name: "Flavor", score: 3, weight: 1, sortOrder: 0),
+                SipRatingCriterionSnapshot(name: "Texture", score: 5, weight: 2, sortOrder: 1)
+            ],
+            contextScore: 4,
+            contextRatingCriteria: [
+                SipRatingCriterionSnapshot(name: "Service", score: 2, weight: 1, sortOrder: 0),
+                SipRatingCriterionSnapshot(name: "Atmosphere", score: 5, weight: 1, sortOrder: 1)
+            ]
+        )
+        draft.setManualOverallScore(4)
+        draft.setManualContextScore(4)
+
+        draft.synchronizeOverallScoreWithCriteria()
+        draft.synchronizeContextScoreWithCriteria()
+        #expect(draft.overallScore == 4.3)
+        #expect(draft.contextScore == 3.5)
+        #expect(draft.isOverallScoreDerivedFromCriteria)
+        #expect(draft.isContextScoreDerivedFromCriteria)
+
+        draft.ratingCriteria[0].weight = 2
+        draft.synchronizeOverallScoreWithCriteria()
+        #expect(draft.overallScore == 4)
+
+        draft.ratingCriteria.indices.forEach { draft.ratingCriteria[$0].score = 0 }
+        draft.contextRatingCriteria.indices.forEach { draft.contextRatingCriteria[$0].score = 0 }
+        draft.synchronizeOverallScoreWithCriteria()
+        draft.synchronizeContextScoreWithCriteria()
+        #expect(draft.overallScore == 4)
+        #expect(draft.contextScore == 4)
+
+        let restored = try JSONDecoder().decode(
+            SipDraft.self,
+            from: JSONEncoder().encode(draft)
+        )
+        #expect(restored.overallScore == 4)
+        #expect(restored.contextScore == 4)
+    }
+
+    @Test func clearingCriteriaWithoutAManualSipBaselineReturnsToUnrated() {
+        var draft = SipDraft(
+            drinkName: "Espresso",
+            ratingCriteria: [
+                SipRatingCriterionSnapshot(name: "Flavor", score: 4.5, weight: 1, sortOrder: 0)
+            ]
+        )
+
+        draft.synchronizeOverallScoreWithCriteria()
+        #expect(draft.overallScore == 4.5)
+
+        draft.ratingCriteria[0].score = 0
+        draft.synchronizeOverallScoreWithCriteria()
+        #expect(draft.overallScore == 0)
+    }
+
     @Test func rawNoteVisibilityNeverExceedsThePostAudience() {
         for postAudience in VisitVisibility.allCases {
             for requestedRawAudience in VisitVisibility.allCases {
@@ -261,7 +326,7 @@ struct LogASipV3DomainTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = PinnedCriterionStore(defaults: defaults)
         let pinned = SipRatingCriterionSnapshot(
-            name: "Orange balance",
+            name: "Flavor balance",
             score: 4.7,
             weight: 2.25,
             sortOrder: 0,
@@ -273,7 +338,7 @@ struct LogASipV3DomainTests {
         store.applyPins(to: &nextVisit, scope: "owner.sip")
 
         let restored = try #require(nextVisit.first)
-        #expect(restored.name == "Orange Balance")
+        #expect(restored.name == "Flavor Balance")
         #expect(restored.score == 0)
         #expect(restored.weight == 1)
         #expect(restored.isPinned == true)

@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "6A4CD653-305B-4FAD-81DF-6C048D12D63D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-map-compact-detail_0_5F64D90C-DF9D-4D36-B3F8-D1496EE3B5C4.png",
+        "timestamp" : 1785904390.36
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "D6153C69-2C29-463D-9B30-40B2737622E6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-detail-expanded_0_47A6E9F5-469E-4E6E-B661-A05B92B9293A.png",
+        "timestamp" : 1785904379.585
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "22039D26-2405-4424-B48C-5EC47A0BED26.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-detail-medium_0_FE0B2211-B8E2-4998-A96C-C4DB570F9F2D.png",
+        "timestamp" : 1785904377.262
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "9606E5BD-BBB3-4094-A367-16F985BC84DB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-saved-favorites_0_C2BC2355-B87E-4610-909B-1D4BFF4E0C8D.png",
+        "timestamp" : 1785904372.33
+      }
+    ],
+    "testIdentifier" : "SavedCafeRedesignUITests/testSavedDetailAndMapHandoff()",
+    "testIdentifierURL" : "test://com.apple.xcode/testMugshot/testMugshotUITests/SavedCafeRedesignUITests/testSavedDetailAndMapHandoff"
+  }
+]

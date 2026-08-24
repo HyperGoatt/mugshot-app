@@ -1,4 +1,3 @@
-import Photos
 import SwiftUI
 import UIKit
 
@@ -10,6 +9,7 @@ struct MugshotShareHubView: View {
     let onViewPassport: () -> Void
     let onFinish: () -> Void
     let onStartAnother: (() -> Void)?
+    var startAnotherTitle = "Pour another one"
     var isPostPublish = true
 
     @EnvironmentObject private var authModel: AppAuthModel
@@ -24,7 +24,6 @@ struct MugshotShareHubView: View {
     @State private var hasAcknowledgedExternalAudience = false
     @State private var systemSharePresentation: MugshotSystemSharePresentation?
     @State private var errorMessage: String?
-    @State private var successMessage: String?
     @State private var isPreparing = false
     @State private var showsShareCustomization = false
 
@@ -71,8 +70,6 @@ struct MugshotShareHubView: View {
                     if photos.count > 1 {
                         photoControls
                     }
-                    destinationSection
-                    secondaryActions
                     if isPostPublish {
                         completionActions
                     } else {
@@ -119,10 +116,10 @@ struct MugshotShareHubView: View {
                 presentPrimarySystemShare()
             }
         } message: {
-            Text("Anyone with this unlisted share link can view the post, even if they are not signed in or are not yet your friend. Changing the post to Private stops link access.")
+            Text(privacyConfirmationMessage)
         }
         .alert(
-            "Sharing is still here",
+            "Couldn’t prepare sharing",
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -130,7 +127,7 @@ struct MugshotShareHubView: View {
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "Try sharing again or save the image.")
+            Text(errorMessage ?? "Try sharing again.")
         }
         .sheet(item: $systemSharePresentation) { presentation in
             MugshotSystemShareView(
@@ -157,7 +154,11 @@ struct MugshotShareHubView: View {
                     Text("Mugshot published.")
                         .mugshotDisplay(size: 34)
                         .foregroundStyle(Color.espressoBrown)
-                    Text("Your sip is live and safely in your journal.")
+                    Text(
+                        startAnotherTitle == "Brew Again"
+                            ? "Your attempt is saved in your Home journal."
+                            : "Your sip is live and safely in your journal."
+                    )
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                 }
@@ -170,11 +171,15 @@ struct MugshotShareHubView: View {
                     .accessibilityLabel("Published")
             }
 
-            Group {
+            MugshotAdaptivePostMedia(
+                ratioCacheKey: "publish-receipt:\(summary.visitID.uuidString)",
+                drinkName: summary.drinkName,
+                locationName: summary.contextName,
+                score: summary.mugshotScore,
+                cornerRadius: 22
+            ) {
                 if let coverImage = summary.coverImage {
-                    Image(uiImage: coverImage)
-                        .resizable()
-                        .scaledToFill()
+                    MugshotInMemoryPostImage(image: coverImage)
                 } else {
                     ZStack {
                         Color.sandBeige
@@ -183,14 +188,10 @@ struct MugshotShareHubView: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(Color.mugshotLine, lineWidth: 1)
             )
-            .clipped()
 
             if let statusMessage {
                 Text(statusMessage)
@@ -222,6 +223,16 @@ struct MugshotShareHubView: View {
                 Button("Done", action: onFinish)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .buttonStyle(SecondaryButtonStyle())
+
+                if let onStartAnother {
+                    Button(action: onStartAnother) {
+                        Label(startAnotherTitle, systemImage: "arrow.clockwise.circle")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding(.horizontal, 18)
@@ -238,7 +249,7 @@ struct MugshotShareHubView: View {
                 Text(
                     isPostPublish
                         ? "Your branded share is ready."
-                        : "Choose your look, then share it anywhere."
+                        : "Choose a look for your Mugshot post."
                 )
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Color.secondaryText)
@@ -266,13 +277,19 @@ struct MugshotShareHubView: View {
                     .foregroundStyle(Color.tertiaryText)
             }
 
-            MugshotShareArtworkPreview(
-                content: content,
-                photos: orderedPhotos,
-                photoLayout: selectedPhotoLayout,
-                template: selectedTemplate,
-                format: selectedFormat
-            )
+            Group {
+                if let image = sharePackage?.artwork(for: selectedFormat) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    ZStack {
+                        Color.sandBeige.opacity(0.35)
+                        ProgressView()
+                            .tint(.mugshotSage)
+                    }
+                }
+            }
             .frame(maxWidth: .infinity)
             .aspectRatio(selectedFormat.pixelSize.width / selectedFormat.pixelSize.height, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -332,37 +349,66 @@ struct MugshotShareHubView: View {
                 .foregroundStyle(Color.tertiaryText)
                 .textCase(.uppercase)
                 .tracking(0.8)
-            HStack(spacing: 8) {
-                ForEach(values) { value in
-                    Button {
-                        withAnimation(reduceMotion ? nil : DesignSystem.Motion.fast) {
-                            selection.wrappedValue = value
+            if values.count > 3 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(values) { value in
+                            sharePickerOption(
+                                value: value,
+                                selection: selection,
+                                title: value[keyPath: label]
+                            )
+                            .frame(width: 118)
                         }
-                    } label: {
-                        Text(value[keyPath: label])
-                            .font(.system(size: 13, weight: .bold))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(
-                                selection.wrappedValue == value
-                                    ? Color.mugshotMint.opacity(0.62)
-                                    : Color.creamWhite
-                            )
-                            .foregroundStyle(Color.espressoBrown)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(
-                                    selection.wrappedValue == value
-                                        ? Color.mugshotSage.opacity(0.5)
-                                        : Color.mugshotLine,
-                                    lineWidth: 1
-                                )
-                            )
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection.wrappedValue == value ? .isSelected : [])
+                }
+            } else {
+                HStack(spacing: 8) {
+                    ForEach(values) { value in
+                        sharePickerOption(
+                            value: value,
+                            selection: selection,
+                            title: value[keyPath: label]
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private func sharePickerOption<Value: Identifiable & Hashable>(
+        value: Value,
+        selection: Binding<Value>,
+        title: String
+    ) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : DesignSystem.Motion.fast) {
+                selection.wrappedValue = value
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    selection.wrappedValue == value
+                        ? Color.mugshotMint.opacity(0.62)
+                        : Color.creamWhite
+                )
+                .foregroundStyle(Color.espressoBrown)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        selection.wrappedValue == value
+                            ? Color.mugshotSage.opacity(0.5)
+                            : Color.mugshotLine,
+                        lineWidth: 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection.wrappedValue == value ? .isSelected : [])
     }
 
     private var photoControls: some View {
@@ -407,111 +453,6 @@ struct MugshotShareHubView: View {
                         )
                         .accessibilityAddTraits(index == selectedPhotoIndex ? .isSelected : [])
                     }
-                }
-            }
-        }
-    }
-
-    private var destinationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Share anywhere")
-                .mugshotDisplay(size: 23)
-                .foregroundStyle(Color.espressoBrown)
-
-            HStack(spacing: 14) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Color.espressoBrown)
-                    .frame(width: 48, height: 48)
-                    .background(Color.mugshotMint.opacity(0.62), in: Circle())
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Instagram, Stories, Messages & more")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.espressoBrown)
-                    Text(
-                        publicURL == nil
-                            ? "This Mugshot can be shared as a finished image. Installed apps appear automatically."
-                            : "Share Mugshot sends one branded, clickable post card. It opens the iOS app first, with the signed-out web post as a fallback."
-                    )
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(16)
-            .background(Color.foamWhite)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.mugshotLine, lineWidth: 1)
-            )
-
-            if isPreparing {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(.mugshotSage)
-                    Text("Preparing the exact export…")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.secondaryText)
-                }
-                .accessibilityElement(children: .combine)
-            } else if let successMessage {
-                Text(successMessage)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.mugshotSage)
-            }
-        }
-    }
-
-    private var secondaryActions: some View {
-        VStack(spacing: 10) {
-            if publicURL != nil {
-                Button {
-                    presentArtworkShare()
-                } label: {
-                    Label("Share artwork", systemImage: "photo.on.rectangle.angled")
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .accessibilityHint("Opens the share sheet with the selected image format instead of a link card")
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    saveCurrentArtwork()
-                } label: {
-                    Label("Save image", systemImage: "arrow.down.to.line")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button {
-                    copyCurrentArtwork()
-                } label: {
-                    Label("Copy image", systemImage: "doc.on.doc")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    copyCaption()
-                } label: {
-                    Label("Copy caption", systemImage: "text.quote")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                if publicURL != nil {
-                    Button {
-                        copyPublicLink()
-                    } label: {
-                        Label("Copy link", systemImage: "link")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
                 }
             }
         }
@@ -569,7 +510,7 @@ struct MugshotShareHubView: View {
 
             if let onStartAnother {
                 Button(action: onStartAnother) {
-                    Label("Pour another one", systemImage: "plus.circle")
+                    Label(startAnotherTitle, systemImage: "plus.circle")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .font(.system(size: 13, weight: .bold))
@@ -592,13 +533,13 @@ struct MugshotShareHubView: View {
                     Text(
                         isPreparing
                             ? "Preparing…"
-                            : publicURL == nil ? "Share artwork" : "Share Mugshot post"
+                            : "Share Mugshot post"
                     )
                         .font(.system(size: 15, weight: .bold))
                     Text(
-                        publicURL == nil
-                            ? "A finished image for any app"
-                            : "One clickable Mugshot card"
+                        content.visibility == .private
+                            ? "Artwork only · your post stays Private"
+                            : "Artwork and its Mugshot link"
                     )
                         .font(.system(size: 11, weight: .semibold))
                         .opacity(0.78)
@@ -625,12 +566,13 @@ struct MugshotShareHubView: View {
             selectedPhotoIndex = coverIndex
         }
         selectedPhotoLayout = MugshotSharePhotoLayout.defaultLayout(photoCount: photos.count)
+        rebuildPackage()
         if content.mayHavePublicLink,
            let client = try? SupabaseClientProvider.shared.client() {
             publicURL = try? await MugshotShareLinkService(client: client)
                 .createOwnerLink(visitID: content.visitID)
+            attachCurrentLinkToPackage()
         }
-        rebuildPackage()
     }
 
     private func rebuildPackage() {
@@ -646,6 +588,17 @@ struct MugshotShareHubView: View {
             storyArtwork: story,
             postArtwork: post,
             linkPreviewArtwork: linkPreview,
+            publicURL: publicURL
+        )
+    }
+
+    private func attachCurrentLinkToPackage() {
+        guard let package = sharePackage else { return }
+        sharePackage = MugshotSharePackage(
+            content: package.content,
+            storyArtwork: package.storyArtwork,
+            postArtwork: package.postArtwork,
+            linkPreviewArtwork: package.linkPreviewArtwork,
             publicURL: publicURL
         )
     }
@@ -685,8 +638,7 @@ struct MugshotShareHubView: View {
             destination: .more,
             format: selectedFormat
         )
-        if publicURL != nil,
-           content.requiresExternalAudienceWarning,
+        if content.requiresExternalAudienceWarning,
            !hasAcknowledgedExternalAudience {
             isAwaitingAudienceAcknowledgement = true
             return
@@ -694,10 +646,20 @@ struct MugshotShareHubView: View {
         presentPrimarySystemShare()
     }
 
+    private var privacyConfirmationMessage: String {
+        switch content.visibility {
+        case .private:
+            return "This post stays Private in Mugshot. The share sheet will receive only the finished artwork, which anyone you send it to may keep or reshare."
+        case .friends:
+            return "The post link remains limited to confirmed friends. The finished artwork can still be kept or reshared outside Mugshot."
+        case .everyone:
+            return ""
+        }
+    }
+
     @MainActor
     private func presentPrimarySystemShare() {
         isPreparing = true
-        successMessage = nil
         defer { isPreparing = false }
 
         rebuildPackage()
@@ -712,82 +674,7 @@ struct MugshotShareHubView: View {
             format: selectedFormat,
             mode: publicURL == nil ? .artwork : .link
         )
-        successMessage = publicURL == nil
-            ? "Your artwork stays ready to share again."
-            : "Your clickable Mugshot card stays ready to share again."
         record(.handoffOpened, destination: .more, format: selectedFormat)
-    }
-
-    @MainActor
-    private func presentArtworkShare() {
-        rebuildPackage()
-        guard let package = sharePackage else {
-            errorMessage = MugshotShareHandoffError.artworkEncodingFailed.localizedDescription
-            record(.handoffFailed, destination: .more, format: selectedFormat)
-            return
-        }
-        systemSharePresentation = MugshotSystemSharePresentation(
-            items: package.artworkActivityItems(for: selectedFormat),
-            format: selectedFormat,
-            mode: .artwork
-        )
-        successMessage = "Artwork ready for Stories and image-first apps."
-        record(.handoffOpened, destination: .more, format: selectedFormat)
-    }
-
-    private func saveCurrentArtwork() {
-        if sharePackage == nil {
-            rebuildPackage()
-        }
-        guard let image = sharePackage?.artwork(for: selectedFormat) else {
-            errorMessage = MugshotShareHandoffError.artworkEncodingFailed.localizedDescription
-            return
-        }
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-            guard status == .authorized || status == .limited else {
-                Task { @MainActor in
-                    errorMessage = "Allow photo access to save this export, or use Share Mugshot."
-                }
-                return
-            }
-            PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            } completionHandler: { saved, _ in
-                Task { @MainActor in
-                    successMessage = saved ? "Image saved to Photos." : nil
-                    if !saved {
-                        errorMessage = "The image could not be saved. Try Share Mugshot instead."
-                    }
-                }
-            }
-        }
-    }
-
-    private func copyPublicLink() {
-        guard let publicURL else { return }
-        UIPasteboard.general.url = publicURL
-        successMessage = "Mugshot share link copied."
-    }
-
-    private func copyCurrentArtwork() {
-        if sharePackage == nil {
-            rebuildPackage()
-        }
-        guard let image = sharePackage?.artwork(for: selectedFormat) else {
-            errorMessage = MugshotShareHandoffError.artworkEncodingFailed.localizedDescription
-            return
-        }
-        UIPasteboard.general.image = image
-        successMessage = "Branded image copied."
-    }
-
-    private func copyCaption() {
-        var caption = content.shareText
-        if let publicURL {
-            caption += "\n\n\(publicURL.absoluteString)"
-        }
-        UIPasteboard.general.string = caption
-        successMessage = "Caption copied."
     }
 
     private func dismissHub() {
@@ -905,30 +792,6 @@ struct MugshotShareLinkPreviewView: View {
     }
 }
 
-private struct MugshotShareArtworkPreview: View {
-    let content: MugshotShareContent
-    let photos: [UIImage]
-    let photoLayout: MugshotSharePhotoLayout
-    let template: MugshotShareTemplate
-    let format: MugshotShareFormat
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = format.pixelSize
-            let scale = min(proxy.size.width / size.width, proxy.size.height / size.height)
-            MugshotShareArtworkView(
-                content: content,
-                photos: photos,
-                photoLayout: photoLayout,
-                template: template,
-                format: format
-            )
-            .frame(width: size.width, height: size.height)
-            .scaleEffect(scale, anchor: .topLeading)
-        }
-    }
-}
-
 struct MugshotShareArtworkView: View {
     let content: MugshotShareContent
     let photos: [UIImage]
@@ -997,24 +860,22 @@ struct MugshotShareArtworkView: View {
     }
 
     private var fieldNote: some View {
-        ZStack {
+        let layout = MugshotFieldNoteLayout.layout(for: format)
+        return ZStack {
             Color.creamWhite
-            Image("V3TastePassportBackdrop")
-                .resizable()
-                .scaledToFill()
-                .opacity(0.10)
 
-            VStack(alignment: .leading, spacing: format == .story ? 48 : 30) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
                     signature(color: .espressoBrown)
                     Spacer()
                     fieldStamp
                 }
+                .frame(height: layout.headerHeight, alignment: .top)
+
+                Spacer().frame(height: layout.headerToMediaSpacing)
 
                 sharePhoto
-                    .frame(
-                        height: format == .story ? 790 : 610
-                    )
+                    .frame(height: layout.mediaHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -1022,31 +883,41 @@ struct MugshotShareArtworkView: View {
                     )
                     .shadow(color: Color.espressoBrown.opacity(0.12), radius: 24, y: 14)
 
+                Spacer().frame(height: layout.mediaToRouteSpacing)
+
                 routeDetail(color: .mugshotSage)
+                    .frame(height: layout.routeHeight, alignment: .leading)
+
+                Spacer().frame(height: layout.routeToBodySpacing)
 
                 HStack(alignment: .bottom, spacing: 40) {
                     VStack(alignment: .leading, spacing: 18) {
                         Text(content.drinkName)
-                            .font(.system(size: format == .story ? 86 : 70, weight: .bold, design: .serif))
+                            .font(.system(size: layout.drinkFontSize, weight: .bold, design: .serif))
                             .foregroundStyle(Color.espressoBrown)
-                            .lineLimit(3)
-                            .minimumScaleFactor(0.72)
+                            .lineLimit(layout.drinkLineLimit)
+                            .minimumScaleFactor(0.62)
                         Text(content.contextName)
-                            .font(.system(size: 31, weight: .semibold))
+                            .font(.system(size: layout.contextFontSize, weight: .semibold))
                             .foregroundStyle(Color.roastBrown)
-                            .lineLimit(2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.68)
                         if let caption = content.caption {
                             Text(caption)
-                                .font(.system(size: 28, weight: .regular, design: .serif))
+                                .font(.system(size: layout.captionFontSize, weight: .regular, design: .serif))
                                 .italic()
                                 .foregroundStyle(Color.secondaryText)
-                                .lineLimit(format == .story ? 4 : 2)
+                                .lineLimit(layout.captionLineLimit)
+                                .minimumScaleFactor(0.78)
                         }
                     }
                     Spacer(minLength: 10)
-                    score(color: .espressoBrown)
+                    score(color: .espressoBrown, fontSize: layout.scoreFontSize)
                 }
+                .frame(height: layout.bodyHeight, alignment: .top)
+
                 Spacer(minLength: 0)
+
                 HStack {
                     Text(formattedDate.uppercased())
                     Spacer()
@@ -1057,10 +928,11 @@ struct MugshotShareArtworkView: View {
                 .font(.system(size: 23, weight: .bold))
                 .tracking(3)
                 .foregroundStyle(Color.mugshotSage)
+                .frame(height: layout.footerHeight, alignment: .bottom)
             }
-            .padding(.horizontal, format == .story ? 86 : 70)
-            .padding(.top, format == .story ? 210 : 64)
-            .padding(.bottom, format == .story ? 230 : 64)
+            .padding(.horizontal, layout.horizontalMargin)
+            .padding(.top, layout.topMargin)
+            .padding(.bottom, layout.bottomMargin)
         }
     }
 
@@ -1068,8 +940,9 @@ struct MugshotShareArtworkView: View {
     private var sharePhoto: some View {
         if let photo = photos.first {
             if photoLayout.isCollage, photos.count > 1 {
-                MugshotSmartCollageView(
-                    photos: Array(photos.prefix(min(photoLayout.photoLimit, photos.count)))
+                MugshotCollageView(
+                    photos: Array(photos.prefix(min(photoLayout.photoLimit, photos.count))),
+                    composition: collageComposition
                 )
             } else {
                 Image(uiImage: photo)
@@ -1088,6 +961,21 @@ struct MugshotShareArtworkView: View {
                 )
                 .padding(format == .story ? 190 : 130)
             }
+        }
+    }
+
+    private var collageComposition: MugshotCollageComposition {
+        switch photoLayout {
+        case .smartCollage:
+            return MugshotCollageComposition.smart(for: photos)
+        case .twoPhoto:
+            return .sideBySide
+        case .threePhoto:
+            return .leadBesideStack
+        case .fourPhoto:
+            return .grid
+        case .singlePhoto:
+            return .sideBySide
         }
     }
 
@@ -1117,10 +1005,10 @@ struct MugshotShareArtworkView: View {
         .accessibilityHidden(true)
     }
 
-    private func score(color: Color) -> some View {
+    private func score(color: Color, fontSize: CGFloat = 98) -> some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text(content.rating, format: .number.precision(.fractionLength(1)))
-                .font(.system(size: 98, weight: .bold, design: .serif))
+                .font(.system(size: fontSize, weight: .bold, design: .serif))
                 .monospacedDigit()
             Text("OUT OF 5")
                 .font(.system(size: 19, weight: .bold))
@@ -1132,13 +1020,16 @@ struct MugshotShareArtworkView: View {
     private var fieldStamp: some View {
         VStack(spacing: 8) {
             Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 31, weight: .semibold))
+                .font(.system(size: format == .story ? 27 : 21, weight: .semibold))
             Text("FIELD NOTE")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: format == .story ? 15 : 13, weight: .heavy))
                 .tracking(2)
         }
         .foregroundStyle(Color.mugshotSage)
-        .frame(width: 164, height: 118)
+        .frame(
+            width: format == .story ? 150 : 132,
+            height: format == .story ? 96 : 72
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.mugshotSage.opacity(0.7), lineWidth: 3)
@@ -1151,27 +1042,155 @@ struct MugshotShareArtworkView: View {
     }
 }
 
-private struct MugshotSmartCollageView: View {
+struct MugshotFieldNoteLayout: Equatable {
+    let horizontalMargin: CGFloat
+    let topMargin: CGFloat
+    let bottomMargin: CGFloat
+    let headerHeight: CGFloat
+    let headerToMediaSpacing: CGFloat
+    let mediaHeight: CGFloat
+    let mediaToRouteSpacing: CGFloat
+    let routeHeight: CGFloat
+    let routeToBodySpacing: CGFloat
+    let bodyHeight: CGFloat
+    let footerHeight: CGFloat
+    let drinkFontSize: CGFloat
+    let contextFontSize: CGFloat
+    let captionFontSize: CGFloat
+    let scoreFontSize: CGFloat
+    let drinkLineLimit: Int
+    let captionLineLimit: Int
+
+    static let story = MugshotFieldNoteLayout(
+        horizontalMargin: 78,
+        topMargin: 170,
+        bottomMargin: 170,
+        headerHeight: 100,
+        headerToMediaSpacing: 34,
+        mediaHeight: 690,
+        mediaToRouteSpacing: 28,
+        routeHeight: 26,
+        routeToBodySpacing: 22,
+        bodyHeight: 400,
+        footerHeight: 32,
+        drinkFontSize: 82,
+        contextFontSize: 30,
+        captionFontSize: 27,
+        scoreFontSize: 92,
+        drinkLineLimit: 3,
+        captionLineLimit: 4
+    )
+
+    static let post = MugshotFieldNoteLayout(
+        horizontalMargin: 58,
+        topMargin: 60,
+        bottomMargin: 60,
+        headerHeight: 76,
+        headerToMediaSpacing: 22,
+        mediaHeight: 460,
+        mediaToRouteSpacing: 18,
+        routeHeight: 24,
+        routeToBodySpacing: 14,
+        bodyHeight: 340,
+        footerHeight: 28,
+        drinkFontSize: 68,
+        contextFontSize: 27,
+        captionFontSize: 24,
+        scoreFontSize: 78,
+        drinkLineLimit: 2,
+        captionLineLimit: 2
+    )
+
+    static func layout(for format: MugshotShareFormat) -> MugshotFieldNoteLayout {
+        format == .story ? .story : .post
+    }
+
+    var fixedVerticalContent: CGFloat {
+        topMargin
+            + headerHeight
+            + headerToMediaSpacing
+            + mediaHeight
+            + mediaToRouteSpacing
+            + routeHeight
+            + routeToBodySpacing
+            + bodyHeight
+            + footerHeight
+            + bottomMargin
+    }
+}
+
+enum MugshotCollageComposition: Equatable {
+    case stacked
+    case sideBySide
+    case leadAbovePair
+    case leadBesideStack
+    case grid
+
+    static func smart(for photos: [UIImage]) -> MugshotCollageComposition {
+        switch photos.count {
+        case 2:
+            return photos.allSatisfy { $0.size.width > $0.size.height }
+                ? .stacked
+                : .sideBySide
+        case 3:
+            guard let lead = photos.first else { return .leadBesideStack }
+            return lead.size.width > lead.size.height
+                ? .leadAbovePair
+                : .leadBesideStack
+        case 4...:
+            return .grid
+        default:
+            return .sideBySide
+        }
+    }
+}
+
+private struct MugshotCollageView: View {
     let photos: [UIImage]
+    let composition: MugshotCollageComposition
 
     var body: some View {
         GeometryReader { proxy in
             let spacing: CGFloat = 14
-            HStack(spacing: spacing) {
-                collagePhoto(at: 0)
-                    .frame(
-                        width: proxy.size.width * (photos.count == 2 ? 0.58 : 0.62),
-                        height: proxy.size.height
-                    )
-
-                if photos.count == 2 {
-                    collagePhoto(at: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+            Group {
+                switch composition {
+                case .stacked:
                     VStack(spacing: spacing) {
-                        ForEach(1..<min(photos.count, 4), id: \.self) { index in
-                            collagePhoto(at: index)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        collagePhoto(at: 0)
+                        collagePhoto(at: 1)
+                    }
+                case .sideBySide:
+                    HStack(spacing: spacing) {
+                        collagePhoto(at: 0)
+                        collagePhoto(at: 1)
+                    }
+                case .leadAbovePair:
+                    VStack(spacing: spacing) {
+                        collagePhoto(at: 0)
+                            .frame(height: (proxy.size.height - spacing) * 0.58)
+                        HStack(spacing: spacing) {
+                            collagePhoto(at: 1)
+                            collagePhoto(at: 2)
+                        }
+                    }
+                case .leadBesideStack:
+                    HStack(spacing: spacing) {
+                        collagePhoto(at: 0)
+                            .frame(width: (proxy.size.width - spacing) * 0.62)
+                        VStack(spacing: spacing) {
+                            collagePhoto(at: 1)
+                            collagePhoto(at: 2)
+                        }
+                    }
+                case .grid:
+                    VStack(spacing: spacing) {
+                        HStack(spacing: spacing) {
+                            collagePhoto(at: 0)
+                            collagePhoto(at: 1)
+                        }
+                        HStack(spacing: spacing) {
+                            collagePhoto(at: 2)
+                            collagePhoto(at: 3)
                         }
                     }
                 }
@@ -1182,10 +1201,17 @@ private struct MugshotSmartCollageView: View {
     }
 
     private func collagePhoto(at index: Int) -> some View {
-        Image(uiImage: photos[index])
-            .resizable()
-            .scaledToFill()
-            .clipped()
+        Group {
+            if photos.indices.contains(index) {
+                Image(uiImage: photos[index])
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color.sandBeige
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 

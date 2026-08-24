@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_PRODUCT_STATUS.md
+---
+
+> Historical snapshot. Implementation-status claims below describe the audit date, not the current app. Use [Current product status](CURRENT_PRODUCT_STATUS.md) and [Repository map](REPO_MAP.md).
+
 # Mugshot Codebase Audit
 
 Date: 2026-07-02

@@ -25,14 +25,34 @@ struct JournalEntryProjection: Identifiable, Equatable {
 
     func matches(_ rawQuery: String) -> Bool {
         guard let query = rawQuery.remoteTrimmedNonEmpty?.localizedLowercase else { return true }
-        let searchable = [
+        let brew = summary.visit.structuredBrewDetails
+        let coffee = brew.coffeeBag
+        var searchable: [String] = [
             summary.visit.drinkDisplayName,
             summary.locationTitle,
             summary.visit.caption,
             privateNote ?? "",
             summary.visit.brewMethod ?? "",
-            summary.visit.equipment ?? ""
-        ] + tags
+            summary.visit.equipment ?? "",
+            coffee?.displayName ?? "",
+            coffee?.producer ?? "",
+            coffee?.origin ?? "",
+            coffee?.process ?? "",
+            coffee?.variety ?? "",
+            brew.beans ?? "",
+            brew.beanOrigin ?? "",
+            brew.grindSetting ?? ""
+        ]
+        if let equipmentSnapshots = brew.equipmentSnapshots {
+            for equipment in equipmentSnapshots {
+                searchable.append(contentsOf: [
+                    equipment.displayName,
+                    equipment.brand ?? "",
+                    equipment.model ?? ""
+                ])
+            }
+        }
+        searchable.append(contentsOf: tags)
         return searchable.contains { $0.localizedLowercase.contains(query) }
     }
 }

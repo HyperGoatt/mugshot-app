@@ -18,10 +18,10 @@ class TabCoordinator: ObservableObject {
     private(set) var lastNonAddTab: Int
     @Published private(set) var pendingMapCafe: Cafe?
 
-    init(selectedTab: Int = 1) {
-        let safeTab = (0...4).contains(selectedTab) ? selectedTab : 1
+    init(selectedTab: Int = 0) {
+        let safeTab = (0...4).contains(selectedTab) ? selectedTab : 0
         self.selectedTab = safeTab
-        self.lastNonAddTab = safeTab == 2 ? 1 : safeTab
+        self.lastNonAddTab = safeTab == 2 ? 0 : safeTab
     }
     
     func switchToFeed() {

@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: FEATURE_STATUS_MATRIX.md
+---
+
+> Historical planning snapshot. Missing/deferred claims below are not current. Use the [Feature status matrix](FEATURE_STATUS_MATRIX.md).
+
 # Feature Parity Matrix
 
 Date: 2026-07-03

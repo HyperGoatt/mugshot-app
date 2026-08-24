@@ -1,69 +1,81 @@
-# Current Product Status
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
 
-Date: 2026-07-03
+# Current product status
 
-## Founder-Level Read
+## Release baseline
 
-Mugshot's native iOS app has crossed from prototype into a credible private-beta foundation for the personal journal loop. It is not ready to be positioned as a complete social cafe network yet.
+Mugshot is a native SwiftUI social coffee journal distributed through
+TestFlight. Source is version 0.5.3 build 5 on
+`codex/home-workbench-sprint`, one commit ahead of `origin/main` before this
+documentation baseline. The most recent archived distributed candidate is
+0.5.3 (4).
 
-## What A Real Signed-In User Can Do Today
+The Home Workbench branch is implemented and passed the repository full-static
+no-Simulator gate on 2026-08-24. Its backend migrations are present in source;
+living documentation does not assume a migration is live until deployment
+evidence confirms it.
 
-- Sign in or create an account through Supabase Auth.
-- Relaunch and restore the session.
-- Load/bootstrap the matching profile row.
-- Edit basic profile text fields.
-- Create a visit with cafe, drink, caption, notes, ratings, visibility, and at least one photo.
-- See saved visits in Profile Recent, Feed, and remote Visit Detail.
-- See uploaded visit photos after relaunch.
-- Like/unlike remote visits and add comments from remote Visit Detail.
-- Favorite or mark cafes Want-to-Try and see that state persist.
-- Save/favorite cafes from remote visit surfaces while preserving existing Want-to-Try state.
-- Edit caption/notes/visibility on their own remote visits.
-- Delete their own remote visits.
-- Open Settings for Sign Out, About, Privacy, Terms, and support/contact.
-- Search cafes through Apple Maps and use typed cafe fallback in Add Visit.
+## What works now
 
-## What Looks Real But Is Local/Demo
+- Email/password, Apple, and Google authentication flows, session restore,
+  profile completion, sign-out cleanup, and account deletion orchestration.
+- Guest exploration and drafts, followed by account-scoped local adoption and
+  signed-in Supabase authority.
+- Guided Cafe, Home, and Elsewhere sip composition with durable drafts, pending
+  submission recovery, photo handling, edit/delete, and visibility controls.
+- Home Workbench recipe memory, brew templates, actual-versus-planned capture,
+  coffee bag assets, reusable recipes, and owner journal projections.
+- Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
+  friend requests, blocking, reporting, moderation state, collaborative cafe
+  lists, public share links, and privacy-aware projections.
+- Map, saved cafe state, discovery, cafe detail, Taste Passport, reflection,
+  widgets, share extension, universal links, and nearby cafe reminders.
+- In-app Activity with unread count, pagination, read actions, notification
+  category preferences, and account-bound deep links.
+- Caller-bound APNs registration and a durable Supabase delivery worker with
+  production credentials and scheduling configured.
 
-- Signed-out profile stats/top cafes/favorites/wishlist are local shell data.
-- Signed-out/local visits use `UserDefaults` and `PhotoCache`.
-- Sample San Francisco cafes/visits seed the app when local data is empty.
-- Local likes/comments/edit/delete exist for local visits only.
-- Some cafe stats and "0 visits" states are local fallbacks.
+## Data authority
 
-## What Breaks Or Dead-Ends
+Supabase is authoritative for signed-in identity, public and social content,
+visits, media references, cafe state, friends, safety, lists, Activity, device
+registration, and Home library data. Account-scoped local stores remain
+authoritative for guest data, unfinished drafts, pending submissions, cached
+media, UI preferences, recovery commands, and offline presentation until a
+remote write succeeds.
 
-- XcodeBuildMCP semantic tap/touch automation still does not reliably present the native Photos picker, but Computer Use coordinate-click fallback completed the 2026-07-03 photo-backed Add Visit smoke.
-- Friends has no active native surface.
-- Notifications have no active native surface and are intentionally blocked.
-- Profile avatar/banner upload is missing.
-- Public user profiles are missing.
+No local sample, cache, or fallback count may be presented as remote truth.
 
-## What Has Real Backend Data
+## Notification status
 
-- Supabase Auth session.
-- `public.users` profile bootstrap and update.
-- `public.visits` insert/read.
-- `public.cafes` resolve/create/read.
-- `public.visit_photos` read/write.
-- `storage.objects` in `visit-photos` for uploaded images.
-- `public.likes` read/write and `public.comments` read/write for remote visit social controls.
-- `public.user_cafe_states` read/write.
+The notification system is implemented and production configured, not
+physically accepted. The Release/TestFlight app carries the production APNs
+entitlement and the backend has both Apple topics. Physical Debug currently
+lacks its sandbox entitlement and lifecycle hardening; those are active sprint
+work. In-app Activity remains available regardless of push state.
 
-## What Is Unsafe Or Risky
+See [Notification system](NOTIFICATION_SYSTEM.md) for the precise contract and
+remaining acceptance matrix.
 
-- Reintroducing notifications from old code before backend secret handling is redesigned.
-- Pushing this branch directly to `main` while remote `main` has newer history.
-- Treating local/demo stats as remote truth.
-- Treating XcodeBuildMCP picker-tap failure as proof that photo creation is broken; the verified issue is semantic automation around the system picker, while visible Simulator interaction completed the upload path.
-- Copying old `Auth` branch code wholesale.
-- Committing ignored local config.
+## Current risks and gates
 
-## What Should Not Be Touched Yet
+- The Home Workbench branch must be documented, reviewed, published, and merged
+  before notification work branches from `main`.
+- Physical sandbox and production notification delivery, cold launch, deep
+  links, and account lifecycle still require signed-device acceptance.
+- TestFlight archive, upload, and group assignment remain explicit manual gates.
+- New Home Workbench migrations must follow the Supabase QA and release workflow
+  before the client relies on them in production.
+- Local and remote state coexist intentionally; changes must preserve account
+  isolation and zero-loss draft/publication behavior.
 
-- Push notifications.
-- Widgets and app groups.
-- Old Edge Functions and trigger code.
-- Broad social graph work.
-- Full Discover/Craft Sip/postcard features.
-- Bulk branch/repo merges.
+## Verification snapshot
+
+`./scripts/verify-no-simulator.sh full-static` passed 11 checks with zero
+failures on 2026-08-24. The optional local `pglast` parse was skipped because
+the package is not installed. This proves static contracts and compilation, not
+physical notification delivery or TestFlight acceptance.

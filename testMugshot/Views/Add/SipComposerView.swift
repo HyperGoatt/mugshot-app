@@ -533,7 +533,12 @@ struct LogVisitView: View {
                 }
                 finishSuccessfulSave()
             },
-            onStartAnother: completedCafeSession == nil ? nil : addAnotherSipToCompletedSession
+            onStartAnother: completedCafeSession != nil
+                ? addAnotherSipToCompletedSession
+                : ((draft.context == .home || draft.context == .recipe) && draft.drinkType == .coffee
+                    ? brewAgainFromCompletion
+                    : nil),
+            startAnotherTitle: completedCafeSession == nil ? "Brew Again" : "Pour another one"
         )
     }
 
@@ -2411,7 +2416,8 @@ struct LogVisitView: View {
             contextScore: pending.v3Reflection?.contextScore,
             contextRatingCriteria: pending.v3Reflection?.contextCriteria ?? [],
             photoFallback: pending.v3Reflection?.photoFallback,
-            homeMakeAgain: pending.v3Reflection?.homeMakeAgain
+            homeMakeAgain: pending.v3Reflection?.homeMakeAgain,
+            homeCoffeeBagID: pending.homeCoffeeBagID
         )
     }
 
@@ -2800,6 +2806,7 @@ struct LogVisitView: View {
 
     private func adoptGuestDraft(for userID: UUID) {
         do {
+            _ = try HomeLibraryStore.shared.adoptGuestLibrary(for: userID)
             let adopted = try SipDraftStore.shared.adoptGuestDraft(
                 draft,
                 images: photoImages,
@@ -3183,11 +3190,19 @@ struct LogVisitView: View {
             let pendingStore = PendingVisitSubmissionStore.shared
             var submission: PendingVisitSubmissionRecord
             var savedVisit: RemoteVisitSummary?
-
-            if let storedPending = pendingStore.load(
+            let storedPending = pendingStore.load(
                 visitId: draft.id,
                 userId: authenticatedUser.id
-            ) {
+            )
+
+            if storedPending == nil {
+                try await synchronizeSelectedHomeCoffeeBag(
+                    client: client,
+                    userID: authenticatedUser.id
+                )
+            }
+
+            if let storedPending {
                 if storedPending.isRemoteFinalized {
                     capturePublicationDeduplicationIfNeeded()
                     guard SipRemoteRecoveryPlanner.action(
@@ -3234,6 +3249,7 @@ struct LogVisitView: View {
                     notes: draft.privateNotes.remoteTrimmedNonEmpty,
                     brewMethod: draft.brewMethod,
                     equipment: draft.equipment,
+                    homeCoffeeBagID: draft.homeCoffeeBagID,
                     brewDetails: submissionBrewDetails,
                     visibility: draft.visibility,
                     ratings: draft.ratingsDictionary,
@@ -3337,6 +3353,7 @@ struct LogVisitView: View {
                     drinkSubtype: submission.drinkSubtype,
                     brewMethod: submission.brewMethod,
                     equipment: submission.equipment,
+                    homeCoffeeBagID: submission.homeCoffeeBagID,
                     brewDetails: submission.resolvedBrewDetails,
                     caption: submission.caption,
                     notes: submission.notes,
@@ -3619,6 +3636,35 @@ struct LogVisitView: View {
         }
     }
 
+    @MainActor
+    private func synchronizeSelectedHomeCoffeeBag(
+        client: SupabaseClient,
+        userID: UUID
+    ) async throws {
+        guard let bagID = draft.homeCoffeeBagID else { return }
+        let scope = LocalAccountScope.user(userID)
+        guard var bag = HomeLibraryStore.shared.load(in: scope).bags.first(where: {
+            $0.id == bagID
+        }) else {
+            throw HomeLibraryStoreError.adoptionVerificationFailed
+        }
+        let service = HomeLibraryService(client: client)
+        if bag.privatePhotoPath == nil,
+           let image = HomeLibraryStore.shared.bagPhoto(
+               relativePath: bag.localPhotoPath,
+               in: scope
+           ) {
+            bag.privatePhotoPath = try await service.uploadBagPhoto(
+                image,
+                bagID: bag.id,
+                userID: userID
+            )
+        }
+        var persisted = try await service.upsert(bag, userID: userID)
+        persisted.localPhotoPath = bag.localPhotoPath
+        _ = try HomeLibraryStore.shared.upsert(persisted, in: scope)
+    }
+
     private func completeSuccessfulSave(
         visitID: UUID,
         remoteVisit: RemoteVisitSummary? = nil,
@@ -3862,6 +3908,40 @@ struct LogVisitView: View {
                 )
             )
         }
+        MugshotHaptic.softImpact.play()
+    }
+
+    private func brewAgainFromCompletion() {
+        let completedDraft = draft
+        let ownerUserID = completedDraft.ownerUserID
+            ?? authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
+        clearPublishedCompletionHandoff(ownerUserID: ownerUserID)
+        var nextDraft = completedDraft.context == .recipe
+            ? SipDraft.brewAgain(from: completedDraft, ownerUserID: ownerUserID)
+            : SipDraft.repeatSip(from: completedDraft, ownerUserID: ownerUserID)
+        nextDraft.context = .home
+        nextDraft.visibility = .private
+        nextDraft.composerExperience = composerExperience
+        nextDraft.v3Step = .setup
+
+        completionSummary = nil
+        v3CompletionSummary = nil
+        completedRemoteVisit = nil
+        completedLocalVisit = nil
+        completionStatusMessage = nil
+        showSavedConfirmation = false
+        composerModel.draft = nextDraft
+        photoImages.removeAll()
+        v3Step = .setup
+        analyticsStartedAt = .now
+        analyticsIsDraftResume = false
+        analyticsDidCaptureOpen = false
+        analyticsDidCaptureRecovery = false
+        analyticsDidCaptureDeduplication = false
+        analyticsPublishWasRecovery = false
+        persistDraft()
+        captureComposerOpenedIfNeeded()
         MugshotHaptic.softImpact.play()
     }
 

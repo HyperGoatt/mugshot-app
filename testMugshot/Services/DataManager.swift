@@ -235,6 +235,7 @@ class DataManager: ObservableObject {
             V3PublishedCompletionStore.shared.removeAllForTesting()
             RecentCriterionSetupStore.shared.removeAllForTesting()
             PinnedCriterionStore.shared.removeAllForTesting()
+            HomeLibraryStore.shared.removeAllForTesting()
             defaults.removeObject(forKey: mapSearchRecentsKey)
             defaults.removeObject(forKey: "MugshotMap.discoveryScope.v1")
             defaults.removeObject(forKey: "saved.library.sort")

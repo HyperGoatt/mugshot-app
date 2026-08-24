@@ -3,6 +3,30 @@ import Testing
 @testable import testMugshot
 
 struct SipDetailPresentationTests {
+    @Test func commentComposerKeepsUIKitFocusUntilSwiftUIExplicitlyDismissesIt() {
+        #expect(
+            SipDetailComposerFocusPolicy.action(
+                isFocusRequested: false,
+                wasFocusRequested: false,
+                isFirstResponder: true
+            ) == .none
+        )
+        #expect(
+            SipDetailComposerFocusPolicy.action(
+                isFocusRequested: true,
+                wasFocusRequested: false,
+                isFirstResponder: false
+            ) == .focus
+        )
+        #expect(
+            SipDetailComposerFocusPolicy.action(
+                isFocusRequested: false,
+                wasFocusRequested: true,
+                isFirstResponder: true
+            ) == .blur
+        )
+    }
+
     @Test func guestSocialActionsRequireAuthenticationBeforeInteraction() {
         let protectedActions: [SipDetailAction] = [
             .like, .comment, .saveCafe, .recommend, .report, .block

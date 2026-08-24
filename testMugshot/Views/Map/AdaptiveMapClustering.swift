@@ -34,6 +34,11 @@ enum AdaptiveMapClusterTapPolicy {
 
 enum AdaptiveMapCameraPolicy {
     static let maximumCafeFootprintPoints = 60.0
+    // MapKit already groups colliding cafe pins. Keep those useful, individual
+    // memories visible throughout city and metro views, and reserve the broad
+    // place aggregates for genuinely regional camera footprints.
+    static let aggregateEntryMeters = 90_000.0
+    static let cafeReturnMeters = 70_000.0
 
     static func groundFootprintMeters(in mapView: MKMapView) -> Double {
         guard mapView.bounds.width > 0 else { return 0 }
@@ -44,78 +49,166 @@ enum AdaptiveMapCameraPolicy {
 
     static func displayMode(
         current: AdaptiveMapDisplayMode,
-        groundFootprintMeters: Double,
-        visibleCafeCount: Int = 12,
-        viewportSize: CGSize = CGSize(width: 390, height: 844)
+        groundFootprintMeters: Double
     ) -> AdaptiveMapDisplayMode {
-        let entryThreshold = semanticEntryThreshold(
-            visibleCafeCount: visibleCafeCount,
-            viewportSize: viewportSize
-        )
-        let exitThreshold = entryThreshold * 0.7
         switch current {
         case .cafes:
-            return groundFootprintMeters >= entryThreshold
+            return groundFootprintMeters >= aggregateEntryMeters
                 ? .places
                 : .cafes
         case .places:
-            return groundFootprintMeters <= exitThreshold
+            return groundFootprintMeters <= cafeReturnMeters
                 ? .cafes
                 : .places
         }
     }
-
-    static func semanticEntryThreshold(
-        visibleCafeCount: Int,
-        viewportSize: CGSize
-    ) -> Double {
-        let comfortableCellArea = 90.0 * 90.0
-        let viewportArea = max(viewportSize.width * viewportSize.height, comfortableCellArea)
-        let comfortableCapacity = max(viewportArea / comfortableCellArea, 1)
-        let density = Double(max(visibleCafeCount, 0)) / comfortableCapacity
-
-        // Dense maps switch to named places sooner; sparse maps retain cafe
-        // precision longer. The bounded range keeps pan-to-pan changes calm.
-        if density >= 1.25 { return 14_000 }
-        if density <= 0.25 { return 26_000 }
-        let progress = (density - 0.25) / 1.0
-        return 26_000 - (12_000 * progress)
-    }
 }
 
 enum AdaptiveMapCafeClusteringPolicy {
+    // `groundFootprintMeters` measures the ground covered by one 60-point
+    // cafe pin. The Charleston peninsula remains individually readable below
+    // this boundary; clustering begins only after the next material zoom-out.
+    static let clusteringEntryMeters = 3_200.0
+    static let individualReturnMeters = 2_400.0
+
     static func isEnabled(
         current: Bool,
-        groundFootprintMeters: Double,
-        visibleCafeCount: Int,
-        viewportSize: CGSize
+        groundFootprintMeters: Double
     ) -> Bool {
-        let entryThreshold = clusteringEntryThreshold(
-            visibleCafeCount: visibleCafeCount,
-            viewportSize: viewportSize
+        current
+            ? groundFootprintMeters > individualReturnMeters
+            : groundFootprintMeters >= clusteringEntryMeters
+    }
+}
+
+struct AdaptiveMapAnnotationSnapshot: Equatable {
+    let cafesByCanonicalID: [UUID: Cafe]
+
+    init(cafes: [Cafe], highlightedCafe: Cafe?) {
+        var canonicalCafes: [UUID: Cafe] = [:]
+        for cafe in cafes where cafe.location != nil {
+            canonicalCafes[cafe.remoteCafeId ?? cafe.id] = cafe
+        }
+        if let highlightedCafe, highlightedCafe.location != nil {
+            canonicalCafes[highlightedCafe.remoteCafeId ?? highlightedCafe.id] = highlightedCafe
+        }
+
+        let highlightedID = highlightedCafe.map { $0.remoteCafeId ?? $0.id }
+        var physicalCafes: [Cafe] = []
+        for cafe in canonicalCafes
+            .sorted(by: { $0.key.uuidString < $1.key.uuidString })
+            .map(\.value) {
+            guard let duplicateIndex = physicalCafes.firstIndex(where: {
+                Self.representsSamePhysicalCafe($0, cafe)
+            }) else {
+                physicalCafes.append(cafe)
+                continue
+            }
+            physicalCafes[duplicateIndex] = Self.merge(
+                physicalCafes[duplicateIndex],
+                cafe,
+                highlightedID: highlightedID
+            )
+        }
+
+        cafesByCanonicalID = Dictionary(
+            uniqueKeysWithValues: physicalCafes.map {
+                ($0.remoteCafeId ?? $0.id, $0)
+            }
         )
-        let exitThreshold = entryThreshold * 0.72
-        return current
-            ? groundFootprintMeters > exitThreshold
-            : groundFootprintMeters >= entryThreshold
     }
 
-    static func clusteringEntryThreshold(
-        visibleCafeCount: Int,
-        viewportSize: CGSize
-    ) -> Double {
-        let comfortableCellArea = 90.0 * 90.0
-        let viewportArea = max(viewportSize.width * viewportSize.height, comfortableCellArea)
-        let comfortableCapacity = max(viewportArea / comfortableCellArea, 1)
-        let density = Double(max(visibleCafeCount, 0)) / comfortableCapacity
+    var cafes: [Cafe] {
+        cafesByCanonicalID
+            .sorted { $0.key.uuidString < $1.key.uuidString }
+            .map(\.value)
+    }
 
-        // At the close city scale from the July map, sparse cafe sets retain
-        // their individual scores. Dense maps consolidate slightly sooner,
-        // before the regional place-aggregate transition takes over.
-        if density >= 1.25 { return 3_600 }
-        if density <= 0.25 { return 5_600 }
-        let progress = (density - 0.25) / 1.0
-        return 5_600 - (2_000 * progress)
+    func representedCount(
+        mode: AdaptiveMapDisplayMode,
+        highlightedCafe: Cafe?,
+        placeNames: [UUID: String],
+        scores: [UUID: MapPinScore],
+        friendCounts: [UUID: Int]
+    ) -> Int {
+        switch mode {
+        case .cafes:
+            return cafes.count
+        case .places:
+            let highlightedID = highlightedCafe.map { $0.remoteCafeId ?? $0.id }
+            let aggregateCafes = cafes.filter { ($0.remoteCafeId ?? $0.id) != highlightedID }
+            let aggregateCount = AdaptiveMapPlaceAggregateBuilder.make(
+                cafes: aggregateCafes,
+                placeNames: placeNames,
+                scores: scores,
+                friendCounts: friendCounts
+            )
+            .reduce(0) { $0 + $1.cafes.count }
+            return aggregateCount + (highlightedID == nil ? 0 : 1)
+        }
+    }
+
+    private static func representsSamePhysicalCafe(_ lhs: Cafe, _ rhs: Cafe) -> Bool {
+        if let lhsAppleID = lhs.appleMapsPlaceID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !lhsAppleID.isEmpty,
+           let rhsAppleID = rhs.appleMapsPlaceID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !rhsAppleID.isEmpty {
+            return lhsAppleID.caseInsensitiveCompare(rhsAppleID) == .orderedSame
+        }
+        guard normalizedName(lhs.name) == normalizedName(rhs.name),
+              let lhsLocation = lhs.location,
+              let rhsLocation = rhs.location else {
+            return false
+        }
+        return CLLocation(latitude: lhsLocation.latitude, longitude: lhsLocation.longitude)
+            .distance(from: CLLocation(latitude: rhsLocation.latitude, longitude: rhsLocation.longitude)) <= 25
+    }
+
+    private static func normalizedName(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .joined(separator: " ")
+    }
+
+    private static func merge(
+        _ lhs: Cafe,
+        _ rhs: Cafe,
+        highlightedID: UUID?
+    ) -> Cafe {
+        let preferred: Cafe
+        if (rhs.remoteCafeId ?? rhs.id) == highlightedID {
+            preferred = rhs
+        } else if (lhs.remoteCafeId ?? lhs.id) == highlightedID {
+            preferred = lhs
+        } else {
+            preferred = evidenceRank(rhs) > evidenceRank(lhs) ? rhs : lhs
+        }
+
+        let alternate = preferred.id == lhs.id ? rhs : lhs
+        var merged = preferred
+        merged.isFavorite = lhs.isFavorite || rhs.isFavorite
+        merged.wantToTry = lhs.wantToTry || rhs.wantToTry
+        merged.visitCount = max(lhs.visitCount, rhs.visitCount)
+        if merged.averageRating <= 0 {
+            merged.averageRating = alternate.averageRating
+        }
+        if merged.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            merged.address = alternate.address
+        }
+        if merged.appleMapsPlaceID == nil {
+            merged.appleMapsPlaceID = alternate.appleMapsPlaceID
+        }
+        return merged
+    }
+
+    private static func evidenceRank(_ cafe: Cafe) -> Int {
+        (cafe.isFavorite ? 10_000 : 0)
+            + (cafe.wantToTry ? 5_000 : 0)
+            + min(cafe.visitCount, 999) * 10
+            + (cafe.averageRating > 0 ? 5 : 0)
+            + (cafe.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
     }
 }
 

@@ -128,6 +128,7 @@ struct MapTabView: View {
     @State private var remoteStateError: String?
     @State private var remoteMapPins: [RemoteMapPin] = []
     @State private var remoteMapPinUserId: UUID?
+    @State private var activeMapLoadID: UUID?
     @AppStorage("MugshotMap.discoveryScope.v1") private var discoveryScope: MapDiscoveryScope = .visited
     @State private var discoveryRadiusMiles = 10.0
     @State private var discoveryMapCafes: [Cafe] = []
@@ -1356,6 +1357,8 @@ struct MapTabView: View {
 
     @MainActor
     private func loadRemoteMapPins() async {
+        let loadID = UUID()
+        activeMapLoadID = loadID
         guard let userId = authModel.authenticatedUser?.id else {
             do {
                 let client = try SupabaseClientProvider.shared.client()
@@ -1364,6 +1367,7 @@ struct MapTabView: View {
                     service: service,
                     isAuthenticated: false
                 )
+                guard activeMapLoadID == loadID, !Task.isCancelled else { return }
                 remoteMapPins = []
                 discoveryMapCafes = discovery.map(\.localCafe)
                 discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
@@ -1373,14 +1377,8 @@ struct MapTabView: View {
                 remoteMapPinUserId = nil
                 rebuildForYouRecommendations()
             } catch {
-                guard !Task.isCancelled else { return }
-                remoteMapPins = []
-                discoveryMapCafes = []
-                discoveryCafesByID = [:]
-                friendCafeSummariesByID = [:]
-                friendSipSummariesByID = [:]
+                guard activeMapLoadID == loadID, !Task.isCancelled else { return }
                 remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
-                remoteMapPinUserId = nil
             }
             return
         }
@@ -1398,17 +1396,6 @@ struct MapTabView: View {
                     cafeStateService: CafeStateService(client: client),
                     cafeSessionService: CafeSessionService(client: client)
                 ).fetchSnapshot(userId: userId)
-            }
-
-            guard !Task.isCancelled else { return }
-            remoteMapPins = snapshot.pins
-            dataManager.applyPersonalMapSnapshot(snapshot, for: userId)
-            remoteMapPinUserId = userId
-            if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),
-               let refreshedSelection = snapshot.pins
-                .map(\.localCafe)
-                .first(where: { ($0.remoteCafeId ?? $0.id) == selectedID }) {
-                selectedCafe = refreshedSelection
             }
 
             let discovery = try await fetchDiscoveryCafes(
@@ -1429,6 +1416,8 @@ struct MapTabView: View {
                 sipSummariesRequest
             )
 
+            guard activeMapLoadID == loadID, !Task.isCancelled else { return }
+            remoteMapPins = snapshot.pins
             discoveryMapCafes = discovery.map(\.localCafe)
             discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
             friendCafeSummariesByID = Dictionary(
@@ -1437,10 +1426,18 @@ struct MapTabView: View {
             friendSipSummariesByID = Dictionary(
                 uniqueKeysWithValues: (friendSipSummaries ?? []).map { ($0.cafeID, $0) }
             )
+            dataManager.applyPersonalMapSnapshot(snapshot, for: userId)
+            remoteMapPinUserId = userId
+            if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),
+               let refreshedSelection = snapshot.pins
+                .map(\.localCafe)
+                .first(where: { ($0.remoteCafeId ?? $0.id) == selectedID }) {
+                selectedCafe = refreshedSelection
+            }
             remoteStateError = nil
             rebuildForYouRecommendations()
         } catch {
-            guard !Task.isCancelled else { return }
+            guard activeMapLoadID == loadID, !Task.isCancelled else { return }
             remoteStateError = MugshotUserFacingError.message(for: error, context: .loading)
         }
     }
@@ -1692,10 +1689,10 @@ struct MapViewRepresentable: UIViewRepresentable {
     var onUserRegionChange: (MKCoordinateRegion) -> Void = { _ in }
 
     private var displayedCafes: [Cafe] {
-        var seenIDs: Set<UUID> = []
-        return (cafes + [highlightedCafe].compactMap { $0 }).filter { cafe in
-            seenIDs.insert(cafe.id).inserted
-        }
+        AdaptiveMapAnnotationSnapshot(
+            cafes: cafes,
+            highlightedCafe: highlightedCafe
+        ).cafes
     }
     
     func makeUIView(context: Context) -> MKMapView {
@@ -1810,22 +1807,18 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         func reconcileAnnotations(in mapView: MKMapView, forceRefresh: Bool = false) {
             let groundFootprintMeters = AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView)
-            let visibleCafeCount = visibleCafeCount(in: mapView)
             let nextMode = AdaptiveMapCameraPolicy.displayMode(
                 current: displayMode,
-                groundFootprintMeters: groundFootprintMeters,
-                visibleCafeCount: visibleCafeCount,
-                viewportSize: mapView.bounds.size
+                groundFootprintMeters: groundFootprintMeters
             )
-            let nextCafeClusteringEnabled = AdaptiveMapCafeClusteringPolicy.isEnabled(
+            let nextClusteringEnabled = AdaptiveMapCafeClusteringPolicy.isEnabled(
                 current: cafeClusteringEnabled,
-                groundFootprintMeters: groundFootprintMeters,
-                visibleCafeCount: visibleCafeCount,
-                viewportSize: mapView.bounds.size
+                groundFootprintMeters: groundFootprintMeters
             )
             let modeChanged = nextMode != displayMode
-            let clusteringChanged = nextCafeClusteringEnabled != cafeClusteringEnabled
-            guard forceRefresh || modeChanged || clusteringChanged || applicationAnnotations(in: mapView).isEmpty else {
+            let clusteringChanged = nextClusteringEnabled != cafeClusteringEnabled
+            guard forceRefresh || modeChanged || clusteringChanged
+                    || applicationAnnotations(in: mapView).isEmpty else {
                 return
             }
 
@@ -1833,7 +1826,7 @@ struct MapViewRepresentable: UIViewRepresentable {
                 mapView.removeAnnotations(applicationAnnotations(in: mapView))
             }
             displayMode = nextMode
-            cafeClusteringEnabled = nextCafeClusteringEnabled
+            cafeClusteringEnabled = nextClusteringEnabled
 
             switch displayMode {
             case .cafes:
@@ -1852,15 +1845,6 @@ struct MapViewRepresentable: UIViewRepresentable {
         private func applicationAnnotations(in mapView: MKMapView) -> [MKAnnotation] {
             mapView.annotations.filter {
                 $0 is CafeAnnotation || $0 is PlaceAggregateAnnotation
-            }
-        }
-
-        private func visibleCafeCount(in mapView: MKMapView) -> Int {
-            parent.displayedCafes.reduce(into: 0) { count, cafe in
-                guard let coordinate = cafe.location else { return }
-                if mapView.visibleMapRect.contains(MKMapPoint(coordinate)) {
-                    count += 1
-                }
             }
         }
 
@@ -1937,9 +1921,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             annotationView?.centerOffset = CGPoint(x: 0, y: -pinSize / 2)
             annotationView?.clusteringIdentifier = clusteringIdentifier(for: cafe)
             annotationView?.collisionMode = .circle
-            annotationView?.displayPriority = parent.highlightedCafe?.id == cafe.id
-                ? .required
-                : .defaultHigh
+            annotationView?.displayPriority = .required
             annotationView?.isAccessibilityElement = true
             annotationView?.accessibilityTraits = .button
             annotationView?.accessibilityIdentifier = "map.pin.\(cafe.id.uuidString)"
@@ -1969,24 +1951,12 @@ struct MapViewRepresentable: UIViewRepresentable {
         }
 
         private func clusteringIdentifier(for cafe: Cafe) -> String? {
-            if parent.highlightedCafe?.id == cafe.id { return nil }
-            if cafeClusteringEnabled { return "MugshotCafe" }
-            guard let coordinate = cafe.location else { return nil }
-
-            let overlappingCafeIDs = parent.displayedCafes.compactMap { candidate -> UUID? in
-                guard let candidateCoordinate = candidate.location,
-                      abs(candidateCoordinate.latitude - coordinate.latitude) < 0.000_01,
-                      abs(candidateCoordinate.longitude - coordinate.longitude) < 0.000_01 else {
-                    return nil
-                }
-                return candidate.id
+            let highlightedID = parent.highlightedCafe.map { $0.remoteCafeId ?? $0.id }
+            guard cafeClusteringEnabled,
+                  (cafe.remoteCafeId ?? cafe.id) != highlightedID else {
+                return nil
             }
-            guard overlappingCafeIDs.count > 1,
-                  let stableID = overlappingCafeIDs
-                    .map(\.uuidString)
-                    .sorted()
-                    .first else { return nil }
-            return "MugshotOverlap-\(stableID)"
+            return "MugshotCafe"
         }
 
         private func clusterView(
@@ -2062,7 +2032,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             )
             annotationView.clusteringIdentifier = "MugshotPlace"
             annotationView.collisionMode = .rectangle
-            annotationView.displayPriority = .defaultHigh
+            annotationView.displayPriority = .required
             return annotationView
         }
 

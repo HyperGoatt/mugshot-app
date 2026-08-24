@@ -9,7 +9,10 @@ const otherID = '10000000-0000-4000-8000-000000000002'
 const strangerID = '10000000-0000-4000-8000-000000000003'
 const unrelatedID = '10000000-0000-4000-8000-000000000004'
 const visitID = '20000000-0000-4000-8000-000000000001'
+const friendsVisitID = '20000000-0000-4000-8000-000000000002'
+const privateVisitID = '20000000-0000-4000-8000-000000000003'
 const cafeID = '30000000-0000-4000-8000-000000000001'
+const privateCafeID = '30000000-0000-4000-8000-000000000002'
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -150,7 +153,18 @@ create table public.comments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   visit_id uuid not null references public.visits(id) on delete cascade,
-  removed_at timestamptz
+  text text not null,
+  created_at timestamptz not null default now(),
+  parent_comment_id uuid references public.comments(id) on delete cascade,
+  removed_at timestamptz,
+  removed_by uuid references public.users(id) on delete set null,
+  removal_reason text
+);
+create table public.comment_mentions (
+  comment_id uuid not null references public.comments(id) on delete cascade,
+  mentioned_user_id uuid not null references public.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, mentioned_user_id)
 );
 create table public.visit_bookmarks (
   user_id uuid not null references public.users(id) on delete cascade,
@@ -231,6 +245,60 @@ returns boolean language sql stable security definer set search_path = '' as $$
     and not private.blocked_between(p_viewer, p_user_id)
 $$;
 
+create function private.can_socially_mutate_as(p_user_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select private.is_live_account_as(p_user_id)
+$$;
+
+create function private.can_view_visit_as(p_visit_id uuid, p_viewer uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.visits visit
+    where visit.id = p_visit_id
+      and visit.upload_state = 'complete'
+      and not private.blocked_between(visit.user_id, p_viewer)
+      and (
+        visit.user_id = p_viewer
+        or visit.visibility = 'everyone'
+        or (
+          visit.visibility = 'friends'
+          and private.confirmed_friends(visit.user_id, p_viewer)
+        )
+      )
+  )
+$$;
+
+create function public.create_comment(
+  p_visit_id uuid,
+  p_text text,
+  p_parent_comment_id uuid default null,
+  p_mentioned_user_ids uuid[] default '{}'::uuid[]
+)
+returns public.comments
+language plpgsql security definer set search_path = '' as $$
+declare
+  actor uuid := auth.uid();
+  result public.comments;
+  mentioned_id uuid;
+begin
+  if actor is null or not private.can_view_visit_as(p_visit_id, actor) then
+    raise exception 'visit unavailable' using errcode = '42501';
+  end if;
+  insert into public.comments(user_id, visit_id, text, parent_comment_id)
+  values (actor, p_visit_id, trim(p_text), p_parent_comment_id)
+  returning * into result;
+  foreach mentioned_id in array coalesce(p_mentioned_user_ids, '{}'::uuid[]) loop
+    if not private.can_view_user_as(mentioned_id, actor)
+       or not private.can_view_visit_as(p_visit_id, mentioned_id) then
+      raise exception 'invalid mention target' using errcode = '42501';
+    end if;
+    insert into public.comment_mentions(comment_id, mentioned_user_id)
+    values (result.id, mentioned_id);
+  end loop;
+  return result;
+end;
+$$;
+
 insert into public.users (id, display_name, username, avatar_url) values
   ('${ownerID}', 'Journal Owner', 'owner', 'https://example.com/avatar.jpg'),
   ('${otherID}', 'Other Person', 'other', null),
@@ -272,6 +340,12 @@ const profileContractMigration = await fs.readFile(
   'utf8',
 )
 await db.exec(profileContractMigration)
+const profileTotalsAndMentionsMigration = await fs.readFile(
+  repoPath +
+    'supabase/migrations/20260821201215_profile_totals_and_structured_comment_mentions.sql',
+  'utf8',
+)
+await db.exec(profileTotalsAndMentionsMigration)
 
 const authenticatedAs = async (userID, statement) => {
   await db.exec(`
@@ -501,6 +575,146 @@ const publicGrid = await db.query(
 assert(
   publicGrid.rows.length === 1 && publicGrid.rows[0].id === visitID,
   'public profile grid did not return the canonical sip',
+)
+
+await db.exec(`
+  insert into public.cafes (id, name, city, identity_key) values
+    ('${privateCafeID}', 'Private Test Cafe', 'Test City', 'test:private-cafe');
+  insert into public.visits (
+    id, user_id, cafe_id, drink_type, drink_subtype, caption, visibility,
+    upload_state, overall_score, ratings, context_type, created_at
+  ) values
+    ('${friendsVisitID}', '${ownerID}', '${cafeID}', 'Coffee', 'Flat White',
+      'For friends', 'friends', 'complete', 4.0, '{}', 'cafe', now() + interval '1 minute'),
+    ('${privateVisitID}', '${ownerID}', '${privateCafeID}', 'Coffee', 'Espresso',
+      'For me', 'private', 'complete', 3.5, '{}', 'cafe', now() + interval '2 minutes');
+`)
+
+const ownerV3 = await authenticatedAs(
+  ownerID,
+  `select public.get_profile_projection_v3('${ownerID}', false) projection`,
+)
+const friendV3 = await authenticatedAs(
+  otherID,
+  `select public.get_profile_projection_v3('${ownerID}', false) projection`,
+)
+const strangerV3 = await authenticatedAs(
+  strangerID,
+  `select public.get_profile_projection_v3('${ownerID}', false) projection`,
+)
+const anonymousV3 = await db.query(
+  `select public.get_profile_share_v2('${profileSlug}') projection`,
+)
+for (const [label, result] of [
+  ['owner', ownerV3],
+  ['mutual friend', friendV3],
+  ['stranger', strangerV3],
+  ['anonymous', anonymousV3],
+]) {
+  assert(
+    result.rows[0]?.projection?.stats?.sips === 3 &&
+      result.rows[0]?.projection?.stats?.cafes === 2,
+    `${label} did not receive total profile stats`,
+  )
+}
+
+const ownerTiles = await authenticatedAs(
+  ownerID,
+  `select * from public.list_profile_sips_v2('${ownerID}', 24)`,
+)
+const friendTiles = await authenticatedAs(
+  otherID,
+  `select * from public.list_profile_sips_v2('${ownerID}', 24)`,
+)
+const strangerTiles = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_sips_v2('${ownerID}', 24)`,
+)
+const anonymousTiles = await db.query(
+  `select * from public.list_profile_share_sips_v1('${profileSlug}', 24)`,
+)
+assert(ownerTiles.rows.length === 3, 'owner did not receive all three profile tiles')
+assert(friendTiles.rows.length === 2, 'mutual friend did not receive Friends and Everyone tiles')
+assert(strangerTiles.rows.length === 1, 'stranger received content beyond Everyone')
+assert(anonymousTiles.rows.length === 1, 'anonymous viewer received content beyond Everyone')
+
+await db.exec(`
+  insert into public.user_blocks(blocker_id, blocked_id)
+  values ('${ownerID}', '${unrelatedID}');
+`)
+let blockedProfileRejected = false
+try {
+  await authenticatedAs(
+    unrelatedID,
+    `select public.get_profile_projection_v3('${ownerID}', false) projection`,
+  )
+} catch {
+  blockedProfileRejected = true
+}
+assert(blockedProfileRejected, 'blocked viewer received a profile projection')
+await db.exec(
+  `delete from public.user_blocks where blocker_id = '${ownerID}' and blocked_id = '${unrelatedID}'`,
+)
+
+const amandaComment = await authenticatedAs(
+  ownerID,
+  `select public.create_comment_v2(
+    '${visitID}', '@Other Person what is the flavor?', null,
+    '[{"user_id":"${otherID}","token":"@Other Person"}]'::jsonb
+  ) comment`,
+)
+assert(amandaComment.rows[0]?.comment?.mentions?.[0]?.user_id === otherID,
+  'selected mention did not persist the account ID')
+const commentProjection = await authenticatedAs(
+  otherID,
+  `select * from public.list_visit_comments_v2('${visitID}')`,
+)
+assert(
+  commentProjection.rows[0]?.mentions?.[0]?.display_name === 'Other Person' &&
+    commentProjection.rows[0]?.mentions?.[0]?.user_id === otherID,
+  'comment projection did not return current mention identity',
+)
+
+let mismatchedMentionRejected = false
+try {
+  await authenticatedAs(
+    ownerID,
+    `select public.create_comment_v2(
+      '${visitID}', '@Other PersonX hello', null,
+      '[{"user_id":"${otherID}","token":"@Other Person"}]'::jsonb
+    )`,
+  )
+} catch {
+  mismatchedMentionRejected = true
+}
+assert(mismatchedMentionRejected, 'unresolved mention text notified an unrelated account')
+const plainAtText = await authenticatedAs(
+  ownerID,
+  `select public.create_comment_v2('${visitID}', '@Unresolved hello', null, '[]'::jsonb) comment`,
+)
+assert(
+  plainAtText.rows[0]?.comment?.mentions?.length === 0,
+  'unresolved @text became a structured mention',
+)
+
+await db.exec(`
+  with legacy as (
+    insert into public.comments(user_id, visit_id, text)
+    values ('${ownerID}', '${visitID}', '@[Other Person|other] legacy hello')
+    returning id
+  )
+  insert into public.comment_mentions(comment_id, mentioned_user_id)
+  select id, '${otherID}' from legacy;
+`)
+const legacyCommentProjection = await authenticatedAs(
+  otherID,
+  `select * from public.list_visit_comments_v2('${visitID}')
+   where text = '@[Other Person|other] legacy hello'`,
+)
+assert(
+  legacyCommentProjection.rows[0]?.mentions?.[0]?.token === '@[Other Person|other]' &&
+    legacyCommentProjection.rows[0]?.mentions?.[0]?.user_id === otherID,
+  'legacy mention was not converted from an exact relationship and handle',
 )
 
 const everyonePreview = await authenticatedAs(

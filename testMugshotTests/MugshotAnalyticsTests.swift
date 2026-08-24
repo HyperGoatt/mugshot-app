@@ -27,6 +27,13 @@ private final class MugshotAnalyticsTransportSpy: MugshotAnalyticsTransport {
 
 @Suite(.serialized)
 struct MugshotAnalyticsTests {
+    @Test func homeWorkbenchAnalyticsContainsOnlyStructuralAction() {
+        let payload = MugshotAnalyticsEvent.homeWorkbench(action: .scanSucceeded).payload
+
+        #expect(payload.event == "home_workbench")
+        #expect(payload.properties == ["action": .string("scan_succeeded")])
+    }
+
     @Test func configurationRejectsMissingOrUnresolvedValues() {
         #expect(MugshotAnalyticsConfiguration(infoDictionary: [:]) == nil)
         #expect(MugshotAnalyticsConfiguration(infoDictionary: [

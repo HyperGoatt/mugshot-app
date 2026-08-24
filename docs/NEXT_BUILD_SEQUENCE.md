@@ -1,3 +1,11 @@
+---
+document_type: historical
+status: superseded
+superseded_by: CURRENT_SPRINT.md
+---
+
+> Historical build sequence. Use [Current sprint](CURRENT_SPRINT.md) for active ordering.
+
 # Next Build Sequence
 
 Date: 2026-07-03
