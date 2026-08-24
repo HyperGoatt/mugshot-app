@@ -13,7 +13,7 @@ final class VisitService {
     private let profileService: ProfileService
 
     private let visitColumns = """
-    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, recipe_version_id, cafe_session_id, cafe_session_order, cafe_session_role, created_at
+    id, user_id, cafe_id, drink_type, drink_type_custom, drink_subtype, caption, visibility, upload_state, ratings, category_scores, overall_score, poster_photo_url, context_type, location_name, city_state, home_coffee_bag_id, recipe_version_id, cafe_session_id, cafe_session_order, cafe_session_role, created_at
     """
 
     private let legacyVisitColumns = """
@@ -65,6 +65,28 @@ final class VisitService {
             currentUserId: userId,
             includeSocialState: includeSocialState
         )
+    }
+
+    func fetchOwnerBrewDetails(
+        visitIDs: [UUID]? = nil,
+        limit: Int = 500
+    ) async throws -> [OwnerVisitBrewRow] {
+        let boundedLimit = min(max(limit, 1), 500)
+        let parameters = OwnerVisitBrewDetailsParameters(
+            visitIDs: visitIDs,
+            limit: boundedLimit
+        )
+        do {
+            return try await client.rpc(
+                "get_owner_visit_brew_details_v1",
+                params: parameters
+            ).execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            // The Journal can still render its safe visit summaries during a
+            // staggered app/backend rollout; private brew enrichment resumes
+            // automatically once the owner-bound RPC is available.
+            return []
+        }
     }
 
     func fetchOwnerSipCount(userId: UUID) async throws -> Int {
@@ -247,8 +269,27 @@ final class VisitService {
                 .value
         }
 
-        guard let row = rows.first else {
+        guard let baseRow = rows.first else {
             throw VisitServiceError.visitNotFound
+        }
+
+        let row: SupabaseVisitRow
+        if currentUserId == baseRow.userId {
+            let ownerRows = try await fetchOwnerBrewDetails(
+                visitIDs: [visitId],
+                limit: 1
+            )
+            if let ownerBrew = ownerRows.first {
+                row = baseRow.attachingOwnerBrewDetails(
+                    brewMethod: ownerBrew.brewMethod,
+                    equipment: ownerBrew.equipment,
+                    brewDetails: ownerBrew.brewDetails
+                )
+            } else {
+                row = baseRow
+            }
+        } else {
+            row = baseRow
         }
 
         async let summariesRequest = hydrate(rows: [row], includeAuthors: true)
@@ -266,13 +307,7 @@ final class VisitService {
             .eq("visit_id", value: visitId.uuidString)
             .execute()
             .value
-        async let commentsRequest: [SupabaseVisitCommentRow] = client
-            .from("comments")
-            .select(commentColumns)
-            .eq("visit_id", value: visitId.uuidString)
-            .order("created_at", ascending: true)
-            .execute()
-            .value
+        async let commentsRequest = fetchComments(visitId: visitId)
         async let cafeSessionSummaryRequest = fetchCafeSessionSummaryIfPresent(
             sessionID: row.journalContext == .cafe ? row.cafeSessionID : nil
         )
@@ -345,7 +380,7 @@ final class VisitService {
         return RemoteVisitDetail(
             summary: summary,
             photos: photos,
-            comments: try await hydrate(comments: comments),
+            comments: comments,
             likeCount: likes.count,
             currentUserHasLiked: currentUserId.map { userId in
                 likes.contains { $0.userId == userId }
@@ -495,23 +530,31 @@ final class VisitService {
         userId: UUID,
         text: String,
         parentCommentId: UUID? = nil,
-        mentionedUserIds: [UUID] = []
+        mentions: [CommentMentionSelection] = []
     ) async throws -> RemoteVisitSocialState {
         guard let trimmedText = text.remoteTrimmedNonEmpty else {
             throw VisitServiceError.emptyComment
         }
 
-        try await client
-            .rpc(
+        let parameters = CreateCommentV2Parameters(
+            pVisitId: visitId,
+            pText: trimmedText,
+            pParentCommentId: parentCommentId,
+            pMentions: mentions
+        )
+        do {
+            try await client.rpc("create_comment_v2", params: parameters).execute()
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            try await client.rpc(
                 "create_comment",
-                params: CreateCommentParameters(
+                params: CreateCommentLegacyParameters(
                     pVisitId: visitId,
                     pText: trimmedText,
                     pParentCommentId: parentCommentId,
-                    pMentionedUserIds: mentionedUserIds
+                    pMentionedUserIds: mentions.map(\.userID)
                 )
-            )
-            .execute()
+            ).execute()
+        }
 
         return try await fetchSocialState(
             visitId: visitId,
@@ -661,6 +704,7 @@ final class VisitService {
         drinkSubtype: String?,
         brewMethod: String? = nil,
         equipment: String? = nil,
+        homeCoffeeBagID: UUID? = nil,
         brewDetails: BrewDetails = .empty,
         caption: String,
         notes: String?,
@@ -706,6 +750,7 @@ final class VisitService {
             drinkSubtype: drinkSubtype,
             brewMethod: visitBrewMethod,
             equipment: visitEquipment,
+            homeCoffeeBagID: homeCoffeeBagID,
             brewDetails: visitBrewDetails,
             recipePayloadContractVersion: usesPrivateRecipePayload ? 2 : nil,
             caption: caption,
@@ -1120,6 +1165,25 @@ final class VisitService {
         }
     }
 
+    private func fetchComments(visitId: UUID) async throws -> [RemoteVisitComment] {
+        do {
+            let rows: [SupabaseVisitCommentProjectionRow] = try await client.rpc(
+                "list_visit_comments_v2",
+                params: ["p_visit_id": visitId]
+            ).execute().value
+            return rows.map(\.remoteComment)
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            let comments: [SupabaseVisitCommentRow] = try await client
+                .from("comments")
+                .select(commentColumns)
+                .eq("visit_id", value: visitId.uuidString)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+            return try await hydrate(comments: comments)
+        }
+    }
+
 }
 
 private struct V3FeedProjectionParameters: Encodable {
@@ -1130,7 +1194,31 @@ private struct V3FeedProjectionParameters: Encodable {
     }
 }
 
-private struct CreateCommentParameters: Encodable {
+struct CommentMentionSelection: Encodable, Equatable {
+    let userID: UUID
+    let token: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case token
+    }
+}
+
+private struct CreateCommentV2Parameters: Encodable {
+    let pVisitId: UUID
+    let pText: String
+    let pParentCommentId: UUID?
+    let pMentions: [CommentMentionSelection]
+
+    enum CodingKeys: String, CodingKey {
+        case pVisitId = "p_visit_id"
+        case pText = "p_text"
+        case pParentCommentId = "p_parent_comment_id"
+        case pMentions = "p_mentions"
+    }
+}
+
+private struct CreateCommentLegacyParameters: Encodable {
     let pVisitId: UUID
     let pText: String
     let pParentCommentId: UUID?
@@ -1317,6 +1405,29 @@ enum VisitServiceError: LocalizedError, Equatable {
     }
 }
 
+struct OwnerVisitBrewRow: Decodable {
+    let id: UUID
+    let brewMethod: String?
+    let equipment: String?
+    let brewDetails: BrewDetails?
+
+    enum CodingKeys: String, CodingKey {
+        case id, equipment
+        case brewMethod = "brew_method"
+        case brewDetails = "brew_details"
+    }
+}
+
+private struct OwnerVisitBrewDetailsParameters: Encodable {
+    let visitIDs: [UUID]?
+    let limit: Int
+
+    enum CodingKeys: String, CodingKey {
+        case visitIDs = "p_visit_ids"
+        case limit = "p_limit"
+    }
+}
+
 struct SupabaseVisitInsert: Encodable, Equatable {
     let id: UUID
     let userId: UUID
@@ -1334,6 +1445,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     let cityState: String?
     let brewMethod: String?
     let equipment: String?
+    let homeCoffeeBagID: UUID?
     let brewDetails: BrewDetails
     let recipePayloadContractVersion: Int?
     let categoryScores: [SupabaseVisitCategoryScore]
@@ -1355,6 +1467,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         case cityState = "city_state"
         case brewMethod = "brew_method"
         case equipment
+        case homeCoffeeBagID = "home_coffee_bag_id"
         case brewDetails = "brew_details"
         case recipePayloadContractVersion = "recipe_payload_contract_version"
         case categoryScores = "category_scores"
@@ -1371,6 +1484,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
         drinkSubtype: String?,
         brewMethod: String? = nil,
         equipment: String? = nil,
+        homeCoffeeBagID: UUID? = nil,
         brewDetails: BrewDetails = .empty,
         recipePayloadContractVersion: Int? = nil,
         caption: String,
@@ -1421,6 +1535,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             cityState: persistedCafe?.city?.remoteTrimmedNonEmpty,
             brewMethod: brewMethod?.remoteTrimmedNonEmpty,
             equipment: equipment?.remoteTrimmedNonEmpty,
+            homeCoffeeBagID: homeCoffeeBagID,
             brewDetails: brewDetails,
             recipePayloadContractVersion: recipePayloadContractVersion,
             categoryScores: categoryScores(

@@ -6,6 +6,53 @@ final class MugshotOnboardingUITests: XCTestCase {
     }
 
     @MainActor
+    func testFirstLaunchMarketingOnboardingShowsAllNineApprovedScreens() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-reduce-motion",
+            "--ui-testing-first-launch-onboarding-design-qa"
+        ]
+        app.launch()
+
+        let continueButton = app.buttons["mugshot.firstLaunch.continue"]
+        let skipButton = app.buttons["mugshot.firstLaunch.accountSetup"]
+
+        for step in 1...8 {
+            XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(skipButton.exists)
+            attachScreenshot(named: "First Launch \(step) of 9")
+            continueButton.tap()
+        }
+
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.createAccount"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.signIn"].exists)
+        XCTAssertFalse(continueButton.exists)
+        attachScreenshot(named: "First Launch 9 of 9")
+    }
+
+    @MainActor
+    func testFirstLaunchSkipJumpsToAccountChoice() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-reduce-motion",
+            "--ui-testing-first-launch-onboarding-design-qa"
+        ]
+        app.launch()
+
+        let skipButton = app.buttons["mugshot.firstLaunch.skip"]
+        XCTAssertTrue(skipButton.waitForExistence(timeout: 5))
+        skipButton.tap()
+
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.createAccount"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.signIn"].exists)
+        XCTAssertFalse(app.buttons["mugshot.firstLaunch.continue"].exists)
+    }
+
+    @MainActor
     func testCaptureEverySipOnboardingToursTheRealAppAndStartsGuidedSip() throws {
         let app = XCUIApplication()
         app.launchArguments = [

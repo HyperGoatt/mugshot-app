@@ -12,6 +12,7 @@ struct LogASipV3LabView: View {
     @State private var flavorPath: [V3LabFlavorNode] = []
     @State private var selectedFlavorIDs: Set<String> = []
     @State private var newCriterionName = ""
+    @State private var showsHomeWorkbenchGallery = false
 
     var body: some View {
         ZStack {
@@ -54,6 +55,10 @@ struct LogASipV3LabView: View {
 
                     Divider()
 
+                    Button("Home Workbench states", systemImage: "slider.horizontal.3") {
+                        showsHomeWorkbenchGallery = true
+                    }
+
                     Button("Reset fixture", systemImage: "arrow.counterclockwise") {
                         withAnimation(DesignSystem.Motion.base) {
                             draft = .fixture
@@ -77,6 +82,17 @@ struct LogASipV3LabView: View {
                 .presentationDetents(sheet.detents)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color.creamWhite)
+        }
+        .sheet(isPresented: $showsHomeWorkbenchGallery) {
+            NavigationStack {
+                HomeWorkbenchLabGallery()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showsHomeWorkbenchGallery = false }
+                        }
+                    }
+            }
+            .presentationBackground(Color.creamWhite)
         }
     }
 

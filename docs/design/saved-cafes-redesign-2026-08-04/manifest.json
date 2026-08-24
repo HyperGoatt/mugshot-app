@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "id": "saved-cafes-redesign-2026-08-04",
+    "title": "Saved Cafes Redesign",
+    "sourceOfTruth": "concepts/00-locked-combined-direction.png",
+    "appearance": "light",
+    "deterministic": true,
+    "generatedUiTextAllowed": false,
+    "fixtureSource": "src/design/data.ts",
+    "fixtureNow": "Tue, Aug 4, 2026 at 10:30 AM"
+  },
+  "selectedTarget": {
+    "name": "Locked combined direction",
+    "file": "concepts/00-locked-combined-direction.png",
+    "combines": [
+      "Option 1 journal-first native bottom-sheet structure",
+      "Option 2 compact horizontal search bar"
+    ],
+    "requirements": [
+      "The medium sheet orders cafe identity, full-width Log a Sip, four labeled state actions, then Your Mugshot.",
+      "Saved remains list-based; the existing Map tab is the sole map surface and retains its saved and discovery filters.",
+      "The map concept represents the shared cafe-detail sheet inside the existing Map tab, not a second Saved map.",
+      "Comfortable cards expose Favorite, Want to Try, and Log a Sip; compact rows move Log a Sip into overflow.",
+      "Cafe media uses authorized Mugshot photos when available and a branded no-photo treatment otherwise."
+    ]
+  },
+  "checkpointStatus": {
+    "state": "awaiting-user-review",
+    "generated": ["CF-01", "CF-03", "CF-12", "CD-03"],
+    "pendingUntilApproval": "All remaining screens, component boards, and specification boards",
+    "qualityGate": "design-qa.md"
+  },
+  "protectedLists": {
+    "status": "protected",
+    "unchanged": [
+      "creation",
+      "collaboration",
+      "existing list maps",
+      "editing",
+      "ownership transfer",
+      "deletion"
+    ],
+    "allowedChange": "Cafe membership entry sheet and its batch data contract only",
+    "screenIds": [
+      "CD-11"
+    ]
+  },
+  "output": {
+    "format": "png",
+    "colorSpace": "sRGB",
+    "screens": {
+      "directory": "screens",
+      "width": 1206,
+      "height": 2622,
+      "count": 36
+    },
+    "componentBoards": {
+      "directory": "boards/components",
+      "width": 2400,
+      "height": 1600,
+      "count": 6
+    },
+    "specificationBoards": {
+      "directory": "boards/specifications",
+      "width": 2400,
+      "height": 1600,
+      "count": 6
+    }
+  },
+  "counts": {
+    "screens": 36,
+    "screenFamilies": {
+      "CF": 12,
+      "CD": 8,
+      "ST": 6,
+      "RS": 6,
+      "AX": 4
+    },
+    "componentBoards": 6,
+    "specificationBoards": 6,
+    "totalPngFiles": 48
+  },
+  "aliases": [
+    {
+      "id": "CD-01",
+      "targetId": "CF-12",
+      "file": "screens/CF-12-map-tab-saved-cafe-detail.png",
+      "countedAsDistinctScreen": false,
+      "reason": "The existing Map tab's selected-cafe sheet is also the compact cafe-detail presentation."
+    }
+  ],
+  "screens": [
+    { "id": "CF-01", "file": "screens/CF-01-favorites-populated.png", "slug": "favorites-populated", "title": "Favorites · populated", "composition": "saved-list", "fixture": "favorites", "evidence": "Audit 01, 12–14" },
+    { "id": "CF-02", "file": "screens/CF-02-want-to-try-populated.png", "slug": "want-to-try-populated", "title": "Want to Try · populated", "composition": "saved-list", "fixture": "wantToTry", "evidence": "Audit 02" },
+    { "id": "CF-03", "file": "screens/CF-03-all-cafes-union.png", "slug": "all-cafes-union", "title": "All Cafes · authoritative union", "composition": "saved-list", "fixture": "all", "evidence": "Audit 03–05" },
+    { "id": "CF-04", "file": "screens/CF-04-all-cafes-compact.png", "slug": "all-cafes-compact", "title": "All Cafes · compact rows", "composition": "saved-list-compact", "fixture": "all", "evidence": "Audit 03–05" },
+    { "id": "CF-05", "file": "screens/CF-05-search-focused.png", "slug": "search-focused", "title": "Search · keyboard focused", "composition": "saved-search", "fixture": "query", "evidence": "Audit 26" },
+    { "id": "CF-06", "file": "screens/CF-06-search-results.png", "slug": "search-results", "title": "Search · results", "composition": "saved-list-compact", "fixture": "query", "evidence": "Audit 26" },
+    { "id": "CF-07", "file": "screens/CF-07-search-no-results.png", "slug": "search-no-results", "title": "Search · no results", "composition": "saved-empty", "fixture": "query-empty", "evidence": "Audit 27" },
+    { "id": "CF-08", "file": "screens/CF-08-filters-sheet.png", "slug": "filters-sheet", "title": "Filters · meaningful controls", "composition": "filter-sheet", "fixture": "filters", "evidence": "Audit 06" },
+    { "id": "CF-09", "file": "screens/CF-09-filters-applied.png", "slug": "filters-applied", "title": "Filters · applied", "composition": "saved-list", "fixture": "filtered", "evidence": "Audit 06" },
+    { "id": "CF-10", "file": "screens/CF-10-sort-menu.png", "slug": "sort-menu", "title": "Sort · explicit menu", "composition": "sort-sheet", "fixture": "sort", "evidence": "Audit 03–06" },
+    { "id": "CF-11", "file": "screens/CF-11-existing-map-saved-filters.png", "slug": "existing-map-saved-filters", "title": "Map tab · existing saved filters", "composition": "map-tab", "fixture": "map-favorites", "evidence": "Audit 24–27" },
+    { "id": "CF-12", "file": "screens/CF-12-map-tab-saved-cafe-detail.png", "slug": "map-tab-saved-cafe-detail", "title": "Map tab · saved cafe detail", "composition": "map-tab-detail", "fixture": "harborlight", "evidence": "Audit 29–31" },
+    { "id": "CD-02", "file": "screens/CD-02-detail-medium.png", "slug": "detail-medium", "title": "Cafe detail · medium", "composition": "detail-medium", "fixture": "harborlight", "evidence": "Audit 07, 29–31" },
+    { "id": "CD-03", "file": "screens/CD-03-detail-expanded-top.png", "slug": "detail-expanded-top", "title": "Cafe detail · expanded top", "composition": "detail-expanded", "fixture": "harborlight", "evidence": "Audit 07" },
+    { "id": "CD-04", "file": "screens/CD-04-detail-your-mugshot.png", "slug": "detail-your-mugshot", "title": "Cafe detail · Your Mugshot", "composition": "detail-expanded", "fixture": "harborlight-personal", "evidence": "Audit 08" },
+    { "id": "CD-05", "file": "screens/CD-05-detail-recent-sips.png", "slug": "detail-recent-sips", "title": "Cafe detail · recent sips", "composition": "detail-expanded", "fixture": "harborlight-sips", "evidence": "Audit 08–09" },
+    { "id": "CD-06", "file": "screens/CD-06-detail-community-provenance.png", "slug": "detail-community-provenance", "title": "Cafe detail · attributed activity", "composition": "detail-expanded", "fixture": "harborlight-social", "evidence": "Audit 08–10" },
+    { "id": "CD-07", "file": "screens/CD-07-detail-no-history.png", "slug": "detail-no-history", "title": "Cafe detail · no personal history", "composition": "detail-medium", "fixture": "juniper", "evidence": "Audit 07–10" },
+    { "id": "CD-08", "file": "screens/CD-08-detail-missing-metadata.png", "slug": "detail-missing-metadata", "title": "Cafe detail · missing metadata", "composition": "detail-expanded", "fixture": "archive", "evidence": "Audit 32–33, 39" },
+    { "id": "CD-11", "file": "screens/CD-11-detail-add-to-lists.png", "slug": "detail-add-to-lists", "title": "Add to Lists", "composition": "membership-sheet", "fixture": "lists", "evidence": "Audit 10; Lists protected" },
+    { "id": "ST-01", "file": "screens/ST-01-favorite-syncing.png", "slug": "favorite-syncing", "title": "Favorite · syncing", "composition": "saved-list", "fixture": "favorite-syncing", "evidence": "Audit 22–23" },
+    { "id": "ST-02", "file": "screens/ST-02-favorite-success.png", "slug": "favorite-success", "title": "Favorite · success with Undo", "composition": "saved-list", "fixture": "favorite-success", "evidence": "Audit 11–13" },
+    { "id": "ST-03", "file": "screens/ST-03-unfavorite-active.png", "slug": "unfavorite-active", "title": "Unfavorite from Favorites", "composition": "saved-list", "fixture": "unfavorite", "evidence": "Audit 11–13" },
+    { "id": "ST-04", "file": "screens/ST-04-unfavorite-undo.png", "slug": "unfavorite-undo", "title": "Unfavorite · Undo restored", "composition": "saved-list", "fixture": "unfavorite-undo", "evidence": "Audit 11–13" },
+    { "id": "ST-05", "file": "screens/ST-05-favorite-failure.png", "slug": "favorite-failure", "title": "Favorite · rollback and Retry", "composition": "saved-list", "fixture": "favorite-failure", "evidence": "Audit 22–23" },
+    { "id": "ST-06", "file": "screens/ST-06-first-sip-clears-wtt.png", "slug": "first-sip-clears-wtt", "title": "First sip · Want to Try celebration", "composition": "detail-medium", "fixture": "paper-moon-cleared", "evidence": "Audit recommendation" },
+    { "id": "RS-01", "file": "screens/RS-01-loading-no-cache.png", "slug": "loading-no-cache", "title": "Loading · no cache", "composition": "saved-loading", "fixture": "loading", "evidence": "Audit 15" },
+    { "id": "RS-02", "file": "screens/RS-02-loading-with-cache.png", "slug": "loading-with-cache", "title": "Loading · cached content", "composition": "saved-list", "fixture": "updating", "evidence": "Audit 16" },
+    { "id": "RS-03", "file": "screens/RS-03-offline-cached.png", "slug": "offline-cached", "title": "Offline · cached content", "composition": "saved-list", "fixture": "offline", "evidence": "Audit 17" },
+    { "id": "RS-04", "file": "screens/RS-04-stale-online.png", "slug": "stale-online", "title": "Stale · refresh available", "composition": "saved-list", "fixture": "stale", "evidence": "Audit 17–18" },
+    { "id": "RS-05", "file": "screens/RS-05-fatal-error.png", "slug": "fatal-error", "title": "Fatal error · no cache", "composition": "saved-empty", "fixture": "fatal", "evidence": "Audit 19" },
+    { "id": "RS-06", "file": "screens/RS-06-guest-action-gate.png", "slug": "guest-action-gate", "title": "Guest action gate", "composition": "guest-sheet", "fixture": "guest", "evidence": "Audit 34–35" },
+    { "id": "AX-01", "file": "screens/AX-01-saved-accessibility-xxxl.png", "slug": "saved-accessibility-xxxl", "title": "Saved · Accessibility XXXL", "composition": "saved-list-ax", "fixture": "favorites", "evidence": "Audit 36" },
+    { "id": "AX-02", "file": "screens/AX-02-detail-accessibility-xxxl.png", "slug": "detail-accessibility-xxxl", "title": "Cafe detail · Accessibility XXXL", "composition": "detail-ax", "fixture": "harborlight", "evidence": "Audit 37" },
+    { "id": "AX-03", "file": "screens/AX-03-filters-accessibility-xxxl.png", "slug": "filters-accessibility-xxxl", "title": "Filters · Accessibility XXXL", "composition": "filter-sheet-ax", "fixture": "filters", "evidence": "Audit 36–37" },
+    { "id": "AX-04", "file": "screens/AX-04-saved-increase-contrast.png", "slug": "saved-increase-contrast", "title": "Saved · Increase Contrast", "composition": "saved-list-contrast", "fixture": "favorites", "evidence": "Audit 38" }
+  ],
+  "componentBoards": [
+    { "id": "CP-01", "file": "boards/components/CP-01-navigation-query.png", "slug": "navigation-query", "title": "Navigation and query controls" },
+    { "id": "CP-02", "file": "boards/components/CP-02-cafe-cards-rows.png", "slug": "cafe-cards-rows", "title": "Cafe cards and compact rows" },
+    { "id": "CP-03", "file": "boards/components/CP-03-map-system.png", "slug": "map-system", "title": "Map pins, clusters, and controls" },
+    { "id": "CP-04", "file": "boards/components/CP-04-detail-system.png", "slug": "detail-system", "title": "Cafe detail actions and content" },
+    { "id": "CP-05", "file": "boards/components/CP-05-list-membership.png", "slug": "list-membership", "title": "List membership entry states" },
+    { "id": "CP-06", "file": "boards/components/CP-06-feedback-resilience.png", "slug": "feedback-resilience", "title": "Feedback and resilience states" }
+  ],
+  "specificationBoards": [
+    { "id": "SP-01", "file": "boards/specifications/SP-01-flow-boundary.png", "slug": "flow-boundary", "title": "Saved and existing Map integration boundary" },
+    { "id": "SP-02", "file": "boards/specifications/SP-02-frame-inventory.png", "slug": "frame-inventory", "title": "Frame inventory and component reuse" },
+    { "id": "SP-03", "file": "boards/specifications/SP-03-visual-foundations.png", "slug": "visual-foundations", "title": "Mugshot visual foundations" },
+    { "id": "SP-04", "file": "boards/specifications/SP-04-component-state-matrix.png", "slug": "component-state-matrix", "title": "Component naming and state matrix" },
+    { "id": "SP-05", "file": "boards/specifications/SP-05-saved-lifecycle.png", "slug": "saved-lifecycle", "title": "Favorite and Want to Try lifecycle" },
+    { "id": "SP-06", "file": "boards/specifications/SP-06-accessibility-privacy-boundaries.png", "slug": "accessibility-privacy-boundaries", "title": "Accessibility, privacy, media provenance, and protected Lists" }
+  ]
+}

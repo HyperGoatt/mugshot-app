@@ -34,19 +34,25 @@ final class JournalService {
             .eq("user_id", value: userID.uuidString)
             .execute()
             .value
+        async let ownerBrewRequest = visitService.fetchOwnerBrewDetails(limit: limit)
 
-        let (summaries, notes, bookmarks, analyses) = try await (
+        let (summaries, notes, bookmarks, analyses, ownerBrews) = try await (
             summariesRequest,
             notesRequest,
             bookmarksRequest,
-            analysesRequest
+            analysesRequest,
+            ownerBrewRequest
         )
         let notesByVisit = Dictionary(uniqueKeysWithValues: notes.map { ($0.visitID, $0.note) })
         let bookmarkedIDs = Set(bookmarks.map(\.visitID))
         let analysesByVisit = Dictionary(uniqueKeysWithValues: analyses.map { ($0.visitID, $0) })
+        let ownerBrewsByVisit = Dictionary(uniqueKeysWithValues: ownerBrews.map { ($0.id, $0) })
         return summaries.map { summary in
-            JournalEntryProjection(
-                summary: summary,
+            let enrichedSummary = summary.attachingOwnerBrewDetails(
+                ownerBrewsByVisit[summary.id]
+            )
+            return JournalEntryProjection(
+                summary: enrichedSummary,
                 privateNote: notesByVisit[summary.id],
                 isBookmarked: bookmarkedIDs.contains(summary.id),
                 drinkAnalysis: analysesByVisit[summary.id]
@@ -83,6 +89,29 @@ final class JournalService {
                 limit: min(max(limit, 1), 25)
             )
         ).execute().value
+    }
+}
+
+private extension RemoteVisitSummary {
+    func attachingOwnerBrewDetails(_ ownerBrew: OwnerVisitBrewRow?) -> RemoteVisitSummary {
+        guard let ownerBrew else { return self }
+        let enrichedVisit = visit.attachingOwnerBrewDetails(
+            brewMethod: ownerBrew.brewMethod,
+            equipment: ownerBrew.equipment,
+            brewDetails: ownerBrew.brewDetails
+        )
+        return RemoteVisitSummary(
+            visit: enrichedVisit,
+            cafe: cafe,
+            author: author,
+            socialState: socialState,
+            rankingScore: rankingScore,
+            recommendationReason: recommendationReason,
+            recommendationReasonType: recommendationReasonType,
+            sessionSipCount: sessionSipCount,
+            cafePulseProjection: cafePulseProjection,
+            v3FeedProjection: v3FeedProjection
+        )
     }
 }
 

@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "819AC3DA-B03E-488A-941D-CB15D42A22AE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-map-compact-detail_0_B1454B62-0633-4F8A-8E09-5E31D6031C9C.png",
+        "timestamp" : 1785904040.429
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "F3A9826E-EB34-4EEB-9450-83E1C4151949.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-detail-expanded_0_B9AB33FB-CE75-4C86-9258-5DD9355C4695.png",
+        "timestamp" : 1785904029.947
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "4CCFB6A3-5F27-4400-99DE-E099B581462E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-detail-medium_0_C55A9421-F292-4F9C-8336-494BF9DAF19B.png",
+        "timestamp" : 1785904027.558
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "6AD2E7A0-0572-4489-A29A-4481374749D9",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "36AA4ED3-E413-4B9A-9F7F-2A9442F1FC9E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "implementation-saved-favorites_0_A6EDD496-E6A7-422D-A7AA-6926CFBFD615.png",
+        "timestamp" : 1785904023.543
+      }
+    ],
+    "testIdentifier" : "SavedCafeRedesignUITests/testSavedDetailAndMapHandoff()",
+    "testIdentifierURL" : "test://com.apple.xcode/testMugshot/testMugshotUITests/SavedCafeRedesignUITests/testSavedDetailAndMapHandoff"
+  }
+]

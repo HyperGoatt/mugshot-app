@@ -11,20 +11,28 @@ struct MugshotRootView: View {
     @StateObject private var authModel = AppAuthModel()
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
     @AppStorage(MugshotFirstLaunchPolicy.completedKey) private var completedFirstLaunchEducation = false
-    @AppStorage(MugshotFirstLaunchPolicy.landingTabKey) private var firstLaunchLandingTab = 1
+    @State private var firstLaunchLandingTab: Int?
     @State private var startsCreatingAccount = true
     @State private var profileSetupGate: ProfileSetupGate = .checking
     
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
+            if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
+                firstLaunchEducation
+            } else if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
                 MainTabView(dataManager: dataManager)
             } else if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
                 AutomaticSipRecoveryBannerPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowMugsySceneDesignQA {
                 NavigationStack {
                     MugsyStudioView()
+                }
+            } else if MugshotLaunchEnvironment.shouldShowHomeWorkbenchDesignQA {
+                NavigationStack {
+                    HomeWorkbenchLabGallery(
+                        initialState: MugshotLaunchEnvironment.homeWorkbenchDesignQAState
+                    )
                 }
             } else if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
                 FeedRefreshPreviewHost()
@@ -136,7 +144,7 @@ struct MugshotRootView: View {
                 profileSetupGate = .complete
             }
         case .complete:
-            MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab)
+            MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab ?? 0)
         }
     }
 

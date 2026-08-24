@@ -47,7 +47,7 @@ struct MainTabView: View {
     @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
 
-    init(dataManager: DataManager, initialTab: Int = 1) {
+    init(dataManager: DataManager, initialTab: Int = 0) {
         self.dataManager = dataManager
         _tabCoordinator = StateObject(wrappedValue: TabCoordinator(selectedTab: initialTab))
     }

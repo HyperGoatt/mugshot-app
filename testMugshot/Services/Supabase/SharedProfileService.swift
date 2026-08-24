@@ -14,18 +14,33 @@ final class SharedProfileService {
     }
 
     func projection(userID: UUID, asEveryone: Bool = false) async throws -> SharedProfileProjection {
-        try await client.rpc(
-            "get_profile_projection_v2",
-            params: ProfileProjectionParameters(userID: userID, asEveryone: asEveryone)
-        ).execute().value
+        let parameters = ProfileProjectionParameters(userID: userID, asEveryone: asEveryone)
+        do {
+            return try await client.rpc(
+                "get_profile_projection_v3",
+                params: parameters
+            ).execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            return try await client.rpc(
+                "get_profile_projection_v2",
+                params: parameters
+            ).execute().value
+        }
     }
 
     func sharedProjection(slug: String) async throws -> SharedProfileProjection? {
         guard MugshotSharedLinkRoute.isValidSlug(slug) else { return nil }
-        return try await client.rpc(
-            "get_profile_share_v1",
-            params: ["p_slug": slug]
-        ).execute().value
+        do {
+            return try await client.rpc(
+                "get_profile_share_v2",
+                params: ["p_slug": slug]
+            ).execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            return try await client.rpc(
+                "get_profile_share_v1",
+                params: ["p_slug": slug]
+            ).execute().value
+        }
     }
 
     func sips(

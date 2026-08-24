@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import UIKit
 @testable import testMugshot
@@ -13,21 +14,68 @@ struct MugshotShareTests {
         #expect(MugshotShareFormat.post.pixelSize.height == 1_350)
     }
 
-    @Test func sharingDefaultsToOnePhotoAndOffersDeterministicCollageSizes() {
+    @Test func sharingDefaultsToSmartCollageAndKeepsFixedLayoutsAvailable() {
         #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 0) == .singlePhoto)
         #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 1) == .singlePhoto)
-        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 2) == .singlePhoto)
-        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 4) == .singlePhoto)
+        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 2) == .smartCollage)
+        #expect(MugshotSharePhotoLayout.defaultLayout(photoCount: 4) == .smartCollage)
         #expect(
             MugshotSharePhotoLayout.availableLayouts(photoCount: 1) == [.singlePhoto]
         )
         #expect(
             MugshotSharePhotoLayout.availableLayouts(photoCount: 4)
-                == [.singlePhoto, .twoPhoto, .threePhoto, .fourPhoto]
+                == [.smartCollage, .singlePhoto, .twoPhoto, .threePhoto, .fourPhoto]
         )
         #expect(MugshotSharePhotoLayout.twoPhoto.photoLimit == 2)
         #expect(MugshotSharePhotoLayout.threePhoto.photoLimit == 3)
         #expect(MugshotSharePhotoLayout.fourPhoto.photoLimit == 4)
+    }
+
+    @Test func smartCollageUsesDeterministicOrientationRules() {
+        let landscape = image(size: CGSize(width: 200, height: 100))
+        let portrait = image(size: CGSize(width: 100, height: 200))
+        let square = image(size: CGSize(width: 100, height: 100))
+
+        #expect(MugshotCollageComposition.smart(for: [landscape, landscape]) == .stacked)
+        #expect(MugshotCollageComposition.smart(for: [landscape, portrait]) == .sideBySide)
+        #expect(MugshotCollageComposition.smart(for: [landscape, portrait, square]) == .leadAbovePair)
+        #expect(MugshotCollageComposition.smart(for: [portrait, landscape, square]) == .leadBesideStack)
+        #expect(MugshotCollageComposition.smart(for: [portrait, landscape, square, portrait]) == .grid)
+    }
+
+    @MainActor
+    @Test func everyPhotoCountRendersInsideExactStoryAndPostBounds() throws {
+        let photos = [
+            image(size: CGSize(width: 240, height: 320)),
+            image(size: CGSize(width: 320, height: 180)),
+            image(size: CGSize(width: 200, height: 200)),
+            image(size: CGSize(width: 180, height: 320)),
+        ]
+        for count in 1...4 {
+            for format in MugshotShareFormat.allCases {
+                for template in MugshotShareTemplate.allCases {
+                    let size = format.pixelSize
+                    let artwork = MugshotShareArtworkView(
+                        content: shareContent(visibility: .everyone),
+                        photos: Array(photos.prefix(count)),
+                        photoLayout: MugshotSharePhotoLayout.defaultLayout(photoCount: count),
+                        template: template,
+                        format: format
+                    )
+                    .frame(width: size.width, height: size.height)
+                    let renderer = ImageRenderer(content: artwork)
+                    renderer.scale = 1
+                    let rendered = try #require(renderer.uiImage)
+                    #expect(rendered.size == size)
+                }
+            }
+        }
+    }
+
+    @Test func fieldNoteFixedContentStaysInsideEachArtworkCanvas() {
+        #expect(MugshotFieldNoteLayout.story.fixedVerticalContent <= MugshotShareFormat.story.pixelSize.height)
+        #expect(MugshotFieldNoteLayout.post.fixedVerticalContent <= MugshotShareFormat.post.pixelSize.height)
+        #expect(MugshotFieldNoteLayout.story != MugshotFieldNoteLayout.post)
     }
 
     @Test func destinationDefaultsMatchNativeHandoffs() {
@@ -75,12 +123,12 @@ struct MugshotShareTests {
 
         #expect(friends.requiresExternalAudienceWarning)
         #expect(friends.mayHavePublicLink)
-        #expect(!privatePost.requiresExternalAudienceWarning)
+        #expect(privatePost.requiresExternalAudienceWarning)
         #expect(!privatePost.mayHavePublicLink)
     }
 
     @MainActor
-    @Test func friendsSharePackageCreatesOneURLBackedLinkCard() {
+    @Test func friendsSharePackageIncludesArtworkAndURLBackedLinkCard() {
         let content = shareContent(visibility: .friends)
         let url = URL(
             string: "https://mugshotapp.co/m/\(String(repeating: "a", count: 48))"
@@ -96,8 +144,9 @@ struct MugshotShareTests {
 
         let items = package.primaryActivityItems(for: .post)
 
-        #expect(items.count == 1)
-        let source = items.first as? MugshotShareLinkItemSource
+        #expect(items.count == 2)
+        #expect(items.first is UIImage)
+        let source = items.last as? MugshotShareLinkItemSource
         #expect(source?.url == url)
         let metadata = MugshotShareLinkItemSource.linkMetadata(
             url: url,
@@ -193,6 +242,62 @@ struct MugshotShareTests {
         #expect(!fields.contains("visitID"))
     }
 
+    @Test func structuredCommentMentionShowsDisplayNameAndLinksToAccountID() throws {
+        let amandaID = UUID(uuidString: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")!
+        let attributed = MentionTextFormatter.commentAttributedString(
+            for: "@dairiequeen what is the flavor?",
+            mentions: [
+                RemoteCommentMention(
+                    userID: amandaID,
+                    token: "@dairiequeen",
+                    displayName: "Amanda",
+                    username: "dairiequeen",
+                    avatarURL: nil
+                )
+            ]
+        )
+
+        #expect(String(attributed.characters) == "Amanda what is the flavor?")
+        let linkedRun = attributed.runs.first { $0.link != nil }
+        #expect(linkedRun?.link?.absoluteString == "mugshot-mention://user/\(amandaID.uuidString)")
+        #expect(MentionTextFormatter.containsAccountBackedToken("@Amanda", in: "Hi @Amanda!"))
+        #expect(!MentionTextFormatter.containsAccountBackedToken("@Amanda", in: "Hi @AmandaX"))
+        let bounded = MentionTextFormatter.commentAttributedString(
+            for: "@Amanda and @AmandaX",
+            mentions: [
+                RemoteCommentMention(
+                    userID: amandaID,
+                    token: "@Amanda",
+                    displayName: "Amanda",
+                    username: "dairiequeen",
+                    avatarURL: nil
+                )
+            ]
+        )
+        #expect(String(bounded.characters) == "Amanda and @AmandaX")
+
+        let selectedToken = MentionTextFormatter.selectedDisplayNameToken("  Amanda  ")
+        #expect(selectedToken == "Amanda")
+        #expect(!selectedToken.hasPrefix("@"))
+        let selectedMention = MentionTextFormatter.commentAttributedString(
+            for: "Amanda what is the flavor?",
+            mentions: [
+                RemoteCommentMention(
+                    userID: amandaID,
+                    token: selectedToken,
+                    displayName: "Amanda",
+                    username: "dairiequeen",
+                    avatarURL: nil
+                )
+            ]
+        )
+        #expect(String(selectedMention.characters) == "Amanda what is the flavor?")
+        #expect(
+            selectedMention.runs.first(where: { $0.link != nil })?.link?.absoluteString
+                == "mugshot-mention://user/\(amandaID.uuidString)"
+        )
+    }
+
     private func shareContent(visibility: VisitVisibility) -> MugshotShareContent {
         MugshotShareContent(
             visitID: visitID,
@@ -206,6 +311,13 @@ struct MugshotShareTests {
             createdAt: .now,
             caption: nil
         )
+    }
+
+    private func image(size: CGSize) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { context in
+            UIColor.white.setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+        }
     }
 }
 

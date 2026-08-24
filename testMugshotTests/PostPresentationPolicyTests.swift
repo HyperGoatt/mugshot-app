@@ -28,12 +28,17 @@ struct PostPresentationPolicyTests {
             MugshotPostLocationLine.displayName(
                 name: "Uptown Coffee",
                 locality: MugshotPostLocationLine.locality(from: "Pittsburgh, PA")
-            ) == "Uptown Coffee · Pittsburgh"
+            ) == "Uptown Coffee | Pittsburgh, PA"
         )
         #expect(
             MugshotPostLocationLine.locality(
                 from: "723 Washington Rd, Mt Lebanon, PA 15228"
-            ) == "Mt Lebanon"
+            ) == "Mt Lebanon, PA"
+        )
+        #expect(
+            MugshotPostLocationLine.locality(
+                from: "Cannon St, 11, Charleston, SC"
+            ) == "Charleston, SC"
         )
         #expect(
             MugshotPostLocationLine.displayName(name: "Home", locality: nil) == "Home"

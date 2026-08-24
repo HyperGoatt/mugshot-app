@@ -61,107 +61,165 @@ struct AdaptiveMapClusteringTests {
     }
 
     @Test func cameraPolicyUsesHysteresisAcrossSemanticBoundary() {
-        let viewport = CGSize(width: 360, height: 720)
         #expect(
             AdaptiveMapCameraPolicy.displayMode(
                 current: .cafes,
-                groundFootprintMeters: 19_999,
-                visibleCafeCount: 24,
-                viewportSize: viewport
+                groundFootprintMeters: 89_999
             ) == .cafes
         )
         #expect(
             AdaptiveMapCameraPolicy.displayMode(
                 current: .cafes,
-                groundFootprintMeters: 20_000,
-                visibleCafeCount: 24,
-                viewportSize: viewport
+                groundFootprintMeters: 90_000
             ) == .places
         )
         #expect(
             AdaptiveMapCameraPolicy.displayMode(
                 current: .places,
-                groundFootprintMeters: 14_001,
-                visibleCafeCount: 24,
-                viewportSize: viewport
+                groundFootprintMeters: 70_001
             ) == .places
         )
         #expect(
             AdaptiveMapCameraPolicy.displayMode(
                 current: .places,
-                groundFootprintMeters: 14_000,
-                visibleCafeCount: 24,
-                viewportSize: viewport
+                groundFootprintMeters: 70_000
             ) == .cafes
         )
     }
 
-    @Test func semanticThresholdRespondsToVisibleDensity() {
-        let viewport = CGSize(width: 390, height: 844)
-        let denseThreshold = AdaptiveMapCameraPolicy.semanticEntryThreshold(
-            visibleCafeCount: 60,
-            viewportSize: viewport
+    @Test func cityAndMetroFootprintsKeepIndividualCafeAnnotations() {
+        #expect(
+            AdaptiveMapCameraPolicy.displayMode(
+                current: .cafes,
+                groundFootprintMeters: 50_000
+            ) == .cafes
         )
-        let sparseThreshold = AdaptiveMapCameraPolicy.semanticEntryThreshold(
-            visibleCafeCount: 3,
-            viewportSize: viewport
-        )
-
-        #expect(denseThreshold == 14_000)
-        #expect(sparseThreshold == 26_000)
     }
 
-    @Test func closeCityScaleKeepsIndividualCafeScoresUntilZoomingOut() {
-        let viewport = CGSize(width: 390, height: 844)
-
+    @Test func cafeClusteringBeginsOnlyAfterTheCharlestonLevelWithHysteresis() {
         #expect(
             AdaptiveMapCafeClusteringPolicy.isEnabled(
                 current: false,
-                groundFootprintMeters: 3_000,
-                visibleCafeCount: 8,
-                viewportSize: viewport
+                groundFootprintMeters: 3_199
             ) == false
         )
         #expect(
             AdaptiveMapCafeClusteringPolicy.isEnabled(
                 current: false,
-                groundFootprintMeters: 5_600,
-                visibleCafeCount: 8,
-                viewportSize: viewport
+                groundFootprintMeters: 3_200
             ) == true
         )
         #expect(
             AdaptiveMapCafeClusteringPolicy.isEnabled(
                 current: true,
-                groundFootprintMeters: 4_100,
-                visibleCafeCount: 8,
-                viewportSize: viewport
+                groundFootprintMeters: 2_401
             ) == true
         )
         #expect(
             AdaptiveMapCafeClusteringPolicy.isEnabled(
                 current: true,
-                groundFootprintMeters: 4_000,
-                visibleCafeCount: 8,
-                viewportSize: viewport
+                groundFootprintMeters: 2_400
             ) == false
         )
     }
 
-    @Test func denseCafeMapsClumpSoonerThanSparseCafeMaps() {
-        let viewport = CGSize(width: 390, height: 844)
+    @Test func canonicalSnapshotDeduplicatesAndConservesRepresentationCount() {
+        let canonicalID = UUID()
+        let localA = Cafe(
+            name: "Cached Cafe",
+            location: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),
+            remoteCafeId: canonicalID
+        )
+        let localB = Cafe(
+            name: "Fresh Cafe",
+            location: CLLocationCoordinate2D(latitude: 32.781, longitude: -79.931),
+            remoteCafeId: canonicalID
+        )
+        let other = Cafe(
+            name: "Other Cafe",
+            location: CLLocationCoordinate2D(latitude: 32.79, longitude: -79.94)
+        )
+        let snapshot = AdaptiveMapAnnotationSnapshot(
+            cafes: [localA, localB, other],
+            highlightedCafe: nil
+        )
+
+        #expect(snapshot.cafes.count == 2)
+        #expect(snapshot.cafes.contains(where: { $0.name == "Fresh Cafe" }))
         #expect(
-            AdaptiveMapCafeClusteringPolicy.clusteringEntryThreshold(
-                visibleCafeCount: 60,
-                viewportSize: viewport
-            ) == 3_600
+            snapshot.representedCount(
+                mode: .cafes,
+                highlightedCafe: nil,
+                placeNames: [:],
+                scores: [:],
+                friendCounts: [:]
+            ) == 2
         )
         #expect(
-            AdaptiveMapCafeClusteringPolicy.clusteringEntryThreshold(
-                visibleCafeCount: 3,
-                viewportSize: viewport
-            ) == 5_600
+            snapshot.representedCount(
+                mode: .places,
+                highlightedCafe: nil,
+                placeNames: [:],
+                scores: [:],
+                friendCounts: [:]
+            ) == 2
         )
+    }
+
+    @Test func mapSnapshotMergesNearbyDuplicatePhysicalCafesButNotDistinctLocations() throws {
+        let nookA = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            location: CLLocationCoordinate2D(latitude: 32.7925791, longitude: -79.9485388),
+            isFavorite: true,
+            averageRating: 4.2,
+            visitCount: 1,
+            remoteCafeId: UUID()
+        )
+        let nookB = Cafe(
+            name: "nook tiny cafe & market",
+            location: CLLocationCoordinate2D(latitude: 32.7925992, longitude: -79.9486125),
+            averageRating: 4.1,
+            visitCount: 1,
+            remoteCafeId: UUID()
+        )
+        let distantNook = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            location: CLLocationCoordinate2D(latitude: 32.8529, longitude: -79.9728),
+            remoteCafeId: UUID()
+        )
+        let sameBuildingDifferentCafe = Cafe(
+            name: "Another Cafe",
+            location: nookA.location,
+            remoteCafeId: UUID()
+        )
+        let distinctApplePlace = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            location: nookA.location,
+            appleMapsPlaceID: "distinct-apple-place",
+            remoteCafeId: UUID()
+        )
+        var appleIdentifiedNook = nookA
+        appleIdentifiedNook.appleMapsPlaceID = "original-apple-place"
+
+        let snapshot = AdaptiveMapAnnotationSnapshot(
+            cafes: [
+                appleIdentifiedNook,
+                nookB,
+                distantNook,
+                sameBuildingDifferentCafe,
+                distinctApplePlace
+            ],
+            highlightedCafe: nil
+        )
+
+        #expect(snapshot.cafes.count == 4)
+        let downtownNook = try #require(
+            snapshot.cafes.first {
+                $0.name.localizedCaseInsensitiveContains("nook") && $0.isFavorite
+            }
+        )
+        #expect(downtownNook.averageRating == 4.2)
+        #expect(snapshot.cafes.contains(where: { $0.name == "Another Cafe" }))
     }
 
     @Test func clusterSummaryShowsBestScoreOnlyWithUsefulCoverage() {

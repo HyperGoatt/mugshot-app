@@ -79,6 +79,7 @@ private struct FeedRefreshPreviewDetail: View {
             isWorking: false,
             statusMessage: nil,
             mentionSuggestions: [],
+            composerMentionTokens: [],
             onAction: { _ in },
             onSubmitComment: {},
             onReply: { _ in },
@@ -214,7 +215,9 @@ private enum FeedRefreshPreviewFixtures {
             locationName: summary.locationTitle,
             locationSubtitle: summary.visit.journalContext == .cafe
                 ? MugshotPostLocationLine.locality(
-                    from: summary.cafe?.city ?? summary.visit.cityState
+                    from: summary.cafe?.address
+                        ?? summary.visit.cityState
+                        ?? summary.cafe?.city
                 )
                 : nil,
             locationSystemImage: summary.visit.journalContext.systemImage,

@@ -22,6 +22,7 @@ const buckets = [
   "visit-photos",
   "visit-photos-private",
   "profile-media",
+  "home-coffee-bag-photos",
 ] as const;
 
 const corsHeaders = {

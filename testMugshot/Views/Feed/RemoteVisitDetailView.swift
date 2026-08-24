@@ -74,7 +74,7 @@ struct RemoteVisitDetailView: View {
     @State private var replyingTo: RemoteVisitComment?
     @State private var mentionSuggestions: [PeopleSearchResult] = []
     @State private var mentionedUserIDs: Set<UUID> = []
-    @State private var mentionedHandlesByUserID: [UUID: String] = [:]
+    @State private var mentionedTokensByUserID: [UUID: String] = [:]
     @State private var reportTarget: SocialSafetyTarget?
     @State private var reportDetailsRequest: SafetyReportDetailsRequest?
     @State private var queuedReportDetailsRequest: SafetyReportDetailsRequest?
@@ -147,6 +147,7 @@ struct RemoteVisitDetailView: View {
                             isFriend: $0.friendshipState == .friends
                         )
                     },
+                    composerMentionTokens: Array(mentionedTokensByUserID.values),
                     onAction: perform,
                     onSubmitComment: { Task { await postComment() } },
                     onReply: beginReply,
@@ -797,6 +798,7 @@ struct RemoteVisitDetailView: View {
                     )
                     SipStructuredEntryDetailsPanel(
                         context: detail.summary.visit.journalContext,
+                        outcome: detail.v3Reflection?.homeMakeAgain,
                         brewMethod: detail.recipeProjection?.brewMethod
                             ?? (detail.summary.visit.recipeVersionID == nil
                                 ? detail.summary.visit.brewMethod
@@ -1167,6 +1169,8 @@ struct RemoteVisitDetailView: View {
                         ForEach(detail.comments) { comment in
                             RemoteCommentRow(
                                 comment: comment,
+                                onAuthor: { openCommentAuthorProfile(comment) },
+                                onMention: openMentionProfile,
                                 onReply: comment.comment.parentCommentId == nil ? {
                                     replyingTo = comment
                                     isCommentFocused = true
@@ -1515,16 +1519,19 @@ struct RemoteVisitDetailView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            let resolvedMentionIDs = mentionedUserIDs.filter { userID in
-                guard let handle = mentionedHandlesByUserID[userID] else { return false }
-                return text.localizedCaseInsensitiveContains("@\(handle)")
+            let resolvedMentions = mentionedUserIDs.compactMap { userID -> CommentMentionSelection? in
+                guard let token = mentionedTokensByUserID[userID] else { return nil }
+                guard MentionTextFormatter.containsAccountBackedToken(token, in: text) else {
+                    return nil
+                }
+                return CommentMentionSelection(userID: userID, token: token)
             }
             _ = try await service.addComment(
                 visitId: visitId,
                 userId: currentUserId,
                 text: text,
                 parentCommentId: replyingTo?.id,
-                mentionedUserIds: Array(resolvedMentionIDs)
+                mentions: resolvedMentions
             )
             self.detail = try await service.fetchVisitDetail(
                 visitId: visitId,
@@ -1536,7 +1543,7 @@ struct RemoteVisitDetailView: View {
             commentText = ""
             replyingTo = nil
             mentionedUserIDs = []
-            mentionedHandlesByUserID = [:]
+            mentionedTokensByUserID = [:]
             mentionSuggestions = []
             isCommentFocused = false
             isSavingSocialAction = false
@@ -1569,12 +1576,32 @@ struct RemoteVisitDetailView: View {
     private func selectMention(_ person: PeopleSearchResult) {
         var tokens = commentText.split(whereSeparator: \.isWhitespace).map(String.init)
         if tokens.last?.hasPrefix("@") == true { tokens.removeLast() }
-        tokens.append("@\(person.username)")
+        let visibleToken = MentionTextFormatter.selectedDisplayNameToken(person.displayName)
+        guard !visibleToken.isEmpty else { return }
+        tokens.append(visibleToken)
         commentText = tokens.joined(separator: " ") + " "
         mentionedUserIDs.insert(person.id)
-        mentionedHandlesByUserID[person.id] = person.username
+        mentionedTokensByUserID[person.id] = visibleToken
         mentionSuggestions = []
         isCommentFocused = true
+    }
+
+    private func openCommentAuthorProfile(_ comment: RemoteVisitComment) {
+        selectedTaggedProfile = PeopleProfileRoute(
+            id: comment.comment.userId,
+            displayName: comment.authorDisplayName,
+            username: comment.authorUsername,
+            state: comment.comment.userId == currentUserId ? .self : .none
+        )
+    }
+
+    private func openMentionProfile(_ mention: RemoteCommentMention) {
+        selectedTaggedProfile = PeopleProfileRoute(
+            id: mention.userID,
+            displayName: mention.displayName,
+            username: mention.username,
+            state: mention.userID == currentUserId ? .self : .none
+        )
     }
 
     private func selectReportReason(_ reason: ReportReason) {
@@ -1768,7 +1795,8 @@ struct RemoteVisitDetailView: View {
                     createdAt: current.comment.createdAt,
                     parentCommentId: current.comment.parentCommentId
                 ),
-                author: current.author
+                author: current.author,
+                mentions: current.mentions
             )
         }
         replaceDetailComments(comments)
@@ -2222,30 +2250,62 @@ struct RemotePhotoImageView: View {
 
 struct RemoteCommentRow: View {
     let comment: RemoteVisitComment
+    var onAuthor: (() -> Void)? = nil
+    var onMention: ((RemoteCommentMention) -> Void)? = nil
     var onReply: (() -> Void)? = nil
     var onReport: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            MugshotAvatar(name: comment.authorDisplayName, size: 38)
+            Button {
+                onAuthor?()
+            } label: {
+                MugshotAvatar(
+                    name: comment.authorDisplayName,
+                    size: 38,
+                    imageURL: comment.author?.avatarURL
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(onAuthor == nil)
+            .accessibilityLabel("Open \(comment.authorDisplayName)'s profile")
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(comment.authorDisplayName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(1)
+                Button {
+                    onAuthor?()
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(comment.authorDisplayName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(1)
 
-                    Text("@\(comment.authorUsername)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.espressoBrown.opacity(0.55))
-                        .lineLimit(1)
+                        Text("@\(comment.authorUsername)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.espressoBrown.opacity(0.55))
+                            .lineLimit(1)
+                    }
                 }
+                .buttonStyle(.plain)
+                .disabled(onAuthor == nil)
 
-                Text(comment.comment.text)
+                Text(MentionTextFormatter.commentAttributedString(
+                    for: comment.comment.text,
+                    mentions: comment.mentions
+                ))
                     .font(.system(size: 14))
                     .foregroundColor(.espressoBrown.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
+                    .tint(Color.mugshotMint)
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard url.scheme == "mugshot-mention",
+                              let userID = UUID(uuidString: url.lastPathComponent),
+                              let mention = comment.mentions.first(where: { $0.userID == userID }) else {
+                            return .systemAction
+                        }
+                        onMention?(mention)
+                        return .handled
+                    })
 
                 Text(SipDetailFormat.relative(comment.comment.createdAtDate))
                     .font(.system(size: 12))
@@ -2586,6 +2646,7 @@ struct SipRatingBreakdownPanel: View {
 
 struct SipStructuredEntryDetailsPanel: View {
     let context: JournalEntryContext
+    var outcome: HomeMakeAgain? = nil
     let brewMethod: String?
     let equipment: String?
     let details: BrewDetails
@@ -2607,16 +2668,24 @@ struct SipStructuredEntryDetailsPanel: View {
                     if let recipe = details.recipeDisplayName {
                         detailLine("Recipe", recipe)
                     }
+                    if let coffee = details.coffeeBag?.displayName {
+                        detailLine("Coffee", coffee)
+                    }
                     if let extraction = details.extractionSummary {
                         detailLine("Extraction", extraction)
+                    }
+                    if let ratio = details.brewRatio {
+                        detailLine("Ratio", "1:\(ratio.formatted(.number.precision(.fractionLength(1))))")
                     }
                     if let beans = details.beans?.remoteTrimmedNonEmpty {
                         detailLine("Beans", beans)
                     }
-                    if let origin = details.beanOrigin?.remoteTrimmedNonEmpty {
+                    if let origin = details.beanOrigin?.remoteTrimmedNonEmpty
+                        ?? details.coffeeBag?.origin?.remoteTrimmedNonEmpty {
                         detailLine("Origin", origin)
                     }
-                    if let roast = details.roastLevel?.remoteTrimmedNonEmpty {
+                    if let roast = details.roastLevel?.remoteTrimmedNonEmpty
+                        ?? details.coffeeBag?.roastLevel?.remoteTrimmedNonEmpty {
                         detailLine("Roast", roast)
                     }
                     if let brewMethod = brewMethod?.remoteTrimmedNonEmpty {
@@ -2625,11 +2694,30 @@ struct SipStructuredEntryDetailsPanel: View {
                     if let equipment = equipment?.remoteTrimmedNonEmpty {
                         detailLine("Equipment", equipment)
                     }
+                    if let profiles = details.equipmentSnapshots, !profiles.isEmpty {
+                        detailLine(
+                            "Gear",
+                            profiles.map { "\($0.role.title): \($0.displayName)" }
+                                .joined(separator: " · ")
+                        )
+                    }
                     if let grind = details.grindSetting?.remoteTrimmedNonEmpty {
                         detailLine("Grind", grind)
                     }
                     if let temperature = details.waterTemperatureCelsius {
                         detailLine("Water", String(format: "%.0f°C", temperature))
+                    }
+                    if let waterGrams = details.homeMethodDetails?.waterGrams {
+                        detailLine(
+                            "Water dose",
+                            "\(waterGrams.formatted(.number.precision(.fractionLength(0...1)))) g"
+                        )
+                    }
+                    if let methodSummary = homeMethodSummary {
+                        detailLine("Dial-in", methodSummary)
+                    }
+                    if let outcome {
+                        detailLine("Make again", outcomeTitle(outcome))
                     }
                     if let water = details.waterNotes?.remoteTrimmedNonEmpty {
                         detailLine("Water notes", water)
@@ -2683,6 +2771,38 @@ struct SipStructuredEntryDetailsPanel: View {
                 .foregroundColor(.espressoBrown)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+        }
+    }
+
+    private var homeMethodSummary: String? {
+        guard let method = details.homeMethodDetails else { return nil }
+        var parts: [String] = []
+        if let bloom = method.bloomSeconds {
+            parts.append("Bloom \(bloom)s")
+        }
+        if let steep = method.steepSeconds {
+            parts.append("Steep \(steep)s")
+        }
+        if let preinfusion = method.preinfusionSeconds {
+            parts.append("Preinfusion \(preinfusion)s")
+        }
+        if let pressure = method.pressureBars {
+            parts.append("\(pressure.formatted(.number.precision(.fractionLength(0...1)))) bar")
+        }
+        if let stages = details.steps, !stages.isEmpty {
+            parts.append("\(stages.count) pour \(stages.count == 1 ? "stage" : "stages")")
+        }
+        if let duration = method.coldBrewSteepHours {
+            parts.append("Steep \(duration.formatted(.number.precision(.fractionLength(0...1)))) hr")
+        }
+        return parts.joined(separator: " · ").remoteTrimmedNonEmpty
+    }
+
+    private func outcomeTitle(_ outcome: HomeMakeAgain) -> String {
+        switch outcome {
+        case .yes: return "Yes"
+        case .withATweak: return "With a tweak"
+        case .notThisVersion: return "Not this one"
         }
     }
 }

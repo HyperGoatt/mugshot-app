@@ -289,7 +289,7 @@ struct V3LabDraft: Equatable {
         sipCriteria: [
             V3LabCriterion(
                 id: "body",
-                title: "Body",
+                title: "Body / Smoothness",
                 systemImage: "water.waves",
                 rating: 1.5,
                 importance: .more,
@@ -304,8 +304,8 @@ struct V3LabDraft: Equatable {
                 isPinned: false
             ),
             V3LabCriterion(
-                id: "orange-balance",
-                title: "Orange balance",
+                id: "flavor-balance",
+                title: "Flavor balance",
                 systemImage: "circle.lefthalf.filled",
                 rating: 3,
                 importance: .normal,
@@ -346,7 +346,7 @@ extension V3LabSuggestion {
         .init(id: "sweetness", title: "Sweetness", systemImage: "cube.fill"),
         .init(id: "brightness", title: "Brightness", systemImage: "sun.max"),
         .init(id: "bitterness", title: "Bitterness", systemImage: "drop.triangle"),
-        .init(id: "body", title: "Body", systemImage: "water.waves"),
+        .init(id: "body", title: "Body / Smoothness", systemImage: "water.waves"),
         .init(id: "texture", title: "Texture", systemImage: "waveform.path"),
         .init(id: "balance", title: "Balance", systemImage: "scale.3d"),
         .init(id: "finish", title: "Finish", systemImage: "hourglass.bottomhalf.filled"),
@@ -354,7 +354,7 @@ extension V3LabSuggestion {
         .init(id: "coffee-presence", title: "Coffee presence", systemImage: "cup.and.saucer"),
         .init(id: "milk-integration", title: "Milk integration", systemImage: "cloud.fill"),
         .init(id: "flavor-accuracy", title: "Flavor accuracy", systemImage: "scope"),
-        .init(id: "orange-balance", title: "Orange balance", systemImage: "circle.lefthalf.filled"),
+        .init(id: "flavor-balance", title: "Flavor balance", systemImage: "circle.lefthalf.filled"),
         .init(id: "refreshment", title: "Refreshment", systemImage: "snowflake"),
         .init(id: "aftertaste", title: "Aftertaste", systemImage: "arrow.uturn.forward"),
         .init(id: "intensity", title: "Intensity", systemImage: "dial.medium"),

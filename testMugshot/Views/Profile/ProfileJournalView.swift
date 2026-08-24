@@ -830,6 +830,7 @@ private struct JournalArchiveView: View {
     @State private var showsBookmarksOnly = false
     @State private var mode: JournalArchiveMode = .timeline
     @State private var selectedDate = Date()
+    @State private var selectedCoffeeBagID: UUID?
     @State private var bookmarkedIDs: Set<UUID>
 
     init(
@@ -857,9 +858,26 @@ private struct JournalArchiveView: View {
                 case .recipes: return entry.context == .recipe
                 }
             }
+            .filter { entry in
+                guard let selectedCoffeeBagID else { return true }
+                return entry.summary.visit.homeCoffeeBagID == selectedCoffeeBagID
+            }
             .filter { !showsBookmarksOnly || bookmarkedIDs.contains($0.id) }
             .filter { $0.matches(query) }
             .sorted { $0.date > $1.date }
+    }
+
+    private var coffeeBagOptions: [JournalCoffeeBagOption] {
+        var labels: [UUID: String] = [:]
+        for entry in entries {
+            guard let id = entry.summary.visit.homeCoffeeBagID else { continue }
+            let details = entry.summary.visit.structuredBrewDetails
+            labels[id] = details.coffeeBag?.displayName
+                ?? details.beans?.remoteTrimmedNonEmpty
+                ?? entry.summary.visit.drinkDisplayName
+        }
+        return labels.map(JournalCoffeeBagOption.init(id:label:))
+            .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
     }
 
     private var timelineGroups: [JournalArchiveMonthGroup] {
@@ -876,6 +894,14 @@ private struct JournalArchiveView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     JournalFilterBar(selection: $selection)
+
+                    if !coffeeBagOptions.isEmpty,
+                       selection == .all || selection == .home || selection == .recipes {
+                        JournalCoffeeBagFilterBar(
+                            options: coffeeBagOptions,
+                            selection: $selectedCoffeeBagID
+                        )
+                    }
 
                     if showsPhase2Tools {
                         JournalArchiveModePicker(selection: $mode)
@@ -920,6 +946,11 @@ private struct JournalArchiveView: View {
             .navigationTitle("Your Journal")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search drinks, cafes, notes, or equipment")
+            .onChange(of: selection) { _, selection in
+                if selection == .cafe {
+                    selectedCoffeeBagID = nil
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -989,6 +1020,49 @@ private struct JournalArchiveView: View {
                 }
             }
         }
+    }
+}
+
+private struct JournalCoffeeBagOption: Identifiable, Equatable {
+    let id: UUID
+    let label: String
+}
+
+private struct JournalCoffeeBagFilterBar: View {
+    let options: [JournalCoffeeBagOption]
+    @Binding var selection: UUID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Coffee shelf")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.tertiaryText)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    chip("All coffee", id: nil)
+                    ForEach(options) { option in
+                        chip(option.label, id: option.id)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("journal.coffeeBagFilter")
+    }
+
+    private func chip(_ title: String, id: UUID?) -> some View {
+        Button {
+            selection = id
+        } label: {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(selection == id ? Color.foamWhite : Color.espressoBrown)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 36)
+                .background(selection == id ? Color.mugshotSage : Color.sandBeige.opacity(0.56))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection == id ? .isSelected : [])
     }
 }
 

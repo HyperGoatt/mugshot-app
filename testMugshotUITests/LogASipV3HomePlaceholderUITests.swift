@@ -14,6 +14,14 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         static let primaryAction = "logASipV3.primaryAction"
         static let sipScore = "logASipV3.sipScore"
         static let makeAgainYes = "logASipV3.homeMakeAgain.yes"
+        static let homeScanBag = "logASipV3.home.scanBag"
+        static let homeEspresso = "logASipV3.home.method.espresso"
+        static let homeDose = "logASipV3.home.dose"
+        static let homeYield = "logASipV3.home.yield"
+        static let homePreinfusion = "logASipV3.home.preinfusion"
+        static let homeActualYield = "logASipV3.home.actuals.yield"
+        static let homeCreateRecipe = "logASipV3.home.recipeDecision.create_new_version"
+        static let homePublishSummary = "logASipV3.home.publishSummary"
         static let caption = "logASipV3.caption"
         static let shareHub = "logASipV3.shareHub"
     }
@@ -23,7 +31,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     }
 
     @MainActor
-    func testHomePlaceholderPublishesThroughV3ReflectionFlow() throws {
+    func testHomeWorkbenchPublishesThroughTheApprovedBrewFirstFlow() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reset"]
         app.launch()
@@ -36,42 +44,74 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         homeContext.tap()
         XCTAssertTrue(homeContext.isSelected)
 
-        let addPhotos = elements(Identifier.addPhotos, in: app)
-        XCTAssertTrue(addPhotos.firstMatch.waitForExistence(timeout: 2))
-        XCTAssertEqual(addPhotos.count, 1)
-        XCTAssertEqual(addPhotos.firstMatch.label, "Add photos")
-        XCTAssertFalse(app.buttons["Add photo"].exists)
+        XCTAssertTrue(app.staticTexts["Start from"].waitForExistence(timeout: 2))
+        XCTAssertTrue(element(Identifier.homeScanBag, in: app).exists)
+        XCTAssertFalse(element(Identifier.addPhotos, in: app).exists)
+        let espresso = element(Identifier.homeEspresso, in: app)
+        reveal(espresso, in: app)
+        espresso.tap()
+        type("18.5", into: Identifier.homeDose, in: app)
+        let brewYield = element(Identifier.homeYield, in: app)
+        XCTAssertTrue(brewYield.isHittable)
+        brewYield.tap()
+        brewYield.typeText("38")
+        XCTAssertEqual(brewYield.value as? String, "38")
+        dismissKeyboardIfNeeded(in: app)
+        let dialIn = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Dial-in details")
+        ).firstMatch
+        reveal(dialIn, in: app)
+        dialIn.tap()
+        type("6", into: Identifier.homePreinfusion, in: app)
+        dismissKeyboardIfNeeded(in: app)
+        attachScreenshot(named: "01-home-workbench", app: app)
 
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Brew this version"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "02-brew-version", app: app)
+
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["What changed?"].waitForExistence(timeout: 3))
+        let actualYield = element(Identifier.homeActualYield, in: app)
+        reveal(actualYield, in: app)
+        replaceText(with: "42", in: Identifier.homeActualYield, app: app)
+        dismissKeyboardIfNeeded(in: app)
+        attachScreenshot(named: "03-actuals", app: app)
+
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Brew complete"].waitForExistence(timeout: 3))
         let missedPhoto = element(Identifier.missedPhoto, in: app)
         XCTAssertTrue(missedPhoto.waitForExistence(timeout: 2))
         missedPhoto.tap()
-        XCTAssertTrue(app.staticTexts["Oops, missed the photo"].waitForExistence(timeout: 2))
-        attachScreenshot(named: "01-setup", app: app)
+        type("Dialed in and finally sweet.", into: Identifier.caption, in: app)
+        replaceText(with: "Placeholder ritual latte", in: Identifier.drinkName, app: app)
+        attachScreenshot(named: "04-capture", app: app)
 
-        type("Placeholder ritual latte", into: Identifier.drinkName, in: app)
-        if !app.staticTexts["How was the sip?"].waitForExistence(timeout: 1) {
-            tapPrimaryAction(in: app)
-        }
-
+        tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 3))
-        attachScreenshot(named: "02-sip", app: app)
         let sipScore = element(Identifier.sipScore, in: app)
         reveal(sipScore, in: app)
         sipScore.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.5)).tap()
         XCTAssertNotEqual(sipScore.value as? String, "Not rated")
-        tapPrimaryAction(in: app)
 
-        XCTAssertTrue(app.staticTexts["Would you make it again?"].waitForExistence(timeout: 3))
-        attachScreenshot(named: "03-home", app: app)
         let makeAgain = element(Identifier.makeAgainYes, in: app)
-        reveal(makeAgain, in: app)
-        makeAgain.tap()
-        XCTAssertTrue(makeAgain.isSelected)
+        tapAboveComposerFooter(makeAgain, in: app)
+        XCTAssertTrue(waitForSelected(Identifier.makeAgainYes, in: app))
         tapPrimaryAction(in: app)
 
-        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
-        attachScreenshot(named: "04-publish", app: app)
-        type("A quiet home experiment worth keeping.", into: Identifier.caption, in: app)
+        XCTAssertTrue(app.staticTexts["Save your brew"].waitForExistence(timeout: 3))
+        let createRecipe = element(Identifier.homeCreateRecipe, in: app)
+        XCTAssertTrue(createRecipe.waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForSelected(Identifier.homeCreateRecipe, in: app))
+        attachScreenshot(named: "05-save-recipe", app: app)
+        tapPrimaryAction(in: app)
+
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "06-review", app: app)
+        let publishSummary = element(Identifier.homePublishSummary, in: app)
+        XCTAssertTrue(publishSummary.waitForExistence(timeout: 2))
+        XCTAssertTrue(publishSummary.label.contains("Saved recipe"))
+        XCTAssertTrue(publishSummary.label.contains("Recipe starts Private"))
         if !element(Identifier.shareHub, in: app).waitForExistence(timeout: 1) {
             tapPrimaryAction(in: app)
         }
@@ -81,8 +121,19 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
             shareHub.waitForExistence(timeout: 5),
             "A successful V3 Home publication should land on the post-publish share hub."
         )
-        XCTAssertTrue(app.staticTexts["Mugshot published"].exists)
-        attachScreenshot(named: "05-share-hub", app: app)
+        XCTAssertTrue(
+            app.staticTexts["Mugshot published."].exists
+                || app.staticTexts["Mugshot published"].exists
+        )
+        attachScreenshot(named: "07-share-hub", app: app)
+
+        let brewAgain = app.buttons["Brew Again"]
+        reveal(brewAgain, in: app)
+        brewAgain.tap()
+        XCTAssertTrue(app.staticTexts["Start from"].waitForExistence(timeout: 3))
+        let repeatedDose = element(Identifier.homeDose, in: app)
+        reveal(repeatedDose, in: app)
+        XCTAssertEqual(repeatedDose.value as? String, "18.5")
     }
 
     @MainActor
@@ -178,7 +229,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         XCTAssertTrue(confirmRemoval.waitForExistence(timeout: 2))
         confirmRemoval.tap()
         XCTAssertFalse(element("logASipV3.sip.criterion.presentation.rating", in: app).exists)
-        XCTAssertTrue(app.staticTexts["24 ideas"].exists)
+        XCTAssertTrue(app.staticTexts["30 ideas"].exists)
         attachScreenshot(named: "criteria-parity-sip", app: app)
 
         tapPrimaryAction(in: app)
@@ -216,11 +267,23 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     @MainActor
     private func type(_ value: String, into identifier: String, in app: XCUIApplication) {
         let field = element(identifier, in: app)
-        reveal(field, in: app)
+        dismissKeyboardIfNeeded(in: app)
+        positionAboveComposerFooter(field, in: app)
         field.tap()
         for character in value {
             field.typeText(String(character))
         }
+        XCTAssertEqual(field.value as? String, value)
+    }
+
+    @MainActor
+    private func replaceText(with value: String, in identifier: String, app: XCUIApplication) {
+        let field = element(identifier, in: app)
+        dismissKeyboardIfNeeded(in: app)
+        positionAboveComposerFooter(field, in: app)
+        field.tap()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(value)
         XCTAssertEqual(field.value as? String, value)
     }
 
@@ -230,6 +293,21 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         reveal(action, in: app)
         XCTAssertTrue(action.isEnabled)
         action.tap()
+    }
+
+    @MainActor
+    private func waitForSelected(
+        _ identifier: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 2
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { evaluated, _ in
+                (evaluated as? XCUIElement)?.isSelected == true
+            },
+            object: element(identifier, in: app)
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor

@@ -123,6 +123,27 @@ Deno.test("Storage cleanup uses only exact frozen manifest paths", () => {
   );
 });
 
+Deno.test("Storage cleanup includes private Home coffee bag photos", () => {
+  const subject = "33333333-3333-4333-8333-333333333333";
+  const path = `${subject}/55555555-5555-4555-8555-555555555555.jpg`;
+  const plan = exactStorageRemovalPlan(subject, [{
+    bucket: "home-coffee-bag-photos",
+    path,
+    object_id: "44444444-4444-4444-8444-444444444444",
+  }]);
+
+  assertEquals(
+    plan.get("home-coffee-bag-photos")?.[0],
+    path,
+    "includes the owner-private Home coffee bag photo",
+  );
+  assertEquals(
+    plan.get("home-coffee-bag-photos")?.length,
+    1,
+    "includes each private Home coffee bag photo exactly once",
+  );
+});
+
 Deno.test("Storage cleanup rejects prefix escapes, foreign prefixes, and duplicates", () => {
   const subject = "34f9f48f-8ac1-4bdc-86a7-3b3503400d24";
   const objectID = "aef8aa86-a69e-4848-aa41-f079b946136d";
