@@ -14,8 +14,8 @@ last_verified: 2026-08-24
   Current sprint, Current product status, Feature status matrix, Real data flow
   status, Repository map, Product roadmap, and Supabase release workflow.
 - Added the fail-closed canonical one-minute Activity delivery schedule using
-  Vault, `pg_cron`, and `pg_net`; source is locally verified and awaits the
-  disposable-QA/live deployment workflow.
+  Vault, `pg_cron`, and `pg_net`; source and disposable QA are verified and the
+  live deployment workflow remains in progress.
 - Codified `deliver-activity` as a service-key-authenticated Edge Function with
   platform JWT verification disabled in `supabase/config.toml`; the worker
   still performs its own constant-time `apikey` check and supports a dedicated
@@ -30,9 +30,15 @@ last_verified: 2026-08-24
   secrets. Updated Notification system, Current sprint, Current product status,
   Feature status matrix, Real data flow status, Product roadmap, and Supabase
   release workflow.
+- Added a one-time production schedule cutover guard after live inventory found
+  69 stale pending delivery attempts and no Activity cron job. Attempts older
+  than 15 minutes become cancelled without deleting or suppressing in-app
+  Activity; fresh and processing work is preserved. Full-static passed 13/0/0
+  across 184 SQL files, and the disposable branch reached migration 126 with
+  all 54 remote contracts green.
 - Verified the notification backend branch with the backend gate (12 passed,
   zero failed) and full-static gate (13 passed, zero failed), including local
-  parsing of all 182 SQL files.
+  parsing of all 183 SQL files.
 - Implemented and locally verified the Home Workbench, recipe memory, structured
   brew projection, and associated social/product checkpoint upgrades on
   `codex/home-workbench-sprint`.

@@ -40,10 +40,11 @@ capability read remains the next implementation stage.
 ## Current migration boundary
 
 The repository migration head is
-`20260824165630_harden_visit_grants_and_share_contract.sql`. The complete head
-passed a data-less disposable replay and all remote SQL contracts; that evidence
-does not prove live deployment. Database migration, Edge Function deployment,
-and client capability adoption follow the order in
+`20260824171405_expire_pre_schedule_activity_backlog.sql`. The complete head
+passed a data-less disposable replay, all 54 remote SQL contracts, and focused
+hermetic cutover coverage. This evidence does not prove live deployment.
+Database migration, Edge Function deployment, and client capability adoption
+follow the order in
 [the Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).
 
 ## Non-negotiable invariants

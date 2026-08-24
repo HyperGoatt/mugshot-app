@@ -10,8 +10,8 @@ last_verified: 2026-08-24
 
 In-app Activity, notification preferences, caller-bound device registration,
 the durable delivery queue, and the `deliver-activity` Edge Function are
-implemented. Production APNs credentials and the production worker schedule
-were configured on 2026-08-09. Source on
+implemented. Production APNs credentials remain configured. A 2026-08-24 live
+inventory found that the previously recorded worker schedule was absent. Source on
 `codex/notification-backend-v3` adds the badge-aware v3 contracts and a
 canonical one-minute schedule. Those changes are locally and disposable-QA
 verified but are not production-configured until the live release workflow
@@ -93,8 +93,15 @@ job command, and disposable QA can target its own worker.
 Installation fails closed when either Vault entry, `pg_cron`, or `pg_net` is unavailable,
 when more than one delivery job exists, or when the one existing job contains
 an embedded credential. At most one safe existing delivery job is adopted and
-replaced by the canonical definition. Production continues using the schedule
-configured on 2026-08-09 until this forward migration is released.
+replaced by the canonical definition. The 2026-08-24 live inventory found no
+Activity delivery job or Activity Vault entries, despite the earlier deployment
+record; this migration restores the missing durable schedule.
+
+`20260824171405_expire_pre_schedule_activity_backlog.sql` is the one-time live
+cutover guard. It cancels only pending delivery attempts older than 15 minutes
+with `pre_schedule_backlog_expired`; it does not delete or suppress the
+authoritative Activity event. Fresh queued work and any already processing
+lease remain untouched.
 
 `supabase/config.toml` sets `deliver-activity.verify_jwt=false` because this is
 a service-only endpoint, not a user-JWT endpoint. The function independently
@@ -150,8 +157,8 @@ content, push tokens, social identifiers, or deep-link identifiers.
 
 No signed-device or TestFlight v3 acceptance evidence has been recorded yet.
 Evidence on 2026-08-24 is full-static verification 13/0/0, including parsing all
-183 SQL files, plus a data-less disposable branch replayed to
-`20260824165630` with all 54 remote SQL contracts passing. QA held exactly one
+184 SQL files, plus a data-less disposable branch replayed through all 126
+migrations to `20260824171405` with all 54 remote SQL contracts passing. QA held exactly one
 minute worker job; its authenticated calls reached the expected fail-closed
 `push_configuration_required` response because APNs credentials were
 deliberately absent.

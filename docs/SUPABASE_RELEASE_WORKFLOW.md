@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260824165630_harden_visit_grants_and_share_contract.sql`. Repository head and live
+`20260824171405_expire_pre_schedule_activity_backlog.sql`. Repository head and live
 deployment state are separate facts; the live project reference is recorded in
 the existing Supabase link and QA scripts refuse that production reference.
 
@@ -109,11 +109,11 @@ the client UI.
 
 ## Current external gates
 
-- **APNs:** the worker, team-scoped key, both topics, and production schedule are
-  configured on the v2 production path. Badge-aware v3 contracts and the
-  canonical Vault-backed schedule passed data-less disposable QA and still
-  require live release. Real sandbox and TestFlight delivery/tap acceptance
-  remains.
+- **APNs:** the worker, team-scoped key, and both topics are configured on the
+  v2 production path. Live inventory found the Activity schedule absent.
+  Badge-aware v3 contracts, the canonical Vault-backed schedule, and the stale
+  backlog cutover guard passed their pre-live gates and still require live
+  release. Real sandbox and TestFlight delivery/tap acceptance remains.
 - **Home Workbench:** three repository migrations dated 2026-08-23/24 require
   the live snapshot, dry-run, deployment, and drift closure sequence before
   production reliance; the disposable-branch contract gate passed on
