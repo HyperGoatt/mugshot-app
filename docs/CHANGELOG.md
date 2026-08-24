@@ -8,6 +8,14 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Generated `Mugshot Debug Push Development` for `co.mugshot.app.dev` with the
+  existing development certificate and registered iPhone. Apple reports the
+  profile active through 2027-08-24 with App Groups, In-App Purchase, and Push
+  Notifications. Browser file handoff did not persist the download, and
+  Xcode's command-line automatic retrieval failed because no Apple account is
+  configured locally; download, installation, and physical acceptance remain
+  pending. Updated Current product status, Current sprint, Feature status
+  matrix, Notification system, Product roadmap, and TestFlight handoff.
 - Implemented the source-build-5 iOS notification lifecycle: typed sandbox and
   production APNs environments, development/production entitlements,
   capability-gated v3 badge registration, shared authorization with nearby
