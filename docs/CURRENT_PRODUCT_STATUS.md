@@ -11,8 +11,9 @@ last_verified: 2026-08-24
 Mugshot is a native SwiftUI social coffee journal distributed through
 TestFlight. `main` includes the Home Workbench/documentation baseline from PR
 #46, notification backend v3 from PR #47, and the safe schedule cutover from PR
-#48, production release evidence from PR #49, and the hardened iOS notification
-lifecycle from PR #50. Source remains version 0.5.3 build 5; the most recent
+#48, production release evidence from PR #49, the hardened iOS notification
+lifecycle from PR #50, and physical registration evidence through PR #55.
+Source remains version 0.5.3 build 5; the most recent
 archived distributed candidate is 0.5.3 (4).
 
 The Home Workbench and notification backend migrations are live through
@@ -75,8 +76,18 @@ the just-in-time Activity education, received iOS authorization, and registered
 one active sandbox installation with badge sync. Push opt-out removed that
 sealed device row; restoring the preference recreated it, and a terminated
 cold launch refreshed it while preserving the session. A normal cross-account
-Activity action is still required to accept real foreground/background
-delivery, taps, routes, and badges.
+like then produced one sandbox delivery that the minute worker completed on
+its first attempt. The signed iPhone showed the unread Activity item, opening
+it set the authoritative unread count to zero, and the in-app destination
+opened. The Feed bell remained stale until activation; a direct shared-store
+observation fix on `codex/activity-unread-badge-sync` passed full-static 12/0/1
+and a signed-device reproduction. A second normal like produced another
+first-attempt sandbox send; opening it reduced the authoritative unread count
+to zero and cleared both Activity and the Feed bell immediately without
+relaunch. Foreground alert presentation,
+visually observed background alert/app-icon badge behavior, terminated
+notification taps, category suppression, sign-out, and production acceptance
+remain.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.
@@ -86,11 +97,14 @@ remaining acceptance matrix.
 
 ## Current risks and gates
 
-- Physical sandbox and production notification delivery, cold launch, deep
-  links, and account lifecycle still require signed-device acceptance. The
-  sandbox build, install, launch, permission, registration, preference-off,
-  preference-restore, and terminated-relaunch gates passed; real cross-account
-  delivery and routing remain.
+- Physical sandbox and production notification delivery still require the full
+  signed-device matrix. Sandbox build/install/launch, permission, registration,
+  preference-off/restore, terminated relaunch, one background APNs acceptance,
+  unread Activity presentation, authoritative mark-one-read, and in-app routing
+  passed. Immediate Activity/Feed unread propagation also passed after the
+  direct-store fix. Foreground alert, alert/icon-badge observation,
+  notification-tapped cold launch, category suppression, sign-out, and
+  production remain.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
@@ -117,5 +131,8 @@ selection, the signed device build and app installation passed. The first
 remote launch was denied only because the iPhone was locked. After unlocking,
 the app launched and the physical sandbox authorization, badge-capable v3
 registration, opt-out removal, restored registration, and cold-session restore
-all passed. No synthetic Activity row was inserted; delivery awaits a normal
-action from a second account.
+all passed. No synthetic Activity row was inserted. A normal second-account
+like subsequently produced a first-attempt sandbox send and the expected
+unread Activity item; mark-one-read and in-app routing passed. The stale Feed
+bell issue described above was then fixed, compiled, installed, and physically
+reproduced with a second first-attempt sandbox send.

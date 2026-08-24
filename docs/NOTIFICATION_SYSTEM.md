@@ -18,12 +18,14 @@ The archived 0.5.3 (4) app is signed with `aps-environment=production`; source
 is currently 0.5.3 (5). Source build 5 now includes the badge-aware iOS v3
 lifecycle, signed sandbox Debug path, and production Release environment
 selection. It has passed a generic Debug app/test compile, deterministic tests,
-and a focused Simulator runtime gate. Physical acceptance remains a gate until
-recorded below.
+and a focused Simulator runtime gate. Physical acceptance is in progress and is
+recorded by layer below.
 
-No document may describe remote delivery as physically accepted yet. A real
-notification and tapped cold launch on a signed sandbox build and a TestFlight
-production build remain acceptance gates.
+One real sandbox background delivery has been accepted by APNs and reconciled
+into in-app Activity on signed hardware. Foreground alert presentation, a
+visually observed background alert and app-icon badge, a notification-tapped
+cold launch, and the complete TestFlight production matrix remain acceptance
+gates.
 
 ## Delivery flow
 
@@ -83,7 +85,7 @@ permission never removes in-app Activity.
 | Build | Bundle/topic | APNs host | Current status |
 | --- | --- | --- | --- |
 | Simulator | none | none | In-app Activity only; push unavailable by design |
-| Physical Debug | `co.mugshot.app.dev` | sandbox | Signed build/install/launch, authorization, active badge-capable v3 registration, opt-out removal, restoration, and terminated cold launch passed; real delivery/tap acceptance pending |
+| Physical Debug | `co.mugshot.app.dev` | sandbox | Signed build/install/launch, authorization, active badge-capable v3 registration, opt-out removal/restoration, terminated cold launch, first-attempt background APNs acceptance, unread Activity presentation, mark-one-read authority, and in-app destination routing passed; alert/icon-badge observation, foreground, terminated tap, category suppression, and sign-out remain |
 | Release/TestFlight | `co.mugshot.app` | production | Production entitlement and `MUGSHOT_PUSH_CAPABLE` source path implemented; physical delivery acceptance pending |
 
 The client models these values as `ActivityPushEnvironment.sandbox` and
@@ -201,8 +203,9 @@ Monitor delivery outcomes, retry volume, disabled devices, registration counts
 by environment, category opt-outs, and tester reports. Never monitor message
 content, push tokens, social identifiers, or deep-link identifiers.
 
-No signed-device or TestFlight v3 delivery evidence has been recorded yet. On
-2026-08-24, the iOS branch passed full-static verification 12/0/1; the only
+One signed-device sandbox v3 delivery has been recorded; no TestFlight v3
+delivery evidence has been recorded yet. On 2026-08-24, the iOS branch passed
+full-static verification 12/0/1; the only
 skip was the optional local `pglast` parser. Thirty-four focused
 Simulator-hosted tests passed: 12 coordinator lifecycle tests, 15 Activity and
 badge/signal tests, and 7 privacy-safe analytics tests. A normal Simulator
@@ -239,9 +242,22 @@ removed that device row without removing in-app Activity. Restoring it created
 one fresh active sandbox registration with every category restored true. A
 terminate-and-launch cycle restored the account and refreshed that registration.
 No token, account identifier, message, visit, or deep link was inspected. No
-synthetic production Activity was created, so real APNs receipt, taps, routes,
-and badges still await normal activity from a second account. The earlier
+synthetic production Activity was created. A later normal like from a second
+account created one unread event and one sandbox delivery; the minute worker
+completed it on the first attempt, and the signed iPhone displayed the unread
+item in Activity. Opening that item marked the authoritative unread count zero
+and routed to its available destination. The Feed bell retained its stale
+count until app activation even though the Activity row and backend were
+already read. `codex/activity-unread-badge-sync` makes Feed observe the shared
+Activity store directly. Full-static passed 12/0/1, and a second normal like
+produced another first-attempt sandbox send on the installed fix. Opening that
+item reduced the authoritative unread count to zero; the Activity marker and
+Feed bell then cleared immediately without relaunch. Foreground presentation,
+visually observed background alert/app-icon badge behavior, terminated
+notification tap, category suppression, sign-out, and TestFlight production
+acceptance remain. The earlier
 backend release replayed all 126 migrations to `20260824171405`, passed all 54
 remote SQL contracts, preserved protected product/content fingerprints, activated
 worker version 6, and recorded a scheduled protocol-v3 HTTP 200 with no pending
-work. Physical registration is accepted; delivery remains unaccepted.
+work. Physical registration and one background sandbox delivery are accepted;
+the full delivery matrix is not.

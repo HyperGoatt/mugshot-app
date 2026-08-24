@@ -20,8 +20,8 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Saved and cafe lists | Implemented, locally verified | Favorite/want-to-try, private lists, collaboration lifecycle | Multi-account TestFlight feedback |
 | Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
 | Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
-| In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state, durable deep links with source attribution, account-bound push refresh, authoritative badge updates; 15 focused tests and Simulator surface inspection passed | Signed-in physical lifecycle acceptance |
-| Remote push | V3 production-configured; client and sandbox registration physically verified; delivery acceptance pending | APNs worker v3, credentials, topics, queue, compatible v2/v3 backend, typed client environments, canonical minute job; signed Debug build/install/launch and active badge-capable sandbox registration passed; 12 coordinator tests passed | Complete real foreground/background/terminated delivery and the production device matrix |
+| In-app Activity | Implemented, locally verified, partially physically accepted | Events, unread count, pagination, read state, durable deep links with source attribution, account-bound push refresh, authoritative badge updates; real sandbox likes appeared unread, marked authoritatively read, and routed correctly. The direct-store fix cleared Activity and Feed immediately on signed hardware without relaunch | Complete the remaining signed notification lifecycle matrix |
+| Remote push | V3 production-configured; one sandbox background delivery physically accepted | APNs worker v3, credentials, topics, queue, compatible v2/v3 backend, typed client environments, canonical minute job; a normal like completed one sandbox send on the first attempt and appeared in signed-device Activity | Visually accept foreground/background alerts and app-icon badge, terminated notification tap, category suppression, sign-out, and the production device matrix |
 | Notification preferences | Implemented and physically verified for the master switch | Activity education and iOS authorization passed; master off removed the sandbox registration, restore recreated it, and in-app Activity remained available | Category opt-out plus delivery suppression evidence |
 | Widgets and share extension | Implemented, locally verified | App-group data, widgets, pending place import and share routes | Release regression gate when extension contracts change |
 | Public links | Implemented and production evidence recorded | Public Mugshot/profile/list routes and associated domains | Preserve audience/revocation guarantees |
@@ -33,6 +33,6 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 
 ## Notification sprint priority
 
-1. Trigger normal Activity from a second account and accept sandbox delivery.
-2. Complete foreground, background, terminated-tap, route, badge, and sign-out checks.
-3. Prepare the next TestFlight candidate; upload only with explicit approval.
+1. Complete foreground alert, background alert/icon badge, terminated-tap,
+   category suppression, and sign-out checks.
+2. Prepare the next TestFlight candidate; upload only with explicit approval.

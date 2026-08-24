@@ -8,6 +8,17 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Accepted the first real signed-device sandbox background delivery from a
+  normal second-account like: the minute worker completed one send on its first
+  attempt, Activity showed the unread item, the authoritative unread count
+  reached zero after opening it, and its in-app destination routed correctly.
+  The Feed bell stayed at `1` until activation, so
+  `codex/activity-unread-badge-sync` now makes Feed observe the shared Activity
+  store directly. Full-static passed 12/0/1, the signed build/install/launch
+  passed, and a second first-attempt sandbox send physically proved the
+  authoritative count, Activity marker, and Feed bell all clear immediately
+  without relaunch. Updated Current product status, Current sprint, Feature
+  status matrix, Notification system, Product roadmap, and TestFlight handoff.
 - Physically launched the signed sandbox Debug app and accepted notification
   permission through its just-in-time Activity education. The settings surface
   reported the iPhone registered, and a privacy-safe aggregate backend check

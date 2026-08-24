@@ -21,7 +21,7 @@ ownership, or the core sip journey.
 | Supabase badge and scheduler contracts | Completed and production-configured | PR #47; worker version 6, `push_badge_sync`, compatible v2/v3 RPCs, and exactly one Vault-backed minute schedule are live |
 | Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
-| Physical sandbox acceptance | Partial acceptance complete; real delivery pending | Signed build/install/launch, Activity education, iOS authorization, active badge-capable sandbox registration, preference-off removal, preference restoration, and terminated cold launch passed; a normal action from a second account is required for foreground/background/terminated delivery and routing |
+| Physical sandbox acceptance | Delivery/read path partially accepted; matrix in progress | Two normal second-account likes each produced a first-attempt sandbox send. The signed iPhone showed the unread items and routed them correctly; after the direct-store fix, mark-one-read cleared the authoritative count, Activity marker, and Feed bell immediately without relaunch. Foreground presentation, a visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out remain. |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |
 
 ## Feedback ledger
@@ -31,14 +31,14 @@ this file.
 
 | ID | Received | Build | Severity | Summary | Reproduction | Verification tier | Branch/PR | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | No feedback logged yet | — | — | — | Open |
+| IOS-001 | 2026-08-24 | 0.5.3 (5), signed Debug | P2 | Feed Activity bell stayed at `1` after marking the only unread item read inside the Activity sheet; relaunch reconciled it to zero | Receive one unread item, open Activity, open the item, return, and dismiss Activity | Tier 3 | `codex/activity-unread-badge-sync` | Resolved: full-static 12/0/1 and signed-device reproduction passed; Feed cleared immediately without relaunch |
 
 ## Current iOS acceptance matrix
 
 | Environment | Implemented source behavior | Remaining evidence |
 | --- | --- | --- |
 | Simulator | In-app Activity and nearby local authorization remain available; remote push reports signed-device unavailability | Build/install/launch and Activity surface passed; 34 focused lifecycle/Activity/analytics tests passed; authenticated live-session network acceptance remains part of later product regression testing |
-| Signed physical Debug | `co.mugshot.app.dev`, development entitlement, sandbox environment; build/install/launch, permission, v3 badge registration, opt-out/re-register, and terminated cold launch passed | Use normal second-account actions to verify foreground/background/terminated APNs delivery, routes, badges, then sign-out |
+| Signed physical Debug | `co.mugshot.app.dev`, development entitlement, sandbox environment; build/install/launch, permission, v3 badge registration, opt-out/re-register, terminated cold launch, two first-attempt sandbox sends, unread Activity presentation, in-app routing, mark-one-read authority, and immediate Activity/Feed badge clearing passed | Verify foreground alert, visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out |
 | TestFlight | `co.mugshot.app`, production entitlement/environment, v3 badge registration | Explicitly authorized upload of an accepted candidate, processing, production matrix |
 
 Severity definitions:
