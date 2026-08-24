@@ -36,6 +36,12 @@ last_verified: 2026-08-24
   Activity; fresh and processing work is preserved. Full-static passed 13/0/0
   across 184 SQL files, and the disposable branch reached migration 126 with
   all 54 remote contracts green.
+- Released migrations `20260824162710` through `20260824171405` and worker
+  version 6 to production. Local/live history aligned at 126 migrations; the
+  v3 capability and grants are live; protected users, visits, Activity events,
+  preferences, Home data, and Storage fingerprints were unchanged. Exactly one
+  Vault-backed minute job returned protocol-v3 HTTP 200 with zero claims after
+  the 69 stale attempts were expired. The disposable QA branch was deleted.
 - Verified the notification backend branch with the backend gate (12 passed,
   zero failed) and full-static gate (13 passed, zero failed), including local
   parsing of all 183 SQL files.

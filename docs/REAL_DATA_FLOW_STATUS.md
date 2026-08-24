@@ -42,9 +42,10 @@ capability read remains the next implementation stage.
 The repository migration head is
 `20260824171405_expire_pre_schedule_activity_backlog.sql`. The complete head
 passed a data-less disposable replay, all 54 remote SQL contracts, and focused
-hermetic cutover coverage. This evidence does not prove live deployment.
-Database migration, Edge Function deployment, and client capability adoption
-follow the order in
+hermetic cutover coverage. Local and live histories are aligned at all 126
+migrations, worker version 6 and the minute schedule are active, and the
+additive `push_badge_sync` capability is live. Client capability adoption
+follows the order in
 [the Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).
 
 ## Non-negotiable invariants

@@ -17,8 +17,9 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260824171405_expire_pre_schedule_activity_backlog.sql`. Repository head and live
-deployment state are separate facts; the live project reference is recorded in
+`20260824171405_expire_pre_schedule_activity_backlog.sql`. Repository head and
+live history are aligned at all 126 migrations as of 2026-08-24. The live
+project reference is recorded in
 the existing Supabase link and QA scripts refuse that production reference.
 
 ## Non-negotiable invariants
@@ -109,15 +110,12 @@ the client UI.
 
 ## Current external gates
 
-- **APNs:** the worker, team-scoped key, and both topics are configured on the
-  v2 production path. Live inventory found the Activity schedule absent.
-  Badge-aware v3 contracts, the canonical Vault-backed schedule, and the stale
-  backlog cutover guard passed their pre-live gates and still require live
-  release. Real sandbox and TestFlight delivery/tap acceptance remains.
-- **Home Workbench:** three repository migrations dated 2026-08-23/24 require
-  the live snapshot, dry-run, deployment, and drift closure sequence before
-  production reliance; the disposable-branch contract gate passed on
-  2026-08-24.
+- **APNs:** worker version 6, the team-scoped key, both topics, badge-aware v3
+  contracts, a dedicated cron credential, and exactly one Vault-backed minute
+  schedule are live. Real sandbox and TestFlight delivery/tap acceptance
+  remains.
+- **Home Workbench:** the three repository migrations dated 2026-08-23/24 are
+  live and were covered by the 2026-08-24 protected-data fingerprint closure.
 - **TestFlight:** client upload and tester assignment remain manual gates after
   Simulator and connected-device acceptance.
 - **Auth and destructive flows:** provider, password-defense, and account-
