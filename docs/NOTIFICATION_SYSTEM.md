@@ -83,7 +83,7 @@ permission never removes in-app Activity.
 | Build | Bundle/topic | APNs host | Current status |
 | --- | --- | --- | --- |
 | Simulator | none | none | In-app Activity only; push unavailable by design |
-| Physical Debug | `co.mugshot.app.dev` | sandbox | Development entitlement and `MUGSHOT_PUSH_SANDBOX` source path implemented; Push Notifications is enabled for the App ID; replacement development profile is staged but not generated/downloaded/installed |
+| Physical Debug | `co.mugshot.app.dev` | sandbox | Development entitlement and `MUGSHOT_PUSH_SANDBOX` source path implemented; `Mugshot Debug Push Development` is active with Push Notifications but is not yet downloaded or installed locally |
 | Release/TestFlight | `co.mugshot.app` | production | Production entitlement and `MUGSHOT_PUSH_CAPABLE` source path implemented; physical delivery acceptance pending |
 
 The client models these values as `ActivityPushEnvironment.sandbox` and
@@ -218,9 +218,13 @@ current development profile lacks the Push Notifications capability and
 `aps-environment`. No entitlement was removed or bypassed. Push Notifications
 was subsequently enabled for the Debug App ID without creating legacy SSL
 certificates because Mugshot uses token-based APNs authentication. The
-replacement profile is staged with the existing development certificate and
-registered iPhone but is not yet generated or installed. The earlier backend
-release replayed all 126 migrations to `20260824171405`, passed all 54 remote
+replacement profile was generated with the existing development certificate
+and registered iPhone on 2026-08-24. Apple reports it active through 2027-08-24
+with App Groups, In-App Purchase, and Push Notifications. The controlled
+browser could not persist the downloaded file to the Mac, and Xcode
+command-line automatic retrieval failed because no Apple account is configured
+in Xcode. The stale local profile therefore remains installed. The earlier
+backend release replayed all 126 migrations to `20260824171405`, passed all 54 remote
 SQL contracts, preserved protected product/content fingerprints, activated
 worker version 6, and recorded a scheduled protocol-v3 HTTP 200 with no pending
 work. Physical delivery remains unaccepted.

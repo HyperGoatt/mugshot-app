@@ -8,7 +8,7 @@ last_verified: 2026-08-24
 
 ## Now: real notifications and TestFlight learning
 
-- Generate and install the staged Debug development profile, then finish
+- Download and install the active Debug development profile, then finish
   signed-device acceptance for the implemented
   `push_badge_sync` capability adoption and hardened coordinator.
 - Physically accept sandbox and production APNs across foreground, background,
