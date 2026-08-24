@@ -65,9 +65,12 @@ entitlement file, and sandbox compilation condition, then stopped because the
 installed development profile did not include `aps-environment`. Push
 Notifications is now enabled for the Debug App ID. A replacement development
 profile using the existing certificate and registered iPhone is active in the
-Apple Developer portal and includes Push Notifications. It has not yet been
-downloaded or installed locally; Xcode command-line automatic retrieval is
-unavailable because no Apple account is configured in Xcode.
+Apple Developer portal and includes Push Notifications. The profile is now
+downloaded and installed locally. Physical Debug uses that named profile only
+for `iphoneos`; Simulator signing remains automatic. A signed device build
+succeeded with `aps-environment=development`, and the app installed on Joe's
+iPhone. Runtime launch and notification acceptance remain pending because the
+first remote launch attempt found the device locked.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.
@@ -79,8 +82,8 @@ remaining acceptance matrix.
 
 - Physical sandbox and production notification delivery, cold launch, deep
   links, and account lifecycle still require signed-device acceptance. The
-  sandbox gate first requires download and installation of the active Debug
-  development profile.
+  sandbox build and install gate has passed; runtime launch and the delivery
+  matrix remain.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
@@ -102,4 +105,6 @@ The iOS lifecycle branch subsequently passed full-static 12/0/1 (optional
 build/install/launch with Activity-surface inspection. The connected-iPhone
 build reached provisioning and failed closed on its stale development profile;
 the App ID capability is enabled and a replacement profile was generated on
-2026-08-24, but local download and installation remain pending.
+2026-08-24. After local installation and an `iphoneos`-only named-profile
+selection, the signed device build and app installation passed. The first
+remote launch was denied only because the iPhone was locked.
