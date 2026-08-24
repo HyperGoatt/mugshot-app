@@ -13,7 +13,9 @@ TestFlight. `main` includes the Home Workbench/documentation baseline from PR
 #46, notification backend v3 from PR #47, and the safe schedule cutover from PR
 #48, production release evidence from PR #49, the hardened iOS notification
 lifecycle from PR #50, and physical registration evidence through PR #55.
-Source remains version 0.5.3 build 5; the most recent
+PR #56 fixed immediate Feed/Activity unread propagation, and PR #57 contains
+the Feed/Map feedback fixes described below. Source remains version 0.5.3 build
+5; the most recent
 archived distributed candidate is 0.5.3 (4).
 
 The Home Workbench and notification backend migrations are live through
@@ -35,6 +37,9 @@ fingerprint evidence closed on 2026-08-24.
   lists, public share links, and privacy-aware projections.
 - Map, saved cafe state, discovery, cafe detail, Taste Passport, reflection,
   widgets, share extension, universal links, and nearby cafe reminders.
+- Feed keeps the Your Mix header to two lines with a compact first-card gap,
+  and Map prevents its broad launch fallback from overwriting an
+  already-authorized user's first current-location camera request.
 - In-app Activity with unread count, pagination, read actions, notification
   category preferences, and account-bound deep links.
 - Caller-bound APNs registration and a durable Supabase delivery worker with
@@ -136,3 +141,8 @@ like subsequently produced a first-attempt sandbox send and the expected
 unread Activity item; mark-one-read and in-app routing passed. The stale Feed
 bell issue described above was then fixed, compiled, installed, and physically
 reproduced with a second first-attempt sandbox send.
+
+The Feed/Map feedback change passed full-static 12/0/1 on 2026-08-24. Its two
+focused camera-arbitration tests compile in the Simulator-hosted app test
+bundle; runtime execution and a signed-device authorized-location launch remain
+queued for the next consolidated acceptance pass.

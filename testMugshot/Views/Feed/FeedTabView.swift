@@ -113,7 +113,7 @@ struct FeedTabView: View {
     private var feedSubtitle: String {
         switch selectedScope {
         case .ranked:
-            return "Friends, flavors, and cafes matched to you"
+            return "Friends, flavors, and\ncafes matched to you"
         case .friends:
             return "Sips from friends"
         case .everyone:
@@ -124,7 +124,12 @@ struct FeedTabView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                MugshotScreenHeader("Feed", subtitle: feedSubtitle) {
+                MugshotScreenHeader(
+                    "Feed",
+                    subtitle: feedSubtitle,
+                    subtitleLineLimit: 2,
+                    subtitleMinimumScaleFactor: 0.86
+                ) {
                     HStack(spacing: 8) {
                         ActivityBellButton(unreadCount: activityStore.unreadCount) {
                             onActivityRequested?()
@@ -167,7 +172,7 @@ struct FeedTabView: View {
                     icon: { scopeIcon(for: $0) }
                 )
                 .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+                .padding(.bottom, 4)
 
                 if selectedScope == .ranked && !hasDismissedYourMixEducation {
                     HStack(alignment: .top, spacing: 10) {
@@ -210,7 +215,7 @@ struct FeedTabView: View {
                         feedContent
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
                     .padding(.bottom, 116)
                 }
                 .coordinateSpace(name: "feed.refresh")

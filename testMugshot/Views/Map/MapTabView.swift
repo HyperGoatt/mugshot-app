@@ -1697,8 +1697,12 @@ struct MapViewRepresentable: UIViewRepresentable {
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
-        mapView.delegate = context.coordinator
+
+        // Seed the initial camera before attaching the delegate. Otherwise
+        // MapKit reports the broad fallback as an in-flight camera change and
+        // can overwrite the first current-location region that SwiftUI sends.
         mapView.region = region
+        mapView.delegate = context.coordinator
         mapView.accessibilityIdentifier = "map.surface"
 
         if MugshotLaunchEnvironment.isUITesting {
@@ -1744,14 +1748,26 @@ struct MapViewRepresentable: UIViewRepresentable {
             mapView.setUserTrackingMode(trackingMode, animated: true)
         }
 
-        // Update region if needed. Include span so cluster taps and external
-        // camera changes can zoom without fighting MapKit's delegate updates.
-        if !context.coordinator.isCameraChanging,
-           abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
-           abs(mapView.region.center.longitude - region.center.longitude) > 0.001 ||
-           abs(mapView.region.span.latitudeDelta - region.span.latitudeDelta) > 0.001 ||
-           abs(mapView.region.span.longitudeDelta - region.span.longitudeDelta) > 0.001 {
-            mapView.setRegion(region, animated: true)
+        // Update region if needed. If MapKit is still settling an older camera
+        // change, retain the newest SwiftUI request and apply it immediately
+        // afterward instead of allowing the stale delegate callback to win.
+        let needsRegionUpdate =
+            abs(mapView.region.center.latitude - region.center.latitude) > 0.001 ||
+            abs(mapView.region.center.longitude - region.center.longitude) > 0.001 ||
+            abs(mapView.region.span.latitudeDelta - region.span.latitudeDelta) > 0.001 ||
+            abs(mapView.region.span.longitudeDelta - region.span.longitudeDelta) > 0.001
+        if needsRegionUpdate {
+            if context.coordinator.isCameraChanging {
+                if MapCameraReconciliationPolicy.shouldQueueExternalRegion(
+                    cameraIsChanging: true,
+                    cameraSourceRegion: context.coordinator.cameraSourceRegion,
+                    requestedRegion: region
+                ) {
+                    context.coordinator.queuedExternalRegion = region
+                }
+            } else {
+                mapView.setRegion(region, animated: true)
+            }
         }
 
         let dataChanged = context.coordinator.lastDisplayedCafes != displayedCafes
@@ -1791,6 +1807,8 @@ struct MapViewRepresentable: UIViewRepresentable {
         var displayMode: AdaptiveMapDisplayMode = .cafes
         var cafeClusteringEnabled = false
         var isCameraChanging = false
+        var queuedExternalRegion: MKCoordinateRegion?
+        var cameraSourceRegion: MKCoordinateRegion?
         private var cameraChangeWasUserInitiated = false
         private var cameraSettledWorkItem: DispatchWorkItem?
 
@@ -2433,6 +2451,7 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
             isCameraChanging = true
+            cameraSourceRegion = parent.region
             var isUserInitiated = false
             for view in mapView.subviews {
                 for gesture in view.gestureRecognizers ?? []
@@ -2454,6 +2473,15 @@ struct MapViewRepresentable: UIViewRepresentable {
             let workItem = DispatchWorkItem { [weak self, weak mapView] in
                 guard let self, let mapView else { return }
                 self.isCameraChanging = false
+
+                if let queuedRegion = self.queuedExternalRegion {
+                    self.queuedExternalRegion = nil
+                    self.cameraSourceRegion = nil
+                    mapView.setRegion(queuedRegion, animated: true)
+                    return
+                }
+
+                self.cameraSourceRegion = nil
                 self.reconcileAnnotations(in: mapView)
                 guard abs(self.parent.region.center.latitude - updatedRegion.center.latitude) > 0.000_001
                         || abs(self.parent.region.center.longitude - updatedRegion.center.longitude) > 0.000_001

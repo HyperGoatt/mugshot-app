@@ -61,3 +61,25 @@ enum MapInitialCameraPolicy {
         )
     }
 }
+
+enum MapCameraReconciliationPolicy {
+    static func shouldQueueExternalRegion(
+        cameraIsChanging: Bool,
+        cameraSourceRegion: MKCoordinateRegion?,
+        requestedRegion: MKCoordinateRegion
+    ) -> Bool {
+        guard cameraIsChanging, let cameraSourceRegion else { return false }
+        return !regionsMatch(cameraSourceRegion, requestedRegion)
+    }
+
+    private static func regionsMatch(
+        _ lhs: MKCoordinateRegion,
+        _ rhs: MKCoordinateRegion,
+        tolerance: CLLocationDegrees = 0.000_001
+    ) -> Bool {
+        abs(lhs.center.latitude - rhs.center.latitude) <= tolerance
+            && abs(lhs.center.longitude - rhs.center.longitude) <= tolerance
+            && abs(lhs.span.latitudeDelta - rhs.span.latitudeDelta) <= tolerance
+            && abs(lhs.span.longitudeDelta - rhs.span.longitudeDelta) <= tolerance
+    }
+}

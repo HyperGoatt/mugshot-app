@@ -8,6 +8,16 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Implemented TestFlight-feedback polish for Feed and Map on
+  `codex/feed-map-launch-polish`. Feed now keeps the Your Mix subtitle to two
+  lines and reduces the scope-control-to-first-post gap from 18 to 8 points.
+  Map camera reconciliation now preserves a current-location request that
+  arrives while its broad launch fallback is still settling, so authorized
+  launches center without requiring the location button. Added focused camera
+  arbitration coverage. Full-static passed 12/0/1; the focused tests compiled
+  in the Simulator-hosted app test bundle and remain queued with signed-device
+  launch acceptance for the next consolidated runtime pass. Updated Current
+  product status and Current sprint. Published as PR #57.
 - Accepted the first real signed-device sandbox background delivery from a
   normal second-account like: the minute worker completed one send on its first
   attempt, Activity showed the unread item, the authoritative unread count
