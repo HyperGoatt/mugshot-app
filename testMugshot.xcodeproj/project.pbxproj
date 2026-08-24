@@ -607,6 +607,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = co.mugshot.app.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]" = "$(inherited) MUGSHOT_PUSH_SANDBOX";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

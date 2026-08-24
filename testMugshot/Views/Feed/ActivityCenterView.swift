@@ -45,6 +45,7 @@ struct ActivityCenterView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var path: [ActivityDeepLinkDestination] = []
+    @State private var routeSource: ActivityOpenSource = .activityBell
     @State private var dismissedPushEducation = false
 
     var body: some View {
@@ -206,7 +207,11 @@ struct ActivityCenterView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 Button("Enable") {
-                    Task { _ = await notificationCoordinator.requestAuthorization() }
+                    Task {
+                        _ = await notificationCoordinator.requestAuthorization(
+                            source: .activityCenter
+                        )
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.mugshotSage)
@@ -233,6 +238,10 @@ struct ActivityCenterView: View {
     private func open(_ event: MugshotActivityEvent) {
         Task { await store.markRead(event) }
         guard let destination = event.destination, destination != .center else { return }
+        routeSource = .activityBell
+        MugshotAnalytics.shared.capture(
+            .activityRouteResult(.accepted, source: .activityBell)
+        )
         path.append(destination)
     }
 
@@ -243,6 +252,7 @@ struct ActivityCenterView: View {
             router.consume(route, accountID: accountID)
             return
         }
+        routeSource = route.source ?? .deepLink
         path = [route.destination]
         // The route stays durable until NavigationStack has accepted the path.
         DispatchQueue.main.async {
@@ -260,6 +270,7 @@ struct ActivityCenterView: View {
             ActivityVisitDestination(
                 visitID: visitID,
                 currentUserID: accountID,
+                routeSource: routeSource,
                 dataManager: dataManager
             )
         case .profile(let profileID):
@@ -375,6 +386,7 @@ private struct ActivityEventRow: View {
 private struct ActivityVisitDestination: View {
     let visitID: UUID
     let currentUserID: UUID
+    let routeSource: ActivityOpenSource
     @ObservedObject var dataManager: DataManager
 
     @State private var summary: RemoteVisitSummary?
@@ -432,6 +444,9 @@ private struct ActivityVisitDestination: View {
             guard currentUserID == expectedAccountID else { return }
             summary = nil
             errorMessage = "Mugshot couldn’t open this post. It may no longer be visible to you."
+            MugshotAnalytics.shared.capture(
+                .activityRouteResult(.unavailableDestination, source: routeSource)
+            )
         }
         if currentUserID == expectedAccountID {
             isLoading = false

@@ -11,8 +11,8 @@ last_verified: 2026-08-24
 Mugshot is a native SwiftUI social coffee journal distributed through
 TestFlight. `main` includes the Home Workbench/documentation baseline from PR
 #46, notification backend v3 from PR #47, and the safe schedule cutover from PR
-#48. Source remains version 0.5.3 build 5; the most recent archived distributed
-candidate is 0.5.3 (4).
+#48, with production release evidence from PR #49. Source remains version 0.5.3
+build 5; the most recent archived distributed candidate is 0.5.3 (4).
 
 The Home Workbench and notification backend migrations are live through
 `20260824171405`. Local, disposable-QA, live drift, and protected-data
@@ -37,6 +37,10 @@ fingerprint evidence closed on 2026-08-24.
   category preferences, and account-bound deep links.
 - Caller-bound APNs registration and a durable Supabase delivery worker with
   production credentials and one Vault-backed minute schedule.
+- Source build 5 notification lifecycle with typed sandbox/production
+  environments, capability-gated v3 registration, shared local/remote
+  authorization, account-bound foreground/tap refresh, authoritative badges,
+  and privacy-safe notification analytics.
 
 ## Data authority
 
@@ -54,10 +58,14 @@ No local sample, cache, or fallback count may be presented as remote truth.
 The notification backend is implemented and production-configured, but remote
 delivery is not physically accepted. The Release/TestFlight app carries the
 production APNs entitlement and the backend worker has both Apple topics.
-Physical Debug currently lacks its sandbox entitlement and lifecycle hardening;
-those are active sprint work. Badge-aware v3 registration, final unread-count
-revalidation, worker payloads, and canonical scheduling are live. In-app
-Activity remains available regardless of push state.
+The Physical Debug sandbox entitlement and lifecycle hardening are implemented
+on `codex/notification-ios-lifecycle`. A connected-iPhone build confirmed the
+Debug bundle, entitlement file, and sandbox compilation condition, then stopped
+because the Apple Developer App ID/profile does not yet include Push
+Notifications or `aps-environment`.
+Badge-aware v3 registration, final unread-count revalidation, worker payloads,
+canonical scheduling, capability gating, and badge convergence are implemented.
+In-app Activity remains available regardless of push state.
 
 See [Notification system](NOTIFICATION_SYSTEM.md) for the precise contract and
 remaining acceptance matrix.
@@ -65,7 +73,8 @@ remaining acceptance matrix.
 ## Current risks and gates
 
 - Physical sandbox and production notification delivery, cold launch, deep
-  links, and account lifecycle still require signed-device acceptance.
+  links, and account lifecycle still require signed-device acceptance. The
+  sandbox gate first requires the Debug App ID capability/profile update.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
@@ -82,3 +91,8 @@ the counts and whole-row fingerprints of users, visits, Activity events,
 notification preferences, Home data, and Storage objects, and recorded a
 scheduled protocol-v3 200 response with zero claims. This proves production
 configuration, not physical notification delivery or TestFlight acceptance.
+The iOS lifecycle branch subsequently passed full-static 12/0/1 (optional
+`pglast` skipped), 34 focused Simulator-hosted tests, and a Simulator
+build/install/launch with Activity-surface inspection. The connected-iPhone
+build reached provisioning and failed closed on the missing Debug App ID push
+capability.

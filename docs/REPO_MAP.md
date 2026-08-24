@@ -63,14 +63,18 @@ See [Real data flow status](REAL_DATA_FLOW_STATUS.md) for the authority matrix.
 
 ## Notification entry points
 
-`NotificationDeviceCoordinator` owns iOS authorization and device RPCs;
-`MugshotNotificationAppDelegate` owns APNs callbacks and presentation;
-`ActivityService` and `ActivityCenterStore` own Activity data; and
+`NotificationDeviceCoordinator` owns shared iOS authorization, capability
+gating, typed environment selection, and device reconciliation;
+`ActivityNotificationInterfaces` provides injectable authorization,
+UIApplication, device-service, client-factory, badge, and account-bound refresh
+boundaries; `MugshotNotificationAppDelegate` owns APNs callbacks and
+presentation; `ActivityService` and `ActivityCenterStore` own Activity data and
+authoritative badge convergence; and
 `supabase/functions/deliver-activity` owns APNs transport and the additive
 badge payload. V2/v3 device RPCs preserve client compatibility, while the
 canonical Vault-backed `pg_cron` job owns one-minute worker invocation. Local
-nearby cafe notifications share `UNUserNotificationCenter` but use a separate
-route envelope.
+nearby cafe notifications share the authorization coordinator but use a
+separate local route envelope.
 
 ## Verification
 

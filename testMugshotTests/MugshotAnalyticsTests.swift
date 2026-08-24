@@ -34,6 +34,46 @@ struct MugshotAnalyticsTests {
         #expect(payload.properties == ["action": .string("scan_succeeded")])
     }
 
+    @Test func notificationAnalyticsUsesOnlyCoarseAllowlistedProperties() {
+        let payloads = [
+            MugshotAnalyticsEvent.notificationEducationViewed(
+                source: .activityCenter
+            ).payload,
+            MugshotAnalyticsEvent.notificationPermissionResult(
+                .provisional,
+                source: .notificationSettings
+            ).payload,
+            MugshotAnalyticsEvent.notificationRegistrationResult(
+                .registered,
+                environment: .production
+            ).payload,
+            MugshotAnalyticsEvent.notificationPreferenceChanged(
+                .friendPosts,
+                enabled: false
+            ).payload,
+            MugshotAnalyticsEvent.activityOpened(source: .pushTap).payload,
+            MugshotAnalyticsEvent.activityRouteResult(
+                .accountRejected,
+                source: .pushTap
+            ).payload
+        ]
+
+        #expect(payloads.map(\.event) == [
+            "notification_education_viewed",
+            "notification_permission_result",
+            "notification_registration_result",
+            "notification_preference_changed",
+            "activity_opened",
+            "activity_route_result"
+        ])
+        let forbiddenKeys = [
+            "push_token", "actor_id", "visit_id", "message", "deep_link"
+        ]
+        #expect(payloads.allSatisfy { payload in
+            forbiddenKeys.allSatisfy { !payload.properties.keys.contains($0) }
+        })
+    }
+
     @Test func configurationRejectsMissingOrUnresolvedValues() {
         #expect(MugshotAnalyticsConfiguration(infoDictionary: [:]) == nil)
         #expect(MugshotAnalyticsConfiguration(infoDictionary: [

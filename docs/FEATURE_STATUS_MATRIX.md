@@ -20,19 +20,19 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Saved and cafe lists | Implemented, locally verified | Favorite/want-to-try, private lists, collaboration lifecycle | Multi-account TestFlight feedback |
 | Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
 | Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
-| In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state and deep links | Foreground push refresh and badge convergence hardening |
-| Remote push | V3 production-configured; physical acceptance pending | APNs worker v3, credentials, topics, queue, compatible v2/v3 device and delivery RPCs, opt-in badge payload, canonical minute job | Sandbox/production device lifecycle matrix |
-| Notification preferences | Implemented, locally verified | Master and category controls; Activity always available | Correct stale capability copy and add analytics |
+| In-app Activity | Implemented, locally verified | Events, unread count, pagination, read state, durable deep links with source attribution, account-bound push refresh, authoritative badge updates; 15 focused tests and Simulator surface inspection passed | Signed-in physical lifecycle acceptance |
+| Remote push | V3 production-configured; client locally verified; physical acceptance pending | APNs worker v3, credentials, topics, queue, compatible v2/v3 backend, typed client environments, capability-gated v3 registration, canonical minute job; 12 coordinator tests passed | Enable Debug App ID push capability/profile, then complete sandbox/production device matrix |
+| Notification preferences | Implemented, locally verified | Master/category controls, shared iOS authorization reconciliation, truthful build/backend/device messaging; Activity always available | Physical permission acceptance |
 | Widgets and share extension | Implemented, locally verified | App-group data, widgets, pending place import and share routes | Release regression gate when extension contracts change |
 | Public links | Implemented and production evidence recorded | Public Mugshot/profile/list routes and associated domains | Preserve audience/revocation guarantees |
-| Nearby cafe reminders | Implemented, device-sensitive | Local notifications and region monitoring | Unify authorization reconciliation with push |
+| Nearby cafe reminders | Implemented, device-sensitive | Local notifications, region monitoring, and shared notification authorization reconciliation | Physical regression pass |
 | Account export/deletion | Implemented with production backend gates | Export manifest, step-up deletion and scheduled cleanup | Follow destructive-flow acceptance policy |
-| Analytics | Implemented for core journeys | Pinned PostHog SDK and privacy-safe event taxonomy | Add notification lifecycle events without identifiers/content |
+| Analytics | Implemented for core journeys and notification lifecycle | Pinned PostHog SDK; coarse education, permission, registration, preference, Activity-open and route events with no token/content identifiers | Monitor opt-outs, failures, and tester noise after distribution |
 | Documentation | Living baseline merged | PR #46; canonical index, change log, policy and automated checks | Keep current in every PR |
 | TestFlight | Active distribution | 0.5.3 distributed; source build 5 | Explicit upload request and candidate device gates |
 
 ## Notification sprint priority
 
-1. Enable physical Debug sandbox push and harden the coordinator.
-2. Complete physical sandbox acceptance.
+1. Enable Push Notifications for the Debug App ID and regenerate its development profile.
+2. Complete physical Debug sandbox acceptance.
 3. Prepare the next TestFlight candidate; upload only with explicit approval.

@@ -74,34 +74,32 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     }
 
     func requestEnable(cafes: [Cafe]) async -> Bool {
-        do {
-            let allowed = try await center.requestAuthorization(options: [.alert, .sound])
-            guard allowed else { return false }
-            latestCafes = cafes
-            isEnabled = true
-            defaults.set(true, forKey: Self.enabledKey)
-            pendingAlwaysRequest = true
-            switch manager.authorizationStatus {
-            case .notDetermined:
-                manager.requestWhenInUseAuthorization()
-            case .authorizedWhenInUse:
-                pendingAlwaysRequest = false
-                manager.requestAlwaysAuthorization()
-            case .authorizedAlways:
-                pendingAlwaysRequest = false
-                configure(cafes: cafes)
-            case .denied, .restricted:
-                pendingAlwaysRequest = false
-                isEnabled = false
-                defaults.set(false, forKey: Self.enabledKey)
-                return false
-            @unknown default:
-                return false
-            }
-            return true
-        } catch {
+        let allowed = await NotificationDeviceCoordinator.shared.requestAuthorization(
+            source: .nearbyReminder
+        )
+        guard allowed else { return false }
+        latestCafes = cafes
+        isEnabled = true
+        defaults.set(true, forKey: Self.enabledKey)
+        pendingAlwaysRequest = true
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse:
+            pendingAlwaysRequest = false
+            manager.requestAlwaysAuthorization()
+        case .authorizedAlways:
+            pendingAlwaysRequest = false
+            configure(cafes: cafes)
+        case .denied, .restricted:
+            pendingAlwaysRequest = false
+            isEnabled = false
+            defaults.set(false, forKey: Self.enabledKey)
+            return false
+        @unknown default:
             return false
         }
+        return true
     }
 
     func setEnabled(_ enabled: Bool, cafes: [Cafe]) {
