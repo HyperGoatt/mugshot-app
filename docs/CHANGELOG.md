@@ -18,8 +18,11 @@ last_verified: 2026-08-24
   optional `pglast` parser skipped; 34 focused Simulator-hosted tests and a
   Simulator build/install/launch with Activity-surface inspection passed. A
   connected-iPhone build verified the Debug bundle/entitlement/environment
-  selection and then failed closed because the Apple App ID/profile lacks Push
-  Notifications and `aps-environment`; physical delivery remains pending.
+  selection and then failed closed because the installed development profile
+  lacked `aps-environment`. Push Notifications was then enabled for the Debug
+  App ID without creating redundant SSL certificates; generation and
+  installation of the replacement development profile remain pending, so
+  physical delivery is not accepted.
   Updated Notification system, Current sprint, Current product status, Feature
   status matrix, Real data flow status, Repository map, Product roadmap,
   PostHog analytics plan, and TestFlight handoff. Published and merged the

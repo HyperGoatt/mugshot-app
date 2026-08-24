@@ -62,8 +62,10 @@ production APNs entitlement and the backend worker has both Apple topics.
 The Physical Debug sandbox entitlement and lifecycle hardening are implemented
 on `main` through PR #50. A connected-iPhone build confirmed the Debug bundle,
 entitlement file, and sandbox compilation condition, then stopped because the
-Apple Developer App ID/profile does not yet include Push Notifications or
-`aps-environment`.
+installed development profile did not include `aps-environment`. Push
+Notifications is now enabled for the Debug App ID. A replacement development
+profile using the existing certificate and registered iPhone is staged but has
+not yet been generated, downloaded, or installed.
 Badge-aware v3 registration, final unread-count revalidation, worker payloads,
 canonical scheduling, capability gating, and badge convergence are implemented.
 In-app Activity remains available regardless of push state.
@@ -75,7 +77,8 @@ remaining acceptance matrix.
 
 - Physical sandbox and production notification delivery, cold launch, deep
   links, and account lifecycle still require signed-device acceptance. The
-  sandbox gate first requires the Debug App ID capability/profile update.
+  sandbox gate first requires generation and installation of the staged Debug
+  development profile.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
@@ -95,5 +98,6 @@ configuration, not physical notification delivery or TestFlight acceptance.
 The iOS lifecycle branch subsequently passed full-static 12/0/1 (optional
 `pglast` skipped), 34 focused Simulator-hosted tests, and a Simulator
 build/install/launch with Activity-surface inspection. The connected-iPhone
-build reached provisioning and failed closed on the missing Debug App ID push
-capability.
+build reached provisioning and failed closed on its stale development profile;
+the App ID capability is now enabled and replacement profile generation remains
+pending.
