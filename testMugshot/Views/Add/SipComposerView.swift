@@ -316,7 +316,8 @@ struct LogVisitView: View {
                 SipPhotoOrganizer(
                     images: $photoImages,
                     posterPhotoIndex: $composerModel.draft.posterPhotoIndex,
-                    localPhotoNames: $composerModel.draft.localPhotoNames
+                    localPhotoNames: $composerModel.draft.localPhotoNames,
+                    onRemovePhoto: removePhoto
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -507,6 +508,7 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onAddPhoto: { showPhotoSourceDialog = true },
+            onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,
             onChooseCafe: {
                 initializeLocationIfAvailable()
@@ -4171,8 +4173,12 @@ struct LogVisitView: View {
             isOwner: true,
             isRemote: isRemote,
             displayName: dataManager.appData.currentUser?.displayNameOrUsername ?? "You",
+            authorUsername: dataManager.appData.currentUser?.username,
             drinkName: completedDraft.drinkName,
             contextName: contextName,
+            locationDetail: completedDraft.context == .cafe
+                ? MugshotPostLocationLine.locality(from: completedDraft.cafe?.address)
+                : nil,
             createdAt: completedDraft.createdAt,
             sipScore: sipScore,
             contextScore: contextScore,
@@ -4514,18 +4520,16 @@ struct LogVisitView: View {
         let previousImages = photoImages
         let previousLocalNames = draft.localPhotoNames
         let previousPosterPhotoIndex = draft.posterPhotoIndex
-        let removedPoster = draft.posterPhotoIndex == index
+        let repairedPosterPhotoIndex = SipPhotoDeletionPolicy.repairedCoverIndex(
+            removing: index,
+            currentCoverIndex: draft.posterPhotoIndex,
+            photoCountBeforeRemoval: photoImages.count
+        )
         photoImages.remove(at: index)
         if draft.localPhotoNames.indices.contains(index) {
             draft.localPhotoNames.remove(at: index)
         }
-        if removedPoster {
-            draft.posterPhotoIndex = min(index, max(photoImages.count - 1, 0))
-        } else if index < draft.posterPhotoIndex {
-            draft.posterPhotoIndex -= 1
-        } else {
-            draft.posterPhotoIndex = min(draft.posterPhotoIndex, max(photoImages.count - 1, 0))
-        }
+        draft.posterPhotoIndex = repairedPosterPhotoIndex
         guard commitPendingPhotoPlanIfNeeded() else {
             photoImages = previousImages
             draft.localPhotoNames = previousLocalNames
@@ -4899,6 +4903,7 @@ private struct SipPhotoOrganizer: View {
     @Binding var images: [UIImage]
     @Binding var posterPhotoIndex: Int
     @Binding var localPhotoNames: [String]
+    let onRemovePhoto: (Int) -> Void
     @Environment(\.dismiss) private var dismiss
 
     private var safePosterIndex: Int {
@@ -4956,16 +4961,28 @@ private struct SipPhotoOrganizer: View {
 
                             Spacer()
 
-                            Button {
-                                posterPhotoIndex = index
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                Image(systemName: index == safePosterIndex ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 22, weight: .semibold))
-                                    .foregroundColor(.mugshotSage)
+                            HStack(spacing: 8) {
+                                Button {
+                                    posterPhotoIndex = index
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    Image(systemName: index == safePosterIndex ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundColor(.mugshotSage)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(index == safePosterIndex ? "Current cover photo" : "Make photo \(index + 1) the cover")
+
+                                Button(role: .destructive) {
+                                    onRemovePhoto(index)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .frame(width: 36, height: 36)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove photo \(index + 1)")
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(index == safePosterIndex ? "Current cover photo" : "Make photo \(index + 1) the cover")
                         }
                         .padding(.vertical, 4)
                     }

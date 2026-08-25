@@ -149,8 +149,9 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                             .padding(-8.5)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isPinned ? "Unpin \(title)" : "Pin \(title) for next time")
+                    .accessibilityLabel(isPinned ? "Unpin \(title)" : "Pin \(title) for future sips")
                     .accessibilityValue(isPinned ? "Pinned" : "Not pinned")
+                    .accessibilityHint("Pinning keeps the criterion, while importance resets for each sip")
                     .modifier(OptionalAccessibilityIdentifier(identifier: controlIdentifier("pin")))
 
                     Button {
@@ -255,6 +256,12 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("logASipV3.importance.\(String(describing: option.id).lowercased())")
                 }
+
+                Text("Importance is only for this sip. Pinning keeps the criterion for future sips.")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 3)
             }
             .padding(12)
             .background(Color.creamWhite)
