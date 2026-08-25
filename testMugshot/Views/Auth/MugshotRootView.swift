@@ -11,7 +11,7 @@ struct MugshotRootView: View {
     @StateObject private var authModel = AppAuthModel()
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
     @AppStorage(MugshotFirstLaunchPolicy.completedKey) private var completedFirstLaunchEducation = false
-    @State private var firstLaunchLandingTab: Int?
+    @State private var firstLaunchLandingTab: MugshotTab?
     @State private var startsCreatingAccount = true
     @State private var profileSetupGate: ProfileSetupGate = .checking
     
@@ -144,7 +144,7 @@ struct MugshotRootView: View {
                 profileSetupGate = .complete
             }
         case .complete:
-            MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab ?? 0)
+            MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab ?? .feed)
         }
     }
 

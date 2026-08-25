@@ -530,6 +530,8 @@ struct MugshotAvatar: View {
 }
 
 struct MugshotProfileBanner: View {
+    static let compactHeight: CGFloat = 112
+
     let imageURL: String?
     var height: CGFloat = 150
 

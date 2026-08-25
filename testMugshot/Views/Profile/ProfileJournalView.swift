@@ -18,12 +18,10 @@ struct JournalTabView: View {
     @State private var loadError: String?
     @State private var showOwnerProfile = false
     @State private var localDrafts: [SipDraft] = []
-    @State private var tasteSignals: [RemoteTasteSignal] = []
     @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
     @State private var peopleByReflectionPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:]
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
-    @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
 
     fileprivate enum JournalFilter: String, CaseIterable, Identifiable {
@@ -66,12 +64,6 @@ struct JournalTabView: View {
         RemoteProfileStats.calculate(from: remoteVisits)
     }
 
-    private var tasteIdentity: TasteIdentitySummary {
-        phase3ExplainableTasteGraph
-            ? TasteIdentitySummary.calculate(from: tasteSignals, visits: remoteVisits)
-            : TasteIdentitySummary.calculate(from: remoteVisits)
-    }
-
     private var filteredVisits: [RemoteVisitSummary] {
         remoteVisits
             .filter { visit in
@@ -102,13 +94,6 @@ struct JournalTabView: View {
         Array(filteredVisits.prefix(4))
     }
 
-    private var ritualDates: [Date] {
-        if authModel.authenticatedUser != nil {
-            return journalEntries.map(\.date)
-        }
-        return dataManager.appData.visits.map(\.date)
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -128,51 +113,21 @@ struct JournalTabView: View {
                         .accessibilityLabel("Open your profile")
                     }
 
-                    Text(profileSummaryLine)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondaryText)
+                    compactProfileRow
                         .padding(.horizontal, 16)
-                        .padding(.top, 2)
-
-                    MugshotRitualCard(dates: ritualDates)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
+                        .padding(.top, 4)
 
                     if phase2CanonicalJournal, !localDrafts.isEmpty {
                         draftSection
-                            .padding(.top, 18)
-                    }
-
-                    if phase2CanonicalJournal, let memory = onThisSipEntries.first {
-                        onThisSipCard(memory)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 18)
-                    }
-
-                    if phase5Reflections, !journalEntries.isEmpty {
-                        JournalReflectionsSection(
-                            entries: journalEntries,
-                            peopleByPeriod: peopleByReflectionPeriod,
-                            onSelect: { selectedReflection = $0 }
-                        )
-                        .padding(.top, 18)
+                            .padding(.top, 14)
                     }
 
                     journalSection
-                        .padding(.top, 18)
+                        .padding(.top, 16)
 
-                    Divider()
-                        .overlay(Color.mugshotLine)
+                    journalToolsSection
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 24)
-
-                    TasteIdentityJournalSection(
-                        summary: tasteIdentity,
-                        signals: phase3ExplainableTasteGraph ? tasteSignals : [],
-                        entries: journalEntries,
-                        onChange: updateTasteSignal
-                    )
-                        .padding(.horizontal, 16)
+                        .padding(.top, 22)
                         .padding(.bottom, 124)
                 }
             }
@@ -315,6 +270,116 @@ struct JournalTabView: View {
         .padding(.horizontal, 16)
     }
 
+    private var compactProfileRow: some View {
+        Button {
+            showOwnerProfile = true
+        } label: {
+            HStack(spacing: 12) {
+                MugshotAvatar(
+                    name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                    size: 48,
+                    imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "Your profile")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.espressoBrown)
+                    Text("@\(user?.username ?? authModel.profile?.username ?? "user")\(profileLocationSuffix)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.mugshotSage)
+                    Text(profileSummaryLine)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondaryText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.tertiaryText)
+            }
+            .padding(12)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open your profile and Taste Passport")
+    }
+
+    private var journalToolsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Keep exploring")
+                .mugshotDisplay(size: 24)
+                .foregroundColor(.espressoBrown)
+
+            if phase2CanonicalJournal, let memory = onThisSipEntries.first {
+                onThisSipCard(memory)
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 10
+            ) {
+                if phase5Reflections, !journalEntries.isEmpty {
+                    journalShortcut(
+                        title: "Reflections",
+                        subtitle: "Month and year",
+                        systemImage: "sparkles.rectangle.stack"
+                    ) {
+                        selectedReflection = JournalReflectionEngine.summary(
+                            for: .month,
+                            entries: journalEntries,
+                            people: peopleByReflectionPeriod[.month] ?? []
+                        )
+                    }
+                }
+
+                journalShortcut(
+                    title: "Archive",
+                    subtitle: "Every remembered sip",
+                    systemImage: "archivebox"
+                ) {
+                    showJournalArchive = true
+                }
+
+                journalShortcut(
+                    title: "Taste Passport",
+                    subtitle: "Your taste patterns",
+                    systemImage: "book.pages"
+                ) {
+                    showOwnerProfile = true
+                }
+            }
+        }
+    }
+
+    private func journalShortcut(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.mugshotSage)
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.espressoBrown)
+                Text(subtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            .padding(12)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+    }
+
     private var localAccountScope: LocalAccountScope {
         .forUserID(
             authModel.authenticatedUser?.id
@@ -370,7 +435,10 @@ struct JournalTabView: View {
     private var profileHeader: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 142)
+                MugshotProfileBanner(
+                    imageURL: authModel.profile?.bannerURL,
+                    height: MugshotProfileBanner.compactHeight
+                )
                     .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard, style: .continuous))
 
                 MugshotAvatar(
@@ -495,7 +563,7 @@ struct JournalTabView: View {
                 .padding(.horizontal, 16)
             } else {
                 JournalEmptyState(filter: selectedFilter.rawValue) {
-                    tabCoordinator.selectedTab = 2
+                    tabCoordinator.selectedTab = .add
                 }
                 .padding(.horizontal, 16)
             }
@@ -530,7 +598,6 @@ struct JournalTabView: View {
     private func loadJournal() async {
         guard let userID = authModel.authenticatedUser?.id else {
             journalEntries = []
-            tasteSignals = []
             cafeExperienceSummaries = []
             peopleByReflectionPeriod = [:]
             isLoading = false
@@ -554,7 +621,6 @@ struct JournalTabView: View {
                 startAt: yearlyInterval.start,
                 endAt: yearlyInterval.end
             )
-            async let signalsRequest = TasteGraphService(client: client).fetchSignals(userID: userID)
             let loadedEntries = try await entriesRequest
             let cafeIDs: [UUID] = Array(Set(loadedEntries.compactMap { entry -> UUID? in
                 guard entry.summary.visit.journalContext == .cafe else {
@@ -566,13 +632,11 @@ struct JournalTabView: View {
                 cafeIDs: cafeIDs,
                 scope: .personal
             )
-            let loadedSignals = (try? await signalsRequest) ?? []
             let loadedCafeSummaries = (try? await summariesRequest) ?? []
             let loadedMonthlyPeople = (try? await monthlyPeopleRequest) ?? []
             let loadedYearlyPeople = (try? await yearlyPeopleRequest) ?? []
             guard !Task.isCancelled else { return }
             journalEntries = loadedEntries
-            tasteSignals = loadedSignals
             cafeExperienceSummaries = loadedCafeSummaries
             peopleByReflectionPeriod = [
                 .month: loadedMonthlyPeople,
@@ -587,23 +651,6 @@ struct JournalTabView: View {
         }
     }
 
-    @MainActor
-    private func updateTasteSignal(
-        _ signal: RemoteTasteSignal,
-        state: TasteSignalOwnerState,
-        label: String?
-    ) async -> Bool {
-        guard let userID = authModel.authenticatedUser?.id else { return false }
-        do {
-            let client = try SupabaseClientProvider.shared.client()
-            let service = TasteGraphService(client: client)
-            try await service.setOwnerState(signalID: signal.id, state: state, label: label)
-            tasteSignals = try await service.fetchSignals(userID: userID)
-            return true
-        } catch {
-            return false
-        }
-    }
 }
 
 private struct OwnerPassportProfileView: View {
@@ -639,10 +686,8 @@ private struct OwnerPassportProfileView: View {
                     onOpenSettings: { showSettings = true }
                 )
             } else {
-                ContentUnavailableView(
-                    "Sign in to view your profile",
-                    systemImage: "person.crop.circle"
-                )
+                LocalOwnerProfileView(dataManager: dataManager)
+                    .environmentObject(authModel)
             }
         }
         .background(Color.creamWhite)

@@ -40,6 +40,7 @@ struct PostPresentationPolicyTests {
                 from: "Cannon St, 11, Charleston, SC"
             ) == "Charleston, SC"
         )
+        #expect(MugshotPostLocationLine.locality(from: "11 Cannon St") == nil)
         #expect(
             MugshotPostLocationLine.displayName(name: "Home", locality: nil) == "Home"
         )

@@ -24,9 +24,27 @@ struct SipComposerLaunchContext: Codable, Equatable {
     var sourceVisitID: UUID?
     var sourceRecipeIdentityID: UUID?
     var sourceRecipeVersion: String?
-    var returnTab: Int?
+    var returnTab: MugshotTab?
 
     static let centralAdd = SipComposerLaunchContext(source: .centralAdd)
+}
+
+enum SipPhotoDeletionPolicy {
+    static func repairedCoverIndex(
+        removing removedIndex: Int,
+        currentCoverIndex: Int,
+        photoCountBeforeRemoval: Int
+    ) -> Int {
+        let remainingCount = max(0, photoCountBeforeRemoval - 1)
+        guard remainingCount > 0 else { return 0 }
+        if currentCoverIndex == removedIndex {
+            return min(removedIndex, remainingCount - 1)
+        }
+        if removedIndex < currentCoverIndex {
+            return max(0, currentCoverIndex - 1)
+        }
+        return min(max(0, currentCoverIndex), remainingCount - 1)
+    }
 }
 
 enum SipDraftUploadState: String, Codable {
@@ -953,7 +971,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
                 source: .repeatSip,
                 preselectedCafe: prior.cafe?.localCafe(),
                 sourceVisitID: prior.id,
-                returnTab: 4
+                returnTab: .journal
             ),
             context: context,
             cafe: prior.cafe?.localCafe(),
@@ -1061,7 +1079,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
                 ?? (prior.visit.recipeVersionID == nil
                     ? prior.visit.structuredBrewDetails.recipeVersion
                     : nil),
-            returnTab: 4
+            returnTab: .journal
         )
         return draft
     }

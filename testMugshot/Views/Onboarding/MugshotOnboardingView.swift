@@ -584,13 +584,13 @@ enum MugshotProductTourStep: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var number: Int { rawValue + 4 }
 
-    var tabIndex: Int {
+    var tab: MugshotTab {
         switch self {
-        case .map: 0
-        case .feed: 1
-        case .saved: 3
-        case .journal: 4
-        case .shareImport: 0
+        case .map: .map
+        case .feed: .feed
+        case .saved: .saved
+        case .journal: .journal
+        case .shareImport: .map
         }
     }
 
@@ -1084,8 +1084,8 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
 }
 
 struct MugshotFirstLaunchOnboardingView: View {
-    let onCreateAccount: (Int) -> Void
-    let onSignIn: (Int) -> Void
+    let onCreateAccount: (MugshotTab) -> Void
+    let onSignIn: (MugshotTab) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: MugshotFirstLaunchStep = .welcome
@@ -1105,8 +1105,8 @@ struct MugshotFirstLaunchOnboardingView: View {
         .interactiveDismissDisabled(true)
     }
 
-    private var landingTab: Int {
-        2
+    private var landingTab: MugshotTab {
+        .feed
     }
 
     private func advance() {

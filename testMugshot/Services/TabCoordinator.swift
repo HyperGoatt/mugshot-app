@@ -7,34 +7,44 @@
 
 import SwiftUI
 
-class TabCoordinator: ObservableObject {
-    @Published var selectedTab: Int {
+enum MugshotTab: Int, Codable, CaseIterable, Identifiable, Sendable {
+    case map = 0
+    case feed = 1
+    case add = 2
+    case saved = 3
+    case journal = 4
+
+    var id: Int { rawValue }
+}
+
+@MainActor
+final class TabCoordinator: ObservableObject {
+    @Published var selectedTab: MugshotTab {
         didSet {
-            if selectedTab != 2 {
+            if selectedTab != .add {
                 lastNonAddTab = selectedTab
             }
         }
     }
-    private(set) var lastNonAddTab: Int
+    private(set) var lastNonAddTab: MugshotTab
     @Published private(set) var pendingMapCafe: Cafe?
 
-    init(selectedTab: Int = 0) {
-        let safeTab = (0...4).contains(selectedTab) ? selectedTab : 0
-        self.selectedTab = safeTab
-        self.lastNonAddTab = safeTab == 2 ? 0 : safeTab
+    init(selectedTab: MugshotTab = .feed) {
+        self.selectedTab = selectedTab
+        self.lastNonAddTab = selectedTab == .add ? .feed : selectedTab
     }
     
     func switchToFeed() {
-        selectedTab = 1
+        selectedTab = .feed
     }
 
-    func returnFromComposer(fallback: Int = 4) {
-        selectedTab = lastNonAddTab == 2 ? fallback : lastNonAddTab
+    func returnFromComposer(fallback: MugshotTab = .feed) {
+        selectedTab = lastNonAddTab == .add ? fallback : lastNonAddTab
     }
 
     func showCafeOnMap(_ cafe: Cafe) {
         pendingMapCafe = cafe
-        selectedTab = 0
+        selectedTab = .map
     }
 
     func consumePendingMapCafe() -> Cafe? {

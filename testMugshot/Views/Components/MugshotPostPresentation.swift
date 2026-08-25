@@ -23,6 +23,16 @@ enum MugshotPostAspectRatioPolicy {
 }
 
 enum MugshotPostLocationLine {
+    static func locality(
+        address: String?,
+        cityState: String?,
+        city: String?
+    ) -> String? {
+        locality(from: address)
+            ?? locality(from: cityState)
+            ?? locality(from: city)
+    }
+
     static func locality(from rawValue: String?) -> String? {
         guard let rawValue else { return nil }
         var components = rawValue
@@ -45,6 +55,13 @@ enum MugshotPostLocationLine {
         }
 
         guard let first = components.first else { return nil }
+
+        // A lone street line is not a locality and is too precise for the
+        // compact post/share surface. Prefer no secondary line until a city is
+        // available.
+        if components.count == 1, first.contains(where: \.isNumber) {
+            return nil
+        }
 
         if components.count >= 2,
            first.contains(where: \.isNumber),
@@ -273,7 +290,7 @@ struct MugshotPostArtworkOverlay: View {
                 if let onLocationTap {
                     Button(action: onLocationTap) {
                         HStack(spacing: 5) {
-                            styledLocationLine
+                            locationLine
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             Image(systemName: "chevron.right")
@@ -288,7 +305,7 @@ struct MugshotPostArtworkOverlay: View {
                     .accessibilityLabel("Open \(locationName) cafe details")
                     .accessibilityHint("Opens this cafe")
                 } else {
-                    styledLocationLine
+                    locationLine
                         .font(.system(.subheadline, design: .default, weight: .semibold))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -311,17 +328,33 @@ struct MugshotPostArtworkOverlay: View {
         .shadow(color: .black.opacity(0.42), radius: 5, x: 0, y: 2)
     }
 
-    private var styledLocationLine: Text {
-        let name = Text(locationName)
-            .foregroundColor(.white)
-        guard let locality = locationDetail?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !locality.isEmpty,
-              locality.caseInsensitiveCompare(locationName) != .orderedSame else {
-            return name
+    @ViewBuilder
+    private var locationLine: some View {
+        if let locality = locationDetail?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !locality.isEmpty,
+           locality.caseInsensitiveCompare(locationName) != .orderedSame {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    Text(locationName)
+                        .foregroundColor(.white)
+                    Text("|")
+                        .foregroundColor(.white.opacity(0.78))
+                    Text(locality)
+                        .foregroundColor(.mugshotMint)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(locationName)
+                        .foregroundColor(.white)
+                    Text(locality)
+                        .foregroundColor(.mugshotMint)
+                }
+            }
+        } else {
+            Text(locationName)
+                .foregroundColor(.white)
         }
-        return name
-            + Text(" | ").foregroundColor(.white.opacity(0.78))
-            + Text(locality).foregroundColor(.mugshotMint)
     }
 }
 
@@ -445,13 +478,15 @@ struct MugshotFeedPostPresentation {
 struct MugshotFeedPostCard<Footer: View>: View {
     let presentation: MugshotFeedPostPresentation
     let onOpen: () -> Void
+    var onAuthorTap: (() -> Void)? = nil
     @ViewBuilder let footer: () -> Footer
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .center, spacing: 9) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 9) {
+                    Button(action: onAuthorTap ?? onOpen) {
+                        HStack(alignment: .center, spacing: 9) {
                         MugshotAvatar(
                             name: presentation.authorName,
                             size: 34,
@@ -476,22 +511,28 @@ struct MugshotFeedPostCard<Footer: View>: View {
                                 .foregroundStyle(Color.tertiaryText)
                                 .lineLimit(1)
                         }
-                        Spacer(minLength: 8)
                     }
+                    .foregroundStyle(Color.espressoBrown)
+                    .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open @\(presentation.username)'s profile")
 
-                    if let recommendation = presentation.recommendation {
+                    Spacer(minLength: 8)
+                }
+
+                if let recommendation = presentation.recommendation {
+                    Button(action: onOpen) {
                         Label(recommendation, systemImage: presentation.recommendationSystemImage)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Color.mugshotSage)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityLabel("Recommended because \(recommendation)")
                     }
+                    .buttonStyle(.plain)
                 }
-                .foregroundStyle(Color.espressoBrown)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
 

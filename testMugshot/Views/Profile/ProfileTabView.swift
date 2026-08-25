@@ -8,7 +8,7 @@
 import SwiftUI
 import PhotosUI
 
-private struct LegacyProfileTabView: View {
+struct LocalOwnerProfileView: View {
     @ObservedObject var dataManager: DataManager
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var selectedTab: ProfileContentTab = .recent
@@ -163,7 +163,10 @@ private struct LegacyProfileTabView: View {
     private var profileIdentity: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
-                MugshotProfileBanner(imageURL: authModel.profile?.bannerURL, height: 138)
+                MugshotProfileBanner(
+                    imageURL: authModel.profile?.bannerURL,
+                    height: MugshotProfileBanner.compactHeight
+                )
 
                 MugshotAvatar(
                     name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",

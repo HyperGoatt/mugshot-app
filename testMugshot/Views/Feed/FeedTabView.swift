@@ -85,6 +85,7 @@ struct FeedTabView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var selectedScope: FeedScope = .ranked
     @State private var selectedPostRoute: FeedPostRoute?
+    @State private var selectedProfileRoute: PeopleProfileRoute?
     @State private var remoteVisits: [RemoteVisitSummary] = []
     @State private var canonicalSipCount = 0
     @State private var isLoadingRemoteVisits = false
@@ -268,6 +269,15 @@ struct FeedTabView: View {
                 .id(route.id)
                 .accessibilityIdentifier("feed.destination.\(route.visitID.uuidString)")
             }
+            .navigationDestination(item: $selectedProfileRoute) { route in
+                PublicProfileView(
+                    route: route,
+                    dataManager: dataManager,
+                    onRelationshipChanged: {
+                        await loadRemoteFeedIfNeeded(forceRefresh: true)
+                    }
+                )
+            }
         }
         .sheet(isPresented: $isPeopleHubPresented) {
             PeopleHubView(dataManager: dataManager)
@@ -376,6 +386,9 @@ struct FeedTabView: View {
                     onOpen: {
                         selectedPostRoute = .remote(visit)
                     },
+                    onAuthorTap: {
+                        openAuthorProfile(for: visit)
+                    },
                     onLike: {
                         toggleRemoteLike(for: visit)
                     },
@@ -472,7 +485,7 @@ struct FeedTabView: View {
             accessibilityHint: "Opens the guided sip composer"
         ) {
             withAnimation(DesignSystem.Motion.base) {
-                tabCoordinator.selectedTab = 2
+                tabCoordinator.selectedTab = .add
             }
         }
     }
@@ -484,7 +497,7 @@ struct FeedTabView: View {
             accessibilityHint: "Switches to Map to discover cafes"
         ) {
             withAnimation(DesignSystem.Motion.base) {
-                tabCoordinator.selectedTab = 0
+                tabCoordinator.selectedTab = .map
             }
         }
     }
@@ -691,6 +704,18 @@ struct FeedTabView: View {
         }
     }
 
+    private func openAuthorProfile(for visit: RemoteVisitSummary) {
+        guard let author = visit.author else {
+            selectedPostRoute = .remote(visit)
+            return
+        }
+        selectedProfileRoute = PeopleProfileRoute(
+            id: author.id,
+            displayName: visit.authorDisplayName,
+            username: visit.authorUsername
+        )
+    }
+
     private func saveCafe(from visit: RemoteVisitSummary) {
         guard let remoteCafe = visit.cafe else {
             return
@@ -815,6 +840,7 @@ struct RemoteFeedVisitCard: View {
     let isSocialActionInFlight: Bool
     let showsRecommendationReason: Bool
     let onOpen: () -> Void
+    var onAuthorTap: (() -> Void)? = nil
     let onLike: () -> Void
     let onSaveCafe: () -> Void
     let onComment: () -> Void
@@ -842,9 +868,9 @@ struct RemoteFeedVisitCard: View {
                 locationName: visit.locationTitle,
                 locationDetail: visit.visit.journalContext == .cafe
                     ? MugshotPostLocationLine.locality(
-                        from: visit.cafe?.address
-                            ?? visit.visit.cityState
-                            ?? visit.cafe?.city
+                        address: visit.cafe?.address,
+                        cityState: visit.visit.cityState,
+                        city: visit.cafe?.city
                     )
                     : nil,
                 score: displayedScore,
@@ -860,7 +886,8 @@ struct RemoteFeedVisitCard: View {
                     : nil,
                 recommendationSystemImage: recommendationIcon
             ),
-            onOpen: onOpen
+            onOpen: onOpen,
+            onAuthorTap: onAuthorTap
         ) {
             footer
         }

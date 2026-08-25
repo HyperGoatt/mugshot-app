@@ -592,7 +592,10 @@ struct PublicProfileView: View {
 
     private var profileHeader: some View {
         ZStack(alignment: .bottomLeading) {
-            MugshotProfileBanner(imageURL: payload?.profile.bannerURL, height: 194)
+            MugshotProfileBanner(
+                imageURL: payload?.profile.bannerURL,
+                height: MugshotProfileBanner.compactHeight
+            )
             LinearGradient(
                 colors: [.clear, Color.espressoBrown.opacity(0.56)],
                 startPoint: .top,
