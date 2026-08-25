@@ -197,7 +197,7 @@ enum CafeIdentity {
             )
         }
 
-        return "text:\(normalizedName)|\(normalized(address) ?? "")"
+        return "text:\(normalizedName)|\(normalizedAddress(address) ?? "")"
     }
 
     private static func normalized(_ value: String?) -> String? {
@@ -208,5 +208,16 @@ enum CafeIdentity {
             .joined(separator: " ")
             .lowercased()
         return collapsed.isEmpty ? nil : collapsed
+    }
+
+    private static func normalizedAddress(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let tokens = value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .sorted()
+        return tokens.isEmpty ? nil : tokens.joined(separator: " ")
     }
 }
