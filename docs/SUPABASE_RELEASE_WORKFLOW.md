@@ -17,9 +17,10 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260824171405_expire_pre_schedule_activity_backlog.sql`. Repository head and
-live history are aligned at all 126 migrations as of 2026-08-24. The live
-project reference is recorded in
+`20260825030917_post_reactions.sql`. Production remains aligned through
+`20260824171405_expire_pre_schedule_activity_backlog.sql` at 126 migrations as
+of 2026-08-24; the new reaction migration is local-only and must not be called
+production-configured. The live project reference is recorded in
 the existing Supabase link and QA scripts refuse that production reference.
 
 ## Non-negotiable invariants
@@ -116,6 +117,11 @@ the client UI.
   remains.
 - **Home Workbench:** the three repository migrations dated 2026-08-23/24 are
   live and were covered by the 2026-08-24 protected-data fingerprint closure.
+- **Expressive post reactions:** the additive column/RPC/activity contract is
+  implemented and hermetically verified. Disposable replay, complete remote
+  contracts, live impact inventory, deployment, and read-only post-deploy
+  verification remain. Historical `visit_reactions` rows are not a backfill
+  source.
 - **TestFlight:** client upload and tester assignment remain manual gates after
   Simulator and connected-device acceptance.
 - **Auth and destructive flows:** provider, password-defense, and account-

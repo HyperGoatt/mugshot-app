@@ -3,6 +3,22 @@ import Testing
 @testable import testMugshot
 
 struct MugsyDesignSystemTests {
+    @MainActor
+    @Test func vectorReferenceExportsOneFiveHundredPointPDFPage() throws {
+        let data = MugsyVectorReferenceExporter.pdfData()
+        Attachment.record(
+            [UInt8](data),
+            named: "Mugsy-code-native-reference.pdf"
+        )
+        let provider = try #require(CGDataProvider(data: data as CFData))
+        let document = try #require(CGPDFDocument(provider))
+        let page = try #require(document.page(at: 1))
+
+        #expect(data.starts(with: Data("%PDF".utf8)))
+        #expect(document.numberOfPages == 1)
+        #expect(page.getBoxRect(.mediaBox).size == MugsyVectorReferenceExporter.canvasSize)
+    }
+
     @Test("Canonical palette values stay locked")
     func canonicalPaletteValues() {
         #expect(MugsyStyleTokens.inkHex == "0C0C0C")

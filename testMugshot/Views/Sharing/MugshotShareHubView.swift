@@ -34,8 +34,10 @@ struct MugshotShareHubView: View {
             isRemote: summary.isRemote,
             visibility: summary.visibility,
             authorName: summary.displayName,
+            authorUsername: summary.authorUsername,
             drinkName: summary.drinkName,
             contextName: summary.contextName,
+            locationDetail: summary.locationDetail,
             rating: summary.mugshotScore,
             createdAt: summary.createdAt,
             caption: summary.publicCaption
@@ -737,14 +739,14 @@ struct MugshotShareLinkPreviewView: View {
                         .minimumScaleFactor(0.72)
                         .padding(.top, 16)
 
-                    Text(content.contextName)
+                    Text(content.displayContext)
                         .font(.system(size: 27, weight: .semibold))
                         .foregroundStyle(Color.mugshotSage)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                         .padding(.top, 18)
 
-                    Text("Shared by \(content.authorName)")
+                    Text("Shared by \(content.authorAttribution)")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                         .padding(.top, 10)
@@ -814,7 +816,8 @@ struct MugshotShareArtworkView: View {
     }
 
     private var fullBleed: some View {
-        ZStack {
+        let insets = MugshotShareArtworkInsets.insets(for: format)
+        return ZStack {
             sharePhoto
                 .frame(width: format.pixelSize.width, height: format.pixelSize.height)
                 .clipped()
@@ -840,11 +843,11 @@ struct MugshotShareArtworkView: View {
                             .foregroundStyle(Color.foamWhite)
                             .lineLimit(3)
                             .minimumScaleFactor(0.72)
-                        Text("\(content.contextName)  ·  \(formattedDate)")
+                        Text("\(content.displayContext)  ·  \(formattedDate)")
                             .font(.system(size: 31, weight: .semibold))
                             .foregroundStyle(Color.foamWhite.opacity(0.86))
                             .lineLimit(2)
-                        Text("Remembered by \(content.authorName)")
+                        Text("Remembered by \(content.authorAttribution)")
                             .font(.system(size: 23, weight: .semibold))
                             .foregroundStyle(Color.foamWhite.opacity(0.72))
                             .lineLimit(1)
@@ -853,9 +856,9 @@ struct MugshotShareArtworkView: View {
                     score(color: .foamWhite)
                 }
             }
-            .padding(.horizontal, format == .story ? 86 : 70)
-            .padding(.top, format == .story ? 210 : 70)
-            .padding(.bottom, format == .story ? 250 : 84)
+            .padding(.horizontal, insets.horizontal)
+            .padding(.top, insets.top)
+            .padding(.bottom, insets.bottom)
         }
     }
 
@@ -897,7 +900,7 @@ struct MugshotShareArtworkView: View {
                             .foregroundStyle(Color.espressoBrown)
                             .lineLimit(layout.drinkLineLimit)
                             .minimumScaleFactor(0.62)
-                        Text(content.contextName)
+                        Text(content.displayContext)
                             .font(.system(size: layout.contextFontSize, weight: .semibold))
                             .foregroundStyle(Color.roastBrown)
                             .lineLimit(1)
@@ -921,7 +924,7 @@ struct MugshotShareArtworkView: View {
                 HStack {
                     Text(formattedDate.uppercased())
                     Spacer()
-                    Text("REMEMBERED BY \(content.authorName.uppercased())")
+                    Text("REMEMBERED BY \(content.authorAttribution.uppercased())")
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
@@ -1063,8 +1066,8 @@ struct MugshotFieldNoteLayout: Equatable {
 
     static let story = MugshotFieldNoteLayout(
         horizontalMargin: 78,
-        topMargin: 170,
-        bottomMargin: 170,
+        topMargin: 230,
+        bottomMargin: 260,
         headerHeight: 100,
         headerToMediaSpacing: 34,
         mediaHeight: 690,
@@ -1116,6 +1119,27 @@ struct MugshotFieldNoteLayout: Equatable {
             + bodyHeight
             + footerHeight
             + bottomMargin
+    }
+}
+
+struct MugshotShareArtworkInsets: Equatable {
+    let horizontal: CGFloat
+    let top: CGFloat
+    let bottom: CGFloat
+
+    static let story = MugshotShareArtworkInsets(
+        horizontal: 86,
+        top: 250,
+        bottom: 310
+    )
+    static let post = MugshotShareArtworkInsets(
+        horizontal: 70,
+        top: 70,
+        bottom: 84
+    )
+
+    static func insets(for format: MugshotShareFormat) -> Self {
+        format == .story ? .story : .post
     }
 }
 

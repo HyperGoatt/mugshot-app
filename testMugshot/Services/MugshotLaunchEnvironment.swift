@@ -26,6 +26,7 @@ enum MugshotLaunchEnvironment {
     )
     static let shouldShowSignedInOnboardingDesignQA = arguments.contains("--ui-testing-signed-in-onboarding-design-qa")
     static let shouldShowFirstLaunchOnboardingDesignQA = arguments.contains("--ui-testing-first-launch-onboarding-design-qa")
+    static let shouldExportMugsyVectorReference = arguments.contains("--debug-export-mugsy-vector-reference")
     static let shouldUseReduceMotion = arguments.contains("--ui-testing-reduce-motion")
 #if DEBUG
     static let savedAuditScenario = SavedAuditScenario.resolve(arguments: arguments)

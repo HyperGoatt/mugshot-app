@@ -9,6 +9,18 @@ last_verified: 2026-08-24
 Use this format for every Mugshot TestFlight archive, upload, or testing-group
 handoff.
 
+Organizer and the cached Xcode feedback packages confirm tester use of 0.5.3
+(5). The 44-report remediation targets 0.5.3 (6), but no archive, upload,
+processing, or group assignment is authorized or claimed yet. Every report
+remains open until the replacement build is accepted; see the
+[feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
+
+Current remediation evidence: 425 unit tests, eight focused Simulator UI
+journeys, all 43 screenshot reports plus the text-only report, and full-static
+12/0/1 passed. The signed Debug app built and installed on the connected iPhone,
+but the locked device prevented runtime launch. The reaction migration is not
+production-configured. These facts do not authorize an archive or upload.
+
 ## Build status
 
 - Version/build: `[VERSION] ([BUILD])`

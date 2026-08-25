@@ -142,8 +142,10 @@ struct MugshotShareContent: Equatable {
     let isRemote: Bool
     let visibility: VisitVisibility
     let authorName: String
+    let authorUsername: String?
     let drinkName: String
     let contextName: String
+    let locationDetail: String?
     let rating: Double
     let createdAt: Date
     let caption: String?
@@ -154,8 +156,10 @@ struct MugshotShareContent: Equatable {
         isRemote: Bool,
         visibility: VisitVisibility,
         authorName: String,
+        authorUsername: String? = nil,
         drinkName: String,
         contextName: String,
+        locationDetail: String? = nil,
         rating: Double,
         createdAt: Date,
         caption: String?
@@ -165,8 +169,10 @@ struct MugshotShareContent: Equatable {
         self.isRemote = isRemote
         self.visibility = visibility
         self.authorName = Self.safeText(authorName, fallback: "Mugshot user", limit: 80)
+        self.authorUsername = authorUsername.flatMap(Self.safeUsername)
         self.drinkName = Self.safeText(drinkName, fallback: "Coffee memory", limit: 100)
         self.contextName = Self.safeText(contextName, fallback: "Coffee stop", limit: 100)
+        self.locationDetail = locationDetail.flatMap(Self.safeCoarseLocation)
         self.rating = min(max(rating, 0), 5)
         self.createdAt = createdAt
         self.caption = caption.flatMap { value in
@@ -177,12 +183,24 @@ struct MugshotShareContent: Equatable {
 
     var shareText: String {
         var components = [
-            "\(authorName) remembered \(drinkName) at \(contextName) on Mugshot."
+            "\(authorAttribution) remembered \(drinkName) at \(displayContext) on Mugshot."
         ]
         if let caption {
             components.append(caption)
         }
         return components.joined(separator: "\n\n")
+    }
+
+    var authorAttribution: String {
+        authorUsername.map { "@\($0)" } ?? authorName
+    }
+
+    var displayContext: String {
+        guard let locationDetail,
+              locationDetail.caseInsensitiveCompare(contextName) != .orderedSame else {
+            return contextName
+        }
+        return "\(contextName) · \(locationDetail)"
     }
 
     var requiresExternalAudienceWarning: Bool {
@@ -199,6 +217,25 @@ struct MugshotShareContent: Equatable {
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
         return String((collapsed.isEmpty ? fallback : collapsed).prefix(limit))
+    }
+
+    private static func safeUsername(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .drop(while: { $0 == "@" })
+        let allowed = trimmed.filter { character in
+            character.isLetter || character.isNumber || character == "_" || character == "."
+        }
+        let bounded = String(allowed.prefix(40))
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private static func safeCoarseLocation(_ value: String) -> String? {
+        let safe = safeText(value, fallback: "", limit: 80)
+        guard !safe.isEmpty,
+              !safe.contains(where: \.isNumber) else {
+            return nil
+        }
+        return safe
     }
 }
 

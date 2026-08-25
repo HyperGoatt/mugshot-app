@@ -21,7 +21,7 @@ must not overrule an authoritative remote result.
 | Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Clean partial uploads through bounded recovery paths |
 | Home recipes and coffee library | Home Workbench tables/RPC projections | Draft/template cache | Remote owner projection wins after save |
 | Feed, Journal and profiles | Viewer-specific Supabase projections | Rendering cache | Keep the last valid view and show an actionable error |
-| Likes, comments, mentions, reactions and tags | Supabase social rows/RPCs | Optimistic UI only | Reconcile to server result; stale account responses are discarded |
+| Likes, comments, mentions, reactions and tags | `likes.reaction_kind`, caller-bound reaction/comment/tag RPCs, and historical `visit_reactions` compatibility rows | Optimistic UI only | Reconcile to server result; a missing additive reaction RPC falls back only to binary Like; stale account responses are discarded |
 | Friends, blocks, reports and enforcement | Supabase caller-bound RPCs | Presentation cache | Privacy and block checks fail closed |
 | Saved cafes and cafe lists | `user_cafe_states` and cafe-list RPCs | Guest saved state and merge queue | Preserve explicit user intent until merged or dismissed |
 | Activity and unread count | `activity_events` through caller-bound RPCs | Current page, pending route and app-icon presentation | Push failure never removes Activity history; successful refresh/read actions apply the authoritative unread badge |
@@ -40,14 +40,21 @@ only through v3, and reports missing layers without disabling Activity.
 
 ## Current migration boundary
 
-The repository migration head is
-`20260824171405_expire_pre_schedule_activity_backlog.sql`. The complete head
-passed a data-less disposable replay, all 54 remote SQL contracts, and focused
-hermetic cutover coverage. Local and live histories are aligned at all 126
-migrations, worker version 6 and the minute schedule are active, and the
-additive `push_badge_sync` capability is live. Client capability adoption
-follows the order in
+The repository migration head is now
+`20260825030917_post_reactions.sql`. That additive migration and its iOS model
+are implemented and covered by a hermetic local contract, but are not deployed.
+Live production remains aligned through
+`20260824171405_expire_pre_schedule_activity_backlog.sql` at 126 migrations;
+worker version 6, the minute schedule, and `push_badge_sync` are active there.
+The reaction migration still requires disposable replay, the complete remote
+contract suite, impact review, and an explicitly authorized live release.
+Client capability adoption follows the order in
 [the Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md).
+
+The expressive contract is detailed in
+[Post reaction contract](POST_REACTION_CONTRACT.md). Historical coffee-specific
+`visit_reactions` data remains read-only compatibility data and receives no
+speculative backfill.
 
 ## Non-negotiable invariants
 

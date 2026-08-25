@@ -23,11 +23,19 @@ ownership, or the core sip journey.
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
 | Physical sandbox acceptance | Delivery/read path partially accepted; matrix in progress | Two normal second-account likes each produced a first-attempt sandbox send. The signed iPhone showed the unread items and routed them correctly; after the direct-store fix, mark-one-read cleared the authoritative count, Activity marker, and Feed bell immediately without relaunch. Foreground presentation, a visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out remain. |
 | TestFlight production acceptance | Pending manual gate | Explicit upload authorization and processed build required |
+| Revised 44-report remediation | Implemented and locally verified; physical runtime pending | Five workstreams are represented on `codex/testflight-feedback-remediation`; 425 unit tests, eight focused UI journeys, the 43-screenshot plus one-text review, and full-static 12/0/1 passed. Signed Debug build/install passed, but launch was denied while the phone was locked. No report will be resolved until replacement TestFlight acceptance |
 
 ## Feedback ledger
 
 Do not store tester email addresses, account IDs, private content, or raw logs in
 this file.
+
+The complete Organizer-backed 44-report ledger, including source build/device,
+disposition, owner, and separate implementation/local/physical/TestFlight
+states, is maintained in
+[TestFlight feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md). The three iOS
+entries below are the earlier signed-Debug operational findings and remain
+separate from those TestFlight packages.
 
 | ID | Received | Build | Severity | Summary | Reproduction | Verification tier | Branch/PR | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

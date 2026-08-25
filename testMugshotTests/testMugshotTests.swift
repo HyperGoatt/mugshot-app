@@ -2912,8 +2912,10 @@ struct testMugshotTests {
     @Test func sipShareCardPayloadContainsOnlyExplicitlyShareableMemoryFields() {
         let payload = SipShareCardPayload(
             authorName: "Journal Owner",
+            authorUsername: "journal_owner",
             drinkName: "Cortado",
             cafeName: "Mugshot Test Cafe",
+            locationDetail: "Charleston, SC",
             rating: 4.5,
             date: Date(timeIntervalSince1970: 1_700_000_000),
             publicCaption: "A bright finish",
@@ -2924,7 +2926,7 @@ struct testMugshotTests {
 
         #expect(fieldNames == [
             "visitID", "visibility", "isOwner", "isRemote",
-            "authorName", "drinkName", "cafeName", "rating", "date",
+            "authorName", "authorUsername", "drinkName", "cafeName", "locationDetail", "rating", "date",
             "publicCaption", "remotePhotoURL", "localPhotoPath"
         ])
         #expect(!fieldNames.contains("privateNote"))

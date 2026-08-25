@@ -215,9 +215,9 @@ private enum FeedRefreshPreviewFixtures {
             locationName: summary.locationTitle,
             locationSubtitle: summary.visit.journalContext == .cafe
                 ? MugshotPostLocationLine.locality(
-                    from: summary.cafe?.address
-                        ?? summary.visit.cityState
-                        ?? summary.cafe?.city
+                    address: summary.cafe?.address,
+                    cityState: summary.visit.cityState,
+                    city: summary.cafe?.city
                 )
                 : nil,
             locationSystemImage: summary.visit.journalContext.systemImage,
@@ -248,8 +248,12 @@ private enum FeedRefreshPreviewFixtures {
                 isOwner: summary.id == joeID,
                 isRemote: false,
                 authorName: summary.authorDisplayName,
+                authorUsername: summary.authorUsername,
                 drinkName: summary.visit.drinkDisplayName,
                 cafeName: summary.locationTitle,
+                locationDetail: summary.locationSubtitle.flatMap {
+                    MugshotPostLocationLine.locality(from: $0)
+                },
                 rating: summary.visit.overallScore,
                 date: summary.visit.createdAtDate,
                 publicCaption: summary.visit.caption,

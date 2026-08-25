@@ -15,8 +15,11 @@ TestFlight. `main` includes the Home Workbench/documentation baseline from PR
 lifecycle from PR #50, and physical registration evidence through PR #55.
 PR #56 fixed immediate Feed/Activity unread propagation, and PR #57 contains
 the Feed/Map feedback fixes described below. Source remains version 0.5.3 build
-5; the most recent
-archived distributed candidate is 0.5.3 (4).
+5. Organizer and the 44 cached Xcode feedback packages provide direct evidence
+that testers used 0.5.3 (5), superseding the earlier claim that 0.5.3 (4) was
+the latest distributed candidate. The revised remediation source targets a
+future 0.5.3 (6), but the project version/build is not changed and no archive or
+upload is authorized by this implementation task.
 
 The Home Workbench and notification backend migrations are live through
 `20260824171405`. Local, disposable-QA, live drift, and protected-data
@@ -35,6 +38,15 @@ fingerprint evidence closed on 2026-08-24.
 - Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
   friend requests, blocking, reporting, moderation state, collaborative cafe
   lists, public share links, and privacy-aware projections.
+- The remediation branch adds expressive Like/Love/Laugh/Yummy post reactions
+  without replacing historical coffee-specific reactions, one-level comment
+  threading, identifier-based tab behavior, compact Journal/Profile/Feed
+  surfaces, direct Publish-summary editing, recoverable photo deletion, and
+  address-order-invariant local cafe reconciliation.
+- Share output adds only allowlisted `@handle` and coarse city/state fields plus
+  safer export bounds. Publish preview geometry and the share hub/sheet actions,
+  formats, templates, controls, privacy flow, defaults, and collage behavior
+  remain unchanged.
 - Map, saved cafe state, discovery, cafe detail, Taste Passport, reflection,
   widgets, share extension, universal links, and nearby cafe reminders.
 - Feed keeps the Your Mix header to two lines with a compact first-card gap,
@@ -111,6 +123,14 @@ remaining acceptance matrix.
   notification-tapped cold launch, category suppression, sign-out, and
   production remain.
 - TestFlight archive, upload, and group assignment remain explicit manual gates.
+- Migration `20260825030917_post_reactions.sql` is implemented and hermetically
+  verified but is not production-configured. Expressive reactions cannot be
+  described as live until the normal disposable-QA and production-release
+  workflow completes.
+- The 44 cached reports remain open pending consolidated Simulator, connected-
+  iPhone runtime, and replacement-TestFlight acceptance. Consolidated local
+  and Simulator acceptance has passed; see the
+  [feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
 - Local and remote state coexist intentionally; changes must preserve account
   isolation and zero-loss draft/publication behavior.
 
@@ -146,3 +166,14 @@ The Feed/Map feedback change passed full-static 12/0/1 on 2026-08-24. Its two
 focused camera-arbitration tests compile in the Simulator-hosted app test
 bundle; runtime execution and a signed-device authorized-location launch remain
 queued for the next consolidated acceptance pass.
+
+The revised 44-report remediation branch passed 425 unit tests, eight focused
+UI journeys covering signed-in/guest shell behavior, Publish, photo removal,
+profile routing, and detail privacy/layout, and visual review of all 43 cached
+screenshots plus the text-only caption report. Full-static passed 12/0/1 with
+only the optional local `pglast` parser skipped. The final signed Debug app
+(`co.mugshot.app.dev`, version 0.5.3 build 5) built, verified its development
+entitlements, and installed on Joe's iPhone; automated launch was denied only
+because the device was locked. This is local acceptance and a partial physical
+gate, not production reaction configuration, report-level physical acceptance,
+or TestFlight acceptance.

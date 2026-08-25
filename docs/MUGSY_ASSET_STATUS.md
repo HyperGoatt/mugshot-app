@@ -1,4 +1,24 @@
-# Mugsy Asset Status
+---
+document_type: living
+status: current
+last_verified: 2026-08-24
+---
+
+# Mugsy asset status
+
+## Current authority and vector handoff
+
+The shipping PNG image sets and the production code-native
+`MugsyModelView` remain authoritative. This remediation adds
+`MugsyVectorReferenceExporter`, which renders the canonical 500-by-500 contour
+geometry directly into a vector PDF with embedded provenance metadata. The
+review artifact is [Mugsy code-native vector reference](assets/Mugsy-code-native-reference.pdf).
+
+The PDF is review-only. It does not replace any asset catalog entry, does not
+change shipping artwork, and is not an `.ai` file. A separately approved design
+review is required before derived artwork can become production-authoritative.
+
+## Historical imported-asset baseline
 
 Date: 2026-07-03
 

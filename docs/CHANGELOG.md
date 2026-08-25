@@ -8,6 +8,26 @@ last_verified: 2026-08-24
 
 ## 2026-08-24
 
+- Implemented the revised 44-report TestFlight remediation candidate on
+  `codex/testflight-feedback-remediation`: identifier-based tabs preserve the
+  Map, Feed, Add, Saved, Journal order while signed-in launch defaults to Feed;
+  Journal and Feed are more compact; Publish supports direct summary edits and
+  recoverable photo deletion; comments retain one-level reply structure; and
+  post likes now support Like, Love, Laugh, and Yummy through an additive,
+  caller-bound Supabase contract. Share-card output now includes a safe
+  city/state and `@handle` with corrected export bounds, while the approved
+  share hub/sheet and Publish-preview geometry remain unchanged. Added a
+  review-only code-native Mugsy vector PDF exporter, cafe address-order
+  reconciliation, focused Swift tests, a hermetic post-reaction contract, and
+  the privacy-safe 44-report ledger. Caption entry now occurs only on Publish,
+  and closing a successful Add flow returns to the last non-Add tab with Feed
+  fallback while an explicit Passport action still routes to Journal. Local
+  acceptance passed 425 unit tests, eight focused UI journeys, visual review of
+  all 43 screenshots plus the text-only report, and full-static 12/0/1. A
+  signed Debug build and install passed on Joe's iPhone; runtime launch was
+  denied because the phone was locked. Physical runtime, production reaction
+  configuration, replacement TestFlight acceptance, and report resolution
+  remain separate pending gates.
 - Implemented TestFlight-feedback polish for Feed and Map on
   `codex/feed-map-launch-polish`. Feed now keeps the Your Mix subtitle to two
   lines and reduces the scope-control-to-first-post gap from 18 to 8 points.

@@ -14,9 +14,9 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Profile and public identity | Implemented, locally verified | Profile bootstrap/edit, avatar/banner, public projection and share route | Continue feedback-driven polish |
 | Guided sip composer | Implemented, locally verified | Cafe, Home, Elsewhere, drafts, photos, publish recovery, edit/delete | Preserve zero-loss and privacy contracts in every change |
 | Home Workbench | Implemented, production-configured | Recipe templates, planned/actual brews, bag media, reuse, journal projection; live migrations and protected-data fingerprints verified | Feedback-driven product acceptance |
-| Feed and visit detail | Implemented, locally verified | Remote cards, media, reactions, likes, comments, tags, sharing | TestFlight feedback and performance monitoring |
-| Journal and reflection | Implemented, locally verified | Canonical remote journal, filters, Taste Passport and reflections | Continue data-truth and accessibility checks |
-| Map and cafe discovery | Implemented with remote/local composition | MapKit, search, saved state, cafe detail and discovery | Feedback-driven search and place-identity tuning |
+| Feed and visit detail | Remediation implemented and locally verified | Compact cards, profile routing, one-level comments, expressive post-reaction client/contract, tags and sharing; unit, focused UI, visual-review, and full-static gates passed | Connected-iPhone runtime, production reaction migration, replacement TestFlight |
+| Journal and reflection | Remediation implemented and locally verified | Compact Journal hub, Recent Sips, archive/reflection/Passport routes, direct Publish edits; the focused tab/profile and complete Home publish journeys passed | Connected-iPhone runtime and replacement-build acceptance |
+| Map and cafe discovery | Implemented with remote/local composition | MapKit search, saved state, cafe detail/discovery, and address-order-invariant local identity fallback | Consolidated Map/canonical-result acceptance; no production row mutation |
 | Saved and cafe lists | Implemented, locally verified | Favorite/want-to-try, private lists, collaboration lifecycle | Multi-account TestFlight feedback |
 | Friends and profiles | Implemented, locally verified | Discovery, request lifecycle, compatibility, profiles and blocking | Validate representative tester networks |
 | Safety and moderation | Implemented, locally verified | Reports, blocks, enforcement state, visibility suppression | Operational response remains human-run in alpha |
@@ -29,7 +29,7 @@ Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 | Account export/deletion | Implemented with production backend gates | Export manifest, step-up deletion and scheduled cleanup | Follow destructive-flow acceptance policy |
 | Analytics | Implemented for core journeys and notification lifecycle | Pinned PostHog SDK; coarse education, permission, registration, preference, Activity-open and route events with no token/content identifiers | Monitor opt-outs, failures, and tester noise after distribution |
 | Documentation | Living baseline merged | PR #46; canonical index, change log, policy and automated checks | Keep current in every PR |
-| TestFlight | Active distribution | 0.5.3 distributed; source build 5 | Explicit upload request and candidate device gates |
+| TestFlight | Active distribution; remediation locally accepted | Organizer/Xcode feedback proves tester use of 0.5.3 (5); all 44 ledger entries are implemented and locally passed, with physical and TestFlight states separate | Keep reports open; unlock and complete connected-iPhone runtime acceptance, then require an explicit upload request for 0.5.3 (6) |
 
 ## Notification sprint priority
 
