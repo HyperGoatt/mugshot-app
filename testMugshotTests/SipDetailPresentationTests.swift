@@ -3,6 +3,70 @@ import Testing
 @testable import testMugshot
 
 struct SipDetailPresentationTests {
+    @Test func expressiveReactionStateAddsChangesAndRemovesOneViewerSelection() {
+        let initial = VisitReactionState(
+            viewerReaction: nil,
+            likeCount: 2,
+            loveCount: 1,
+            laughCount: 0,
+            yummyCount: 0
+        )
+
+        let liked = initial.replacingViewerReaction(with: .like)
+        #expect(liked.viewerReaction == .like)
+        #expect(liked.likeCount == 3)
+        #expect(liked.totalCount == 4)
+
+        let loved = liked.replacingViewerReaction(with: .love)
+        #expect(loved.viewerReaction == .love)
+        #expect(loved.likeCount == 2)
+        #expect(loved.loveCount == 2)
+        #expect(loved.totalCount == 4)
+
+        let removed = loved.replacingViewerReaction(with: nil)
+        #expect(removed.viewerReaction == nil)
+        #expect(removed.loveCount == 1)
+        #expect(removed.totalCount == 3)
+    }
+
+    @Test func commentThreadingPlacesRepliesImmediatelyAfterTheirParent() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let replyID = UUID()
+        let comments = [
+            SipDetailCommentModel(
+                id: firstID,
+                authorName: "Jamie",
+                username: "@jamie",
+                text: "First",
+                timestamp: "3m",
+                canReply: true
+            ),
+            SipDetailCommentModel(
+                id: secondID,
+                authorName: "Marco",
+                username: "@marco",
+                text: "Second",
+                timestamp: "2m",
+                canReply: true
+            ),
+            SipDetailCommentModel(
+                id: replyID,
+                parentID: firstID,
+                authorName: "Avery",
+                username: "@avery",
+                text: "Reply",
+                timestamp: "1m",
+                canReply: false
+            )
+        ]
+
+        let ordered = SipDetailCommentThreading.ordered(comments)
+
+        #expect(ordered.map(\.id) == [firstID, replyID, secondID])
+        #expect(ordered.map(\.depth) == [0, 1, 0])
+    }
+
     @Test func commentComposerKeepsUIKitFocusUntilSwiftUIExplicitlyDismissesIt() {
         #expect(
             SipDetailComposerFocusPolicy.action(
@@ -275,7 +339,7 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.journalVisibility == "Public")
         #expect(presentation.content.journalNoteTitle == "Journal note · Public")
         #expect(presentation.content.locationName == "Babas on Cannon")
-        #expect(presentation.content.locationSubtitle == "Charleston")
+        #expect(presentation.content.locationSubtitle == "Charleston, SC")
 
         var privateReflection = reflection
         privateReflection.rawNoteVisibility = .private

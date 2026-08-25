@@ -256,12 +256,24 @@ struct SupabaseVisitLikeRow: Identifiable, Decodable, Equatable {
     let userId: UUID
     let visitId: UUID
     let createdAt: String
+    let reactionKind: PostReactionKind
 
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
         case visitId = "visit_id"
         case createdAt = "created_at"
+        case reactionKind = "reaction_kind"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        visitId = try container.decode(UUID.self, forKey: .visitId)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        reactionKind = try container.decodeIfPresent(PostReactionKind.self, forKey: .reactionKind)
+            ?? .like
     }
 }
 
@@ -471,6 +483,130 @@ struct RemoteVisitSocialState: Equatable {
     let likeCount: Int
     let commentCount: Int
     let currentUserHasLiked: Bool
+    let reactionState: VisitReactionState
+
+    init(
+        likeCount: Int,
+        commentCount: Int,
+        currentUserHasLiked: Bool,
+        reactionState: VisitReactionState? = nil
+    ) {
+        let resolvedReaction = reactionState ?? VisitReactionState.legacy(
+            likeCount: likeCount,
+            currentUserHasLiked: currentUserHasLiked
+        )
+        self.likeCount = resolvedReaction.totalCount
+        self.commentCount = commentCount
+        self.currentUserHasLiked = resolvedReaction.viewerReaction != nil
+        self.reactionState = resolvedReaction
+    }
+
+    var viewerReaction: PostReactionKind? {
+        reactionState.viewerReaction
+    }
+}
+
+enum PostReactionKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    case like
+    case love
+    case laugh
+    case yummy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .like: "Like"
+        case .love: "Love"
+        case .laugh: "Laugh"
+        case .yummy: "Yummy"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .like: "hand.thumbsup.fill"
+        case .love: "heart.fill"
+        case .laugh: "face.smiling.fill"
+        case .yummy: "fork.knife"
+        }
+    }
+}
+
+struct VisitReactionState: Decodable, Equatable, Sendable {
+    let viewerReaction: PostReactionKind?
+    let likeCount: Int
+    let loveCount: Int
+    let laughCount: Int
+    let yummyCount: Int
+    let totalCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case viewerReaction = "viewer_reaction"
+        case likeCount = "like_count"
+        case loveCount = "love_count"
+        case laughCount = "laugh_count"
+        case yummyCount = "yummy_count"
+        case totalCount = "total_count"
+    }
+
+    init(
+        viewerReaction: PostReactionKind?,
+        likeCount: Int,
+        loveCount: Int,
+        laughCount: Int,
+        yummyCount: Int,
+        totalCount: Int? = nil
+    ) {
+        self.viewerReaction = viewerReaction
+        self.likeCount = max(0, likeCount)
+        self.loveCount = max(0, loveCount)
+        self.laughCount = max(0, laughCount)
+        self.yummyCount = max(0, yummyCount)
+        self.totalCount = max(
+            0,
+            totalCount ?? (likeCount + loveCount + laughCount + yummyCount)
+        )
+    }
+
+    static func legacy(likeCount: Int, currentUserHasLiked: Bool) -> Self {
+        VisitReactionState(
+            viewerReaction: currentUserHasLiked ? .like : nil,
+            likeCount: likeCount,
+            loveCount: 0,
+            laughCount: 0,
+            yummyCount: 0,
+            totalCount: likeCount
+        )
+    }
+
+    func count(for kind: PostReactionKind) -> Int {
+        switch kind {
+        case .like: likeCount
+        case .love: loveCount
+        case .laugh: laughCount
+        case .yummy: yummyCount
+        }
+    }
+
+    func replacingViewerReaction(with replacement: PostReactionKind?) -> Self {
+        var counts = Dictionary(
+            uniqueKeysWithValues: PostReactionKind.allCases.map { ($0, count(for: $0)) }
+        )
+        if let viewerReaction {
+            counts[viewerReaction] = max(0, (counts[viewerReaction] ?? 0) - 1)
+        }
+        if let replacement {
+            counts[replacement] = (counts[replacement] ?? 0) + 1
+        }
+        return VisitReactionState(
+            viewerReaction: replacement,
+            likeCount: counts[.like] ?? 0,
+            loveCount: counts[.love] ?? 0,
+            laughCount: counts[.laugh] ?? 0,
+            yummyCount: counts[.yummy] ?? 0
+        )
+    }
 }
 
 struct RemoteCafePulseProjection: Decodable, Equatable {

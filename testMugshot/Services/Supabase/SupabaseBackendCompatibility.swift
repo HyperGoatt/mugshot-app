@@ -25,4 +25,15 @@ enum SupabaseBackendCompatibility {
             .lowercased()
         return description.contains("apple_maps_place_id")
     }
+
+    static func isMissingReactionKindColumn(_ error: Error) -> Bool {
+        guard let postgrestError = error as? PostgrestError,
+              ["42703", "PGRST204"].contains(postgrestError.code) else {
+            return false
+        }
+
+        let description = "\(postgrestError.message) \(String(describing: postgrestError))"
+            .lowercased()
+        return description.contains("reaction_kind")
+    }
 }
