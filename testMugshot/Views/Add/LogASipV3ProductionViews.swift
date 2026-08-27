@@ -26,6 +26,7 @@ struct LogASipV3ProductionView: View {
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
     let onAddPhoto: () -> Void
+    let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
     let onChooseCafe: () -> Void
     let onTagPeople: () -> Void
@@ -65,6 +66,7 @@ struct LogASipV3ProductionView: View {
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
         onAddPhoto: @escaping () -> Void,
+        onRemovePhoto: @escaping (Int) -> Void,
         onOrganizePhotos: @escaping () -> Void,
         onChooseCafe: @escaping () -> Void,
         onTagPeople: @escaping () -> Void,
@@ -97,6 +99,7 @@ struct LogASipV3ProductionView: View {
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
         self.onAddPhoto = onAddPhoto
+        self.onRemovePhoto = onRemovePhoto
         self.onOrganizePhotos = onOrganizePhotos
         self.onChooseCafe = onChooseCafe
         self.onTagPeople = onTagPeople
@@ -238,6 +241,7 @@ struct LogASipV3ProductionView: View {
                 isDraftSaved: isDraftSaved,
                 isRecoveryLocked: isRecoveryLocked,
                 onAddPhoto: onAddPhoto,
+                onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
                 onChooseCafe: onChooseCafe,
                 onContinue: { move(to: .sip) }
@@ -272,6 +276,10 @@ struct LogASipV3ProductionView: View {
                 isSaving: isSaving,
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage,
+                onAddPhoto: onAddPhoto,
+                onRemovePhoto: onRemovePhoto,
+                onOrganizePhotos: onOrganizePhotos,
+                onChooseCafe: onChooseCafe,
                 onTagPeople: onTagPeople,
                 onRepairProtectedSave: onRepairProtectedSave,
                 onDiscardProtectedSave: onDiscardProtectedSave,
@@ -290,6 +298,7 @@ struct LogASipV3ProductionView: View {
                 isDraftSaved: isDraftSaved,
                 isRecoveryLocked: isRecoveryLocked,
                 onAddPhoto: onAddPhoto,
+                onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
                 onChooseCafe: onChooseCafe,
                 onContinue: { moveHome(to: .brew) }
@@ -315,6 +324,7 @@ struct LogASipV3ProductionView: View {
                 photoImages: $photoImages,
                 isRecoveryLocked: isRecoveryLocked,
                 onAddPhoto: onAddPhoto,
+                onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
                 onContinue: { moveHome(to: .sip) }
             )
@@ -359,6 +369,10 @@ struct LogASipV3ProductionView: View {
                 isSaving: isSaving,
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage,
+                onAddPhoto: onAddPhoto,
+                onRemovePhoto: onRemovePhoto,
+                onOrganizePhotos: onOrganizePhotos,
+                onChooseCafe: onChooseCafe,
                 onTagPeople: onTagPeople,
                 onRepairProtectedSave: onRepairProtectedSave,
                 onDiscardProtectedSave: onDiscardProtectedSave,
@@ -376,7 +390,6 @@ struct LogASipV3ProductionView: View {
                         .font(.system(size: 13, weight: .bold))
                         .frame(width: 44, height: 44)
                         .background(Color.foamWhite, in: Circle())
-                        .overlay(Circle().stroke(Color.mugshotLine, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .disabled(isSaving)
@@ -386,6 +399,7 @@ struct LogASipV3ProductionView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .bold))
                         .frame(width: 44, height: 44)
+                        .background(Color.foamWhite, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(isSaving)
@@ -393,21 +407,16 @@ struct LogASipV3ProductionView: View {
             }
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
-            if completion != nil {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .accessibilityLabel("Published")
-            } else {
-                Text(isHomeFlow ? "\(draft.homeWorkbenchPhase.progressStep) of 6" : "\(stepNumber) of 5")
+        if completion == nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                Text(isHomeFlow ? "\(draft.homeWorkbenchPhase.progressStep) of 6" : "\(stepNumber) of 4")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
                     .fixedSize(horizontal: true, vertical: true)
                     .accessibilityLabel(
                         isHomeFlow
                             ? "Step \(draft.homeWorkbenchPhase.progressStep) of 6"
-                            : "Step \(stepNumber) of 5"
+                            : "Step \(stepNumber) of 4"
                     )
             }
         }
@@ -626,6 +635,7 @@ private struct LogASipV3SetupSurface: View {
     let isDraftSaved: Bool
     let isRecoveryLocked: Bool
     let onAddPhoto: () -> Void
+    let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
     let onChooseCafe: () -> Void
     let onContinue: () -> Void
@@ -711,6 +721,7 @@ private struct LogASipV3SetupSurface: View {
                         images: photoImages,
                         posterPhotoIndex: $draft.posterPhotoIndex,
                         usesPlaceholder: placeholderBinding,
+                        onRemovePhoto: onRemovePhoto,
                         onAddPhoto: onAddPhoto
                     )
 
@@ -950,6 +961,7 @@ private struct LogASipV3HomeCaptureSurface: View {
     @Binding var photoImages: [UIImage]
     let isRecoveryLocked: Bool
     let onAddPhoto: () -> Void
+    let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
     let onContinue: () -> Void
 
@@ -960,7 +972,6 @@ private struct LogASipV3HomeCaptureSurface: View {
     private var canContinue: Bool {
         hasVisual
             && draft.drinkName.remoteTrimmedNonEmpty != nil
-            && SipCaptionPolicy.validationError(for: draft.socialCaption) == nil
     }
 
     private var placeholderBinding: Binding<Bool> {
@@ -1009,6 +1020,7 @@ private struct LogASipV3HomeCaptureSurface: View {
                     images: photoImages,
                     posterPhotoIndex: $draft.posterPhotoIndex,
                     usesPlaceholder: placeholderBinding,
+                    onRemovePhoto: onRemovePhoto,
                     onAddPhoto: onAddPhoto
                 )
                 HStack {
@@ -1040,23 +1052,6 @@ private struct LogASipV3HomeCaptureSurface: View {
                         .buttonStyle(.plain)
                     }
                 }
-            }
-            .padding(.horizontal, DesignSystem.Space.md)
-
-            VStack(alignment: .leading, spacing: 7) {
-                LogASipV3SectionHeader(title: "Caption", subtitle: "Written for your Mugshot")
-                TextField("Say it your way", text: $draft.socialCaption, axis: .vertical)
-                    .font(.system(size: 16, weight: .regular, design: .serif))
-                    .lineLimit(2...4)
-                    .padding(14)
-                    .background(Color.foamWhite)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine, lineWidth: 1))
-                    .accessibilityIdentifier("logASipV3.caption")
-                Text("\(SipCaptionPolicy.characterCount(draft.socialCaption)) / \(SipCaptionPolicy.maximumLength)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.tertiaryText)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, DesignSystem.Space.md)
 
@@ -1365,6 +1360,8 @@ private struct LogASipV3SipSurface: View {
                 )
                 .padding(.horizontal, DesignSystem.Space.md)
 
+                criteriaEditor
+
                 LogASipV3JournalEditor(
                     title: "Just for my journal",
                     prompt: "What hit first? What stayed with you?",
@@ -1372,8 +1369,6 @@ private struct LogASipV3SipSurface: View {
                     privacyLabel: "Only you"
                 )
                 .padding(.horizontal, DesignSystem.Space.md)
-
-                criteriaEditor
 
                 VStack(alignment: .leading, spacing: 10) {
                     LogASipV3SectionHeader(
@@ -1391,14 +1386,6 @@ private struct LogASipV3SipSurface: View {
                 )
                 .padding(.horizontal, DesignSystem.Space.md)
 
-                LogASipV3JournalEditor(
-                    title: "Just for my journal",
-                    prompt: "What hit first? What stayed with you?",
-                    text: $draft.privateNotes,
-                    privacyLabel: "Private unless you choose otherwise"
-                )
-                .padding(.horizontal, DesignSystem.Space.md)
-
                 LogASipV3ScoreBlock(
                     title: "Sip score",
                     subtitle: "How it worked for you",
@@ -1409,6 +1396,14 @@ private struct LogASipV3SipSurface: View {
                 .padding(.horizontal, DesignSystem.Space.md)
 
                 criteriaEditor
+
+                LogASipV3JournalEditor(
+                    title: "Just for my journal",
+                    prompt: "What hit first? What stayed with you?",
+                    text: $draft.privateNotes,
+                    privacyLabel: "Private unless you choose otherwise"
+                )
+                .padding(.horizontal, DesignSystem.Space.md)
             }
         }
         .onAppear { draft.synchronizeOverallScoreWithCriteria() }
@@ -1498,6 +1493,9 @@ private struct LogASipV3ContextSurface: View {
                         .padding(.horizontal, DesignSystem.Space.md)
                 }
 
+                LogASipV3HomeReflection(draft: $draft)
+                    .padding(.horizontal, DesignSystem.Space.md)
+
                 LogASipV3JournalEditor(
                     title: "What did you change?",
                     prompt: journalPrompt,
@@ -1506,19 +1504,7 @@ private struct LogASipV3ContextSurface: View {
                     minimumHeight: 112
                 )
                 .padding(.horizontal, DesignSystem.Space.md)
-
-                LogASipV3HomeReflection(draft: $draft)
-                    .padding(.horizontal, DesignSystem.Space.md)
             } else {
-                LogASipV3JournalEditor(
-                    title: "Just for my journal",
-                    prompt: journalPrompt,
-                    text: $draft.contextNotes,
-                    privacyLabel: "Private unless you choose otherwise",
-                    minimumHeight: 112
-                )
-                .padding(.horizontal, DesignSystem.Space.md)
-
                 LogASipV3ScoreBlock(
                     title: isCafe ? "Cafe score" : "Setting score",
                     subtitle: isCafe
@@ -1548,6 +1534,15 @@ private struct LogASipV3ContextSurface: View {
                 .onChange(of: draft.contextRatingCriteria) { _, _ in
                     draft.synchronizeContextScoreWithCriteria()
                 }
+
+                LogASipV3JournalEditor(
+                    title: "Just for my journal",
+                    prompt: journalPrompt,
+                    text: $draft.contextNotes,
+                    privacyLabel: "Private unless you choose otherwise",
+                    minimumHeight: 112
+                )
+                .padding(.horizontal, DesignSystem.Space.md)
             }
         }
         .onAppear {
@@ -1595,6 +1590,10 @@ private struct LogASipV3PublishSurface: View {
     let isSaving: Bool
     let isRecoveryLocked: Bool
     let statusMessage: String?
+    let onAddPhoto: () -> Void
+    let onRemovePhoto: (Int) -> Void
+    let onOrganizePhotos: () -> Void
+    let onChooseCafe: () -> Void
     let onTagPeople: () -> Void
     let onRepairProtectedSave: (() -> Void)?
     let onDiscardProtectedSave: (() -> Void)?
@@ -1602,6 +1601,9 @@ private struct LogASipV3PublishSurface: View {
 
     @State private var previewIndex = 0
     @State private var showsCriteria = false
+    @State private var presentedEditSheet: LogASipV3PublishEditSheet?
+    @State private var customCriterionTarget: LogASipV3CriterionTarget?
+    @State private var customCriterionName = ""
 
     private var isHome: Bool { draft.context == .home || draft.context == .recipe }
     private var hasRequiredContextScore: Bool {
@@ -1656,14 +1658,45 @@ private struct LogASipV3PublishSurface: View {
                 subtitle: "Review the memory before it reaches your people."
             )
 
-            LogASipV3PublishMediaCard(
-                images: photoImages,
-                posterPhotoIndex: draft.posterPhotoIndex,
-                usesPlaceholder: draft.photoFallback == .mugsyMissedPhoto,
-                previewIndex: $previewIndex,
-                drinkName: draft.drinkName,
-                contextName: draft.contextDisplayNameV3,
-                createdAt: draft.createdAt
+            VStack(alignment: .leading, spacing: 8) {
+                reviewSectionHeader(title: "Photos") {
+                    Menu("Edit") {
+                        Button("Add photos", systemImage: "photo.badge.plus", action: onAddPhoto)
+                        if photoImages.count > 1 {
+                            Button("Organize photos", systemImage: "rectangle.2.swap", action: onOrganizePhotos)
+                        }
+                        if photoImages.indices.contains(previewIndex) {
+                            Button("Remove this photo", systemImage: "trash", role: .destructive) {
+                                onRemovePhoto(previewIndex)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("logASipV3.publish.edit.photos")
+                    .accessibilityValue(
+                        photoImages.count == 1
+                            ? "1 photo"
+                            : "\(photoImages.count) photos"
+                    )
+                }
+
+                LogASipV3PublishMediaCard(
+                    images: photoImages,
+                    posterPhotoIndex: draft.posterPhotoIndex,
+                    usesPlaceholder: draft.photoFallback == .mugsyMissedPhoto,
+                    previewIndex: $previewIndex,
+                    drinkName: draft.drinkName,
+                    contextName: draft.contextDisplayNameV3,
+                    createdAt: draft.createdAt
+                )
+            }
+            .padding(.horizontal, DesignSystem.Space.md)
+
+            LogASipV3MemorySummary(
+                image: selectedPreviewImage,
+                title: draft.drinkName,
+                subtitle: draft.contextDisplayNameV3,
+                editIdentifier: "logASipV3.publish.edit.identity",
+                onEdit: { presentedEditSheet = .identity }
             )
             .padding(.horizontal, DesignSystem.Space.md)
 
@@ -1691,15 +1724,21 @@ private struct LogASipV3PublishSurface: View {
             }
             .padding(.horizontal, DesignSystem.Space.md)
 
-            LogASipV3ScoreEquation(
-                sipScore: draft.overallScore,
-                contextScore: contextScoreForBlend,
-                contextLabel: draft.context == .cafe ? "Cafe" : "Setting",
-                mugshotScore: mugshotScore,
-                sipCriteria: draft.ratingCriteria,
-                contextCriteria: draft.contextRatingCriteria,
-                showsCriteria: $showsCriteria
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                reviewSectionHeader(title: "Scores & criteria") {
+                    Button("Edit") { presentedEditSheet = .scores }
+                        .accessibilityIdentifier("logASipV3.publish.edit.scores")
+                }
+                LogASipV3ScoreEquation(
+                    sipScore: draft.overallScore,
+                    contextScore: contextScoreForBlend,
+                    contextLabel: draft.context == .cafe ? "Cafe" : "Setting",
+                    mugshotScore: mugshotScore,
+                    sipCriteria: draft.ratingCriteria,
+                    contextCriteria: draft.contextRatingCriteria,
+                    showsCriteria: $showsCriteria
+                )
+            }
             .padding(.horizontal, DesignSystem.Space.md)
 
             if isHome, draft.brewDetails.hasStructuredData {
@@ -1707,46 +1746,31 @@ private struct LogASipV3PublishSurface: View {
                     .padding(.horizontal, DesignSystem.Space.md)
             }
 
-            VStack(spacing: 0) {
-                LogASipV3VisibilitySelector(
-                    title: "Audience",
-                    detail: "Who can see the finished Mugshot",
-                    systemImage: "person.2.fill",
-                    selection: $draft.visibility,
-                    enabledOptions: VisitVisibility.allCases
-                )
+            LogASipV3MemorySummary(
+                image: nil,
+                title: "Journal notes",
+                subtitle: journalSummary,
+                editIdentifier: "logASipV3.publish.edit.journal",
+                onEdit: { presentedEditSheet = .journal }
+            )
+            .padding(.horizontal, DesignSystem.Space.md)
 
-                Divider().padding(.leading, 54)
+            LogASipV3MemorySummary(
+                image: nil,
+                title: "Audience",
+                subtitle: audienceSummary,
+                editIdentifier: "logASipV3.publish.edit.audience",
+                onEdit: { presentedEditSheet = .audience }
+            )
+            .padding(.horizontal, DesignSystem.Space.md)
 
-                LogASipV3VisibilitySelector(
-                    title: "Raw note",
-                    detail: "Never broader than your Mugshot",
-                    systemImage: "lock.doc.fill",
-                    selection: $draft.rawNoteVisibility,
-                    enabledOptions: VisitVisibility.allCases.filter {
-                        $0.breadth <= draft.visibility.breadth
-                    }
-                )
-
-                Divider().padding(.leading, 54)
-
-                if draft.includesRecipeBlueprint {
-                    LogASipV3RecipeSharingControls(draft: $draft)
-                    Divider().padding(.leading, 54)
-                }
-
-                LogASipV3PeopleStrip(
-                    title: "Tag people",
-                    emptyDetail: "Attribute anyone without sharing ownership",
-                    populatedDetail: { "\($0) tagged" },
-                    systemImage: "person.crop.circle.badge.plus",
-                    people: draft.taggedCompanions ?? [],
-                    actionAccessibilityLabel: "Choose people to tag",
-                    action: onTagPeople
-                )
-
-            }
-            .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
+            LogASipV3MemorySummary(
+                image: nil,
+                title: "Tagged people",
+                subtitle: taggedPeopleSummary,
+                editIdentifier: "logASipV3.publish.edit.tags",
+                onEdit: onTagPeople
+            )
             .padding(.horizontal, DesignSystem.Space.md)
 
             Label("Your journal stays yours.", systemImage: "lock.fill")
@@ -1760,10 +1784,293 @@ private struct LogASipV3PublishSurface: View {
                 max(photoImages.count - 1, 0)
             )
         }
+        .onChange(of: photoImages.count) { _, count in
+            previewIndex = min(max(previewIndex, 0), max(count - 1, 0))
+        }
+        .sheet(item: $presentedEditSheet) { sheet in
+            publishEditSheet(sheet)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .alert("Add criterion", isPresented: customCriterionAlertPresented) {
+            TextField("Criterion name", text: $customCriterionName)
+            Button("Cancel", role: .cancel) { clearCustomCriterion() }
+            Button("Add") { addCustomCriterion() }
+                .disabled(customCriterionName.remoteTrimmedNonEmpty == nil)
+        } message: {
+            Text("Give this part of the sip a short, memorable name.")
+        }
     }
 
     private var captionCharacterCount: Int {
         SipCaptionPolicy.characterCount(draft.socialCaption)
+    }
+
+    private var selectedPreviewImage: UIImage? {
+        guard photoImages.indices.contains(previewIndex) else { return nil }
+        return photoImages[previewIndex]
+    }
+
+    private var journalSummary: String {
+        [draft.privateNotes, draft.contextNotes]
+            .compactMap(\.remoteTrimmedNonEmpty)
+            .joined(separator: " · ")
+            .remoteTrimmedNonEmpty
+            ?? "Add the private details future you will want"
+    }
+
+    private var sipScoreBinding: Binding<Double> {
+        Binding(
+            get: { draft.overallScore },
+            set: { draft.setManualOverallScore($0) }
+        )
+    }
+
+    private var contextScoreBinding: Binding<Double> {
+        Binding(
+            get: { draft.contextScore ?? 0 },
+            set: { draft.setManualContextScore($0, minimum: draft.context == .cafe ? 1 : 0.5) }
+        )
+    }
+
+    private var customCriterionAlertPresented: Binding<Bool> {
+        Binding(
+            get: { customCriterionTarget != nil },
+            set: { if !$0 { clearCustomCriterion() } }
+        )
+    }
+
+    private func reviewSectionHeader<Action: View>(
+        title: String,
+        @ViewBuilder action: () -> Action
+    ) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.espressoBrown)
+            Spacer()
+            action()
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.mugshotSage)
+        }
+        .frame(minHeight: 36)
+    }
+
+    private func publishEditSheet(_ sheet: LogASipV3PublishEditSheet) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch sheet {
+                    case .identity:
+                        identityEditor
+                    case .scores:
+                        scoresEditor
+                    case .journal:
+                        journalEditor
+                    case .audience:
+                        audienceEditor
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color.creamWhite)
+            .navigationTitle(sheet.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { presentedEditSheet = nil }
+                        .fontWeight(.bold)
+                }
+            }
+        }
+    }
+
+    private var identityEditor: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            LogASipV3LabeledField(
+                title: "Drink name",
+                placeholder: "What are you sipping?",
+                text: $draft.drinkName,
+                systemImage: "cup.and.saucer.fill"
+            )
+
+            if draft.context == .cafe {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Cafe", systemImage: "mappin.and.ellipse")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.secondaryText)
+                    Text(draft.cafe?.consumerDisplayName ?? draft.contextDisplayNameV3)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                    Button("Choose a different cafe") {
+                        presentedEditSheet = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            onChooseCafe()
+                        }
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
+            } else {
+                LogASipV3LabeledField(
+                    title: "Location",
+                    placeholder: draft.context.locationFallback,
+                    text: $draft.locationName,
+                    systemImage: draft.context.systemImage
+                )
+            }
+        }
+    }
+
+    private var scoresEditor: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            LogASipV3ScoreBlock(
+                title: "Sip score",
+                subtitle: "How it worked for you",
+                score: sipScoreBinding,
+                accessibilityLabel: "Sip score",
+                isDerived: draft.isOverallScoreDerivedFromCriteria
+            )
+
+            LogASipV3CriteriaEditor(
+                title: "Sip criteria",
+                subtitle: "Edit anything that shaped the sip",
+                suggestionLabel: "Suggested for this drink",
+                criteria: $draft.ratingCriteria,
+                suggestions: LogASipV3CriterionSuggestion.sip(for: draft),
+                accessibilityScope: "publish-sip",
+                canUseLastSetup: false,
+                onUseLastSetup: {},
+                onAddOwn: { beginCustomCriterion(.sip) }
+            )
+            .onChange(of: draft.ratingCriteria) { _, _ in
+                draft.synchronizeOverallScoreWithCriteria()
+            }
+
+            if !isHome {
+                Divider().overlay(Color.mugshotLine)
+
+                LogASipV3ScoreBlock(
+                    title: draft.context == .cafe ? "Cafe score" : "Setting score",
+                    subtitle: "How the setting shaped the memory",
+                    score: contextScoreBinding,
+                    accessibilityLabel: draft.context == .cafe ? "Cafe score" : "Setting score",
+                    minimumScore: draft.context == .cafe ? 1 : 0.5,
+                    isDerived: draft.isContextScoreDerivedFromCriteria
+                )
+
+                LogASipV3CriteriaEditor(
+                    title: draft.context == .cafe ? "Cafe criteria" : "Setting criteria",
+                    subtitle: "Edit anything that shaped the setting",
+                    suggestionLabel: draft.context == .cafe ? "Suggested for this cafe" : "Suggested for this setting",
+                    criteria: $draft.contextRatingCriteria,
+                    suggestions: draft.context == .cafe
+                        ? LogASipV3CriterionSuggestion.cafe
+                        : LogASipV3CriterionSuggestion.elsewhere,
+                    accessibilityScope: "publish-context",
+                    canUseLastSetup: false,
+                    onUseLastSetup: {},
+                    onAddOwn: { beginCustomCriterion(.context) }
+                )
+                .onChange(of: draft.contextRatingCriteria) { _, _ in
+                    draft.synchronizeContextScoreWithCriteria()
+                }
+            }
+        }
+    }
+
+    private var journalEditor: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            LogASipV3JournalEditor(
+                title: "Sip journal",
+                prompt: "What hit first? What stayed with you?",
+                text: $draft.privateNotes,
+                privacyLabel: "Private unless you choose otherwise",
+                minimumHeight: 132
+            )
+
+            LogASipV3JournalEditor(
+                title: draft.context == .cafe ? "Cafe journal" : "Setting journal",
+                prompt: "What will future you want to remember about the setting?",
+                text: $draft.contextNotes,
+                privacyLabel: "Private unless you choose otherwise",
+                minimumHeight: 132
+            )
+        }
+    }
+
+    private var audienceEditor: some View {
+        VStack(spacing: 0) {
+            LogASipV3VisibilitySelector(
+                title: "Audience",
+                detail: "Who can see the finished Mugshot",
+                systemImage: "person.2.fill",
+                selection: $draft.visibility,
+                enabledOptions: VisitVisibility.allCases
+            )
+
+            Divider().padding(.leading, 54)
+
+            LogASipV3VisibilitySelector(
+                title: "Raw note",
+                detail: "Never broader than your Mugshot",
+                systemImage: "lock.doc.fill",
+                selection: $draft.rawNoteVisibility,
+                enabledOptions: VisitVisibility.allCases.filter {
+                    $0.breadth <= draft.visibility.breadth
+                }
+            )
+
+            if draft.includesRecipeBlueprint {
+                Divider().padding(.leading, 54)
+                LogASipV3RecipeSharingControls(draft: $draft)
+            }
+        }
+        .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
+    }
+
+    private var audienceSummary: String {
+        "Mugshot: \(draft.visibility.rawValue) · Raw note: \(draft.rawNoteVisibility.rawValue)"
+    }
+
+    private var taggedPeopleSummary: String {
+        guard let people = draft.taggedCompanions, !people.isEmpty else {
+            return "No one tagged"
+        }
+        return people.map(\.displayName).joined(separator: ", ")
+    }
+
+    private func beginCustomCriterion(_ target: LogASipV3CriterionTarget) {
+        customCriterionTarget = target
+        customCriterionName = ""
+    }
+
+    private func addCustomCriterion() {
+        guard let target = customCriterionTarget,
+              let name = customCriterionName.remoteTrimmedNonEmpty else { return }
+        let existing = target == .sip ? draft.ratingCriteria : draft.contextRatingCriteria
+        guard !existing.contains(where: {
+            $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }) else {
+            clearCustomCriterion()
+            return
+        }
+        let criterion = SipRatingCriterionSnapshot(
+            name: name,
+            weight: 1,
+            sortOrder: existing.count,
+            isPinned: false
+        )
+        if target == .sip {
+            draft.ratingCriteria.append(criterion)
+        } else {
+            draft.contextRatingCriteria.append(criterion)
+        }
+        clearCustomCriterion()
+    }
+
+    private func clearCustomCriterion() {
+        customCriterionTarget = nil
+        customCriterionName = ""
     }
 
     private var captionIsOverLimit: Bool {
@@ -1790,6 +2097,24 @@ private struct LogASipV3PublishSurface: View {
         case .private: return "Only you will see this."
         case .friends: return "Ready for friends."
         case .everyone: return "Ready for everyone."
+        }
+    }
+}
+
+private enum LogASipV3PublishEditSheet: String, Identifiable {
+    case identity
+    case scores
+    case journal
+    case audience
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .identity: "Edit Mugshot details"
+        case .scores: "Edit scores & criteria"
+        case .journal: "Edit journal notes"
+        case .audience: "Edit audience"
         }
     }
 }
@@ -1859,8 +2184,10 @@ struct LogASipV3PassportSummary {
     let isOwner: Bool
     let isRemote: Bool
     let displayName: String
+    let authorUsername: String?
     let drinkName: String
     let contextName: String
+    let locationDetail: String?
     let createdAt: Date
     let sipScore: Double
     let contextScore: Double?
@@ -1880,8 +2207,10 @@ struct LogASipV3PassportSummary {
         isOwner: Bool,
         isRemote: Bool,
         displayName: String,
+        authorUsername: String? = nil,
         drinkName: String,
         contextName: String,
+        locationDetail: String? = nil,
         createdAt: Date,
         sipScore: Double,
         contextScore: Double?,
@@ -1900,8 +2229,10 @@ struct LogASipV3PassportSummary {
         self.isOwner = isOwner
         self.isRemote = isRemote
         self.displayName = displayName
+        self.authorUsername = authorUsername
         self.drinkName = drinkName
         self.contextName = contextName
+        self.locationDetail = locationDetail
         self.createdAt = createdAt
         self.sipScore = sipScore
         self.contextScore = contextScore
@@ -2377,6 +2708,7 @@ private struct LogASipV3PhotoStrip: View {
     let images: [UIImage]
     @Binding var posterPhotoIndex: Int
     @Binding var usesPlaceholder: Bool
+    let onRemovePhoto: (Int) -> Void
     let onAddPhoto: () -> Void
 
     var body: some View {
@@ -2414,12 +2746,12 @@ private struct LogASipV3PhotoStrip: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 10) {
                         ForEach(images.indices, id: \.self) { index in
-                            Button {
-                                posterPhotoIndex = index
-                                usesPlaceholder = false
-                                MugshotHaptic.softImpact.play()
-                            } label: {
-                                ZStack(alignment: .topTrailing) {
+                            ZStack(alignment: .topTrailing) {
+                                Button {
+                                    posterPhotoIndex = index
+                                    usesPlaceholder = false
+                                    MugshotHaptic.softImpact.play()
+                                } label: {
                                     Image(uiImage: images[index])
                                         .resizable()
                                         .scaledToFill()
@@ -2435,23 +2767,39 @@ private struct LogASipV3PhotoStrip: View {
                                                 )
                                         )
 
-                                    if index == posterPhotoIndex {
-                                        Image(systemName: "star.fill")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundStyle(Color.espressoBrown)
-                                            .accessibilityHidden(true)
-                                            .frame(width: 30, height: 30)
-                                            .background(Color.mugshotMint, in: Circle())
-                                            .padding(6)
-                                    }
                                 }
-                                .frame(minWidth: 108, minHeight: 126)
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("logASipV3.photos.thumbnail.\(index)")
+                                .accessibilityLabel("Photo \(index + 1)")
+                                .accessibilityValue(index == posterPhotoIndex ? "Cover" : "")
+                                .accessibilityHint("Makes this the cover photo")
+
+                                if index == posterPhotoIndex {
+                                    Image(systemName: "star.fill")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(Color.espressoBrown)
+                                        .accessibilityHidden(true)
+                                        .frame(width: 30, height: 30)
+                                        .background(Color.mugshotMint, in: Circle())
+                                        .padding(6)
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("logASipV3.photos.thumbnail.\(index)")
-                            .accessibilityLabel("Photo \(index + 1)")
-                            .accessibilityValue(index == posterPhotoIndex ? "Cover" : "")
-                            .accessibilityHint("Makes this the cover photo")
+                            .frame(minWidth: 108, minHeight: 126)
+                            .overlay(alignment: .topLeading) {
+                                Button(role: .destructive) {
+                                    onRemovePhoto(index)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 11, weight: .black))
+                                        .foregroundStyle(Color.foamWhite)
+                                        .frame(width: 30, height: 30)
+                                        .background(Color.espressoBrown.opacity(0.86), in: Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(6)
+                                .accessibilityIdentifier("logASipV3.photos.remove.\(index)")
+                                .accessibilityLabel("Remove photo \(index + 1)")
+                            }
                         }
                     }
                 }
@@ -2485,6 +2833,7 @@ private struct LogASipV3MemorySummary: View {
     let image: UIImage?
     let title: String
     let subtitle: String
+    var editIdentifier: String? = nil
     let onEdit: () -> Void
 
     var body: some View {
@@ -2524,9 +2873,22 @@ private struct LogASipV3MemorySummary: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .modifier(LogASipOptionalAccessibilityIdentifier(identifier: editIdentifier))
         }
         .padding(10)
         .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
+    }
+}
+
+private struct LogASipOptionalAccessibilityIdentifier: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 

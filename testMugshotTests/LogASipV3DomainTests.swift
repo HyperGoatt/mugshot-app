@@ -16,7 +16,7 @@ struct LogASipV3DomainTests {
     }
 
     @Test func sipCriterionCatalogIsBroadRenamedAndContextAware() {
-        #expect(LogASipV3CriterionSuggestion.sip.count == 28)
+        #expect(LogASipV3CriterionSuggestion.sip.count == 34)
         #expect(!LogASipV3CriterionSuggestion.sip.contains { $0.title == "Orange balance" })
         #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Flavor balance" })
         #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Body / Smoothness" })
@@ -342,6 +342,37 @@ struct LogASipV3DomainTests {
         #expect(restored.score == 0)
         #expect(restored.weight == 1)
         #expect(restored.isPinned == true)
+    }
+
+    @Test func photoDeletionRepairsCoverAcrossBeforeAtAndAfterCases() {
+        #expect(
+            SipPhotoDeletionPolicy.repairedCoverIndex(
+                removing: 1,
+                currentCoverIndex: 3,
+                photoCountBeforeRemoval: 5
+            ) == 2
+        )
+        #expect(
+            SipPhotoDeletionPolicy.repairedCoverIndex(
+                removing: 3,
+                currentCoverIndex: 3,
+                photoCountBeforeRemoval: 5
+            ) == 3
+        )
+        #expect(
+            SipPhotoDeletionPolicy.repairedCoverIndex(
+                removing: 4,
+                currentCoverIndex: 3,
+                photoCountBeforeRemoval: 5
+            ) == 3
+        )
+        #expect(
+            SipPhotoDeletionPolicy.repairedCoverIndex(
+                removing: 0,
+                currentCoverIndex: 0,
+                photoCountBeforeRemoval: 1
+            ) == 0
+        )
     }
 
     @Test func lastCriteriaSetupReturnsNamesWithoutVisitRatings() throws {

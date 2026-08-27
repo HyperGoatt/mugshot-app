@@ -83,7 +83,6 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         let missedPhoto = element(Identifier.missedPhoto, in: app)
         XCTAssertTrue(missedPhoto.waitForExistence(timeout: 2))
         missedPhoto.tap()
-        type("Dialed in and finally sweet.", into: Identifier.caption, in: app)
         replaceText(with: "Placeholder ritual latte", in: Identifier.drinkName, app: app)
         attachScreenshot(named: "04-capture", app: app)
 
@@ -107,6 +106,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         tapPrimaryAction(in: app)
 
         XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
+        type("Dialed in and finally sweet.", into: Identifier.caption, in: app)
         attachScreenshot(named: "06-review", app: app)
         let publishSummary = element(Identifier.homePublishSummary, in: app)
         XCTAssertTrue(publishSummary.waitForExistence(timeout: 2))
@@ -137,7 +137,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     }
 
     @MainActor
-    func testPopulatedSetupKeepsOneWideAddPhotosControl() throws {
+    func testPopulatedSetupKeepsOneWideAddPhotosControlAndAccessibleRemoval() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-seed-photo"]
         app.launch()
@@ -151,6 +151,13 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         XCTAssertEqual(addPhotos.firstMatch.label, "Add photos")
         XCTAssertFalse(app.buttons["Add photo"].exists)
         XCTAssertTrue(element("logASipV3.photos.thumbnail.0", in: app).exists)
+
+        let removePhoto = element("logASipV3.photos.remove.0", in: app)
+        XCTAssertTrue(removePhoto.exists)
+        XCTAssertEqual(removePhoto.label, "Remove photo 1")
+        removePhoto.tap()
+        XCTAssertFalse(element("logASipV3.photos.thumbnail.0", in: app).exists)
+        XCTAssertEqual(elements(Identifier.addPhotos, in: app).count, 1)
     }
 
     @MainActor
