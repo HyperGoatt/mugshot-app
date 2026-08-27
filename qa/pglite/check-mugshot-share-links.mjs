@@ -13,6 +13,8 @@ const friendsVisitID = '20000000-0000-4000-8000-000000000002'
 const privateVisitID = '20000000-0000-4000-8000-000000000003'
 const cafeID = '30000000-0000-4000-8000-000000000001'
 const privateCafeID = '30000000-0000-4000-8000-000000000002'
+const duplicateCafeID = '30000000-0000-4000-8000-000000000003'
+const duplicateVisitID = '20000000-0000-4000-8000-000000000004'
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -341,6 +343,12 @@ const profileTotalsAndMentionsMigration = await fs.readFile(
   'utf8',
 )
 await db.exec(profileTotalsAndMentionsMigration)
+const editorialAtlasMigration = await fs.readFile(
+  repoPath +
+    'supabase/migrations/20260826143102_profile_editorial_atlas.sql',
+  'utf8',
+)
+await db.exec(editorialAtlasMigration)
 const contract = await fs.readFile(
   repoPath + 'supabase/tests/mugshot_share_links_contract.sql',
   'utf8',
@@ -793,6 +801,227 @@ assert(suggestionIDs.has(strangerID), 'past real tag was missing from suggestion
 assert(
   !suggestionIDs.has(unrelatedID),
   'unrelated account appeared in Friends and past tags',
+)
+
+await db.exec(`
+  insert into public.cafes (id, name, address, city, latitude, longitude, identity_key)
+  values (
+    '${duplicateCafeID}', 'Public Test Cafe', '1 Test Street', 'Test City',
+    32.7765, -79.9311, 'test:public-cafe'
+  );
+  update public.cafes
+  set address = '1 Test Street', latitude = 32.7765, longitude = -79.9311
+  where id = '${cafeID}';
+  insert into public.visits (
+    id, user_id, cafe_id, drink_type, drink_subtype, caption, visibility,
+    upload_state, overall_score, ratings, poster_photo_url, context_type, created_at
+  ) values (
+    '${duplicateVisitID}', '${ownerID}', '${duplicateCafeID}', 'Coffee', 'Latte',
+    'Same cafe, newer source row', 'everyone', 'complete', 4.0, '{}',
+    'https://example.com/duplicate-cover.jpg', 'cafe', now() + interval '3 minutes'
+  );
+`)
+
+const defaultProfile = await authenticatedAs(
+  strangerID,
+  `select public.get_profile_projection_v4('${ownerID}') projection`,
+)
+assert(
+  defaultProfile.rows[0]?.projection?.stats?.sips === 3 &&
+    defaultProfile.rows[0]?.projection?.stats?.cafes === 1 &&
+    defaultProfile.rows[0]?.projection?.friends_on_profile === true,
+  'default profile did not include Friends and Everyone content or failed to stitch cafe identities',
+)
+assert(
+  defaultProfile.rows[0]?.projection?.highlight === undefined,
+  'Editorial Atlas projection retained the removed profile highlight',
+)
+
+const defaultProfileSips = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_sips_v1('${ownerID}', 24)`,
+)
+assert(
+  defaultProfileSips.rows.length === 3 &&
+    defaultProfileSips.rows.some((row) => row.visibility === 'friends') &&
+    defaultProfileSips.rows.every((row) => row.visibility !== 'private'),
+  'default profile did not publish Friends and Everyone while excluding Private',
+)
+
+const defaultSharedSips = await db.query(
+  `select * from public.list_profile_share_sips_v2('${profileSlug}', 24)`,
+)
+assert(
+  defaultSharedSips.rows.length === 3 &&
+    defaultSharedSips.rows.every((row) => row.visibility !== 'private'),
+  'anonymous profile share did not honor the default Friends-on-profile preference',
+)
+
+const stitchedCafes = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_cafes_v1('${ownerID}', 200)`,
+)
+assert(
+  stitchedCafes.rows.length === 1 && stitchedCafes.rows[0]?.sip_count === 3,
+  'equivalent cafe rows did not stitch into one profile cafe',
+)
+const sharedStitchedCafes = await db.query(
+  `select * from public.list_profile_share_cafes_v1('${profileSlug}', 500)`,
+)
+assert(
+  sharedStitchedCafes.rows.length === 1 &&
+    sharedStitchedCafes.rows[0]?.sip_count === 3,
+  'anonymous profile share did not receive the same stitched public cafes',
+)
+
+const disabledFriends = await authenticatedAs(
+  ownerID,
+  'select public.set_profile_friends_visibility_v1(false) enabled',
+)
+assert(disabledFriends.rows[0]?.enabled === false, 'owner could not disable Friends on profile')
+const everyoneOnlyAfterOptOut = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_sips_v1('${ownerID}', 24)`,
+)
+assert(
+  everyoneOnlyAfterOptOut.rows.length === 2 &&
+    everyoneOnlyAfterOptOut.rows.every((row) => row.visibility === 'everyone'),
+  'Friends remained on the public profile after the owner opted out',
+)
+const optedOutProfile = await authenticatedAs(
+  strangerID,
+  `select public.get_profile_projection_v4('${ownerID}') projection`,
+)
+assert(
+  optedOutProfile.rows[0]?.projection?.stats?.sips === 2 &&
+    optedOutProfile.rows[0]?.projection?.friends_on_profile === false,
+  'profile projection did not reflect the owner Friends visibility opt-out',
+)
+const privateStillExcluded = everyoneOnlyAfterOptOut.rows.every(
+  (row) => row.id !== privateVisitID,
+)
+assert(privateStillExcluded, 'Private Mugshot appeared after profile visibility changed')
+await authenticatedAs(
+  ownerID,
+  'select public.set_profile_friends_visibility_v1(true)',
+)
+
+const savedSpots = await authenticatedAs(
+  ownerID,
+  `select public.set_profile_favorite_spots_v1(
+    '[{"cafe_id":"${privateCafeID}","descriptor":"Best quiet morning"}]'::jsonb
+  ) spots`,
+)
+assert(
+  savedSpots.rows[0]?.spots?.[0]?.cafe_id === privateCafeID &&
+    savedSpots.rows[0]?.spots?.[0]?.descriptor === 'Best quiet morning',
+  'owner could not explicitly publish a cafe from private history',
+)
+const profileWithFavorite = await authenticatedAs(
+  strangerID,
+  `select public.get_profile_projection_v4('${ownerID}') projection`,
+)
+assert(
+  profileWithFavorite.rows[0]?.projection?.favorite_spots?.[0]?.cafe_id === privateCafeID &&
+    profileWithFavorite.rows[0]?.projection?.favorite_spots?.[0]?.cover_photo_url == null,
+  'favorite spot did not publish identity safely or exposed private media',
+)
+
+let tooManyFavoritesRejected = false
+try {
+  await authenticatedAs(
+    ownerID,
+    `select public.set_profile_favorite_spots_v1(
+      '[{"cafe_id":"${cafeID}","descriptor":"One"},
+        {"cafe_id":"${privateCafeID}","descriptor":"Two"},
+        {"cafe_id":"${duplicateCafeID}","descriptor":"Three"},
+        {"cafe_id":"${strangerID}","descriptor":"Four"}]'::jsonb
+    )`,
+  )
+} catch {
+  tooManyFavoritesRejected = true
+}
+assert(tooManyFavoritesRejected, 'Favorite Spots accepted more than three entries')
+
+await db.exec(`
+  insert into public.visit_tags (visit_id, tagged_user_id, tagged_by) values
+    ('${friendsVisitID}', '${strangerID}', '${ownerID}'),
+    ('${privateVisitID}', '${strangerID}', '${ownerID}');
+`)
+const taggedBeforeHide = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_tagged_sips_v1('${strangerID}', 24)`,
+)
+assert(
+  taggedBeforeHide.rows.length === 2 &&
+    taggedBeforeHide.rows.some((row) => row.visibility === 'friends') &&
+    taggedBeforeHide.rows.every((row) => row.visibility !== 'private'),
+  'tagged profile did not include Friends and Everyone while excluding Private',
+)
+await authenticatedAs(
+  strangerID,
+  'select public.set_profile_friends_visibility_v1(false)',
+)
+const taggedAfterOptOut = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_tagged_sips_v1('${strangerID}', 24)`,
+)
+assert(
+  taggedAfterOptOut.rows.length === 1 &&
+    taggedAfterOptOut.rows[0]?.visibility === 'everyone',
+  'tagged Friends Mugshot remained public after the tagged user opted out',
+)
+await authenticatedAs(
+  strangerID,
+  'select public.set_profile_friends_visibility_v1(true)',
+)
+await authenticatedAs(
+  strangerID,
+  `select public.set_profile_tagged_post_hidden_v1('${visitID}', true)`,
+)
+const taggedAfterHide = await authenticatedAs(
+  strangerID,
+  `select * from public.list_profile_public_tagged_sips_v1('${strangerID}', 24)`,
+)
+assert(
+  taggedAfterHide.rows.length === 1 && taggedAfterHide.rows[0]?.id === friendsVisitID,
+  'hidden tagged Mugshot remained on the profile or hid an unrelated Friends tag',
+)
+
+let crossUserHideRejected = false
+try {
+  await authenticatedAs(
+    otherID,
+    `select public.set_profile_tagged_post_hidden_v1('${visitID}', true)`,
+  )
+} catch {
+  crossUserHideRejected = true
+}
+assert(crossUserHideRejected, 'an unrelated user hid someone else’s tagged Mugshot')
+
+let directFavoriteReadRejected = false
+try {
+  await db.exec('set role authenticated;')
+  await db.query('select * from public.profile_favorite_spots')
+} catch {
+  directFavoriteReadRejected = true
+} finally {
+  await db.exec('reset role;')
+}
+assert(directFavoriteReadRejected, 'authenticated role bypassed Favorite Spots RPCs')
+
+let directProfileVisibilityReadRejected = false
+try {
+  await db.exec('set role authenticated;')
+  await db.query('select * from public.profile_visibility_preferences')
+} catch {
+  directProfileVisibilityReadRejected = true
+} finally {
+  await db.exec('reset role;')
+}
+assert(
+  directProfileVisibilityReadRejected,
+  'authenticated role bypassed profile visibility RPCs',
 )
 
 let directProfileLinkReadRejected = false

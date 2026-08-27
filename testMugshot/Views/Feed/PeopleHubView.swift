@@ -361,12 +361,9 @@ struct PublicProfileView: View {
     @State private var failedReportReceipt: SafetyReportReceipt?
     @State private var showBlockConfirmation = false
     @State private var safetyStatus: String?
-    @State private var compatibility: FriendCompatibility?
     @State private var passportState: TastePassportLoadState = .loading
     @State private var selectedSipFilter: PublicSipFilter = .all
     @State private var selectedVisit: RemoteVisitSummary?
-    @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
-
     private enum PublicSipFilter: String, CaseIterable {
         case all = "All"
         case cafe = "Cafe"
@@ -466,12 +463,6 @@ struct PublicProfileView: View {
                 )
             }
 
-            if phase4LightweightFriends,
-               state == .friends,
-               let compatibility {
-                compatibilityCard(compatibility)
-            }
-
             relationshipButton
 
             if state == .incoming {
@@ -514,13 +505,6 @@ struct PublicProfileView: View {
                         }
                     )
                     .padding(.horizontal)
-
-                    if phase4LightweightFriends,
-                       state == .friends,
-                       let compatibility {
-                        compatibilityCard(compatibility)
-                            .padding(.horizontal)
-                    }
 
                     relationshipButton
                         .padding(.horizontal)
@@ -566,28 +550,6 @@ struct PublicProfileView: View {
             }
             .padding(.bottom, 30)
         }
-    }
-
-    private func compatibilityCard(_ compatibility: FriendCompatibility) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(compatibility.title, systemImage: "point.3.connected.trianglepath.dotted")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.espressoBrown)
-            Text(compatibility.explanation)
-                .font(.system(size: 13))
-                .foregroundColor(.secondaryText)
-            if !compatibility.sharedAttributes.isEmpty {
-                Text(compatibility.sharedAttributes.map { $0.capitalized }.joined(separator: " · "))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-            }
-            Text("Based only on journal patterns each of you has supported across at least three sips.")
-                .font(.system(size: 11))
-                .foregroundColor(.tertiaryText)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .cardStyle()
     }
 
     private var profileHeader: some View {
@@ -781,14 +743,6 @@ struct PublicProfileView: View {
             guard authModel.authenticatedUser?.id == expectedAccountID,
                   !Task.isCancelled else { return }
             state = loadedPayload.friendshipState
-            if phase4LightweightFriends && state == .friends {
-                let loadedCompatibility = try? await socialService.compatibility(with: route.id)
-                guard authModel.authenticatedUser?.id == expectedAccountID,
-                      !Task.isCancelled else { return }
-                compatibility = loadedCompatibility
-            } else {
-                compatibility = nil
-            }
             errorMessage = nil
         } catch is CancellationError {
             return
@@ -907,7 +861,6 @@ struct PublicProfileView: View {
             guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             state = .blocked
             payload = nil
-            compatibility = nil
             passportState = .loaded(.hidden)
             errorMessage = nil
             safetyStatus = "@\(route.username) is blocked."
@@ -1018,7 +971,6 @@ struct PublicProfileView: View {
     @MainActor
     private func resetForAccountChange(accountID: UUID?) {
         payload = nil
-        compatibility = nil
         passportState = accountID == nil ? .loaded(.hidden) : .loading
         selectedVisit = nil
         reportReason = nil

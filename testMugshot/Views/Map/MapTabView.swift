@@ -2683,10 +2683,11 @@ private final class MugshotAggregateAnnotationView: MKAnnotationView {
 
 struct RatingsLegend: View {
     let showsFriendContext: Bool
+    var title: String? = nil
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(showsFriendContext ? "Friends’ ratings" : "Your ratings")
+            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your ratings"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown)
 
@@ -3501,9 +3502,12 @@ struct CafeDetailSheet: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let visitService = VisitService(client: client)
+            let equivalentCafes = try await CafeService(client: client)
+                .fetchEquivalentCafes(to: displayCafe)
+            let stitchedCafeIDs = Set(equivalentCafes.map(\.id)).union([remoteCafeID])
             if let userID = authModel.authenticatedUser?.id {
                 async let visitsRequest = visitService.fetchCafeVisits(
-                    cafeId: remoteCafeID,
+                    cafeIds: stitchedCafeIDs,
                     userId: userID,
                     limit: 200
                 )
@@ -3516,7 +3520,7 @@ struct CafeDetailSheet: View {
                 cafeExperienceSummary = summary
             } else {
                 remoteVisits = try await visitService.fetchVisibleCafeVisits(
-                    cafeId: remoteCafeID,
+                    cafeIds: stitchedCafeIDs,
                     currentUserId: nil,
                     limit: 5
                 )

@@ -92,9 +92,8 @@ final class testMugshotUITests: XCTestCase {
             caption: "A guest-created memory",
             usesSeededPhoto: true
         )
-        let privateAudience = app.buttons["Private"].firstMatch
-        XCTAssertTrue(privateAudience.waitForExistence(timeout: 2))
-        XCTAssertTrue(privateAudience.isSelected)
+        revealAudienceControls(in: app)
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         attachScreenshot(named: "After - Guest private publish preview")
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Save this draft to your journal"].waitForExistence(timeout: 3))
@@ -108,7 +107,7 @@ final class testMugshotUITests: XCTestCase {
         attachScreenshot(named: "After - Guest auth preservation boundary")
         XCTAssertTrue(app.buttons["Keep exploring"].exists)
         app.buttons["Keep exploring"].tap()
-        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 2))
         app.buttons["Close Log a Sip"].tap()
 
         XCTAssertTrue(app.buttons["Map"].waitForExistence(timeout: 2))
@@ -124,10 +123,10 @@ final class testMugshotUITests: XCTestCase {
     func testJournalAccountMenuOpensSettings() throws {
         let app = launch(reset: true)
         app.buttons["Journal"].tap()
-        XCTAssertTrue(app.buttons["Open your profile"].waitForExistence(timeout: 3))
-        app.buttons["Open your profile"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
-        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["Open your profile"].exists)
+        XCTAssertTrue(app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3))
+        app.buttons["Open your profile and Taste Passport"].tap()
+        tapAfterRevealing(app.buttons["Settings"], in: app, maximumSwipes: 12)
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Coffee Preferences"].exists)
@@ -151,13 +150,57 @@ final class testMugshotUITests: XCTestCase {
             XCTAssertTrue(saved.isSelected, "Saved failed on pass \(pass)")
             journal.tap()
             XCTAssertTrue(
-                app.buttons["Open your profile"].waitForExistence(timeout: 3),
+                app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3),
                 "Journal stopped responding on pass \(pass)"
             )
         }
 
-        app.buttons["Open your profile"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 3))
+        app.buttons["Open your profile and Taste Passport"].tap()
+        let settings = app.buttons["Settings"]
+        tapAfterRevealing(settings, in: app, maximumSwipes: 12)
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    func testReselectingFeedReturnsToScopeControls() throws {
+        let app = launch(reset: true, extraArguments: ["--ui-testing-seed-adaptive-map"])
+        let yourMix = app.buttons["Your Mix"].firstMatch
+        XCTAssertTrue(yourMix.waitForExistence(timeout: 5))
+        let startingFrame = yourMix.frame
+        XCTAssertGreaterThan(startingFrame.height, 0)
+
+        app.swipeUp()
+        app.swipeUp()
+        let scrolledPastScope = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement else { return false }
+                return element.frame.maxY < startingFrame.minY
+            },
+            object: yourMix
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [scrolledPastScope], timeout: 3), .completed)
+        XCTAssertTrue(app.staticTexts["Feed"].exists)
+
+        app.buttons["mugshot.tab.feed"].tap()
+        let returnedYourMix = app.buttons["Your Mix"].firstMatch
+        XCTAssertTrue(returnedYourMix.waitForExistence(timeout: 3))
+        XCTAssertLessThan(
+            abs(returnedYourMix.frame.minY - startingFrame.minY),
+            20,
+            "Scope started at \(startingFrame) and returned at \(returnedYourMix.frame)."
+        )
+    }
+
+    @MainActor
+    func testJournalTastePassportShowsUpgradeHoldingScreen() throws {
+        let app = launch(reset: true)
+        app.buttons["mugshot.tab.journal"].tap()
+        let passport = app.buttons["Taste Passport"]
+        reveal(passport, in: app, maximumSwipes: 8)
+        passport.tap()
+
+        XCTAssertTrue(app.staticTexts["Your Taste Passport is getting an upgrade"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["tastePassport.upgradeHolding"].exists)
     }
 
     @MainActor
@@ -187,8 +230,9 @@ final class testMugshotUITests: XCTestCase {
 
         XCTAssertTrue(
             app.buttons["Add"].waitForExistence(timeout: 5),
-            "Closing the V3 completion should open Journal and expose Add."
+            "Closing the V3 completion should restore the last non-Add tab and expose Add."
         )
+        XCTAssertTrue(app.buttons["mugshot.tab.feed"].isSelected)
         let duration = Date().timeIntervalSince(startedAt)
         XCTAssertLessThan(duration, 120, "The V3 home sip journey took \(duration) seconds.")
 
@@ -201,7 +245,7 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testEveryoneAudienceAndDraftRestoration() throws {
+    func testEveryoneAudienceAndExplicitDraftRestoration() throws {
         let app = launch(reset: true)
         openV3HomeDraftToPublish(
             in: app,
@@ -209,6 +253,7 @@ final class testMugshotUITests: XCTestCase {
             caption: "A home sip worth remembering"
         )
 
+        revealAudienceControls(in: app)
         let everyone = app.buttons["Everyone"].firstMatch
         XCTAssertTrue(everyone.waitForExistence(timeout: 2))
         everyone.tap()
@@ -220,10 +265,20 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(
-            app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3),
-            "A meaningful V3 draft should restore to its persisted publish step after relaunch."
+        XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
+        XCTAssertFalse(
+            app.staticTexts["Review Mugshot"].exists,
+            "Central Add should always open a fresh composer."
         )
+        let resumeDraft = app.buttons["logASipV3.resumeDraft"]
+        XCTAssertTrue(resumeDraft.waitForExistence(timeout: 2))
+        resumeDraft.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3),
+            "Explicit Resume draft should restore the persisted publish step."
+        )
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Everyone"].firstMatch.isSelected, "The selected audience should restore with the draft.")
         XCTAssertEqual(
             v3Element("logASipV3.caption", in: app).value as? String,
@@ -361,6 +416,7 @@ final class testMugshotUITests: XCTestCase {
             caption: "A recovered photo memory",
             usesSeededPhoto: true
         )
+        revealAudienceControls(in: app)
         app.buttons["Friends"].firstMatch.tap()
         tapV3PrimaryAction(in: app)
 
@@ -373,16 +429,12 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Friends"].firstMatch.isSelected)
-        app.buttons["Previous step"].tap()
-        app.buttons["Previous step"].tap()
-        app.buttons["Previous step"].tap()
-        XCTAssertTrue(v3Element("logASipV3.photos.thumbnail.0", in: app).waitForExistence(timeout: 2))
-        tapV3PrimaryAction(in: app)
-        tapV3PrimaryAction(in: app)
-        tapV3PrimaryAction(in: app)
-        XCTAssertTrue(app.buttons["Friends"].firstMatch.isSelected)
+        let photoEditor = v3Element("logASipV3.publish.edit.photos", in: app)
+        XCTAssertTrue(photoEditor.waitForExistence(timeout: 3))
+        XCTAssertEqual(photoEditor.value as? String, "1 photo")
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
         finishSuccessfulV3Sip(in: app)
@@ -405,6 +457,7 @@ final class testMugshotUITests: XCTestCase {
             drinkName: drinkName,
             caption: "A private draft that survives authentication changes"
         )
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Sign back in to save. Your draft will stay here."].waitForExistence(timeout: 2))
@@ -415,7 +468,8 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
-        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         XCTAssertTrue(app.staticTexts[drinkName].exists)
         XCTAssertEqual(
@@ -425,7 +479,10 @@ final class testMugshotUITests: XCTestCase {
         tapV3PrimaryAction(in: app)
 
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Mugshot published"].exists)
+        XCTAssertTrue(
+            app.staticTexts["Mugshot published."].exists
+                || app.staticTexts["Mugshot published"].exists
+        )
     }
 
     @MainActor
@@ -549,19 +606,30 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(home.waitForExistence(timeout: 3))
         home.tap()
 
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Brew this version"].waitForExistence(timeout: 3))
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["What changed?"].waitForExistence(timeout: 3))
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Brew complete"].waitForExistence(timeout: 3))
+
         if usesSeededPhoto {
-            XCTAssertTrue(
-                v3Element("logASipV3.photos.thumbnail.0", in: app)
-                    .waitForExistence(timeout: 2)
+            tapAfterRevealing(
+                v3Element("logASipV3.photos.thumbnail.0", in: app),
+                in: app,
+                maximumSwipes: 12
             )
         } else {
             let missedPhoto = v3Element("logASipV3.photoFallback.missed", in: app)
-            XCTAssertTrue(missedPhoto.waitForExistence(timeout: 2))
-            missedPhoto.tap()
+            tapAfterRevealing(missedPhoto, in: app, maximumSwipes: 12)
         }
 
         let drinkField = v3Element("logASipV3.drinkName", in: app)
         tapAfterRevealing(drinkField, in: app)
+        let existingDrinkName = (drinkField.value as? String)?.count ?? 0
+        drinkField.typeText(
+            String(repeating: XCUIKeyboardKey.delete.rawValue, count: existingDrinkName)
+        )
         typeTextReliably(drinkName, into: drinkField)
         if !app.staticTexts["How was the sip?"].waitForExistence(timeout: 1) {
             tapV3PrimaryAction(in: app)
@@ -570,13 +638,15 @@ final class testMugshotUITests: XCTestCase {
 
         let sipScore = v3Element("logASipV3.sipScore", in: app)
         tapAfterRevealing(sipScore, in: app)
-        tapV3PrimaryAction(in: app)
 
         XCTAssertTrue(app.staticTexts["Would you make it again?"].waitForExistence(timeout: 3))
         tapAfterRevealing(v3Element("logASipV3.homeMakeAgain.yes", in: app), in: app)
         tapV3PrimaryAction(in: app)
 
-        XCTAssertTrue(app.staticTexts["Publish Mugshot"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Save your brew"].waitForExistence(timeout: 3))
+        tapV3PrimaryAction(in: app)
+
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
         let captionField = v3Element("logASipV3.caption", in: app)
         tapAfterRevealing(captionField, in: app)
         typeTextReliably(caption, into: captionField)
@@ -643,7 +713,10 @@ final class testMugshotUITests: XCTestCase {
         }
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Mugshot published"].exists)
+        XCTAssertTrue(
+            app.staticTexts["Mugshot published."].exists
+                || app.staticTexts["Mugshot published"].exists
+        )
     }
 
     @MainActor
@@ -662,10 +735,27 @@ final class testMugshotUITests: XCTestCase {
     @MainActor
     private func finishSuccessfulV3Sip(in app: XCUIApplication) {
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
-        let close = app.buttons["Close Taste Passport"]
+        let close = app.buttons["Done"]
         XCTAssertTrue(close.waitForExistence(timeout: 2))
         close.tap()
-        XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    private func revealAudienceControls(in app: XCUIApplication) {
+        let audience = app.staticTexts["Audience"]
+        reveal(audience, in: app, maximumSwipes: 12)
+        XCTAssertTrue(audience.isHittable)
+    }
+
+    @MainActor
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, maximumSwipes: Int) {
+        var swipes = 0
+        while swipes < maximumSwipes, !element.isHittable {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(element.exists)
     }
 
     @MainActor
@@ -681,6 +771,11 @@ final class testMugshotUITests: XCTestCase {
         let pinnedAction = v3Element("logASipV3.primaryAction", in: app)
         var swipes = 0
         while swipes < maximumSwipes {
+            guard element.exists else {
+                app.swipeUp()
+                swipes += 1
+                continue
+            }
             let isCoveredByPinnedAction = pinnedAction.exists
                 && element.identifier != "logASipV3.primaryAction"
                 && element.frame.maxY > pinnedAction.frame.minY - 8
@@ -694,11 +789,13 @@ final class testMugshotUITests: XCTestCase {
             }
             swipes += 1
         }
-        let isCoveredByPinnedAction = pinnedAction.exists
+        let exists = element.waitForExistence(timeout: 5)
+        let isCoveredByPinnedAction = exists
+            && pinnedAction.exists
             && element.identifier != "logASipV3.primaryAction"
             && element.frame.maxY > pinnedAction.frame.minY - 8
         XCTAssertTrue(
-            element.waitForExistence(timeout: 5)
+            exists
                 && element.isHittable
                 && !isCoveredByPinnedAction,
             "Expected \(element) to be visible and tappable after scrolling."

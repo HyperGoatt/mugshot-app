@@ -931,6 +931,7 @@ struct SipDetailScreen: View {
     var onCafeTap: (() -> Void)? = nil
     let onRecipeAction: (SipDetailRecipeAction) -> Void
     let onTaggedAccount: (UUID) -> Void
+    let onCommentMention: (UUID) -> Void
     let onRemoveOwnTag: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1105,7 +1106,7 @@ struct SipDetailScreen: View {
                         focusComposer(proxy: proxy)
                     },
                     onCompose: { focusComposer(proxy: proxy) },
-                    onMention: onTaggedAccount,
+                    onMention: onCommentMention,
                     onCommentAction: onCommentAction
                 )
                 .padding(.horizontal, 22)
@@ -3470,6 +3471,7 @@ struct SipDetailPreviewHost: View {
                 },
                 onRecipeAction: { _ in },
                 onTaggedAccount: { _ in },
+                onCommentMention: { _ in },
                 onRemoveOwnTag: {}
             )
             .toolbar {

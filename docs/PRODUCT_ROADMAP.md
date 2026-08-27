@@ -20,6 +20,10 @@ last_verified: 2026-08-24
   per-friend mute only if feedback establishes a real need.
 - Process TestFlight feedback through small, risk-classified fixes and update
   living documentation with each change.
+- Complete connected-iPhone runtime acceptance for the locally accepted
+  44-report remediation branch, release the additive reaction contract through
+  disposable QA before client reliance, and keep every report open until
+  replacement-build acceptance.
 
 ## Current product foundation
 

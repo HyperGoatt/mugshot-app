@@ -200,6 +200,72 @@ enum CafeIdentity {
         return "text:\(normalizedName)|\(normalizedAddress(address) ?? "")"
     }
 
+    /// Returns true only when two records are safe to present as one physical
+    /// cafe. Provider identifiers remain authoritative, while normalized
+    /// name/address matching repairs provider splits such as reordered street
+    /// addresses or a ZIP code appearing in only one record.
+    static func shouldStitch(_ lhs: Cafe, _ rhs: Cafe) -> Bool {
+        if key(for: lhs) == key(for: rhs) {
+            return true
+        }
+
+        guard normalizedName(lhs.name) == normalizedName(rhs.name) else {
+            return false
+        }
+
+        let lhsAddress = stitchAddress(lhs.address)
+        let rhsAddress = stitchAddress(rhs.address)
+        if let lhsAddress, let rhsAddress, lhsAddress == rhsAddress {
+            return true
+        }
+
+        // Provider formatting can also disagree on locality/state words. In
+        // that case require effectively identical coordinates and, when both
+        // addresses expose a street number, the same street number.
+        guard let lhsLocation = lhs.location,
+              let rhsLocation = rhs.location else {
+            return false
+        }
+        let lhsPoint = CLLocation(
+            latitude: lhsLocation.latitude,
+            longitude: lhsLocation.longitude
+        )
+        let rhsPoint = CLLocation(
+            latitude: rhsLocation.latitude,
+            longitude: rhsLocation.longitude
+        )
+        guard lhsPoint.distance(from: rhsPoint) <= 50 else { return false }
+        if lhsAddress != nil,
+           rhsAddress != nil,
+           let lhsStreetNumber = streetNumber(lhs.address),
+           let rhsStreetNumber = streetNumber(rhs.address) {
+            return lhsStreetNumber == rhsStreetNumber
+        }
+        return true
+    }
+
+    static func stitchGroups(_ cafes: [Cafe]) -> [[Cafe]] {
+        var remaining = cafes
+        var groups: [[Cafe]] = []
+
+        while let seed = remaining.popLast() {
+            var group = [seed]
+            var foundMatch = true
+            while foundMatch {
+                foundMatch = false
+                for index in remaining.indices.reversed() where group.contains(where: {
+                    shouldStitch($0, remaining[index])
+                }) {
+                    group.append(remaining.remove(at: index))
+                    foundMatch = true
+                }
+            }
+            groups.append(group)
+        }
+
+        return groups
+    }
+
     private static func normalized(_ value: String?) -> String? {
         guard let value else { return nil }
         let collapsed = value
@@ -208,6 +274,55 @@ enum CafeIdentity {
             .joined(separator: " ")
             .lowercased()
         return collapsed.isEmpty ? nil : collapsed
+    }
+
+    private static func normalizedName(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .filter { $0 != "and" }
+            .joined(separator: " ")
+    }
+
+    private static func stitchAddress(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let replacements = [
+            "avenue": "ave",
+            "street": "st",
+            "road": "rd",
+            "boulevard": "blvd",
+            "drive": "dr",
+            "lane": "ln",
+            "highway": "hwy"
+        ]
+        let rawTokens = value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+        let hasStreetNumber = rawTokens.contains {
+            $0.count < 5 && $0.allSatisfy(\.isNumber)
+        }
+        let tokens = rawTokens
+            .filter { token in
+                token != "us"
+                    && token != "usa"
+                    && !(hasStreetNumber
+                        && token.count == 5
+                        && token.allSatisfy(\.isNumber))
+            }
+            .map { replacements[$0] ?? $0 }
+            .sorted()
+        return tokens.isEmpty ? nil : tokens.joined(separator: " ")
+    }
+
+    private static func streetNumber(_ value: String?) -> String? {
+        guard let value else { return nil }
+        return value
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .first { $0.count < 5 && $0.allSatisfy(\.isNumber) }
     }
 
     private static func normalizedAddress(_ value: String?) -> String? {

@@ -6,6 +6,9 @@ struct PrivacyVisibilitySettingsView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var cafeVisibility = VisitVisibility.friends.rawValue
     @State private var hasLoadedVisibility = false
+    @State private var showsFriendsOnProfile = true
+    @State private var isSavingProfileVisibility = false
+    @State private var profileVisibilityError: String?
 
     var body: some View {
         Form {
@@ -16,6 +19,30 @@ struct PrivacyVisibilitySettingsView: View {
                     Text("Everyone").tag(VisitVisibility.everyone.rawValue)
                 }
                 Text("Mugshot remembers your latest Cafe audience. Everyone still requires a photo or intentional text-only confirmation.")
+            }
+            Section("Public profile") {
+                Toggle("Show Friends Mugshots", isOn: Binding(
+                    get: { showsFriendsOnProfile },
+                    set: updateProfileVisibility
+                ))
+                .disabled(isSavingProfileVisibility)
+
+                if isSavingProfileVisibility {
+                    HStack(spacing: 9) {
+                        ProgressView().controlSize(.small)
+                        Text("Saving profile visibility…")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+                }
+
+                Text("When on, Friends Mugshots stay in Friends Feed and also appear on your public profile. When off, only Everyone Mugshots appear there. Private Mugshots never appear.")
+
+                if let profileVisibilityError {
+                    Label(profileVisibilityError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.red)
+                }
             }
             TastePassportVisibilitySettingsSection()
             Section("Home and Recipe") {
@@ -37,6 +64,7 @@ struct PrivacyVisibilitySettingsView: View {
                 .defaultCafeVisibility(in: scope)
                 .rawValue
             hasLoadedVisibility = true
+            await loadProfileVisibility()
         }
         .onChange(of: cafeVisibility) { _, rawValue in
             guard hasLoadedVisibility,
@@ -45,6 +73,37 @@ struct PrivacyVisibilitySettingsView: View {
                 visibility,
                 in: .forUserID(authModel.authenticatedUser?.id)
             )
+        }
+    }
+
+    @MainActor
+    private func loadProfileVisibility() async {
+        guard authModel.authenticatedUser != nil else { return }
+        do {
+            let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+            showsFriendsOnProfile = try await service.showsFriendsOnPublicProfile()
+            profileVisibilityError = nil
+        } catch {
+            profileVisibilityError = "Mugshot couldn’t load this setting."
+        }
+    }
+
+    private func updateProfileVisibility(_ isEnabled: Bool) {
+        guard !isSavingProfileVisibility else { return }
+        let previousValue = showsFriendsOnProfile
+        showsFriendsOnProfile = isEnabled
+        isSavingProfileVisibility = true
+        profileVisibilityError = nil
+
+        Task { @MainActor in
+            defer { isSavingProfileVisibility = false }
+            do {
+                let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+                showsFriendsOnProfile = try await service.setShowsFriendsOnPublicProfile(isEnabled)
+            } catch {
+                showsFriendsOnProfile = previousValue
+                profileVisibilityError = "That change wasn’t saved. Please try again."
+            }
         }
     }
 }

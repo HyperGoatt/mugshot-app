@@ -1132,6 +1132,7 @@ final class AppAuthModel: ObservableObject {
         CafeSessionContinuationStore.shared.remove(ownerUserID: userID)
         V3PublishedCompletionStore.shared.remove(ownerUserID: userID)
         PinnedCriterionStore.shared.removeAll(ownerUserID: userID)
+        CriterionImportanceStore.shared.removeAll(ownerUserID: userID)
         RecentCriterionSetupStore.shared.removeAll(ownerUserID: userID)
         HomeLibraryStore.shared.removeAll(ownerUserID: userID)
         TastingLensPreferencesStore().removeAll(userID: userID)

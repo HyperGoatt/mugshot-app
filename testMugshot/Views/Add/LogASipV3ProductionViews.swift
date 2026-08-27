@@ -14,7 +14,7 @@ struct LogASipV3ProductionView: View {
     @Binding var step: SipV3ComposerStep
 
     let isSaving: Bool
-    let isDraftSaved: Bool
+    let resumeDraftCount: Int
     let isRecoveryLocked: Bool
     let statusMessage: String?
     let isOpeningPublishedMugshot: Bool
@@ -25,6 +25,7 @@ struct LogASipV3ProductionView: View {
     let canUseLastSipSetup: Bool
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
+    let onResumeDraft: () -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -54,7 +55,7 @@ struct LogASipV3ProductionView: View {
         photoImages: Binding<[UIImage]>,
         step: Binding<SipV3ComposerStep>,
         isSaving: Bool,
-        isDraftSaved: Bool = false,
+        resumeDraftCount: Int = 0,
         isRecoveryLocked: Bool = false,
         statusMessage: String? = nil,
         isOpeningPublishedMugshot: Bool = false,
@@ -65,6 +66,7 @@ struct LogASipV3ProductionView: View {
         canUseLastSipSetup: Bool = false,
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
+        onResumeDraft: @escaping () -> Void = {},
         onAddPhoto: @escaping () -> Void,
         onRemovePhoto: @escaping (Int) -> Void,
         onOrganizePhotos: @escaping () -> Void,
@@ -87,7 +89,7 @@ struct LogASipV3ProductionView: View {
         _photoImages = photoImages
         _step = step
         self.isSaving = isSaving
-        self.isDraftSaved = isDraftSaved
+        self.resumeDraftCount = resumeDraftCount
         self.isRecoveryLocked = isRecoveryLocked
         self.statusMessage = statusMessage
         self.isOpeningPublishedMugshot = isOpeningPublishedMugshot
@@ -98,6 +100,7 @@ struct LogASipV3ProductionView: View {
         self.canUseLastSipSetup = canUseLastSipSetup
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
+        self.onResumeDraft = onResumeDraft
         self.onAddPhoto = onAddPhoto
         self.onRemovePhoto = onRemovePhoto
         self.onOrganizePhotos = onOrganizePhotos
@@ -238,8 +241,9 @@ struct LogASipV3ProductionView: View {
             LogASipV3SetupSurface(
                 draft: $draft,
                 photoImages: $photoImages,
-                isDraftSaved: isDraftSaved,
+                resumeDraftCount: resumeDraftCount,
                 isRecoveryLocked: isRecoveryLocked,
+                onResumeDraft: onResumeDraft,
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
@@ -295,8 +299,9 @@ struct LogASipV3ProductionView: View {
             LogASipV3SetupSurface(
                 draft: $draft,
                 photoImages: $photoImages,
-                isDraftSaved: isDraftSaved,
+                resumeDraftCount: resumeDraftCount,
                 isRecoveryLocked: isRecoveryLocked,
+                onResumeDraft: onResumeDraft,
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
@@ -383,23 +388,23 @@ struct LogASipV3ProductionView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            if completion != nil || showsCloseButton {
-                Button(action: completion == nil ? onCancel : onFinish) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .background(Color.foamWhite, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isSaving)
-                .accessibilityLabel(completion == nil ? "Close Log a Sip" : "Close published Mugshot")
-            } else {
+        ToolbarItemGroup(placement: .topBarLeading) {
+            Button(action: completion == nil ? onCancel : onFinish) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 38, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+            .accessibilityLabel(completion == nil ? "Close Log a Sip" : "Close published Mugshot")
+
+            if completion == nil, canMoveBack {
                 Button(action: moveBack) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .background(Color.foamWhite, in: Circle())
+                        .frame(width: 38, height: 44)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(isSaving)
@@ -430,12 +435,9 @@ struct LogASipV3ProductionView: View {
         isHomeFlow ? "home-\(draft.homeWorkbenchPhase.rawValue)" : step.rawValue
     }
 
-    private var showsCloseButton: Bool {
-        guard isHomeFlow else { return step == .setup }
-        switch draft.homeWorkbenchPhase {
-        case .workbench, .capture, .publish: return true
-        case .brew, .actuals, .sip, .recipe: return false
-        }
+    private var canMoveBack: Bool {
+        guard isHomeFlow else { return step != .setup }
+        return draft.homeWorkbenchPhase != .workbench
     }
 
     @ViewBuilder
@@ -632,8 +634,9 @@ private struct LogASipV3SetupSurface: View {
     @Binding var draft: SipDraft
     @Binding var photoImages: [UIImage]
 
-    let isDraftSaved: Bool
+    let resumeDraftCount: Int
     let isRecoveryLocked: Bool
+    let onResumeDraft: () -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -686,14 +689,38 @@ private struct LogASipV3SetupSurface: View {
             action: onContinue
         ) {
             MugshotScreenHeader("Log a Sip") {
-                Label(
-                    isDraftSaved ? "Draft saved" : "Drafts save automatically",
-                    systemImage: isDraftSaved ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath"
-                )
+                if resumeDraftCount > 0 {
+                    Button(action: onResumeDraft) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "clock.arrow.circlepath")
+                            Text("Resume draft")
+                            if resumeDraftCount > 1 {
+                                Text("\(resumeDraftCount)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .frame(minHeight: 20)
+                                    .background(Color.mugshotMint.opacity(0.55), in: Capsule())
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isDraftSaved ? Color.mugshotSage : Color.tertiaryText)
+                    .foregroundStyle(Color.mugshotSage)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("logASipV3.resumeDraft")
+                    .accessibilityLabel(
+                        resumeDraftCount == 1
+                            ? "Resume draft"
+                            : "Resume draft, \(resumeDraftCount) available"
+                    )
+                } else {
+                    Label("Drafts save automatically", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tertiaryText)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             MugshotSegmentedControl(
@@ -1746,32 +1773,56 @@ private struct LogASipV3PublishSurface: View {
                     .padding(.horizontal, DesignSystem.Space.md)
             }
 
-            LogASipV3MemorySummary(
-                image: nil,
-                title: "Journal notes",
-                subtitle: journalSummary,
-                editIdentifier: "logASipV3.publish.edit.journal",
-                onEdit: { presentedEditSheet = .journal }
-            )
-            .padding(.horizontal, DesignSystem.Space.md)
+            VStack(spacing: 0) {
+                LogASipV3VisibilitySelector(
+                    title: "Audience",
+                    detail: "Who can see the finished Mugshot",
+                    systemImage: "person.2.fill",
+                    selection: $draft.visibility,
+                    enabledOptions: VisitVisibility.allCases
+                )
 
-            LogASipV3MemorySummary(
-                image: nil,
-                title: "Audience",
-                subtitle: audienceSummary,
-                editIdentifier: "logASipV3.publish.edit.audience",
-                onEdit: { presentedEditSheet = .audience }
-            )
-            .padding(.horizontal, DesignSystem.Space.md)
+                if draft.visibility == .friends {
+                    Text("Friends keeps this in Friends Feed. It also appears on your public profile unless you turn that off in Privacy and Visibility.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 12)
+                }
 
-            LogASipV3MemorySummary(
-                image: nil,
-                title: "Tagged people",
-                subtitle: taggedPeopleSummary,
-                editIdentifier: "logASipV3.publish.edit.tags",
-                onEdit: onTagPeople
-            )
+                Divider().padding(.leading, 54)
+
+                LogASipV3VisibilitySelector(
+                    title: "Raw note",
+                    detail: "Never broader than your Mugshot",
+                    systemImage: "lock.doc.fill",
+                    selection: $draft.rawNoteVisibility,
+                    enabledOptions: VisitVisibility.allCases.filter {
+                        $0.breadth <= draft.visibility.breadth
+                    }
+                )
+
+                if draft.includesRecipeBlueprint {
+                    Divider().padding(.leading, 54)
+                    LogASipV3RecipeSharingControls(draft: $draft)
+                }
+
+                Divider().padding(.leading, 54)
+
+                LogASipV3PeopleStrip(
+                    title: "Tag people",
+                    emptyDetail: "Attribute anyone without sharing ownership",
+                    populatedDetail: { "\($0) tagged" },
+                    systemImage: "person.crop.circle.badge.plus",
+                    people: draft.taggedCompanions ?? [],
+                    actionAccessibilityLabel: "Choose people to tag",
+                    action: onTagPeople
+                )
+            }
+            .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
             .padding(.horizontal, DesignSystem.Space.md)
+            .accessibilityIdentifier("logASipV3.publish.audienceControls")
 
             Label("Your journal stays yours.", systemImage: "lock.fill")
                 .font(.system(size: 11, weight: .semibold))
@@ -1809,14 +1860,6 @@ private struct LogASipV3PublishSurface: View {
     private var selectedPreviewImage: UIImage? {
         guard photoImages.indices.contains(previewIndex) else { return nil }
         return photoImages[previewIndex]
-    }
-
-    private var journalSummary: String {
-        [draft.privateNotes, draft.contextNotes]
-            .compactMap(\.remoteTrimmedNonEmpty)
-            .joined(separator: " · ")
-            .remoteTrimmedNonEmpty
-            ?? "Add the private details future you will want"
     }
 
     private var sipScoreBinding: Binding<Double> {
@@ -1865,10 +1908,6 @@ private struct LogASipV3PublishSurface: View {
                         identityEditor
                     case .scores:
                         scoresEditor
-                    case .journal:
-                        journalEditor
-                    case .audience:
-                        audienceEditor
                     }
                 }
                 .padding(16)
@@ -1978,67 +2017,6 @@ private struct LogASipV3PublishSurface: View {
         }
     }
 
-    private var journalEditor: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            LogASipV3JournalEditor(
-                title: "Sip journal",
-                prompt: "What hit first? What stayed with you?",
-                text: $draft.privateNotes,
-                privacyLabel: "Private unless you choose otherwise",
-                minimumHeight: 132
-            )
-
-            LogASipV3JournalEditor(
-                title: draft.context == .cafe ? "Cafe journal" : "Setting journal",
-                prompt: "What will future you want to remember about the setting?",
-                text: $draft.contextNotes,
-                privacyLabel: "Private unless you choose otherwise",
-                minimumHeight: 132
-            )
-        }
-    }
-
-    private var audienceEditor: some View {
-        VStack(spacing: 0) {
-            LogASipV3VisibilitySelector(
-                title: "Audience",
-                detail: "Who can see the finished Mugshot",
-                systemImage: "person.2.fill",
-                selection: $draft.visibility,
-                enabledOptions: VisitVisibility.allCases
-            )
-
-            Divider().padding(.leading, 54)
-
-            LogASipV3VisibilitySelector(
-                title: "Raw note",
-                detail: "Never broader than your Mugshot",
-                systemImage: "lock.doc.fill",
-                selection: $draft.rawNoteVisibility,
-                enabledOptions: VisitVisibility.allCases.filter {
-                    $0.breadth <= draft.visibility.breadth
-                }
-            )
-
-            if draft.includesRecipeBlueprint {
-                Divider().padding(.leading, 54)
-                LogASipV3RecipeSharingControls(draft: $draft)
-            }
-        }
-        .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
-    }
-
-    private var audienceSummary: String {
-        "Mugshot: \(draft.visibility.rawValue) · Raw note: \(draft.rawNoteVisibility.rawValue)"
-    }
-
-    private var taggedPeopleSummary: String {
-        guard let people = draft.taggedCompanions, !people.isEmpty else {
-            return "No one tagged"
-        }
-        return people.map(\.displayName).joined(separator: ", ")
-    }
-
     private func beginCustomCriterion(_ target: LogASipV3CriterionTarget) {
         customCriterionTarget = target
         customCriterionName = ""
@@ -2095,7 +2073,7 @@ private struct LogASipV3PublishSurface: View {
         guard isReadyToPublish else { return "Finish the required details to publish." }
         switch draft.visibility {
         case .private: return "Only you will see this."
-        case .friends: return "Ready for friends."
+        case .friends: return "Ready for Friends Feed and your profile."
         case .everyone: return "Ready for everyone."
         }
     }
@@ -2104,8 +2082,6 @@ private struct LogASipV3PublishSurface: View {
 private enum LogASipV3PublishEditSheet: String, Identifiable {
     case identity
     case scores
-    case journal
-    case audience
 
     var id: String { rawValue }
 
@@ -2113,8 +2089,6 @@ private enum LogASipV3PublishEditSheet: String, Identifiable {
         switch self {
         case .identity: "Edit Mugshot details"
         case .scores: "Edit scores & criteria"
-        case .journal: "Edit journal notes"
-        case .audience: "Edit audience"
         }
     }
 }
@@ -3203,28 +3177,6 @@ private struct LogASipV3CriteriaEditor: View {
                 }
             }
 
-            if !criteria.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach($criteria) { $criterion in
-                        LogASipV3CriterionCard(
-                            criterion: $criterion,
-                            systemImage: systemImage(for: criterion.name),
-                            accessibilityBaseIdentifier: criterionIdentifier(for: criterion.name),
-                            onRename: { beginRename(criterion) },
-                            onRemove: {
-                                criteria.removeAll { $0.id == criterion.id }
-                                reindexCriteria()
-                            }
-                        )
-
-                        if criterion.id != criteria.last?.id {
-                            Divider().padding(.leading, 48)
-                        }
-                    }
-                }
-                .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
-            }
-
             HStack {
                 Text(suggestionLabel)
                     .font(.system(size: 11, weight: .semibold))
@@ -3262,6 +3214,32 @@ private struct LogASipV3CriteriaEditor: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("logASipV3.\(accessibilityScope).suggestion.add-own")
                 }
+            }
+
+            if !criteria.isEmpty {
+                Text("Your criteria")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondaryText)
+
+                VStack(spacing: 0) {
+                    ForEach($criteria) { $criterion in
+                        LogASipV3CriterionCard(
+                            criterion: $criterion,
+                            systemImage: systemImage(for: criterion.name),
+                            accessibilityBaseIdentifier: criterionIdentifier(for: criterion.name),
+                            onRename: { beginRename(criterion) },
+                            onRemove: {
+                                criteria.removeAll { $0.id == criterion.id }
+                                reindexCriteria()
+                            }
+                        )
+
+                        if criterion.id != criteria.last?.id {
+                            Divider().padding(.leading, 48)
+                        }
+                    }
+                }
+                .cardStyle(radius: DesignSystem.Radius.control, shadow: DesignSystem.subtleShadow)
             }
         }
         .alert("Rename criterion", isPresented: renameAlertPresented) {
@@ -4271,24 +4249,48 @@ struct LogASipV3CriterionSuggestion: Identifiable {
         item("umami", "Umami", "leaf.fill"),
         item("astringency", "Astringency", "drop.degreesign"),
         item("whisk-texture", "Whisk texture", "tornado"),
-        item("vegetal-character", "Vegetal character", "leaf.circle")
+        item("vegetal-character", "Vegetal character", "leaf.circle"),
+        item("roast-character", "Roast character", "flame"),
+        item("foam-quality", "Foam quality", "cloud"),
+        item("dilution", "Dilution", "drop.circle"),
+        item("sediment", "Sediment", "circle.grid.cross"),
+        item("clean-cup", "Clean cup", "sparkles"),
+        item("evenness", "Evenness", "equal.circle"),
+        item("concentration", "Concentration", "scope"),
+        item("ice-balance", "Ice balance", "snowflake"),
+        item("dispersion", "Dispersion", "circle.grid.3x3"),
+        item("color", "Color", "paintpalette"),
+        item("creaminess", "Creaminess", "cloud.fill"),
+        item("spice-balance", "Spice balance", "aqi.medium"),
+        item("cocoa-depth", "Cocoa depth", "circle.hexagongrid.fill"),
+        item("chocolate-richness", "Chocolate richness", "square.fill"),
+        item("added-sweetness", "Added sweetness", "plus.circle"),
+        item("ingredient-integration", "Ingredient integration", "link"),
+        item("coating", "Coating", "water.waves"),
+        item("infusion-strength", "Infusion strength", "timer"),
+        item("floral-character", "Floral character", "camera.macro"),
+        item("maltiness", "Maltiness", "leaf.arrow.triangle.circlepath"),
+        item("roast-depth", "Roast depth", "flame.fill"),
+        item("tea-presence", "Tea presence", "leaf.fill"),
+        item("layer-balance", "Layer balance", "square.3.layers.3d"),
+        item("juiciness", "Juiciness", "drop.fill")
     ]
 
     static let sip = sipCatalog
 
     static func sip(for draft: SipDraft) -> [Self] {
-        let words = [draft.drinkName, draft.customDrinkType]
+        let rawDrinkName = [draft.drinkName, draft.customDrinkType]
             .joined(separator: " ")
+        let words = rawDrinkName
             .localizedLowercase
-        let preparation = draft.drinkAnalysis?.preparation
-        let milkPreparations: Set<DrinkPreparation> = [
-            .latte, .cappuccino, .cortado, .flatWhite, .mocha, .macchiato
-        ]
-        let isMilkDrink = preparation.map(milkPreparations.contains) == true
-            || ["latte", "cappuccino", "cortado", "flat white", "mocha", "macchiato"]
+        let analysis = draft.drinkAnalysis ?? DrinkAnalysisParser.analyze(rawDrinkName)
+        let preparation = analysis.preparation
+        let isCold = [.iced, .frozen, .coldBrew].contains(analysis.temperature)
+            || ["iced", "cold brew", "frozen"].contains(where: words.contains)
+        let isMilkStyle = analysis.milk?.remoteTrimmedNonEmpty != nil
+            || ["latte", "milk", "cappuccino", "cortado", "flat white", "mocha", "macchiato"]
                 .contains(where: words.contains)
-        let isTeaDrink = [.matcha, .hojicha, .tea, .chai].contains(draft.drinkType)
-        let priority: [String]
+        var priority: [String]
 
         let isHome = draft.context == .home || draft.context == .recipe
 
@@ -4296,72 +4298,235 @@ struct LogASipV3CriterionSuggestion: Identifiable {
             switch HomeBrewMethod(storedValue: draft.brewMethod) {
             case .espresso:
                 priority = [
-                    "crema", "extraction", "sweetness", "acidity",
-                    "body", "balance", "finish", "aroma"
+                    "crema", "extraction", "aroma", "sweetness", "brightness", "acidity",
+                    "bitterness", "body", "balance", "intensity", "clarity", "roast-character",
+                    "consistency", "temperature", "finish", "aftertaste"
                 ]
             case .pourOver:
                 priority = [
-                    "clarity", "brightness", "aroma", "sweetness",
-                    "balance", "body", "finish", "acidity"
+                    "clarity", "clean-cup", "aroma", "brightness", "acidity", "sweetness",
+                    "flavor", "complexity", "balance", "body", "evenness", "juiciness",
+                    "temperature", "finish", "aftertaste", "presentation"
                 ]
             case .aeroPress:
                 priority = [
-                    "balance", "body", "clarity", "acidity",
-                    "texture", "finish", "sweetness"
+                    "balance", "body", "clarity", "acidity", "texture", "sweetness",
+                    "intensity", "strength", "aroma", "extraction", "consistency",
+                    "temperature", "finish", "aftertaste", "flavor"
                 ]
             case .frenchPress, .immersion:
                 priority = [
-                    "body", "texture", "sweetness", "balance",
-                    "aroma", "finish", "clarity"
+                    "body", "texture", "sediment", "aroma", "sweetness", "bitterness",
+                    "balance", "intensity", "flavor", "complexity", "extraction",
+                    "temperature", "finish", "aftertaste", "consistency"
                 ]
             case .mokaPot:
                 priority = [
-                    "intensity", "bitterness", "body", "balance",
-                    "sweetness", "finish", "aroma"
+                    "intensity", "strength", "extraction", "bitterness", "body", "balance",
+                    "sweetness", "coffee-presence", "aroma", "roast-character", "consistency",
+                    "temperature", "finish", "aftertaste", "value"
                 ]
             case .coldBrew:
                 priority = [
-                    "refreshment", "strength", "sweetness", "clarity",
-                    "body", "finish", "bitterness"
+                    "refreshment", "concentration", "strength", "sweetness", "clarity", "body",
+                    "texture", "bitterness", "acidity", "dilution", "ice-balance", "balance",
+                    "temperature", "finish", "aftertaste", "consistency"
                 ]
             case .batch:
                 priority = [
-                    "freshness", "balance", "temperature", "body",
-                    "aroma", "value", "finish"
+                    "freshness", "aroma", "flavor", "sweetness", "brightness", "acidity",
+                    "bitterness", "body", "balance", "clarity", "roast-character",
+                    "temperature", "finish", "aftertaste", "consistency", "value"
                 ]
             case .pod:
                 priority = [
-                    "consistency", "coffee-presence", "strength", "body",
-                    "finish", "value", "temperature"
+                    "consistency", "coffee-presence", "strength", "aroma", "flavor", "body",
+                    "balance", "sweetness", "bitterness", "roast-character", "temperature",
+                    "finish", "aftertaste", "value"
                 ]
             case .other:
-                priority = ["flavor", "aroma", "balance", "texture", "finish"]
+                priority = Self.generalPriority
             }
-        } else if isTeaDrink {
-            priority = [
-                "umami", "astringency", "whisk-texture", "vegetal-character",
-                "texture", "flavor-balance", "aroma", "finish"
-            ]
-        } else if isMilkDrink {
-            priority = [
-                "milk-integration", "texture", "body", "flavor-balance",
-                "sweetness", "coffee-presence", "finish", "temperature"
-            ]
-        } else if draft.drinkType == .coffee {
-            priority = [
-                "coffee-presence", "aroma", "flavor", "sweetness",
-                "brightness", "bitterness", "body", "flavor-balance", "finish"
-            ]
         } else {
-            priority = ["flavor", "aroma", "flavor-balance", "texture", "finish"]
+            priority = priorityIDs(
+                preparation: preparation,
+                drinkType: draft.drinkType,
+                isMilkStyle: isMilkStyle
+            )
         }
 
-        let rank = Dictionary(uniqueKeysWithValues: priority.enumerated().map { ($1, $0) })
-        return sipCatalog.enumerated().sorted { lhs, rhs in
-            let lhsRank = rank[lhs.element.id] ?? priority.count + lhs.offset
-            let rhsRank = rank[rhs.element.id] ?? priority.count + rhs.offset
-            return lhsRank < rhsRank
-        }.map(\.element)
+        if isCold {
+            if !priority.contains("refreshment") { priority.insert("refreshment", at: 0) }
+            if !priority.contains("ice-balance") {
+                priority.insert("ice-balance", at: min(1, priority.count))
+            }
+        }
+
+        let catalogByID = Dictionary(uniqueKeysWithValues: sipCatalog.map { ($0.id, $0) })
+        var seen = Set<String>()
+        return priority
+            .filter { seen.insert($0).inserted }
+            .prefix(18)
+            .compactMap { catalogByID[$0] }
+    }
+
+    private static let generalPriority = [
+        "flavor", "aroma", "sweetness", "acidity", "bitterness", "body", "texture",
+        "balance", "intensity", "complexity", "temperature", "presentation", "finish",
+        "aftertaste", "novelty"
+    ]
+
+    private static func priorityIDs(
+        preparation: DrinkPreparation,
+        drinkType: DrinkType,
+        isMilkStyle: Bool
+    ) -> [String] {
+        switch preparation {
+        case .espresso:
+            return [
+                "crema", "extraction", "aroma", "sweetness", "brightness", "acidity",
+                "bitterness", "body", "balance", "intensity", "clarity", "roast-character",
+                "consistency", "temperature", "finish", "aftertaste"
+            ]
+        case .americano:
+            return [
+                "coffee-presence", "strength", "aroma", "brightness", "acidity", "bitterness",
+                "body", "balance", "clarity", "dilution", "sweetness", "roast-character",
+                "temperature", "finish", "aftertaste"
+            ]
+        case .latte:
+            return [
+                "milk-integration", "coffee-presence", "texture", "body", "creaminess",
+                "temperature", "sweetness", "flavor-balance", "flavor", "flavor-accuracy",
+                "aroma", "consistency", "presentation", "finish", "aftertaste"
+            ]
+        case .cappuccino:
+            return [
+                "milk-integration", "foam-quality", "coffee-presence", "texture", "body",
+                "layer-balance", "sweetness", "aroma", "temperature", "flavor-balance",
+                "flavor", "consistency", "presentation", "finish", "aftertaste"
+            ]
+        case .cortado:
+            return [
+                "milk-integration", "coffee-presence", "flavor-balance", "texture", "body",
+                "strength", "sweetness", "acidity", "bitterness", "aroma", "temperature",
+                "presentation", "finish", "aftertaste", "consistency"
+            ]
+        case .flatWhite:
+            return [
+                "milk-integration", "coffee-presence", "texture", "foam-quality", "body",
+                "flavor-balance", "strength", "sweetness", "aroma", "temperature",
+                "consistency", "presentation", "finish", "aftertaste", "creaminess"
+            ]
+        case .mocha:
+            return [
+                "cocoa-depth", "chocolate-richness", "milk-integration", "coffee-presence",
+                "sweetness", "added-sweetness", "flavor-balance", "texture", "body",
+                "creaminess", "temperature", "flavor-accuracy", "aroma", "presentation",
+                "finish", "aftertaste"
+            ]
+        case .macchiato:
+            return [
+                "coffee-presence", "milk-integration", "foam-quality", "strength", "intensity",
+                "body", "flavor-balance", "sweetness", "acidity", "bitterness", "aroma",
+                "temperature", "presentation", "finish", "aftertaste"
+            ]
+        case .drip:
+            return [
+                "freshness", "aroma", "flavor", "sweetness", "brightness", "acidity",
+                "bitterness", "body", "balance", "clarity", "roast-character", "temperature",
+                "consistency", "value", "finish", "aftertaste"
+            ]
+        case .pourOver:
+            return [
+                "clarity", "clean-cup", "aroma", "brightness", "acidity", "sweetness",
+                "flavor", "complexity", "balance", "body", "evenness", "juiciness",
+                "temperature", "presentation", "finish", "aftertaste"
+            ]
+        case .chemex:
+            return [
+                "clarity", "clean-cup", "brightness", "sweetness", "aroma", "acidity",
+                "balance", "body", "complexity", "flavor", "sediment", "evenness",
+                "temperature", "presentation", "finish", "aftertaste"
+            ]
+        case .frenchPress:
+            return [
+                "body", "texture", "sediment", "aroma", "sweetness", "bitterness", "balance",
+                "intensity", "flavor", "complexity", "temperature", "consistency",
+                "presentation", "finish", "aftertaste"
+            ]
+        case .aeropress:
+            return [
+                "balance", "body", "clarity", "acidity", "texture", "sweetness", "intensity",
+                "strength", "aroma", "extraction", "consistency", "temperature", "flavor",
+                "finish", "aftertaste"
+            ]
+        case .coldBrew:
+            return [
+                "refreshment", "ice-balance", "concentration", "strength", "sweetness", "clarity",
+                "body", "bitterness", "acidity", "dilution", "flavor", "balance",
+                "temperature", "consistency", "finish", "aftertaste"
+            ]
+        case .matcha:
+            if isMilkStyle {
+                return [
+                    "umami", "vegetal-character", "milk-integration", "whisk-texture", "dispersion",
+                    "color", "texture", "creaminess", "sweetness", "astringency", "bitterness",
+                    "flavor-balance", "temperature", "presentation", "finish", "aftertaste"
+                ]
+            }
+            return [
+                "umami", "astringency", "whisk-texture", "vegetal-character", "color", "dispersion",
+                "foam-quality", "aroma", "sweetness", "bitterness", "body", "texture",
+                "flavor-balance", "temperature", "finish", "aftertaste"
+            ]
+        case .hojicha:
+            var values = [
+                "roast-depth", "aroma", "sweetness", "bitterness", "astringency", "body",
+                "texture", "flavor-balance", "maltiness", "temperature", "comfort",
+                "presentation", "finish", "aftertaste"
+            ]
+            if isMilkStyle {
+                values.insert(contentsOf: ["milk-integration", "creaminess"], at: 2)
+            } else {
+                values.insert(contentsOf: ["clarity", "infusion-strength"], at: 2)
+            }
+            return values
+        case .tea:
+            var values = [
+                "aroma", "infusion-strength", "clarity", "brightness", "astringency", "bitterness",
+                "sweetness", "body", "floral-character", "complexity", "flavor-balance",
+                "temperature", "freshness", "presentation", "finish", "aftertaste"
+            ]
+            if isMilkStyle {
+                values = ["milk-integration", "creaminess", "tea-presence"]
+                    + values.filter { !["clarity", "brightness", "freshness"].contains($0) }
+            }
+            return values
+        case .chai:
+            return [
+                "spice-balance", "aroma", "intensity", "sweetness", "added-sweetness",
+                "milk-integration", "tea-presence", "texture", "body", "creaminess",
+                "flavor-balance", "temperature", "comfort", "presentation", "finish", "aftertaste"
+            ]
+        case .hotChocolate:
+            return [
+                "cocoa-depth", "chocolate-richness", "sweetness", "added-sweetness",
+                "milk-integration", "texture", "body", "creaminess", "temperature",
+                "flavor-balance", "flavor", "flavor-accuracy", "aroma", "presentation",
+                "finish", "aftertaste"
+            ]
+        case .unknown:
+            switch drinkType {
+            case .matcha: return priorityIDs(preparation: .matcha, drinkType: drinkType, isMilkStyle: isMilkStyle)
+            case .hojicha: return priorityIDs(preparation: .hojicha, drinkType: drinkType, isMilkStyle: isMilkStyle)
+            case .tea: return priorityIDs(preparation: .tea, drinkType: drinkType, isMilkStyle: isMilkStyle)
+            case .chai: return priorityIDs(preparation: .chai, drinkType: drinkType, isMilkStyle: isMilkStyle)
+            case .hotChocolate:
+                return priorityIDs(preparation: .hotChocolate, drinkType: drinkType, isMilkStyle: isMilkStyle)
+            case .coffee, .other: return generalPriority
+            }
+        }
     }
 
     static let cafe: [Self] = [

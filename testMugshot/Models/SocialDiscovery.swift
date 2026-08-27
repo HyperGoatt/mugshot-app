@@ -267,6 +267,9 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     let latitude: Double?
     let longitude: Double?
     let identityKey: String?
+    let authorDisplayName: String?
+    let authorUsername: String?
+    let authorAvatarURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id, caption, latitude, longitude
@@ -285,6 +288,19 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
         case cafeName = "cafe_name"
         case cafeCity = "cafe_city"
         case identityKey = "identity_key"
+        case authorDisplayName = "author_display_name"
+        case authorUsername = "author_username"
+        case authorAvatarURL = "author_avatar_url"
+    }
+
+    var isStrictlyPublic: Bool {
+        visibility?.caseInsensitiveCompare("everyone") == .orderedSame
+    }
+
+    var isPublishedOnProfile: Bool {
+        guard let visibility else { return false }
+        return visibility.caseInsensitiveCompare("everyone") == .orderedSame
+            || visibility.caseInsensitiveCompare("friends") == .orderedSame
     }
 
     var journalContext: JournalEntryContext {
@@ -316,6 +332,24 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
     }
 
     func summary(profile: SupabaseUserProfile) -> RemoteVisitSummary {
+        let resolvedProfile: SupabaseUserProfile
+        if let userID,
+           let authorUsername = authorUsername?.remoteTrimmedNonEmpty {
+            resolvedProfile = SupabaseUserProfile(
+                id: userID,
+                displayName: authorDisplayName?.remoteTrimmedNonEmpty ?? "@\(authorUsername)",
+                username: authorUsername,
+                bio: nil,
+                location: nil,
+                favoriteDrink: nil,
+                instagramHandle: nil,
+                avatarURL: authorAvatarURL,
+                bannerURL: nil,
+                websiteURL: nil
+            )
+        } else {
+            resolvedProfile = profile
+        }
         let remoteCafe = journalContext == .cafe ? cafeID.map { id in
             SupabaseCafeSummary(
                 id: id,
@@ -331,7 +365,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
         } : nil
         let row = SupabaseVisitRow(
             id: id,
-            userId: userID ?? profile.id,
+            userId: userID ?? resolvedProfile.id,
             cafeId: cafeID,
             drinkType: drinkType,
             drinkTypeCustom: drinkTypeCustom,
@@ -348,7 +382,7 @@ struct PublicProfileVisit: Identifiable, Decodable, Equatable {
             brewMethod: nil,
             createdAt: createdAt
         )
-        return RemoteVisitSummary(visit: row, cafe: remoteCafe, author: profile)
+        return RemoteVisitSummary(visit: row, cafe: remoteCafe, author: resolvedProfile)
     }
 }
 

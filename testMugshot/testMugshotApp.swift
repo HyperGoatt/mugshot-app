@@ -26,6 +26,7 @@ struct testMugshotApp: App {
         _ = NearbyCafeReminderCoordinator.shared
 #if DEBUG
         MugshotLaunchEnvironment.prepareDebugFailureHooks()
+        _ = try? MugsyVectorReferenceExporter.exportIfRequested()
         if MugshotLaunchEnvironment.isUITesting {
             if MugshotLaunchEnvironment.savedAuditScenario != nil,
                MugshotLaunchEnvironment.isUITestingSignedOut {

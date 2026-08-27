@@ -21,11 +21,14 @@ enum MugshotLaunchEnvironment {
     static let shouldShowRecoveryBannerDesignQA = arguments.contains("--ui-testing-recovery-banner-design-qa")
     static let shouldShowMugsySceneDesignQA = arguments.contains("--ui-testing-mugsy-scenes-design-qa")
     static let shouldShowHomeWorkbenchDesignQA = arguments.contains("--ui-testing-home-workbench-design-qa")
+    static let shouldShowEditorialProfileDesignQA = arguments.contains("--ui-testing-editorial-profile-design-qa")
+    static let shouldShowEditorialOwnerProfileDesignQA = arguments.contains("--ui-testing-editorial-owner-profile-design-qa")
     static let homeWorkbenchDesignQAState = argumentValue(
         prefix: "--ui-testing-home-workbench-state="
     )
     static let shouldShowSignedInOnboardingDesignQA = arguments.contains("--ui-testing-signed-in-onboarding-design-qa")
     static let shouldShowFirstLaunchOnboardingDesignQA = arguments.contains("--ui-testing-first-launch-onboarding-design-qa")
+    static let shouldExportMugsyVectorReference = arguments.contains("--debug-export-mugsy-vector-reference")
     static let shouldUseReduceMotion = arguments.contains("--ui-testing-reduce-motion")
 #if DEBUG
     static let savedAuditScenario = SavedAuditScenario.resolve(arguments: arguments)

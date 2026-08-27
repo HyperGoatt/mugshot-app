@@ -33,7 +33,7 @@ through the committed package resolution.
 | Auth/Profile | Identity, callbacks, session/account isolation and public profile projections |
 | Composer/Visits | Cafe, Home and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery |
 | Home Workbench | Coffee library, recipes, brew plans/actuals, reuse and owner journal projection |
-| Feed/Social | Viewer-scoped feed, detail, friends, likes, comments, mentions, reactions and tags |
+| Feed/Social | Viewer-scoped feed/detail, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
 | Map/Saved | Search, cafe identity, saved state, discovery and collaborative lists |
 | Journal/Taste | Canonical history, reflections, Taste Passport and sensory projections |
 | Safety/Ownership | Visibility, blocks, reports, enforcement, export, deletion and public links |
@@ -58,6 +58,8 @@ See [Real data flow status](REAL_DATA_FLOW_STATUS.md) for the authority matrix.
 - `supabase/tests/` contains SQL security and behavior contracts.
 - `qa/pglite/` provides hermetic migration and lifecycle checks without a live
   Supabase connection.
+- `qa/pglite/check-post-reactions.mjs` exercises the additive reaction RPC,
+  visibility/blocking, concurrency, legacy defaults, and Activity lifecycle.
 - `scripts/verify-supabase-qa.sh` targets only a disposable QA branch and refuses
   production.
 

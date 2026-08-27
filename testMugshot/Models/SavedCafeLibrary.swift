@@ -126,4 +126,14 @@ enum CafePhotoSelection {
             .compactMap { $0.visit.posterPhotoURL?.remoteTrimmedNonEmpty }
             .first
     }
+
+    static func isRemotePhotoReference(_ value: String) -> Bool {
+        if VisitPhotoStorageReference(storedValue: value) != nil {
+            return true
+        }
+        guard let scheme = URL(string: value)?.scheme?.lowercased() else {
+            return false
+        }
+        return scheme == "https" || scheme == "http"
+    }
 }

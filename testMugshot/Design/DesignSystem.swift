@@ -263,6 +263,8 @@ struct MugshotScreenHeader<Trailing: View>: View {
     let subtitle: String?
     let subtitleLineLimit: Int?
     let subtitleMinimumScaleFactor: CGFloat
+    let subtitleLayoutHeight: CGFloat?
+    let subtitleLineSpacing: CGFloat
     @ViewBuilder var trailing: Trailing
 
     init(
@@ -270,12 +272,16 @@ struct MugshotScreenHeader<Trailing: View>: View {
         subtitle: String? = nil,
         subtitleLineLimit: Int? = nil,
         subtitleMinimumScaleFactor: CGFloat = 1,
+        subtitleLayoutHeight: CGFloat? = nil,
+        subtitleLineSpacing: CGFloat = 0,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.title = title
         self.subtitle = subtitle
         self.subtitleLineLimit = subtitleLineLimit
         self.subtitleMinimumScaleFactor = subtitleMinimumScaleFactor
+        self.subtitleLayoutHeight = subtitleLayoutHeight
+        self.subtitleLineSpacing = subtitleLineSpacing
         self.trailing = trailing()
     }
 
@@ -287,12 +293,21 @@ struct MugshotScreenHeader<Trailing: View>: View {
                     .foregroundColor(.espressoBrown)
 
                 if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.tertiaryText)
-                        .lineLimit(subtitleLineLimit)
-                        .minimumScaleFactor(subtitleMinimumScaleFactor)
-                        .allowsTightening(subtitleMinimumScaleFactor < 1)
+                    Group {
+                        if let subtitleLayoutHeight {
+                            Text(subtitle)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(height: subtitleLayoutHeight, alignment: .top)
+                        } else {
+                            Text(subtitle)
+                        }
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(subtitleLineLimit)
+                    .lineSpacing(subtitleLineSpacing)
+                    .minimumScaleFactor(subtitleMinimumScaleFactor)
+                    .allowsTightening(subtitleMinimumScaleFactor < 1)
                 }
             }
 
@@ -502,7 +517,12 @@ struct MugshotAvatar: View {
                 .fill(Color.mugshotMint)
 
             if let imageURL,
-               let url = URL(string: imageURL) {
+               imageURL.hasPrefix("asset://") {
+                Image(String(imageURL.dropFirst("asset://".count)))
+                    .resizable()
+                    .scaledToFill()
+            } else if let imageURL,
+                      let url = URL(string: imageURL) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -548,7 +568,12 @@ struct MugshotProfileBanner: View {
             )
 
             if let imageURL,
-               let url = URL(string: imageURL) {
+               imageURL.hasPrefix("asset://") {
+                Image(String(imageURL.dropFirst("asset://".count)))
+                    .resizable()
+                    .scaledToFill()
+            } else if let imageURL,
+                      let url = URL(string: imageURL) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):

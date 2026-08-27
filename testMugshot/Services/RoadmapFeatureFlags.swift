@@ -7,4 +7,5 @@ enum RoadmapFeatureFlags {
     static let phase5Reflections = "MugshotRoadmap.phase5Reflections.v1"
     static let phase6OwnershipAndSystemEntry = "MugshotRoadmap.phase6OwnershipAndSystemEntry.v1"
     static let cafeSessionsAndPulse = "MugshotRoadmap.cafeSessionsAndPulse.v1"
+    static let journalHeaderProfileAction = "MugshotRoadmap.journalHeaderProfileAction.v1"
 }

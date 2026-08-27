@@ -93,8 +93,10 @@ struct MugshotShareTests {
             isRemote: true,
             visibility: .everyone,
             authorName: "  Journal \n Owner  ",
+            authorUsername: " @@journal_owner<script> ",
             drinkName: " Cortado ",
             contextName: " Test Cafe ",
+            locationDetail: " Charleston, SC ",
             rating: 7,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000),
             caption: "  Bright \n finish  "
@@ -103,7 +105,8 @@ struct MugshotShareTests {
 
         #expect(fields == [
             "visitID", "isOwner", "isRemote", "visibility", "authorName",
-            "drinkName", "contextName", "rating", "createdAt", "caption"
+            "authorUsername", "drinkName", "contextName", "locationDetail",
+            "rating", "createdAt", "caption"
         ])
         #expect(!fields.contains("notes"))
         #expect(!fields.contains("privateNotes"))
@@ -112,9 +115,35 @@ struct MugshotShareTests {
         #expect(!fields.contains("recipe"))
         #expect(!fields.contains("evidence"))
         #expect(content.authorName == "Journal Owner")
+        #expect(content.authorUsername == "journal_ownerscript")
+        #expect(content.authorAttribution == "@journal_ownerscript")
+        #expect(content.displayContext == "Test Cafe · Charleston, SC")
         #expect(content.caption == "Bright finish")
         #expect(content.rating == 5)
         #expect(content.mayHavePublicLink)
+    }
+
+    @Test func preciseShareLocationsAreRejectedAndExportInsetsStayInsideCanvas() {
+        let content = MugshotShareContent(
+            visitID: visitID,
+            isOwner: true,
+            isRemote: true,
+            visibility: .everyone,
+            authorName: "Owner",
+            authorUsername: "@owner",
+            drinkName: "Cortado",
+            contextName: "Test Cafe",
+            locationDetail: "123 King Street, Charleston, SC",
+            rating: 4.2,
+            createdAt: .now,
+            caption: nil
+        )
+
+        #expect(content.locationDetail == nil)
+        #expect(MugshotShareArtworkInsets.story.top >= 250)
+        #expect(MugshotShareArtworkInsets.story.bottom >= 300)
+        #expect(MugshotFieldNoteLayout.story.fixedVerticalContent <= MugshotShareFormat.story.pixelSize.height)
+        #expect(MugshotFieldNoteLayout.post.fixedVerticalContent <= MugshotShareFormat.post.pixelSize.height)
     }
 
     @Test func friendsLinksRequireWarningWhilePrivatePostsRemainArtworkOnly() {
@@ -305,8 +334,10 @@ struct MugshotShareTests {
             isRemote: true,
             visibility: visibility,
             authorName: "Owner",
+            authorUsername: "owner",
             drinkName: "Cortado",
             contextName: "Test Cafe",
+            locationDetail: "Charleston, SC",
             rating: 4.2,
             createdAt: .now,
             caption: nil
