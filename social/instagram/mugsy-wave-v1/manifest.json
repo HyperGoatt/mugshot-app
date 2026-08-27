@@ -1,0 +1,28 @@
+{
+  "campaign": "Mugsy waving — coming soon teaser",
+  "status": "locally generated social asset; no launch date or App Store availability claim",
+  "format": {
+    "pixels": "1080x1920",
+    "aspect_ratio": "9:16",
+    "duration_seconds": 6,
+    "frame_rate": 24,
+    "video": "H.264 MP4, silent"
+  },
+  "on_frame_copy": {
+    "headline": "Something good is brewing.",
+    "support": "COMING SOON"
+  },
+  "caption": "Mugsy says hi. 👋 Something good is brewing. Mugshot is coming soon.\n\n#MugshotApp #MeetMugsy #ComingSoon",
+  "alt_text": "Mugsy, Mugshot’s smiling mug character, waves and blinks on a warm cream and mint background beside the words ‘Something good is brewing.’",
+  "provenance": {
+    "character": "Canonical MugsyModelView and playfulWavingMugsy configuration rendered from repository SwiftUI geometry.",
+    "logo": "testMugshot/Assets.xcassets/MugshotAppIcon.imageset/mugshot-app-icon.png",
+    "composition": "build_asset.py using Pillow and ffmpeg",
+    "native_image_generation": "none"
+  },
+  "exports": [
+    "exports/mugsy-wave-coming-soon.mp4",
+    "exports/mugsy-wave-coming-soon-preview.gif",
+    "exports/mugsy-wave-coming-soon-cover.png"
+  ]
+}
