@@ -464,7 +464,7 @@ struct SavedTabView: View {
                 VStack(spacing: 10) {
                     Button {
                         withAnimation(DesignSystem.Motion.base) {
-                            tabCoordinator.selectedTab = 0
+                            tabCoordinator.selectedTab = .map
                         }
                     } label: {
                         Label("Explore Map", systemImage: "map.fill")
@@ -475,7 +475,7 @@ struct SavedTabView: View {
 
                     Button {
                         withAnimation(DesignSystem.Motion.base) {
-                            tabCoordinator.selectedTab = 2
+                            tabCoordinator.selectedTab = .add
                         }
                     } label: {
                         Label("Log a Sip", systemImage: "plus.circle.fill")

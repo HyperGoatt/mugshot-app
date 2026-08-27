@@ -207,7 +207,7 @@ struct LegacyLogVisitView: View {
                         Button("Cancel") {
                             resetForm()
                             // Switch to Map tab
-                            tabCoordinator.selectedTab = 0
+                            tabCoordinator.selectedTab = .map
                             // If we're in a sheet (from Saved/Map), dismiss it
                             dismiss()
                         }
@@ -325,7 +325,7 @@ struct LegacyLogVisitView: View {
                 }
                 .fullScreenCover(item: $savedRemoteVisit, onDismiss: {
                     resetForm()
-                    tabCoordinator.selectedTab = 4
+                    tabCoordinator.selectedTab = .journal
                     dismiss()
                 }) { visit in
                     RemoteVisitDetailView(

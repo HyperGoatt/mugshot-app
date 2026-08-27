@@ -48,7 +48,7 @@ struct MainTabView: View {
     @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
 
-    init(dataManager: DataManager, initialTab: Int = 0) {
+    init(dataManager: DataManager, initialTab: MugshotTab = .feed) {
         self.dataManager = dataManager
         _tabCoordinator = StateObject(wrappedValue: TabCoordinator(selectedTab: initialTab))
     }
@@ -63,7 +63,7 @@ struct MainTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
 
-            if tabCoordinator.selectedTab != 2, !isBottomNavHidden {
+            if tabCoordinator.selectedTab != .add, !isBottomNavHidden {
                 MugshotBottomNav(selectedTab: gatedTabSelection)
                     .transition(.opacity)
                     .zIndex(1)
@@ -123,7 +123,7 @@ struct MainTabView: View {
         .onAppear {
 #if DEBUG
             if MugshotLaunchEnvironment.savedAuditScenario != nil {
-                tabCoordinator.selectedTab = 3
+                tabCoordinator.selectedTab = .saved
             }
 #endif
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
@@ -135,7 +135,7 @@ struct MainTabView: View {
             automaticSipRecovery.setAppActive(scenePhase == .active)
             if !hasAuthenticatedNavigation,
                !Self.guestTabs.contains(tabCoordinator.selectedTab) {
-                tabCoordinator.selectedTab = 0
+                tabCoordinator.selectedTab = .map
             }
             handlePendingSystemRoute()
             synchronizeActivityRouter()
@@ -176,7 +176,7 @@ struct MainTabView: View {
                 showsGuestIntroduction = false
             } else if !hasAuthenticatedNavigation,
                       !Self.guestTabs.contains(tabCoordinator.selectedTab) {
-                tabCoordinator.selectedTab = 0
+                tabCoordinator.selectedTab = .map
             }
             if userId == nil {
                 showsSignedInOnboarding = false
@@ -349,12 +349,12 @@ struct MainTabView: View {
                     accountID: accountID,
                     onLogSipRequested: {
                         withAnimation(DesignSystem.Motion.base) {
-                            tabCoordinator.selectedTab = 2
+                            tabCoordinator.selectedTab = .add
                         }
                     },
                     onExploreMapRequested: {
                         withAnimation(DesignSystem.Motion.base) {
-                            tabCoordinator.selectedTab = 0
+                            tabCoordinator.selectedTab = .map
                         }
                     }
                 )
@@ -517,7 +517,7 @@ struct MainTabView: View {
     @ViewBuilder
     private var activeTab: some View {
         switch tabCoordinator.selectedTab {
-        case 0:
+        case .map:
             MapTabView(
                 dataManager: dataManager,
                 locationManager: mapLocationManager,
@@ -525,7 +525,7 @@ struct MainTabView: View {
                 onLogVisitRequested: beginCafeSip,
                 onAuthenticationRequired: requestAuthentication
             )
-        case 1:
+        case .feed:
             FeedTabView(
                 dataManager: dataManager,
                 activityStore: activityStore,
@@ -534,7 +534,7 @@ struct MainTabView: View {
                     composerDraft = draft
                     composerSessionID = UUID()
                     withAnimation(DesignSystem.Motion.base) {
-                        tabCoordinator.selectedTab = 2
+                        tabCoordinator.selectedTab = .add
                     }
                 },
                 onActivityRequested: {
@@ -547,7 +547,7 @@ struct MainTabView: View {
                     showsActivityCenter = true
                 }
             )
-        case 2:
+        case .add:
             AddTabView(
                 dataManager: dataManager,
                 initialDraft: composerDraft,
@@ -564,39 +564,39 @@ struct MainTabView: View {
                         }
                     }
                 }
-        case 3:
+        case .saved:
             SavedTabView(
                 dataManager: dataManager,
                 onLogVisitRequested: beginCafeSip,
                 onAuthenticationRequired: requestAuthentication
             )
-        default:
+        case .journal:
             JournalTabView(dataManager: dataManager) { draft in
                 composerDraft = draft
                 composerSessionID = UUID()
                 withAnimation(DesignSystem.Motion.base) {
-                    tabCoordinator.selectedTab = 2
+                    tabCoordinator.selectedTab = .add
                 }
             }
         }
     }
 
-    private static let guestTabs: Set<Int> = [0, 2, 3]
+    private static let guestTabs: Set<MugshotTab> = [.map, .add, .saved]
 
     private func captureSelectedScreen() {
         let screen: MugshotAnalyticsScreen
         switch tabCoordinator.selectedTab {
-        case 0: screen = .map
-        case 1: screen = .feed
-        case 2: screen = .sipComposer
-        case 3: screen = .saved
-        default: screen = .journal
+        case .map: screen = .map
+        case .feed: screen = .feed
+        case .add: screen = .sipComposer
+        case .saved: screen = .saved
+        case .journal: screen = .journal
         }
         MugshotAnalytics.shared.capture(.screenViewed(screen, source: .tab))
     }
 
     private func synchronizeMapLocationUpdates() {
-        guard tabCoordinator.selectedTab == 0, scenePhase == .active else {
+        guard tabCoordinator.selectedTab == .map, scenePhase == .active else {
             mapLocationManager.stopUpdatingLocation()
             return
         }
@@ -614,7 +614,7 @@ struct MainTabView: View {
             userID: activeAccountUserID
         )
         composerSessionID = UUID()
-        tabCoordinator.selectedTab = 2
+        tabCoordinator.selectedTab = .add
     }
 
     private var hasAuthenticatedNavigation: Bool {
@@ -637,7 +637,7 @@ struct MainTabView: View {
         return message
     }
 
-    private var gatedTabSelection: Binding<Int> {
+    private var gatedTabSelection: Binding<MugshotTab> {
         Binding(
             get: { tabCoordinator.selectedTab },
             set: { requestedTab in
@@ -648,18 +648,20 @@ struct MainTabView: View {
                 }
 
                 switch requestedTab {
-                case 1:
+                case .feed:
                     requestAuthentication(
                         title: "Friends make discovery better",
                         message: "Sign in to see friend sips and Your Mix. You can keep exploring Map and Saved without an account."
                     )
-                case 2:
+                case .add:
                     tabCoordinator.selectedTab = requestedTab
-                default:
+                case .journal:
                     requestAuthentication(
                         title: "Your journal lives here",
                         message: "Sign in to open your profile, settings, and personal sip history."
                     )
+                case .map, .saved:
+                    tabCoordinator.selectedTab = requestedTab
                 }
             }
         )
@@ -714,7 +716,7 @@ struct MainTabView: View {
         }
 
         if route.destination == .journal {
-            tabCoordinator.selectedTab = 4
+            tabCoordinator.selectedTab = .journal
             systemRouter.consume(route)
             return
         }
@@ -883,7 +885,7 @@ struct MainTabView: View {
         draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         composerDraft = draft
         composerSessionID = UUID()
-        tabCoordinator.selectedTab = 2
+        tabCoordinator.selectedTab = .add
         systemRouter.consume(route)
     }
 
@@ -932,7 +934,7 @@ struct MainTabView: View {
 
     private func setProductTourStep(_ step: MugshotProductTourStep) {
         withAnimation(DesignSystem.Motion.slow) {
-            tabCoordinator.selectedTab = step.tabIndex
+            tabCoordinator.selectedTab = step.tab
             productTourStep = step
         }
     }
@@ -987,7 +989,7 @@ struct MainTabView: View {
                     true,
                     accountID: authModel.authenticatedUser?.id
                 )
-                tabCoordinator.selectedTab = 2
+                tabCoordinator.selectedTab = .add
             } else {
                 tabCoordinator.selectedTab = preferredLandingTab(for: productTourGoal)
             }
@@ -1031,12 +1033,8 @@ struct MainTabView: View {
         return Int(Date().timeIntervalSince(signedInOnboardingStartedAt).rounded())
     }
 
-    private func preferredLandingTab(for goal: CapturePreferenceGoal) -> Int {
-        switch goal {
-        case .nearby: 0
-        case .friends: 1
-        case .taste, .journal: 4
-        }
+    private func preferredLandingTab(for goal: CapturePreferenceGoal) -> MugshotTab {
+        .feed
     }
 
     private func dismissFirstSipGuidance() {
@@ -1358,7 +1356,7 @@ private struct GuestSavedMergeView: View {
 }
 
 private struct MugshotBottomNav: View {
-    @Binding var selectedTab: Int
+    @Binding var selectedTab: MugshotTab
     @State private var dragPosition: CGFloat?
     @State private var isSettlingSelection = false
 
@@ -1375,11 +1373,11 @@ private struct MugshotBottomNav: View {
     }
 
     private let items: [MugshotTabItem] = [
-        MugshotTabItem(index: 0, title: "Map", icon: "map"),
-        MugshotTabItem(index: 1, title: "Feed", icon: "square.grid.2x2"),
-        MugshotTabItem(index: 2, title: "Add", icon: "plus"),
-        MugshotTabItem(index: 3, title: "Saved", icon: "bookmark"),
-        MugshotTabItem(index: 4, title: "Journal", icon: "book.closed")
+        MugshotTabItem(tab: .map, title: "Map", icon: "map"),
+        MugshotTabItem(tab: .feed, title: "Feed", icon: "square.grid.2x2"),
+        MugshotTabItem(tab: .add, title: "Add", icon: "plus"),
+        MugshotTabItem(tab: .saved, title: "Saved", icon: "bookmark"),
+        MugshotTabItem(tab: .journal, title: "Journal", icon: "book.closed")
     ]
 
     var body: some View {
@@ -1425,7 +1423,7 @@ private struct MugshotBottomNav: View {
                 HStack(alignment: .center, spacing: 0) {
                     ForEach(items) { item in
                         Button {
-                            settleSelection(on: item.index)
+                            settleSelection(on: item.tab)
                         } label: {
                             baseItem(item)
                         }
@@ -1434,9 +1432,9 @@ private struct MugshotBottomNav: View {
                         .contentShape(Rectangle())
                         .accessibilityLabel(item.title)
                         .accessibilityIdentifier("mugshot.tab.\(item.title.lowercased())")
-                        .accessibilityValue(selectedTab == item.index ? "Selected" : "")
-                        .accessibilityHint(item.index == 2 ? "Opens the guided sip composer" : "Switches to the \(item.title) tab")
-                        .accessibilityAddTraits(selectedTab == item.index ? .isSelected : [])
+                        .accessibilityValue(selectedTab == item.tab ? "Selected" : "")
+                        .accessibilityHint(item.tab == .add ? "Opens the guided sip composer" : "Switches to the \(item.title) tab")
+                        .accessibilityAddTraits(selectedTab == item.tab ? .isSelected : [])
                     }
                 }
 
@@ -1463,10 +1461,10 @@ private struct MugshotBottomNav: View {
 
     @ViewBuilder
     private func baseItem(_ item: MugshotTabItem) -> some View {
-        if showsRestingSelection, item.index == selectedTab, item.index != 2 {
+        if showsRestingSelection, item.tab == selectedTab, item.tab != .add {
             Color.clear
                 .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
-        } else if item.index == 2 {
+        } else if item.tab == .add {
             addButton
         } else {
             standardItem(item)
@@ -1513,7 +1511,7 @@ private struct MugshotBottomNav: View {
         HStack(alignment: .center, spacing: 0) {
             ForEach(items) { item in
                 Group {
-                    if item.index == 2 {
+                    if item.tab == .add {
                         Color.clear
                             .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
                     } else {
@@ -1591,7 +1589,7 @@ private struct MugshotBottomNav: View {
         HStack(alignment: .center, spacing: 0) {
             ForEach(items) { item in
                 Group {
-                    if item.index == 2 {
+                    if item.tab == .add {
                         addForegroundIcon(color: color)
                     } else {
                         Color.clear
@@ -1633,7 +1631,7 @@ private struct MugshotBottomNav: View {
         HStack(alignment: .center, spacing: 0) {
             ForEach(items) { item in
                 Group {
-                    if item.index == selectedTab {
+                    if item.tab == selectedTab {
                         restingSelectedItem(item)
                     } else {
                         Color.clear
@@ -1647,7 +1645,7 @@ private struct MugshotBottomNav: View {
 
     @ViewBuilder
     private func restingSelectedItem(_ item: MugshotTabItem) -> some View {
-        if item.index == 2 {
+        if item.tab == .add {
             VStack(spacing: 2) {
                 Image(systemName: "plus")
                     .font(.system(size: Metrics.addIconSize, weight: .bold))
@@ -1671,7 +1669,7 @@ private struct MugshotBottomNav: View {
         }
     }
 
-    private func settleSelection(on target: Int) {
+    private func settleSelection(on target: MugshotTab) {
         guard target != selectedTab || dragPosition != nil else { return }
 
         isSettlingSelection = true
@@ -1690,13 +1688,14 @@ private struct MugshotBottomNav: View {
         }
 
         let itemWidth = width / CGFloat(items.count)
-        return itemWidth * (CGFloat(selectedTab) + 0.5)
+        let selectedIndex = items.firstIndex { $0.tab == selectedTab } ?? 0
+        return itemWidth * (CGFloat(selectedIndex) + 0.5)
     }
 
-    private func nearestTab(to position: CGFloat, width: CGFloat) -> Int {
+    private func nearestTab(to position: CGFloat, width: CGFloat) -> MugshotTab {
         let itemWidth = width / CGFloat(items.count)
         let index = Int((position / itemWidth).rounded(.down))
-        return min(max(index, 0), items.count - 1)
+        return items[min(max(index, 0), items.count - 1)].tab
     }
 
     private func clamped(position: CGFloat, width: CGFloat) -> CGFloat {
@@ -1741,9 +1740,9 @@ private struct MugshotBottomNavGlassStyle: ViewModifier {
 }
 
 private struct MugshotTabItem: Identifiable {
-    let index: Int
+    let tab: MugshotTab
     let title: String
     let icon: String
 
-    var id: Int { index }
+    var id: MugshotTab { tab }
 }

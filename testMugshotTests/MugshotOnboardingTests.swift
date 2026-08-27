@@ -38,7 +38,10 @@ struct MugshotOnboardingTests {
     @Test func productTourVisitsEveryCoreDestinationAndShareShortcutBeforeFirstSip() {
         #expect(MugshotOnboardingPlan.totalSteps == 10)
         #expect(MugshotProductTourStep.allCases.map(\.number) == [4, 5, 6, 7, 8])
-        #expect(MugshotProductTourStep.allCases.map(\.tabIndex) == [0, 1, 3, 4, 0])
+        #expect(
+            MugshotProductTourStep.allCases.map(\.tab)
+                == [.map, .feed, .saved, .journal, .map]
+        )
         #expect(MugshotProductTourStep.shareImport.number == 8)
     }
 

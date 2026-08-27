@@ -3946,18 +3946,24 @@ struct LogVisitView: View {
     }
 
     private func finishSuccessfulSave() {
+        completeSuccessfulSave()
+        tabCoordinator.returnFromComposer()
+        dismiss()
+    }
+
+    private func completeSuccessfulSave() {
         let ownerUserID = draft.ownerUserID
             ?? authModel.authenticatedUser?.id
             ?? dataManager.appData.currentUser?.id
         clearPublishedCompletionHandoff(ownerUserID: ownerUserID)
         CafeSessionContinuationStore.shared.remove(ownerUserID: ownerUserID)
-        tabCoordinator.selectedTab = 4
-        dismiss()
     }
 
     private func viewPassportAfterCompletion() {
         JournalPassportRouter.shared.requestPassport()
-        finishSuccessfulSave()
+        completeSuccessfulSave()
+        tabCoordinator.selectedTab = .journal
+        dismiss()
     }
 
     private func clearPublishedCompletionHandoff(ownerUserID explicitOwnerUserID: UUID? = nil) {

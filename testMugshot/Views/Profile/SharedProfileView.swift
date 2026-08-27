@@ -142,7 +142,10 @@ struct SharedProfileView: View {
         let profile = projection.profile
         return VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                MugshotProfileBanner(imageURL: profile.bannerURL, height: 174)
+                MugshotProfileBanner(
+                    imageURL: profile.bannerURL,
+                    height: MugshotProfileBanner.compactHeight
+                )
                 LinearGradient(
                     colors: [.clear, Color.espressoBrown.opacity(0.32)],
                     startPoint: .top,
