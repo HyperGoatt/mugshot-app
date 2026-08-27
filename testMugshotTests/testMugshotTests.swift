@@ -240,6 +240,13 @@ struct testMugshotTests {
 
         #expect(CafeIdentity.key(for: first) == CafeIdentity.key(for: reformatted))
         #expect(CafeIdentity.key(for: first) != CafeIdentity.key(for: neighbor))
+
+        let textOnly = Cafe(name: "Babas on Cannon", address: "11 Cannon St, Charleston SC")
+        let textOnlyReversed = Cafe(
+            name: "BABAS ON CANNON",
+            address: "Charleston, SC, Cannon St 11"
+        )
+        #expect(CafeIdentity.key(for: textOnly) == CafeIdentity.key(for: textOnlyReversed))
     }
 
     @Test func localCafeReconciliationMergesStateAndReassignsVisits() {
@@ -275,6 +282,29 @@ struct testMugshotTests {
         #expect(result.appData.cafes[0].remoteCafeId == remoteId)
         #expect(result.appData.visits[0].cafeId == result.appData.cafes[0].id)
         #expect(result.appData.cafes[0].averageRating == 4.5)
+    }
+
+    @Test func localCafeReconciliationAdoptsRemoteCanonicalIdentityAcrossReversedAddresses() {
+        let remoteID = UUID()
+        let local = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            address: "83 Wentworth St, Charleston, SC",
+            isFavorite: true
+        )
+        let canonical = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            address: "Charleston SC, Wentworth St 83",
+            wantToTry: true,
+            remoteCafeId: remoteID
+        )
+
+        let result = CafeIdentityReconciler.reconcile(AppData(cafes: [local, canonical]))
+
+        #expect(result.mergedCafeCount == 1)
+        #expect(result.appData.cafes.count == 1)
+        #expect(result.appData.cafes[0].remoteCafeId == remoteID)
+        #expect(result.appData.cafes[0].isFavorite)
+        #expect(result.appData.cafes[0].wantToTry)
     }
 
     @Test func pendingVisitSubmissionPersistsPhotosAndAccountScope() throws {
