@@ -8,12 +8,14 @@ last_verified: 2026-08-26
 
 ## 2026-08-26
 
-- Promoted the completed remediation sprint to release candidate 0.5.3 (6).
-  The owner explicitly authorized the Simulator and connected-iPhone release
-  gates, App Store archive/upload, and Alpha Friends assignment. The requested
-  TestFlight notes are exactly `Welcome to Mugshot!`. Archive, upload,
-  processing, and group-assignment results remain unclaimed until each remote
-  step succeeds.
+- Distributed the completed remediation sprint as TestFlight 0.5.3 (6) from
+  exact `main` commit `b498d92`. The candidate passed Simulator and Release
+  archive gates; the owner reported completed device QA and explicitly waived
+  a redundant connected-iPhone rerun after the final sync. Xcode uploaded the
+  archive at 9:37 PM EDT, App Store Connect completed processing, and the build
+  is `Testing` for Mugshot Team and Alpha Friends with the published note
+  `Welcome to Mugshot!`. Replacement-build product acceptance and feedback
+  resolution remain separate.
 - Implemented the latest owner-QA Feed and Profile-share follow-up on
   `codex/testflight-feedback-remediation`. The Feed scope rail now rests
   directly beneath the compact subtitle instead of reserving a second
