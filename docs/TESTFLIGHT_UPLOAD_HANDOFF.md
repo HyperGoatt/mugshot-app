@@ -11,26 +11,30 @@ handoff.
 
 Organizer and the cached Xcode feedback packages confirm tester use of 0.5.3
 (5). The completed 44-report remediation candidate is 0.5.3 (6). On 2026-08-26
-the owner explicitly authorized its Simulator and connected-iPhone release
-gates, archive/upload, and Alpha Friends assignment. No archive, upload,
-processing, or assignment result is claimed until that step succeeds. Every
-report remains open until the replacement build is accepted; see the
+the exact `main` candidate at `b498d92` passed its Simulator and Release archive
+gates, uploaded to App Store Connect, completed processing, and entered
+TestFlight testing. The owner reported that the candidate had already been
+tested on the connected iPhone and explicitly waived a redundant device rerun
+before upload; Codex did not repeat that install after the final `main` sync.
+Every report remains open until the replacement build is accepted; see the
 [feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
 
 Current remediation evidence includes 425 unit tests, eight focused Simulator
 UI journeys, all 43 screenshot reports plus the text-only report, later focused
 profile/feed checks, and consolidated Simulator acceptance. Earlier signed
-Debug sources built, installed, and launched on the connected iPhone. The exact
-build-6 source must still pass both release runtime gates before upload. The
+Debug sources built, installed, and launched on the connected iPhone. Xcode
+Organizer records build 6 as uploaded at 9:37 PM EDT, and App Store Connect
+records the processed build as `Testing` with a 90-day testing window. The
 reaction migration is not production-configured.
 
 ## Build status
 
 - Version/build: 0.5.3 (6)
-- App Store Connect status: Not uploaded
-- Testing groups: Alpha Friends requested; not assigned
+- App Store Connect status: Testing; upload and processing complete
+- Testing groups: Mugshot Team and Alpha Friends assigned
+- Build record: `ccea92e7-f782-47ad-af67-c5da0cbf86cc`
 
-## What to Test — ready to paste
+## What to Test — published
 
 > Welcome to Mugshot!
 

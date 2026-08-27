@@ -18,9 +18,12 @@ the Feed/Map feedback fixes described below. The completed remediation release
 candidate is version 0.5.3 build 6. Organizer and the 44 cached Xcode feedback
 packages provide direct evidence that testers used 0.5.3 (5), superseding the
 earlier claim that 0.5.3 (4) was the latest distributed candidate. The owner
-explicitly authorized the 0.5.3 (6) Simulator and connected-iPhone gates,
-archive/upload, and Alpha Friends assignment on 2026-08-26. Processing and
-testing-group state remain unclaimed until App Store Connect confirms them.
+explicitly authorized the 0.5.3 (6) release and reported that device QA was
+already complete, waiving a redundant connected-iPhone rerun. The exact
+`b498d92` candidate passed Simulator and Release archive gates, uploaded at
+9:37 PM EDT on 2026-08-26, completed App Store Connect processing, and is now
+`Testing` for Mugshot Team and Alpha Friends with the published note
+`Welcome to Mugshot!`.
 
 The Home Workbench and notification backend migrations are live through
 `20260824171405`. Local, disposable-QA, live drift, and protected-data
@@ -182,9 +185,10 @@ remaining acceptance matrix.
   direct-store fix. Foreground alert, alert/icon-badge observation,
   notification-tapped cold launch, category suppression, sign-out, and
   production remain.
-- TestFlight archive, upload, and Alpha Friends assignment are explicitly
-  authorized for 0.5.3 (6); the exact candidate still must pass Simulator and
-  connected-iPhone launch before upload.
+- TestFlight 0.5.3 (6) is uploaded, processed, and `Testing` for Mugshot Team
+  and Alpha Friends. The exact `b498d92` source passed Simulator and archive
+  gates. The owner reported completed connected-iPhone QA and explicitly
+  waived a redundant post-sync device rerun; Codex did not repeat that install.
 - Migration `20260825030917_post_reactions.sql` is implemented and hermetically
   verified but is not production-configured. Expressive reactions cannot be
   described as live until the normal disposable-QA and production-release
@@ -299,5 +303,7 @@ private-Storage references as the client-side omission cause; no remote rows,
 objects, functions, or policies were changed. Full-static passed its 11
 non-Xcode stages, skipped optional `pglast`, and reproduced the known Xcode 27
 generic XCTest-framework Info.plist packaging failure; the normal Simulator app
-build and focused tests passed. This latest source is locally verified only and
-has not been promoted to physical or TestFlight acceptance.
+build and focused tests passed. This source is included in processed TestFlight
+build 0.5.3 (6). Distribution is verified; hands-on replacement-build
+acceptance remains pending and no feedback reports have been closed from the
+upload alone.
