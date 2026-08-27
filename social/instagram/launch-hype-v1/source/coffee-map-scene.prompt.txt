@@ -1,0 +1,13 @@
+Mode: built-in image_gen
+Use case: ads-marketing
+Asset type: Instagram launch teaser image, vertical 4:5 portrait
+Primary request: Create one original, text-free cinematic overhead photograph of a warm paper cafe map on a cream tabletop with a real espresso cup, subtle coffee rings, and a few small round location-marker tokens.
+Scene/backdrop: Cream tabletop with a tactile, warm ivory paper map lying naturally across the central and lower portion of the frame. The map should show only abstract, non-readable street-like linework and shapes, with no labels.
+Subject: A convincing ceramic espresso cup with dark espresso and delicate crema, subtle imperfect coffee-ring marks, and three to five small round location-marker tokens placed naturally on the paper map.
+Style/medium: Photorealistic editorial still-life photography, refined but lived-in, cinematic realism, premium independent cafe culture, natural material detail.
+Composition/framing: Exact vertical 4:5 portrait composition, straight-down overhead camera. Keep the central and lower areas visually rich and balanced with the map, cup, rings, and tokens. Reserve the entire upper quarter as clean, uncluttered cream negative space suitable for a later headline overlay. Nothing important may intrude into that upper safe area.
+Lighting/mood: Dappled warm morning window light with soft leaf-like shadows, gentle highlights, quiet anticipation, intimate neighborhood discovery mood.
+Color palette: Warm cream and ivory neutrals with restrained muted Mugshot-inspired accents: dusty sage green, aged golden ochre, and soft terracotta only on the round tokens.
+Materials/textures: Visible paper tooth, faint folds and deckled or softly worn edges, matte ceramic, realistic liquid crema, subtle tabletop grain, natural coffee staining, believable soft shadows.
+Text: None.
+Constraints: No phones, no people, no hands, no readable map labels, no letters, no numbers, no text of any kind, no logos, no brand marks, no watermarks. The map linework must remain abstract and non-legible. Use only a few small round tokens; do not use standard teardrop map-pin icons. Preserve a clean cream upper-quarter safe zone. One coherent photograph, not a collage or mockup.
