@@ -1,0 +1,91 @@
+{
+  "campaign": "Mugshot launch hype — soft reveal v1",
+  "status": "locally generated social assets; no launch date or App Store availability claim",
+  "feed_spec": {
+    "pixels": "1080x1350",
+    "aspect_ratio": "4:5",
+    "format": "PNG"
+  },
+  "reel_spec": {
+    "pixels": "1080x1920",
+    "aspect_ratio": "9:16",
+    "duration_seconds": 7,
+    "format": "MP4 (H.264), silent"
+  },
+  "palette": {
+    "cream": "#FAF6F0",
+    "espresso": "#1F1712",
+    "sage": "#6E8F7C",
+    "mint": "#A8CDB8",
+    "sand": "#EEE6D8"
+  },
+  "assets": [
+    {
+      "file": "exports/01-something-is-brewing.png",
+      "role": "mystery teaser",
+      "caption": "Coffee has a funny way of becoming a timestamp—a table, a person, a rainy Tuesday. We’re building a place to keep all of it. Mugshot is coming soon.\n\n#MugshotApp #CoffeeJournal #ComingSoon",
+      "alt_text": "An iced citrus latte in warm cafe light behind the headline ‘Something worth remembering is brewing.’",
+      "source": "source/citrus-memory-scene.png; native ImageGen background with deterministic text overlay"
+    },
+    {
+      "file": "exports/02-every-sip-leaves-a-pin.png",
+      "role": "map feature tease",
+      "caption": "Your coffee map shouldn’t be a list of pins. It should be a map of moments. Soon.\n\n#MugshotApp #CoffeeLovers #CafeHopping",
+      "alt_text": "A tactile cafe map and espresso still life behind the question ‘What if every sip left a pin?’",
+      "source": "source/coffee-map-scene.png; native ImageGen background with deterministic text overlay"
+    },
+    {
+      "file": "exports/03-the-little-moment.png",
+      "role": "product promise",
+      "caption": "The drink. The place. The little moment around it. Capture every sip with Mugshot. Coming soon.\n\n#MugshotApp #CoffeeMemories #CoffeeJournal",
+      "alt_text": "Mugshot’s Capture Every Sip screen and Mugsy beneath the words ‘The drink. The place. The little moment.’",
+      "source": "repository onboarding artwork and Mugsy asset"
+    },
+    {
+      "file": "exports/04-your-taste-has-a-story.png",
+      "role": "Taste Passport reveal",
+      "caption": "Over time, your orders start telling a story. Mugshot turns those memories into a Taste Passport that grows with you.\n\n#MugshotApp #TastePassport #CoffeeLovers",
+      "alt_text": "The Mugshot Taste Passport screen on a sage background beneath the headline ‘Your taste has a story.’",
+      "source": "repository Taste Passport onboarding artwork"
+    },
+    {
+      "file": "exports/05-meet-mugsy.png",
+      "role": "mascot reveal",
+      "caption": "Meet Mugsy: part guide, part memory-keeper, fully invested in your next great sip.\n\n#MeetMugsy #MugshotApp #ComingSoon",
+      "alt_text": "Mugsy, Mugshot’s smiling mug mascot, surrounded by orbiting labels for sip, pin, save, and taste.",
+      "source": "repository Mugsy asset"
+    },
+    {
+      "file": "exports/06-mugshot-teaser-reel.mp4",
+      "role": "7-second Reel or Story teaser",
+      "caption": "A sip. A place. A little moment. Remember it all. Mugshot is coming soon.\n\n#MugshotApp #CoffeeJournal #ComingSoon",
+      "alt_text": "Animated words build from a sip and a place to a little moment, ending on the Mugshot mark and Mugsy.",
+      "source": "deterministic animation using repository app icon and Mugsy asset"
+    }
+  ],
+  "suggested_sequence": [
+    "Day 1: mystery teaser",
+    "Day 3: map feature tease",
+    "Day 5: product promise",
+    "Day 7: Taste Passport reveal",
+    "Day 9: meet Mugsy",
+    "Day 11: Reel recap; pin this post"
+  ],
+  "provenance": {
+    "native_image_generation": [
+      "source/citrus-memory-scene.png",
+      "source/coffee-map-scene.png"
+    ],
+    "generation_prompts": [
+      "source/citrus-memory-scene.prompt.txt",
+      "source/coffee-map-scene.prompt.txt"
+    ],
+    "deterministic_composition": "build_assets.py using Pillow and ffmpeg",
+    "brand_sources": [
+      "testMugshot/Assets.xcassets/MugshotAppIcon.imageset/mugshot-app-icon.png",
+      "testMugshot/Assets.xcassets/MugsyComingSoon.imageset/MugsyComingSoon.png",
+      "testMugshot/Assets.xcassets/OnboardingMarketing01Capture.imageset/onboarding-marketing-01-capture.png",
+      "testMugshot/Assets.xcassets/OnboardingMarketing07TastePassport.imageset/onboarding-marketing-07-taste-passport.png"
+    ]
+  }
+}

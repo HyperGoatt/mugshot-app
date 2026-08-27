@@ -1,0 +1,14 @@
+Mode: built-in image_gen
+Use case: photorealistic-natural
+Asset type: Instagram launch-hype social media image, vertical 4:5 portrait
+Primary request: Create one original, text-free editorial coffee photograph of an iced citrus latte that feels intimate, tactile, premium, and candid.
+Scene/backdrop: A believable contemporary cafe table near a window in warm late-afternoon light. The environment falls softly out of focus, with dark walnut and deep espresso-brown shadows and only subtle muted sage-green accents in the distant blurred cafe surroundings.
+Subject: One clear glass of iced citrus latte resting naturally on a dark walnut tabletop. Show translucent ice, real beads and streaks of condensation, expressive marbling where pale milk and dark espresso curl together, and a fresh sculptural orange-peel twist beside or on the rim. The drink must look physically plausible, freshly made, and delicious.
+Style/medium: Photorealistic natural editorial food photography, premium independent coffee-magazine sensibility, tactile analog character, authentic imperfections, restrained film grain, no glossy advertising CGI.
+Composition/framing: Native vertical 4:5 portrait. Intimate close-up from a slightly low three-quarter tabletop angle, roughly a 50mm lens look with shallow depth of field. Place the glass in the lower half to lower two-thirds of the frame. Reserve the entire upper third as generous, clean, darker negative space suitable for a later headline overlay; keep that area visually quiet, softly graded, and free of bright objects or high-contrast clutter. The image should still feel balanced and photographic rather than like a blank template.
+Lighting/mood: Warm afternoon cafe sunlight grazing the glass and orange peel, natural falloff into moody espresso shadows, soft highlights on condensation, quiet and sensorial, a remembered summer afternoon.
+Color palette: Cream, caramel espresso, burnt orange citrus, dark walnut, deep espresso brown, with very subtle Mugshot-like muted sage accents only in the blurred environment.
+Materials/textures: Real wet condensation on cold glass, translucent ice, creamy swirling liquid, fibrous orange peel, visible walnut grain, soft atmospheric cafe bokeh.
+Text: none.
+Constraints: Exactly one hero beverage; no people; no hands; no faces; no brand marks; no logo; no packaging; no readable text; no letters; no watermark. Keep the upper third dark and usable for future copy. Original image only.
+Avoid: Over-staged studio symmetry, excessive props, tropical fruit pile, neon colors, artificial foam, plastic-looking ice, CGI polish, harsh flash, blown highlights, flat beige minimalism, bright distracting upper-third elements, typography, signage, menus, labels, logos, watermarks.
