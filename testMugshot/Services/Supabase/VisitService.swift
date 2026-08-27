@@ -28,6 +28,10 @@ final class VisitService {
     id, user_id, visit_id, created_at
     """
 
+    private let reactionLikeColumns = """
+    id, user_id, visit_id, created_at, reaction_kind
+    """
+
     private let commentColumns = """
     id, user_id, visit_id, text, created_at, parent_comment_id
     """
@@ -301,12 +305,7 @@ final class VisitService {
             .order("created_at", ascending: true)
             .execute()
             .value
-        async let likesRequest: [SupabaseVisitLikeRow] = client
-            .from("likes")
-            .select(likeColumns)
-            .eq("visit_id", value: visitId.uuidString)
-            .execute()
-            .value
+        async let likesRequest = fetchLikes(visitId: visitId)
         async let commentsRequest = fetchComments(visitId: visitId)
         async let cafeSessionSummaryRequest = fetchCafeSessionSummaryIfPresent(
             sessionID: row.journalContext == .cafe ? row.cafeSessionID : nil
@@ -474,12 +473,7 @@ final class VisitService {
         visitId: UUID,
         currentUserId: UUID?
     ) async throws -> RemoteVisitSocialState {
-        let likes: [SupabaseVisitLikeRow] = try await client
-            .from("likes")
-            .select(likeColumns)
-            .eq("visit_id", value: visitId.uuidString)
-            .execute()
-            .value
+        let likes = try await fetchLikes(visitId: visitId)
 
         let comments: [SupabaseVisitCommentRow] = try await client
             .from("comments")
@@ -488,13 +482,55 @@ final class VisitService {
             .execute()
             .value
 
-        return RemoteVisitSocialState(
-            likeCount: likes.count,
+        return makeSocialState(
+            likes: likes,
             commentCount: comments.count,
-            currentUserHasLiked: currentUserId.map { userId in
-                likes.contains { $0.userId == userId }
-            } ?? false
+            currentUserId: currentUserId
         )
+    }
+
+    func setReaction(
+        visitId: UUID,
+        userId: UUID,
+        reaction: PostReactionKind?
+    ) async throws -> VisitReactionState {
+        do {
+            let states: [VisitReactionState] = try await client.rpc(
+                "set_visit_reaction_v1",
+                params: SetVisitReactionParameters(
+                    pVisitID: visitId,
+                    pReactionKind: reaction?.rawValue
+                )
+            ).execute().value
+            guard let state = states.first else {
+                throw VisitServiceError.visitNotFound
+            }
+            return state
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard reaction == nil || reaction == .like else {
+                throw VisitServiceError.expressiveReactionsUnavailable
+            }
+
+            if reaction == nil {
+                try await client
+                    .from("likes")
+                    .delete()
+                    .eq("visit_id", value: visitId.uuidString)
+                    .eq("user_id", value: userId.uuidString)
+                    .execute()
+            } else {
+                try await client
+                    .from("likes")
+                    .upsert(
+                        SupabaseVisitLikeInsert(userId: userId, visitId: visitId),
+                        onConflict: "user_id,visit_id"
+                    )
+                    .execute()
+            }
+
+            let likes = try await fetchLikes(visitId: visitId)
+            return reactionState(from: likes, currentUserId: userId)
+        }
     }
 
     func toggleLike(
@@ -502,22 +538,11 @@ final class VisitService {
         userId: UUID,
         currentlyLiked: Bool
     ) async throws -> RemoteVisitSocialState {
-        if currentlyLiked {
-            try await client
-                .from("likes")
-                .delete()
-                .eq("visit_id", value: visitId.uuidString)
-                .eq("user_id", value: userId.uuidString)
-                .execute()
-        } else {
-            try await client
-                .from("likes")
-                .upsert(
-                    SupabaseVisitLikeInsert(userId: userId, visitId: visitId),
-                    onConflict: "user_id,visit_id"
-                )
-                .execute()
-        }
+        _ = try await setReaction(
+            visitId: visitId,
+            userId: userId,
+            reaction: currentlyLiked ? nil : .like
+        )
 
         return try await fetchSocialState(
             visitId: visitId,
@@ -1122,12 +1147,7 @@ final class VisitService {
         guard !identifiers.isEmpty else { return [:] }
         let values = identifiers.map(\.uuidString)
 
-        async let likesRequest: [VisitLikeSummaryRow] = client
-            .from("likes")
-            .select("user_id, visit_id")
-            .in("visit_id", values: values)
-            .execute()
-            .value
+        async let likesRequest = fetchLikeSummaries(visitIDs: values)
         async let commentsRequest: [VisitCommentSummaryRow] = client
             .from("comments")
             .select("visit_id")
@@ -1144,15 +1164,116 @@ final class VisitService {
             let visitLikes = likesByVisit[visitId] ?? []
             return (
                 visitId,
-                RemoteVisitSocialState(
-                    likeCount: visitLikes.count,
+                makeSocialState(
+                    likes: visitLikes,
                     commentCount: commentCounts[visitId] ?? 0,
-                    currentUserHasLiked: currentUserId.map { userId in
-                        visitLikes.contains { $0.userId == userId }
-                    } ?? false
+                    currentUserId: currentUserId
                 )
             )
         })
+    }
+
+    private func fetchLikes(visitId: UUID) async throws -> [SupabaseVisitLikeRow] {
+        do {
+            return try await client
+                .from("likes")
+                .select(reactionLikeColumns)
+                .eq("visit_id", value: visitId.uuidString)
+                .execute()
+                .value
+        } catch where SupabaseBackendCompatibility.isMissingReactionKindColumn(error) {
+            return try await client
+                .from("likes")
+                .select(likeColumns)
+                .eq("visit_id", value: visitId.uuidString)
+                .execute()
+                .value
+        }
+    }
+
+    private func fetchLikeSummaries(
+        visitIDs: [String]
+    ) async throws -> [VisitLikeSummaryRow] {
+        do {
+            return try await client
+                .from("likes")
+                .select("user_id, visit_id, reaction_kind")
+                .in("visit_id", values: visitIDs)
+                .execute()
+                .value
+        } catch where SupabaseBackendCompatibility.isMissingReactionKindColumn(error) {
+            return try await client
+                .from("likes")
+                .select("user_id, visit_id")
+                .in("visit_id", values: visitIDs)
+                .execute()
+                .value
+        }
+    }
+
+    private func makeSocialState(
+        likes: [SupabaseVisitLikeRow],
+        commentCount: Int,
+        currentUserId: UUID?
+    ) -> RemoteVisitSocialState {
+        let state = reactionState(from: likes, currentUserId: currentUserId)
+        return RemoteVisitSocialState(
+            likeCount: state.totalCount,
+            commentCount: commentCount,
+            currentUserHasLiked: state.viewerReaction != nil,
+            reactionState: state
+        )
+    }
+
+    private func makeSocialState(
+        likes: [VisitLikeSummaryRow],
+        commentCount: Int,
+        currentUserId: UUID?
+    ) -> RemoteVisitSocialState {
+        let state = reactionState(from: likes, currentUserId: currentUserId)
+        return RemoteVisitSocialState(
+            likeCount: state.totalCount,
+            commentCount: commentCount,
+            currentUserHasLiked: state.viewerReaction != nil,
+            reactionState: state
+        )
+    }
+
+    private func reactionState(
+        from likes: [SupabaseVisitLikeRow],
+        currentUserId: UUID?
+    ) -> VisitReactionState {
+        buildReactionState(
+            pairs: likes.map { ($0.userId, $0.reactionKind) },
+            currentUserId: currentUserId
+        )
+    }
+
+    private func reactionState(
+        from likes: [VisitLikeSummaryRow],
+        currentUserId: UUID?
+    ) -> VisitReactionState {
+        buildReactionState(
+            pairs: likes.map { ($0.userId, $0.reactionKind) },
+            currentUserId: currentUserId
+        )
+    }
+
+    private func buildReactionState(
+        pairs: [(UUID, PostReactionKind)],
+        currentUserId: UUID?
+    ) -> VisitReactionState {
+        let grouped = Dictionary(grouping: pairs, by: { $0.1 })
+        return VisitReactionState(
+            viewerReaction: currentUserId.flatMap { userId in
+                pairs.first(where: { $0.0 == userId })?.1
+            },
+            likeCount: grouped[.like]?.count ?? 0,
+            loveCount: grouped[.love]?.count ?? 0,
+            laughCount: grouped[.laugh]?.count ?? 0,
+            yummyCount: grouped[.yummy]?.count ?? 0,
+            totalCount: pairs.count
+        )
     }
 
     private func hydrate(
@@ -1303,10 +1424,30 @@ private struct RankedFeedParameters: Encodable {
 private struct VisitLikeSummaryRow: Decodable {
     let userId: UUID
     let visitId: UUID
+    let reactionKind: PostReactionKind
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case visitId = "visit_id"
+        case reactionKind = "reaction_kind"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        visitId = try container.decode(UUID.self, forKey: .visitId)
+        reactionKind = try container.decodeIfPresent(PostReactionKind.self, forKey: .reactionKind)
+            ?? .like
+    }
+}
+
+private struct SetVisitReactionParameters: Encodable {
+    let pVisitID: UUID
+    let pReactionKind: String?
+
+    enum CodingKeys: String, CodingKey {
+        case pVisitID = "p_visit_id"
+        case pReactionKind = "p_reaction_kind"
     }
 }
 
@@ -1386,6 +1527,7 @@ enum VisitServiceError: LocalizedError, Equatable {
     case missingRating
     case emptyCaption
     case emptyComment
+    case expressiveReactionsUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -1401,6 +1543,8 @@ enum VisitServiceError: LocalizedError, Equatable {
             return "Add a caption before saving your visit."
         case .emptyComment:
             return "Write a comment before posting."
+        case .expressiveReactionsUnavailable:
+            return "Expressive reactions are not available yet. Try Like for now."
         }
     }
 }

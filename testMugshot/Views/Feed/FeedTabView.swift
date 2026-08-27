@@ -392,6 +392,9 @@ struct FeedTabView: View {
                     onLike: {
                         toggleRemoteLike(for: visit)
                     },
+                    onReaction: { reaction in
+                        setRemoteReaction(for: visit, reaction: reaction)
+                    },
                     onSaveCafe: {
                         saveCafe(from: visit)
                     },
@@ -661,6 +664,16 @@ struct FeedTabView: View {
     }
 
     private func toggleRemoteLike(for visit: RemoteVisitSummary) {
+        setRemoteReaction(
+            for: visit,
+            reaction: visit.socialState.viewerReaction == nil ? .like : nil
+        )
+    }
+
+    private func setRemoteReaction(
+        for visit: RemoteVisitSummary,
+        reaction: PostReactionKind?
+    ) {
         guard let userId = authModel.authenticatedUser?.id else {
             return
         }
@@ -669,12 +682,15 @@ struct FeedTabView: View {
         socialRecoveryMessage = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
+        let optimisticReactionState = visit.socialState.reactionState
+            .replacingViewerReaction(with: reaction)
         updateRemoteVisit(
             id: visit.id,
             socialState: RemoteVisitSocialState(
-                likeCount: max(0, visit.socialState.likeCount + (visit.socialState.currentUserHasLiked ? -1 : 1)),
+                likeCount: optimisticReactionState.totalCount,
                 commentCount: visit.socialState.commentCount,
-                currentUserHasLiked: !visit.socialState.currentUserHasLiked
+                currentUserHasLiked: reaction != nil,
+                reactionState: optimisticReactionState
             )
         )
 
@@ -682,15 +698,21 @@ struct FeedTabView: View {
             do {
                 let client = try SupabaseClientProvider.shared.client()
                 let service = VisitService(client: client)
-                let state = try await service.toggleLike(
+                let reactionState = try await service.setReaction(
                     visitId: visit.id,
                     userId: userId,
-                    currentlyLiked: visit.socialState.currentUserHasLiked
+                    reaction: reaction
+                )
+                let state = RemoteVisitSocialState(
+                    likeCount: reactionState.totalCount,
+                    commentCount: visit.socialState.commentCount,
+                    currentUserHasLiked: reactionState.viewerReaction != nil,
+                    reactionState: reactionState
                 )
                 updateRemoteVisit(id: visit.id, socialState: state)
                 MugshotAnalytics.shared.capture(
                     .sipLiked(
-                        action: state.currentUserHasLiked ? .added : .removed,
+                        action: reaction == nil ? .removed : .added,
                         surface: .feed
                     )
                 )
@@ -842,6 +864,7 @@ struct RemoteFeedVisitCard: View {
     let onOpen: () -> Void
     var onAuthorTap: (() -> Void)? = nil
     let onLike: () -> Void
+    var onReaction: ((PostReactionKind) -> Void)? = nil
     let onSaveCafe: () -> Void
     let onComment: () -> Void
 
@@ -921,20 +944,35 @@ struct RemoteFeedVisitCard: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            Button(action: onLike) {
+            Menu {
+                ForEach(PostReactionKind.allCases) { reaction in
+                    Button {
+                        onReaction?(reaction)
+                    } label: {
+                        Label(reaction.title, systemImage: reaction.systemImage)
+                    }
+                }
+            } label: {
                 socialActionLabel(
                     value: visit.socialState.likeCount,
                     systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart",
                     isActive: visit.socialState.currentUserHasLiked
                 )
+            } primaryAction: {
+                onLike()
             }
             .buttonStyle(.plain)
             .disabled(isSocialActionInFlight)
             .accessibilityLabel(
                 visit.socialState.currentUserHasLiked
-                    ? "Unlike, \(visit.socialState.likeCount) likes"
-                    : "Like, \(visit.socialState.likeCount) likes"
+                    ? "Remove reaction, \(visit.socialState.likeCount) reactions"
+                    : "Like, \(visit.socialState.likeCount) reactions"
             )
+            .accessibilityHint("Long press to choose Like, Love, Laugh, or Yummy")
+            .accessibilityAction(named: Text("React with Like")) { onReaction?(.like) }
+            .accessibilityAction(named: Text("React with Love")) { onReaction?(.love) }
+            .accessibilityAction(named: Text("React with Laugh")) { onReaction?(.laugh) }
+            .accessibilityAction(named: Text("React with Yummy")) { onReaction?(.yummy) }
 
             Button(action: onComment) {
                 socialActionLabel(
@@ -1650,8 +1688,12 @@ struct VisitDetailView: View {
                             isOwner: user?.id == visit.userId,
                             isRemote: false,
                             authorName: user?.displayNameOrUsername ?? "Mugshot user",
+                            authorUsername: user?.username,
                             drinkName: localDrinkDisplayName,
                             cafeName: cafe?.consumerDisplayName ?? visit.locationName ?? "Cafe",
+                            locationDetail: visit.context == .cafe
+                                ? MugshotPostLocationLine.locality(from: cafe?.address)
+                                : nil,
                             rating: visit.overallScore,
                             date: visit.createdAt,
                             publicCaption: consumerPreviewCaption(visit.caption),

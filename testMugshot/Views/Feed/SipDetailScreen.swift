@@ -122,6 +122,7 @@ enum SipDetailCommentActionPolicy {
 
 struct SipDetailCommentModel: Identifiable, Equatable {
     let id: UUID
+    let parentID: UUID?
     let authorName: String
     let username: String
     let avatarURL: String?
@@ -133,6 +134,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
 
     init(
         id: UUID,
+        parentID: UUID? = nil,
         authorName: String,
         username: String,
         avatarURL: String? = nil,
@@ -143,6 +145,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         actions: [SipDetailCommentAction] = []
     ) {
         self.id = id
+        self.parentID = parentID
         self.authorName = authorName
         self.username = username
         self.avatarURL = avatarURL
@@ -151,6 +154,43 @@ struct SipDetailCommentModel: Identifiable, Equatable {
         self.timestamp = timestamp
         self.canReply = canReply
         self.actions = actions
+    }
+}
+
+struct SipDetailThreadedComment: Identifiable, Equatable {
+    let comment: SipDetailCommentModel
+    let depth: Int
+
+    var id: UUID { comment.id }
+}
+
+enum SipDetailCommentThreading {
+    static func ordered(_ comments: [SipDetailCommentModel]) -> [SipDetailThreadedComment] {
+        let knownIDs = Set(comments.map(\.id))
+        let roots = comments.filter { comment in
+            guard let parentID = comment.parentID else { return true }
+            return !knownIDs.contains(parentID)
+        }
+        let rootIDs = Set(roots.map(\.id))
+        var ordered: [SipDetailThreadedComment] = []
+        var included = Set<UUID>()
+
+        for root in roots {
+            ordered.append(SipDetailThreadedComment(comment: root, depth: 0))
+            included.insert(root.id)
+            for reply in comments where reply.parentID == root.id {
+                ordered.append(SipDetailThreadedComment(comment: reply, depth: 1))
+                included.insert(reply.id)
+            }
+        }
+
+        for comment in comments where !included.contains(comment.id) {
+            ordered.append(SipDetailThreadedComment(
+                comment: comment,
+                depth: rootIDs.contains(comment.parentID ?? UUID()) ? 1 : 0
+            ))
+        }
+        return ordered
     }
 }
 
@@ -398,6 +438,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let comments: [SipDetailCommentModel]
     let isLiked: Bool
     let likeCount: Int
+    var reactionState: VisitReactionState? = nil
     let isCafeSaved: Bool
     let replyingToUsername: String?
     let sharePayload: SipShareCardPayload
@@ -476,9 +517,9 @@ enum SipDetailPresentationAdapter {
             locationName: detail.summary.locationTitle,
             locationSubtitle: visit.journalContext == .cafe
                 ? MugshotPostLocationLine.locality(
-                    from: detail.summary.cafe?.address
-                        ?? visit.cityState
-                        ?? detail.summary.cafe?.city
+                    address: detail.summary.cafe?.address,
+                    cityState: visit.cityState,
+                    city: detail.summary.cafe?.city
                 )
                 : nil,
             locationSystemImage: visit.journalContext.systemImage,
@@ -523,6 +564,7 @@ enum SipDetailPresentationAdapter {
             comments: detail.comments.map { comment in
                 SipDetailCommentModel(
                     id: comment.id,
+                    parentID: comment.comment.parentCommentId,
                     authorName: comment.authorDisplayName,
                     username: "@\(comment.authorUsername)",
                     avatarURL: comment.author?.avatarURL,
@@ -542,6 +584,7 @@ enum SipDetailPresentationAdapter {
             },
             isLiked: detail.currentUserHasLiked,
             likeCount: detail.likeCount,
+            reactionState: detail.summary.socialState.reactionState,
             isCafeSaved: isCafeSaved,
             replyingToUsername: replyingToUsername,
             sharePayload: SipShareCardPayload(
@@ -550,8 +593,16 @@ enum SipDetailPresentationAdapter {
                 isOwner: isOwner,
                 isRemote: true,
                 authorName: detail.summary.authorDisplayName,
+                authorUsername: detail.summary.authorUsername,
                 drinkName: visit.drinkDisplayName,
                 cafeName: detail.summary.locationTitle,
+                locationDetail: visit.journalContext == .cafe
+                    ? MugshotPostLocationLine.locality(
+                        address: detail.summary.cafe?.address,
+                        cityState: visit.cityState,
+                        city: detail.summary.cafe?.city
+                    )
+                    : nil,
                 rating: displayedScore,
                 date: visit.createdAtDate,
                 publicCaption: caption,
@@ -646,6 +697,7 @@ enum SipDetailPresentationAdapter {
             comments: comments.map { comment in
                 SipDetailCommentModel(
                     id: comment.id,
+                    parentID: nil,
                     authorName: comment.userId == user?.id ? authorDisplayName : "Mugshot User",
                     username: comment.userId == user?.id ? "@\(user?.username ?? "user")" : "@user",
                     text: comment.text,
@@ -663,10 +715,14 @@ enum SipDetailPresentationAdapter {
                 isOwner: isOwner,
                 isRemote: false,
                 authorName: authorDisplayName,
+                authorUsername: user?.username,
                 drinkName: visit.journalDrinkName,
                 cafeName: visit.context == .cafe
                     ? (cafe?.consumerDisplayName ?? "Cafe")
                     : (visit.locationName?.remoteTrimmedNonEmpty ?? visit.context.locationFallback),
+                locationDetail: visit.context == .cafe
+                    ? MugshotPostLocationLine.locality(from: cafe?.address)
+                    : nil,
                 rating: displayedScore,
                 date: visit.createdAt,
                 publicCaption: caption,
@@ -864,6 +920,7 @@ struct SipDetailScreen: View {
     let mentionSuggestions: [SipDetailMentionSuggestion]
     let composerMentionTokens: [String]
     let onAction: (SipDetailAction) -> Void
+    var onSetReaction: (PostReactionKind) -> Void = { _ in }
     let onSubmitComment: () -> Void
     let onReply: (UUID) -> Void
     let onCommentAction: (UUID, SipDetailCommentAction) -> Void
@@ -982,7 +1039,8 @@ struct SipDetailScreen: View {
                 actions: presentation.capabilities.dockActions,
                 model: presentation.content,
                 isWorking: isWorking,
-                onAction: { action in handle(action, proxy: proxy) }
+                onAction: { action in handle(action, proxy: proxy) },
+                onReaction: onSetReaction
             )
             .padding(.horizontal, 22)
             .padding(.top, 12)
@@ -1817,6 +1875,7 @@ private struct SipDetailActionDock: View {
     let model: SipDetailContentModel
     let isWorking: Bool
     let onAction: (SipDetailAction) -> Void
+    let onReaction: (PostReactionKind) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
@@ -1849,6 +1908,32 @@ private struct SipDetailActionDock: View {
         if action == .share {
             SipShareButton(payload: model.sharePayload, layout: .dock)
                 .frame(minWidth: 44, minHeight: 44)
+        } else if action == .like, model.reactionState != nil {
+            Menu {
+                ForEach(PostReactionKind.allCases) { reaction in
+                    Button {
+                        onReaction(reaction)
+                    } label: {
+                        Label(reaction.title, systemImage: reaction.systemImage)
+                    }
+                }
+            } label: {
+                SipDetailDockLabel(
+                    action: action,
+                    isActive: isActive(action),
+                    value: displayValue(for: action)
+                )
+            } primaryAction: {
+                onAction(action)
+            }
+            .buttonStyle(SipDetailPressButtonStyle())
+            .disabled(isWorking)
+            .accessibilityLabel(accessibilityLabel(action))
+            .accessibilityHint("Long press to choose Like, Love, Laugh, or Yummy")
+            .accessibilityAction(named: Text("React with Like")) { onReaction(.like) }
+            .accessibilityAction(named: Text("React with Love")) { onReaction(.love) }
+            .accessibilityAction(named: Text("React with Laugh")) { onReaction(.laugh) }
+            .accessibilityAction(named: Text("React with Yummy")) { onReaction(.yummy) }
         } else {
             Button {
                 onAction(action)
@@ -1886,8 +1971,8 @@ private struct SipDetailActionDock: View {
 
     private func accessibilityLabel(_ action: SipDetailAction) -> String {
         switch action {
-        case .like where model.isLiked: "Unlike sip, \(model.likeCount) likes"
-        case .like: "Like sip, \(model.likeCount) likes"
+        case .like where model.isLiked: "Remove reaction, \(model.likeCount) reactions"
+        case .like: "Like sip, \(model.likeCount) reactions"
         case .comment: "Comment, \(model.comments.count) comments"
         case .saveCafe where model.isCafeSaved: "Cafe saved"
         case .recommend: "Recommend this sip"
@@ -2449,6 +2534,10 @@ private struct SipConversationSection: View {
     let onMention: (UUID) -> Void
     let onCommentAction: (UUID, SipDetailCommentAction) -> Void
 
+    private var threadedComments: [SipDetailThreadedComment] {
+        SipDetailCommentThreading.ordered(comments)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
@@ -2465,15 +2554,17 @@ private struct SipConversationSection: View {
 
             if !comments.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(comments) { comment in
+                    ForEach(Array(threadedComments.enumerated()), id: \.element.id) { index, threaded in
                         SipDetailCommentRow(
-                            comment: comment,
+                            comment: threaded.comment,
+                            depth: threaded.depth,
                             onReply: onReply,
                             onMention: onMention,
                             onAction: onCommentAction
                         )
-                        if comment.id != comments.last?.id {
+                        if index < threadedComments.count - 1 {
                             Divider().foregroundStyle(Color.mugshotLine)
+                                .padding(.leading, threaded.depth == 0 ? 0 : 30)
                         }
                     }
                 }
@@ -2506,12 +2597,26 @@ private struct SipConversationSection: View {
 
 private struct SipDetailCommentRow: View {
     let comment: SipDetailCommentModel
+    let depth: Int
     let onReply: (UUID) -> Void
     let onMention: (UUID) -> Void
     let onAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            if depth > 0 {
+                VStack(spacing: 2) {
+                    Rectangle()
+                        .fill(Color.mugshotMint.opacity(0.75))
+                        .frame(width: 2, height: 20)
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.mugshotSage)
+                }
+                .frame(width: 18)
+                .accessibilityHidden(true)
+            }
+
             MugshotAvatar(name: comment.authorName, size: 36, imageURL: comment.avatarURL)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -2563,6 +2668,7 @@ private struct SipDetailCommentRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 14)
+        .padding(.leading, depth > 0 ? 12 : 0)
     }
 }
 
@@ -3297,11 +3403,12 @@ extension SipDetailPresentation {
                 ),
                 SipDetailCommentModel(
                     id: UUID(uuidString: "66666666-6666-4666-8666-666666666666")!,
+                    parentID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!,
                     authorName: "Avery",
                     username: "@avery",
                     text: "Coffee-forward is exactly how I’d order it.",
                     timestamp: "4m",
-                    canReply: true
+                    canReply: false
                 )
             ],
             isLiked: false,

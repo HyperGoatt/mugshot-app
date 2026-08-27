@@ -149,6 +149,9 @@ struct RemoteVisitDetailView: View {
                     },
                     composerMentionTokens: Array(mentionedTokensByUserID.values),
                     onAction: perform,
+                    onSetReaction: { reaction in
+                        Task { await setPostReaction(reaction) }
+                    },
                     onSubmitComment: { Task { await postComment() } },
                     onReply: beginReply,
                     onCommentAction: handleCommentAction,
@@ -1037,8 +1040,16 @@ struct RemoteVisitDetailView: View {
                             isOwner: currentUserId == detail.summary.visit.userId,
                             isRemote: true,
                             authorName: detail.summary.authorDisplayName,
+                            authorUsername: detail.summary.authorUsername,
                             drinkName: detail.summary.visit.drinkDisplayName,
                             cafeName: detail.summary.locationTitle,
+                            locationDetail: detail.summary.visit.journalContext == .cafe
+                                ? MugshotPostLocationLine.locality(
+                                    address: detail.summary.cafe?.address,
+                                    cityState: detail.summary.visit.cityState,
+                                    city: detail.summary.cafe?.city
+                                )
+                                : nil,
                             rating: detail.summary.visit.overallScore,
                             date: detail.summary.visit.createdAtDate,
                             publicCaption: detail.summary.visit.caption.remoteTrimmedNonEmpty,
@@ -1462,16 +1473,28 @@ struct RemoteVisitDetailView: View {
 
     @MainActor
     private func toggleLike() async {
+        guard let detail else { return }
+        await setPostReaction(
+            detail.summary.socialState.viewerReaction == nil ? .like : nil
+        )
+    }
+
+    @MainActor
+    private func setPostReaction(_ reaction: PostReactionKind?) async {
         guard let currentUserId,
               let detail else {
             return
         }
+        guard !requestAuthenticationIfNeeded(for: .like) else { return }
 
         let previousDetail = detail
+        let optimisticReactionState = detail.summary.socialState.reactionState
+            .replacingViewerReaction(with: reaction)
         let optimisticState = RemoteVisitSocialState(
-            likeCount: max(0, detail.likeCount + (detail.currentUserHasLiked ? -1 : 1)),
+            likeCount: optimisticReactionState.totalCount,
             commentCount: detail.commentCount,
-            currentUserHasLiked: !detail.currentUserHasLiked
+            currentUserHasLiked: reaction != nil,
+            reactionState: optimisticReactionState
         )
         applySocialState(optimisticState)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -1481,15 +1504,21 @@ struct RemoteVisitDetailView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
-            let state = try await service.toggleLike(
+            let reactionState = try await service.setReaction(
                 visitId: visitId,
                 userId: currentUserId,
-                currentlyLiked: detail.currentUserHasLiked
+                reaction: reaction
+            )
+            let state = RemoteVisitSocialState(
+                likeCount: reactionState.totalCount,
+                commentCount: detail.commentCount,
+                currentUserHasLiked: reactionState.viewerReaction != nil,
+                reactionState: reactionState
             )
             applySocialState(state)
             MugshotAnalytics.shared.capture(
                 .sipLiked(
-                    action: state.currentUserHasLiked ? .added : .removed,
+                    action: reaction == nil ? .removed : .added,
                     surface: .remoteSipDetail
                 )
             )
@@ -2889,8 +2918,10 @@ struct SipShareCardPayload: Equatable {
     let isOwner: Bool
     let isRemote: Bool
     let authorName: String
+    let authorUsername: String?
     let drinkName: String
     let cafeName: String
+    let locationDetail: String?
     let rating: Double
     let date: Date
     let publicCaption: String?
@@ -2903,8 +2934,10 @@ struct SipShareCardPayload: Equatable {
         isOwner: Bool = true,
         isRemote: Bool = false,
         authorName: String,
+        authorUsername: String? = nil,
         drinkName: String,
         cafeName: String,
+        locationDetail: String? = nil,
         rating: Double,
         date: Date,
         publicCaption: String?,
@@ -2916,8 +2949,10 @@ struct SipShareCardPayload: Equatable {
         self.isOwner = isOwner
         self.isRemote = isRemote
         self.authorName = authorName
+        self.authorUsername = authorUsername
         self.drinkName = drinkName
         self.cafeName = cafeName
+        self.locationDetail = locationDetail
         self.rating = rating
         self.date = date
         self.publicCaption = publicCaption
@@ -2993,8 +3028,10 @@ struct SipShareButton: View {
                 isOwner: payload.isOwner,
                 isRemote: payload.isRemote,
                 displayName: payload.authorName,
+                authorUsername: payload.authorUsername,
                 drinkName: payload.drinkName,
                 contextName: payload.cafeName,
+                locationDetail: payload.locationDetail,
                 createdAt: payload.date,
                 sipScore: payload.rating,
                 contextScore: nil,
