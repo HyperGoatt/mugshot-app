@@ -3,6 +3,48 @@ import Testing
 @testable import testMugshot
 
 struct SipDetailPresentationTests {
+    @Test func commentMentionRouteUsesMentionedAccountEvenWhenPostDidNotTagThem() throws {
+        let visitID = UUID()
+        let commentAuthorID = UUID()
+        let mentionedUserID = UUID()
+        let comment = RemoteVisitComment(
+            comment: SupabaseVisitCommentRow(
+                id: UUID(),
+                userId: commentAuthorID,
+                visitId: visitID,
+                text: "Looked absolutely spiffing Amanda",
+                createdAt: "2026-08-26T12:00:00Z",
+                parentCommentId: nil
+            ),
+            author: nil,
+            mentions: [
+                RemoteCommentMention(
+                    userID: mentionedUserID,
+                    token: "Amanda",
+                    displayName: "Amanda",
+                    username: "dairiequeen",
+                    avatarURL: nil
+                )
+            ]
+        )
+
+        let route = try #require(CommentMentionProfileRouteResolver.route(
+            for: mentionedUserID,
+            in: [comment],
+            currentUserID: commentAuthorID
+        ))
+
+        #expect(route.id == mentionedUserID)
+        #expect(route.displayName == "Amanda")
+        #expect(route.username == "dairiequeen")
+        #expect(route.state == .none)
+        #expect(CommentMentionProfileRouteResolver.route(
+            for: UUID(),
+            in: [comment],
+            currentUserID: commentAuthorID
+        ) == nil)
+    }
+
     @Test func expressiveReactionStateAddsChangesAndRemovesOneViewerSelection() {
         let initial = VisitReactionState(
             viewerReaction: nil,

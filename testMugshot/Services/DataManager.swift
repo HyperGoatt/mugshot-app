@@ -235,6 +235,7 @@ class DataManager: ObservableObject {
             V3PublishedCompletionStore.shared.removeAllForTesting()
             RecentCriterionSetupStore.shared.removeAllForTesting()
             PinnedCriterionStore.shared.removeAllForTesting()
+            CriterionImportanceStore.shared.removeAllForTesting()
             HomeLibraryStore.shared.removeAllForTesting()
             defaults.removeObject(forKey: mapSearchRecentsKey)
             defaults.removeObject(forKey: "MugshotMap.discoveryScope.v1")
@@ -342,7 +343,9 @@ class DataManager: ObservableObject {
                 overallScore: 2.5 + (Double(index % 5) * 0.5),
                 cafeSessionID: UUID(
                     uuidString: String(format: "00000000-0000-4000-8002-%012d", index + 1)
-                )
+                ),
+                cafeSessionSipOrder: 0,
+                cafeSessionSipRole: .primary
             )
         }
         return (cafes, visits)
@@ -436,6 +439,8 @@ class DataManager: ObservableObject {
         let ownerScope = userID.uuidString.lowercased()
         PinnedCriterionStore.shared.synchronize(sipCriteria, scope: "\(ownerScope).sip")
         PinnedCriterionStore.shared.synchronize(cafeCriteria, scope: "\(ownerScope).context.cafe")
+        CriterionImportanceStore.shared.synchronize(sipCriteria, scope: "\(ownerScope).sip")
+        CriterionImportanceStore.shared.synchronize(cafeCriteria, scope: "\(ownerScope).context.cafe")
         RecentCriterionSetupStore.shared.remember(sipCriteria, scope: "\(ownerScope).sip")
         RecentCriterionSetupStore.shared.remember(cafeCriteria, scope: "\(ownerScope).context.cafe")
         _ = try? SipDraftStore.shared.save(draft, images: [], in: .user(userID))
@@ -485,11 +490,20 @@ class DataManager: ObservableObject {
             appData.cafes[index].isFavorite = false
             appData.cafes[index].wantToTry = false
         }
-        for summary in summaries {
+        let summariesByCafeID = Dictionary(uniqueKeysWithValues: summaries.map {
+            ($0.cafe.id, $0)
+        })
+        let groups = CafeIdentity.stitchGroups(summaries.map(\.localCafe))
+        for group in groups {
+            let stitchedSummaries = group.compactMap { summariesByCafeID[$0.id] }
+            guard let summary = stitchedSummaries.max(by: {
+                ($0.cafe.appleMapsPlaceID != nil ? 1 : 0)
+                    < ($1.cafe.appleMapsPlaceID != nil ? 1 : 0)
+            }) else { continue }
             let cafe = upsertRemoteCafe(
                 summary.cafe,
-                isFavorite: summary.state.isFavorite,
-                wantToTry: summary.state.wantToTry,
+                isFavorite: stitchedSummaries.contains(where: { $0.state.isFavorite }),
+                wantToTry: stitchedSummaries.contains(where: { $0.state.wantToTry }),
                 persist: false
             )
             appData.personalLibraryCafeIDs.insert(cafe.id)
@@ -626,13 +640,9 @@ class DataManager: ObservableObject {
             return appData.cafes[index]
         }
 
-        let remoteIdentity = CafeIdentity.key(
-            name: remoteCafe.name,
-            address: remoteCafe.address,
-            location: remoteLocalCafe.location,
-            applePlaceId: remoteCafe.appleMapsPlaceID ?? remoteCafe.applePlaceId
-        )
-        if let index = appData.cafes.firstIndex(where: { CafeIdentity.key(for: $0) == remoteIdentity }) {
+        if let index = appData.cafes.firstIndex(where: {
+            CafeIdentity.shouldStitch($0, remoteLocalCafe)
+        }) {
             appData.cafes[index] = mergedCafe(
                 existing: appData.cafes[index],
                 remote: remoteLocalCafe,
@@ -724,7 +734,7 @@ class DataManager: ObservableObject {
         var cafe = candidate.cafe
         if let existing = appData.cafes.first(where: {
             ($0.appleMapsPlaceID != nil && $0.appleMapsPlaceID == candidate.appleMapsPlaceID)
-                || CafeIdentity.key(for: $0) == CafeIdentity.key(for: cafe)
+                || CafeIdentity.shouldStitch($0, cafe)
         }) {
             cafe = existing
         } else {
@@ -785,7 +795,7 @@ class DataManager: ObservableObject {
             mapItemURL: existing.mapItemURL ?? remote.mapItemURL,
             websiteURL: existing.websiteURL ?? remote.websiteURL,
             placeCategory: existing.placeCategory,
-            remoteCafeId: remote.remoteCafeId ?? existing.remoteCafeId ?? remote.id,
+            remoteCafeId: existing.remoteCafeId ?? remote.remoteCafeId ?? remote.id,
             discoveryNote: existing.discoveryNote,
             discoverySource: existing.discoverySource,
             discoveredAt: existing.discoveredAt,
@@ -805,7 +815,7 @@ class DataManager: ObservableObject {
                 placeCategory: mapItem.pointOfInterestCategory?.rawValue
             )
             if let existing = appData.cafes.first(where: {
-                CafeIdentity.key(for: $0) == CafeIdentity.key(for: cafe)
+                CafeIdentity.shouldStitch($0, cafe)
             }) {
                 return existing
             }
@@ -821,19 +831,8 @@ class DataManager: ObservableObject {
             websiteURL: mapItem.url?.absoluteString,
             placeCategory: mapItem.pointOfInterestCategory?.rawValue
         )
-        let candidateIdentity = CafeIdentity.key(for: candidate)
-        let threshold: Double = 0.00025
-        
-        if let existingCafe = appData.cafes.first(where: { cafe in
-            if CafeIdentity.key(for: cafe) == candidateIdentity { return true }
-            guard let cafeLocation = cafe.location else { return false }
-            let latDiff = abs(cafeLocation.latitude - location.latitude)
-            let lonDiff = abs(cafeLocation.longitude - location.longitude)
-            let sameName = cafe.name.compare(
-                mapItem.name ?? "Cafe",
-                options: [.caseInsensitive, .diacriticInsensitive]
-            ) == .orderedSame
-            return sameName && latDiff < threshold && lonDiff < threshold
+        if let existingCafe = appData.cafes.first(where: {
+            CafeIdentity.shouldStitch($0, candidate)
         }) {
             // Update existing cafe with mapItem data if missing
             if let index = appData.cafes.firstIndex(where: { $0.id == existingCafe.id }) {

@@ -16,20 +16,136 @@ struct LogASipV3DomainTests {
     }
 
     @Test func sipCriterionCatalogIsBroadRenamedAndContextAware() {
-        #expect(LogASipV3CriterionSuggestion.sip.count == 34)
+        #expect(LogASipV3CriterionSuggestion.sip.count == 58)
         #expect(!LogASipV3CriterionSuggestion.sip.contains { $0.title == "Orange balance" })
         #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Flavor balance" })
         #expect(LogASipV3CriterionSuggestion.sip.contains { $0.title == "Body / Smoothness" })
 
         let latte = SipDraft(drinkType: .coffee, drinkName: "Oat milk latte")
-        #expect(Array(LogASipV3CriterionSuggestion.sip(for: latte).prefix(3).map(\.id)) == [
-            "milk-integration", "texture", "body"
-        ])
+        let latteSuggestions = LogASipV3CriterionSuggestion.sip(for: latte)
+        #expect(Array(latteSuggestions.prefix(3).map(\.id)) == ["milk-integration", "coffee-presence", "texture"])
+        #expect((12...18).contains(latteSuggestions.count))
+        #expect(!latteSuggestions.contains { ["crema", "extraction", "umami", "whisk-texture"].contains($0.id) })
 
         let matcha = SipDraft(drinkType: .matcha, drinkName: "Ceremonial matcha")
-        #expect(Array(LogASipV3CriterionSuggestion.sip(for: matcha).prefix(4).map(\.id)) == [
+        let matchaSuggestions = LogASipV3CriterionSuggestion.sip(for: matcha)
+        #expect(Array(matchaSuggestions.prefix(4).map(\.id)) == [
             "umami", "astringency", "whisk-texture", "vegetal-character"
         ])
+        #expect(!matchaSuggestions.contains { ["crema", "extraction", "coffee-presence"].contains($0.id) })
+    }
+
+    @Test func everyDrinkPreparationOffersTwelveToEighteenUniqueRelevantCriteria() {
+        let cases: [(DrinkPreparation, DrinkType, String)] = [
+            (.espresso, .coffee, "Espresso"),
+            (.americano, .coffee, "Americano"),
+            (.latte, .coffee, "Latte"),
+            (.cappuccino, .coffee, "Cappuccino"),
+            (.cortado, .coffee, "Cortado"),
+            (.flatWhite, .coffee, "Flat white"),
+            (.mocha, .coffee, "Mocha"),
+            (.macchiato, .coffee, "Macchiato"),
+            (.drip, .coffee, "Drip coffee"),
+            (.pourOver, .coffee, "Pour over"),
+            (.chemex, .coffee, "Chemex"),
+            (.frenchPress, .coffee, "French press"),
+            (.aeropress, .coffee, "AeroPress"),
+            (.coldBrew, .coffee, "Cold brew"),
+            (.matcha, .matcha, "Ceremonial matcha"),
+            (.hojicha, .hojicha, "Hojicha"),
+            (.tea, .tea, "Green tea"),
+            (.chai, .chai, "Chai"),
+            (.hotChocolate, .hotChocolate, "Hot chocolate"),
+            (.unknown, .other, "Seasonal special")
+        ]
+
+        for (preparation, drinkType, name) in cases {
+            var analysis = DrinkAnalysisParser.analyze(name)
+            analysis.preparation = preparation
+            let draft = SipDraft(
+                drinkType: drinkType,
+                drinkName: name,
+                drinkAnalysis: analysis
+            )
+            let suggestions = LogASipV3CriterionSuggestion.sip(for: draft)
+            #expect(
+                (12...18).contains(suggestions.count),
+                "\(preparation.rawValue) returned \(suggestions.count) criteria"
+            )
+            #expect(Set(suggestions.map(\.id)).count == suggestions.count)
+        }
+    }
+
+    @Test func everyHomeBrewMethodOffersTwelveToEighteenUniqueCriteria() {
+        for method in HomeBrewMethod.allCases {
+            let draft = SipDraft(
+                context: .home,
+                drinkType: .coffee,
+                drinkName: method.title,
+                brewMethod: method.rawValue
+            )
+            let suggestions = LogASipV3CriterionSuggestion.sip(for: draft)
+            #expect(
+                (12...18).contains(suggestions.count),
+                "\(method.rawValue) returned \(suggestions.count) criteria"
+            )
+            #expect(Set(suggestions.map(\.id)).count == suggestions.count)
+        }
+    }
+
+    @Test func icedLatteCriteriaStayMilkRelevantAndAddColdDrinkSignals() {
+        let draft = SipDraft(drinkType: .coffee, drinkName: "Iced oat milk latte")
+        let ids = LogASipV3CriterionSuggestion.sip(for: draft).map(\.id)
+
+        #expect(Array(ids.prefix(2)) == ["refreshment", "ice-balance"])
+        #expect(ids.contains("milk-integration"))
+        #expect(ids.contains("coffee-presence"))
+        #expect(!ids.contains("crema"))
+        #expect(!ids.contains("extraction"))
+        #expect(!ids.contains("whisk-texture"))
+    }
+
+    @Test func feedScopeBarHoldsThenReleasesContinuously() {
+        let barHeight: CGFloat = 52
+        let stackSpacing = DesignSystem.Space.sm
+        let contentTopInset = DesignSystem.Space.xxs
+        let contentReservation = FeedScopeBarMotion.contentReservation(
+            barHeight: barHeight,
+            stackSpacing: stackSpacing,
+            contentTopInset: contentTopInset
+        )
+        let pulled = FeedScopeBarMotion.metrics(offset: -80, barHeight: barHeight)
+        let resting = FeedScopeBarMotion.metrics(offset: 0, barHeight: barHeight)
+        let early = FeedScopeBarMotion.metrics(offset: 59, barHeight: barHeight)
+        let threshold = FeedScopeBarMotion.metrics(
+            offset: resting.holdDistance,
+            barHeight: barHeight
+        )
+        let partiallyReleased = FeedScopeBarMotion.metrics(
+            offset: resting.holdDistance + 30,
+            barHeight: barHeight
+        )
+        let released = FeedScopeBarMotion.metrics(
+            offset: resting.holdDistance + barHeight,
+            barHeight: barHeight
+        )
+
+        #expect(FeedScopeBarMotion.restingTopInset == 0)
+        #expect(
+            contentTopInset + contentReservation + stackSpacing - barHeight
+                == FeedScopeBarMotion.restingContentGap
+        )
+        #expect(resting.holdDistance == 60)
+        #expect(pulled.verticalOffset == 0)
+        #expect(resting.verticalOffset == 0)
+        #expect(early.verticalOffset == 0)
+        #expect(threshold.verticalOffset == 0)
+        #expect(threshold.releaseProgress == 0)
+        #expect(abs(partiallyReleased.verticalOffset + 30) < 0.0001)
+        #expect(partiallyReleased.releaseProgress == 30 / barHeight)
+        #expect(released.verticalOffset == -barHeight)
+        #expect(released.releaseProgress == 1)
+        #expect(released.shadowOpacity == 0)
     }
 
     @Test func legacySipDraftDecodesWhenV3OptionalStorageIsAbsent() throws {
@@ -320,11 +436,12 @@ struct LogASipV3DomainTests {
         #expect(expiredVisitID == record.visitID)
     }
 
-    @Test func pinnedCriteriaReturnBlankWithNormalImportance() throws {
+    @Test func pinnedCriteriaReturnBlankWithRememberedImportance() throws {
         let suiteName = "PinnedCriterionStoreTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = PinnedCriterionStore(defaults: defaults)
+        let importanceStore = CriterionImportanceStore(defaults: defaults)
         let pinned = SipRatingCriterionSnapshot(
             name: "Flavor balance",
             score: 4.7,
@@ -333,14 +450,16 @@ struct LogASipV3DomainTests {
             isPinned: true
         )
         store.synchronize([pinned], scope: "owner.sip")
+        importanceStore.synchronize([pinned], scope: "owner.sip")
         var nextVisit: [SipRatingCriterionSnapshot] = []
 
         store.applyPins(to: &nextVisit, scope: "owner.sip")
+        importanceStore.apply(to: &nextVisit, scope: "owner.sip")
 
         let restored = try #require(nextVisit.first)
         #expect(restored.name == "Flavor Balance")
         #expect(restored.score == 0)
-        #expect(restored.weight == 1)
+        #expect(restored.weight == 2.25)
         #expect(restored.isPinned == true)
     }
 

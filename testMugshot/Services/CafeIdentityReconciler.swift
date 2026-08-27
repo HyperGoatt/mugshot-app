@@ -7,8 +7,8 @@ struct CafeIdentityReconciliationResult {
 
 enum CafeIdentityReconciler {
     static func reconcile(_ source: AppData) -> CafeIdentityReconciliationResult {
-        let groups = Dictionary(grouping: source.cafes, by: CafeIdentity.key(for:))
-        guard groups.values.contains(where: { $0.count > 1 }) else {
+        let groups = CafeIdentity.stitchGroups(source.cafes)
+        guard groups.contains(where: { $0.count > 1 }) else {
             return CafeIdentityReconciliationResult(appData: source, mergedCafeCount: 0)
         }
 
@@ -17,7 +17,7 @@ enum CafeIdentityReconciler {
         var mergedCafeCount = 0
         let visitCounts = Dictionary(grouping: source.visits, by: \.cafeId).mapValues(\.count)
 
-        for cafes in groups.values where cafes.count > 1 {
+        for cafes in groups where cafes.count > 1 {
             let keeper = cafes.max(by: {
                 keeperScore($0, visitCounts: visitCounts) < keeperScore($1, visitCounts: visitCounts)
             })!

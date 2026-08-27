@@ -149,6 +149,87 @@ final result: passed
 
 ---
 
+# Feed header and Profile-share recency follow-up — implementation QA
+
+## Comparison setup
+
+- Owner references:
+  - `docs/design-qa/profile-share-feed-followup/01-feed-reference.jpg`
+  - `docs/design-qa/profile-share-feed-followup/02-public-profile-reference.png`
+  - `docs/design-qa/profile-share-feed-followup/02-share-stale-reference.png`
+  - `docs/design-qa/profile-share-feed-followup/05-feed-equalized-reference.png`
+- Simulator implementation captures:
+  - `docs/design-qa/profile-share-feed-followup/03-feed-implemented.jpg`
+  - `docs/design-qa/profile-share-feed-followup/04-share-implemented.jpg`
+  - `docs/design-qa/profile-share-feed-followup/06-feed-equalized-implemented.jpg`
+- Same-input comparison boards:
+  - `docs/design-qa/profile-share-feed-followup/feed-comparison.png`
+  - `docs/design-qa/profile-share-feed-followup/share-comparison.png`
+  - `docs/design-qa/profile-share-feed-followup/feed-gap-equalized-comparison.png`
+- Viewport: Mugshot iPhone 17 Pro, iOS 27 Simulator, 368 × 800 pixels.
+- Density normalization: each source was aspect-fit into a 368 × 800 cell
+  beside the native 368 × 800 Simulator capture. Device framing and screenshot
+  scaling were excluded from findings.
+- Data state: Joe's authenticated live Feed, public owner Profile, and generated
+  Story Profile-share preview. Production inspection was read-only.
+
+## Findings and implementation
+
+- **P2 — Feed scope rail had a duplicate resting gutter.** The independent
+  overlay correctly protected the pills from refresh and lazy recycling, but
+  its 16-point top inset sat below a header that already owned the intended
+  spacing.
+  - Fix: make the rail's resting inset zero while preserving its measured
+    height, identical scope-control geometry, 60-point stationary threshold,
+    and continuous upward translation.
+- **P2 follow-up — the rail-to-card gap still exceeded the subtitle-to-rail
+  gap.** A zero-height refresh reader was a separate child of the 12-point
+  `LazyVStack`, so it contributed an invisible spacing interval.
+  - Fix: attach the refresh reader behind the scope reservation and calculate
+    that reservation so the visible upper and lower gaps both resolve to the
+    eight-point design token.
+- **P2 — current Profile media disappeared from generated shares.** The live
+  Profile renderer supported durable `mugshot-storage://` values, while the
+  Profile-share content filter admitted HTTPS only. Recent Friends-profile
+  photos were therefore dropped and older public HTTPS images became the first
+  visible grid items.
+  - Fix: order profile-published sips newest-first, retain only validated HTTPS
+    or private-Storage references, resolve viewer-authorized Storage media while
+    preparing the artwork, and keep Private Mugshots excluded.
+
+## Final comparison
+
+- The Feed scope rail now nests directly beneath the subtitle in the approved
+  visual rhythm; the first card begins after the same eight-point gap, and Your
+  Mix, Friends, and Everyone share one unchanged baseline.
+- The Profile-share preview now displays the same newest visible first row as
+  the live public Profile: the interior iced coffee, blue-door drink, and Bad
+  Bunnies storefront drink. The stale holiday imagery is absent.
+- Banner, avatar, statistics dock, identity, Favorite Spots, tab rail, Story
+  bounds, marketing footer, canonical link behavior, and native share structure
+  remain unchanged.
+- No actionable P0, P1, or P2 mismatch remains in the compared regions.
+
+## Verification evidence
+
+- Normal Debug Simulator build/install/launch: passed.
+- Focused Profile/Feed-domain run: 29 passed and one exact floating-point
+  assertion failed due to `-29.999999999999996` versus `-30`; the assertion was
+  corrected to a bounded tolerance.
+- Corrected focused Feed-motion rerun: 1 passed, 0 failed.
+- Equal-gap Feed-motion rerun after the refresh-reader layout fix: 1 passed, 0
+  failed.
+- Live Feed and generated Profile-share render: passed.
+- Same-input visual comparisons: passed.
+- Full-static: 11 non-Xcode stages passed, optional `pglast` skipped, and the
+  known Xcode 27 generic XCTest-framework Info.plist packaging stage failed;
+  the normal Simulator build and focused XcodeBuildMCP tests passed.
+- Latest physical-device and TestFlight acceptance: not run.
+
+final result: passed
+
+---
+
 # Home Workbench brew-first flow — implementation QA
 
 ## Comparison setup

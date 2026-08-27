@@ -108,11 +108,25 @@ final class VisitService {
         userId: UUID,
         limit: Int = 10
     ) async throws -> [RemoteVisitSummary] {
+        try await fetchCafeVisits(
+            cafeIds: [cafeId],
+            userId: userId,
+            limit: limit
+        )
+    }
+
+    func fetchCafeVisits(
+        cafeIds: some Collection<UUID>,
+        userId: UUID,
+        limit: Int = 10
+    ) async throws -> [RemoteVisitSummary] {
+        let identifiers = Array(Set(cafeIds))
+        guard !identifiers.isEmpty else { return [] }
         let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
             try await client
                 .from("visits")
                 .select(columns)
-                .eq("cafe_id", value: cafeId.uuidString)
+                .in("cafe_id", values: identifiers.map(\.uuidString))
                 .eq("user_id", value: userId.uuidString)
                 .or("context_type.eq.Cafe,context_type.is.null")
                 .eq("upload_state", value: VisitUploadState.complete.rawValue)
@@ -130,11 +144,25 @@ final class VisitService {
         currentUserId: UUID?,
         limit: Int = 20
     ) async throws -> [RemoteVisitSummary] {
+        try await fetchVisibleCafeVisits(
+            cafeIds: [cafeId],
+            currentUserId: currentUserId,
+            limit: limit
+        )
+    }
+
+    func fetchVisibleCafeVisits(
+        cafeIds: some Collection<UUID>,
+        currentUserId: UUID?,
+        limit: Int = 20
+    ) async throws -> [RemoteVisitSummary] {
+        let identifiers = Array(Set(cafeIds))
+        guard !identifiers.isEmpty else { return [] }
         let rows: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
             try await client
                 .from("visits")
                 .select(columns)
-                .eq("cafe_id", value: cafeId.uuidString)
+                .in("cafe_id", values: identifiers.map(\.uuidString))
                 .or("context_type.eq.Cafe,context_type.is.null")
                 .eq("upload_state", value: VisitUploadState.complete.rawValue)
                 .order("created_at", ascending: false)

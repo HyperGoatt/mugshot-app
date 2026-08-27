@@ -307,6 +307,64 @@ struct testMugshotTests {
         #expect(result.appData.cafes[0].wantToTry)
     }
 
+    @Test func localCafeReconciliationStitchesProviderSplitWithOptionalPostalCode() {
+        let appleID = UUID()
+        let googleID = UUID()
+        let legacyID = UUID()
+        let coordinate = CLLocationCoordinate2D(latitude: 32.79258, longitude: -79.94854)
+        let cafes = [
+            Cafe(
+                name: "Nook Tiny Cafe & Market",
+                location: coordinate,
+                address: "267 Rutledge Ave, Charleston, SC",
+                appleMapsPlaceID: "i32caaad56a85b4a1",
+                remoteCafeId: appleID
+            ),
+            Cafe(
+                name: "Nook Tiny Cafe & Market",
+                location: CLLocationCoordinate2D(latitude: 32.79260, longitude: -79.94861),
+                address: "267 Rutledge Avenue, Charleston, SC 29403",
+                mapItemURL: "google-place-id",
+                remoteCafeId: googleID
+            ),
+            Cafe(
+                name: "Nook Tiny Cafe & Market",
+                location: coordinate,
+                address: "Rutledge Ave, 267, Charleston, SC",
+                mapItemURL: "https://nooktinycafe.com",
+                remoteCafeId: legacyID
+            )
+        ]
+        let visits = cafes.map {
+            Visit(cafeId: $0.id, userId: UUID(), drinkType: .coffee, overallScore: 4)
+        }
+
+        let result = CafeIdentityReconciler.reconcile(
+            AppData(cafes: cafes, visits: visits)
+        )
+
+        #expect(result.mergedCafeCount == 2)
+        #expect(result.appData.cafes.count == 1)
+        #expect(result.appData.visits.count == 3)
+        #expect(Set(result.appData.visits.map(\.cafeId)).count == 1)
+        #expect(result.appData.cafes[0].visitCount == 3)
+    }
+
+    @Test func cafeIdentityDoesNotStitchDistinctAddressesForSameName() {
+        let first = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            location: CLLocationCoordinate2D(latitude: 32.79258, longitude: -79.94854),
+            address: "267 Rutledge Ave, Charleston, SC"
+        )
+        let second = Cafe(
+            name: "Nook Tiny Cafe & Market",
+            location: CLLocationCoordinate2D(latitude: 32.79270, longitude: -79.94860),
+            address: "698 Rutledge Ave, Charleston, SC"
+        )
+
+        #expect(!CafeIdentity.shouldStitch(first, second))
+    }
+
     @Test func pendingVisitSubmissionPersistsPhotosAndAccountScope() throws {
         let suite = "PendingVisitSubmissionTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))

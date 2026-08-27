@@ -25,6 +25,24 @@ private func consumerDetailCaption(_ caption: String) -> String? {
     return trimmed
 }
 
+enum CommentMentionProfileRouteResolver {
+    static func route(
+        for userID: UUID,
+        in comments: [RemoteVisitComment],
+        currentUserID: UUID?
+    ) -> PeopleProfileRoute? {
+        guard let mention = comments.lazy
+            .flatMap(\.mentions)
+            .first(where: { $0.userID == userID }) else { return nil }
+        return PeopleProfileRoute(
+            id: mention.userID,
+            displayName: mention.displayName,
+            username: mention.username,
+            state: mention.userID == currentUserID ? .self : .none
+        )
+    }
+}
+
 struct RemoteVisitDetailView: View {
     let visitId: UUID
     let initialSummary: RemoteVisitSummary
@@ -169,6 +187,7 @@ struct RemoteVisitDetailView: View {
                     onCafeTap: postCafe == nil ? nil : openPostCafe,
                     onRecipeAction: performRecipeAction,
                     onTaggedAccount: openTaggedProfile,
+                    onCommentMention: openCommentMentionProfile,
                     onRemoveOwnTag: { Task { await removeOwnTag() } }
                 )
             } else if isLoading {
@@ -535,6 +554,15 @@ struct RemoteVisitDetailView: View {
             username: detail.summary.authorUsername,
             state: detail.summary.visit.userId == currentUserId ? .self : .none
         )
+    }
+
+    private func openCommentMentionProfile(_ userID: UUID) {
+        guard let route = CommentMentionProfileRouteResolver.route(
+            for: userID,
+            in: detail?.comments ?? [],
+            currentUserID: currentUserId
+        ) else { return }
+        selectedTaggedProfile = route
     }
 
     @MainActor
@@ -2250,6 +2278,15 @@ struct RemotePhotoImageView: View {
             didFail = false
             guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
             do {
+                if urlString.hasPrefix("asset://") {
+                    let assetName = String(urlString.dropFirst("asset://".count))
+                    guard let assetImage = UIImage(named: assetName) else {
+                        throw VisitPhotoAccessError.invalidReference
+                    }
+                    image = assetImage
+                    reportImageSize?(assetImage.size)
+                    return
+                }
                 let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
                 let loadedImage = try await RemoteImagePipeline.shared.image(for: url)
                 image = loadedImage

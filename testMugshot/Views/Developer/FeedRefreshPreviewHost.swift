@@ -89,6 +89,7 @@ private struct FeedRefreshPreviewDetail: View {
             onPhotoTap: { _ in },
             onRecipeAction: { _ in },
             onTaggedAccount: { _ in },
+            onCommentMention: { _ in },
             onRemoveOwnTag: {}
         )
         .navigationTitle("")

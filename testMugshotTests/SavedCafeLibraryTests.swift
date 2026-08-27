@@ -138,6 +138,14 @@ struct SavedCafeLibraryTests {
         )
     }
 
+    @Test func photoSelectionRecognizesPrivateStorageReferencesAsRemoteMedia() {
+        let privateReference = "mugshot-storage://visit-photos-private/user/visit/photo.jpg"
+
+        #expect(CafePhotoSelection.isRemotePhotoReference(privateReference))
+        #expect(CafePhotoSelection.isRemotePhotoReference("https://example.com/photo.jpg"))
+        #expect(!CafePhotoSelection.isRemotePhotoReference("local-photo.jpg"))
+    }
+
     @Test func personalSnapshotKeepsUnratedVisitsAndMostRecentAvailablePhoto() {
         let cafe = SupabaseCafeSummary(
             id: UUID(),
@@ -174,5 +182,62 @@ struct SavedCafeLibraryTests {
         #expect(snapshot.pins.first?.visitCount == 2)
         #expect(snapshot.pins.first?.lastActivityAt == newestDate)
         #expect(snapshot.pins.first?.coverPhotoURL == "https://example.com/authorized.jpg")
+    }
+
+    @Test func personalSnapshotStitchesEquivalentCafeIDsAndCombinesTheirSips() {
+        let newestDate = Date(timeIntervalSince1970: 300)
+        let summaries = [
+            SupabaseCafeSummary(
+                id: UUID(),
+                name: "Nook Tiny Cafe & Market",
+                address: "267 Rutledge Ave, Charleston, SC",
+                city: "Charleston",
+                latitude: 32.79258,
+                longitude: -79.94854,
+                applePlaceId: nil,
+                appleMapsPlaceID: "i32caaad56a85b4a1",
+                websiteURL: "https://nooktinycafe.com",
+                identityKey: "apple-mapkit:i32caaad56a85b4a1"
+            ),
+            SupabaseCafeSummary(
+                id: UUID(),
+                name: "Nook Tiny Cafe & Market",
+                address: "267 Rutledge Avenue, Charleston, SC 29403",
+                city: "267 Rutledge Ave",
+                latitude: 32.79260,
+                longitude: -79.94861,
+                applePlaceId: "google-place-id",
+                websiteURL: nil
+            ),
+            SupabaseCafeSummary(
+                id: UUID(),
+                name: "Nook Tiny Cafe & Market",
+                address: "Rutledge Ave, 267, Charleston, SC",
+                city: "Charleston",
+                latitude: 32.79258,
+                longitude: -79.94854,
+                applePlaceId: "https://nooktinycafe.com",
+                websiteURL: "https://nooktinycafe.com"
+            )
+        ]
+        let snapshot = RemoteMapPinSnapshot.make(
+            mapVisits: summaries.enumerated().map { index, cafe in
+                RemoteMapVisitSeed(
+                    cafe: cafe,
+                    overallScore: Double(index + 3),
+                    cafeSessionID: nil,
+                    createdAt: index == 1
+                        ? newestDate
+                        : Date(timeIntervalSince1970: Double(index + 1) * 50),
+                    posterPhotoURL: index == 1 ? "https://example.com/nook.jpg" : nil
+                )
+            },
+            cafeStates: []
+        )
+
+        #expect(snapshot.pins.count == 1)
+        #expect(snapshot.pins.first?.visitCount == 3)
+        #expect(snapshot.pins.first?.coverPhotoURL == "https://example.com/nook.jpg")
+        #expect(snapshot.pins.first?.cafe.appleMapsPlaceID == "i32caaad56a85b4a1")
     }
 }

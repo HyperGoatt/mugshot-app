@@ -1,7 +1,7 @@
 import Foundation
 
-/// Remembers only the user's reusable criterion choices. Scores and
-/// visit-specific importance never carry into a new Mugshot automatically.
+/// Remembers only the user's reusable criterion choices. Scores remain tied
+/// to a visit; importance preferences are owned separately below.
 final class PinnedCriterionStore {
     static let shared = PinnedCriterionStore()
 
@@ -89,8 +89,82 @@ final class PinnedCriterionStore {
     }
 }
 
-/// Remembers the names from the most recently published setup. Ratings and
-/// visit-specific importance always restart blank.
+/// Keeps a person's preferred importance for each criterion without carrying
+/// a visit's rating forward. Preferences are account- and criterion-scope-bound.
+final class CriterionImportanceStore {
+    static let shared = CriterionImportanceStore()
+
+    private struct Record: Codable, Equatable {
+        let scope: String
+        let name: String
+        let weight: Double
+    }
+
+    private let defaults: UserDefaults
+    private let key = "Mugshot.CriterionImportance.v1"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func apply(to criteria: inout [SipRatingCriterionSnapshot], scope: String) {
+        let resolvedScope = normalized(scope)
+        var preferredWeights: [String: Double] = [:]
+        for record in records where record.scope == resolvedScope {
+            preferredWeights[record.name] = record.weight
+        }
+        for index in criteria.indices {
+            let name = normalized(criteria[index].name)
+            guard let weight = preferredWeights[name] else { continue }
+            criteria[index].weight = SipCriterionImportance(weight: weight).weight
+        }
+    }
+
+    func synchronize(_ criteria: [SipRatingCriterionSnapshot], scope: String) {
+        let resolvedScope = normalized(scope)
+        var updated = records.filter { $0.scope != resolvedScope }
+        updated.append(contentsOf: criteria.compactMap { criterion in
+            guard let name = criterion.name.remoteTrimmedNonEmpty else { return nil }
+            return Record(
+                scope: resolvedScope,
+                name: normalized(name),
+                weight: criterion.importance.weight
+            )
+        })
+        save(updated)
+    }
+
+    func removeAll(ownerUserID: UUID) {
+        let prefix = ownerUserID.uuidString.lowercased() + "."
+        save(records.filter { !$0.scope.hasPrefix(prefix) })
+    }
+
+#if DEBUG
+    func removeAllForTesting() {
+        defaults.removeObject(forKey: key)
+    }
+#endif
+
+    private var records: [Record] {
+        guard let data = defaults.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([Record].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private func save(_ records: [Record]) {
+        guard let data = try? JSONEncoder().encode(records) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
+/// Remembers the names from the most recently published setup. Ratings remain
+/// blank; the separate importance store reapplies personal preferences.
 final class RecentCriterionSetupStore {
     static let shared = RecentCriterionSetupStore()
 

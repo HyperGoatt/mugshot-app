@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 ---
 
 # TestFlight feedback ledger
@@ -19,11 +19,105 @@ TestFlight build.
 
 Local acceptance passed with 425 unit tests, eight focused UI journeys, the
 43-screenshot plus one-text-report review, and full-static 12/0/1; the single
-skip is the optional local `pglast` parser. A signed 0.5.3 (5) Debug app built
-and installed on Joe's iPhone, but automated launch was denied because the
-phone was locked. Report-level physical acceptance therefore remains Pending,
-production configuration is unchanged, and every TestFlight report remains
-Open.
+skip is the optional local `pglast` parser. The initial signed 0.5.3 (5) Debug
+launch was denied while Joe's iPhone was locked. The final current source later
+built, installed, and launched successfully as `co.mugshot.app.dev` on that
+connected iPhone. This is physical app-launch evidence only: report-level
+physical acceptance remains Pending, production configuration is unchanged,
+and every TestFlight report remains Open.
+
+The 2026-08-25 Simulator walkthrough accepted the shell order/default,
+Feed/profile/detail routing and layout, Journal hub and draft recovery, photo
+deletion and cover repair, composer recovery, tagging, Map search, and nested
+comments. That evidence is local Simulator acceptance only. Follow-up source
+now adds Feed reselect-to-top, a scrolling scope control, a Taste Passport
+upgrade holding screen, filtered criteria, persistent criterion importance,
+compact Publish audience/note/tag controls, and viewer-visible cafe Mugshots;
+17 focused composer/domain tests, the Feed reselect and Taste Passport UI
+journeys, full-static 12/0/1, and a normal Simulator build/install/launch
+passed. Manual Publish, criterion, close-control, and cafe-detail retesting
+remains in the active walkthrough. A second QA source batch adds the
+viewport-relative delayed Feed scope release, 12–18 stationary
+preparation-specific criteria, fresh central Add with explicit one/multi-draft
+recovery, an X on every composer step, and correct handling for private-Storage
+cafe poster references. Its 28 focused tests and full-static 12/0/1 pass. A
+third source batch shortened the Feed hold and conservatively stitched
+provider-split cafe identities at read time so Map pins and details combine
+RLS-visible visits/media across every equivalent ID. A fourth source batch now
+keeps the scope pills fixed during refresh and the first 60 upward points, then
+translates them continuously beneath the clipped header over their measured
+height without a lazy-stack visibility jump. The latest focused Feed-motion
+test and fast static gate pass. The prior five unique Feed/cafe tests, offline
+verification 11/0/1, normal Simulator build/install/launch, and connected-iPhone
+development build/install/launch also pass. The fourth source built and
+installed on Joe's iPhone, then launched successfully after the device was
+unlocked. Replacement-device motion and Tiny Nook acceptance remain, and no
+report state is promoted by app-launch evidence alone.
+
+The later approved Editorial Atlas profile redesign is implemented on the same
+branch without changing any existing report's TestFlight state. Its first
+physical-QA follow-up returns the banner to 112 points, keeps the foam-white
+statistics dock, compacts Favorite Spots to descriptor/cafe text, and makes
+Favorite Spot creation reason-first. Profile publication defaults to Friends
+plus Everyone with an owner opt-out to Everyone-only; Private remains excluded
+from every profile tab. The revised hermetic privacy contract, five focused
+Swift tests, app build/launch, rendered owner profile, and reason-first
+Simulator journey pass. Migration `20260826143102` is production-configured and
+its expected tables/RPCs resolve. Any owner-promoted physical acceptance and
+replacement-TestFlight acceptance remain separate gates.
+
+The ensuing owner-promoted device walkthrough found a low-value Taste overlap
+card, excess space on sparse friend profiles, hidden Favorite Spot categories
+and custom entry behind a horizontal scroller, and a Cafes-tab scroll jitter.
+The repaired source removes the card and its redundant compatibility request,
+wraps sparse identity metadata into the available width, shows all six Favorite
+Spot categories in a two-column grid with a direct custom field, and removes the
+nested-lazy scroll-height feedback loop while retaining lazy media grids. Five
+focused profile tests, a normal Debug build/launch, the live Amanda profile,
+custom descriptor entry, and repeated scrolling through 11 cafe cards pass on
+the standard iOS 27 Simulator. The repository full-static gate passed its 11
+non-Xcode checks, retained the optional `pglast` skip, and hit the known Xcode 27
+generic XCTest framework Info.plist packaging failure; the equivalent
+XcodeBuildMCP app build and focused test run pass. This repaired source has not
+yet been re-promoted to the connected iPhone, and no TestFlight report state is
+changed.
+
+The next QA polish batch removes the redundant owner-named ratings legend from
+every profile map without changing the existing MapKit surface, gives all Feed
+scope subtitles the same compact layout footprint so Your Mix does not shift
+the scope control, and routes structured comment mentions through the mentioned
+account metadata instead of the unrelated post-tag collection. The fast static
+gate, all 16 focused Sip Detail presentation tests, normal Simulator
+build/install/launch, live Your Mix/Friends geometry comparison, live Amanda
+map, and live structured-mention render pass. Owner mention-tap feel, physical,
+and TestFlight acceptance remain separate.
+
+The subsequent owner-requested Profile share addition replaces the bare-URL
+handoff with a dedicated share hub that renders fixed Story/Post snapshots from
+the canonical link's public projection, then supplies the artwork, concise Add
+me copy, and the active profile URL to the native share sheet. Private Mugshots
+and journal-only fields are absent from the share content model. Eight focused
+profile tests, a normal Simulator build/install/launch, full Story export
+inspection, and the native share handoff pass. After explicit owner promotion,
+the exact source also built, installed, and launched as `co.mugshot.app.dev` on
+Joe's connected iPhone. This is physical app-launch evidence only and does not
+change any of the original 44 reports' TestFlight acceptance states.
+
+The latest owner-QA follow-up gives the Feed scope rail matching eight-point
+gaps above and below it. The zero-height refresh reader no longer participates
+in stack layout, while the three scope heights, refresh isolation, and approved
+60-point release motion remain unchanged. It also corrects a client-only Profile-share
+media divergence: the snapshot now sorts published Mugshots newest-first and
+resolves durable private-Storage references before rendering, matching the live
+Profile grid instead of skipping recent Friends-profile media and showing older
+public HTTPS photos. The Debug Simulator build/launch, 30 focused tests with one
+corrected floating-point assertion, green focused rerun, live Feed/share
+captures, and same-input comparison boards pass. A production inspection was
+read-only and confirmed the RPC was already newest-first; no data, Storage, or
+policy mutation occurred. Full-static passed its 11 non-Xcode stages, skipped
+optional `pglast`, and reproduced the known Xcode 27 generic XCTest-framework
+Info.plist packaging failure; the equivalent XcodeBuildMCP app build and focused
+tests passed. This source is not physically or TestFlight accepted.
 
 ## Workstreams
 
@@ -48,10 +142,10 @@ Open.
 | 7 | `AJ3QmQM05wzVWO8aORThJ4A` | 0.5.3 (5), iPhone17,1, iOS 27.0 | Nest replies immediately under their parent | R4 | Accepted, one level | Yes | Passed | Pending | Open |
 | 8 | `AOWM6nQ9eORKKYT-DhAu0G0` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Long-press heart for Like, Love, Laugh, and Yummy | R4 | Accepted | Yes | Passed | Pending | Open |
 | 9 | `AGGLzpFUO2sU4nQKxZY4KMY` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Remove highlighted post-detail whitespace | R2 | Accepted as secondary-content clamp/padding cleanup | Yes | Passed | Pending | Open |
-| 10 | `AKAR-CG0cAdOkRcnj7qR6uk` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Persist More/Most/Less importance | R3 | Adjusted: criterion pins persist; importance resets per visit | Yes | Passed | Pending | Open |
-| 11 | `ADMa6OZntf6tstz1-bTojuQ` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Edit every Publish summary without navigating back | R3 | Accepted | Yes | Passed | Pending | Open |
+| 10 | `AKAR-CG0cAdOkRcnj7qR6uk` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Persist More/Most/Less importance | R3 | Accepted after Simulator QA: importance persists by account and criterion scope; visit scores remain fresh | Yes | Focused passed; manual UI pending | Pending | Open |
+| 11 | `ADMa6OZntf6tstz1-bTojuQ` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Edit every Publish summary without navigating back | R3 | Adjusted after Simulator QA: keep photos/identity/scores/caption edits; restore inline Audience, Raw note, and Tag people; edit private note by navigating back | Yes | Compiled; manual UI pending | Pending | Open |
 | 12 | `AIPBqNqY8TO6z5hDLt0Zi6I` | 0.5.3 (5), iPhone18,1, iOS 26.6, text-only | Keep caption on Publish | R3 | Accepted | Yes | Passed | Pending | Open |
-| 13 | `ADQ2JCLsXZ3-SXzNkhR1jNk` | 0.5.3 (5), iPhone17,1, iOS 27.0 | Reconcile duplicate cafe/address variants | R1 | Accepted; text fallback is address-order invariant | Yes | Passed | Pending | Open |
+| 13 | `ADQ2JCLsXZ3-SXzNkhR1jNk` | 0.5.3 (5), iPhone17,1, iOS 27.0 | Reconcile duplicate cafe/address variants | R1 | Accepted; local and remote read projections stitch equivalent normalized addresses without mutating production rows | Yes | Focused passed; Tiny Nook UI pending | Pending | Open |
 | 14 | `APsqFeV-H8n5DJE_hDMOSGQ` | 0.5.3 (5), iPhone17,1, iOS 27.0 | Mint/bold/tappable mentions and easy profile friendship flow | R4 | Existing safe mention/profile route retained and regression-gated | Yes | Passed | Pending | Open |
 | 15 | `AGLtR9tJCEae5lcKioXCSC4` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Show one completion check | R3 | Accepted | Yes | Passed | Pending | Open |
 | 16 | `AOm82wNUbaXYRjqekmk2OTc` | 0.5.3 (5), iPhone18,1, iOS 26.6 | Add photo delete controls | R3 | Accepted with cover-index repair and recovery preservation | Yes | Passed | Pending | Open |
@@ -92,4 +186,8 @@ Open.
 - Publish preview geometry is unchanged.
 - Share hub/sheet actions, structure, formats, templates, layout controls,
   ordering, defaults, privacy presentation, and collage behavior are unchanged.
+- Criterion importance persists by account and criterion scope; visit scores do
+  not persist.
+- Publish keeps compact inline Audience, Raw note, and Tag people controls;
+  private-note editing remains in the reflection flow.
 - Reports remain open until replacement-build TestFlight acceptance.

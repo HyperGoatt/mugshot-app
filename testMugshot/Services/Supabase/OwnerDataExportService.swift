@@ -36,7 +36,11 @@ private final class SupabaseOwnerDataExportRemoteTransport: OwnerDataExportRemot
     var currentUserID: UUID? { client.auth.currentUser?.id }
 
     func fetchV2Export() async throws -> Data {
-        try await client.rpc("build_owner_data_export_v2").execute().data
+        do {
+            return try await client.rpc("build_owner_data_export_v3").execute().data
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            return try await client.rpc("build_owner_data_export_v2").execute().data
+        }
     }
 
     func fetchV1Export() async throws -> Data {

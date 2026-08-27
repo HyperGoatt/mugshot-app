@@ -47,6 +47,7 @@ struct MainTabView: View {
     @State private var publicCafeListRoute: PublicCafeListLinkRoute?
     @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
+    @State private var feedScrollToTopRequest = 0
 
     init(dataManager: DataManager, initialTab: MugshotTab = .feed) {
         self.dataManager = dataManager
@@ -64,7 +65,10 @@ struct MainTabView: View {
                 .background(Color.creamWhite)
 
             if tabCoordinator.selectedTab != .add, !isBottomNavHidden {
-                MugshotBottomNav(selectedTab: gatedTabSelection)
+                MugshotBottomNav(
+                    selectedTab: gatedTabSelection,
+                    onReselect: handleTabReselection
+                )
                     .transition(.opacity)
                     .zIndex(1)
             }
@@ -157,7 +161,12 @@ struct MainTabView: View {
                 )
             }
         }
-        .onChange(of: tabCoordinator.selectedTab) { _, _ in
+        .onChange(of: tabCoordinator.selectedTab) { previousTab, selectedTab in
+            if selectedTab == .add,
+               previousTab != .add,
+               composerDraft == nil {
+                composerSessionID = UUID()
+            }
             captureSelectedScreen()
             synchronizeMapLocationUpdates()
         }
@@ -529,6 +538,7 @@ struct MainTabView: View {
             FeedTabView(
                 dataManager: dataManager,
                 activityStore: activityStore,
+                scrollToTopRequest: feedScrollToTopRequest,
                 onLogVisitRequested: beginCafeSip,
                 onComposeDraft: { draft in
                     composerDraft = draft
@@ -593,6 +603,11 @@ struct MainTabView: View {
         case .journal: screen = .journal
         }
         MugshotAnalytics.shared.capture(.screenViewed(screen, source: .tab))
+    }
+
+    private func handleTabReselection(_ tab: MugshotTab) {
+        guard tab == .feed else { return }
+        feedScrollToTopRequest &+= 1
     }
 
     private func synchronizeMapLocationUpdates() {
@@ -1357,8 +1372,11 @@ private struct GuestSavedMergeView: View {
 
 private struct MugshotBottomNav: View {
     @Binding var selectedTab: MugshotTab
+    let onReselect: (MugshotTab) -> Void
     @State private var dragPosition: CGFloat?
     @State private var isSettlingSelection = false
+    @State private var lastReselectedTab: MugshotTab?
+    @State private var lastReselectionAt = Date.distantPast
 
     private enum Metrics {
         static let contentHeight: CGFloat = 62
@@ -1455,6 +1473,14 @@ private struct MugshotBottomNav: View {
             }
             .contentShape(Rectangle())
             .highPriorityGesture(dragGesture(width: proxy.size.width))
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        let target = nearestTab(to: value.location.x, width: proxy.size.width)
+                        guard target == selectedTab else { return }
+                        performReselection(on: target)
+                    }
+            )
         }
         .frame(height: Metrics.contentHeight)
     }
@@ -1462,8 +1488,11 @@ private struct MugshotBottomNav: View {
     @ViewBuilder
     private func baseItem(_ item: MugshotTabItem) -> some View {
         if showsRestingSelection, item.tab == selectedTab, item.tab != .add {
-            Color.clear
-                .frame(width: Metrics.standardItemWidth, height: Metrics.contentHeight)
+            // Keep a rendered hit target beneath the separate selected-state
+            // layer. A fully clear label can be dropped from hit testing by
+            // the native glass container, which prevents same-tab reselection.
+            restingSelectedItem(item)
+                .opacity(0.001)
         } else if item.tab == .add {
             addButton
         } else {
@@ -1670,7 +1699,10 @@ private struct MugshotBottomNav: View {
     }
 
     private func settleSelection(on target: MugshotTab) {
-        guard target != selectedTab || dragPosition != nil else { return }
+        guard target != selectedTab || dragPosition != nil else {
+            performReselection(on: target)
+            return
+        }
 
         isSettlingSelection = true
         withAnimation(DesignSystem.Motion.base) {
@@ -1680,6 +1712,17 @@ private struct MugshotBottomNav: View {
             guard selectedTab == target, dragPosition == nil else { return }
             isSettlingSelection = false
         }
+    }
+
+    private func performReselection(on target: MugshotTab) {
+        let now = Date()
+        guard lastReselectedTab != target || now.timeIntervalSince(lastReselectionAt) > 0.25 else {
+            return
+        }
+        lastReselectedTab = target
+        lastReselectionAt = now
+        onReselect(target)
+        MugshotHaptic.softImpact.play()
     }
 
     private func activeLensPosition(width: CGFloat) -> CGFloat {

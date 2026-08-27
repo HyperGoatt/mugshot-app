@@ -92,10 +92,8 @@ final class testMugshotUITests: XCTestCase {
             caption: "A guest-created memory",
             usesSeededPhoto: true
         )
-        XCTAssertTrue(
-            app.staticTexts["Mugshot: Private · Raw note: Private"]
-                .waitForExistence(timeout: 2)
-        )
+        revealAudienceControls(in: app)
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         attachScreenshot(named: "After - Guest private publish preview")
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Save this draft to your journal"].waitForExistence(timeout: 3))
@@ -125,8 +123,9 @@ final class testMugshotUITests: XCTestCase {
     func testJournalAccountMenuOpensSettings() throws {
         let app = launch(reset: true)
         app.buttons["Journal"].tap()
-        XCTAssertTrue(app.buttons["Open your profile"].waitForExistence(timeout: 3))
-        app.buttons["Open your profile"].tap()
+        XCTAssertFalse(app.buttons["Open your profile"].exists)
+        XCTAssertTrue(app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3))
+        app.buttons["Open your profile and Taste Passport"].tap()
         tapAfterRevealing(app.buttons["Settings"], in: app, maximumSwipes: 12)
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
@@ -151,15 +150,57 @@ final class testMugshotUITests: XCTestCase {
             XCTAssertTrue(saved.isSelected, "Saved failed on pass \(pass)")
             journal.tap()
             XCTAssertTrue(
-                app.buttons["Open your profile"].waitForExistence(timeout: 3),
+                app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3),
                 "Journal stopped responding on pass \(pass)"
             )
         }
 
-        app.buttons["Open your profile"].tap()
+        app.buttons["Open your profile and Taste Passport"].tap()
         let settings = app.buttons["Settings"]
         tapAfterRevealing(settings, in: app, maximumSwipes: 12)
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    func testReselectingFeedReturnsToScopeControls() throws {
+        let app = launch(reset: true, extraArguments: ["--ui-testing-seed-adaptive-map"])
+        let yourMix = app.buttons["Your Mix"].firstMatch
+        XCTAssertTrue(yourMix.waitForExistence(timeout: 5))
+        let startingFrame = yourMix.frame
+        XCTAssertGreaterThan(startingFrame.height, 0)
+
+        app.swipeUp()
+        app.swipeUp()
+        let scrolledPastScope = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement else { return false }
+                return element.frame.maxY < startingFrame.minY
+            },
+            object: yourMix
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [scrolledPastScope], timeout: 3), .completed)
+        XCTAssertTrue(app.staticTexts["Feed"].exists)
+
+        app.buttons["mugshot.tab.feed"].tap()
+        let returnedYourMix = app.buttons["Your Mix"].firstMatch
+        XCTAssertTrue(returnedYourMix.waitForExistence(timeout: 3))
+        XCTAssertLessThan(
+            abs(returnedYourMix.frame.minY - startingFrame.minY),
+            20,
+            "Scope started at \(startingFrame) and returned at \(returnedYourMix.frame)."
+        )
+    }
+
+    @MainActor
+    func testJournalTastePassportShowsUpgradeHoldingScreen() throws {
+        let app = launch(reset: true)
+        app.buttons["mugshot.tab.journal"].tap()
+        let passport = app.buttons["Taste Passport"]
+        reveal(passport, in: app, maximumSwipes: 8)
+        passport.tap()
+
+        XCTAssertTrue(app.staticTexts["Your Taste Passport is getting an upgrade"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["tastePassport.upgradeHolding"].exists)
     }
 
     @MainActor
@@ -204,7 +245,7 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testEveryoneAudienceAndDraftRestoration() throws {
+    func testEveryoneAudienceAndExplicitDraftRestoration() throws {
         let app = launch(reset: true)
         openV3HomeDraftToPublish(
             in: app,
@@ -212,16 +253,11 @@ final class testMugshotUITests: XCTestCase {
             caption: "A home sip worth remembering"
         )
 
-        openAudienceEditor(in: app)
+        revealAudienceControls(in: app)
         let everyone = app.buttons["Everyone"].firstMatch
         XCTAssertTrue(everyone.waitForExistence(timeout: 2))
         everyone.tap()
         XCTAssertTrue(everyone.isSelected)
-        app.buttons["Done"].tap()
-        XCTAssertTrue(
-            app.staticTexts["Mugshot: Everyone · Raw note: Private"]
-                .waitForExistence(timeout: 2)
-        )
 
         app.terminate()
         app.launchArguments = ["--ui-testing"]
@@ -229,13 +265,21 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
 
+        XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
+        XCTAssertFalse(
+            app.staticTexts["Review Mugshot"].exists,
+            "Central Add should always open a fresh composer."
+        )
+        let resumeDraft = app.buttons["logASipV3.resumeDraft"]
+        XCTAssertTrue(resumeDraft.waitForExistence(timeout: 2))
+        resumeDraft.tap()
+
         XCTAssertTrue(
             app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3),
-            "A meaningful V3 draft should restore to its persisted publish step after relaunch."
+            "Explicit Resume draft should restore the persisted publish step."
         )
-        openAudienceEditor(in: app)
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Everyone"].firstMatch.isSelected, "The selected audience should restore with the draft.")
-        app.buttons["Done"].tap()
         XCTAssertEqual(
             v3Element("logASipV3.caption", in: app).value as? String,
             "A home sip worth remembering"
@@ -372,9 +416,8 @@ final class testMugshotUITests: XCTestCase {
             caption: "A recovered photo memory",
             usesSeededPhoto: true
         )
-        openAudienceEditor(in: app)
+        revealAudienceControls(in: app)
         app.buttons["Friends"].firstMatch.tap()
-        app.buttons["Done"].tap()
         tapV3PrimaryAction(in: app)
 
         XCTAssertTrue(app.staticTexts["We couldn’t finish this save. Your sip is safe—try again."].waitForExistence(timeout: 2))
@@ -387,9 +430,8 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Add"].tap()
 
         XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
-        openAudienceEditor(in: app)
+        revealAudienceControls(in: app)
         XCTAssertTrue(app.buttons["Friends"].firstMatch.isSelected)
-        app.buttons["Done"].tap()
         let photoEditor = v3Element("logASipV3.publish.edit.photos", in: app)
         XCTAssertTrue(photoEditor.waitForExistence(timeout: 3))
         XCTAssertEqual(photoEditor.value as? String, "1 photo")
@@ -415,10 +457,8 @@ final class testMugshotUITests: XCTestCase {
             drinkName: drinkName,
             caption: "A private draft that survives authentication changes"
         )
-        XCTAssertTrue(
-            app.staticTexts["Mugshot: Private · Raw note: Private"]
-                .waitForExistence(timeout: 2)
-        )
+        revealAudienceControls(in: app)
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Sign back in to save. Your draft will stay here."].waitForExistence(timeout: 2))
 
@@ -429,10 +469,8 @@ final class testMugshotUITests: XCTestCase {
         app.buttons["Add"].tap()
 
         XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 3))
-        XCTAssertTrue(
-            app.staticTexts["Mugshot: Private · Raw note: Private"]
-                .waitForExistence(timeout: 2)
-        )
+        revealAudienceControls(in: app)
+        XCTAssertTrue(app.buttons["Private"].firstMatch.isSelected)
         XCTAssertTrue(app.staticTexts[drinkName].exists)
         XCTAssertEqual(
             v3Element("logASipV3.caption", in: app).value as? String,
@@ -704,10 +742,20 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    private func openAudienceEditor(in app: XCUIApplication) {
-        let edit = v3Element("logASipV3.publish.edit.audience", in: app)
-        tapAfterRevealing(edit, in: app, maximumSwipes: 12)
-        XCTAssertTrue(app.staticTexts["Edit audience"].waitForExistence(timeout: 3))
+    private func revealAudienceControls(in app: XCUIApplication) {
+        let audience = app.staticTexts["Audience"]
+        reveal(audience, in: app, maximumSwipes: 12)
+        XCTAssertTrue(audience.isHittable)
+    }
+
+    @MainActor
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, maximumSwipes: Int) {
+        var swipes = 0
+        while swipes < maximumSwipes, !element.isHittable {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(element.exists)
     }
 
     @MainActor

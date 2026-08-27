@@ -74,9 +74,73 @@ private final class RemoteFeedMemoryCache {
     }
 }
 
+struct FeedScrollSnapshot: Equatable {
+    let offset: CGFloat
+
+    static let zero = Self(offset: 0)
+}
+
+enum FeedScopeBarMotion {
+    /// The scope control rests directly beneath the Feed header. Keeping this
+    /// at zero avoids reserving a second visual gutter between the subtitle and
+    /// the control while preserving the 60-point stationary scroll threshold.
+    static let restingTopInset: CGFloat = 0
+    static let restingContentGap = DesignSystem.Space.xs
+
+    struct Metrics: Equatable {
+        let verticalOffset: CGFloat
+        let shadowOpacity: Double
+        let holdDistance: CGFloat
+        let releaseProgress: CGFloat
+    }
+
+    /// Keeps the scope control fixed during refresh and the first 60 points of
+    /// upward travel, then translates it beneath the clipped Feed header. The
+    /// measured control height makes the entire departure continuous rather
+    /// than relying on a visibility toggle or LazyVStack recycling.
+    static func metrics(
+        offset: CGFloat,
+        barHeight: CGFloat,
+        topInset: CGFloat = restingTopInset
+    ) -> Metrics {
+        let normalizedOffset = max(offset, 0)
+        let holdDistance: CGFloat = 60
+        let releaseDistance = max(barHeight + topInset, 1)
+        let releaseProgress = min(
+            max((normalizedOffset - holdDistance) / releaseDistance, 0),
+            1
+        )
+        let anchoredProgress = holdDistance > 0
+            ? min(normalizedOffset / holdDistance, 1)
+            : 0
+
+        return Metrics(
+            verticalOffset: -(releaseProgress * releaseDistance),
+            shadowOpacity: Double(anchoredProgress * (1 - releaseProgress) * 0.10),
+            holdDistance: holdDistance,
+            releaseProgress: releaseProgress
+        )
+    }
+
+    /// Compensates for the parent stack's standard spacing so the visible gap
+    /// below the floating scope control matches the compact header-to-control
+    /// gap above it.
+    static func contentReservation(
+        barHeight: CGFloat,
+        stackSpacing: CGFloat = DesignSystem.Space.sm,
+        contentTopInset: CGFloat = DesignSystem.Space.xxs
+    ) -> CGFloat {
+        max(
+            barHeight - stackSpacing - contentTopInset + restingContentGap,
+            0
+        )
+    }
+}
+
 struct FeedTabView: View {
     @ObservedObject var dataManager: DataManager
     @ObservedObject var activityStore: ActivityCenterStore
+    var scrollToTopRequest = 0
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onComposeDraft: ((SipDraft) -> Void)? = nil
     var onActivityRequested: (() -> Void)? = nil
@@ -101,11 +165,19 @@ struct FeedTabView: View {
     @State private var refreshPullProgress: CGFloat = 0
     @State private var isRefreshingFeed = false
     @State private var didArmRefresh = false
+    @State private var scrollSnapshot = FeedScrollSnapshot.zero
+    @State private var scopeBarHeight: CGFloat = 52
     @AppStorage("mugshot.your-mix-education.v1.dismissed") private var hasDismissedYourMixEducation = false
     @AppStorage(RoadmapFeatureFlags.phase3ExplainableTasteGraph) private var phase3ExplainableTasteGraph = true
     @FocusState private var isFeedSearchFocused: Bool
 
     private let feedPageSize = 12
+    private let feedStackSpacing = DesignSystem.Space.sm
+    private let feedContentTopInset = DesignSystem.Space.xxs
+
+    private enum ScrollAnchor {
+        static let top = "feed.top"
+    }
 
     private var feedTaskID: String {
         "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(selectedScope.displayName)-\(dataManager.journalRevision)"
@@ -129,7 +201,9 @@ struct FeedTabView: View {
                     "Feed",
                     subtitle: feedSubtitle,
                     subtitleLineLimit: 2,
-                    subtitleMinimumScaleFactor: 0.86
+                    subtitleMinimumScaleFactor: 0.86,
+                    subtitleLayoutHeight: 28,
+                    subtitleLineSpacing: -2
                 ) {
                     HStack(spacing: 8) {
                         ActivityBellButton(unreadCount: activityStore.unreadCount) {
@@ -166,82 +240,99 @@ struct FeedTabView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                MugshotSegmentedControl(
-                    options: FeedScope.allCases,
-                    selection: $selectedScope,
-                    title: { $0.displayName },
-                    icon: { scopeIcon(for: $0) }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4)
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        LazyVStack(spacing: feedStackSpacing) {
+                            Color.clear
+                                .frame(
+                                    height: FeedScopeBarMotion.contentReservation(
+                                        barHeight: scopeBarHeight,
+                                        stackSpacing: feedStackSpacing,
+                                        contentTopInset: feedContentTopInset
+                                    )
+                                )
+                                .background(alignment: .top) {
+                                    MugshotPullProgressReader(
+                                        coordinateSpace: "feed.refresh",
+                                        restingOffset: feedContentTopInset
+                                    )
+                                }
+                                .id(ScrollAnchor.top)
+                                .accessibilityHidden(true)
 
-                if selectedScope == .ranked && !hasDismissedYourMixEducation {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.mugshotSage)
-                            .padding(.top, 1)
-
-                        Text("Your Mix blends friend activity, recent sips, your taste, and nearby cafes.")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Button {
-                            withAnimation(DesignSystem.Motion.fast) {
-                                hasDismissedYourMixEducation = true
+                            if selectedScope == .ranked && !hasDismissedYourMixEducation {
+                                feedScopeEducation
                             }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.secondaryText)
-                                .frame(width: 28, height: 28)
-                                .background(Color.foamWhite.opacity(0.72), in: Circle())
+                            feedContent
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss Your Mix explanation")
+                        .padding(.horizontal, 16)
+                        .padding(.top, feedContentTopInset)
+                        .padding(.bottom, 116)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.mugshotMint.opacity(0.24))
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        MugshotPullProgressReader(coordinateSpace: "feed.refresh", restingOffset: 8)
-                        feedContent
+                    .onScrollGeometryChange(for: FeedScrollSnapshot.self) { geometry in
+                        FeedScrollSnapshot(
+                            offset: max(geometry.contentOffset.y + geometry.contentInsets.top, 0)
+                        )
+                    } action: { _, snapshot in
+                        scrollSnapshot = snapshot
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .padding(.bottom, 116)
-                }
-                .coordinateSpace(name: "feed.refresh")
-                .background(Color.creamWhite)
-                .overlay(alignment: .top) {
-                    MugshotPullRefreshIndicator(
-                        progress: refreshPullProgress,
-                        isRefreshing: isRefreshingFeed
-                    )
-                    .offset(y: 6)
-                    .allowsHitTesting(false)
-                }
-                .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
-                    refreshPullProgress = MugshotMotion.normalized(distance / 82)
-                    if refreshPullProgress >= 1, !didArmRefresh {
-                        didArmRefresh = true
-                        MugshotHaptic.refreshArmed.play()
-                    } else if refreshPullProgress < 0.35 {
-                        didArmRefresh = false
+                    .coordinateSpace(name: "feed.refresh")
+                    .background(Color.creamWhite)
+                    .overlay(alignment: .top) {
+                        feedScopeBar
+                            .frame(maxWidth: .infinity)
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.height
+                            } action: { measuredHeight in
+                                guard measuredHeight > 0,
+                                      abs(measuredHeight - scopeBarHeight) > 0.5 else { return }
+                                scopeBarHeight = measuredHeight
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, FeedScopeBarMotion.restingTopInset)
+                            .offset(y: scopeBarMotion.verticalOffset)
+                            .shadow(
+                                color: Color.espressoBrown.opacity(scopeBarMotion.shadowOpacity),
+                                radius: 14,
+                                y: 7
+                            )
+                            .allowsHitTesting(scopeBarMotion.releaseProgress < 1)
+                            .accessibilityHidden(scopeBarMotion.releaseProgress >= 1)
                     }
-                }
-                .refreshable {
-                    isRefreshingFeed = true
-                    await loadRemoteFeedIfNeeded(forceRefresh: true)
-                    isRefreshingFeed = false
+                    .overlay(alignment: .top) {
+                        MugshotPullRefreshIndicator(
+                            progress: refreshPullProgress,
+                            isRefreshing: isRefreshingFeed
+                        )
+                        .offset(
+                            y: scopeBarHeight
+                                + FeedScopeBarMotion.restingTopInset
+                                + DesignSystem.Space.sm
+                        )
+                        .allowsHitTesting(false)
+                    }
+                    .clipped()
+                    .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
+                        refreshPullProgress = MugshotMotion.normalized(distance / 82)
+                        if refreshPullProgress >= 1, !didArmRefresh {
+                            didArmRefresh = true
+                            MugshotHaptic.refreshArmed.play()
+                        } else if refreshPullProgress < 0.35 {
+                            didArmRefresh = false
+                        }
+                    }
+                    .refreshable {
+                        isRefreshingFeed = true
+                        await loadRemoteFeedIfNeeded(forceRefresh: true)
+                        isRefreshingFeed = false
+                    }
+                    .task(id: scrollToTopRequest) {
+                        guard scrollToTopRequest > 0 else { return }
+                        await Task.yield()
+                        withAnimation(DesignSystem.Motion.base) {
+                            scrollProxy.scrollTo(ScrollAnchor.top, anchor: .top)
+                        }
+                    }
                 }
             }
             .background(Color.creamWhite)
@@ -285,6 +376,56 @@ struct FeedTabView: View {
         .task(id: feedTaskID) {
             await loadRemoteFeedIfNeeded()
         }
+    }
+
+    private var scopeBarMotion: FeedScopeBarMotion.Metrics {
+        FeedScopeBarMotion.metrics(
+            offset: scrollSnapshot.offset,
+            barHeight: scopeBarHeight
+        )
+    }
+
+    private var feedScopeBar: some View {
+        MugshotSegmentedControl(
+            options: FeedScope.allCases,
+            selection: $selectedScope,
+            title: { $0.displayName },
+            icon: { scopeIcon(for: $0) }
+        )
+        .accessibilityIdentifier("feed.scope.control")
+    }
+
+    private var feedScopeEducation: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.mugshotSage)
+                .padding(.top, 1)
+
+            Text("Your Mix blends friend activity, recent sips, your taste, and nearby cafes.")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                withAnimation(DesignSystem.Motion.fast) {
+                    hasDismissedYourMixEducation = true
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.secondaryText)
+                    .frame(width: 28, height: 28)
+                    .background(Color.foamWhite.opacity(0.72), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss Your Mix explanation")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.mugshotMint.opacity(0.24))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
     
     private var visits: [Visit] {
@@ -1343,6 +1484,7 @@ struct VisitDetailView: View {
             onCafeTap: cafe == nil ? nil : openLocalCafe,
             onRecipeAction: { _ in },
             onTaggedAccount: { _ in },
+            onCommentMention: { _ in },
             onRemoveOwnTag: {}
         )
         .navigationBarBackButtonHidden(true)

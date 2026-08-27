@@ -62,6 +62,8 @@ struct LogVisitView: View {
     @State private var showPhotoOrganizer = false
     @State private var photoOrganizerOriginalImages: [UIImage]?
     @State private var photoOrganizerOriginalPosterIndex: Int?
+    @State private var resumableDrafts: [SipDraft] = []
+    @State private var presentedDraftResumePicker: SipDraftResumePickerPresentation?
     @State private var remoteCafeSessionsAvailable = false
     @State private var cafeLearningSignals: [CafePreferenceSignal] = []
     @State private var v3Step: SipV3ComposerStep
@@ -276,6 +278,14 @@ struct LogVisitView: View {
                     }
                 )
             }
+            .sheet(item: $presentedDraftResumePicker) { presentation in
+                SipDraftResumePicker(
+                    drafts: presentation.drafts,
+                    onResume: resumeDraft
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
             .sheet(isPresented: $isCafeSearchActive) {
                 CafeSearchSheet(
                     searchText: $searchText,
@@ -396,6 +406,7 @@ struct LogVisitView: View {
             .onAppear {
                 activateLocalState()
                 restoreDraftIfNeeded()
+                refreshResumableDrafts()
                 captureComposerOpenedIfNeeded()
             }
             .task(id: authModel.authenticatedUser?.id) {
@@ -447,9 +458,11 @@ struct LogVisitView: View {
             }
             .onChange(of: draft.ratingCriteria) { _, criteria in
                 PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedSipScope)
+                CriterionImportanceStore.shared.synchronize(criteria, scope: pinnedSipScope)
             }
             .onChange(of: draft.contextRatingCriteria) { _, criteria in
                 PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedContextScope)
+                CriterionImportanceStore.shared.synchronize(criteria, scope: pinnedContextScope)
             }
             .onChange(of: locationManager.location) { _, location in
                 if let location { updateSearchRegion(for: location) }
@@ -468,16 +481,12 @@ struct LogVisitView: View {
                     return
                 }
                 activateLocalState(scope: .user(userID))
-                if explicitLaunchDraft == nil,
-                   !showSavedConfirmation,
-                   restorePublishedV3CompletionIfNeeded() {
-                    return
-                }
                 if draft.ownerUserID == nil { draft.ownerUserID = userID }
                 if draft.cafeSessionDraft != nil {
                     draft.cafeSessionDraft?.ownerUserID = userID
                 }
                 reconcilePendingSubmission(for: userID)
+                refreshResumableDrafts()
             }
     }
 
@@ -494,7 +503,7 @@ struct LogVisitView: View {
             photoImages: $photoImages,
             step: $v3Step,
             isSaving: isSaving,
-            isDraftSaved: isDraftPersisted,
+            resumeDraftCount: resumableDrafts.count,
             isRecoveryLocked: pendingSubmission != nil || isSaving,
             statusMessage: errorMessage ?? uploadRecoveryMessage,
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
@@ -507,6 +516,7 @@ struct LogVisitView: View {
             canUseLastContextSetup: !RecentCriterionSetupStore.shared
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
+            onResumeDraft: requestDraftResume,
             onAddPhoto: { showPhotoSourceDialog = true },
             onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,
@@ -1644,6 +1654,13 @@ struct LogVisitView: View {
                 icon: { visibilityIcon($0) }
             )
 
+            if draft.visibility == .friends {
+                Text("Friends Feed · also on your public profile unless disabled in Privacy and Visibility")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if draft.visibility == .everyone && photoImages.isEmpty {
                 Label("Text-only Everyone posts ask for confirmation before publishing.", systemImage: "exclamationmark.circle")
                     .font(.system(size: 12, weight: .semibold))
@@ -1948,27 +1965,10 @@ struct LogVisitView: View {
         guard !didRestoreDraft else { return }
         didRestoreDraft = true
 
-        if explicitLaunchDraft == nil, restorePublishedV3CompletionIfNeeded() {
-            return
-        }
-
-        if explicitLaunchDraft == nil,
-           let stored = SipDraftStore.shared.load(in: localAccountScope),
-           shouldResume(stored.draft) {
-            analyticsIsDraftResume = true
-            suppressContextDefaults = true
-            draft = stored.draft
-            photoImages = stored.images
-            v3Step = stored.draft.v3Step ?? .setup
-            isDraftPersisted = true
-            MugshotAnalytics.shared.capture(
-                .draftRestored(analyticsSnapshot, wasGuest: stored.draft.ownerUserID == nil)
-            )
-            DispatchQueue.main.async { suppressContextDefaults = false }
-        } else {
-            draft.ownerUserID = authModel.authenticatedUser?.id
-                ?? dataManager.appData.currentUser?.id
-        }
+        // Central Add always owns a new draft. Saved work is restored only
+        // through the explicit Resume draft action or a Journal draft route.
+        draft.ownerUserID = authModel.authenticatedUser?.id
+            ?? dataManager.appData.currentUser?.id
 #if DEBUG
         if MugshotLaunchEnvironment.shouldSeedUITestPhoto, photoImages.isEmpty {
             let renderer = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96))
@@ -1990,7 +1990,9 @@ struct LogVisitView: View {
         // Restore the durable Cafe Session handoff before adding guided-flow
         // scaffold state. A fresh `.context` step is not user-entered content
         // and must not prevent the completion handoff from reopening.
-        restoreCafeSessionContinuationIfNeeded()
+        if explicitLaunchDraft != nil {
+            restoreCafeSessionContinuationIfNeeded()
+        }
         guard !showSavedConfirmation else { return }
         draft.composerExperience = composerExperience
         draft.v3Step = v3Step
@@ -1999,6 +2001,61 @@ struct LogVisitView: View {
         refreshDrinkAnalysis()
         initializeLocationIfAvailable()
         persistDraft()
+    }
+
+    private func refreshResumableDrafts() {
+        let report = SipDraftStore.shared.readReport(in: localAccountScope)
+        resumableDrafts = report.drafts
+            .filter { $0.id != draft.id }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if report.unreadableDraftCount > 0, errorMessage == nil {
+            errorMessage = report.unreadableDraftCount == 1
+                ? "One saved draft could not be opened. Its local files were left untouched."
+                : "Some saved drafts could not be opened. Their local files were left untouched."
+        }
+    }
+
+    private func requestDraftResume() {
+        persistDraft()
+        refreshResumableDrafts()
+        guard !resumableDrafts.isEmpty else { return }
+        if resumableDrafts.count == 1, let onlyDraft = resumableDrafts.first {
+            resumeDraft(onlyDraft)
+        } else {
+            presentedDraftResumePicker = SipDraftResumePickerPresentation(
+                drafts: resumableDrafts
+            )
+        }
+    }
+
+    private func resumeDraft(_ selectedDraft: SipDraft) {
+        guard let stored = SipDraftStore.shared.load(
+            id: selectedDraft.id,
+            in: localAccountScope
+        ) else {
+            errorMessage = "That draft could not be opened. Its local files were left untouched."
+            presentedDraftResumePicker = nil
+            refreshResumableDrafts()
+            return
+        }
+
+        analyticsIsDraftResume = true
+        analyticsStartedAt = .now
+        suppressContextDefaults = true
+        draft = stored.draft
+        photoImages = stored.images
+        v3Step = stored.draft.v3Step ?? .setup
+        isDraftPersisted = true
+        errorMessage = nil
+        presentedDraftResumePicker = nil
+        MugshotAnalytics.shared.capture(
+            .draftRestored(analyticsSnapshot, wasGuest: stored.draft.ownerUserID == nil)
+        )
+        DispatchQueue.main.async {
+            suppressContextDefaults = false
+            refreshResumableDrafts()
+        }
+        MugshotHaptic.softImpact.play()
     }
 
     private func activateLocalState(scope: LocalAccountScope? = nil) {
@@ -2168,12 +2225,7 @@ struct LogVisitView: View {
     private func reconcilePendingSubmission(for userID: UUID) {
         let pendingStore = PendingVisitSubmissionStore.shared
         let exactPending = pendingStore.load(visitId: draft.id, userId: userID)
-        let mayAdoptOldestPending = explicitLaunchDraft == nil
-            && preselectedCafe == nil
-            && !draft.hasDraftWorthyUserContent
-            && photoImages.isEmpty
         let pending = exactPending
-            ?? (mayAdoptOldestPending ? pendingStore.load(userId: userID) : nil)
 
         guard let pending else {
             pendingSubmission = nil
@@ -2710,10 +2762,12 @@ struct LogVisitView: View {
     private func applyPinnedCriteria() {
         var sipCriteria = draft.ratingCriteria
         PinnedCriterionStore.shared.applyPins(to: &sipCriteria, scope: pinnedSipScope)
+        CriterionImportanceStore.shared.apply(to: &sipCriteria, scope: pinnedSipScope)
         draft.ratingCriteria = sipCriteria
 
         var contextCriteria = draft.contextRatingCriteria
         PinnedCriterionStore.shared.applyPins(to: &contextCriteria, scope: pinnedContextScope)
+        CriterionImportanceStore.shared.apply(to: &contextCriteria, scope: pinnedContextScope)
         draft.contextRatingCriteria = contextCriteria
     }
 
@@ -2721,6 +2775,7 @@ struct LogVisitView: View {
         var criteria = draft.ratingCriteria
         RecentCriterionSetupStore.shared.apply(to: &criteria, scope: pinnedSipScope)
         PinnedCriterionStore.shared.applyPins(to: &criteria, scope: pinnedSipScope)
+        CriterionImportanceStore.shared.apply(to: &criteria, scope: pinnedSipScope)
         draft.ratingCriteria = criteria
         MugshotHaptic.softImpact.play()
     }
@@ -2729,6 +2784,7 @@ struct LogVisitView: View {
         var criteria = draft.contextRatingCriteria
         RecentCriterionSetupStore.shared.apply(to: &criteria, scope: pinnedContextScope)
         PinnedCriterionStore.shared.applyPins(to: &criteria, scope: pinnedContextScope)
+        CriterionImportanceStore.shared.apply(to: &criteria, scope: pinnedContextScope)
         draft.contextRatingCriteria = criteria
         MugshotHaptic.softImpact.play()
     }
@@ -2760,19 +2816,6 @@ struct LogVisitView: View {
         draft.cafeSessionDraft?.experienceDraft?.privateNotes = draft.contextNotes
         draft.cafeSessionDraft?.experienceDraft?.updatedAt = .now
         draft.cafeSessionDraft?.shareProjection.includesCafeRating = draft.contextScore != nil
-    }
-
-    private func shouldResume(_ storedDraft: SipDraft) -> Bool {
-        guard explicitLaunchDraft == nil else { return false }
-        guard let preselectedCafe else { return true }
-        guard storedDraft.context == .cafe, let storedCafe = storedDraft.cafe else { return false }
-        if storedCafe.id == preselectedCafe.id { return true }
-        if let storedRemoteID = storedCafe.remoteCafeId,
-           let selectedRemoteID = preselectedCafe.remoteCafeId,
-           storedRemoteID == selectedRemoteID {
-            return true
-        }
-        return false
     }
 
     private func persistDraft() {
@@ -4776,6 +4819,81 @@ struct LogVisitView: View {
                 draft.brewDetails.steps?[index].instruction = value
             }
         )
+    }
+}
+
+private struct SipDraftResumePickerPresentation: Identifiable {
+    let id = UUID()
+    let drafts: [SipDraft]
+}
+
+private struct SipDraftResumePicker: View {
+    let drafts: [SipDraft]
+    let onResume: (SipDraft) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(drafts) { draft in
+                Button {
+                    onResume(draft)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: draft.context.systemImage)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.mugshotSage)
+                            .frame(width: 38, height: 38)
+                            .background(Color.mugshotMint.opacity(0.48), in: Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Color.espressoBrown)
+                                .lineLimit(1)
+                            Text(draftLocation(draft))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color.secondaryText)
+                                .lineLimit(1)
+                            Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.tertiaryText)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.right.circle.fill")
+                            .foregroundStyle(Color.mugshotSage)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    "Resume \(draft.drinkName.remoteTrimmedNonEmpty ?? "untitled sip"), saved \(draft.updatedAt.formatted(.relative(presentation: .named)))"
+                )
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.creamWhite)
+            .navigationTitle("Resume a draft")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func draftLocation(_ draft: SipDraft) -> String {
+        switch draft.context {
+        case .cafe:
+            return draft.cafe?.consumerDisplayName ?? "Cafe sip"
+        case .home, .recipe:
+            return draft.locationName.remoteTrimmedNonEmpty ?? "Home sip"
+        case .elsewhere:
+            return draft.locationName.remoteTrimmedNonEmpty ?? "Elsewhere sip"
+        }
     }
 }
 

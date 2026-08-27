@@ -274,14 +274,20 @@ struct MugshotSharePackage {
 
 @MainActor
 final class MugshotShareLinkItemSource: NSObject, @preconcurrency UIActivityItemSource {
-    static let title = "Mugshot: Capture Every Sip"
+    nonisolated static let title = "Mugshot: Capture Every Sip"
 
     let url: URL
     private let previewImage: UIImage
+    private let metadataTitle: String
 
-    init(url: URL, previewImage: UIImage) {
+    init(
+        url: URL,
+        previewImage: UIImage,
+        title: String = MugshotShareLinkItemSource.title
+    ) {
         self.url = url
         self.previewImage = previewImage
+        metadataTitle = title
         super.init()
     }
 
@@ -301,10 +307,14 @@ final class MugshotShareLinkItemSource: NSObject, @preconcurrency UIActivityItem
     func activityViewControllerLinkMetadata(
         _ activityViewController: UIActivityViewController
     ) -> LPLinkMetadata? {
-        Self.linkMetadata(url: url, previewImage: previewImage)
+        Self.linkMetadata(url: url, previewImage: previewImage, title: metadataTitle)
     }
 
-    static func linkMetadata(url: URL, previewImage: UIImage) -> LPLinkMetadata {
+    static func linkMetadata(
+        url: URL,
+        previewImage: UIImage,
+        title: String = MugshotShareLinkItemSource.title
+    ) -> LPLinkMetadata {
         let metadata = LPLinkMetadata()
         metadata.title = title
         metadata.originalURL = url

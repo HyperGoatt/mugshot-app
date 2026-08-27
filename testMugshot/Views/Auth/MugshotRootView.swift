@@ -34,6 +34,11 @@ struct MugshotRootView: View {
                         initialState: MugshotLaunchEnvironment.homeWorkbenchDesignQAState
                     )
                 }
+            } else if MugshotLaunchEnvironment.shouldShowEditorialProfileDesignQA
+                        || MugshotLaunchEnvironment.shouldShowEditorialOwnerProfileDesignQA {
+                EditorialProfilePreviewHost(
+                    showsOwnerControls: MugshotLaunchEnvironment.shouldShowEditorialOwnerProfileDesignQA
+                )
             } else if MugshotLaunchEnvironment.shouldShowFeedRefreshDesignQA {
                 FeedRefreshPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowEditSipDesignQA {

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 ---
 
 # Mugshot Development Verification Policy
@@ -21,6 +21,11 @@ The practical commands and final acceptance matrix live in [`IOS_QA_EFFICIENCY_F
 7. Do not duplicate the same evidence with both shell `xcodebuild` and XcodeBuildMCP.
 8. Never infer that the linked Supabase project is disposable. Local verification must not deploy, reset, migrate, delete, or seed a production-like remote project.
 9. User-requested validation always takes precedence.
+10. Physical-device testing is owner-promoted, not a default completion gate.
+    Finish Simulator-scoped implementation and acceptance without waiting for a
+    connected iPhone. Run a physical-device pass only after the owner explicitly
+    promotes that candidate for hardware testing. A later TestFlight handoff
+    still follows its separate explicit authorization and device-gate policy.
 
 ## Tier 0 — inspection only
 
@@ -155,7 +160,7 @@ Phase B — one batched acceptance session, as applicable:
 - Build, install, and launch once, then walk the prepared runtime matrix across all affected areas.
 - Prefer one human-QA walkthrough when judgment, system UI, or accessibility behavior is the remaining uncertainty.
 - Capture representative checkpoints and every failure, not a screenshot of every successful tap.
-- For signing, push notifications, camera, performance, or distribution behavior that Simulator cannot prove, use one planned physical-device pass.
+- For signing, push notifications, camera, performance, or distribution behavior that Simulator cannot prove, record the unverified hardware boundary and wait for the owner to explicitly promote the candidate before running one planned physical-device pass.
 - Run Release only for a release gate, signing/packaging risk, optimizer/availability uncertainty, or an explicit request.
 
 If runtime acceptance finds issues, record all observable failures before ending the session. Fix them as a batch, rerun the no-Simulator gate, and schedule another consolidated acceptance round only when coherent. Do not turn the acceptance gate into alternating one-fix/one-launch cycles.

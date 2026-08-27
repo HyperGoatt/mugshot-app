@@ -193,24 +193,32 @@ struct RemoteMapPinSnapshot: Equatable {
         let activeStates = cafeStates.filter {
             $0.state.isFavorite || $0.state.wantToTry
         }
-        let statesByCafeID = Dictionary(
-            uniqueKeysWithValues: activeStates.map { ($0.cafe.id, $0) }
+        let cafeIndex = stitchedCafeIndex(
+            visits.compactMap(\.cafe) + activeStates.map(\.cafe)
         )
+        let statesByCafeID = Dictionary(grouping: activeStates) {
+            cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
+        }
         let visitsByCafeID = Dictionary(grouping: visits.compactMap { summary -> RemoteVisitSummary? in
             summary.cafe == nil ? nil : summary
-        }) { $0.cafe!.id }
-        let experienceByCafeID = Dictionary(
-            uniqueKeysWithValues: cafeExperienceSummaries.map { ($0.cafeID, $0) }
-        )
+        }) { cafeIndex.canonicalIDByCafeID[$0.cafe!.id] ?? $0.cafe!.id }
+        let experienceByCafeID = Dictionary(grouping: cafeExperienceSummaries) {
+            cafeIndex.canonicalIDByCafeID[$0.cafeID] ?? $0.cafeID
+        }
 
         let cafeIDs = Set(visitsByCafeID.keys).union(statesByCafeID.keys)
         let pins = cafeIDs.compactMap { cafeID -> RemoteMapPin? in
             let cafeVisits = visitsByCafeID[cafeID] ?? []
-            let state = statesByCafeID[cafeID]
-            let experience = experienceByCafeID[cafeID]
+            let states = statesByCafeID[cafeID] ?? []
+            let experience = aggregateExperience(
+                experienceByCafeID[cafeID] ?? [],
+                canonicalCafeID: cafeID
+            )
             let legacySipCount = cafeVisits.filter { $0.visit.cafeSessionID == nil }.count
             let linkedSessionCount = Set(cafeVisits.compactMap(\.visit.cafeSessionID)).count
-            guard let cafe = cafeVisits.first?.cafe ?? state?.cafe else {
+            guard let cafe = cafeIndex.cafeByCanonicalID[cafeID]
+                ?? cafeVisits.first?.cafe
+                ?? states.first?.cafe else {
                 return nil
             }
             let score = MapPinScoreResolver.resolve(
@@ -224,15 +232,17 @@ struct RemoteMapPinSnapshot: Equatable {
                 audience: .personal
             )
             let latestVisit = cafeVisits.map(\.visit.createdAtDate).max()
-            let latestState = state.flatMap { RemoteMapPinDateParser.activityDate(for: $0.state) }
+            let latestState = states.compactMap {
+                RemoteMapPinDateParser.activityDate(for: $0.state)
+            }.max()
 
             return RemoteMapPin(
                 cafe: cafe,
                 visitCount: legacySipCount
-                    + (experience?.physicalSessionCount ?? linkedSessionCount),
+                    + max(experience?.physicalSessionCount ?? 0, linkedSessionCount),
                 score: score,
-                isFavorite: state?.state.isFavorite ?? false,
-                wantToTry: state?.state.wantToTry ?? false,
+                isFavorite: states.contains(where: { $0.state.isFavorite }),
+                wantToTry: states.contains(where: { $0.state.wantToTry }),
                 lastActivityAt: [latestVisit, latestState].compactMap { $0 }.max(),
                 coverPhotoURL: cafeVisits
                     .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
@@ -256,20 +266,30 @@ struct RemoteMapPinSnapshot: Equatable {
         cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     ) -> RemoteMapPinSnapshot {
         let activeStates = cafeStates.filter { $0.state.isFavorite || $0.state.wantToTry }
-        let statesByCafeID = Dictionary(uniqueKeysWithValues: activeStates.map { ($0.cafe.id, $0) })
-        let visitsByCafeID = Dictionary(grouping: mapVisits, by: { $0.cafe.id })
+        let cafeIndex = stitchedCafeIndex(mapVisits.map(\.cafe) + activeStates.map(\.cafe))
+        let statesByCafeID = Dictionary(grouping: activeStates) {
+            cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
+        }
+        let visitsByCafeID = Dictionary(grouping: mapVisits) {
+            cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
+        }
         let cafeIDs = Set(visitsByCafeID.keys).union(statesByCafeID.keys)
-        let experienceByCafeID = Dictionary(
-            uniqueKeysWithValues: cafeExperienceSummaries.map { ($0.cafeID, $0) }
-        )
+        let experienceByCafeID = Dictionary(grouping: cafeExperienceSummaries) {
+            cafeIndex.canonicalIDByCafeID[$0.cafeID] ?? $0.cafeID
+        }
 
         let pins = cafeIDs.compactMap { cafeID -> RemoteMapPin? in
             let visits = visitsByCafeID[cafeID] ?? []
-            let state = statesByCafeID[cafeID]
-            let experience = experienceByCafeID[cafeID]
+            let states = statesByCafeID[cafeID] ?? []
+            let experience = aggregateExperience(
+                experienceByCafeID[cafeID] ?? [],
+                canonicalCafeID: cafeID
+            )
             let legacySipCount = visits.filter { $0.cafeSessionID == nil }.count
             let linkedSessionCount = Set(visits.compactMap(\.cafeSessionID)).count
-            guard let cafe = visits.first?.cafe ?? state?.cafe else { return nil }
+            guard let cafe = cafeIndex.cafeByCanonicalID[cafeID]
+                ?? visits.first?.cafe
+                ?? states.first?.cafe else { return nil }
             let score = MapPinScoreResolver.resolve(
                 sips: visits.map {
                     MapSipScoreSeed(
@@ -281,14 +301,16 @@ struct RemoteMapPinSnapshot: Equatable {
                 audience: .personal
             )
             let latestVisit = visits.map(\.createdAt).max()
-            let latestState = state.flatMap { RemoteMapPinDateParser.activityDate(for: $0.state) }
+            let latestState = states.compactMap {
+                RemoteMapPinDateParser.activityDate(for: $0.state)
+            }.max()
             return RemoteMapPin(
                 cafe: cafe,
                 visitCount: legacySipCount
-                    + (experience?.physicalSessionCount ?? linkedSessionCount),
+                    + max(experience?.physicalSessionCount ?? 0, linkedSessionCount),
                 score: score,
-                isFavorite: state?.state.isFavorite ?? false,
-                wantToTry: state?.state.wantToTry ?? false,
+                isFavorite: states.contains(where: { $0.state.isFavorite }),
+                wantToTry: states.contains(where: { $0.state.wantToTry }),
                 lastActivityAt: [latestVisit, latestState].compactMap { $0 }.max(),
                 coverPhotoURL: visits
                     .sorted { $0.createdAt > $1.createdAt }
@@ -303,6 +325,75 @@ struct RemoteMapPinSnapshot: Equatable {
         }
 
         return RemoteMapPinSnapshot(pins: pins, cafeStates: cafeStates)
+    }
+
+    private static func stitchedCafeIndex(
+        _ cafes: [SupabaseCafeSummary]
+    ) -> (
+        canonicalIDByCafeID: [UUID: UUID],
+        cafeByCanonicalID: [UUID: SupabaseCafeSummary]
+    ) {
+        let cafesByID = Dictionary(
+            cafes.map { ($0.id, $0) },
+            uniquingKeysWith: { current, incoming in
+                canonicalCafeScore(current) >= canonicalCafeScore(incoming)
+                    ? current
+                    : incoming
+            }
+        )
+        let groups = CafeIdentity.stitchGroups(cafesByID.values.map { $0.localCafe() })
+        var canonicalIDByCafeID: [UUID: UUID] = [:]
+        var cafeByCanonicalID: [UUID: SupabaseCafeSummary] = [:]
+
+        for group in groups {
+            let summaries = group.compactMap { cafesByID[$0.id] }
+            guard let canonical = summaries.max(by: {
+                canonicalCafeScore($0) < canonicalCafeScore($1)
+            }) else { continue }
+            cafeByCanonicalID[canonical.id] = canonical
+            for summary in summaries {
+                canonicalIDByCafeID[summary.id] = canonical.id
+            }
+        }
+
+        return (canonicalIDByCafeID, cafeByCanonicalID)
+    }
+
+    private static func canonicalCafeScore(_ cafe: SupabaseCafeSummary) -> Int {
+        var score = 0
+        if cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty != nil { score += 100 }
+        if cafe.identityKey?.hasPrefix("apple-mapkit:") == true { score += 50 }
+        if cafe.address?.remoteTrimmedNonEmpty != nil { score += 10 }
+        if cafe.latitude != nil, cafe.longitude != nil { score += 5 }
+        return score
+    }
+
+    private static func aggregateExperience(
+        _ summaries: [RemoteCafeExperienceSummary],
+        canonicalCafeID: UUID
+    ) -> RemoteCafeExperienceSummary? {
+        guard let preferred = summaries.first(where: { $0.cafeID == canonicalCafeID })
+            ?? summaries.first else { return nil }
+        let ratedSessionCount = summaries.reduce(0) { $0 + $1.ratedSessionCount }
+        let weightedRatingTotal = summaries.reduce(0.0) { total, summary in
+            total + ((summary.averageCafeRating ?? 0) * Double(summary.ratedSessionCount))
+        }
+        return RemoteCafeExperienceSummary(
+            schemaVersion: summaries.map(\.schemaVersion).max() ?? preferred.schemaVersion,
+            cafeID: canonicalCafeID,
+            scope: preferred.scope,
+            physicalSessionCount: summaries.reduce(0) { $0 + $1.physicalSessionCount },
+            ratedSessionCount: ratedSessionCount,
+            contributorCount: summaries.map(\.contributorCount).max() ?? 0,
+            averageCafeRating: ratedSessionCount > 0
+                ? weightedRatingTotal / Double(ratedSessionCount)
+                : nil,
+            latestNextMove: preferred.latestNextMove,
+            relationshipStageValue: CafeRelationshipStage
+                .resolve(ratedSessionCount: ratedSessionCount)
+                .rawValue,
+            communityThresholdMet: summaries.contains(where: \.communityThresholdMet)
+        )
     }
 }
 

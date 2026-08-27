@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 ---
 
 # TestFlight Upload Handoff
@@ -10,30 +10,29 @@ Use this format for every Mugshot TestFlight archive, upload, or testing-group
 handoff.
 
 Organizer and the cached Xcode feedback packages confirm tester use of 0.5.3
-(5). The 44-report remediation targets 0.5.3 (6), but no archive, upload,
-processing, or group assignment is authorized or claimed yet. Every report
-remains open until the replacement build is accepted; see the
+(5). The completed 44-report remediation candidate is 0.5.3 (6). On 2026-08-26
+the owner explicitly authorized its Simulator and connected-iPhone release
+gates, archive/upload, and Alpha Friends assignment. No archive, upload,
+processing, or assignment result is claimed until that step succeeds. Every
+report remains open until the replacement build is accepted; see the
 [feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
 
-Current remediation evidence: 425 unit tests, eight focused Simulator UI
-journeys, all 43 screenshot reports plus the text-only report, and full-static
-12/0/1 passed. The signed Debug app built and installed on the connected iPhone,
-but the locked device prevented runtime launch. The reaction migration is not
-production-configured. These facts do not authorize an archive or upload.
+Current remediation evidence includes 425 unit tests, eight focused Simulator
+UI journeys, all 43 screenshot reports plus the text-only report, later focused
+profile/feed checks, and consolidated Simulator acceptance. Earlier signed
+Debug sources built, installed, and launched on the connected iPhone. The exact
+build-6 source must still pass both release runtime gates before upload. The
+reaction migration is not production-configured.
 
 ## Build status
 
-- Version/build: `[VERSION] ([BUILD])`
-- App Store Connect status: `[PROCESSING | READY TO SUBMIT | TESTING | OTHER]`
-- Testing groups: `[GROUPS OR NOT YET ASSIGNED]`
+- Version/build: 0.5.3 (6)
+- App Store Connect status: Not uploaded
+- Testing groups: Alpha Friends requested; not assigned
 
 ## What to Test — ready to paste
 
-> [Lead with the main new behavior in plain language. Name the exact user flow
-> testers should exercise and the expected result. Follow with the highest-risk
-> regression paths and failure states. Include privacy or access-control
-> expectations when relevant. Keep the blurb under 4,000 characters and only
-> describe behavior present in this build.]
+> Welcome to Mugshot!
 
 ## Historical example: Build 0.5.2 (3)
 

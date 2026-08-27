@@ -962,7 +962,7 @@ struct CafeDetailView: View {
         if let imagePath = heroImagePath {
             ZStack(alignment: .bottomLeading) {
                 Group {
-                    if imagePath.hasPrefix("http") {
+                    if CafePhotoSelection.isRemotePhotoReference(imagePath) {
                         RemotePhotoImageView(urlString: imagePath, placeholderSystemName: "photo", contentMode: .fill)
                     } else {
                         PhotoImageView(photoPath: imagePath, contentMode: .fill)
@@ -998,7 +998,7 @@ struct CafeDetailView: View {
     private func detailIdentityImage(size: CGFloat) -> some View {
         if let imagePath = heroImagePath {
             Group {
-                if imagePath.hasPrefix("http") {
+                if CafePhotoSelection.isRemotePhotoReference(imagePath) {
                     RemotePhotoImageView(urlString: imagePath, placeholderSystemName: "photo", contentMode: .fill)
                 } else {
                     PhotoImageView(photoPath: imagePath, contentMode: .fill)
@@ -1049,7 +1049,9 @@ struct CafeDetailView: View {
 
     private var heroPhotoProvenance: String {
         guard let heroImagePath else { return "No cafe photo yet" }
-        if !heroImagePath.hasPrefix("http") { return "Photo from your Mugshot" }
+        if !CafePhotoSelection.isRemotePhotoReference(heroImagePath) {
+            return "Photo from your Mugshot"
+        }
         if ownRemoteVisits.contains(where: { $0.visit.posterPhotoURL == heroImagePath }) {
             return "Photo from your Mugshot"
         }
@@ -1607,7 +1609,7 @@ struct CafeDetailView: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            if isLoadingRemoteVisits && ownRemoteVisits.isEmpty && visits.isEmpty {
+            if isLoadingRemoteVisits && remoteVisits.isEmpty && visits.isEmpty {
                 MugshotLoadingState(layout: .journal, count: 2)
                     .padding(.horizontal)
             } else if let remoteVisitError {
@@ -1616,7 +1618,7 @@ struct CafeDetailView: View {
                     .foregroundColor(.red.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
-            } else if ownRemoteVisits.isEmpty && !isLoadingRemoteVisits {
+            } else if remoteVisits.isEmpty && !isLoadingRemoteVisits {
                 if !visits.isEmpty {
                     ForEach(visits.prefix(5)) { visit in
                         VisitRow(visit: visit, dataManager: dataManager)
@@ -1627,7 +1629,7 @@ struct CafeDetailView: View {
                         .padding(.horizontal)
                 }
             } else {
-                ForEach(ownRemoteVisits.prefix(5)) { visit in
+                ForEach(remoteVisits.prefix(5)) { visit in
                     RemoteCafeVisitRow(visit: visit) {
                         selectedRemoteVisit = visit
                     }
@@ -1821,10 +1823,13 @@ struct CafeDetailView: View {
         do {
             let client = try SupabaseClientProvider.shared.client()
             let service = VisitService(client: client)
+            let equivalentCafes = try await CafeService(client: client)
+                .fetchEquivalentCafes(to: currentCafe)
+            let stitchedCafeIDs = Set(equivalentCafes.map(\.id)).union([remoteCafeId])
             async let visitsRequest = service.fetchVisibleCafeVisits(
-                cafeId: remoteCafeId,
+                cafeIds: stitchedCafeIDs,
                 currentUserId: userId,
-                limit: 20
+                limit: 200
             )
             async let friendsRequest = SocialDiscoveryService(client: client).connections(kind: "friends")
             let (visits, friends) = try await (visitsRequest, friendsRequest)
@@ -2024,10 +2029,14 @@ struct RemoteCafeVisitRow: View {
                         .foregroundColor(.espressoBrown)
                         .lineLimit(1)
 
-                    Text(visit.visit.createdAtDate, style: .date)
-                        .font(.system(size: 12))
-                        .foregroundColor(.tertiaryText)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text("@\(visit.authorUsername)")
+                        Text("·")
+                        Text(visit.visit.createdAtDate, style: .date)
+                    }
+                    .font(.system(size: 12))
+                    .foregroundColor(.tertiaryText)
+                    .lineLimit(1)
 
                     if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
                         Text(caption)

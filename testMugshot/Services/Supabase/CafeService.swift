@@ -48,6 +48,60 @@ final class CafeService {
         }
     }
 
+    /// Finds provider records that represent the same physical cafe without
+    /// rewriting production data. Callers can read visits across every
+    /// returned ID while retaining one canonical local presentation.
+    func fetchEquivalentCafes(to cafe: Cafe) async throws -> [SupabaseCafeSummary] {
+        let candidates: [SupabaseCafeSummary]
+        if let location = cafe.location {
+            let radiusMeters = 125.0
+            let latitudeDelta = radiusMeters / 111_000
+            let longitudeScale = max(
+                cos(location.latitude * .pi / 180),
+                0.2
+            )
+            let longitudeDelta = radiusMeters / (111_000 * longitudeScale)
+            candidates = try await withCafeColumnCompatibility { columns in
+                try await client
+                    .from("cafes")
+                    .select(columns)
+                    .gte("latitude", value: location.latitude - latitudeDelta)
+                    .lte("latitude", value: location.latitude + latitudeDelta)
+                    .gte("longitude", value: location.longitude - longitudeDelta)
+                    .lte("longitude", value: location.longitude + longitudeDelta)
+                    .limit(100)
+                    .execute()
+                    .value
+            }
+        } else {
+            let trimmedName = cafe.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else { return [] }
+            candidates = try await withCafeColumnCompatibility { columns in
+                try await client
+                    .from("cafes")
+                    .select(columns)
+                    .eq("name", value: trimmedName)
+                    .limit(100)
+                    .execute()
+                    .value
+            }
+        }
+
+        var equivalents = candidates.filter {
+            CafeIdentity.shouldStitch(cafe, $0.localCafe())
+        }
+        if let remoteCafeID = cafe.remoteCafeId,
+           !equivalents.contains(where: { $0.id == remoteCafeID }),
+           let primary = try await fetchCafe(id: remoteCafeID) {
+            equivalents.append(primary)
+        }
+        return equivalents.sorted { lhs, rhs in
+            if lhs.id == cafe.remoteCafeId { return true }
+            if rhs.id == cafe.remoteCafeId { return false }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
     func resolveSummary(for cafe: Cafe) async throws -> ResolvedCafeSummary? {
         let summaries: [ResolvedCafeSummary] = try await client.rpc(
             "resolve_cafe_summary",
@@ -83,6 +137,10 @@ final class CafeService {
         if let applePlaceId = cafe.mapItemURL?.remoteTrimmedNonEmpty,
            let existingCafe = try await fetchCafe(legacyApplePlaceId: applePlaceId) {
             return existingCafe
+        }
+
+        if let equivalentCafe = try await fetchEquivalentCafes(to: cafe).first {
+            return equivalentCafe
         }
 
         if let existingCafe = try await fetchCafe(name: cafe.name, address: cafe.address) {
