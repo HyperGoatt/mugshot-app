@@ -8,6 +8,11 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Published the reviewed Sprint 1 implementation and website disclosures to
+  their existing draft PRs. Repaired the marketing dependency audit failure;
+  local website verification and npm audit pass. Production release remains
+  gated on remote QA, configuration and runtime acceptance.
+
 - Preserved owner-level moderation actions after reported content deletion by
   resolving the owner from server-captured report evidence. Deleted content
   cannot receive a hide action, and self-review remains prohibited.

@@ -753,3 +753,19 @@ audit, full remote QA replay and endpoint acceptance, Apple configuration,
 production fingerprints/backup/deployment, reviewer appointment, processing
 disclosures and no-training re-verification, and batched native acceptance.
 Keep the existing PR in draft while these release blockers remain.
+
+
+## Published draft checkpoints and web CI repair
+
+Native/backend commit `0b9b434` is pushed to draft PR 66; its worktree is clean
+and GitHub reports no checks for that PR. The reviewed commit contains 79 files;
+its full commit whitespace check passes and local credential files are excluded.
+PWA disclosures are pushed as `8d08d58` in draft PR 13, with a successful Vercel
+preview. Marketing disclosures are pushed as `96fe895` in draft PR 18.
+
+Marketing CI passed verification and preview deployment but failed its npm
+audit on Astro, Sharp, js-yaml and SVGO advisories. Commit `14f62d1` patches
+Astro to 7.2.8 and Sharp to 0.35.4, with updated js-yaml/SVGO dependencies. Local
+verification passes 14 tests, build and 20-route checks; npm audit reports zero
+vulnerabilities. The replacement remote checks are pending. These are draft
+branches and preview deployments, not production disclosure publication.
