@@ -171,3 +171,20 @@ Report concise, exact evidence:
 - one grouped list of failures from the acceptance session.
 
 Do not call static SQL parsing a migration test, a generic build a runtime test, or read-only app viewing proof that destructive flows are safe.
+
+
+## Simulator packaging for runtime acceptance
+
+Compile-only artifacts may be unsigned. Do not reuse an unsigned artifact for
+authentication, Keychain, app-group or other entitlement-dependent acceptance.
+An unsigned Sprint 1 artifact produced Keychain status `-34018` and an apparent
+authentication session mismatch; the signed candidate passed sign-in and
+restoration.
+
+Use a normal signed Debug Simulator build for the batched runtime session. Put
+the disposable backend URL/public key and disabled production analytics token
+in a restricted local xcconfig before building. Verify the generated app's
+signature and environment before installation. Do not patch a signed Info.plist
+afterward, and do not alter production signing or account data to repair QA.
+Reuse the resulting signed candidate until source or configuration changes
+justify another build. This does not change the compile-only fast path.

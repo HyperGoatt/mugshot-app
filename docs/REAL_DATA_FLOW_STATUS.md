@@ -162,3 +162,9 @@ Paid catalog QA is deleted and absence verified. OpenAI and Maps credentials
 are staged in production with screening disabled; this does not establish
 production feature activation. Native acceptance and the asynchronous
 PostHog erasure confirmation remain open.
+
+A subsequent signed native candidate passed email sign-in, session restoration
+and profile onboarding on fresh isolated QA. All 62 contracts passed together.
+The native-created profile was screened and its readable endpoint and default
+Friends-profile exclusion verified. That QA branch is also deleted. Remaining
+native screens and provider/production acceptance are not yet established.

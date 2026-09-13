@@ -7,7 +7,28 @@ last_verified: 2026-09-13
 # Sprint 1 delivery: trust, moderation, and working sharing
 
 
-## Current checkpoint — September 13, final QA closure
+## Current checkpoint — September 13, native acceptance
+
+A fresh disposable native QA branch replayed all 162 migrations and passed all
+62 database contracts together. The native candidate at `e0d1eb0` was rebuilt
+with Simulator signing and QA-only configuration. Authentication, session
+restoration after relaunch, and profile onboarding passed.
+
+The native-created profile was screened in one scheduled attempt. Its anonymous
+profile response returns HTTP 200 with no-store caching, and its readable route
+redirects to the matching companion profile with HTTP 302. Friends-on-profile
+consent is false by default. All three OpenAI training-sharing settings were
+freshly verified Disabled before synthetic screening.
+
+The Mac locked again before the remaining consent, sharing, review, reaction,
+capture and deletion screens could be accepted. The native QA branch was
+deleted and absence verified; only main remains. PostHog erasure confirmation,
+remaining native/provider acceptance and coordinated production rollout are
+still open. The 15-minute continuation remains active.
+
+## Earlier checkpoint — September 13, catalog QA closure
+
+Superseded by the native acceptance checkpoint above.
 
 Sprint 1 is implemented on the feature branches, with release acceptance and
 production rollout still open. All 162 migrations replayed on isolated QA.
@@ -1519,3 +1540,20 @@ branches verified only main. The exact local cleanup receipt records absence.
 Production OpenAI/Maps credential digests match approved inputs; screening and
 no-training activation flags remain false. These facts supersede earlier
 statements that QA is active or that all provider credentials are local-only.
+
+
+## Simulator packaging correction — September 13
+
+The compile-only artifact had been built with code signing disabled. Reusing it
+for runtime acceptance caused `AppAuthenticationOperationError.sessionMismatch`
+after the Auth API returned a session. A read-only debugger Keychain probe
+returned `-34018`; the artifact had no signature. This was a QA packaging
+failure, not evidence that server authentication or profile projection failed.
+
+A signed Debug Simulator build succeeded in 80 seconds using a restricted
+QA xcconfig and an empty PostHog project token. Its signature and QA host were
+verified before installation. The same sign-in then reached profile setup;
+relaunch preserved the session, and profile completion reached Feed. A system
+password-saving prompt was cleared by this planned relaunch without saving the
+disposable credentials. The remaining native journey is unaccepted because the
+Mac locked again. See the [runtime packaging rule](IOS_QA_EFFICIENCY_FRAMEWORK.md).

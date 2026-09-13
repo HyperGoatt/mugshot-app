@@ -264,3 +264,14 @@ No production migration or new function was deployed at this checkpoint.
 The catalog QA branch was deleted and absence verified; only main remains.
 Provider deletion polling does not require a paid QA database. A new QA
 environment may be created only for active acceptance, then must be removed.
+
+
+## Native QA closure — September 13
+
+A subsequent data-less native QA branch replayed all 162 migrations and passed
+all 62 contracts together. This supersedes the earlier combined-run limitation.
+Native sign-in, session restoration and profile setup passed against it. The
+new profile was screened in one attempt; its readable route and default absent
+Friends-profile consent were verified through live endpoints. The branch was
+deleted after the Mac locked again; a fresh inventory contains only main.
+Production remains at its original migration head with screening disabled.

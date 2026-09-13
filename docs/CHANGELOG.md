@@ -8,6 +8,12 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Fresh native QA passed all 62 database contracts, signed Simulator sign-in,
+  session restoration and profile onboarding. Verified the newly created
+  profile's screening, readable route and default Friends-profile exclusion.
+  Deleted QA after the Mac locked again. Documented why unsigned compile-only
+  artifacts cannot prove Keychain-dependent runtime behavior.
+
 - Closed paid catalog QA and verified that only the main branch remains.
   Staged approved production OpenAI/Maps credentials with screening disabled;
   verified secret digests. Native/provider acceptance and rollout remain open.
