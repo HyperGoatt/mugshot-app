@@ -151,3 +151,14 @@ Run the flow only with a new account created for this check:
 Keep all three capability flags false until migrations, the composed PostgREST hook, fresh-session iOS client, Edge deployment, scheduler, and disposable-account verification are green. Turning any initiation prerequisite false immediately stops new iOS deletion requests without disabling recovery of an existing job.
 
 Do not roll back by deleting V3 job rows or restoring Auth identities. If the worker is unhealthy, leave jobs durable, turn off initiation flags, preserve receipts, and repair the worker or database function forward.
+
+## Sprint 1 analytics cleanup gate
+
+The PostHog erasure adapter now has a durable pre-deletion queue and scheduled
+V3 worker integration in source. Pending work survives identity/job removal;
+lease-fenced retries preserve the provider target, and the native receipt keeps
+analytics status separate from Mugshot deletion. Event verification does not
+prove recording erasure. No provider credential or live deletion has been
+configured. SDK queued-event cleanup, support recovery, recording evidence,
+and disposable-account acceptance remain gates. Follow the
+[analytics plan](POSTHOG_ANALYTICS_PLAN.md) before promoting deletion readiness.

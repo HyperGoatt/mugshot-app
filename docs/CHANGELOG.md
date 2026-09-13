@@ -564,3 +564,43 @@ URLSession data calls. Other `Data(contentsOf:)` calls found by the inventory re
 local draft/library/photo-cache files, not remote Storage URLs. Focused generic
 Debug compilation is the verification gate for this contained consumer change;
 consolidated runtime and live Storage acceptance remain pending.
+
+### Analytics erasure adapter — September 13, 2026
+
+Historical adapter-only checkpoint; superseded by the queue integration below
+and the current [analytics plan](POSTHOG_ANALYTICS_PLAN.md).
+
+Audited native event snapshot construction: content-presence booleans and
+controlled values are used instead of raw captions/notes. The PostHog identity
+maps to the Supabase UUID, but the local deletion worker has no PostHog cleanup
+integration. Read-only project metadata confirmed project `521217` matches the
+native public token. No person/event records were read or deleted.
+
+Added `delete-account/analytics.ts` for exact-account person lookup, scoped
+cleanup submission, and asynchronous verification with submission-time fencing.
+Four synthetic Deno tests pass, including stale receipts, partial cleanup,
+owner mismatch and oversized response rejection. The adapter is not connected
+to production or the deletion worker. Durable queue integration, scoped personal
+API-key setup, SDK queue/reset handling and disposable-account acceptance remain
+required. This is a privacy/analytics and backend-provider contract change; it is
+not evidence of completed analytics erasure.
+
+See [PostHog analytics plan](POSTHOG_ANALYTICS_PLAN.md) for the current contract
+and authoritative provider references.
+
+### September 13 analytics erasure queue integration
+
+Added a durable account-bound PostHog erasure queue before identity deletion,
+service-only lease/retry RPCs, scheduled worker integration, and a separate
+native analytics cleanup receipt. The focused PGlite contract passes identity
+ordering, surviving job removal, stale leases, other-account alias isolation,
+and identifier clearing on verified completion. Provider acceptance remains
+pending; event verification does not certify recordings. Production remains
+unconfigured. See [analytics plan](POSTHOG_ANALYTICS_PLAN.md) for outstanding
+SDK, support, credential, recording, and disposable-account gates.
+
+Analytics queue checkpoint verification: seven synthetic Deno adapter/worker
+tests passed; the backend gate passed 11 checks with no failures (optional
+`pglast` parser unavailable; actual PGlite contracts passed). Generic Debug
+Simulator build-for-testing compiled successfully. Documentation validation and
+diff whitespace checks passed. No Simulator runtime or remote mutation ran.

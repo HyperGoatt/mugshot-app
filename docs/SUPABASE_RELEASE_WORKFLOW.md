@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913061308_sprint1_protected_media_reads.sql`. Sprint 1 migrations
+`20260913065006_sprint1_analytics_erasure_queue.sql`. Sprint 1 migrations
 are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
@@ -160,3 +160,12 @@ restrictive policy overrides older permissive reads; other buckets retain their
 existing policies. Local actual-RLS tests pass. Shared-link server signing also
 checks projected author/visit/bucket provenance because privileged signing
 bypasses Storage RLS. Full remote service integration remains an acceptance gate.
+
+## Analytics erasure deployment gate
+
+The current migration head adds the service-only account analytics queue.
+Deploy it before the updated deletion worker. Keep PostHog erasure disabled
+until the scoped credential and disposable-account acceptance are verified;
+see [analytics plan](POSTHOG_ANALYTICS_PLAN.md). Pending/attention processor
+records intentionally retain the minimum retry identifiers after account
+removal. Do not purge them as ordinary completed deletion receipts.

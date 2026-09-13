@@ -406,6 +406,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
     let identityDeleted: Bool?
     let cleanupStatus: String?
     let providerCleanup: String?
+    let analyticsCleanup: String?
     let completionProofState: String?
     let status: String
 
@@ -419,6 +420,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         case identityDeleted
         case cleanupStatus
         case providerCleanup
+        case analyticsCleanup
         case completionProofState
         case status
     }
@@ -433,6 +435,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         identityDeleted: Bool?,
         cleanupStatus: String?,
         providerCleanup: String? = nil,
+        analyticsCleanup: String? = nil,
         completionProofState: String? = nil,
         status: String
     ) {
@@ -445,6 +448,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         self.identityDeleted = identityDeleted
         self.cleanupStatus = cleanupStatus
         self.providerCleanup = providerCleanup
+        self.analyticsCleanup = analyticsCleanup
         self.completionProofState = completionProofState
         self.status = status
     }
@@ -654,7 +658,7 @@ enum AccountDeletionSupportReason: Equatable {
 }
 
 enum AccountDeletionOutcome: Equatable {
-    case identityDeleted(cleanup: AccountDeletionCleanupState, providerCleanup: String? = nil)
+    case identityDeleted(cleanup: AccountDeletionCleanupState, providerCleanup: String? = nil, analyticsCleanup: String? = nil)
     case supportRequired(AccountDeletionSupportReason)
 }
 
@@ -948,7 +952,7 @@ final class AccountDeletionService {
         if clearsAuth {
             await transport.clearLocalAuthSession(expectedUserID: record.subjectID)
         }
-        return .identityDeleted(cleanup: cleanup, providerCleanup: response.providerCleanup)
+        return .identityDeleted(cleanup: cleanup, providerCleanup: response.providerCleanup, analyticsCleanup: response.analyticsCleanup)
     }
 
     private static func makeRecoverySecret() throws -> String {

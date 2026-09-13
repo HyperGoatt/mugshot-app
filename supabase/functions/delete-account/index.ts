@@ -1,3 +1,4 @@
+import { drainAnalyticsErasures } from "./analytics-worker.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.110.3";
 import { drainAppleRevocations } from "./provider-worker.ts";
 import { stageAppleDeletionCredential } from "./provider-stage.ts";
@@ -140,11 +141,23 @@ async function responseFor(
   } catch {
     // Provider status does not weaken the verified Mugshot deletion receipt.
   }
+  let analyticsCleanup: string | null = null;
+  try {
+    const status = await admin.rpc("read_account_analytics_erasure_status_v1", {
+      p_request_id: result.requestId,
+      p_job_id: result.jobId,
+    });
+    if (
+      !status.error &&
+      ["pending", "verified", "attention"].includes(status.data)
+    ) analyticsCleanup = status.data;
+  } catch { /* The Mugshot receipt remains separate from processor cleanup. */ }
   return json({
     protocol: protocolName,
     protocolVersion,
     ...result,
     providerCleanup,
+    analyticsCleanup,
     cleanupDelivery: result.cleanupStatus === "completed"
       ? "none_required"
       : cleanupWorkerContract.delivery,
@@ -782,7 +795,17 @@ Deno.serve(async (request) => {
       },
       Deno.env.get("ACCOUNT_PROVIDER_ENCRYPTION_KEY") ?? "",
     );
+    const analytics = await drainAnalyticsErasures(
+      (name, args) => admin.rpc(name, args),
+      {
+        region: "us",
+        projectID: Number(Deno.env.get("POSTHOG_ERASURE_PROJECT_ID") ?? "0"),
+        personalAPIKey: Deno.env.get("POSTHOG_ERASURE_PERSONAL_API_KEY") ?? "",
+      },
+      Deno.env.get("POSTHOG_ERASURE_ENABLED") === "true",
+    );
     return json({
+      analytics,
       claimed: (claimed.data ?? []).length,
       completed,
       pending,

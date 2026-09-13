@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-13
 ---
 
 # Mugshot PostHog analytics plan
@@ -87,3 +87,45 @@ The five free-tier alert slots are used for:
 - Any prevented duplicate sip publication.
 
 The existing wizard dashboard is aligned with the canonical names instead of creating a duplicate basics dashboard. All saved insights exclude the existing Internal / Test users cohort.
+
+## Sprint 1 account erasure follow-up
+
+Read-only project metadata on September 13 identified project `521217` in US
+Cloud. Its public project token matches the native configuration; no person or
+event records were read. The existing SDK identifies accounts by Supabase UUID,
+so resetting the SDK locally is not evidence that server-side analytics was
+removed.
+
+`supabase/functions/delete-account/analytics.ts` implements an isolated erasure
+adapter, with four focused synthetic Deno tests passing. It verifies the exact
+account/person mapping, submits one person's events and recordings for cleanup,
+and treats provider acceptance as submitted rather than complete. Verification
+requires a matching completed receipt created after the current submission and
+a valid verification timestamp. Requests use fixed regional API hosts, bounded
+responses, no redirects, and coarse errors without provider payloads.
+
+Migration `20260913065006_sprint1_analytics_erasure_queue.sql` captures the
+account identifier when the deletion job is created. The scheduled deletion
+worker claims it only after identity deletion is confirmed. It persists the
+provider target before submission, checks receipts before retrying uncertain
+submissions, and rejects a provider person linked to another existing account.
+Five-minute leases fence concurrent workers. Thirty unsuccessful attempts move
+the item to `attention`; unresolved identifiers are retained for support and
+must not be silently purged. Verified event receipts clear those identifiers.
+
+The native deletion response distinguishes pending, verified event cleanup,
+attention, and unconfirmed status independently of Mugshot and Apple cleanup.
+The provider's event receipt is not proof of recording deletion. Recording
+absence or separate recording-erasure evidence remains an activation gate;
+reviewed native source disables session replay.
+
+Activation requires server-only `POSTHOG_ERASURE_PROJECT_ID=521217`,
+`POSTHOG_ERASURE_PERSONAL_API_KEY` with `person:read` and `person:write`, and
+`POSTHOG_ERASURE_ENABLED=true`. The worker rejects other projects/regions and
+uses claim limit zero when disabled, preserving queued attempts. No personal
+key has been created or deployed, and no live analytics deletion has run.
+SDK identity/queued-event cleanup, support recovery for attention items,
+recording evidence, and disposable-account acceptance remain open.
+
+References: [Persons API](https://posthog.com/docs/api/persons) and
+[data deletion](https://posthog.com/docs/privacy/data-storage#data-deletion).

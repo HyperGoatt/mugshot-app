@@ -84,7 +84,7 @@ final class AppAuthModel: ObservableObject {
                     try requireCurrentAuthenticationOperation(operationID)
                     if case let .resolved(deletedUserID, outcome) = resolution {
                         switch outcome {
-                        case .identityDeleted(let cleanup, let providerCleanup):
+                        case .identityDeleted(let cleanup, let providerCleanup, let analyticsCleanup):
                             let attributableLegacyPhotoKeys = Set(
                                 dataManager.appData.visits
                                     .filter { $0.userId == deletedUserID }
@@ -110,7 +110,7 @@ final class AppAuthModel: ObservableObject {
                             if authService.currentUserID == nil
                                 || authService.currentUserID == deletedUserID {
                                 clearAuthenticatedAccountState(dataManager: dataManager)
-                                var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup)
+                                var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup, analyticsCleanup: analyticsCleanup)
                                 if !localCleanupCompleted {
                                     message += " Some files on this device could not be removed. Mugshot will retry the private cleanup next time the app opens."
                                 }
@@ -1022,7 +1022,7 @@ final class AppAuthModel: ObservableObject {
                     authenticateFreshSession: authenticateFreshSession
                 )
             }
-            guard case let .identityDeleted(cleanup, providerCleanup) = outcome else {
+            guard case let .identityDeleted(cleanup, providerCleanup, analyticsCleanup) = outcome else {
                 if case let .supportRequired(reason) = outcome {
                     if authenticationEpoch.isCurrent(operationID),
                        authenticatedUser?.id == userID {
@@ -1061,7 +1061,7 @@ final class AppAuthModel: ObservableObject {
             requiresNewPassword = false
             clearAccountRecoveryFeedback()
 
-            var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup)
+            var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup, analyticsCleanup: analyticsCleanup)
             if !localCleanupCompleted {
                 message += " Some files on this device could not be removed. Mugshot will retry the private cleanup next time the app opens."
             }
@@ -1093,9 +1093,10 @@ final class AppAuthModel: ObservableObject {
 
     private func deletionCompletionMessage(
         cleanup: AccountDeletionCleanupState,
-        providerCleanup: String?
+        providerCleanup: String?,
+        analyticsCleanup: String?
     ) -> String {
-        let message: String
+        var message: String
         switch cleanup {
         case .completed:
             message = "Your account and Mugshot data have been deleted."
@@ -1104,14 +1105,25 @@ final class AppAuthModel: ObservableObject {
         }
         switch providerCleanup {
         case "pending":
-            return message + " Apple sign-in access cleanup is still pending and will retry automatically."
+            message += " Apple sign-in access cleanup is still pending and will retry automatically."
         case "revoked":
-            return message + " Apple sign-in access has also been revoked."
+            message += " Apple sign-in access has also been revoked."
         case "unavailable":
-            return message + " Apple sign-in access cleanup could not be confirmed."
+            message += " Apple sign-in access cleanup could not be confirmed."
         default:
-            return message
+            break
         }
+        switch analyticsCleanup {
+        case "verified":
+            message += " Analytics event cleanup has also been verified."
+        case "pending":
+            message += " Analytics cleanup is still pending and will retry automatically."
+        case "attention":
+            message += " Analytics cleanup needs follow-up. Contact Mugshot support for help."
+        default:
+            message += " Analytics cleanup has not yet been confirmed."
+        }
+        return message
     }
 
     /// Purges only the identity proven deleted by the server receipt. Every
