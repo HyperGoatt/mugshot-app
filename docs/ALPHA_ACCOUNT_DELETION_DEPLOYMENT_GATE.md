@@ -163,6 +163,6 @@ configured. Native startup/deletion suspension and next-launch queue disposal
 are implemented. September 13 authenticated provider inventory returned no
 recordings from before project creation, with recording disabled; recheck
 before activation. Service-only attention recovery is implemented and locally
-tested; hosted rehearsal, SDK runtime and disposable-account acceptance remain
-gates. Follow the
+tested, and its hosted recovery contract passes. SDK runtime and disposable-
+account acceptance remain gates. Follow the
 [analytics plan](POSTHOG_ANALYTICS_PLAN.md) before promoting deletion readiness.

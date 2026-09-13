@@ -8,6 +8,16 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Replayed all 155 migrations and passed all 57 contracts in one isolated hosted
+  run, including analytics recovery. Deleted the paid branch, verified absence,
+  and removed its local credential. Production remains unchanged. Reverified
+  all three OpenAI model-improvement sharing controls remain Disabled.
+
+- Companion PWA cafe-search functions now omit raw queries, coordinates and
+  arbitrary provider/network errors from logs and error responses. Two focused
+  handler tests and Deno checks pass. Deployment is pending. Prepared Apple Maps
+  identifier/key setup for catalog verification; new access awaits approval.
+
 - Added audited service-only recovery for exhausted analytics cleanup. Stale
   snapshots, reused operation IDs, active work, and verified rows cannot reset
   the queue; original targets and provider evidence remain intact. Focused

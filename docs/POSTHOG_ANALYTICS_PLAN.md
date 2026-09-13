@@ -141,7 +141,7 @@ not deployed, the local enable flag remains false, and no live analytics
 deletion has run.
 Native queued-event runtime acceptance and disposable-account acceptance remain
 open. The service-only support recovery below is implemented and locally tested;
-hosted rehearsal remains pending.
+the focused recovery contract and full 57-contract hosted run also pass.
 
 References: [Persons API](https://posthog.com/docs/api/persons) and
 [data deletion](https://posthog.com/docs/privacy/data-storage#data-deletion).
@@ -229,5 +229,6 @@ fixed reason without copying owner or person identifiers. Receipts follow the
 queue row's retention via a cascading foreign key. Client roles have no table
 or RPC access. The focused hermetic test covers stale snapshots, lost responses,
 active leases, preserved targets/evidence, alias rejection after recovery,
-verified-row rejection, and denied client grants. Hosted and live operational
-rehearsal remain pending; production is unchanged.
+verified-row rejection, and denied client grants. Hosted rehearsal and the full
+57-contract suite pass on isolated QA.
+Live operational acceptance remains pending; production is unchanged.

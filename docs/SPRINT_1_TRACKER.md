@@ -132,7 +132,7 @@ recording-inventory gate; recheck before activation.
 | --- | --- | --- |
 | OpenAI setup | Dedicated Mugshot project created; feedback, evaluation/fine-tuning, and API input/output sharing all visibly Disabled organization-wide; project key saved locally outside Git; synthetic text-only moderation HTTP 200 | Server deployment and recurring release configuration checks |
 | Profile consent | Versioned RPC, disable-only legacy setter, author plus tagged-profile consent; isolated PostgreSQL behavior test and iOS Debug app/test compile pass | Runtime acceptance and production deployment |
-| Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; production acceptance; all 154 migrations replayed and 56 hosted contracts have passing evidence |
+| Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; production acceptance; all 155 migrations replayed and all 57 hosted contracts pass |
 | Existing shared content | Not screened | Updated disclosures, staged screening; unscreened content withheld from outward surfaces; owner access retained |
 | Deletion | Existing V3 orchestration plus native Apple code capture, verified exchange, encrypted provider queue and scheduled cleanup integration; deterministic checks and generic compile pass; production initiation remains disabled | Server credential deployment/rotation; interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
 | Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, deployment and installed-app journey; exact backend replay passed |
@@ -143,7 +143,8 @@ recording-inventory gate; recheck before activation.
 ## No-training operating contract
 
 The organization sharing controls were inspected in the signed-in Platform on
-2026-09-12 America/New_York. All three were Disabled, including API inputs and
+2026-09-12 and reverified after a fresh reload on 2026-09-13 America/New_York.
+All three were Disabled, including API inputs and
 outputs; no free-token data-sharing program was enabled. Settings apply across
 projects. This is dated configuration evidence, not a guarantee against future
 administrator changes. Verify again before production content processing.
@@ -1277,6 +1278,49 @@ items. Exact snapshot and operation IDs fence stale or duplicate recovery;
 active, verified, or identity-incomplete work cannot be reset. The original
 provider target, submission clock and accepted receipt remain intact. Normal
 alias checks and lease fencing remain mandatory after recovery. The focused
-PGlite test passes. This new migration is after the 154-migration hosted QA
-checkpoint and has not been deployed or rehearsed remotely. Operating steps
+PGlite test passes. This migration followed the 154-migration QA checkpoint;
+the subsequent 155-migration hosted run below also passes. Production deployment
+remains pending. Operating steps
 are in the [analytics plan](POSTHOG_ANALYTICS_PLAN.md#recovering-an-analytics-cleanup-attention-item).
+
+
+## Cafe verification and web search privacy — September 13
+
+Catalog review confirms that native/PWA callers can submit cafe fields directly;
+provider IDs do not attest those fields. The Apple account has only sign-in and
+push keys, with no Maps identifier available for association. Prepared the
+`Mugshot Cafe Verification` Maps identifier (`maps.co.mugshot.catalog`) for
+registration. Registration/key creation await explicit new-credential approval;
+no Maps access was created. Server place verification is not implemented or
+production configured by this preparation.
+
+The companion PWA's existing search functions logged raw queries and precise
+coordinates and returned arbitrary provider/network error text. Removed those
+logs and return fixed retry messages on failure. Both mocked-handler tests and
+Deno type checks pass; provider requests and success results retain their
+existing behavior. This privacy fix remains source-only pending coordinated
+Edge deployment.
+
+
+## Consolidated hosted acceptance — September 13, 155 migrations
+
+The recovery QA branch replayed the exact repository migration history through
+`20260913153904`. All **57 contracts passed in one full run**, including the new
+analytics-recovery contract. That check covers stale snapshots, duplicate
+operations, preserved provider target/evidence, active-work rejection, normal
+lease completion and denied client execution. The prior 55-plus-focused result
+is superseded by this full-run evidence. No provider request or production
+mutation was part of the test.
+
+The security advisor counts remain 28 anonymous and 186 authenticated definer
+execution warnings. The private recovery audit table adds one expected
+RLS-without-policy informational entry (30 total); clients have no access.
+Existing RPC warnings still need release review. The QA branch was deleted,
+its absence verified, and the local database credential removed. Only main
+remains; no paid QA branch is left running.
+
+OpenAI organization sharing controls were also reloaded from the server and
+all three remain Disabled: feedback, evaluation/fine-tuning, and API inputs/
+outputs. No data-sharing incentive was enabled. Maps credential approval,
+catalog verification implementation, provider/runtime acceptance and coordinated
+production rollout remain outstanding. No TestFlight build was created.
