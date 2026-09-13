@@ -472,6 +472,19 @@ struct testMugshotTests {
         )
     }
 
+    @Test func protectedMediaReadReferencesPreserveOriginAndPathBoundaries() throws {
+        let project = try #require(URL(string: "https://project.supabase.co"))
+        let profile = "https://project.supabase.co/storage/v1/object/public/profile-media/owner/avatar%20one.jpg"
+        let location = try #require(ProtectedStorageMediaLocation(storedValue: profile, projectURL: project))
+        #expect(location.bucketName == "profile-media")
+        #expect(location.objectPath == "owner/avatar one.jpg")
+        #expect(ProtectedStorageMediaLocation(storedValue: "mugshot-storage://visit-photos-private/owner/visit/photo.jpg", projectURL: project)?.bucketName == "visit-photos-private")
+        #expect(ProtectedStorageMediaLocation(storedValue: profile.replacingOccurrences(of: "profile-media/owner/avatar%20one.jpg", with: "visit-photos/owner/visit/photo.jpg"), projectURL: project)?.bucketName == "visit-photos")
+        for invalid in [profile + "?token=x", profile.replacingOccurrences(of: "project.supabase.co", with: "foreign.invalid"), profile.replacingOccurrences(of: "avatar%20one.jpg", with: "%2e%2e%2fphoto.jpg"), profile.replacingOccurrences(of: "profile-media", with: "another-bucket")] {
+            #expect(ProtectedStorageMediaLocation(storedValue: invalid, projectURL: project) == nil)
+        }
+    }
+
     @Test func visitMediaCleanupQueuePreservesPrivateAndLegacyBuckets() throws {
         let suite = "VisitMediaCleanupBucketTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))

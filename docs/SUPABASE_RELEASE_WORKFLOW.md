@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913054240_sprint1_deleted_report_owner_resolution.sql`. Sprint 1 migrations
+`20260913061308_sprint1_protected_media_reads.sql`. Sprint 1 migrations
 are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
@@ -142,3 +142,21 @@ only after a disposable clean reset and the complete contract suite pass.
 If post-deploy counts or fingerprints differ unexpectedly, stop feature rollout,
 preserve logs/backups, and identify the exact table and migration. Roll forward
 with a reviewed repair; do not reset live or reseed user data.
+
+## Protected-media rollout gate (Sprint 1)
+
+Migration `20260913061308_sprint1_protected_media_reads.sql` changes
+`profile-media` and `visit-photos` to private and preserves the private visit
+bucket. Historical public URL strings remain stored identifiers, requiring
+compatible resolvers in every supported native/web recipient path. Do not apply
+this migration to production until that compatibility and the full migration
+history pass isolated QA. Existing public downloads/cached copies cannot be
+recalled. Read-time signatures last 60 seconds; do not imply instant revocation
+of an already issued capability.
+
+The migration adds a caller-bound Storage rule covering current screened
+profile/visit references, blocks, Private exclusion, and owner recovery. A
+restrictive policy overrides older permissive reads; other buckets retain their
+existing policies. Local actual-RLS tests pass. Shared-link server signing also
+checks projected author/visit/bucket provenance because privileged signing
+bypasses Storage RLS. Full remote service integration remains an acceptance gate.

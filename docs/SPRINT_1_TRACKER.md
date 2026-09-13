@@ -769,3 +769,111 @@ Astro to 7.2.8 and Sharp to 0.35.4, with updated js-yaml/SVGO dependencies. Loca
 verification passes 14 tests, build and 20-route checks; npm audit reports zero
 vulnerabilities. The replacement remote checks are pending. These are draft
 branches and preview deployments, not production disclosure publication.
+
+
+## Website CI acceptance and public-media inventory
+
+Marketing commit `63ee3cc` repaired npm 10 clean-install compatibility after
+npm 11 omitted optional runtime entries. GitHub run `34741493034` completed
+successfully, including clean install, verification and dependency audit; its
+Vercel preview also passed. PWA `8d08d58` preview checks passed. All companion
+PRs remain draft for the coordinated backend release.
+
+Read-only Storage inventory on 2026-09-13 confirms `profile-media` and
+`visit-photos` are public; `visit-photos-private` is private. Aggregate counts
+are 86, 29 and 204 objects respectively. No object paths or content were read.
+Native profile uploads currently request a one-year cache lifetime and return
+public URLs. The shared recipient resolver currently passes HTTPS URLs through
+and signs only private visit references for five minutes. Therefore database
+projection gates alone do not establish media revocation or screening safety.
+
+Required next work: support authenticated/anonymous-authorized delivery for
+profile and legacy visit media, keep existing object references compatible,
+apply matching Storage read gates and private-bucket configuration only after
+QA, and validate URL/cache lifetime on privacy changes. Existing cached or
+downloaded copies cannot be treated as recalled. This remains an explicit
+release blocker; no production bucket or object was changed.
+
+
+## Protected recipient media preparation
+
+Shared-profile and shared-mugshot endpoints now resolve historical own-project
+Storage HTTPS references through one-minute signing, including profile media
+and legacy visit photos. Private visit references use the same lifetime. Missing
+signing credentials no longer fall back to a permanent own-Storage public URL;
+foreign URLs never receive service-role signatures, and returned signatures must
+remain on the configured project origin. Only fields already admitted by each
+recipient projection reach this helper.
+
+This changes Edge/media contracts and is only the first part of protected
+delivery. Native profile/legacy image resolution, Storage policies, bucket
+privacy and cache/runtime acceptance are still pending. No bucket or deployed
+endpoint changed. Existing foreign HTTPS projection behavior is retained for
+compatibility and remains part of the outward-media audit.
+
+Protected-recipient checkpoint: backend verification passed 11 checks, zero
+failures and one optional parser skip. The focused media contract verifies
+legacy profile signing, one-minute expiry, missing-signer denial, and malformed/
+foreign path rejection for signing. Source review and whitespace checks pass.
+Native code, production buckets and deployed Edge functions are unchanged.
+
+### Native protected-media preparation — September 13, 2026
+
+Implemented in source: own-project legacy profile/visit public URLs now resolve
+through viewer-authorized Storage signing for 60 seconds. Avatar, banner, and
+visit-photo views discard displayed bytes on account/foreground changes and
+reauthorize visible images every 55 seconds. Signed image downloads bypass the
+shared image memory/disk caches; profile-share artwork uses an ephemeral session.
+Foreign image compatibility remains under audit. Previously downloaded or cached
+public copies cannot be recalled by this change.
+
+This changes product media loading, Storage compatibility, and privacy behavior.
+Production buckets are still public where inventoried; protected-bucket policies,
+remaining media consumers, consolidated runtime acceptance, and deployment remain
+open. Focused parser tests are added for own-origin, traversal, query, and bucket
+boundaries. Compile/static evidence will be recorded after this source batch.
+
+The protected-media source checkpoint passed `full-static`: 12 passed, 0 failed,
+1 skipped (including hermetic PostgreSQL contracts and generic iOS app/test
+compile). This is local evidence only. No Simulator, device, production data,
+bucket configuration, or screening activation was touched. A final compile also
+covers the monotonic refresh deadline, which includes signing/download time.
+
+Next media gate: shared-link service-role signing must validate object provenance
+against the projected author and visit, including avatars in Mugshot/profile-sip
+responses. Current projection admission alone is not proof of Storage ownership.
+Do not deploy this preparation before that boundary and bucket policies pass QA.
+
+### Protected-media authorization follow-up — September 13, 2026
+
+Supersedes the preceding next-media-gate implementation status: shared-link
+signing now requires a server-derived author ID, exact visit ID for visit media,
+and the correct bucket kind. The Mugshot endpoint resolves the admitted visit's
+owner server-side without adding that private lookup to the response. Profile
+and sip avatar fields now use protected signing too. Five focused Deno tests
+pass, including cross-owner, sibling-visit, wrong-bucket and missing-owner
+rejections before privileged calls. Both Edge entrypoints type-check with their
+function configurations; an initial root-level check lacked the Mugshot JSX
+configuration, corrected by checking from the function directory.
+
+Migration `20260913061308_sprint1_protected_media_reads.sql` closes all three
+user-media buckets and introduces exact current-reference, screening and
+canonical audience checks. The previous anonymous raw Everyone read is removed.
+An actual RLS test deliberately adds an old permissive allow-all policy and
+proves the restrictive boundary still protects pending, unused, wrong-bucket,
+Friends, Private and blocked media while preserving owner recovery. This test
+uses only hermetic PostgreSQL with synthetic fixtures. It passes alongside the
+existing primary/collection screening contract.
+
+Remaining: public-cafe-list and other web/native consumers, cache/runtime
+acceptance, full-history isolated Supabase QA, coordinated deployment, and live
+verification. This source migration is not deployed. Do not close production
+buckets until supported clients can resolve them. The existing no-training and
+Private-content exclusion requirements remain unchanged.
+
+Protected-media authorization verification: `./scripts/verify-no-simulator.sh
+backend` completed with 11 passed, 0 failed, 1 skipped. Documentation checks and
+whitespace checks pass. Native media source was compile-verified in the preceding
+checkpoint and has not changed in this authorization follow-up. No remote
+migration, live media fetch, user-content screening, Simulator, or release action
+was performed.

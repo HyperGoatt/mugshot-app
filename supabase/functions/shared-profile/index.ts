@@ -8,6 +8,7 @@ import { getSecretSupabaseKey } from "../_shared/secret-key.ts";
 
 type ProfileProjection = {
   profile?: {
+    id?: string;
     display_name?: string;
     username?: string;
     bio?: string | null;
@@ -77,10 +78,16 @@ function unavailable(canonicalURL: string, head: boolean): Response {
 async function resolveImage(
   profile: NonNullable<ProfileProjection["profile"]>,
   adminClient: MediaSigningClient | null,
+  supabaseURL: string,
 ): Promise<string | null> {
   for (const candidate of [profile.banner_url, profile.avatar_url]) {
     if (!candidate) continue;
-    const resolved = await resolvedCapabilityMediaURL(candidate, adminClient);
+    const resolved = await resolvedCapabilityMediaURL(
+      candidate,
+      adminClient,
+      supabaseURL,
+      { kind: "profile", ownerID: profile.id },
+    );
     if (resolved) return resolved;
   }
   return null;
@@ -90,25 +97,48 @@ async function resolveImage(
 async function resolvePublicMedia(
   value: unknown,
   client: MediaSigningClient | null,
+  supabaseURL: string,
 ): Promise<unknown> {
   if (Array.isArray(value)) {
     return await Promise.all(
-      value.map((item) => resolvePublicMedia(item, client)),
+      value.map((item) => resolvePublicMedia(item, client, supabaseURL)),
     );
   }
   if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) {
+  for (const [key, item] of Object.entries(record)) {
     if (
-      ["avatar_url", "banner_url", "poster_photo_url", "cover_photo_url"]
+      [
+        "avatar_url",
+        "author_avatar_url",
+        "banner_url",
+        "poster_photo_url",
+        "cover_photo_url",
+      ]
         .includes(key)
     ) {
-      result[key] = await resolvedCapabilityMediaURL(item, client);
+      const isProfile = ["avatar_url", "author_avatar_url", "banner_url"]
+        .includes(key);
+      result[key] = await resolvedCapabilityMediaURL(
+        item,
+        client,
+        supabaseURL,
+        {
+          kind: isProfile ? "profile" : "visit",
+          ownerID: isProfile ? (record.user_id ?? record.id) : record.user_id,
+          visitID: record.id,
+        },
+      );
     } else if (key === "photo_urls" && Array.isArray(item)) {
       result[key] = (await Promise.all(item.map((url) =>
-        resolvedCapabilityMediaURL(url, client)
+        resolvedCapabilityMediaURL(url, client, supabaseURL, {
+          kind: "visit",
+          ownerID: record.user_id,
+          visitID: record.id,
+        })
       ))).filter(Boolean);
-    } else result[key] = await resolvePublicMedia(item, client);
+    } else result[key] = await resolvePublicMedia(item, client, supabaseURL);
   }
   return result;
 }
@@ -179,7 +209,11 @@ Deno.serve(async (request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
     : null;
-  const imageURL = await resolveImage(projection.profile, adminClient);
+  const imageURL = await resolveImage(
+    projection.profile,
+    adminClient,
+    supabaseURL,
+  );
   if (wantsJSON) {
     const { data: sips, error: sipsError } = await client.rpc(
       "list_profile_link_sips_v1",
@@ -189,10 +223,14 @@ Deno.serve(async (request) => {
       },
     );
     if (sipsError) return unavailable(canonicalURL, isHead);
-    const resolved = await resolvePublicMedia({
-      ...projection,
-      sips: sips ?? [],
-    }, adminClient);
+    const resolved = await resolvePublicMedia(
+      {
+        ...projection,
+        sips: sips ?? [],
+      },
+      adminClient,
+      supabaseURL,
+    );
     return new Response(isHead ? null : JSON.stringify(resolved), {
       status: 200,
       headers: {

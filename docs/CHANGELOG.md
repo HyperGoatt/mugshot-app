@@ -8,6 +8,22 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Prepared protected recipient media: legacy own-project profile/visit URLs
+  now use one-minute signatures in shared-profile/shared-mugshot responses,
+  with no permanent-URL fallback when signing is unavailable. Native profile
+  and visit media resolution is implemented and compile-verified; the protected
+  bucket migration is implemented and locally RLS-tested, not deployed.
+- Added exact author/visit/bucket checks before privileged shared-link media
+  signing. Five focused Edge tests pass. Migration `20260913061308` closes
+  public user-media buckets and gates reads on current screened references;
+  actual hermetic RLS tests pass for anonymous, friend, blocked, Private, and
+  owner-recovery paths. Remaining web consumers and isolated remote QA are
+  still deployment gates.
+
+- Verified repaired marketing CI and preview deployment. Read-only Storage
+  inventory confirmed public profile/legacy photo buckets; protected delivery
+  and cache acceptance remain required before screening activation.
+
 - Published the reviewed Sprint 1 implementation and website disclosures to
   their existing draft PRs. Repaired the marketing dependency audit failure;
   local website verification and npm audit pass. Production release remains
@@ -495,3 +511,19 @@ last_verified: 2026-09-13
 
 Use dated audits, checkpoints, deployment gates, and Git history for earlier
 evidence. Those records remain historical rather than being rewritten here.
+
+### Native protected-media preparation — September 13, 2026
+
+Implemented in source: own-project legacy profile/visit public URLs now resolve
+through viewer-authorized Storage signing for 60 seconds. Avatar, banner, and
+visit-photo views discard displayed bytes on account/foreground changes and
+reauthorize visible images every 55 seconds. Signed image downloads bypass the
+shared image memory/disk caches; profile-share artwork uses an ephemeral session.
+Foreign image compatibility remains under audit. Previously downloaded or cached
+public copies cannot be recalled by this change.
+
+This changes product media loading, Storage compatibility, and privacy behavior.
+Production buckets are still public where inventoried; protected-bucket policies,
+remaining media consumers, consolidated runtime acceptance, and deployment remain
+open. Focused parser tests are added for own-origin, traversal, query, and bucket
+boundaries. Compile/static evidence will be recorded after this source batch.

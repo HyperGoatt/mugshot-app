@@ -188,5 +188,44 @@ try {
  await db.exec("update private.screening_jobs set state='approved' where subject_kind='list'")
  const copied=(await db.query('select public.copy_public_cafe_list_v1($1) as projection',[list])).rows[0].projection
  assert.equal(copied.items.length,0,'copy RPC cannot launder another author pending note into owner-only data')
+
+ // Exercise the real protected-media migration with the screening helpers above.
+ await db.exec("create table storage.buckets(id text primary key,public boolean); insert into storage.buckets values('profile-media',true),('visit-photos',true),('visit-photos-private',false)")
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260913061308_sprint1_protected_media_reads.sql',import.meta.url),'utf8'))
+ assert.equal((await db.query('select count(*)::int as n from storage.buckets where public')).rows[0].n,0,'all user-media buckets become private')
+ const mediaPath=`${owner}/${visit}/screened photo.jpg`
+ const mediaURL=`mugshot-storage://visit-photos-private/${owner}/${visit}/screened%20photo.jpg`
+ const avatarPath=`${owner}/avatar.jpg`
+ const avatarURL=`https://project.supabase.co/storage/v1/object/public/profile-media/${avatarPath}`
+ await db.query("insert into public.visits(id,user_id,caption,poster_photo_url,visibility,upload_state) values($1,$2,'Synthetic media check',$3,'everyone','complete')",[visit,owner,mediaURL])
+ await db.query('update public.users set avatar_url=$1 where id=$2',[avatarURL,owner])
+ for(const [bucket,name] of [['visit-photos-private',mediaPath],['visit-photos',mediaPath],['visit-photos-private',`${owner}/${visit}/unused.jpg`],['profile-media',avatarPath],['profile-media',`${owner}/old.jpg`]]) {
+  await db.query('insert into storage.objects(id,bucket_id,name) values(gen_random_uuid(),$1,$2)',[bucket,name])
+ }
+ await db.exec('alter table storage.objects enable row level security; grant usage on schema storage to anon,authenticated; grant select on storage.objects to anon,authenticated; create policy synthetic_legacy_public_read on storage.objects for select to public using(true)')
+ const mediaRead=async(actor,bucket,name)=>{
+  await db.query("select set_config('test.actor',$1,false)",[actor??''])
+  await db.exec(actor?'set role authenticated':'set role anon')
+  try{return (await db.query('select count(*)::int as n from storage.objects where bucket_id=$1 and name=$2',[bucket,name])).rows[0].n===1}finally{await db.exec('reset role')}
+ }
+ assert.equal(await mediaRead(null,'visit-photos-private',mediaPath),false,'anonymous pending Everyone media denied despite old permissive policy')
+ assert.equal(await mediaRead(owner,'visit-photos-private',mediaPath),true,'owner retains pending upload access')
+ await approve()
+ assert.equal(await mediaRead(null,'visit-photos-private',mediaPath),true,'approved Everyone exact object is readable')
+ assert.equal(await mediaRead(null,'visit-photos',mediaPath),false,'same path in wrong bucket is not screened media')
+ assert.equal(await mediaRead(friend,'visit-photos-private',`${owner}/${visit}/unused.jpg`),false,'unreferenced files are not part of an approved visit')
+ assert.equal(await mediaRead(null,'profile-media',avatarPath),true,'current screened avatar is readable')
+ assert.equal(await mediaRead(null,'profile-media',`${owner}/old.jpg`),false,'old avatar is not public')
+ await db.query("update public.visits set visibility='friends' where id=$1",[visit]);await approve()
+ assert.equal(await mediaRead(null,'visit-photos-private',mediaPath),false,'Friends media does not become anonymous through Storage')
+ assert.equal(await mediaRead(friend,'visit-photos-private',mediaPath),true,'confirmed friend remains authorized')
+ await db.exec("select set_config('test.blocked','true',false)")
+ assert.equal(await mediaRead(friend,'visit-photos-private',mediaPath),false,'block revokes future signing')
+ assert.equal(await mediaRead(friend,'profile-media',avatarPath),false,'block also protects profile media')
+ await db.exec("select set_config('test.blocked','false',false)")
+ await db.query("update public.visits set visibility='private' where id=$1",[visit])
+ assert.equal(await mediaRead(friend,'visit-photos-private',mediaPath),false,'Private media stays owner-only')
+ assert.equal(await mediaRead(owner,'profile-media',`${owner}/old.jpg`),true,'owner can clean up old media')
+ console.log('PASS protected Storage buckets, actual RLS, screening, exact reference/bucket membership, Friends/Private audiences, blocks and owner recovery')
  console.log('PASS primary and collection screening: revision triggers, owner access, public/legacy projections, private fields, media edits, consent, blocks and withdrawal')
 } catch(error) { console.error(error.message); process.exitCode=1; } finally {await db.close()}

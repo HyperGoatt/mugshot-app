@@ -60,3 +60,16 @@ Sprint 1 report review correction (2026-09-13): owner-level enforcement retains
 a server-evidence lookup after reported content deletion. Hiding absent content
 and reviewing one's own content remain rejected. Implemented locally; remote
 acceptance and production deployment are pending.
+
+## Sprint 1 protected-media follow-up (2026-09-13)
+
+The current unshipped source resolves own-project legacy profile and visit media
+through 60-second viewer-authorized Storage signatures. Native avatar, banner,
+and visit-photo components discard images when account/foreground scope changes
+and refresh protected media authorization every 55 seconds. Signed downloads use
+an ephemeral uncached path; profile share artwork also avoids persistent caching.
+This supersedes earlier media-loading implementation descriptions only. Bucket
+policy migration and service-role author/visit/bucket provenance checks are now
+implemented and locally tested. Remaining consumers, full remote integration,
+and consolidated runtime acceptance are still open; production buckets have not
+been changed. See [Sprint 1 tracker](SPRINT_1_TRACKER.md).
