@@ -50,6 +50,7 @@ begin
   return query with eligible as (
     select request_id from private.account_analytics_erasures
     where state in ('pending','processing') and identity_deleted_at is not null
+      and identity_deleted_at<=now()-interval '5 minutes'
       and owner_id is not null and attempts<30 and available_at<=now()
       and (lease_until is null or lease_until<=now())
     order by available_at,created_at limit greatest(0,least(coalesce(p_limit,1),1)) for update skip locked

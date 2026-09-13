@@ -73,6 +73,7 @@ struct MugshotRootView: View {
             await PerformanceMonitor.measure("Session restore") {
                 await authModel.restoreSession(dataManager: dataManager)
             }
+            startAnalyticsAfterRecovery()
             await processPendingAuthCallbacks()
         }
         .onOpenURL { url in
@@ -82,6 +83,7 @@ struct MugshotRootView: View {
             }
         }
         .onChange(of: authModel.status) { _, status in
+            startAnalyticsAfterRecovery()
             guard status != .checking,
                   authCallbackQueue.pendingCount > 0 else { return }
             Task {
@@ -99,6 +101,14 @@ struct MugshotRootView: View {
         }
         .task(id: authModel.authenticatedUser?.id) {
             await refreshProfileSetupGate()
+        }
+    }
+
+    private func startAnalyticsAfterRecovery() {
+        guard !MugshotLaunchEnvironment.isUITesting, authModel.canStartAnalytics else { return }
+        MugshotAnalytics.shared.configure(discardPriorIdentity: authModel.authenticatedUser == nil)
+        if let userID = authModel.authenticatedUser?.id {
+            MugshotAnalytics.shared.identify(userID: userID)
         }
     }
 

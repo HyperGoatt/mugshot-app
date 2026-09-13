@@ -987,3 +987,19 @@ implementation gate in the [analytics plan](POSTHOG_ANALYTICS_PLAN.md).
 Verification: eight synthetic Deno tests, the focused PGlite queue contract,
 and documentation/whitespace checks passed. No native source changed, so no
 additional compile or Simulator run was needed for this follow-up.
+
+### September 13 native analytics deletion boundary
+
+Moved SDK startup after account recovery. The real deletion POST now requires a
+durable local analytics marker and closes telemetry for the rest of that process.
+The next eligible launch purges only the configured PostHog namespace before
+setup; failure keeps analytics off. Journal/media/Auth files are preserved.
+Added isolated Swift disposal checks and a facade suppression/restart test.
+The backend waits five minutes after identity removal; SDK requests use bounded
+ephemeral sessions. Runtime and older-client/multi-device ingestion acceptance
+remain open; see [analytics plan](POSTHOG_ANALYTICS_PLAN.md) for exact limits.
+
+Verification: generic Debug Simulator build-for-testing compiled; fast gate
+7 passed / 0 failed; standalone Swift quarantine and focused PGlite hold/queue
+contracts passed. The native facade test compiled but awaits the consolidated
+Simulator test run. No remote mutation or live provider upload was performed.

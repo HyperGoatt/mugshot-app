@@ -66,6 +66,14 @@ final class AppAuthModel: ObservableObject {
         }
     }
 
+    var canStartAnalytics: Bool {
+        guard accountDeletionService?.hasPendingRecovery == false else { return false }
+        switch status {
+        case .signedIn, .signedOut: return true
+        default: return false
+        }
+    }
+
     func restoreSession(dataManager: DataManager) async {
         guard let authService, let profileService else { return }
         let operationID = beginAuthenticationOperation(status: .checking)

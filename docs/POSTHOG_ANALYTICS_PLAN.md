@@ -126,7 +126,7 @@ Activation requires server-only `POSTHOG_ERASURE_PROJECT_ID=521217`,
 `POSTHOG_ERASURE_ENABLED=true`. The worker rejects other projects/regions and
 uses claim limit zero when disabled, preserving queued attempts. No personal
 key has been created or deployed, and no live analytics deletion has run.
-SDK identity/queued-event cleanup, support recovery for attention items,
+Native queued-event runtime acceptance, support recovery for attention items,
 recording evidence, and disposable-account acceptance remain open.
 
 References: [Persons API](https://posthog.com/docs/api/persons) and
@@ -143,7 +143,47 @@ integration must gate startup and dispose the deleted account's queued events,
 including in-flight/relaunch handling. Do not substitute `flush()` as evidence:
 provider documentation describes it as best-effort and asynchronous.
 
-This is a confirmed remaining implementation gate, not a resolved finding.
+This finding is addressed in source by the startup/deletion boundary below;
+consolidated runtime and provider acceptance remain required.
 The PostHog credential setup tab currently redirects to sign-in. No credential
 was created or provider person record changed during this inspection.
 See [iOS configuration](https://posthog.com/docs/libraries/ios/configuration).
+
+### Native deletion startup boundary
+
+Source now starts analytics only after the account status is signed in/out and
+Keychain deletion recovery is clear. App initialization no longer configures the
+SDK. Immediately before the real deletion POST, an atomic local marker is
+written and the SDK is closed. Capture, identification, reset and configuration
+share a lifecycle lock; this process cannot restart analytics after suspension,
+even if the network result is ambiguous or a different account signs in.
+
+On a later process launch, marked telemetry is deleted before SDK setup. The
+cleanup targets only the configured project's PostHog directory and legacy
+`posthog.*` files under this app's Application Support bundle directory. It
+preserves journal/media/Auth files and other project directories. It rejects
+path traversal and a symbolic-link base. A cleanup failure leaves analytics
+off and the marker retained for retry. Signed-out startup also discards the old
+SDK identity/queue. Same-process analytics delivery remains paused after a
+failed deletion attempt and resumes on a later eligible launch; account features
+continue working. The disk cleanup is deferred to that launch so callbacks from
+a stopped SDK cannot repopulate a newly started SDK's queue.
+
+The layout was inspected against pinned PostHog iOS `3.68.4`, revision
+`fe6193716ed54b0430b2d5370b746885fd442787`. Dependency upgrades must recheck
+that layout. The SDK uses an ephemeral URL session with 15-second request and
+30-second resource timeouts. Backend analytics erasure starts no sooner than
+five minutes after identity deletion. These bounds and the quiet interval
+reduce in-flight overlap; they are not proof of provider ingestion completion
+or protection against events from older clients on another device.
+
+Local evidence: the standalone Swift file-cleanup check passes durable restart,
+namespace isolation, legacy cleanup, marker clearing, signed-out disposal and
+invalid-path handling. The facade test covers same-process suppression and a
+fresh-process restart, and is queued for the consolidated native test run.
+Offline deletion/relaunch, failures, account switching, bounded outstanding
+uploads and multi-device/older-client behavior remain acceptance gates.
+
+Standalone check:
+`swiftc testMugshot/Services/Analytics/AnalyticsDeletionQuarantine.swift qa/check-analytics-quarantine.swift -o /tmp/mugshot-analytics-quarantine-check`
+then `/tmp/mugshot-analytics-quarantine-check`.

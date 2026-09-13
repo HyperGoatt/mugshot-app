@@ -7,6 +7,7 @@ private final class MugshotAnalyticsTransportSpy: MugshotAnalyticsTransport {
     private(set) var payloads: [MugshotAnalyticsPayload] = []
     private(set) var identifiedDistinctIDs: [String] = []
     private(set) var resetCount = 0
+    private(set) var closeCount = 0
 
     func configure(_ configuration: MugshotAnalyticsConfiguration) {
         configurations.append(configuration)
@@ -23,10 +24,34 @@ private final class MugshotAnalyticsTransportSpy: MugshotAnalyticsTransport {
     func reset() {
         resetCount += 1
     }
+
+    func close() { closeCount += 1 }
 }
 
 @Suite(.serialized)
 struct MugshotAnalyticsTests {
+    @Test func deletionSuspendsTelemetryUntilNextProcessAndPurgesBeforeRestart() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let quarantine = AnalyticsDeletionQuarantine(applicationSupport: root, bundleIdentifier: "test.bundle")
+        let spy = MugshotAnalyticsTransportSpy()
+        let analytics = MugshotAnalytics(transport: spy, quarantine: quarantine)
+        let configuration: [String: Any] = [
+            "MUGSHOT_POSTHOG_PROJECT_TOKEN": "phc_synthetic",
+            "MUGSHOT_POSTHOG_HOST": "https://us.i.posthog.com"
+        ]
+        analytics.configure(infoDictionary: configuration)
+        try analytics.prepareForAccountDeletion()
+        analytics.configure(infoDictionary: configuration)
+        analytics.identify(userID: UUID())
+        analytics.capture(.homeWorkbench(action: .scanSucceeded))
+        #expect(spy.closeCount == 1 && spy.configurations.count == 1)
+        #expect(spy.identifiedDistinctIDs.isEmpty && spy.payloads.isEmpty)
+        let restarted = MugshotAnalytics(transport: spy, quarantine: quarantine)
+        restarted.configure(infoDictionary: configuration)
+        #expect(spy.configurations.count == 2)
+    }
+
     @Test func homeWorkbenchAnalyticsContainsOnlyStructuralAction() {
         let payload = MugshotAnalyticsEvent.homeWorkbench(action: .scanSucceeded).payload
 

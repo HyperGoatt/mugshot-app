@@ -571,6 +571,7 @@ private final class SupabaseAccountDeletionFunctionTransport: AccountDeletionFun
         guard currentUserID == record.subjectID else {
             throw AccountDeletionError.accountScopeChanged
         }
+        try MugshotAnalytics.shared.prepareForAccountDeletion()
         return try await client.functions.invoke(
             "delete-account",
             options: FunctionInvokeOptions(

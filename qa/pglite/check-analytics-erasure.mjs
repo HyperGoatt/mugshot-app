@@ -18,6 +18,8 @@ try {
  assert.equal((await row()).owner_id,owner,'account ID durably queued before deletion');
  assert.equal(await claim(),undefined,'no processing before identity deletion');
  await db.query('update private.account_deletion_jobs set identity_deleted_at=now() where id=$1',[job]);
+ assert.equal(await claim(),undefined,'hold for bounded native uploads to settle');
+ await db.query("update private.account_analytics_erasures set identity_deleted_at=now()-interval '6 minutes' where request_id=$1",[request]);
  await db.query('delete from public.users where id=$1',[owner]);
  await db.query('delete from private.account_deletion_jobs where id=$1',[job]);
  assert.equal((await row()).job_id,null,'cleanup survives job retention independently');
