@@ -6,6 +6,16 @@ last_verified: 2026-09-12
 
 # Real data flow status
 
+Sprint 1 source adds readable `/profile/username` links, permanently reserved
+handle aliases, and anonymous recipient pages in the companion PWA. Local
+handle contracts and synthetic browser checks pass; these changes are not yet
+production deployed or accepted on an installed app. Current delivery evidence
+is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+
+The standalone moderation provider boundary has passed synthetic local tests.
+It is not connected to database writes, queue processing or production. Private
+content and private notes remain excluded; production screening is not active.
+
 ## Authority model
 
 Mugshot uses remote truth for durable signed-in product state and scoped local
@@ -70,7 +80,7 @@ on RLS for visibility.
 ## Current migration boundary
 
 The Sprint 1 repository migration head is
-`20260913020258_sprint1_profile_consent.sql` (not deployed). The preceding
+`20260913023233_sprint1_readable_profile_links.sql` (not deployed). The preceding
 `20260826143102_profile_editorial_atlas.sql` is the last deployed profile migration. It follows the additive reaction
 migration in repository order. The profile migration is production-configured
 and its expected tables/RPCs resolve in the connected project; the additive

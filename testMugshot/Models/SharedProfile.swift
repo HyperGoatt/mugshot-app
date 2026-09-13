@@ -337,6 +337,15 @@ struct MugshotProfileSharedLinkRoute: Identifiable, Equatable {
     let slug: String
     var id: String { slug }
 
+    static func isValidUsername(_ value: String) -> Bool {
+        value.range(of: "^[A-Za-z0-9_]{3,30}$", options: .regularExpression) != nil
+    }
+
+    static func isValidIdentifier(_ value: String) -> Bool {
+        MugshotSharedLinkRoute.isValidSlug(value)
+            || (value.hasPrefix("@") && isValidUsername(String(value.dropFirst())))
+    }
+
     static func resolve(
         _ url: URL,
         publicBaseURL: URL? = MugshotShareConfiguration.load().publicBaseURL
@@ -345,15 +354,19 @@ struct MugshotProfileSharedLinkRoute: Identifiable, Equatable {
         if url.scheme?.lowercased() == "mugshot", let host = url.host {
             parts.insert(host, at: 0)
         }
-        guard parts.count == 2,
-              parts[0].lowercased() == "p",
-              MugshotSharedLinkRoute.isValidSlug(parts[1]) else { return nil }
+        guard parts.count == 2, url.user == nil, url.password == nil else { return nil }
+        let identifier: String
+        if parts[0].lowercased() == "profile", isValidUsername(parts[1]) {
+            identifier = "@" + parts[1].lowercased()
+        } else if parts[0].lowercased() == "p", MugshotSharedLinkRoute.isValidSlug(parts[1]) {
+            identifier = parts[1]
+        } else { return nil }
         if url.scheme?.lowercased() == "mugshot" {
-            return MugshotProfileSharedLinkRoute(slug: parts[1])
+            return MugshotProfileSharedLinkRoute(slug: identifier)
         }
         guard let publicBaseURL,
               url.scheme?.lowercased() == "https",
               url.host?.lowercased() == publicBaseURL.host?.lowercased() else { return nil }
-        return MugshotProfileSharedLinkRoute(slug: parts[1])
+        return MugshotProfileSharedLinkRoute(slug: identifier)
     }
 }

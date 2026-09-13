@@ -6,6 +6,14 @@ last_verified: 2026-09-12
 
 # Mugshot feature status matrix
 
+Sprint 1 source adds readable `/profile/username` links, permanently reserved
+handle aliases, and anonymous recipient pages in the companion PWA. The
+unavailable Journal Passport entry and onboarding promotion are removed; the
+companion marketing site removes current-feature promises. Local
+handle contracts and synthetic browser checks pass; these changes are not yet
+production deployed or accepted on an installed app. Current delivery evidence
+is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+
 Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
 
 Sprint 1 implementation is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).

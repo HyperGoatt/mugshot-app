@@ -8,6 +8,23 @@ last_verified: 2026-09-12
 
 ## 2026-09-12
 
+- Added the standalone moderation provider boundary with Private exclusion,
+  metadata stripping, explicit input fields and fail-closed error handling.
+  Seven synthetic Deno tests pass. Queue and publication integration remain
+  pending; no user content has been sent and no worker is deployed.
+
+- Removed the unavailable Journal Passport shortcut and upgrade holding screen,
+  along with onboarding and marketing promises. Existing working profile
+  summaries remain. The legacy marketing landing now explains unavailability.
+
+- Implemented readable `/profile/username` links with permanent owner aliases
+  and deleted-handle tombstones. Existing revoked tokens stay unavailable.
+  Anonymous PWA sip/profile recipients and marketing rewrites are implemented
+  in companion repositories; public API data is no longer service-worker cached.
+  Local handle, Edge type and synthetic browser checks pass; production and
+  installed-app acceptance remain pending. Share artwork now stops if the
+  anonymous projection cannot load, instead of falling back to owner data.
+
 - Created the dedicated Mugshot OpenAI project; verified all three optional
   training-related data-sharing controls disabled. A synthetic-only moderation
   request returned HTTP 200. No user content was transmitted.

@@ -123,9 +123,9 @@ final class testMugshotUITests: XCTestCase {
     func testJournalAccountMenuOpensSettings() throws {
         let app = launch(reset: true)
         app.buttons["Journal"].tap()
-        XCTAssertFalse(app.buttons["Open your profile"].exists)
-        XCTAssertTrue(app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3))
-        app.buttons["Open your profile and Taste Passport"].tap()
+        XCTAssertFalse(app.buttons["Open your profile and Taste Passport"].exists)
+        XCTAssertTrue(app.buttons["Open your profile"].waitForExistence(timeout: 3))
+        app.buttons["Open your profile"].tap()
         tapAfterRevealing(app.buttons["Settings"], in: app, maximumSwipes: 12)
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
@@ -150,12 +150,12 @@ final class testMugshotUITests: XCTestCase {
             XCTAssertTrue(saved.isSelected, "Saved failed on pass \(pass)")
             journal.tap()
             XCTAssertTrue(
-                app.buttons["Open your profile and Taste Passport"].waitForExistence(timeout: 3),
+                app.buttons["Open your profile"].waitForExistence(timeout: 3),
                 "Journal stopped responding on pass \(pass)"
             )
         }
 
-        app.buttons["Open your profile and Taste Passport"].tap()
+        app.buttons["Open your profile"].tap()
         let settings = app.buttons["Settings"]
         tapAfterRevealing(settings, in: app, maximumSwipes: 12)
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
@@ -192,15 +192,14 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
-    func testJournalTastePassportShowsUpgradeHoldingScreen() throws {
+    func testJournalOmitsUnavailablePassportAndKeepsArchive() throws {
         let app = launch(reset: true)
         app.buttons["mugshot.tab.journal"].tap()
-        let passport = app.buttons["Taste Passport"]
-        reveal(passport, in: app, maximumSwipes: 8)
-        passport.tap()
-
-        XCTAssertTrue(app.staticTexts["Your Taste Passport is getting an upgrade"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.descendants(matching: .any)["tastePassport.upgradeHolding"].exists)
+        let archive = app.buttons["Archive"]
+        reveal(archive, in: app, maximumSwipes: 8)
+        XCTAssertTrue(archive.exists)
+        XCTAssertFalse(app.buttons["Taste Passport"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["tastePassport.upgradeHolding"].exists)
     }
 
     @MainActor

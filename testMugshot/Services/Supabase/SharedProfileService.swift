@@ -39,7 +39,14 @@ final class SharedProfileService {
     }
 
     func sharedProjection(slug: String) async throws -> SharedProfileProjection? {
-        guard MugshotSharedLinkRoute.isValidSlug(slug) else { return nil }
+        guard MugshotProfileSharedLinkRoute.isValidIdentifier(slug) else { return nil }
+        do {
+            return try await client.rpc(
+                "get_profile_link_v1", params: ["p_slug": slug]
+            ).execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard !slug.hasPrefix("@") else { return nil }
+        }
         do {
             return try await client.rpc(
                 "get_profile_share_v3",
@@ -97,10 +104,15 @@ final class SharedProfileService {
     }
 
     func sharedCafes(slug: String, limit: Int = 500) async throws -> [SharedProfilePublicCafe] {
-        try await client.rpc(
-            "list_profile_share_cafes_v1",
-            params: SharedProfileCollectionParameters(slug: slug, limit: limit)
-        ).execute().value
+        let parameters = SharedProfileCollectionParameters(slug: slug, limit: limit)
+        do {
+            return try await client.rpc("list_profile_link_cafes_v1", params: parameters)
+                .execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard !slug.hasPrefix("@") else { return [] }
+            return try await client.rpc("list_profile_share_cafes_v1", params: parameters)
+                .execute().value
+        }
     }
 
     func publicTaggedSips(
@@ -127,15 +139,18 @@ final class SharedProfileService {
         afterID: UUID? = nil,
         limit: Int = 24
     ) async throws -> [PublicProfileVisit] {
-        let visits: [PublicProfileVisit] = try await client.rpc(
-            "list_profile_share_tagged_sips_v1",
-            params: SharedProfileSipsParameters(
-                slug: slug,
-                limit: limit,
-                afterCreatedAt: afterCreatedAt,
-                afterID: afterID
-            )
-        ).execute().value
+        let parameters = SharedProfileSipsParameters(
+            slug: slug, limit: limit, afterCreatedAt: afterCreatedAt, afterID: afterID
+        )
+        let visits: [PublicProfileVisit]
+        do {
+            visits = try await client.rpc("list_profile_link_tagged_sips_v1", params: parameters)
+                .execute().value
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard !slug.hasPrefix("@") else { return [] }
+            visits = try await client.rpc("list_profile_share_tagged_sips_v1", params: parameters)
+                .execute().value
+        }
         return visits.filter(\.isPublishedOnProfile)
     }
 
@@ -212,6 +227,14 @@ final class SharedProfileService {
         )
         do {
             let visits: [PublicProfileVisit] = try await client.rpc(
+                "list_profile_link_sips_v1", params: parameters
+            ).execute().value
+            return visits.filter(\.isPublishedOnProfile)
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard !slug.hasPrefix("@") else { return [] }
+        }
+        do {
+            let visits: [PublicProfileVisit] = try await client.rpc(
                 "list_profile_share_sips_v2",
                 params: parameters
             ).execute().value
@@ -227,6 +250,15 @@ final class SharedProfileService {
 
     func createOwnerShareURL() async throws -> URL? {
         guard let baseURL = configuration.publicBaseURL else { return nil }
+        do {
+            let username: String = try await client.rpc("get_my_profile_username_v1")
+                .execute().value
+            guard MugshotProfileSharedLinkRoute.isValidUsername(username) else { return nil }
+            return baseURL.appendingPathComponent("profile")
+                .appendingPathComponent(username.lowercased())
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            // Keep working legacy links during the additive backend rollout.
+        }
         let slug: String = try await client.rpc("create_profile_share_link_v1")
             .execute().value
         return baseURL

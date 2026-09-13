@@ -17,7 +17,6 @@ struct JournalTabView: View {
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var showOwnerProfile = false
-    @State private var showTastePassportUpgrade = false
     @State private var localDrafts: [SipDraft] = []
     @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
@@ -156,9 +155,6 @@ struct JournalTabView: View {
                     cafeExperienceSummaries: cafeExperienceSummaries
                 )
                 .environmentObject(authModel)
-            }
-            .navigationDestination(isPresented: $showTastePassportUpgrade) {
-                TastePassportUpgradeHoldingView()
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -311,7 +307,7 @@ struct JournalTabView: View {
             .cardStyle()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open your profile and Taste Passport")
+        .accessibilityLabel("Open your profile")
     }
 
     private var journalToolsSection: some View {
@@ -348,14 +344,6 @@ struct JournalTabView: View {
                     systemImage: "archivebox"
                 ) {
                     showJournalArchive = true
-                }
-
-                journalShortcut(
-                    title: "Taste Passport",
-                    subtitle: "Getting an upgrade",
-                    systemImage: "book.pages"
-                ) {
-                    showTastePassportUpgrade = true
                 }
             }
         }
@@ -660,46 +648,6 @@ struct JournalTabView: View {
         }
     }
 
-}
-
-private struct TastePassportUpgradeHoldingView: View {
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-                MugsyModelView(configuration: MugsyPlacement.journalEmpty.configuration)
-                    .frame(width: 190, height: 190)
-                    .accessibilityHidden(true)
-
-                VStack(spacing: 10) {
-                    Text("Your Taste Passport is getting an upgrade")
-                        .mugshotDisplay(size: 30)
-                        .foregroundColor(.espressoBrown)
-                        .multilineTextAlignment(.center)
-
-                    Text("Mugsy is building a more personal way to connect the patterns across your sips. Your journal is still learning what makes your taste yours—check back soon.")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(20)
-                .cardStyle()
-
-                Label("Every sip you save keeps the story growing.", systemImage: "sparkles")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.mugshotSageText)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 40)
-        }
-        .background(Color.creamWhite)
-        .navigationTitle("Taste Passport")
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("tastePassport.upgradeHolding")
-    }
 }
 
 private struct OwnerPassportProfileView: View {

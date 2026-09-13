@@ -22,12 +22,12 @@ unavailable Passport promises. Broad redesign and new growth features are out.
 | --- | --- | --- |
 | OpenAI setup | Dedicated Mugshot project created; feedback, evaluation/fine-tuning, and API input/output sharing all visibly Disabled organization-wide; project key saved locally outside Git; synthetic text-only moderation HTTP 200 | Server deployment and recurring release configuration checks |
 | Profile consent | Versioned RPC, disable-only legacy setter, author plus tagged-profile consent; isolated PostgreSQL behavior test and iOS Debug app/test compile pass | Runtime acceptance and production deployment |
-| Screening and review | Not implemented | Revision-bound pending/approved/needs-review/rejected states; worker retries; all outward projection gates; protected moderator queue; rate/spam controls; reporting/enforcement and reconsideration |
+| Screening and review | Standalone provider boundary implemented; seven synthetic Deno tests pass Private exclusion, payload minimization, metadata stripping, fail-closed responses, retries and initial spam signals | Revision-bound database queue; scheduled worker; all outward gates; protected moderator queue; rate controls; reporting/enforcement and reconsideration |
 | Existing shared content | Not screened | Updated disclosures, staged screening; unscreened content withheld from outward surfaces; owner access retained |
 | Deletion | Existing V3 orchestration; audit found production initiation disabled | Fresh-auth/provider revocation, interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
-| Readable profile and sip links | Not implemented | Canonical username routing, reserved aliases, legacy-token compatibility, web recipient and installed-app journeys |
+| Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, exact backend replay and deployment, installed-app journey |
 | Reactions | Existing additive migration not production deployed at audit | Isolated replay, capability fallback, production deployment and candidate acceptance |
-| Passport claims | Not changed | Remove unavailable entry and marketing promises while retaining working summaries |
+| Passport claims | Removed Journal upgrade-only entry and onboarding Passport promotion; marketing promotion, FAQ, feature schema and guide claims removed; legacy web page states unavailability | Source compile and marketing render checks pass; deployment and batched native acceptance remain |
 | Release | Not accepted | Static/backend checks, batched Simulator and owner-promoted device acceptance, separately authorized TestFlight upload and exact-build acceptance |
 
 ## No-training operating contract
@@ -70,5 +70,26 @@ must never enter the repository.
 consent-read adjustment passed the focused PostgreSQL test and a fresh generic
 iOS Debug app/test compile. Documentation checker and diff checks passed.
 No Simulator was booted, no Supabase project was mutated, and no TestFlight
-build was created. The draft branch contains only the first consent fix and
-setup evidence; the remaining sprint workstreams are not implemented.
+build was created. Readable sharing implementation now follows the consent checkpoint. Its isolated
+handle contract, Edge type checks, PWA build, marketing verification (14 tests),
+and synthetic Playwright recipient checks pass. Native integration and full
+backend replay remain pending. Browser plugin was unavailable; local Playwright
+used 390x844 and 1280x900 viewports. Profile/sip rendering, unavailable-state
+clearing, retry, native-link destinations and absence of runtime errors passed.
+Screening, deletion completion and release remain outstanding. Passport removal
+passed the updated generic iOS app/test compile, marketing build verification,
+and local browser navigation check. Final sharing-source compile passed after
+restoring old-backend collection fallbacks and making share artwork require a
+successful anonymous projection. UI test expectations now match the retired
+Passport entry; execution remains queued for consolidated acceptance.
+
+
+## Screening implementation checkpoint
+
+The provider module is locally tested, not deployed or connected to content
+writes. It admits only shared text and prepared JPEG/PNG bytes to standalone
+moderation. Private audience and unverified no-training configuration stop
+before transmission. Provider failures cannot produce approval; flags require
+review. Queue leases, revision checks, outward publication gates and founder
+review integration remain required before activation. No user content has been
+sent during these tests.

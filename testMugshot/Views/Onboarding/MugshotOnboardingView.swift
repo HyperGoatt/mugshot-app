@@ -50,7 +50,7 @@ struct MugsyGuestIntroductionView: View {
                         GuestIntroductionRow(
                             icon: "lock.shield.fill",
                             title: "You choose what leaves the journal",
-                            detail: "Private notes stay private. Posts, recipes, and your Taste Passport each have their own audience."
+                            detail: "Private notes stay private. Choose who can see each post you share."
                         )
                         Divider().padding(.leading, 54)
                         GuestIntroductionRow(
@@ -326,7 +326,7 @@ struct MugshotSignedInOnboardingView: View {
                     .mugshotDisplay(size: 39)
                     .foregroundColor(.espressoBrown)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Mugsy helps turn the drinks you notice into memories, places to return to, and a Taste Passport that grows with you.")
+                Text("Mugsy helps you remember the drinks you notice and the places you want to return to.")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundColor(.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -609,7 +609,7 @@ enum MugshotProductTourStep: Int, CaseIterable, Identifiable {
         case .map: "Every cafe you rate becomes a pin. Zoom out and watch your whole coffee world come into view."
         case .feed: "Your Mix brings the sips most relevant to you forward. Switch to Friends for the intimate view."
         case .saved: "Favorites, Want to Try, and Lists keep every cafe plan in one place."
-        case .journal: "Every sip, private note, recipe, and Taste Passport signal comes home here."
+        case .journal: "Every sip, private note, and recipe comes home here."
         case .shareImport: "In Google Maps, tap Share, choose Mugshot, and save the cafe straight to Want to Try."
         }
     }
@@ -1022,7 +1022,6 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
     case friends
     case saved
     case journal
-    case tastePassport
     case googleMaps
     case add
 
@@ -1037,7 +1036,6 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
         case .friends: "OnboardingMarketing04Friends"
         case .saved: "OnboardingMarketing05Saved"
         case .journal: "OnboardingMarketing06Journal"
-        case .tastePassport: "OnboardingMarketing07TastePassport"
         case .googleMaps: "OnboardingMarketing08GoogleMaps"
         case .add: "OnboardingMarketing09Account"
         }
@@ -1051,7 +1049,6 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
         case .friends: "Your people. Your pace. Your privacy."
         case .saved: "Never forget the cafe you meant to try."
         case .journal: "A memory, not just a rating."
-        case .tastePassport: "Your taste has a story."
         case .googleMaps: "Found it on Maps? Keep it in Mugshot."
         case .add: "Ready to remember your first sip?"
         }
@@ -1071,8 +1068,6 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
             "Favorites, Want to Try, and Lists keep the next plan one tap away."
         case .journal:
             "Keep the photo, the feeling, the recipe, and the details you would otherwise forget."
-        case .tastePassport:
-            "Mugshot finds the patterns in your memories—and turns them into a Taste Passport that keeps getting more personal."
         case .googleMaps:
             "Share any cafe from Google Maps straight to Want to Try—before you forget it."
         case .add:

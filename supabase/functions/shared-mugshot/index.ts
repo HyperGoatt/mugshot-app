@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   type MediaSigningClient,
   resolvedCapabilityMediaURL,
@@ -32,6 +32,7 @@ type PublicMugshot = {
 };
 
 const privateHeaders = {
+  "Access-Control-Allow-Origin": "*",
   "Cache-Control": "private, no-store",
   "X-Content-Type-Options": "nosniff",
   "X-Robots-Tag": "noindex, nofollow, noarchive",
