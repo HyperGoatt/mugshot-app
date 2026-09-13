@@ -386,6 +386,8 @@ select * from public.upsert_visit_v3_reflection_v1(
 );
 
 reset role;
+-- Shared reflection edits require admission of the new visit revision.
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -432,6 +434,8 @@ select * from public.upsert_visit_v3_reflection_v1(
 );
 
 reset role;
+-- Shared reflection edits require admission of the new visit revision.
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

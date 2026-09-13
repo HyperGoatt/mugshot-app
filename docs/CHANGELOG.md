@@ -8,6 +8,21 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Closed paid catalog QA and verified that only the main branch remains.
+  Staged approved production OpenAI/Maps credentials with screening disabled;
+  verified secret digests. Native/provider acceptance and rollout remain open.
+
+- Legacy reflection and comment projections now enforce current screening
+  admission, including reply counts. Recipe identity lookup respects the linked
+  recipe visibility and screening state. Owner-only criterion extras remain
+  available to the owner and are excluded from outward reflection projection.
+
+- Canonical post screening now includes explicitly shared raw notes, visible
+  brew/equipment fields and visible criterion names. Reflection edits refresh
+  revisions; Private posts and private raw notes remain excluded. Canonical
+  criteria omit arbitrary extra keys, and discovery enrichment respects cafe
+  admission and screened public evidence. Focused hosted acceptance passes.
+
 - Added a dedicated deletion-worker secret override after live scheduled QA
   exposed a legacy credential mismatch. User authorization is unchanged;
   production activation requires a verified scheduled HTTP response.

@@ -1,7 +1,7 @@
 begin;
 set local request.jwt.claim.sub='00000000-0000-4000-8000-000000000101';
 set local role authenticated;
-insert into public.cafes(id,name,address) values('00000000-0000-4000-8000-000000009901','Private synthetic cafe','Private synthetic address');
+insert into public.cafes(id,name,address,latitude,longitude) values('00000000-0000-4000-8000-000000009901','Private synthetic cafe','Private synthetic address',1,2);
 do $$ begin
  if not exists(select 1 from public.cafes where id='00000000-0000-4000-8000-000000009901') then raise exception 'submitter lost cafe';end if;
  if has_function_privilege('authenticated','public.accept_verified_cafe_v1(uuid,text,text,jsonb)','execute')
@@ -17,9 +17,10 @@ do $$ begin
   raise exception 'guessed cafe reference admitted';
  exception when insufficient_privilege then null;end;
  if exists(select 1 from public.resolve_cafe_summary('Private synthetic cafe')) then raise exception 'legacy resolver bypass';end if;
+ if public.enrich_discovery_candidates_v1('[{"name":"Private synthetic cafe","latitude":1,"longitude":2}]')->0->>'cafe_id' is not null then raise exception 'enrichment exposed hidden cafe identity';end if;
 end $$;
 -- Identically named manual cafes remain independently saveable without leaking.
-insert into public.cafes(id,name,address) values('00000000-0000-4000-8000-000000009902','Private synthetic cafe','Private synthetic address');
+insert into public.cafes(id,name,address,latitude,longitude) values('00000000-0000-4000-8000-000000009902','Private synthetic cafe','Private synthetic address',1,2);
 reset role;
 set local request.jwt.claim.sub='';
 set local role anon;

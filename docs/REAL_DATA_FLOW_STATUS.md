@@ -144,3 +144,21 @@ The QA deletion journey now includes actual uploaded bytes and fresh-session
 authorization. Initial manifest counts are fixed by migration `20260913195241`;
 identity removal, media removal and recovery without authentication pass.
 This does not yet establish production activation or Apple provider revocation.
+
+
+Canonical shared-post text includes visible brew/equipment fields, context
+criterion names, and raw notes only when explicitly shared. Reflection changes
+refresh the associated screening revision. Private posts and private raw notes
+are excluded. The canonical criterion projection uses an explicit key allowlist.
+Discovery enrichment cannot reveal hidden cafe IDs and only aggregates admitted
+public visit evidence. Migration `20260913200859` is verified on isolated QA.
+
+Legacy reflection reads now require current visit admission, comment lists and
+reply counts exclude pending comment revisions, and recipe identity lookup
+requires the same authorization as recipe projection. The focused hosted
+regression passes at migration `20260913202410`.
+
+Paid catalog QA is deleted and absence verified. OpenAI and Maps credentials
+are staged in production with screening disabled; this does not establish
+production feature activation. Native acceptance and the asynchronous
+PostHog erasure confirmation remain open.

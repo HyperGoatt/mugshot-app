@@ -6,6 +6,24 @@ last_verified: 2026-09-13
 
 # Sprint 1 delivery: trust, moderation, and working sharing
 
+
+## Current checkpoint — September 13, final QA closure
+
+Sprint 1 is implemented on the feature branches, with release acceptance and
+production rollout still open. All 162 migrations replayed on isolated QA.
+The final 62-contract run passed 61; its older reflection test needed explicit
+new-revision admission after a shared-note edit. That focused contract now
+passes without weakening its audience assertions. Backend checks pass 11/11
+with optional pglast skipped; native compile and companion verification remain
+green as detailed below.
+
+Paid QA is deleted and absence verified. Production OpenAI and Maps credentials
+are staged with both screening activation gates false; no production content
+processing or new migration rollout is claimed. Native acceptance needs the Mac
+unlocked, and the existing synthetic PostHog erasure receipt remains pending.
+The active 15-minute heartbeat continues this task when those states change.
+TestFlight remains a separate explicit authorization gate.
+
 ## Confirmed requirements
 
 OpenAI moderation plus Joe's review queue; no Mugshot data shared for model
@@ -1444,3 +1462,60 @@ worker bearer and recovery capability. User actions still require Auth checks.
 Live direct worker acceptance now returns 200 for the configured secret and
 401 for an unrelated bearer. The backend gate passes 11 checks, with only the
 optional pglast parser skipped. Scheduled HTTP acceptance remains separate.
+
+
+## Scheduled workers and companion integration — September 13
+
+The actual QA deletion cron request returned HTTP 200 at 20:00 UTC with an
+empty successful drain. The screening schedule processed the synthetic profile
+in one attempt, approved its revision, and was then disabled. All scheduled jobs
+are inactive again. The Private-visit screening queue count was zero.
+
+The PWA branch now merges current main without conflicts. It retains canonical
+post data and current companion screens while adding account-scoped query
+cancellation/cache disposal and protected media to the new consumers. Owner
+and viewed-profile Share actions now produce readable username links. The
+actual TypeScript app check, all 45 tests, production build, and 45 PWA checks
+pass; GitHub verification and Vercel preview checks pass. Marketing checks and
+preview also pass. The integrated readable profile renders real QA data.
+
+Projection review found that canonical posts exposed explicitly shared raw
+notes and visible brew/equipment text outside the existing screening payload.
+Migration `20260913200859` includes only those outward fields and criterion
+names; private raw notes and Private posts remain excluded. Reflection edits
+refresh revisions, pending canonical posts are withheld, and arbitrary extra
+criterion keys are excluded from projection. Its hosted regression passes.
+Discovery enrichment also now enforces cafe admission and screened public
+visit evidence. These are forward fixes; production remains unchanged.
+
+
+## Legacy projection acceptance — September 13
+
+Read-path review followed the callable profile, post, recipe, reflection,
+comment, discovery and activity projections into their admission helpers.
+Migration `20260913202224` closes screening bypasses in legacy reflection and
+comment RPCs, including reply counts. Migration `20260913202410` prevents a
+visible visit from independently exposing a pending or private linked recipe
+identity. The focused regression passes, including admitted content becoming
+visible and edited comments returning to pending. Owner recovery remains.
+
+The 61-contract combined run at migration 160 passed without failures. The
+backend gate at the final source passes 11 checks with only optional pglast
+skipped. No Swift change required another equivalent compile. Native runtime
+acceptance is still blocked by the locked Mac. PostHog accepted the synthetic
+erasure but has not yet returned a verified completion receipt.
+
+A 15-minute heartbeat is active for this task so those external waits do not
+require another request to continue. It remains quiet while the state is
+unchanged, must not leave paid QA running while waiting, and may mark the goal
+complete only after actual acceptance and production rollout. TestFlight is
+still a separate explicit authorization gate.
+
+
+The final legacy projection contract passes. The older reflection audience
+contract now admits its edited synthetic revision before testing audience
+visibility and passes separately. Paid QA was then deleted, and listing
+branches verified only main. The exact local cleanup receipt records absence.
+Production OpenAI/Maps credential digests match approved inputs; screening and
+no-training activation flags remain false. These facts supersede earlier
+statements that QA is active or that all provider credentials are local-only.

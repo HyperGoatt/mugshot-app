@@ -9,6 +9,7 @@ declare
   snapshot timestamptz;
   target private.account_analytics_erasures;
   claimed private.account_analytics_erasures;
+  claim_attempt integer;
 begin
   if has_function_privilege('anon', 'public.retry_account_analytics_erasure_v1(uuid,uuid,timestamptz,text)', 'execute')
      or has_function_privilege('authenticated', 'public.retry_account_analytics_erasure_v1(uuid,uuid,timestamptz,text)', 'execute')
@@ -39,7 +40,13 @@ begin
     raise exception 'operation reuse with different facts was accepted';
   exception when sqlstate '22023' then null;
   end;
-  select * into claimed from public.claim_account_analytics_erasures_v1(1);
+  -- Runtime acceptance may leave older synthetic cleanup work in this QA
+  -- database. Claim through it inside this rolled-back transaction rather
+  -- than assuming this contract owns the first queue position.
+  for claim_attempt in 1..(select count(*)::integer + 1 from private.account_analytics_erasures) loop
+    select * into claimed from public.claim_account_analytics_erasures_v1(1);
+    exit when claimed.request_id is null or claimed.request_id = request;
+  end loop;
   if claimed.request_id is distinct from request then
     raise exception 'recovered analytics work was not claimable';
   end if;

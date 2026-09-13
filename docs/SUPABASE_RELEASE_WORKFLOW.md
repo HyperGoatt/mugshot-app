@@ -17,14 +17,14 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913195241_sprint1_deletion_manifest_initial_count.sql`. Sprint 1 migrations
+`20260913202410_sprint1_recipe_identity_admission.sql`. Sprint 1 migrations
 are not deployed to production; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
 `20260825030917_post_reactions.sql` and the new Sprint 1 migrations are absent
 from production. At the initial inventory only the default branch existed. The approved
-`sprint1-catalog-qa-20260913` branch is currently active for runtime acceptance
-and must be deleted when that work ends. The live project reference is recorded in the existing Supabase link,
+`sprint1-catalog-qa-20260913` branch was deleted after its database and server
+runtime checks; a fresh branch inventory confirms only main remains. The live project reference is recorded in the existing Supabase link,
 and QA scripts refuse that production reference.
 
 The first Sprint 1 QA branch was created without data, used for repository
@@ -36,10 +36,14 @@ with verified schema/row invariants and a rehearsed rollback. See the
 [exact repair evidence](SPRINT_1_MIGRATION_HISTORY_REPAIR_2026-09-13.md).
 A fresh data-less branch automatically replayed 113 migrations through
 `20260809144548`; the next migration requires operational scheduler Vault
-configuration. The check branch was deleted and absence verified. The later catalog QA branch has replayed all 159 migrations. All 59 contracts
-at the previous head passed together; the additional non-empty deletion
-manifest contract passed separately after its forward fix. Runtime acceptance
-continues.
+configuration. The check branch was deleted and absence verified. The later catalog QA branch replayed all 162 migrations. All 61 contracts
+at migration 160 passed together. Focused legacy reflection, comment and recipe
+identity admission acceptance also passes at migration 162; the combined
+62-contract run passed 61, with the older reflection test expecting edited text
+to bypass screening. Its fixtures now explicitly approve those new revisions,
+and the focused reflection contract passes with its audience assertions intact.
+The complete suite was not repeated after that test-only correction. Native
+runtime acceptance remains separate.
 See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
 ## Non-negotiable invariants
@@ -246,3 +250,17 @@ its user actions validate the token through Auth, while recovery capabilities
 and the dedicated worker bearer must also function without a user JWT. This
 matches the handler's existing authentication design. The live QA worker now
 returns HTTP 200 with its configured secret and 401 with an unrelated bearer.
+
+
+## Provider staging and paid QA closure — September 13
+
+The production OpenAI key and three Apple Maps settings are stored in Supabase
+secrets. Their digests match the approved local credentials. Both
+`SCREENING_ENABLED` and `SCREENING_NO_TRAINING_VERIFIED` are explicitly false,
+verified by digest, so this is credential staging only. Activation still requires
+fresh no-training settings verification, disclosures and accepted runtime gates.
+No production migration or new function was deployed at this checkpoint.
+
+The catalog QA branch was deleted and absence verified; only main remains.
+Provider deletion polling does not require a paid QA database. A new QA
+environment may be created only for active acceptance, then must be removed.
