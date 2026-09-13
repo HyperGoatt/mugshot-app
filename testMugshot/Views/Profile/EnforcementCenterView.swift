@@ -494,7 +494,7 @@ struct EnforcementCenterView: View {
     private func reportTargetTitle(_ targetKind: String) -> String {
         switch targetKind {
         case "visit": "MugShot report"
-        case "comment": "Comment report"
+        case "comment", "cafe_list_comment": "Comment report"
         default: "Account report"
         }
     }

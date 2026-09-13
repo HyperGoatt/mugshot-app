@@ -493,6 +493,7 @@ struct AccountDataLifecycleTests {
             subjectId: transport.userID,
             identityDeleted: true,
             cleanupStatus: "completed",
+            providerCleanup: "pending",
             completionProofState: "completed",
             status: "completed"
         )
@@ -501,15 +502,18 @@ struct AccountDataLifecycleTests {
             recoveryStore: store
         )
 
-        _ = try await service.deleteCurrentAccount(
+        let outcome = try await service.deleteCurrentAccount(
             expectedUserID: transport.userID,
             requestID: transport.expectedRequestID,
+            appleAuthorizationCode: "synthetic-one-use-code",
             authenticateFreshSession: {
                 #expect(store.values.first?.requestID == transport.expectedRequestID)
                 return transport.freshAuthentication()
             }
         )
 
+        #expect(outcome == .identityDeleted(cleanup: .completed, providerCleanup: "pending"))
+        #expect(transport.appleAuthorizationCode == "synthetic-one-use-code")
         #expect(
             transport.events
                 == ["begin_step_up", "fresh_authentication", "authorize_step_up", "delete"]
@@ -1291,6 +1295,7 @@ private final class DeletionTransportStub: AccountDeletionFunctionTransport {
     private let challengeID = UUID()
     private(set) var events: [String] = []
     private(set) var freshSessionCreated = false
+    private(set) var appleAuthorizationCode: String?
     private(set) var deletionRequestIDs: [UUID] = []
     private(set) var recoveryRequestIDs: [UUID] = []
     private(set) var acknowledgementRequestIDs: [UUID] = []
@@ -1340,9 +1345,11 @@ private final class DeletionTransportStub: AccountDeletionFunctionTransport {
 
     func authorizeStepUp(
         record: AccountDeletionRecoveryRecord,
-        challengeID: UUID
+        challengeID: UUID,
+        appleAuthorizationCode: String?
     ) async throws -> AccountDeletionStepUpAuthorization {
         events.append("authorize_step_up")
+        self.appleAuthorizationCode = appleAuthorizationCode
         guard freshSessionCreated,
               record.subjectID == currentUserID else {
             throw AccountDeletionError.accountScopeChanged

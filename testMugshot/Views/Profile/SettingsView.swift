@@ -232,6 +232,13 @@ struct SettingsView: View {
 
             settingsGroup("Safety and Account Status") {
                 NavigationLink {
+                    ContentScreeningView()
+                        .environmentObject(authModel)
+                } label: {
+                    settingsRow("Shared Content Status", systemImage: "text.badge.checkmark")
+                }
+                Divider().padding(.leading, 60)
+                NavigationLink {
                     EnforcementCenterView()
                         .environmentObject(authModel)
                 } label: {
@@ -1069,6 +1076,7 @@ struct AccountDeletionVerificationView: View {
                 await authModel.deleteAccountWithApple(
                     idToken: idToken,
                     nonce: nonce,
+                    authorizationCode: credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) },
                     dataManager: dataManager
                 )
             }
@@ -1112,8 +1120,11 @@ private enum PrivacyDocument {
     static let sections = [
         ("Effective date", "This summary applies to the current Mugshot app release. The full, current policy is always available from the link below."),
         ("What Mugshot stores", "Mugshot stores your profile, journal, photos, private notes, ratings, recipes, saved cafes and lists, social interactions, activity history, and safety reports to provide the app."),
-        ("How it is used", "Your information keeps your journal in sync and shows each post, recipe, Taste Passport, list, and social interaction only to its permitted audience. Private journal notes are not used as social copy."),
-        ("Your choices", "You can manage post, recipe, and Taste Passport audiences; push preferences; blocked accounts; appeals; data export; sign-out; and account deletion from Settings."),
+        ("How it is used", "Your information keeps your journal in sync and shows each post, recipe, list, and social interaction only to its permitted audience. Private journal notes are not used as social copy."),
+        ("Shared-content screening", "Mugshot uses OpenAI’s moderation API to screen profile information visible to others and text and photos you choose to share, including Friends and Everyone Mugshots, comments, cafe lists, shared recipes, and recommendation notes. Private journal entries, private notes, and private recipes are excluded. We remove supported photo metadata and send only the shared fields needed for screening."),
+        ("No model training", "Mugshot does not opt into using this content to train or improve OpenAI models. No training does not mean content stays entirely inside Mugshot: OpenAI processes the admitted content to assess safety. Human review decisions and appeal statements remain with Mugshot and are not sent to OpenAI."),
+        ("Review and appeals", "Shared content may be held while screening or human review is pending. Automated checks can make mistakes; Mugshot reviewers decide flagged cases. Passing screening does not expand your selected audience or public-profile consent. You can view shared-content status, request reconsideration, and appeal enforcement decisions in the native app’s Safety and Account Status settings."),
+        ("Your choices", "You can manage post and recipe audiences, public-profile sharing; push preferences; blocked accounts; appeals; data export; sign-out; and account deletion from Settings."),
         ("Deletion and safety records", "Deleting your account removes your profile, journal, media, social access, and account access. Limited safety evidence and deletion receipts may remain in restricted records to prevent abuse and prove completion.")
     ]
 }
@@ -1122,6 +1133,7 @@ private enum TermsDocument {
     static let sections = [
         ("Effective date", "This summary applies to the current Mugshot app release. The full, current terms are available from the link below."),
         ("Your content", "Only share photos, notes, and comments you have the right to use. Keep the coffee community respectful."),
+        ("Safety review", "Shared content may be held for automated safety screening or human review. Mugshot may restrict content or accounts that violate community rules. Automated flags are not final enforcement decisions; use Safety and Account Status to request reconsideration or appeal."),
         ("Your account", "You are responsible for keeping your account credentials private and for the audience you choose for each visit."),
         ("Questions", "Contact Mugshot support if you have questions about these terms or your account.")
     ]

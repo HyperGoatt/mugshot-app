@@ -220,6 +220,12 @@ struct RemoteVisitDetailView: View {
                 )
             )
         }
+        .onChange(of: currentUserId) { _, _ in
+            detail = nil
+            socialError = nil
+            isSavingSocialAction = false
+            dismiss()
+        }
         .task(id: visitId) { await loadDetail() }
         .task(id: commentText) { await updateMentionSuggestions() }
         .navigationDestination(item: $selectedTaggedProfile) { route in
@@ -1537,6 +1543,11 @@ struct RemoteVisitDetailView: View {
                 userId: currentUserId,
                 reaction: reaction
             )
+            guard self.currentUserId == currentUserId,
+                  (try? SupabaseClientProvider.shared.client())?.auth.currentUser?.id == currentUserId else {
+                isSavingSocialAction = false
+                return
+            }
             let state = RemoteVisitSocialState(
                 likeCount: reactionState.totalCount,
                 commentCount: detail.commentCount,
@@ -1553,6 +1564,11 @@ struct RemoteVisitDetailView: View {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
+            guard self.currentUserId == currentUserId,
+                  (try? SupabaseClientProvider.shared.client())?.auth.currentUser?.id == currentUserId else {
+                isSavingSocialAction = false
+                return
+            }
             self.detail = previousDetail
             socialError = MugshotUserFacingError.message(for: error, context: .social)
             UINotificationFeedbackGenerator().notificationOccurred(.error)

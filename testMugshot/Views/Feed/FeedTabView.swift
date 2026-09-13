@@ -373,6 +373,10 @@ struct FeedTabView: View {
         .sheet(isPresented: $isPeopleHubPresented) {
             PeopleHubView(dataManager: dataManager)
         }
+        .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+            pendingSocialVisitIDs.removeAll()
+            socialRecoveryMessage = nil
+        }
         .task(id: feedTaskID) {
             await loadRemoteFeedIfNeeded()
         }
@@ -844,6 +848,7 @@ struct FeedTabView: View {
                     userId: userId,
                     reaction: reaction
                 )
+                guard authModel.authenticatedUser?.id == userId else { return }
                 let state = RemoteVisitSocialState(
                     likeCount: reactionState.totalCount,
                     commentCount: visit.socialState.commentCount,
@@ -859,6 +864,7 @@ struct FeedTabView: View {
                 )
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
+                guard authModel.authenticatedUser?.id == userId else { return }
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
                 socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
                 UINotificationFeedbackGenerator().notificationOccurred(.error)

@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.deliver-activity]
 verify_jwt = false
+
+[functions.screen-content]
+verify_jwt = false
+
+[functions.moderation-review]
+verify_jwt = false
+
+[functions.notify-friends-on-new-visit]
+verify_jwt = true

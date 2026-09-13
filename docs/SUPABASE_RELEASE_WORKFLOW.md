@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-13
 ---
 
 # Mugshot Supabase release workflow
@@ -17,11 +17,14 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260825030917_post_reactions.sql`. Production remains aligned through
-`20260824171405_expire_pre_schedule_activity_backlog.sql` at 126 migrations as
-of 2026-08-24; the new reaction migration is local-only and must not be called
-production-configured. The live project reference is recorded in
-the existing Supabase link and QA scripts refuse that production reference.
+`20260913054240_sprint1_deleted_report_owner_resolution.sql`. Sprint 1 migrations
+are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
+and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
+migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
+`20260825030917_post_reactions.sql` and the new Sprint 1 migrations are absent
+from production. Only the default branch exists; no disposable QA branch was
+present. The live project reference is recorded in the existing Supabase link,
+and QA scripts refuse that production reference.
 
 ## Non-negotiable invariants
 

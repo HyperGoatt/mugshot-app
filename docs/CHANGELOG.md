@@ -1,17 +1,140 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 ---
 
 # Mugshot change log
 
+## 2026-09-13
+
+- Preserved owner-level moderation actions after reported content deletion by
+  resolving the owner from server-captured report evidence. Deleted content
+  cannot receive a hide action, and self-review remains prohibited.
+
+- Aligned raw recipe recipient reads with projection authorization: suspended,
+  blocked or unavailable owners/senders no longer retain a raw-table access
+  path. Private recipes remain outside provider screening.
+
+- Minimized reviewer queue listings to status/reference metadata; raw content,
+  evidence and history now load only through the protected detail path. Owned
+  screening review/reconsideration records cascade on account deletion instead
+  of retaining free-text reasons after the owner is removed.
+
+- Fenced screening status, queue and preview loads with request identities.
+  Old responses cannot replace newer results or strand a background-cleared
+  screen; refreshed previews reload their images and restart expiration.
+
+- Bound expressive reaction writes to the initiating account with a V2 RPC.
+  Native service and Feed/detail response handling reject account switches;
+  legacy Like-only fallback remains available when the RPC is absent. Focused
+  PostgreSQL checks reject a mismatched actor and preserve Love behavior.
+
+- Reconciled the Xcode feedback cache against the ledger: 45 packages, with
+  one newly recorded build-6 copy suggestion. Preserved the original 44-report
+  acceptance history and left the new suggestion Open, outside approved Sprint 1.
+
+- Prepared the Apple provider-encryption key in ignored, mode-0600 local
+  configuration without exposing its value. Server provisioning is pending;
+  Apple Developer requires sign-in and native access reports a locked Mac.
+
+- Added the new screening queue contract to the actual remote SQL suite.
+  It checks sealed worker grants, lease/revision changes, stale approval
+  rejection and withdrawal under a disposable fixture guard, then rolls back.
+  The same SQL passes hermetic PostgreSQL; remote execution remains pending.
+
+- Prepared retirement of the obsolete `notify-friends-on-new-visit` endpoint.
+  Its replacement returns HTTP 410 without reading payloads, looking up devices
+  or sending pushes. Read-only production inspection found legacy version 8
+  still active; deploying the replacement remains a required release action.
+
+- Removed unrestricted client updates to shared cafe catalog records. Native
+  and PWA resolve/insert paths remain available, and trusted server corrections
+  remain possible. A PostgreSQL role test verifies the permission boundary;
+  no existing cafe rows are rewritten by this migration.
+
+- Closed a shared-text screening gap: displayed drink type/subtype now join the
+  existing caption/custom-name allowlist. Edits invalidate prior approval;
+  Private notes remain excluded. The forward migration recomputes shared
+  payloads without making provider requests.
+
+- Fixed a screening-gate regression for explicitly shared Private recipes.
+  Existing recipient access is preserved without sending Private recipe content
+  to the provider; friendship alone and anonymous access remain insufficient,
+  and dismissal/blocks revoke access. Focused PostgreSQL checks pass.
+
+- Added an inactive-by-default screening scheduler definition with a dedicated
+  Vault credential, strict worker URL validation, an idempotent ten-second
+  schedule and empty-queue skip. Explicit operational activation remains gated
+  by disclosures, no-training verification, isolated QA and server configuration.
+
+- Added database-enforced screening dispatch limits: 60 claims per minute,
+  ten per owner, six concurrent leases globally and two per owner. Throttled
+  jobs stay pending without consuming attempts. Limits are serialized across
+  worker calls, and owner budget records cascade with account deletion.
+
+- Added capability-verified Apple cleanup status to normal and recovered
+  deletion responses. Native completion copy distinguishes pending, revoked
+  and unconfirmed Apple access from completed Mugshot data deletion. Status
+  lookup is service-only and bound to the exact deletion request/job pair.
+
+- Connected native Apple deletion authorization codes to verified server-side
+  exchange and an encrypted, account-bound provider cleanup queue. Scheduled
+  cleanup waits for confirmed Mugshot identity deletion, retries with leases,
+  and erases credentials on success or bounded expiry. Provider failures do
+  not block Mugshot data deletion. Synthetic checks cover encryption, staging,
+  retry and failure paths; Apple configuration and live acceptance remain open.
+
+- Added the Apple deletion-token exchange/revocation boundary with signed
+  identity checks and sanitized errors. Five synthetic tests pass; durable
+  storage and deletion-flow integration were pending at that checkpoint and are
+  implemented in the later integration entry above. Removed raw error
+  objects and job IDs from deletion endpoint logs.
+
+- Made notification events durable while screening is pending, with approval-
+  gated delivery, edit/reclaim fencing and 24-hour expiry for held pushes.
+  Generated notification copy and lifecycle metadata no longer retain user-
+  written names/list titles. Focused synthetic checks pass; production remains
+  unchanged. Private-list invitation access is preserved without screening
+  Private content; focused tests cover invitation, acceptance, blocks and removal.
+
+- Added matching native, marketing and PWA disclosures for shared-content
+  screening, Private exclusions, no model training opt-in, review and appeals.
+  Privacy summaries no longer promise the unavailable Passport flow. Disclosure
+  publication and processing activation remain coordinated release gates.
+
+- Added report navigation to the current shared-content preview and four
+  synthetic reviewer endpoint tests. Authentication, operator revocation,
+  privacy withdrawal, bounded requests and media admission fail closed.
+  Private/deleted revisions have no preview; live acceptance remains pending.
+
+- Connected legacy and new cafe-list comment reports to durable review,
+  enforcement and appeals. Original receipts/evidence survive retries; focused
+  synthetic checks pass hide, reversal, ownership and deletion retention.
+- Corrected post-save receipts to confirm journal storage without claiming the
+  content is already live. Updated native acceptance assertions.
+
 ## 2026-09-12
+
+- Added founder queues and native decisions for existing reports and enforcement
+  appeals. Expected-account/status checks fence stale decisions; existing audit
+  and ownership triggers remain in use. Focused synthetic PostgreSQL checks
+  pass enforcement and reversal. List-comment report integration and runtime/
+  production acceptance remain pending.
+
+- Connected shared-content queue revisions, bounded worker leases and retries,
+  primary/collection publication checks, protected review/status/reconsideration
+  RPCs and reviewer media preview. Edits, Storage replacements and privacy
+  withdrawal invalidate stale results. Nested recipe fields and public-list
+  copies now filter data that must not be exposed. Synthetic queue/projection
+  contracts pass. Added native status/reconsideration and operator review screens
+  with expiring media and account-bound decisions; generic Debug compile passes.
+  Complete surface audit, report enforcement, scheduling and runtime/production
+  acceptance remain pending. No production configuration changed.
 
 - Added the standalone moderation provider boundary with Private exclusion,
   metadata stripping, explicit input fields and fail-closed error handling.
-  Seven synthetic Deno tests pass. Queue and publication integration remain
-  pending; no user content has been sent and no worker is deployed.
+  Seven synthetic Deno tests pass. Queue and publication integration progressed in the entry above; no user content has been sent and no worker is deployed.
 
 - Removed the unavailable Journal Passport shortcut and upgrade holding screen,
   along with onboarding and marketing promises. Existing working profile

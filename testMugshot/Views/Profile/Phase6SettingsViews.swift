@@ -54,6 +54,10 @@ struct PrivacyVisibilitySettingsView: View {
                 LabeledContent("Default audience", value: "Private")
                 Text("Home and Recipe entries always begin Private. You make any sharing decision inside the sip composer.")
             }
+            Section("Shared-content screening") {
+                Text("Profile information visible to others and shared text and photos are screened with OpenAI before publication. Private journal content is excluded. Mugshot does not opt into using this data for OpenAI model training.")
+                Text("Screening or review may delay sharing. Passing does not change your audience. See Shared Content Status in Settings for decisions and reconsideration.")
+            }
             Section("Private notes") {
                 Label("Never included in Feed or sharing", systemImage: "lock.shield.fill")
                     .foregroundStyle(Color.mugshotSage)

@@ -249,3 +249,17 @@ try {
 assert(blockedRejected, 'blocked actor reaction was accepted')
 
 console.log(`post reactions hermetic checks passed (${repoPath})`)
+
+await db.exec('reset role')
+await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260913052603_sprint1_account_bound_reactions.sql',import.meta.url),'utf8'))
+await setActor()
+let accountRejected = false
+try {
+ await db.query('select * from public.set_visit_reaction_v2($1,$2,$3)',[visitID,ownerID,'love'])
+} catch(error) { accountRejected = error?.code === '42501' }
+assert(accountRejected,'account-bound reaction accepted another actor')
+await db.exec('reset role;delete from public.user_blocks')
+await setActor()
+const v2 = (await db.query('select * from public.set_visit_reaction_v2($1,$2,$3)',[visitID,actorID,'love'])).rows[0]
+assert(v2.viewer_reaction === 'love','current actor could not set expressive reaction')
+console.log('account-bound reaction V2 rejects stale actors and preserves expressive behavior')

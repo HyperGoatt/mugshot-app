@@ -315,6 +315,7 @@ private struct AccountDeletionBeginStepUpRequest: Encodable {
 }
 
 private struct AccountDeletionAuthorizeStepUpRequest: Encodable {
+    let appleAuthorizationCode: String?
     let action = AccountDeletionService.authorizeStepUpAction
     let protocolVersion = AccountDeletionService.protocolVersion
     let requestId: UUID
@@ -404,6 +405,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
     let found: Bool?
     let identityDeleted: Bool?
     let cleanupStatus: String?
+    let providerCleanup: String?
     let completionProofState: String?
     let status: String
 
@@ -416,6 +418,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         case found
         case identityDeleted
         case cleanupStatus
+        case providerCleanup
         case completionProofState
         case status
     }
@@ -429,6 +432,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         found: Bool? = nil,
         identityDeleted: Bool?,
         cleanupStatus: String?,
+        providerCleanup: String? = nil,
         completionProofState: String? = nil,
         status: String
     ) {
@@ -440,6 +444,7 @@ struct AccountDeletionV3Response: Decodable, Equatable {
         self.found = found
         self.identityDeleted = identityDeleted
         self.cleanupStatus = cleanupStatus
+        self.providerCleanup = providerCleanup
         self.completionProofState = completionProofState
         self.status = status
     }
@@ -475,7 +480,8 @@ protocol AccountDeletionFunctionTransport: AnyObject {
     ) async throws -> AccountDeletionStepUpChallenge
     func authorizeStepUp(
         record: AccountDeletionRecoveryRecord,
-        challengeID: UUID
+        challengeID: UUID,
+        appleAuthorizationCode: String?
     ) async throws -> AccountDeletionStepUpAuthorization
     func requestDeletion(
         record: AccountDeletionRecoveryRecord,
@@ -533,7 +539,8 @@ private final class SupabaseAccountDeletionFunctionTransport: AccountDeletionFun
 
     func authorizeStepUp(
         record: AccountDeletionRecoveryRecord,
-        challengeID: UUID
+        challengeID: UUID,
+        appleAuthorizationCode: String?
     ) async throws -> AccountDeletionStepUpAuthorization {
         guard currentUserID == record.subjectID else {
             throw AccountDeletionError.accountScopeChanged
@@ -543,6 +550,7 @@ private final class SupabaseAccountDeletionFunctionTransport: AccountDeletionFun
             options: FunctionInvokeOptions(
                 method: .post,
                 body: AccountDeletionAuthorizeStepUpRequest(
+                    appleAuthorizationCode: appleAuthorizationCode,
                     requestId: record.requestID,
                     expectedSubjectId: record.subjectID,
                     recoverySecret: record.recoverySecret,
@@ -646,7 +654,7 @@ enum AccountDeletionSupportReason: Equatable {
 }
 
 enum AccountDeletionOutcome: Equatable {
-    case identityDeleted(cleanup: AccountDeletionCleanupState)
+    case identityDeleted(cleanup: AccountDeletionCleanupState, providerCleanup: String? = nil)
     case supportRequired(AccountDeletionSupportReason)
 }
 
@@ -700,6 +708,7 @@ final class AccountDeletionService {
         expectedUserID: UUID,
         requestID: UUID? = nil,
         attributableLegacyPhotoKeys: Set<String> = [],
+        appleAuthorizationCode: String? = nil,
         authenticateFreshSession: () async throws -> AuthenticatedUser
     ) async throws -> AccountDeletionOutcome {
         guard transport.currentUserID == expectedUserID else {
@@ -804,7 +813,8 @@ final class AccountDeletionService {
         do {
             authorization = try await transport.authorizeStepUp(
                 record: record,
-                challengeID: challenge.challengeId
+                challengeID: challenge.challengeId,
+                appleAuthorizationCode: appleAuthorizationCode
             )
             try Self.validate(
                 authorization,
@@ -938,7 +948,7 @@ final class AccountDeletionService {
         if clearsAuth {
             await transport.clearLocalAuthSession(expectedUserID: record.subjectID)
         }
-        return .identityDeleted(cleanup: cleanup)
+        return .identityDeleted(cleanup: cleanup, providerCleanup: response.providerCleanup)
     }
 
     private static func makeRecoverySecret() throws -> String {

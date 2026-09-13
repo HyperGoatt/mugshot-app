@@ -1,5 +1,9 @@
 # Alpha Account Deletion V3 Deployment Gate
 
+Current Sprint 1 source changes and deployment status are tracked in
+[Sprint 1 delivery](SPRINT_1_TRACKER.md). The dated deployment evidence below
+remains historical; it does not prove the new Apple provider integration.
+
 Status: database foundation and `delete-account` v4 deployed on 2026-07-22;
 the production live-session hook and durable worker were enabled and verified
 on 2026-08-09. New deletion initiation remains intentionally disabled pending

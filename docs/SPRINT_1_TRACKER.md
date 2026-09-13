@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 ---
 
 # Sprint 1 delivery: trust, moderation, and working sharing
@@ -22,9 +22,9 @@ unavailable Passport promises. Broad redesign and new growth features are out.
 | --- | --- | --- |
 | OpenAI setup | Dedicated Mugshot project created; feedback, evaluation/fine-tuning, and API input/output sharing all visibly Disabled organization-wide; project key saved locally outside Git; synthetic text-only moderation HTTP 200 | Server deployment and recurring release configuration checks |
 | Profile consent | Versioned RPC, disable-only legacy setter, author plus tagged-profile consent; isolated PostgreSQL behavior test and iOS Debug app/test compile pass | Runtime acceptance and production deployment |
-| Screening and review | Standalone provider boundary implemented; seven synthetic Deno tests pass Private exclusion, payload minimization, metadata stripping, fail-closed responses, retries and initial spam signals | Revision-bound database queue; scheduled worker; all outward gates; protected moderator queue; rate controls; reporting/enforcement and reconsideration |
+| Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; full-history QA replay and production acceptance |
 | Existing shared content | Not screened | Updated disclosures, staged screening; unscreened content withheld from outward surfaces; owner access retained |
-| Deletion | Existing V3 orchestration; audit found production initiation disabled | Fresh-auth/provider revocation, interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
+| Deletion | Existing V3 orchestration plus native Apple code capture, verified exchange, encrypted provider queue and scheduled cleanup integration; deterministic checks and generic compile pass; production initiation remains disabled | Apple credential configuration/rotation; interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
 | Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, exact backend replay and deployment, installed-app journey |
 | Reactions | Existing additive migration not production deployed at audit | Isolated replay, capability fallback, production deployment and candidate acceptance |
 | Passport claims | Removed Journal upgrade-only entry and onboarding Passport promotion; marketing promotion, FAQ, feature schema and guide claims removed; legacy web page states unavailability | Source compile and marketing render checks pass; deployment and batched native acceptance remain |
@@ -86,10 +86,670 @@ Passport entry; execution remains queued for consolidated acceptance.
 
 ## Screening implementation checkpoint
 
-The provider module is locally tested, not deployed or connected to content
-writes. It admits only shared text and prepared JPEG/PNG bytes to standalone
-moderation. Private audience and unverified no-training configuration stop
-before transmission. Provider failures cannot produce approval; flags require
-review. Queue leases, revision checks, outward publication gates and founder
-review integration remain required before activation. No user content has been
-sent during these tests.
+Three new local migrations connect explicit shared fields to a sealed queue and
+hold pending/rejected content from primary and collection projections. Owner
+access remains. Queue revisions cover text, photo references and same-path
+Storage replacements. Worker results require an unexpired matching lease;
+withdrawal, deletion, edits and human decisions fence stale responses. Repeated
+failures transfer to human review. Only appointed active operators can read the
+review queue or decide; self-review is rejected. Owners have minimal status and
+idempotent reconsideration RPCs. Native status/review screens compile; batched runtime acceptance remains pending.
+
+Recipe projections now allowlist nested shared brew details. Private notes,
+order notes, companions and unknown nested fields are excluded; internal step
+IDs are also omitted from provider input. At this early checkpoint private recipe versions were held owner-only,
+including legacy recommendation paths; that regression is superseded by the
+[private recipe correction](#private-recipe-recipient-access) below. The earlier
+implementation required a shared
+recipe audience and an approved revision. Public list copies filter held source
+items so copying cannot expose an unscreened note through owner access.
+
+The worker admits only validated owner-scoped media, rechecks the current lease
+before transmission, strips metadata, and requires explicit release flags.
+Reviewer media previews require live authentication and an active operator
+appointment and expire after 60 seconds. No scheduler, production migration,
+server secret or production processing has been enabled. The endpoint's live
+integration, all outward surfaces (including notifications), and the full
+historical migration replay still require acceptance. Local tests use synthetic
+fixtures; no user content has been sent.
+
+Native Settings now opens Shared Content Status with the latest 100 owner
+records, review reasons and reconsideration. Active operators can page through
+screening states, load the current revision and expiring media, inspect signals
+and decision history, and record approval or rejection with a required reason.
+The server rejects self-review and a mismatched expected account. Preview
+images use an ephemeral session; approval waits for every image to load.
+Backgrounding and account changes clear the displayed state. Authorized
+parent navigation rows remain mounted while inspecting a child preview; clearing
+them on disappearance could remove the active navigation destination.
+This is screening review, not yet the complete report/enforcement dashboard.
+
+Latest screening checkpoint: `verify-no-simulator.sh full-static` passed 12
+checks with zero failures and one optional pglast skip. This includes the native
+status/review app/test compile, cached Deno checks and synthetic PostgreSQL
+contracts. Documentation validation and diff whitespace checks passed. No
+Simulator, production project or TestFlight build was touched.
+
+Next implementation priorities: operator report/appeal enforcement (including
+list-comment reports), notification and remaining outward projection audit,
+truthful post-save receipts while screening is pending, published provider
+processing disclosures, worker schedule and rate controls, then the remaining
+deletion and release-capability work. Reviewer endpoint authentication and
+media-preview behavior now have synthetic handler coverage; live integration
+acceptance remains required. The existing
+shared-media public-bucket/cache boundary must be assessed during the outward
+surface audit; synthetic projection tests alone do not prove object revocation.
+
+
+## Report and appeal operations checkpoint
+
+Added operator-only pending/reviewing/closed queues for existing account,
+Mugshot and comment reports and enforcement appeals. Native operators can
+inspect recorded text/context and history, resolve or dismiss reports, apply
+warnings, hide reported content, restrict social access or suspend an account,
+and uphold, shorten or reverse appealed actions. Existing durable audit and
+ownership triggers remain authoritative. Decisions require the expected actor
+and case status; stale submissions cannot create a second action. Reviewers
+cannot handle their own reports, reported content or appeals, or revoke their
+own enforcement. Queues recheck live operator appointments on every request.
+
+The focused PostgreSQL contract passes projection minimization, queue cursors,
+revoked access, self-review, account mismatch, stale status, enforcement and
+appeal reversal using the existing subject ownership/report binding triggers.
+Cafe-list comment reports are now bridged into this queue by the next migration; see the checkpoint below.
+Current media inspection from a report is implemented in the later preview
+checkpoint; complete integration/runtime acceptance remains open. No report evidence or human decision is sent to OpenAI.
+
+Report-review checkpoint verification: the complete `full-static` gate passed
+12 checks, zero failures and one optional pglast skip, including the native
+app/test compile and all registered synthetic PostgreSQL contracts. Documentation
+validation and diff checks passed. Implementation remains on the Sprint 1
+feature branch; no production changes or TestFlight actions were performed.
+
+
+## List-comment report integration and save receipts
+
+Legacy list-comment receipts now enter the durable report queue with their
+existing IDs. New reports use the same bridge; repeated submissions retain the
+first evidence. The report and action subject contracts, ownership checks and
+report binding now support cafe-list comments. Human hide decisions suppress
+otherwise approved comments, and the existing appeal flow can reverse them.
+Deleting a comment removes its legacy report pointer but retains the durable
+case evidence and enforcement ownership. Backfilled text is the currently
+available text captured during migration, not a reconstruction of original
+report-time content; the UI calls it saved report text.
+
+Focused synthetic checks pass backfill, new reports, duplicate evidence,
+self-review denial, owner binding, hide/reversal and evidence retention after
+deletion. Native report/enforcement labels and hide actions support these cases.
+Post-save receipts say Mugshot saved and confirm journal storage without claiming
+immediate publication. Existing UI assertions now use that truthful wording;
+their execution remains part of the batched acceptance gate.
+
+
+List-comment/save-receipt checkpoint: `full-static` passed 12 checks, zero
+failures and one optional pglast skip, including native app/test compilation and
+the extended synthetic report/appeal contract. Documentation and diff checks
+passed. Read-only Supabase inventory found production healthy at 127 migrations,
+with the August 26 profile migration present, reactions/Sprint 1 absent, and no
+QA branch. No production mutation was performed. This inventory is not a
+backup, fingerprint or full-history alignment proof; those release gates remain.
+
+
+## Reviewer preview checkpoint
+
+The reviewer endpoint now has four synthetic handler tests covering missing or
+invalid authentication, absent operator permission, role revocation and privacy
+withdrawal during signing, malformed/oversized input, owner-scoped media
+admission and private/no-store responses. Request bodies are limited while
+streaming, Supabase calls have deadlines, and the current revision is checked
+again after signing. These tests do not contact a live backend or provider.
+
+Reports link to the current shared revision through an operator-only locator.
+It returns no raw payload or lease; the existing authenticated preview fetches
+current text and expiring images. Private/deleted content with no queue entry
+has no current preview. The synthetic PostgreSQL contract covers mapping
+list-comment subjects, withdrawal and revoked access. Historical saved report
+evidence stays distinct from current shared content. Native and deployed
+endpoint acceptance remain pending.
+
+
+Disclosure source now names OpenAI moderation and the exact classes of shared
+content processed, excludes Private journal content/notes/recipes, states no
+training opt-in and explains human review/appeals. Native Privacy and Visibility,
+native policy summaries, and both websites have matching language. Websites
+link to current OpenAI processing/retention documentation rather than claiming
+that no training means no external processing. These policy changes are not yet
+published; release configuration must remain disabled until they are available.
+
+
+Preview/disclosure checkpoint verification: `full-static` passed 12 checks,
+zero failures and one optional pglast skip, including all cached Deno tests,
+synthetic PostgreSQL contracts and native app/test compilation. Marketing
+`npm run verify` passed checks, formatting, tests, build and route verification.
+PWA build and focused policy-page ESLint passed. Documentation and diff checks
+passed. No live API content processing, production mutation or release upload
+occurred. Remaining work includes the full outward/notification audit, rate
+controls and scheduler, deletion completion, isolated full-history QA, deployment
+and batched native acceptance before any separately authorized TestFlight gate.
+
+
+## Activity screening checkpoint
+
+Notification creation now uses sealed candidate checks that preserve the
+existing audience, relationship and enforcement rules while allowing a durable
+event to wait for screening. Public activity and actual push checks still
+require screened actor/visit/comment content. Pending eligible deliveries wait
+for approval for up to 24 hours; older held pushes expire to avoid a delayed
+burst. An edit after claim releases the fenced lease without spending an APNs
+attempt. Blocks, disabled devices, preferences and account restrictions retain
+their cancellation behavior.
+
+Generated notification titles/bodies now use app-owned generic copy, and list
+titles are removed from lifecycle metadata, so edited or deleted user text is
+not retained in notification snapshots. Existing notification identity, read
+state, receipts and delivery history are preserved. Applying this migration
+updates generated presentation fields and therefore requires the same live
+fingerprint/backup checks as the other release migrations.
+
+Synthetic tests pass pending creation, approval, edit/reclaim fencing, block
+cancellation, 24-hour expiry, generic copy and metadata exclusion. The wider
+outward audit remains incomplete. It also identified that new screening gates
+must preserve explicitly invited collaborators' existing private-list access
+without sending Private list content to OpenAI; the compatibility correction
+is implemented and covered in the checkpoint below.
+
+
+Private collaboration correction: Private lists continue to exclude all nested
+content from the external screening queue. Existing explicit invitations still
+control access: pending invitees can see the permitted summary, accepted
+collaborators can read items, friendship alone grants nothing, and blocks or
+membership removal revoke access. Anonymous/public projections remain closed.
+The focused PostgreSQL contract verifies these distinctions and reads an owner's
+private list note as an accepted collaborator without creating any screening job.
+This preserves the existing private collaboration feature rather than treating
+Private lists as public content or silently removing collaborator access.
+
+Activity/private-collaboration checkpoint: backend verification passed 11 checks,
+zero failures and one optional pglast skip. The shared lease fixture refactor
+also passed the existing lease/retry/badge contracts. A separate generic Debug
+app/test compile passed the review-navigation correction. Documentation and
+diff checks passed. No Simulator, production migration or push dispatch was
+performed. These are deterministic checks, not deployed notification acceptance.
+
+
+## Apple deletion provider boundary
+
+Added a server-only Apple authorization-code exchange and token revocation
+module. It fetches verification keys before consuming the one-use code, verifies
+the returned identity token's signature/issuer/audience/subject/expiry, bounds
+requests and response sizes, and returns only sanitized failure categories.
+Five synthetic Deno tests cover valid exchange, wrong identity/app/issuer,
+expired/forged tokens, key-fetch failure, repeated revocation requests and
+client-configuration versus spent-code errors. No live Apple request was made.
+Deletion endpoint logs no longer print raw error objects or job identifiers.
+
+At this boundary-only checkpoint, the module was not connected to deletion.
+The later [durable integration](#durable-apple-cleanup-integration) supersedes
+that implementation state. Native authorization-code capture,
+encrypted durable provider-token storage, recovery orchestration, configured
+Apple credentials and acceptance remain required. Apple guidance also requires
+fulfilling deletion when no provider token/code can be recovered; provider
+cleanup must not strand an otherwise valid account-deletion request. See
+[Apple TN3194](https://developer.apple.com/documentation/technotes/tn3194-handling-account-deletions-and-revoking-tokens-for-sign-in-with-apple).
+
+
+Apple boundary checkpoint: backend verification passed 11 checks with zero
+failures and one optional pglast skip, including five synthetic Apple tests and
+the existing account-deletion PostgreSQL recovery contracts. Documentation and
+diff checks passed. No native code, live Apple credentials, production settings
+or real account were changed in this checkpoint.
+
+
+## Durable Apple cleanup integration
+
+The native deletion flow now passes Apple's authorization code only in the
+fresh, account-bound authorization request. It is not added to the Keychain
+recovery record. After server-side step-up verification, the endpoint derives
+the Apple subject from `auth.getUser` identities, validates the exchanged token
+and encrypts the refresh token with AES-GCM. The encryption context binds the
+credential to its deletion request and Apple client ID. The sealed queue stores
+ciphertext only, attaches to the prepared deletion job and clears its duplicate
+subject ID. Missing or unrecoverable Apple credentials do not block deletion of
+Mugshot data.
+
+The existing authenticated scheduled cleanup action drains one provider item
+per invocation after ordinary cleanup. A job is eligible only after confirmed
+Mugshot identity deletion. Five-minute leases fence completion; failures have
+bounded backoff and at most ten attempts. Unattached credentials expire after
+15 minutes; attached credentials expire after seven days. Success or exhausted
+retention erases ciphertext. Minimal outcome receipts expire after 30 days.
+Missing provider configuration still runs expiration housekeeping with a
+zero-size claim, without spending retry attempts. Provider errors and secrets
+are excluded from logs and worker responses.
+
+This affects Auth/Edge/schema contracts, privacy/data ownership and native
+networking. Deterministic verification covers encryption/context tampering,
+verified staging, identity-deletion eligibility, stale leases, retry, erasure,
+configuration gaps and provider/persistence outages. Native lifecycle coverage
+now also asserts forwarding the one-use code after fresh authentication.
+
+Required server configuration is `APPLE_DELETION_CLIENT_ID`,
+`APPLE_DELETION_CLIENT_SECRET` and `ACCOUNT_PROVIDER_ENCRYPTION_KEY` (a base64
+32-byte AES key). No values are in source or these documents. Credential
+provisioning/rotation and end-to-end acceptance
+remain open. The migration and worker are not deployed; no real account or
+Apple authorization was deleted/revoked by this work. Keep deletion activation
+behind the existing release gates until the complete candidate is accepted.
+
+
+Durable integration checkpoint: `verify-no-simulator.sh full-static` passed
+12 checks with zero failures and one optional pglast skip. This includes the
+new PostgreSQL provider queue contract, 13 synthetic Apple/encryption/staging/
+worker tests, the existing backend suite and a generic Debug app/test compile.
+The native forwarding assertion compiled; it has not yet executed in the
+batched Simulator acceptance run. Documentation and diff checks passed. No
+production migration, server secret, provider request or real deletion occurred.
+
+
+Provider-status follow-up: the endpoint reads minimal Apple cleanup state only
+for a verified deletion/recovery request and its exact job. The service-only RPC
+returns pending, revoked or unavailable, without identifiers or credentials in
+the value. Native completion messages preserve the proven Mugshot deletion
+outcome and separately explain Apple cleanup status. Missing Apple client
+configuration can now persist an unavailable receipt without holding up deletion.
+A status absence does not assert that Apple access was revoked. Focused SQL
+coverage checks request/job fencing, transitions and grants; the native ordered
+flow assertion now includes pending provider status in the returned outcome.
+
+
+Provider-status verification: full-static passed 12 checks, zero failures and
+one optional pglast skip, including the updated request/job status contract and
+generic Debug app/test compile. No Simulator was booted. Source inspection of
+`DrinkAnalysisService.swift` and the complete `analyze-drink/index.ts` confirms
+that this existing path performs deterministic backend parsing (`edge-rules-2`)
+and writes Mugshot's own analysis projection; it makes no external model call.
+Targeted provider/endpoint searches in the companion PWA source/functions and
+marketing source found the new disclosures and unrelated typed response fields,
+not another model integration. These source checks do not prove deployed Edge
+source parity or replace the remaining outward-surface and telemetry audits.
+
+
+## Screening dispatch controls
+
+The source now enforces dispatch budgets in the claim RPC, across overlapping
+worker invocations: 60 claims per calendar minute globally, ten per owner, six
+concurrent leases globally and two per owner. The short global reservation lock
+prevents concurrent budget overspending. Candidate scans are bounded and skip
+currently saturated owners; excess jobs remain pending without consuming
+attempts. Existing lease/revision fences and five-attempt human-review fallback
+remain intact. Per-owner counters cascade on deletion and inactive counters are
+purged by claim housekeeping. These limits affect backend operations and private
+data ownership; they do not expand audiences or approve content.
+
+The focused hermetic test covers owner fairness, global/owner concurrency,
+minute budgets, retry preservation while throttled, window reset and deletion.
+Scheduler installation, realistic backlog throughput and production activation
+remain open. Supabase's current [Cron quickstart](https://supabase.com/docs/guides/cron/quickstart)
+supports second-based intervals on supported Postgres versions; the exact
+schedule still needs isolated QA and operational release evidence.
+
+
+Dispatch checkpoint: backend verification passed 11 checks, zero failures and
+one optional pglast skip. A focused rerun passed after moving the minute-window
+clock read inside the reservation lock. Documentation and diff checks passed.
+No native code changed, so no new compile or Simulator run was needed. All
+screening migrations remain local-only and the external-processing activation
+flags remain unset in production.
+
+
+## Screening scheduler definition
+
+The source now defines a service-only, idempotent ten-second screening schedule.
+Migration application alone never starts it. Operational activation requires
+separate Vault URL/worker-secret provisioning and the existing Edge disclosure,
+no-training and enabled flags. Scheduler SQL contains no embedded credential;
+Vault values are resolved only during dispatch. Empty/fully leased queues skip
+HTTP dispatch, the URL must be the expected Supabase Edge route, and disabling
+removes only the canonical screening job. This affects database operations and
+secret ownership; no publication or training permission changes.
+
+Synthetic Cron/Vault/HTTP fixtures verify default inactivity, missing/invalid
+configuration, idempotency, secret isolation, empty-queue skip and disabling.
+These mocks do not prove deployed extension behavior or realistic throughput.
+Read-only branch inventory still shows only production. The Supabase tool
+requires organization confirmation before quoting a paid disposable QA branch;
+that question is pending for `joe's Org`. No branch was created or paid resource
+activated while awaiting that response.
+
+
+Scheduler checkpoint: backend verification passed 11 checks, zero failures and
+one optional pglast skip, including the new scheduler fixture contract and all
+existing hermetic contracts. Documentation and diff checks passed. No native
+change or Simulator run was needed, and no production schedule or secrets were
+installed. Isolated QA remains required before activation.
+
+
+## Private recipe recipient access
+
+Corrected the screening gate's incompatibility with existing explicitly shared
+Private recipes. Friendship alone still grants no access, anonymous access stays
+closed, and dismissal/block rules still revoke the recipient's access. An
+explicit recipient can again read the permitted recipe identity/version and
+projection without putting the Private recipe in the external screening queue.
+The separately shared recommendation note keeps its existing screening behavior;
+this exception does not approve shared Friends/Everyone recipe content.
+
+The focused PostgreSQL contract passes recipient, no-invitation, anonymous,
+block, dismissal and queue-exclusion checks, alongside the existing collection
+contracts. This affects product behavior and Supabase read contracts. It is a
+source correction, not a deployed change or installed-app acceptance result.
+
+
+Private-recipe checkpoint: backend verification passed 11 checks, zero failures
+and one optional pglast skip. Documentation and diff checks passed. No native
+code changed, and no production migration or provider request was performed.
+
+
+## Outward read audit: displayed drink fields
+
+Found and corrected an allowlist gap: public projections display `drink_type`
+and `drink_subtype`, while the initial visit payload included only the custom
+name. Both displayed fields now participate in screening and revision changes.
+The forward migration recomputes shared payloads without provider calls; Private
+notes remain excluded. Focused PostgreSQL checks verify that displayed drink
+edits hold the post, include the fields and preserve private-note exclusion.
+This affects shared product behavior, payload ownership and Supabase contracts.
+
+Additional source findings: `get_friend_map_sip_summaries_v1` is SECURITY INVOKER,
+so its visit reads receive the restrictive screening RLS policy alongside
+existing privacy policies. `discover_public_cafes` uses the screened
+`is_public_visit_discoverable_v3` helper. Activity listing calls the current
+screened event-visibility helper before joining actor presentation data. The
+20260804204427 migration retired shared-memory public functions and removed
+client grants; old definitions are historical, not current live APIs to revive.
+These findings are based on the ordered local migration source. Full-history
+QA, deployed source/grant parity and the remaining cafe/media/telemetry paths
+still require evidence before the outward audit can close.
+
+
+Shared-drink checkpoint: backend verification passed 11 checks, zero failures
+and one optional pglast skip. Documentation and diff checks passed. This source
+correction did not change native code, invoke a provider or mutate production.
+
+
+## Cafe catalog write boundary
+
+The outward audit found a legacy policy allowing any authenticated client to
+update any shared cafe record. Source inspection of native `CafeService` and
+PWA `useUpsertCafe` found resolve/insert flows, with no direct catalog-update
+path. A forward migration removes the permissive update policy and client
+UPDATE grants while preserving reads, inserts and trusted server corrections.
+No existing catalog rows are rewritten. This closes an unchecked edit path into
+names/links used across other users' already-screened posts and lists.
+
+The focused PostgreSQL role test verifies authenticated/anonymous update denial,
+normal insert/read behavior and service-role correction. This affects shared
+product integrity and Supabase grants. The broader provenance/admission policy
+for newly inserted cafe records remains an open outward-audit item; this fix
+must not be presented as complete cafe-content moderation.
+
+
+Cafe write-boundary checkpoint: backend verification passed 11 checks, zero
+failures and one optional pglast skip. Documentation and diff checks passed.
+No native code changed, and no production cafe row or grant was mutated.
+
+
+## Live Edge inventory and stale notification endpoint
+
+Read-only production inventory on 2026-09-13 found `delete-account` v8,
+`deliver-activity` v6, `public-cafe-list` v6, `shared-mugshot` v6,
+`shared-profile` v3 and `analyze-drink` v5. The new `screen-content` and
+`moderation-review` endpoints are absent. These versions establish deployment
+work remaining; local implementation is not production parity.
+
+The still-deployed `notify-friends-on-new-visit` v8 contains a legacy push path
+that trusts caller-supplied author/visibility fields and uses server credentials
+to fetch friends/devices. Its old trigger was removed by migration
+`20260722030904`, and current native/PWA source has no caller. Prepared a
+replacement with no service dependencies or payload reads: every handled
+request returns HTTP 410 with a no-store, content-free retirement response.
+The source retains the existing JWT verification setting. Deploying this
+replacement is required before closing notification delivery safety; it has
+not been deployed or invoked against real data in this checkpoint.
+
+
+Legacy endpoint checkpoint: backend verification passed 11 checks, zero
+failures and one optional pglast skip, including the retirement response test.
+Documentation and diff checks passed. The production inventory/source reads
+were read-only; no push, endpoint deployment or server setting was changed.
+
+
+## Remote screening contract coverage
+
+Added `supabase/tests/sprint1_screening_queue_contract.sql` to the directory
+executed automatically by the full remote QA runner. It requires the reserved
+`.invalid` QA identity and uses a rolled-back transaction. It verifies sealed
+worker grants, eligible claiming, edit revision changes, stale-result rejection,
+current unflagged approval and complete payload withdrawal. The corresponding
+local harness runs the same SQL against the real queue/rate migrations with
+minimal PostgreSQL fixtures; it passes. No provider or production call occurs.
+
+This closes a test-discovery gap, not the full remote acceptance gate. Existing
+remote social/publication contracts may need explicit screening decisions where
+they previously assumed immediate publication; their behavior must be reviewed
+when the complete migration history is exercised. Do not disable screening in
+QA to manufacture a passing suite.
+
+
+Remote-contract checkpoint: backend verification passed 11 checks, zero failures
+and one optional pglast skip, including execution of the new remote SQL file in
+hermetic PostgreSQL. Documentation and diff checks passed. Remote QA has not
+run; no production row or setting was changed.
+
+
+## Apple configuration access checkpoint
+
+Checked the repository's ignored configuration and conventional local signing
+credential directories without printing credential values. No usable Apple
+Sign in with Apple deletion credential was found there. Available tools did
+not expose an Apple signing-key provisioning connector. Opening Apple Developer
+Keys redirected to Apple sign-in; native app access separately reported that
+the Mac is locked. The user has been asked to unlock/sign in so provisioning
+can continue. No Apple key, account or capability was changed.
+
+Generated the independent 32-byte provider-encryption key in the ignored local
+`.codex/.env.apple-deletion` file with mode 0600. The file is not tracked and no
+secret value was printed. It has not been uploaded to server configuration.
+Preserve this key while any queued ciphertext depends on it; rotation requires
+a deliberate drain or re-encryption procedure, not overwriting the secret.
+Apple client configuration and live revocation acceptance remain incomplete.
+The separate Supabase QA organization confirmation is still pending.
+
+
+## Feedback ledger reconciliation
+
+The local Xcode Organizer cache contains 45 feedback packages. Compared package
+IDs with the living ledger and found exactly one unmapped report from
+0.5.3 (6), submitted on 2026-09-03. Added it as report 45: a suggestion for
+“Journal entry: Sip” terminology and explanatory sharing copy. No tester name,
+account data, screenshot or raw log was copied into the repository. The report
+remains Open and unimplemented; it is not an approved Sprint 1 requirement.
+The historical 44-report remediation and its acceptance chronology are retained.
+This resolves the count discrepancy without inventing acceptance or expanding
+the confirmed sprint scope.
+
+Local database runtime check found no Docker, psql or postgres executable on
+PATH. The disposable Supabase QA branch remains the required full-history
+validation route; its organization confirmation and Apple sign-in are pending.
+
+
+## Account-bound reaction compatibility
+
+Source inspection confirms that missing expressive-reaction RPCs preserve
+Like/removal through the existing table path and reject Love/Laugh/Yummy with
+an explicit unavailable error; missing reaction columns use legacy Like reads.
+Added `set_visit_reaction_v2` to require the initiating account to match the
+server-authenticated actor before calling the existing reaction implementation.
+Native service checks the account before/after requests, and Feed/detail ignore
+stale success or error updates after account changes. The V1 contract remains
+for older clients. This affects networking, account isolation and Supabase RPCs.
+
+Focused PostgreSQL coverage confirms a mismatched actor is rejected and the
+current actor can still set Love, alongside existing replacement, removal,
+visibility and block tests. Production still lacks the original reaction
+migration and the V2 wrapper. Complete QA replay and installed-app persistence/
+account-switch acceptance remain required before claiming reactions delivered.
+
+
+Reaction account-switch UI review additionally clears Feed pending state when
+the account changes, closes an old-account detail view, and checks the actual
+SDK account before applying detail responses. Backend/full-static verification
+passed 12 checks, zero failures and one optional pglast skip before this final
+UI adjustment; the separate final generic Debug app/test compile also passed. No
+production migration or live reaction was performed.
+
+
+## Native review-screen concurrency review
+
+Reviewed the complete new native screening service, status/review screens and
+report/appeal views before publication. Found and corrected refresh/background
+races in the status, queue and preview screens: request IDs now fence results,
+errors and loading cleanup; background clearing invalidates in-flight work;
+refreshed previews recreate image loaders and restart their expiration task.
+The report/appeal views already use request IDs. This affects asynchronous UI
+behavior and review-data lifetime. Fast verification passed 7/0/0, and the generic Debug app/test compile passed;
+rapid-refresh/background and account-switch runtime acceptance remain pending
+in the batched Simulator gate. The full accumulated patch review is not yet
+complete, so no checkpoint commit or push is claimed.
+
+
+## Screening boundary source review
+
+Reviewed the complete worker/media resolver, reviewer Edge handler/dependencies
+and sealed queue migration. Media admission uses the job's owner/visit path,
+then rechecks the revision lease before provider submission. Reviewer previews
+recheck appointment/revision after signing, use short-lived URLs and no-store
+responses. Full-history QA and deployed Storage behavior remain required.
+
+The review identified two corrections in the still-unapplied queue migration:
+list responses no longer duplicate raw payloads, provider evidence, history or
+owner IDs that the list UI does not use; and owner deletion now cascades their
+screening history, including free-text reconsideration/review reasons. Reviewer
+attribution on other owners' records remains nullable after reviewer deletion.
+Focused contracts verify minimal list fields and erasure of the deleted owner's
+screening history. This affects privacy/data ownership and Supabase responses;
+no native decoder change is required because detail fields are optional.
+
+
+Boundary-review checkpoint: backend verification passed 11 checks, zero failures
+and one optional pglast skip. Documentation and diff checks passed. Reviewed
+source hashes were recorded locally to detect changes before final staging;
+the complete patch review, commit/push and release acceptance remain open.
+No production data or configuration changed.
+
+
+## Recipe recipient authorization review
+
+Primary publication and shared-collection migrations were read in full. The
+raw recipe-version/identity recipient predicates lacked the owner/sender account
+checks already used by the safe projection. A focused regression reproduced
+raw access surviving suspension. Migration
+`20260913054056_sprint1_recipe_recipient_authorization.sql` aligns those raw reads
+with live-account, suspension, profile-screening and block checks while preserving
+owner access and explicit Private-recipe recipient access without provider input.
+This changes Supabase access control and privacy behavior; deployment remains
+pending the data-less QA branch and full remote contract suite.
+
+Recipe-recipient checkpoint: the added regression failed before the fix and
+passed afterward. Backend verification completed with 11 passed, zero failed
+and one optional parser skip (`/tmp/mugshot-recipe-recipient-review.log`).
+No Swift changed, so no additional app compile or Simulator run was needed.
+No production configuration or data changed.
+
+
+## Durable report owner review
+
+Read the report operations, list-comment report bridge and current-content
+preview migrations in full. The review found that V2 owner actions lost their
+subject after content deletion even though sealed report evidence survived.
+Migration `20260913054240_sprint1_deleted_report_owner_resolution.sql` falls back
+to that server-captured owner. Existing V1 validation and enforcement triggers
+still reject unavailable or unrelated subjects; self-review checks still use
+the snapshot. A focused regression reproduced the missing owner warning path.
+This affects moderation behavior and Supabase contracts; production is unchanged.
+
+Durable-report checkpoint: the deleted-content regression failed before the
+fix and passed afterward. Backend verification passed 11 checks, zero failures
+and one optional parser skip (`/tmp/mugshot-deleted-report-review.log`). Also
+completed source review of the screened-activity delivery migration, including
+its candidate/visible separation, lease release after edits, and notification
+copy backfill. This is source/local evidence only; live backup and QA/deployed
+delivery acceptance remain required before migration rollout.
+
+
+## Deletion and dispatch source review
+
+Reviewed the account-deletion endpoint diff, Apple token exchange/revocation,
+encryption, staging and worker modules, sealed provider queue migration, and
+native credential/receipt integration. The source validates Apple identity from
+server-owned account data, encrypts tokens with request/client context, waits for
+Mugshot identity deletion before revocation, and bounds retries and credential
+retention. Provider failures do not block Mugshot deletion. These are reviewed
+source properties, not live Apple acceptance; credentials and runtime gates
+remain open.
+
+Also reviewed screening dispatch budgets and the scheduler definitions. Limits
+are reserved under a database lock, and migration application alone creates no
+active screening schedule. Reviewed the remaining small settings, report-label,
+share-receipt and Edge JWT configuration diffs. Current source-review hashes are
+recorded locally for 32 files; tests and remaining changes still require final
+scoped review before publication. No implementation changed in this checkpoint,
+so no equivalent backend or native build was repeated.
+
+
+## Reaction and verification-source review
+
+Reviewed the remaining reaction service/Feed/detail changes and native test
+diffs, Private-list compatibility migration, displayed-drink and cafe-write
+boundaries, retired notification handler/test, and the focused rate, schedule,
+provider-queue, cafe-write and remote-screening SQL test sources. The local
+remote-contract harness is explicitly a minimal schema check; it does not prove
+full-history remote compatibility. The current reviewed-source ledger contains
+54 file hashes. Remaining test/fixture and documentation diffs still require
+review before staging and publishing.
+
+A credential-pattern scan of changed and untracked publishable files found no
+matching API keys or private-key blocks. Both local credential files remain
+Git-ignored. This scan supplements, rather than replaces, the complete diff
+and staged-file review. No implementation or production state changed here;
+no already-passing build or backend suite was repeated.
+
+
+## Final test-source and living-document review
+
+Completed review of the remaining provider/reviewer/worker synthetic tests,
+queue/publication/report contracts and lockfiles. Verified that the extracted
+activity fixture exactly matches its prior SQL. Updated the release workflow
+to the actual migration head, corrected the feedback table formatting, and
+clarified the feature matrix's production-versus-source profile consent state.
+The tracker diff remains the last native-repository review item before the
+final staged-scope/secret check and checkpoint publication. Production and
+runtime acceptance remain open; no new tests or builds were needed for these
+documentation corrections.
+
+
+## Reviewed implementation checkpoint
+
+The accumulated native/backend source, test and documentation review is now
+complete. The branch is ready for a draft PR checkpoint after an exact staged
+file/hash check. Local backend verification remains 11 passed, zero failed and
+one optional parser skip; the latest native review-screen app/test compile and
+fast gate passed. Credential files remain ignored.
+
+This checkpoint does not authorize activation or prove release completion.
+Outstanding work includes the cafe-record admission and media/cache/telemetry
+audit, full remote QA replay and endpoint acceptance, Apple configuration,
+production fingerprints/backup/deployment, reviewer appointment, processing
+disclosures and no-training re-verification, and batched native acceptance.
+Keep the existing PR in draft while these release blockers remain.

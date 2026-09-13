@@ -84,7 +84,7 @@ final class AppAuthModel: ObservableObject {
                     try requireCurrentAuthenticationOperation(operationID)
                     if case let .resolved(deletedUserID, outcome) = resolution {
                         switch outcome {
-                        case .identityDeleted(let cleanup):
+                        case .identityDeleted(let cleanup, let providerCleanup):
                             let attributableLegacyPhotoKeys = Set(
                                 dataManager.appData.visits
                                     .filter { $0.userId == deletedUserID }
@@ -110,7 +110,7 @@ final class AppAuthModel: ObservableObject {
                             if authService.currentUserID == nil
                                 || authService.currentUserID == deletedUserID {
                                 clearAuthenticatedAccountState(dataManager: dataManager)
-                                var message = deletionCompletionMessage(cleanup: cleanup)
+                                var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup)
                                 if !localCleanupCompleted {
                                     message += " Some files on this device could not be removed. Mugshot will retry the private cleanup next time the app opens."
                                 }
@@ -971,10 +971,11 @@ final class AppAuthModel: ObservableObject {
     func deleteAccountWithApple(
         idToken: String,
         nonce: String,
+        authorizationCode: String?,
         dataManager: DataManager
     ) async -> Bool {
         guard let authService else { return false }
-        return await deleteAccount(dataManager: dataManager) {
+        return await deleteAccount(dataManager: dataManager, appleAuthorizationCode: authorizationCode) {
             try await authService.createFreshAccountDeletionSessionWithApple(
                 idToken: idToken,
                 nonce: nonce
@@ -991,6 +992,7 @@ final class AppAuthModel: ObservableObject {
 
     private func deleteAccount(
         dataManager: DataManager,
+        appleAuthorizationCode: String? = nil,
         authenticateFreshSession: () async throws -> AuthenticatedUser
     ) async -> Bool {
         guard let accountDeletionService,
@@ -1016,10 +1018,11 @@ final class AppAuthModel: ObservableObject {
                 return try await accountDeletionService.deleteCurrentAccount(
                     expectedUserID: userID,
                     attributableLegacyPhotoKeys: attributableLegacyPhotoKeys,
+                    appleAuthorizationCode: appleAuthorizationCode,
                     authenticateFreshSession: authenticateFreshSession
                 )
             }
-            guard case let .identityDeleted(cleanup) = outcome else {
+            guard case let .identityDeleted(cleanup, providerCleanup) = outcome else {
                 if case let .supportRequired(reason) = outcome {
                     if authenticationEpoch.isCurrent(operationID),
                        authenticatedUser?.id == userID {
@@ -1058,7 +1061,7 @@ final class AppAuthModel: ObservableObject {
             requiresNewPassword = false
             clearAccountRecoveryFeedback()
 
-            var message = deletionCompletionMessage(cleanup: cleanup)
+            var message = deletionCompletionMessage(cleanup: cleanup, providerCleanup: providerCleanup)
             if !localCleanupCompleted {
                 message += " Some files on this device could not be removed. Mugshot will retry the private cleanup next time the app opens."
             }
@@ -1089,13 +1092,25 @@ final class AppAuthModel: ObservableObject {
     }
 
     private func deletionCompletionMessage(
-        cleanup: AccountDeletionCleanupState
+        cleanup: AccountDeletionCleanupState,
+        providerCleanup: String?
     ) -> String {
+        let message: String
         switch cleanup {
         case .completed:
-            return "Your account and Mugshot data have been deleted."
+            message = "Your account and Mugshot data have been deleted."
         case .pending(let jobID):
-            return "Your account identity and database data have been deleted. Encrypted media cleanup will continue automatically. Reference \(jobID.uuidString.lowercased()) if you contact support."
+            message = "Your account identity and database data have been deleted. Encrypted media cleanup will continue automatically. Reference \(jobID.uuidString.lowercased()) if you contact support."
+        }
+        switch providerCleanup {
+        case "pending":
+            return message + " Apple sign-in access cleanup is still pending and will retry automatically."
+        case "revoked":
+            return message + " Apple sign-in access has also been revoked."
+        case "unavailable":
+            return message + " Apple sign-in access cleanup could not be confirmed."
+        default:
+            return message
         }
     }
 

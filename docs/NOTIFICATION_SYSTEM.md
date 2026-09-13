@@ -1,10 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-13
 ---
 
 # Mugshot notification system
+
+Sprint 1 source update (not deployed): notification events can wait for content
+screening before public activity/push delivery. Held pushes expire after 24
+hours; edits release the current lease for later approval. Generated titles and
+bodies use generic app copy and omit list titles from lifecycle metadata. See
+[Sprint 1 delivery](SPRINT_1_TRACKER.md) for verification and release status.
+
+Read-only production inspection on 2026-09-13 found the obsolete
+`notify-friends-on-new-visit` version 8 still deployed. The old trigger was
+removed by migration `20260722030904`, and current native/PWA source has no
+caller. Its handler nevertheless accepts caller-supplied author/visibility
+fields and uses server credentials for its old delivery path. Sprint 1 now
+contains a no-delivery HTTP 410 replacement. It is not yet deployed; retirement
+is required alongside the current screened notification release.
 
 ## Current state
 

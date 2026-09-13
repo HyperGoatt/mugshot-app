@@ -479,8 +479,8 @@ final class testMugshotUITests: XCTestCase {
 
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(
-            app.staticTexts["Mugshot published."].exists
-                || app.staticTexts["Mugshot published"].exists
+            app.staticTexts["Mugshot saved."].exists
+                || app.staticTexts["Mugshot saved"].exists
         )
     }
 
@@ -713,8 +713,8 @@ final class testMugshotUITests: XCTestCase {
         tapV3PrimaryAction(in: app)
         XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(
-            app.staticTexts["Mugshot published."].exists
-                || app.staticTexts["Mugshot published"].exists
+            app.staticTexts["Mugshot saved."].exists
+                || app.staticTexts["Mugshot saved"].exists
         )
     }
 

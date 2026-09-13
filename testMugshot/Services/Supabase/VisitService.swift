@@ -522,19 +522,23 @@ final class VisitService {
         userId: UUID,
         reaction: PostReactionKind?
     ) async throws -> VisitReactionState {
+        guard client.auth.currentUser?.id == userId else { throw VisitServiceError.accountScopeChanged }
         do {
             let states: [VisitReactionState] = try await client.rpc(
-                "set_visit_reaction_v1",
+                "set_visit_reaction_v2",
                 params: SetVisitReactionParameters(
+                    pActor: userId,
                     pVisitID: visitId,
                     pReactionKind: reaction?.rawValue
                 )
             ).execute().value
+            guard client.auth.currentUser?.id == userId else { throw VisitServiceError.accountScopeChanged }
             guard let state = states.first else {
                 throw VisitServiceError.visitNotFound
             }
             return state
         } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            guard client.auth.currentUser?.id == userId else { throw VisitServiceError.accountScopeChanged }
             guard reaction == nil || reaction == .like else {
                 throw VisitServiceError.expressiveReactionsUnavailable
             }
@@ -557,6 +561,7 @@ final class VisitService {
             }
 
             let likes = try await fetchLikes(visitId: visitId)
+            guard client.auth.currentUser?.id == userId else { throw VisitServiceError.accountScopeChanged }
             return reactionState(from: likes, currentUserId: userId)
         }
     }
@@ -1470,10 +1475,12 @@ private struct VisitLikeSummaryRow: Decodable {
 }
 
 private struct SetVisitReactionParameters: Encodable {
+    let pActor: UUID
     let pVisitID: UUID
     let pReactionKind: String?
 
     enum CodingKeys: String, CodingKey {
+        case pActor = "p_actor"
         case pVisitID = "p_visit_id"
         case pReactionKind = "p_reaction_kind"
     }
@@ -1549,6 +1556,7 @@ enum VisitSchemaCompatibility {
 }
 
 enum VisitServiceError: LocalizedError, Equatable {
+    case accountScopeChanged
     case visitNotFound
     case invalidUploadState(String)
     case missingCafe
@@ -1559,6 +1567,8 @@ enum VisitServiceError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
+        case .accountScopeChanged:
+            return "Your signed-in account changed. Try again from the current account."
         case .visitNotFound:
             return "Visit not found."
         case .invalidUploadState:
