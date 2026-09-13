@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913072019_sprint1_shared_cafe_text_screening.sql`. Sprint 1 migrations
+`20260913073502_sprint1_shared_visit_display_text.sql`. Sprint 1 migrations
 are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
@@ -180,3 +180,9 @@ profile favorites, list items and recommendations in the same transaction;
 measure fanout on QA before production maintenance. Private-only visits/lists
 remain excluded. Direct catalog admission/provenance and its raw read surfaces
 remain an open gate; this migration does not certify those surfaces.
+
+The subsequent displayed-visit-text migration includes shared `city_state` and
+custom rating/category names in visit screening. It excludes numeric values and
+unexpected nested properties and rebuilds only eligible shared visit snapshots.
+No private brew fields are added. Existing changed payloads return to pending;
+apply and measure this backfill in QA before activation.

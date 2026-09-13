@@ -12,7 +12,7 @@ try {
  create table storage.objects(id uuid primary key,bucket_id text,name text,metadata jsonb,version text,last_accessed_at timestamptz);
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.actor',true),'')::uuid$$;
  create table public.users(id uuid primary key,display_name text,username text,bio text,location text,favorite_drink text,instagram_handle text,avatar_url text,banner_url text);
- create table public.visits(id uuid primary key,user_id uuid references public.users,caption text,notes text,drink_type text,drink_subtype text,drink_type_custom text,location_name text,poster_photo_url text,visibility text,upload_state text,cafe_id uuid,brew_method text,equipment text,created_at timestamptz default now());
+ create table public.visits(id uuid primary key,user_id uuid references public.users,caption text,notes text,drink_type text,drink_subtype text,drink_type_custom text,location_name text,city_state text,ratings jsonb,category_scores jsonb,poster_photo_url text,visibility text,upload_state text,cafe_id uuid,brew_method text,equipment text,created_at timestamptz default now());
  create table public.visit_photos(id uuid primary key,visit_id uuid references public.visits on delete cascade,photo_url text);
  create table public.comments(id uuid primary key,user_id uuid references public.users,visit_id uuid references public.visits on delete cascade,text text,removed_at timestamptz);
  create table public.profile_favorite_spots(user_id uuid,position int,descriptor text,cafe_id uuid);
@@ -41,7 +41,7 @@ try {
  insert into public.visits(id,user_id,caption,notes,drink_type_custom,location_name,poster_photo_url,visibility,upload_state) values('${visit}','${owner}','Shared caption','PRIVATE SENTINEL','Latte','Synthetic cafe',null,'friends','complete');
  insert into public.comments values('${comment}','${friend}','${visit}','Synthetic comment',null);
  `)
- for(const file of ['20260913025947_sprint1_screening_queue.sql','20260913030620_sprint1_primary_screening_gates.sql','20260913032223_sprint1_shared_collection_screening.sql','20260913042453_sprint1_private_collaboration_screening_exclusion.sql','20260913050554_sprint1_private_recipe_screening_exclusion.sql','20260913050851_sprint1_shared_drink_text_screening.sql','20260913054056_sprint1_recipe_recipient_authorization.sql','20260913072019_sprint1_shared_cafe_text_screening.sql']) await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'))
+ for(const file of ['20260913025947_sprint1_screening_queue.sql','20260913030620_sprint1_primary_screening_gates.sql','20260913032223_sprint1_shared_collection_screening.sql','20260913042453_sprint1_private_collaboration_screening_exclusion.sql','20260913050554_sprint1_private_recipe_screening_exclusion.sql','20260913050851_sprint1_shared_drink_text_screening.sql','20260913054056_sprint1_recipe_recipient_authorization.sql','20260913072019_sprint1_shared_cafe_text_screening.sql','20260913073502_sprint1_shared_visit_display_text.sql']) await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'))
  const allowed=async(name,...params)=>(await db.query(`select private.${name}(${params.map((_,i)=>'$'+(i+1)).join(',')}) as allowed`,params)).rows[0].allowed
  const approve=()=>db.exec("update private.screening_jobs set state='approved'")
  const snapshot=async(kind)=>(await db.query('select * from private.screening_jobs where subject_kind=$1 and subject_id=$2',[kind,kind==='visit'?visit:comment])).rows[0]
@@ -61,6 +61,18 @@ try {
  assert.equal((await snapshot('visit')).state,'pending','displayed drink edits require fresh screening')
  assert((await snapshot('visit')).payload.text.includes('Synthetic shared drink name'),'displayed subtype included in provider allowlist')
  assert((await snapshot('visit')).payload.text.includes('Coffee'),'displayed type included in provider allowlist')
+
+ await db.query('update public.visits set city_state=$1,ratings=$2,category_scores=$3 where id=$4',[
+   'Shared city label',{'Custom rating label':4},[{name:'Custom category label',score:4,weight:1,private_note:'NESTED PRIVATE RATING SENTINEL',id:'INTERNAL RATING ID'}],visit])
+ const displayedText=(await snapshot('visit')).payload.text
+ assert(displayedText.includes('Shared city label') && displayedText.includes('Custom rating label') && displayedText.includes('Custom category label'))
+ assert(!displayedText.includes('NESTED PRIVATE RATING SENTINEL') && !displayedText.includes('INTERNAL RATING ID'),'only displayed rating labels enter screening')
+ await approve()
+ const displayedRevision=(await snapshot('visit')).revision
+ await db.query('update public.visits set ratings=$1,category_scores=$2 where id=$3',[{'Custom rating label':2},[{name:'Custom category label',score:2,weight:0.5,private_note:'CHANGED PRIVATE RATING SENTINEL'}],visit])
+ assert.equal((await snapshot('visit')).revision,displayedRevision,'numeric or hidden metadata changes do not send new text')
+ await db.query('update public.visits set city_state=$1 where id=$2',['Changed shared city label',visit])
+ assert.notEqual((await snapshot('visit')).revision,displayedRevision,'visible location edits invalidate approval')
  await approve()
  const original=await snapshot('visit')
  await db.query('update public.visits set notes=$1 where id=$2',['OTHER PRIVATE SENTINEL',visit])

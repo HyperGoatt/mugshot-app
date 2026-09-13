@@ -678,3 +678,24 @@ completion from this compatibility fix.
 
 PWA checkpoint `5f58528` is committed on `codex/sprint-1-sharing` for draft
 PR 13. Native/backend source is unchanged in this follow-up.
+
+### September 13 displayed visit location and rating labels
+
+Verified native/PWA rendering uses `city_state` and custom names from `ratings`
+and `category_scores`; these fields were missing from the visit screening text.
+The new migration adds those displayed labels with a strict projection. Numeric
+scores/weights, internal IDs, private notes and unexpected nested properties
+are not serialized. Changing a displayed location/label invalidates approval;
+changing only a numeric score or hidden metadata does not enqueue new text.
+Private visits still return a null payload before any added text projection.
+
+The focused PGlite screening/projection suite passes, including custom labels,
+nested-field exclusion, revision changes and Private withdrawal. This is a
+Supabase/privacy contract change with no native or web source changes. Remote
+full-history QA and production activation remain pending; direct cafe catalog
+admission is still open.
+
+Checkpoint verification: focused PGlite behavior contracts passed and the fast
+gate passed 7 checks with no failures. Documentation and diff checks passed.
+No app build, Simulator session, provider request or production mutation ran
+for this SQL-only change.
