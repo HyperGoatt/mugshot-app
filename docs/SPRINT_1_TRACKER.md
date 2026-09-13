@@ -1324,3 +1324,25 @@ all three remain Disabled: feedback, evaluation/fine-tuning, and API inputs/
 outputs. No data-sharing incentive was enabled. Maps credential approval,
 catalog verification implementation, provider/runtime acceptance and coordinated
 production rollout remain outstanding. No TestFlight build was created.
+
+
+## Apple Maps credential — approved and authentication verified September 13
+
+The owner approved the prepared Maps identifier and Maps-only credential after
+reviewing their purpose. Registered `maps.co.mugshot.catalog` and created
+`Mugshot Cafe Verification`, restricted to Maps and associated with that identifier.
+This supersedes the pending-approval status above. Existing sign-in and push
+credentials were not modified.
+
+The downloaded private key is stored with owner-only permissions in the ignored
+local credential directory, outside tracked source. A locally signed ES256 JWT
+with only `server_api` scope successfully exchanged at Apple's `/v1/token`
+endpoint: HTTP 200, with a 1,800-second access token. Neither the private key
+nor either token was printed or committed. No user content or location was
+submitted during this authentication check.
+
+This verifies credential provisioning and authentication only. Cafe place
+verification, catalog admission, production secret deployment, and runtime
+acceptance remain open. OpenAI sharing settings and Private-content exclusion
+remain unchanged; Maps authentication does not send anything to OpenAI. No paid
+QA branch was created for this check.

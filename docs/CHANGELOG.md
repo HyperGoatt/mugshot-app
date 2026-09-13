@@ -8,6 +8,12 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Completed approved Apple Maps identifier and Maps-only key provisioning.
+  Stored the private key outside Git with owner-only permissions. Local ES256
+  verification and Apple's server-scoped token exchange passed (HTTP 200).
+  Cafe verification implementation and production deployment remain pending;
+  no user content was sent during the check.
+
 - Replayed all 155 migrations and passed all 57 contracts in one isolated hosted
   run, including analytics recovery. Deleted the paid branch, verified absence,
   and removed its local credential. Production remains unchanged. Reverified
