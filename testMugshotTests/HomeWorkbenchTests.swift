@@ -264,13 +264,13 @@ struct HomeWorkbenchTests {
 
     @Test func homeCriterionSuggestionsFollowTheSelectedMethodWithoutAddingRatings() {
         let expectations: [(HomeBrewMethod, [String])] = [
-            (.espresso, ["Crema", "Extraction", "Sweetness"]),
-            (.pourOver, ["Clarity", "Brightness", "Aroma"]),
+            (.espresso, ["Crema", "Extraction", "Aroma"]),
+            (.pourOver, ["Clarity", "Clean cup", "Aroma"]),
             (.aeroPress, ["Balance", "Body / Smoothness", "Clarity"]),
-            (.frenchPress, ["Body / Smoothness", "Texture", "Sweetness"]),
-            (.mokaPot, ["Intensity", "Bitterness", "Body / Smoothness"]),
-            (.coldBrew, ["Refreshment", "Strength", "Sweetness"]),
-            (.batch, ["Freshness", "Balance", "Temperature"]),
+            (.frenchPress, ["Body / Smoothness", "Texture", "Sediment"]),
+            (.mokaPot, ["Intensity", "Strength", "Extraction"]),
+            (.coldBrew, ["Refreshment", "Concentration", "Strength"]),
+            (.batch, ["Freshness", "Aroma", "Flavor"]),
             (.pod, ["Consistency", "Coffee presence", "Strength"])
         ]
 

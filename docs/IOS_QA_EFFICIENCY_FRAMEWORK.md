@@ -85,6 +85,12 @@ Prepare the account states and checklist first. Boot one standard Simulator, run
 
 If the session finds a bug, capture the exact state, expected result, observed result, and logs if relevant. Continue through every unblocked row. Fix the findings together after the session, rerun the no-Simulator checks, then schedule another batched acceptance round only when the batch is coherent.
 
+For isolated unit execution, `-collect-test-diagnostics never` avoids expensive
+verbose diagnostic collection after assertion failures. Retain the xcresult
+and read its test results; if command finalization stalls, inspect staged test
+stdout/session logs before concluding that tests did not run. Collect targeted
+launch or crash diagnostics when the actual failure requires them.
+
 ## Change-to-check matrix
 
 | Change type | Primary discovery checks | Add before acceptance | Runtime-only gate |

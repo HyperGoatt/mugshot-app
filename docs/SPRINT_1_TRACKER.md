@@ -18,6 +18,10 @@ unavailable Passport promises. Broad redesign and new growth features are out.
 
 ## Verification correction — 2026-09-13
 
+The test-launch interpretation in this earlier checkpoint is superseded by
+[the recovered native test evidence](#native-unit-evidence--2026-09-13).
+The scheme correction remains valid.
+
 Earlier checkpoints described the generic `testMugshot` scheme compile as
 app-and-test evidence. Its generated execution manifest had no test
 configurations, so those runs prove the app compile only. The verification
@@ -48,6 +52,27 @@ grant was fixed in migration `20260913142110`, and both its focused contract and
 the screening queue contract passed remotely. Full-suite triage, metadata
 repair, provider configuration, and runtime acceptance remain open. See the
 [dated QA evidence and exact failures](SPRINT_1_QA_2026-09-13.md).
+
+## Native unit evidence — 2026-09-13
+
+The staged test stdout and session logs from both Simulator attempts were
+recovered. Both actually executed 446 tests in 30 suites, with six assertions
+failing in the single Home Workbench criterion-suggestion test. The earlier
+claim that no tests ran was based on the quiet outer command log and is
+incorrect. Xcode stalled during diagnostic/result finalization; Mac lock state
+alone did not explain it.
+
+The test still expected the pre-August-26 criterion order, while production
+source intentionally expanded that catalog in commit `10db1597`. Its six
+expected lists now match that catalog, retaining the assertions that each brew
+method selects the right suggestions and does not add ratings. No app behavior
+changed. The corrected test bundle compiled; the focused Home Workbench suite
+passed 15/15 on iPhone 16 Pro, iOS 18.6, with xcodebuild exit 0 and an xcresult
+summary of Passed. Verbose failure diagnostics were disabled for this isolated
+run. The intentionally invalid test-process backend URL prevented host-app
+production session restoration. The full 446-test suite was not repeated after
+the expectation-only fix; the previous run plus this focused correction is the
+current unit evidence. Live backend and cross-screen acceptance remain open.
 
 ## Delivery states
 

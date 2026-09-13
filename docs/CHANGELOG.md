@@ -8,6 +8,12 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Recovered native test results hidden by Xcode diagnostic finalization: both
+  attempts ran 446 tests, with six assertion failures in one stale Home
+  Workbench expectation. Updated that existing test for the August criterion
+  catalog; the focused suite passes 15/15 with a successful xcresult. Corrected
+  the prior no-tests-ran interpretation in the sprint tracker.
+
 - Ran the first approved hosted Sprint 1 QA branch and deleted it after
   evidence capture; branch absence is verified. Source replay passed with
   isolated scheduler prerequisites. The full remote suite reported 30 passes
