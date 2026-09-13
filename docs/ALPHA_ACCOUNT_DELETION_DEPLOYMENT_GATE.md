@@ -160,6 +160,9 @@ lease-fenced retries preserve the provider target, and the native receipt keeps
 analytics status separate from Mugshot deletion. Event verification does not
 prove recording erasure. No provider credential or live deletion has been
 configured. Native startup/deletion suspension and next-launch queue disposal
-are implemented; SDK runtime acceptance, support recovery, recording evidence,
-and disposable-account acceptance remain gates. Follow the
+are implemented. September 13 authenticated provider inventory returned no
+recordings from before project creation, with recording disabled; recheck
+before activation. Service-only attention recovery is implemented and locally
+tested; hosted rehearsal, SDK runtime and disposable-account acceptance remain
+gates. Follow the
 [analytics plan](POSTHOG_ANALYTICS_PLAN.md) before promoting deletion readiness.

@@ -118,11 +118,16 @@ must not be silently purged. Verified event receipts clear those identifiers.
 The native deletion response distinguishes pending, verified event cleanup,
 attention, and unconfirmed status independently of Mugshot and Apple cleanup.
 The provider's event receipt is not proof of recording deletion. Recording
-absence or separate recording-erasure evidence remains an activation gate;
-reviewed native source disables session replay. On September 13, the project
+absence or separate recording-erasure evidence is required before activation.
+Reviewed native source disables session replay. On September 13, the project
 recording switch was found enabled, switched off, and verified disabled after
-reload. The default last-30-days list found no matches, but its active-duration
-filter means this is not complete recording-absence evidence.
+reload. The authenticated PostHog project endpoint also confirms
+`session_recording_opt_in=false` and 30-day retention. An unfiltered recording
+query from July 1, before the project's July 20 creation, returned zero results
+with internal/test users included and no duration/property filter. This closes
+the current recording-inventory gate. It is dated provider inventory evidence,
+not proof about provider backups or future configuration changes. Recheck before
+activation; any future recording requires separate erasure evidence.
 
 Activation requires server-only `POSTHOG_ERASURE_PROJECT_ID=521217`,
 `POSTHOG_ERASURE_PERSONAL_API_KEY` with project-scoped `person:write` (which
@@ -134,8 +139,9 @@ mode 0600 outside Git. Its UI scope is only `person:write` for this project; a
 random synthetic UUID lookup returned HTTP 200 with zero results. The key is
 not deployed, the local enable flag remains false, and no live analytics
 deletion has run.
-Native queued-event runtime acceptance, support recovery for attention items,
-recording evidence, and disposable-account acceptance remain open.
+Native queued-event runtime acceptance and disposable-account acceptance remain
+open. The service-only support recovery below is implemented and locally tested;
+hosted rehearsal remains pending.
 
 References: [Persons API](https://posthog.com/docs/api/persons) and
 [data deletion](https://posthog.com/docs/privacy/data-storage#data-deletion).
@@ -195,3 +201,33 @@ uploads and multi-device/older-client behavior remain acceptance gates.
 Standalone check:
 `swiftc testMugshot/Services/Analytics/AnalyticsDeletionQuarantine.swift qa/check-analytics-quarantine.swift -o /tmp/mugshot-analytics-quarantine-check`
 then `/tmp/mugshot-analytics-quarantine-check`.
+
+
+## Recovering an analytics cleanup attention item
+
+Migration `20260913153904` adds a service-only recovery RPC and private audit
+receipts. An authorized operator first diagnoses and repairs the provider,
+configuration, or identity mapping issue. Read the exact request's current
+`updated_at` from `private.account_analytics_erasures`, then call
+`retry_account_analytics_erasure_v1` with that request UUID, a fresh operation
+UUID, that exact timestamp, and one of `provider_restored`,
+`configuration_repaired`, or `identity_mapping_reviewed`. Keep the operation
+UUID and timestamp unchanged when retrying a lost response. Do not put a name,
+email, raw content, or free-text support note in the reason field.
+
+Only an `attention` item with a retained owner, deleted identity, no lease, and
+a matching timestamp can return `requeued`. `already_applied` means that exact
+operation was previously accepted, not that cleanup is complete. `unavailable`
+requires a fresh inspection; it must not trigger an automatic retry loop.
+A reused operation with different inputs fails. The RPC resets only retry
+scheduling and the attempt budget, preserving the owner/person mapping,
+submission timestamp, and provider acceptance. Normal worker alias checks,
+leases and receipt verification still apply. It never marks cleanup verified.
+
+Audit receipts record the request, operation, previous attempts/timestamp and
+fixed reason without copying owner or person identifiers. Receipts follow the
+queue row's retention via a cascading foreign key. Client roles have no table
+or RPC access. The focused hermetic test covers stale snapshots, lost responses,
+active leases, preserved targets/evidence, alias rejection after recovery,
+verified-row rejection, and denied client grants. Hosted and live operational
+rehearsal remain pending; production is unchanged.

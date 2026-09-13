@@ -120,8 +120,11 @@ The signed-in PostHog project had session recording enabled even though native
 source disables it. Turned the project setting off and verified the persisted
 Disabled state after reload. The recording list returned no matches for the
 last 30 days with its default active-duration filter; that filtered observation
-is not proof that all retained recordings are absent. Recording erasure or
-complete absence evidence remains an activation gate.
+was not complete absence evidence. The subsequent authenticated recording
+inventory from July 1 (before project creation), without duration/property or
+internal-user exclusions, returned zero recordings. The project endpoint
+confirms recording disabled and 30-day retention. This closes the current
+recording-inventory gate; recheck before activation.
 
 ## Delivery states
 
@@ -1251,3 +1254,29 @@ contains only production `main`; its local database credential file was removed.
 Production remains at its prior migration head. Cafe catalog admission,
 provider/runtime acceptance, disclosure publication, and production rollout are
 still open; no PR was merged and no TestFlight build was created in this batch.
+
+
+## PostHog recording inventory — verified September 13
+
+The connected PostHog tool resolves to the same Mugshot project as the signed-in
+browser. Its project endpoint reports recording disabled, 30-day retention,
+and project creation on July 20. `query-session-recordings-list` from July 1
+with internal/test users included and no duration or property filters returns
+an empty result. This supersedes the earlier duration-filtered browser result
+and closes the current recording-inventory requirement. No recordings were
+played, exported, or deleted, and no credential permissions were expanded.
+Recheck configuration and inventory before activation. Provider event erasure,
+SDK queue disposal, support recovery, and disposable-account acceptance remain
+separate requirements.
+
+
+## Analytics attention recovery — implemented and locally verified
+
+Migration `20260913153904` adds an audited service-only retry for attention
+items. Exact snapshot and operation IDs fence stale or duplicate recovery;
+active, verified, or identity-incomplete work cannot be reset. The original
+provider target, submission clock and accepted receipt remain intact. Normal
+alias checks and lease fencing remain mandatory after recovery. The focused
+PGlite test passes. This new migration is after the 154-migration hosted QA
+checkpoint and has not been deployed or rehearsed remotely. Operating steps
+are in the [analytics plan](POSTHOG_ANALYTICS_PLAN.md#recovering-an-analytics-cleanup-attention-item).

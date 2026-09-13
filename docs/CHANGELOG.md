@@ -8,6 +8,16 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Added audited service-only recovery for exhausted analytics cleanup. Stale
+  snapshots, reused operation IDs, active work, and verified rows cannot reset
+  the queue; original targets and provider evidence remain intact. Focused
+  hermetic checks pass. Hosted rehearsal and production deployment are pending.
+
+- Verified PostHog recording is disabled and an authenticated recording query
+  from before project creation returns no results, without duration or test-user
+  exclusions. This closes the dated recording-inventory gate; provider deletion
+  and runtime acceptance remain separate. No recordings were deleted.
+
 - Fixed cafe-list ownership transfers that rolled back when their new screening
   revision hid the response from the former owner. A content-free confirmation
   preserves existing client decoding and exact-epoch retries without approving
