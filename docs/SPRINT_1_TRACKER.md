@@ -7,7 +7,30 @@ last_verified: 2026-09-13
 # Sprint 1 delivery: trust, moderation, and working sharing
 
 
-## Current checkpoint — September 13, journey acceptance and repairs
+## Current scope — TestFlight preparation only
+
+The owner explicitly directed TestFlight-only preparation, with no App Store
+review submission. On September 13 the owner confirmed no disposable Apple
+Account is available and authorized proceeding. Actual Apple token revocation
+remains unverified and is a documented TestFlight limitation, not a prerequisite
+for continuing the other work. Do not request that account again or revoke the
+owner's real Apple authorization for testing.
+
+The remaining bounded work is one focused native photo-posting and repaired
+account-deletion acceptance pass, required backend rollout verification, and
+Simulator/connected-iPhone validation before the separate TestFlight upload
+approval. Retain marketing version 0.5.3 unless the owner approves a change;
+choose an unused build number at upload preparation. Do not submit App Store
+review. PostHog's existing pending synthetic erasure request must be monitored
+without blocking unrelated preparation or creating additional test identities.
+
+The Mac is currently locked. No paid QA should exist while waiting for native
+acceptance. Existing passing checks do not need repetition without a new change
+or concrete failure.
+
+## Earlier checkpoint — September 13, journey acceptance and repairs
+
+The provider gate above supersedes the Apple test-account requirement below.
 
 The second native walkthrough verified persisted Love reactions, the native
 profile share sheet, Friends-profile consent cancellation/confirmation/off,

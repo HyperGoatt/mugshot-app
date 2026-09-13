@@ -8,6 +8,11 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Owner narrowed delivery to TestFlight preparation, explicitly excluding App
+  Store review submission. Real Apple revocation remains unverified; the owner
+  authorized proceeding without a disposable Apple Account. Recorded that
+  limitation and the bounded remaining release checks.
+
 - Fixed Saved Data API permissions on clean replays while preserving owner-only
   access. Two focused SQL contracts and native Save-to-Favorites passed.
 - Repaired native deletion capability matching for dedicated worker secrets and
