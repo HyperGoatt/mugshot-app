@@ -527,3 +527,25 @@ Production buckets are still public where inventoried; protected-bucket policies
 remaining media consumers, consolidated runtime acceptance, and deployment remain
 open. Focused parser tests are added for own-origin, traversal, query, and bucket
 boundaries. Compile/static evidence will be recorded after this source batch.
+
+### Protected web-media compatibility — September 13, 2026
+
+Public cafe-list HTML now resolves user photos with the anonymous publishable
+client and Storage RLS, with no privileged signing or permanent URL fallback.
+Successful pages use private/no-store headers instead of shared caches. Six
+focused Deno media tests pass, including anonymous Storage denials; the cafe-list
+entrypoint type-checks.
+
+The companion PWA now routes every user-image element through protected loading;
+only bundled branding retains raw image elements. It clears signed blobs on
+account/visibility/source changes, refreshes Storage authorization, and refreshes
+shared-link projections every 45 seconds while visible. Postcard export waits
+for image authorization/decoding and fences account changes. Seven focused web
+tests, TypeScript, Vite build and targeted new-file ESLint pass. Existing upload
+regression checks exposed stale header expectations; committed "Log a Sip" copy
+was preserved and test expectations corrected.
+
+This affects media loading, web sharing, Storage compatibility and privacy.
+Production buckets and Edge Functions remain unchanged. Live signing/CORS,
+remaining native direct-image consumers, cafe admission, telemetry/data export,
+full isolated QA and consolidated runtime/deployment acceptance remain open.

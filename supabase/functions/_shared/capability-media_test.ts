@@ -4,6 +4,7 @@ import {
   type MediaSigningClient,
   privateStorageReference,
   resolvedCapabilityMediaURL,
+  resolvedPublicAudienceMediaURL,
   safeHTTPSURL,
 } from "./capability-media.ts";
 
@@ -225,5 +226,37 @@ Deno.test("capability signing refuses copied owners, sibling visits and wrong me
       path: `${ownerID}/${visitID}/x.jpg`,
     }, { kind: "visit", ownerID, visitID }),
     "matching legacy visit media remains supported",
+  );
+});
+
+Deno.test("public-list media respects anonymous Storage denials without public fallback", async () => {
+  const base = "https://project.supabase.co";
+  let calls = 0;
+  const client: MediaSigningClient = {
+    storage: {
+      from() {
+        return {
+          async createSignedUrl() {
+            calls++;
+            return { data: null, error: { message: "denied by RLS" } };
+          },
+        };
+      },
+    },
+  };
+  for (
+    const value of [
+      `${base}/storage/v1/object/public/visit-photos/owner/visit/photo.jpg`,
+      "mugshot-storage://visit-photos-private/owner/visit/photo.jpg",
+    ]
+  ) {
+    assert(
+      await resolvedPublicAudienceMediaURL(value, client, base) === null,
+      "denied media has no permanent fallback",
+    );
+  }
+  assert(
+    calls === 2,
+    "both legacy and private references require anonymous authorization",
   );
 });

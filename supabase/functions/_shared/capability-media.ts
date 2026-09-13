@@ -108,6 +108,46 @@ export function mediaBelongsToScope(
     parts[1]?.toLowerCase() === scope.visitID.toLowerCase();
 }
 
+/** Use only a publishable-key anonymous client. Public cafe-list images must
+ * pass Storage RLS; this function must never receive a privileged client. */
+export async function resolvedPublicAudienceMediaURL(
+  value: unknown,
+  anonymousClient: MediaSigningClient,
+  supabaseURL: string,
+): Promise<string | null> {
+  const reference = privateStorageReference(value) ??
+    legacyCapabilityStorageReference(value, supabaseURL);
+  if (reference) {
+    return await signStorageMediaURL(reference, anonymousClient, supabaseURL);
+  }
+  const url = safeHTTPSURL(value);
+  if (!url) return null;
+  try {
+    return new URL(url).origin === new URL(supabaseURL).origin ? null : url;
+  } catch {
+    return null;
+  }
+}
+
+async function signStorageMediaURL(
+  reference: { bucket: string; path: string },
+  client: MediaSigningClient,
+  supabaseURL: string,
+): Promise<string | null> {
+  const { data, error } = await client.storage.from(reference.bucket)
+    .createSignedUrl(reference.path, 60);
+  if (error) return null;
+  const signed = safeHTTPSURL(data?.signedUrl);
+  if (!signed) return null;
+  try {
+    return new URL(signed).origin === new URL(supabaseURL).origin
+      ? signed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolvedCapabilityMediaURL(
   value: unknown,
   adminClient: MediaSigningClient | null,
@@ -130,17 +170,5 @@ export async function resolvedCapabilityMediaURL(
     }
   }
   if (!adminClient || !mediaBelongsToScope(reference, scope)) return null;
-  const { data, error } = await adminClient.storage
-    .from(reference.bucket)
-    .createSignedUrl(reference.path, 60);
-  if (error) return null;
-  const signed = safeHTTPSURL(data?.signedUrl);
-  if (!signed) return null;
-  try {
-    return new URL(signed).origin === new URL(supabaseURL).origin
-      ? signed
-      : null;
-  } catch {
-    return null;
-  }
+  return await signStorageMediaURL(reference, adminClient, supabaseURL);
 }

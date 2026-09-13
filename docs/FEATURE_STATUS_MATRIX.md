@@ -73,3 +73,9 @@ policy migration and service-role author/visit/bucket provenance checks are now
 implemented and locally tested. Remaining consumers, full remote integration,
 and consolidated runtime acceptance are still open; production buckets have not
 been changed. See [Sprint 1 tracker](SPRINT_1_TRACKER.md).
+
+The protected-media compatibility follow-up now includes PWA user-image loading
+and public cafe-list HTML. Local web media/account/visibility/postcard tests and
+anonymous-signing denial tests pass. This is source/local evidence; live
+Storage/CORS, remaining native direct-image consumers and rollout acceptance are
+still open. Public cafe-list responses now use no-store caching.

@@ -877,3 +877,30 @@ whitespace checks pass. Native media source was compile-verified in the precedin
 checkpoint and has not changed in this authorization follow-up. No remote
 migration, live media fetch, user-content screening, Simulator, or release action
 was performed.
+
+### Protected web-media compatibility — September 13, 2026
+
+Public cafe-list HTML now resolves user photos with the anonymous publishable
+client and Storage RLS, with no privileged signing or permanent URL fallback.
+Successful pages use private/no-store headers instead of shared caches. Six
+focused Deno media tests pass, including anonymous Storage denials; the cafe-list
+entrypoint type-checks.
+
+The companion PWA now routes every user-image element through protected loading;
+only bundled branding retains raw image elements. It clears signed blobs on
+account/visibility/source changes, refreshes Storage authorization, and refreshes
+shared-link projections every 45 seconds while visible. Postcard export waits
+for image authorization/decoding and fences account changes. Seven focused web
+tests, TypeScript, Vite build and targeted new-file ESLint pass. Existing upload
+regression checks exposed stale header expectations; committed "Log a Sip" copy
+was preserved and test expectations corrected.
+
+This affects media loading, web sharing, Storage compatibility and privacy.
+Production buckets and Edge Functions remain unchanged. Live signing/CORS,
+remaining native direct-image consumers, cafe admission, telemetry/data export,
+full isolated QA and consolidated runtime/deployment acceptance remain open.
+
+The PWA compatibility checkpoint is committed and pushed as `6d0a5f0` on
+`codex/sprint-1-sharing` (draft PR 13). Its seven new focused tests and six
+existing AddVisit tests pass; final build and TypeScript checks pass. Production
+publication and live-media acceptance are not claimed.
