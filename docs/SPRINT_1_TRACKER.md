@@ -1029,3 +1029,22 @@ focused actual-PostgreSQL tests passed after the final payload minimization,
 including direct cafe recommendation invalidation. Documentation and whitespace
 checks passed. No native source changed. No Simulator session or production
 mutation ran.
+
+### September 13 PWA sip-detail compatibility and account scoping
+
+The raw-note concern resolves to an existing backend contract: legacy notes are
+routed to the owner-only table and constrained null. Direct SELECT on both notes
+and protected brew columns is revoked. PWA detail still requested them, so its
+whole visit query could fail. The companion source now selects safe columns,
+uses owner/shared recipe RPCs for brew method and drops the unused notes field.
+Account/generation-scoped query keys, cancellation, cache removal and final
+session checks prevent a late owner response from being reused after switching.
+
+Three focused hook tests pass, along with TypeScript, focused ESLint and Vite
+build checks. These are local synthetic checks; runtime/production acceptance
+remain pending. The outward field inventory also identified shared `city_state`
+and rating labels for screening-policy verification; do not infer full audit
+completion from this compatibility fix.
+
+PWA checkpoint `5f58528` is committed on `codex/sprint-1-sharing` for draft
+PR 13. Native/backend source is unchanged in this follow-up.
