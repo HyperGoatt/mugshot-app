@@ -17,14 +17,20 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913073502_sprint1_shared_visit_display_text.sql`. Sprint 1 migrations
-are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
+`20260913142110_sprint1_cafe_catalog_explicit_grants.sql`. Sprint 1 migrations
+are not deployed to production; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
 `20260825030917_post_reactions.sql` and the new Sprint 1 migrations are absent
 from production. Only the default branch exists; no disposable QA branch was
 present. The live project reference is recorded in the existing Supabase link,
 and QA scripts refuse that production reference.
+
+The first Sprint 1 QA branch was created without data, used for repository
+replay and remote contracts, then deleted on 2026-09-13. Automatic replay
+exposed damaged stored statements in 85 historical production migration
+records. Production metadata repair and full remote acceptance remain open.
+See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
 ## Non-negotiable invariants
 

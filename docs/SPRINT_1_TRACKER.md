@@ -38,6 +38,17 @@ an assertion failure. Resume the consolidated unit suite in an unlocked
 session. Live backend journeys still require disposable QA approval and
 configuration; no production database was used for these tests.
 
+## Hosted QA checkpoint — 2026-09-13
+
+The first approved paid QA branch has been deleted and its absence verified.
+Repository-source history replay passed after isolated scheduler prerequisites;
+automatic replay exposed 85 damaged production migration statement records.
+The full remote suite reported 30 passes and 25 failures. A missing cafe-table
+grant was fixed in migration `20260913142110`, and both its focused contract and
+the screening queue contract passed remotely. Full-suite triage, metadata
+repair, provider configuration, and runtime acceptance remain open. See the
+[dated QA evidence and exact failures](SPRINT_1_QA_2026-09-13.md).
+
 ## Delivery states
 
 | Workstream | Evidence | Remaining |

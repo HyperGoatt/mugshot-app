@@ -8,6 +8,15 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Ran the first approved hosted Sprint 1 QA branch and deleted it after
+  evidence capture; branch absence is verified. Source replay passed with
+  isolated scheduler prerequisites. The full remote suite reported 30 passes
+  and 25 failures; production history also contains 85 damaged statement
+  records requiring repair. Neither finding is waived.
+- Added explicit least-privilege cafe catalog grants for fresh Supabase
+  environments. The new grant contract and screening queue contract pass on
+  hosted QA. Production remains unchanged; full-suite triage is still open.
+
 - Corrected the compile verification scheme to `MugshotTests` and added a
   generated-manifest check for both test targets. The previous auto-generated
   scheme could pass with no tests configured. Both test bundles now compile;
