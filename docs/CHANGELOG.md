@@ -549,3 +549,18 @@ This affects media loading, web sharing, Storage compatibility and privacy.
 Production buckets and Edge Functions remain unchanged. Live signing/CORS,
 remaining native direct-image consumers, cafe admission, telemetry/data export,
 full isolated QA and consolidated runtime/deployment acceptance remain open.
+
+### Native media consumer closure — September 13, 2026
+
+Source inspection found one remaining native `AsyncImage` consumer: companion
+avatars in the Log a Sip form. It now uses the existing protected-image component
+while preserving its initials fallback, size and appearance. The anonymous
+Mugshot projection request now uses an ephemeral session without a URL cache and
+checks cancellation before decoding. This changes media-loading/privacy behavior;
+no Storage schema or production configuration is changed by this follow-up.
+
+The native source inventory has no remaining direct `AsyncImage` calls or shared
+URLSession data calls. Other `Data(contentsOf:)` calls found by the inventory read
+local draft/library/photo-cache files, not remote Storage URLs. Focused generic
+Debug compilation is the verification gate for this contained consumer change;
+consolidated runtime and live Storage acceptance remain pending.

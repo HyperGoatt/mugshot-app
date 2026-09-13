@@ -904,3 +904,33 @@ The PWA compatibility checkpoint is committed and pushed as `6d0a5f0` on
 `codex/sprint-1-sharing` (draft PR 13). Its seven new focused tests and six
 existing AddVisit tests pass; final build and TypeScript checks pass. Production
 publication and live-media acceptance are not claimed.
+
+### Native media consumer closure — September 13, 2026
+
+Source inspection found one remaining native `AsyncImage` consumer: companion
+avatars in the Log a Sip form. It now uses the existing protected-image component
+while preserving its initials fallback, size and appearance. The anonymous
+Mugshot projection request now uses an ephemeral session without a URL cache and
+checks cancellation before decoding. This changes media-loading/privacy behavior;
+no Storage schema or production configuration is changed by this follow-up.
+
+The native source inventory has no remaining direct `AsyncImage` calls or shared
+URLSession data calls. Other `Data(contentsOf:)` calls found by the inventory read
+local draft/library/photo-cache files, not remote Storage URLs. Focused generic
+Debug compilation is the verification gate for this contained consumer change;
+consolidated runtime and live Storage acceptance remain pending.
+
+The native consumer follow-up passed generic Debug app/test compilation, plus
+documentation and diff checks. Owner export was inspected: Storage references
+are signed through the authenticated owner client, with owner/path allowlists
+and account checks after download and before final package delivery. That
+intentional owner export is distinct from public recipient media and is not
+changed by this follow-up.
+
+Marketing commit `0189162` makes HTML restoration conditional on share request
+format, preserving upstream JSON and OG image response types. All four share
+routes have private/no-store headers. The existing branded HTML fallback and
+security headers remain. `npm run verify` passes with 14 tests, 20 generated
+HTML routes and no Astro errors. Vercel query-based header conditions were
+checked against official configuration documentation. Preview/live routing
+acceptance and production rollout remain pending; draft PR 18 remains unmerged.

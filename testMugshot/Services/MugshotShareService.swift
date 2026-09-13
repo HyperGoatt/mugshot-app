@@ -131,7 +131,12 @@ final class MugshotShareLinkService {
                 request.setValue("application/json", forHTTPHeaderField: "Accept")
                 request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
                 request.timeoutInterval = 15
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let sessionConfiguration = URLSessionConfiguration.ephemeral
+                sessionConfiguration.urlCache = nil
+                let session = URLSession(configuration: sessionConfiguration)
+                defer { session.invalidateAndCancel() }
+                let (data, response) = try await session.data(for: request)
+                try Task.checkCancellation()
                 if let response = response as? HTTPURLResponse {
                     if response.statusCode == 404 { return nil }
                     guard (200..<300).contains(response.statusCode) else {

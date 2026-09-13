@@ -79,3 +79,10 @@ and public cafe-list HTML. Local web media/account/visibility/postcard tests and
 anonymous-signing denial tests pass. This is source/local evidence; live
 Storage/CORS, remaining native direct-image consumers and rollout acceptance are
 still open. Public cafe-list responses now use no-store caching.
+
+Native direct-image consumer inventory is now closed in source: Log a Sip
+companion avatars use the protected loader, and anonymous Mugshot projection
+requests use an ephemeral uncached session. Generic Debug compilation passes.
+Marketing share response headers now preserve JSON/image formats and prevent
+shared caching; local marketing verification passes. These updates do not prove
+live Storage/CORS, rendered acceptance, or production rollout.

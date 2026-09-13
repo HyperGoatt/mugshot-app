@@ -3970,15 +3970,17 @@ private struct LogASipV3Avatar: View {
     let companion: SipCompanion
 
     var body: some View {
-        AsyncImage(url: companion.avatarURL.flatMap(URL.init(string:))) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFill()
+        Group {
+            if let value = companion.avatarURL {
+                ProtectedRemoteImage(storedValue: value) { image in
+                    if let image {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    } else {
+                        initial
+                    }
+                }
             } else {
-                Text(companion.displayName.prefix(1).uppercased())
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.espressoBrown)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.sandBeige)
+                initial
             }
         }
         .frame(width: 40, height: 40)
@@ -3986,6 +3988,15 @@ private struct LogASipV3Avatar: View {
         .overlay(Circle().stroke(Color.foamWhite, lineWidth: 2))
         .accessibilityLabel(companion.displayName)
     }
+
+    private var initial: some View {
+        Text(companion.displayName.prefix(1).uppercased())
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(Color.espressoBrown)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.sandBeige)
+    }
+
 }
 
 // MARK: - Helper sheets
