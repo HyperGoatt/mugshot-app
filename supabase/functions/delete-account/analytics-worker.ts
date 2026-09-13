@@ -14,6 +14,7 @@ type Job = {
   owner_id: string;
   person_id: string | null;
   submitted_at: string | null;
+  provider_accepted: boolean;
   lease_token: string;
 };
 type Provider = {
@@ -50,7 +51,7 @@ export async function drainAnalyticsErasures(
   }
   let verified = 0;
   for (const row of claim.data as Job[]) {
-    let outcome: "pending" | "verified" | "attention" = "pending";
+    let outcome: "pending" | "submitted" | "verified" | "attention" = "pending";
     try {
       if (!ready) throw new Error();
       let personID = row.person_id;
@@ -78,7 +79,10 @@ export async function drainAnalyticsErasures(
       if (
         await service.status(configuration, target, submittedAt) === "verified"
       ) outcome = "verified";
-      else await service.submit(configuration, target);
+      else if (!row.provider_accepted) {
+        await service.submit(configuration, target);
+        outcome = "submitted";
+      }
     } catch {
       /* Coarse status only; never log provider payloads or identifiers. */
     }

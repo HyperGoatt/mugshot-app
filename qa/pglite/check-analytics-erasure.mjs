@@ -31,9 +31,10 @@ try {
  const submitted=await prepare(claimed.lease_token,[]);
  assert(submitted,'target and submission clock persist before provider mutation');
  assert.equal(await finish(other,'verified'),false,'stale completion is rejected');
- assert.equal(await finish(claimed.lease_token,'pending'),true);
+ assert.equal(await finish(claimed.lease_token,'submitted'),true);
  await db.exec("update private.account_analytics_erasures set available_at=now()-interval '1 second'");
  claimed=await claim();
+ assert.equal(claimed.provider_accepted,true,'accepted submission survives retry');
  assert.equal(claimed.person_id,person,'retry retains verified provider target after person removal');
  assert.equal(await finish(claimed.lease_token,'verified'),true);
  assert.equal((await row()).owner_id,null);assert.equal((await row()).person_id,null);

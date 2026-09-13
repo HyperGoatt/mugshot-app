@@ -7,6 +7,7 @@ create table private.account_analytics_erasures (
   owner_id uuid,
   person_id uuid,
   submitted_at timestamptz,
+  provider_accepted boolean not null default false,
   identity_deleted_at timestamptz,
   state text not null default 'pending' check(state in ('pending','processing','verified','attention')),
   attempts integer not null default 0 check(attempts between 0 and 30),
@@ -83,16 +84,18 @@ $$;
 create function public.finish_account_analytics_erasure_v1(p_request_id uuid,p_lease uuid,p_outcome text)
 returns boolean language plpgsql security definer set search_path='' as $$
 begin
-  if p_outcome is null or p_outcome not in ('pending','verified','attention') then
+  if p_outcome is null or p_outcome not in ('pending','submitted','verified','attention') then
     raise exception 'invalid analytics cleanup outcome' using errcode='22023';end if;
   update private.account_analytics_erasures set
-    state=case when p_outcome='pending' and attempts>=30 then 'attention' else p_outcome end,
+    state=case when p_outcome in ('pending','submitted') and attempts>=30 then 'attention'
+      when p_outcome='submitted' then 'pending' else p_outcome end,
+    provider_accepted=provider_accepted or p_outcome='submitted',
     owner_id=case when p_outcome='verified' then null else owner_id end,
     person_id=case when p_outcome='verified' then null else person_id end,
     lease_token=null,lease_until=null,updated_at=now(),
     available_at=now()+make_interval(secs=>least(21600,60*(2^least(attempts,8))::integer))
   where request_id=p_request_id and state='processing' and lease_token=p_lease and lease_until>now()
-    and (p_outcome<>'verified' or (person_id is not null and submitted_at is not null));
+    and (p_outcome not in ('verified','submitted') or (person_id is not null and submitted_at is not null));
   return found;
 end;
 $$;

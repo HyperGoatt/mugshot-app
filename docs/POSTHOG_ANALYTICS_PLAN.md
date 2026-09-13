@@ -109,7 +109,9 @@ account identifier when the deletion job is created. The scheduled deletion
 worker claims it only after identity deletion is confirmed. It persists the
 provider target before submission, checks receipts before retrying uncertain
 submissions, and rejects a provider person linked to another existing account.
-Five-minute leases fence concurrent workers. Thirty unsuccessful attempts move
+A durable provider-acceptance bit prevents repeated deletion submissions while
+completion is pending. Unacknowledged submissions still check the saved receipt
+before retrying. Five-minute leases fence concurrent workers. Thirty unsuccessful attempts move
 the item to `attention`; unresolved identifiers are retained for support and
 must not be silently purged. Verified event receipts clear those identifiers.
 
@@ -129,3 +131,19 @@ recording evidence, and disposable-account acceptance remain open.
 
 References: [Persons API](https://posthog.com/docs/api/persons) and
 [data deletion](https://posthog.com/docs/privacy/data-storage#data-deletion).
+
+### Native queued-event finding
+
+The resolved PostHog SDK source explicitly preserves its current event/replay/log
+queues in `reset()`. `close()` stops queues but does not erase their disk files;
+`optOut()` stops capture/integrations rather than proving queue disposal. Native
+startup configures the SDK before account recovery, so queued events from a
+previous run could be sent before a pending deletion is recovered. A deletion
+integration must gate startup and dispose the deleted account's queued events,
+including in-flight/relaunch handling. Do not substitute `flush()` as evidence:
+provider documentation describes it as best-effort and asynchronous.
+
+This is a confirmed remaining implementation gate, not a resolved finding.
+The PostHog credential setup tab currently redirects to sign-in. No credential
+was created or provider person record changed during this inspection.
+See [iOS configuration](https://posthog.com/docs/libraries/ios/configuration).

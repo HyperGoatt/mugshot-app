@@ -604,3 +604,16 @@ tests passed; the backend gate passed 11 checks with no failures (optional
 `pglast` parser unavailable; actual PGlite contracts passed). Generic Debug
 Simulator build-for-testing compiled successfully. Documentation validation and
 diff whitespace checks passed. No Simulator runtime or remote mutation ran.
+
+### September 13 analytics accepted-submission retry fix
+
+Persist provider acceptance separately from completion so pending erasure polls
+its existing receipt instead of repeatedly enqueueing deletions. The focused
+worker regression and actual queue contract verify this state survives retries.
+SDK source inspection also confirmed reset/close do not dispose current disk
+queues and app startup precedes deletion recovery; this remains an explicit
+implementation gate in the [analytics plan](POSTHOG_ANALYTICS_PLAN.md).
+
+Verification: eight synthetic Deno tests, the focused PGlite queue contract,
+and documentation/whitespace checks passed. No native source changed, so no
+additional compile or Simulator run was needed for this follow-up.

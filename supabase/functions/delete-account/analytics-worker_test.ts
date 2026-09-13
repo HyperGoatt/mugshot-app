@@ -46,7 +46,7 @@ Deno.test("analytics worker persists target before submission and keeps accepted
     },
   );
   assert(
-    result.verified === 0 && result.pending === 1 && outcome === "pending",
+    result.verified === 0 && result.pending === 1 && outcome === "submitted",
   );
 });
 
@@ -96,4 +96,40 @@ Deno.test("analytics worker does not consume attempts when disabled or pointed a
       projectID !== 521217,
     );
   }
+});
+
+Deno.test("accepted erasure is polled without repeatedly enqueueing new provider deletions", async () => {
+  let submitted = false;
+  const result = await drainAnalyticsErasures(
+    async (name, args) => {
+      if (name.startsWith("claim_")) {
+        return {
+          data: [{
+            request_id: "request",
+            owner_id: owner,
+            person_id: person,
+            submitted_at: timestamp,
+            provider_accepted: true,
+            lease_token: "lease",
+          }],
+          error: null,
+        };
+      }
+      assert(args.p_outcome === "pending");
+      return { data: true, error: null };
+    },
+    configuration,
+    true,
+    {
+      lookup: async () => {
+        throw new Error("Use saved target");
+      },
+      status: async () => "pending",
+      submit: async () => {
+        submitted = true;
+        return "submitted";
+      },
+    },
+  );
+  assert(result.pending === 1 && !submitted);
 });
