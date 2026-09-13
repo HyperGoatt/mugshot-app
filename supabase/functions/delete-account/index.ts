@@ -104,7 +104,9 @@ function capability() {
     exactOwnerValidatedStorageManifest: true,
     statusRpc: "read_account_deletion_job_by_recovery_v3",
     cleanupWorkerAction: cleanupAction,
-    cleanupWorkerAuthentication: cleanupWorkerContract.authentication,
+    cleanupWorkerAuthentication: Deno.env.get("ACCOUNT_DELETION_WORKER_SECRET")
+      ? "worker_secret_bearer"
+      : cleanupWorkerContract.authentication,
     cleanupWorkerInvocation: cleanupWorkerContract.invocation,
     cleanupDelivery: cleanupWorkerContract.delivery,
     automaticCleanupScheduled,
@@ -748,7 +750,9 @@ Deno.serve(async (request) => {
   });
 
   if (action === cleanupAction) {
-    if (!token || !constantTimeEqual(token, serviceRoleKey)) {
+    const workerSecret = Deno.env.get("ACCOUNT_DELETION_WORKER_SECRET") ??
+      serviceRoleKey;
+    if (!token || !constantTimeEqual(token, workerSecret)) {
       return json({ error: "unauthorized" }, 401);
     }
     const purged = await admin.rpc(

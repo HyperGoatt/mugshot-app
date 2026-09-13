@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 ---
 
 # Real data flow status
@@ -12,9 +12,32 @@ handle contracts and synthetic browser checks pass; these changes are not yet
 production deployed or accepted on an installed app. Current delivery evidence
 is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
 
-The standalone moderation provider boundary has passed synthetic local tests.
-It is not connected to database writes, queue processing or production. Private
-content and private notes remain excluded; production screening is not active.
+Revision-bound screening queues, workers and outward-read gates are implemented
+and pass isolated hosted contracts. Private content and private notes remain
+excluded; production screening is not active. See the current Sprint 1 tracker
+for exact activation and runtime gates.
+
+## Cafe catalog admission — source and isolated QA
+
+The `verify-cafe` Edge Function accepts only an authenticated provider/ID pair.
+Native Apple selections and PWA Google selections use this endpoint for new
+provider records. It fetches canonical fields from the matching provider, uses
+a service-only database admission function, preserves the existing provider
+record ID on retries, and limits each live account to 30 attempts per hour.
+Maps credentials remain server-only; errors omit raw provider details.
+
+Manual cafe saves retain their private journal path. New manual identities are
+scoped to their submitter. Raw catalog reads and the two legacy catalog-wide
+RPCs require provider verification or an existing authorized content context.
+Creating a reference to a guessed hidden cafe ID cannot create read access.
+Provider verification is withdrawn when a catalog correction changes its fields;
+shared text continues through the existing revision-bound screening workflow.
+Private-only cafe fields are never submitted to OpenAI.
+
+Migration `20260913191001` and its focused role/retry/rate contracts pass hosted
+QA. This is not a production deployment claim. Google verification uses the
+existing Places key; Apple uses the approved Maps-only key and `server_api` JWT
+scope. Production activation still follows the release workflow.
 
 ## Authority model
 
@@ -108,3 +131,16 @@ speculative backfill.
 - Never remove a protected draft or pending submission before remote success.
 - Never trust a client-supplied account ID when Auth can supply the caller.
 - Never make push availability a requirement for viewing in-app Activity.
+
+
+The live QA endpoint also verifies provider authentication and persistence.
+Migration `20260913192620` permits service-role workers to execute the existing
+PostgREST session hook. Migration `20260913193804` restores the production
+website field to replayable history and includes it in shared-profile screening.
+Actual QA profile projection and synthetic worker/reviewer acceptance pass;
+these changes remain pending production rollout.
+
+The QA deletion journey now includes actual uploaded bytes and fresh-session
+authorization. Initial manifest counts are fixed by migration `20260913195241`;
+identity removal, media removal and recovery without authentication pass.
+This does not yet establish production activation or Apple provider revocation.

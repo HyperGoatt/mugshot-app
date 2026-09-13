@@ -8,6 +8,35 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Added a dedicated deletion-worker secret override after live scheduled QA
+  exposed a legacy credential mismatch. User authorization is unchanged;
+  production activation requires a verified scheduled HTTP response.
+
+- Fixed initial deletion manifest counts for accounts with stored photos. The
+  regression contract and live synthetic fresh-login/deletion/recovery flow
+  pass, including actual Auth and Storage cleanup and stale-session denial.
+  Production rollout remains pending.
+
+- Live QA exposed and fixed missing service-role execution of the existing
+  PostgREST session hook. Authenticated cafe verification and synthetic
+  screening/reviewer flows now pass through deployed endpoints. User-session
+  enforcement is unchanged; production is not yet updated.
+- Restored the missing profile website column to reproducible migration history
+  and included website text in shared-profile screening. A non-empty hosted
+  profile contract passes; actual readable web profiles render on QA.
+
+
+- Added authenticated server cafe verification for Apple/Google selections,
+  service-only admission and rate limits, contextual catalog reads, and guarded
+  cafe references. Manual saves remain supported without private-content
+  screening. All 156 migrations replayed and all 58 hosted contracts passed;
+  four provider/handler tests, native app/test compilation and PWA build pass.
+  Production deployment remains pending.
+- Updated the isolated lifecycle and Home test harnesses to inspect the current
+  superseding security definitions, and fixed the discovery cursor contract to
+  use the actual last visible row when fewer than five cafes are available.
+
+
 - Completed approved Apple Maps identifier and Maps-only key provisioning.
   Stored the private key outside Git with owner-only permissions. Local ES256
   verification and Apple's server-scoped token exchange passed (HTTP 200).

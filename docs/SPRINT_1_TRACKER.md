@@ -1346,3 +1346,101 @@ verification, catalog admission, production secret deployment, and runtime
 acceptance remain open. OpenAI sharing settings and Private-content exclusion
 remain unchanged; Maps authentication does not send anything to OpenAI. No paid
 QA branch was created for this check.
+
+
+## Cafe catalog implementation — September 13
+
+Implemented `verify-cafe` for authenticated Apple/Google place-ID requests.
+The server fetches the provider record, stores only canonical cafe fields, and
+uses a service-only admission RPC with same-provider serialization and stable
+IDs on retry. An atomic limit permits 30 attempts per account per hour. Native
+and PWA provider-save paths call it; no caller labels are treated as verified.
+A live Apple lookup of a public test cafe passes without any user content.
+
+Raw cafe reads and legacy discovery/resolution now require provider admission
+or an authorized content context. New manual cafes remain saveable with
+submitter-scoped identities. Reference triggers reject guessed hidden IDs, so
+creating a save/sip/list/favorite/recommendation cannot manufacture access.
+Corrections withdraw provider admission and retain dependent screening refresh.
+Private-only content is never queued to OpenAI.
+
+The QA branch replayed all 156 migrations and passed all 58 contracts in one
+full run. The new contract checks owner/other/anonymous access, hidden-reference
+rejection, manual-name independence, retry identity, service-only grants, rate
+limits and correction invalidation. Four Deno provider/handler tests pass.
+The backend gate passes 11 checks with only optional pglast skipped. Native app
+and both test targets compile; the PWA production build passes.
+
+Advisors show 32 private RLS-without-policy informational entries and 29/187
+anonymous/authenticated definer warnings. The one new public wrapper is
+caller-bound through `auth.uid()` and returns only catalog readability; the
+actual admission/rate functions deny clients. This is reviewed intentional
+access, not a reason to grant more permissions. Existing RPC inventory review
+and production/runtime release acceptance remain separate gates.
+
+
+## Live server acceptance and profile replay repair — September 13
+
+The deployed QA `verify-cafe` endpoint passed authenticated Apple verification,
+anonymous denial, strict-field rejection and stable-ID retry. Live execution
+found that the PostgREST pre-request hook denied service-role workers before
+reaching their RPCs. Migration `20260913192620` grants that role permission to
+execute the existing hook without changing user-session enforcement. The three
+focused lifecycle/catalog contracts pass after the correction.
+
+The QA screening worker successfully processed a synthetic profile with OpenAI.
+A normal account was denied reviewer preview; a QA-only operator could preview
+and approve another synthetic profile, with the decision persisted. All jobs
+belong to reserved synthetic accounts; no production user content was sent.
+All scheduled QA jobs remain inactive.
+
+Real web profile acceptance then exposed the missing `users.website_url` column
+in replayed history. Production already has that field. Migration
+`20260913193804` adds it only when absent and includes website text in the shared
+profile screening payload. A focused hosted contract requires an actual
+non-empty admitted profile and sip projection and verifies that a website edit
+is withheld until reviewed. The readable web profile now renders real QA data.
+
+The native candidate launched against QA with analytics disabled and unchanged
+compiled executable. Its sign-in screen renders, but the locked Mac prevents
+input; automatic unlock failed. Simulator interaction is not accepted yet.
+Backend and browser acceptance continue independently.
+
+
+## Live media and deletion acceptance — September 13
+
+All 158 migrations at the profile-website head passed all 59 hosted contracts
+in one run. The public web profile consent test removed Friends posts while
+retaining Everyone posts; an unknown handle showed the neutral unavailable
+page. Actual Storage upload/owner recovery passed, while anonymous signing
+and the historical public object URL were denied.
+
+A disposable account with an uploaded photo exposed an initial deletion-job
+count mismatch. Migration `20260913195241` records the initial manifest count
+at insertion rather than waiting for V3's later sealing update. The count
+constraint and authorization checks remain intact. Its focused non-empty
+manifest regression passes against the 159-migration QA database.
+
+The deployed deletion endpoint then passed the complete synthetic journey:
+the original session cannot authorize deletion, a fresh password sign-in can,
+Auth identity and actual Storage bytes are deleted, stale sessions are denied,
+and capability recovery without a session returns completed. Apple token
+revocation is a separate provider acceptance item; this account used email.
+Only the deletion schedule was enabled in QA, with its destination explicitly
+changed to the QA project and its credential held in Vault. Other schedules
+remain inactive. The paid QA branch still requires cleanup after acceptance.
+
+PostHog accepted erasure of one synthetic person with events and recordings
+requested; the provider verification receipt is pending. No real account was
+selected or deleted. Production session recording remains disabled.
+The production physical backup dated 2026-09-13 12:35:29 UTC is visibly available.
+Native interaction remains blocked by the locked Mac; server work continues.
+
+
+The cleanup worker required explicit custom-auth deployment configuration.
+Added `ACCOUNT_DELETION_WORKER_SECRET`, backed by the scheduler Vault slot, and
+recorded `delete-account.verify_jwt=false` so the handler can authenticate the
+worker bearer and recovery capability. User actions still require Auth checks.
+Live direct worker acceptance now returns 200 for the configured secret and
+401 for an unrelated bearer. The backend gate passes 11 checks, with only the
+optional pglast parser skipped. Scheduled HTTP acceptance remains separate.

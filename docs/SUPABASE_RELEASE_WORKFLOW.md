@@ -17,13 +17,14 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913153904_sprint1_analytics_erasure_recovery.sql`. Sprint 1 migrations
+`20260913195241_sprint1_deletion_manifest_initial_count.sql`. Sprint 1 migrations
 are not deployed to production; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
 `20260825030917_post_reactions.sql` and the new Sprint 1 migrations are absent
-from production. Only the default branch exists; no disposable QA branch was
-present. The live project reference is recorded in the existing Supabase link,
+from production. At the initial inventory only the default branch existed. The approved
+`sprint1-catalog-qa-20260913` branch is currently active for runtime acceptance
+and must be deleted when that work ends. The live project reference is recorded in the existing Supabase link,
 and QA scripts refuse that production reference.
 
 The first Sprint 1 QA branch was created without data, used for repository
@@ -35,8 +36,10 @@ with verified schema/row invariants and a rehearsed rollback. See the
 [exact repair evidence](SPRINT_1_MIGRATION_HISTORY_REPAIR_2026-09-13.md).
 A fresh data-less branch automatically replayed 113 migrations through
 `20260809144548`; the next migration requires operational scheduler Vault
-configuration. The check branch was deleted and absence verified. Full replay
-with those prerequisites and complete remote acceptance remain open.
+configuration. The check branch was deleted and absence verified. The later catalog QA branch has replayed all 159 migrations. All 59 contracts
+at the previous head passed together; the additional non-empty deletion
+manifest contract passed separately after its forward fix. Runtime acceptance
+continues.
 See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
 ## Non-negotiable invariants
@@ -199,3 +202,47 @@ custom rating/category names in visit screening. It excludes numeric values and
 unexpected nested properties and rebuilds only eligible shared visit snapshots.
 No private brew fields are added. Existing changed payloads return to pending;
 apply and measure this backfill in QA before activation.
+
+
+## Cafe catalog admission deployment
+
+Deploy `verify-cafe` with JWT verification enabled after migration
+`20260913191001`. Configure `APPLE_MAPS_PRIVATE_KEY`, `APPLE_MAPS_KEY_ID`, and
+`APPLE_MAPS_TEAM_ID` from restricted server secret storage, and retain the
+existing `GOOGLE_PLACES_API_KEY`. Never place these values in client build
+settings, logs, PR text or tracked files. Generate five-minute Maps authorization
+JWTs with only `server_api` scope.
+
+The endpoint validates the Auth user and live Mugshot account, enforces an
+atomic 30-attempt/hour limit and admits only server-fetched fields through a
+service-only RPC. Provider errors preserve the unsaved state and use a retry
+message; do not fall back to marking caller fields verified. Coordinate native
+and PWA activation with this endpoint. Existing unverified cafes are retained
+and readable only through their authorized content contexts; there is no bulk
+approval or private-content screening step.
+
+
+The production dashboard showed an available physical backup dated
+2026-09-13 12:35:29 UTC. This confirms a restore point exists, not a completed
+restore drill, and does not cover Storage object bytes. The rollout must not
+delete existing Storage objects.
+
+
+## Deletion scheduler credential
+
+Set a random server-only `ACCOUNT_DELETION_WORKER_SECRET` and store the same
+value in the existing `mugshot_account_deletion_service_role` Vault slot used
+by the scheduler. The historical slot name does not require a database service
+key. The endpoint uses that dedicated bearer when configured; legacy deployments
+retain their service-role fallback. Keep the value out of logs and client builds.
+Confirm an actual scheduled HTTP 200 before setting the production scheduled
+capability flag. QA scheduled execution initially returned 401 with the legacy
+key despite successful interactive Auth deletion; a cron success status alone
+only proves that the HTTP request was enqueued.
+
+
+`delete-account` is explicitly deployed with gateway JWT verification disabled:
+its user actions validate the token through Auth, while recovery capabilities
+and the dedicated worker bearer must also function without a user JWT. This
+matches the handler's existing authentication design. The live QA worker now
+returns HTTP 200 with its configured secret and 401 with an unrelated bearer.

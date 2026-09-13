@@ -198,6 +198,18 @@ await database.exec(`
 await database.exec(migration);
 await database.exec(visitColumnGrantsMigration);
 await database.exec(ownerJournalBrewProjectionMigration);
+// Source assertions follow the current shared projection; full hosted replay
+// validates its later-schema dependencies. This harness exercises Home storage.
+const sharedSource = await readFile(resolve(repository,
+  "supabase/migrations/20260913032223_sprint1_shared_collection_screening.sql"), "utf8");
+for (const name of ["private.recipe_shared_brew_details_v1", "public.get_recipe_projection_v1"]) {
+  const escaped = name.replaceAll(".", "\\.");
+  const definition = sharedSource.match(new RegExp("create (?:or replace )?function " + escaped + "\\([\\s\\S]*?\\n\\$\\$;", "i"));
+  if (!definition) throw new Error("Current recipe definition missing: " + name);
+  await database.exec("set check_function_bodies = off");
+  await database.exec(definition[0]);
+}
+await database.exec("set check_function_bodies = on");
 const result = await database.exec(contract);
 const contractResult = result
   .flatMap((statement) => statement.rows ?? [])

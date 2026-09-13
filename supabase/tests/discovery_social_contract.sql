@@ -57,7 +57,7 @@ begin
   from public.discover_cafes('nearby',null,null,25,5,null,null);
   select ranking_score,cafe_id into v_cursor_score,v_cursor_id
   from public.discover_cafes('nearby',null,null,25,5,null,null)
-  order by ranking_score desc,cafe_id desc offset 4 limit 1;
+  order by ranking_score asc,cafe_id asc limit 1;
   select array_agg(cafe_id) into v_second_page
   from public.discover_cafes('nearby',null,null,25,5,v_cursor_score,v_cursor_id);
   if v_first_page && coalesce(v_second_page,'{}'::uuid[]) then
