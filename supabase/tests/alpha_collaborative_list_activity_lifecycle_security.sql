@@ -55,10 +55,21 @@ begin
   if definition not ilike '%p_recipient = p_actor%'
      or definition not ilike '%activity_recipient_is_eligible_v2(p_recipient)%'
      or definition not ilike '%can_socially_mutate_as(p_actor)%'
-     or definition not ilike '%can_view_user_as(p_actor, p_recipient)%'
+     or definition not ilike '%activity_candidate_user_v1(p_actor, p_recipient)%'
      or definition not ilike '%on conflict (recipient_id, dedupe_key) do nothing%'
      or definition not ilike '%''source'', ''cafe_list_lifecycle''%' then
     raise exception 'lifecycle creator lost eligibility, privacy, or idempotency controls';
+  end if;
+
+  -- Creation may queue a pending actor, while delivery still requires the
+  -- screened reader predicate. The candidate helper must retain safety checks.
+  select pg_get_functiondef('private.activity_candidate_user_v1(uuid,uuid)'::regprocedure)
+  into definition;
+  if definition not ilike '%is_live_account_as(p_viewer)%'
+    or definition not ilike '%is_live_account_as(p_user_id)%'
+    or definition not ilike '%blocked_between(p_viewer, p_user_id)%'
+    or definition not ilike '%account_suspended%' then
+    raise exception 'lifecycle candidate lost account or block checks';
   end if;
 
   select pg_get_functiondef(
@@ -108,7 +119,7 @@ begin
   if definition not ilike '%auth.uid()%'
      or definition not ilike '%for update%'
      or definition not ilike '%can_manage_cafe_list_as(p_list_id, actor)%'
-     or definition not ilike '%can_view_cafe_list_as(p_list_id, actor)%'
+     or definition not ilike '%cafe_list_transfer_result_v1(p_list_id, actor, p_new_owner_id)%'
      or definition not ilike '%can_socially_mutate_as(p_new_owner_id)%'
      or definition not ilike '%can_view_user_as(p_new_owner_id, actor)%'
      or definition not ilike '%invitation_status = ''accepted''%'
@@ -124,6 +135,24 @@ begin
      or position('update public.cafe_lists' in lower(definition))
         > position('delete from public.cafe_list_members' in lower(definition)) then
     raise exception 'ownership transfer lost caller, successor, lock, or ordering controls';
+  end if;
+
+  select pg_get_functiondef(
+    'private.cafe_list_transfer_result_v1(uuid,uuid,uuid)'::regprocedure
+  ) into definition;
+  if definition not ilike '%actor is distinct from p_previous_owner%'
+     or definition not ilike '%target.owner_id is distinct from p_new_owner%'
+     or definition not ilike '%receipt.ownership_epoch = target.ownership_epoch%'
+     or definition not ilike '%is_live_account_as(actor)%'
+     or definition not ilike '%is_live_account_as(p_new_owner)%'
+     or definition not ilike '%blocked_between(actor, p_new_owner)%'
+     or definition not ilike '%can_view_cafe_list_as(p_list_id, actor)%'
+     or definition not ilike '%''can_view_items'', false%'
+     or has_function_privilege('anon',
+       'private.cafe_list_transfer_result_v1(uuid,uuid,uuid)', 'execute')
+     or has_function_privilege('authenticated',
+       'private.cafe_list_transfer_result_v1(uuid,uuid,uuid)', 'execute') then
+    raise exception 'transfer receipt lost content, identity, or client-execution boundary';
   end if;
 
   if not exists (

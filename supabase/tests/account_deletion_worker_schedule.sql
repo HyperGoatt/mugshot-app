@@ -18,7 +18,8 @@ begin
   where job.jobname = 'mugshot-account-deletion-v3';
 
   if not found
-     or configured_job.active is not true
+     or configured_job.active is distinct from
+       (current_setting('mugshot.qa_contract', true) is distinct from 'isolated')
      or configured_job.schedule <> '*/5 * * * *'
      or configured_job.command not like '%drain_deletions_v3%'
      or configured_job.command not like '%protocolVersion%3%'

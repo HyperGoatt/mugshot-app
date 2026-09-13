@@ -269,6 +269,8 @@ end;
 $$;
 
 reset role;
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

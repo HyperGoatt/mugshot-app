@@ -95,6 +95,12 @@ select public.invite_cafe_list_member(
 );
 
 reset role;
+-- Admit only the newly created shared fixture list and its first item.
+select pg_temp.approve_shared_fixture(q.subject_kind,q.subject_id)
+from private.screening_jobs q
+where (q.subject_kind='list' and q.subject_id=(select id from alpha_list_state where key='list'))
+  or (q.subject_kind='list_item' and q.subject_id in
+    (select id from public.cafe_list_items where list_id=(select id from alpha_list_state where key='list')));
 create temp table alpha_first_invite as
 select created_at
 from public.cafe_list_members
@@ -172,6 +178,7 @@ end $$;
 update public.cafe_lists
 set owner_id = (select id from alpha_list_users where n = 1)
 where id = (select id from alpha_list_state where key = 'list');
+select pg_temp.approve_shared_fixture('list',(select id from alpha_list_state where key='list'));
 
 do $$ begin
   if not exists (
@@ -432,6 +439,15 @@ select public.respond_cafe_list_invitation_v2(
   'accept'
 );
 
+reset role;
+-- These two lists predate the enforcement action in this scenario.
+select pg_temp.approve_shared_fixture(q.subject_kind,q.subject_id)
+from private.screening_jobs q
+where (q.subject_kind='list' and q.subject_id in
+    (select id from alpha_list_state where key in ('friend_visibility_list','suspended_owner_list')))
+  or (q.subject_kind='list_item' and q.subject_id in
+    (select item.id from public.cafe_list_items item where item.list_id in
+      (select id from alpha_list_state where key in ('friend_visibility_list','suspended_owner_list'))));
 reset role;
 insert into private.moderation_actions (
   subject_kind,
@@ -709,6 +725,10 @@ select public.add_cafe_list_item_v2(
   (select id from public.cafes order by id offset 2 limit 1),
   'Editor contribution'
 );
+reset role;
+select pg_temp.approve_shared_fixture('list_item',item.id)
+from public.cafe_list_items item where item.list_id=(select id from alpha_list_state where key='list');
+set local role authenticated;
 select public.block_user_v2((select id from alpha_list_users where n = 3));
 
 do $$
@@ -809,10 +829,35 @@ select set_config(
   )::text,
   true
 );
-select public.transfer_cafe_list_ownership_v2(
-  (select id from alpha_list_state where key = 'list'),
-  (select id from alpha_list_users where n = 2)
-);
+do $$
+declare
+  first_result jsonb;
+  retry_result jsonb;
+begin
+  first_result := public.transfer_cafe_list_ownership_v2(
+    (select id from alpha_list_state where key = 'list'),
+    (select id from alpha_list_users where n = 2)
+  );
+  retry_result := public.transfer_cafe_list_ownership_v2(
+    (select id from alpha_list_state where key = 'list'),
+    (select id from alpha_list_users where n = 2)
+  );
+  if first_result is distinct from retry_result
+     or first_result->>'title' is distinct from 'Ownership transferred'
+     or first_result->>'current_role' is distinct from 'editor'
+     or first_result->>'can_view_items' is distinct from 'false'
+     or first_result->'items' is distinct from '[]'::jsonb
+     or first_result->'members' is distinct from '[]'::jsonb
+     or first_result->>'preview_photo_url' is not null then
+    raise exception 'pending transfer receipt leaked content or was not idempotent';
+  end if;
+  begin
+    perform public.get_cafe_list_v2((select id from alpha_list_state where key = 'list'));
+    raise exception 'pending transferred content became readable';
+  exception when sqlstate '42501' then null;
+  end;
+end;
+$$;
 
 reset role;
 do $$

@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913142110_sprint1_cafe_catalog_explicit_grants.sql`. Sprint 1 migrations
+`20260913152645_sprint1_transfer_screening_receipt.sql`. Sprint 1 migrations
 are not deployed to production; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.

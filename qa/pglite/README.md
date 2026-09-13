@@ -48,3 +48,26 @@ drift, refuses MugShot's production project reference, and seeds only synthetic
 `.invalid` identities before executing every SQL file in `supabase/tests`.
 Set `MUGSHOT_QA_SSL_CA_PATH` to a trusted CA bundle when strict certificate
 verification is required. Delete the paid branch after recording the result.
+
+
+### Hosted QA fixture admission and schedules
+
+The remote runner sets the test-only `mugshot.qa_contract=isolated` setting and
+refuses to seed when any scheduled job is active. Schedule contracts require
+inactive jobs in this mode while continuing to require their exact schedules,
+commands and secret references. Outside isolated mode, they require active jobs.
+This setting is used only by tests and does not authorize application actions.
+
+The four reserved `.invalid` profiles explicitly accept consent version 1. Their
+base shared fixture revisions receive simulated unflagged screening completion
+through the real finish RPC; the Private fixture stays outside the queue. This
+makes downstream social contracts start from admitted content. Later test
+inserts/edits are not automatically approved, and screening tests still exercise
+pending/rejected/stale states explicitly. No fixture content is sent to OpenAI.
+
+
+`fixture_screening_helpers.sql` installs a connection-local `pg_temp` helper
+that simulates completion only for exact reserved `.invalid` owners. Tests call
+it explicitly after creating or changing shared fixtures. It refuses missing
+queue entries, other owners, unexpected review states, and non-isolated mode;
+there is no persistent helper, auto-approval trigger, or provider call.

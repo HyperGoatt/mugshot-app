@@ -71,6 +71,9 @@ values
    'Coffee', 'Stranger evidence must be excluded', 'everyone', '{"Overall":2.0}'::jsonb,
    2.0, 'Cafe', '{}'::jsonb, 'complete');
 
+select pg_temp.approve_shared_fixture('visit',id) from public.visits
+where cafe_id=(select cafe_id from friend_cafe_target);
+
 set local role authenticated;
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from friend_cafe_users where n = 1),
@@ -171,6 +174,9 @@ values
     1,
     'secondary'
   );
+
+select pg_temp.approve_shared_fixture('visit',id) from public.visits
+where cafe_id=(select cafe_id from friend_cafe_target);
 
 set local role authenticated;
 select set_config('request.jwt.claims', jsonb_build_object(

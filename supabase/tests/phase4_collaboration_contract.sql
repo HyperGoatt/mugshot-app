@@ -56,6 +56,7 @@ begin
   values(identity_id,1,'{"doseGrams":18,"privateNotes":"must never be copied"}'::jsonb)
   returning id into version_id;
   insert into phase4_targets values(shareable,private_target,version_id);
+  perform pg_temp.approve_shared_fixture('visit',shareable);
 end $$;
 
 set local role authenticated;
@@ -94,6 +95,18 @@ do $$ begin
   end;
 end $$;
 
+reset role;
+-- Explicitly admit the shared list, item and recommendation revisions created
+-- above. Independently Private recipes have no provider queue entry.
+select pg_temp.approve_shared_fixture(q.subject_kind,q.subject_id)
+from private.screening_jobs q
+where (q.subject_kind='list' and q.subject_id=(select id from phase4_list))
+  or (q.subject_kind='list_item' and q.subject_id in
+    (select id from public.cafe_list_items where list_id=(select id from phase4_list)))
+  or (q.subject_kind='recommendation' and q.subject_id in
+    (select id from public.trusted_recommendations where sender_id=(select id from phase4_users where n=1)));
+
+set local role authenticated;
 -- A stranger receives neither list metadata nor contents.
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from phase4_users where n=3), 'role', 'authenticated'

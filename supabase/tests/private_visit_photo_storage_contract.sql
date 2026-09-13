@@ -82,9 +82,9 @@ begin
     select 1
     from storage.buckets
     where id = 'visit-photos'
-      and public
+      and not public
   ) then
-    raise exception 'legacy visit-photo compatibility bucket changed visibility';
+    raise exception 'legacy visit-photo bucket still permits permanent public reads';
   end if;
 
   if not exists (
@@ -312,8 +312,13 @@ select viewer_id, owner_id from private_visit_photo_behavior_context
 on conflict do nothing;
 
 update public.visits
-set visibility = 'friends', upload_state = 'complete'
+set visibility = 'friends', upload_state = 'complete',
+    poster_photo_url = 'mugshot-storage://visit-photos-private/'
+      || (select object_name from private_visit_photo_behavior_context)
 where id = (select visit_id from private_visit_photo_behavior_context);
+
+select pg_temp.approve_shared_fixture('visit',visit_id)
+from private_visit_photo_behavior_context;
 
 set local role authenticated;
 select set_config(
@@ -370,6 +375,9 @@ reset role;
 update public.visits
 set visibility = 'everyone'
 where id = (select visit_id from private_visit_photo_behavior_context);
+
+select pg_temp.approve_shared_fixture('visit',visit_id)
+from private_visit_photo_behavior_context;
 
 set local role authenticated;
 select set_config(

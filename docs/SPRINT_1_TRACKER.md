@@ -129,11 +129,11 @@ complete absence evidence remains an activation gate.
 | --- | --- | --- |
 | OpenAI setup | Dedicated Mugshot project created; feedback, evaluation/fine-tuning, and API input/output sharing all visibly Disabled organization-wide; project key saved locally outside Git; synthetic text-only moderation HTTP 200 | Server deployment and recurring release configuration checks |
 | Profile consent | Versioned RPC, disable-only legacy setter, author plus tagged-profile consent; isolated PostgreSQL behavior test and iOS Debug app/test compile pass | Runtime acceptance and production deployment |
-| Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; full-history QA replay and production acceptance |
+| Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; production acceptance; all 154 migrations replayed and 56 hosted contracts have passing evidence |
 | Existing shared content | Not screened | Updated disclosures, staged screening; unscreened content withheld from outward surfaces; owner access retained |
 | Deletion | Existing V3 orchestration plus native Apple code capture, verified exchange, encrypted provider queue and scheduled cleanup integration; deterministic checks and generic compile pass; production initiation remains disabled | Server credential deployment/rotation; interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
-| Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, exact backend replay and deployment, installed-app journey |
-| Reactions | Existing additive migration not production deployed at audit | Isolated replay, capability fallback, production deployment and candidate acceptance |
+| Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, deployment and installed-app journey; exact backend replay passed |
+| Reactions | Existing additive migration not production deployed at audit | Production deployment and candidate acceptance; isolated replay and capability fallback checks pass |
 | Passport claims | Removed Journal upgrade-only entry and onboarding Passport promotion; marketing promotion, FAQ, feature schema and guide claims removed; legacy web page states unavailability | Source compile and marketing render checks pass; deployment and batched native acceptance remain |
 | Release | Not accepted | Static/backend checks, batched Simulator and owner-promoted device acceptance, separately authorized TestFlight upload and exact-build acceptance |
 
@@ -1176,3 +1176,78 @@ Checkpoint verification: focused PGlite behavior contracts passed and the fast
 gate passed 7 checks with no failures. Documentation and diff checks passed.
 No app build, Simulator session, provider request or production mutation ran
 for this SQL-only change.
+
+
+## Hosted contract fixture alignment — QA verified
+
+Updated the remote harness to require inactive schedules and explicitly mark
+its isolated test context. Scheduler assertions retain their command, cadence,
+secret-reference and uniqueness checks, with inactive state required only in
+that context. The reserved base QA profiles now give explicit consent and base
+shared revisions finish simulated screening; Private content stays unqueued.
+Later test mutations are not auto-approved. This is QA fixture behavior only;
+production screening and permission rules are unchanged. The legacy media
+contracts now require the protected buckets to be private, matching Sprint 1;
+existing role/ownership and behavior assertions are retained. The consolidated
+suite passed 55 of 56 contracts. The sole failure was a
+source-inspection assertion expecting the transfer reader check in its old
+function; it now verifies the guarded response helper and client privilege
+revocations, and passes in a focused rerun. All 56 contracts therefore have
+passing evidence across the full run and focused correction.
+
+
+## Private tag notice regression — locally verified
+
+Hosted QA exposed a real regression: the blanket visit-screening condition hid
+an existing content-free notice for a Private sip, which correctly has no
+screening job. Forward migration `20260913152000` allows that notice only for a
+completed Private sip owned by the event actor with a current canonical tag.
+Actor screening, live-account checks, blocks and recipient checks remain in
+force. The existing projection grants no sip access, exposes no caption/photo,
+and offers self-removal. Shared pending content still waits for screening.
+
+The focused hermetic activity test passes for notice visibility, denied sip
+access, no Private screening job, shared-content withholding, block enforcement
+and tag removal. This is implemented and locally verified, not production
+deployed. Hosted activity-delivery acceptance also passes.
+
+
+## Ownership transfer during screening — implemented and QA verified
+
+Migration `20260913152645` fixes a transfer rollback discovered in hosted QA.
+Changing the owner intentionally queues a new screening revision. The mutation
+now returns a content-free, existing-client-compatible confirmation while that
+revision is pending; it does not return the list title, items, or previews.
+An exact current-epoch receipt permits the former owner to retry safely, with
+live-account, block and current-owner checks. The helper is private and denied
+to client roles. Normal list reads remain subject to screening.
+
+The focused hosted collaborative-list contract passes, including transfer,
+former-owner editor membership, identical retry response, hidden pending
+content, and new-owner leave/delete rules. This Supabase and privacy change is
+not production deployed. The consolidated hosted run and focused security
+correction cover all 56 contracts with passing evidence.
+
+
+## Hosted QA closeout — 2026-09-13
+
+The disposable `sprint1-fixture-qa-20260913` branch replayed all 154 migrations
+through `20260913152645`. Provider credentials were not deployed, all scheduled
+jobs stayed inactive, and only reserved synthetic fixtures were used. No
+fixture payload was sent to OpenAI. The full run passed 55/56; after updating
+the final source-inspection assertion to follow the new guarded transfer helper,
+its focused rerun passed. This is 56 passing contracts across those runs, not a
+claim that a single unchanged full run passed 56/56. The fast gate passed 7/7.
+
+Security advisors reported 29 RLS-without-policy informational entries and
+function-execution warnings for 28 anonymous and 186 authenticated RPCs.
+The new private receipt helper is not client executable; the public transfer
+RPC intentionally requires authentication and its existing ownership controls.
+The broader RPC advisory inventory still requires release review; these counts
+are not a clean security certification. See the [function advisory guidance](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable).
+
+The paid QA branch was deleted after evidence capture. A fresh branch listing
+contains only production `main`; its local database credential file was removed.
+Production remains at its prior migration head. Cafe catalog admission,
+provider/runtime acceptance, disclosure publication, and production rollout are
+still open; no PR was merged and no TestFlight build was created in this batch.

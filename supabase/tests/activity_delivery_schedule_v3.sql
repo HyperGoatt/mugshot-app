@@ -39,7 +39,8 @@ begin
   where job.jobname = 'mugshot-activity-delivery-v3';
 
   if not found
-     or configured_job.active is not true
+     or configured_job.active is distinct from
+       (current_setting('mugshot.qa_contract', true) is distinct from 'isolated')
      or configured_job.schedule <> '* * * * *'
      or configured_job.command not like '%deliver_v3%'
      or configured_job.command not like '%protocolVersion%3%'

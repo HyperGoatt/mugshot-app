@@ -5,7 +5,7 @@ begin
     from storage.buckets
     where id = 'visit-photos'
       and name = 'visit-photos'
-      and public
+      and not public
       and file_size_limit = 10485760
   ) then
     raise exception 'visit-photos bucket settings are incorrect';

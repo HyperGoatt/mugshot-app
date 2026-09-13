@@ -31,6 +31,7 @@ try {
  create function private.can_view_comment_as(p_comment_id uuid,p_viewer uuid) returns boolean language sql stable as $$select false$$;
  `)
  await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260913042008_sprint1_screened_activity_delivery.sql',import.meta.url),'utf8'))
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260913152000_sprint1_private_tag_notice_screening.sql',import.meta.url),'utf8'))
  await db.exec(`create or replace function private.can_view_user_as(p_user_id uuid,p_viewer uuid) returns boolean language sql stable as $$select private.activity_candidate_user_v1($1,$2) and private.screening_approved_v1('user',$1)$$;
  create or replace function private.can_view_visit_as(p_visit_id uuid,p_viewer uuid) returns boolean language sql stable as $$select private.activity_candidate_visit_v1($1,$2) and private.screening_approved_v1('visit',$1)$$;
  create or replace function private.can_view_comment_as(p_comment_id uuid,p_viewer uuid) returns boolean language sql stable as $$select private.activity_candidate_comment_v1($1,$2) and private.screening_approved_v1('comment',$1)$$;`)
@@ -68,5 +69,24 @@ try {
  assert.ok(listEvent)
  assert(!JSON.stringify((await db.query('select * from public.activity_events where id=$1',[listEvent])).rows[0]).includes('PRIVATE LIST'))
  assert.equal((await db.query("select has_function_privilege('authenticated','private.activity_candidate_event_v1(public.activity_events,uuid)','execute') as allowed")).rows[0].allowed,false)
+ // A Private tag notice must not wait on a provider job that must never exist.
+ const privateVisit='20000000-0000-4000-8000-000000000002'
+ await db.exec(`update private.screening_jobs set state='approved' where subject_kind='user';
+ insert into public.visits values('${privateVisit}','${owner}','complete','private');
+ insert into public.visit_companions values('${privateVisit}','${friend}','${owner}');`)
+ const privateTag=(await db.query("select private.create_activity_event_v1($1,$2,'tag','private-tag','Private title','Private body',$3) as id",[friend,owner,privateVisit])).rows[0].id
+ assert.ok(privateTag)
+ const tagVisible=async()=>(await db.query('select private.activity_event_is_visible(e,$2) as visible from public.activity_events e where id=$1',[privateTag,friend])).rows[0].visible
+ assert.equal(await tagVisible(),true,'content-free Private tag notice remains available')
+ assert.equal((await db.query('select private.can_view_visit_as($1,$2) as visible',[privateVisit,friend])).rows[0].visible,false,'notice does not grant access to Private sip')
+ assert.equal((await db.query("select count(*)::integer n from private.screening_jobs where subject_kind='visit' and subject_id=$1",[privateVisit])).rows[0].n,0,'Private sip stays out of screening')
+ await db.query("update public.visits set visibility='friends' where id=$1",[privateVisit])
+ assert.equal(await tagVisible(),false,'shared content still requires admission')
+ await db.query("update public.visits set visibility='private' where id=$1",[privateVisit])
+ await db.exec("select set_config('test.blocked','true',false)")
+ assert.equal(await tagVisible(),false,'Private tag does not bypass blocks')
+ await db.exec("select set_config('test.blocked','false',false)")
+ await db.query('delete from public.visit_companions where visit_id=$1',[privateVisit])
+ assert.equal(await tagVisible(),false,'removed tag revokes its notice')
  console.log('PASS screened activity: durable pending events, minimal copy, approval, edit/reclaim fencing, blocks, expiry and private list metadata')
 } catch(error){console.error(error.message);process.exitCode=1} finally {await db.close()}

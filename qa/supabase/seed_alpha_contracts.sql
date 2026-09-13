@@ -322,4 +322,72 @@ from (
     ('00000000-0000-4000-8000-000000000104'::uuid)
 ) as fixture(id);
 
+-- These reserved fixtures represent already-admitted public profiles/content.
+-- Tests creating or editing shared content still need an explicit review step;
+-- no trigger auto-approves later test mutations. No provider request is made.
+do $fixtures$
+declare
+  fixture_owner uuid;
+  fixture_index integer;
+  job private.screening_jobs;
+  owners uuid[] := array[
+    '00000000-0000-4000-8000-000000000101'::uuid,
+    '00000000-0000-4000-8000-000000000102'::uuid,
+    '00000000-0000-4000-8000-000000000103'::uuid,
+    '00000000-0000-4000-8000-000000000104'::uuid
+  ];
+  fixture_visit_ids uuid[] := array[
+    '20000000-0000-4000-8000-000000000101'::uuid,
+    '20000000-0000-4000-8000-000000000102'::uuid,
+    '20000000-0000-4000-8000-000000000103'::uuid,
+    '20000000-0000-4000-8000-000000000104'::uuid,
+    '20000000-0000-4000-8000-000000000105'::uuid,
+    '20000000-0000-4000-8000-000000000106'::uuid,
+    '20000000-0000-4000-8000-000000000107'::uuid,
+    '20000000-0000-4000-8000-000000000108'::uuid
+  ];
+begin
+  if current_setting('mugshot.qa_contract', true) is distinct from 'isolated' then
+    raise exception 'Explicit isolated QA mode is required for fixture admission';
+  end if;
+  for fixture_index in 1..array_length(owners,1) loop
+    fixture_owner:=owners[fixture_index];
+    if not exists(select 1 from auth.users where id=fixture_owner
+      and email='alpha-fixture-'||fixture_index||'@example.invalid') then
+      raise exception 'Reserved non-sign-in QA identity is missing';
+    end if;
+    perform set_config('request.jwt.claims',jsonb_build_object('sub',fixture_owner,'role','authenticated')::text,true);
+    perform public.set_profile_friends_visibility_v2(true,1);
+  end loop;
+  -- Simulate completion of the exact queued revision, preserving the real
+  -- publication transition and its downstream activity handling.
+  for job in select * from private.screening_jobs
+    where (subject_kind='user' and subject_id=any(owners))
+      or (subject_kind='visit' and subject_id=any(fixture_visit_ids)) loop
+    if not (job.owner_id=any(owners)) then
+      raise exception 'Fixture content belongs to a non-fixture owner';
+    end if;
+    if job.state='approved' then continue;end if;
+    if job.state<>'pending' then raise exception 'Fixture has an unexpected review state';end if;
+    update private.screening_jobs set lease_token=gen_random_uuid(),
+      lease_until=now()+interval '1 minute',attempts=greatest(attempts,1)
+      where subject_kind=job.subject_kind and subject_id=job.subject_id
+      returning * into job;
+    if not public.finish_screening_job_v1(job.subject_kind,job.subject_id,job.revision,
+      job.lease_token,'approved','{"categories":{"sexual":false}}'::jsonb) then
+      raise exception 'Synthetic fixture review did not finish';
+    end if;
+  end loop;
+  if exists(select 1 from public.users where id=any(owners)
+      and not private.screening_approved_v1('user',id))
+    or exists(select 1 from public.visits where id=any(fixture_visit_ids) and visibility<>'private'
+      and not private.screening_approved_v1('visit',id))
+    or exists(select 1 from private.screening_jobs q join public.visits v on v.id=q.subject_id
+      where q.subject_kind='visit' and v.id=any(fixture_visit_ids) and v.visibility='private') then
+    raise exception 'Fixture admission or Private exclusion is incomplete';
+  end if;
+  perform set_config('request.jwt.claims','{}',true);
+end;
+$fixtures$;
+
 commit;

@@ -8,6 +8,24 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Fixed cafe-list ownership transfers that rolled back when their new screening
+  revision hid the response from the former owner. A content-free confirmation
+  preserves existing client decoding and exact-epoch retries without approving
+  the content. The focused hosted contract passes; production is unchanged.
+
+- Fixed screening's suppression of the existing content-free Private tag notice.
+  A completed Private sip can retain its canonical tag notice without entering
+  screening or granting sip access. Shared pending content, blocked actors and
+  removed tags stay withheld. Focused hermetic and hosted activity checks pass;
+  the migration is not production deployed.
+
+- Aligned hosted QA setup with explicit consent, admitted base shared fixtures,
+  and inactive scheduler isolation. Later test mutations remain subject to
+  screening. Updated legacy media assertions to require private buckets.
+  All 56 hosted contracts now have passing evidence across the 55-pass full
+  run and the final focused security-assertion correction. The paid QA branch
+  was deleted and absence verified. Production behavior is unchanged.
+
 - Replayed all 152 migrations in the second data-less hosted QA branch. The
   refreshed suite reports 32 passes and 24 failures across 56 contracts,
   including a pass for the corrected owner-edit rollback check. Deleted the
