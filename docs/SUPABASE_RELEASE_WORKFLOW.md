@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913065006_sprint1_analytics_erasure_queue.sql`. Sprint 1 migrations
+`20260913072019_sprint1_shared_cafe_text_screening.sql`. Sprint 1 migrations
 are local-only; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
@@ -169,3 +169,14 @@ until the scoped credential and disposable-account acceptance are verified;
 see [analytics plan](POSTHOG_ANALYTICS_PLAN.md). Pending/attention processor
 records intentionally retain the minimum retry identifiers after account
 removal. Do not purge them as ordinary completed deletion receipts.
+
+## Shared cafe text deployment
+
+The current head includes displayed cafe names, addresses, city/country and
+website URLs in eligible shared-content snapshots. Applying it rebuilds affected
+queue snapshots and holds changed revisions for screening without calling an
+external provider. Server catalog text corrections invalidate affected visits,
+profile favorites, list items and recommendations in the same transaction;
+measure fanout on QA before production maintenance. Private-only visits/lists
+remain excluded. Direct catalog admission/provenance and its raw read surfaces
+remain an open gate; this migration does not certify those surfaces.

@@ -1003,3 +1003,29 @@ Verification: generic Debug Simulator build-for-testing compiled; fast gate
 7 passed / 0 failed; standalone Swift quarantine and focused PGlite hold/queue
 contracts passed. The native facade test compiled but awaits the consolidated
 Simulator test run. No remote mutation or live provider upload was performed.
+
+### September 13 shared cafe text screening
+
+Native/PWA clients can supply cafe catalog text; provider IDs alone are not
+verified provenance. The displayed cafe name/address/city/country/website now
+joins the screening payload for shared visits, profile favorites, list items
+and direct cafe recommendations. Empty notes no longer auto-approve unchecked
+catalog text. Private-only visits/lists return before catalog lookup and still
+produce no payload. Coordinates and provider place IDs are omitted.
+
+Server catalog text corrections invalidate dependent revisions/leases in the
+same transaction. Rebuilding snapshots is idempotent and does not append text
+repeatedly. The migration rebuilds affected snapshots locally without provider
+calls; it leaves direct catalog rows unchanged. Tests verify a pending public
+list item is withheld, a correction invalidates approval, names/addresses enter
+snapshots, and Private notes/selections stay excluded.
+
+Direct catalog insert provenance and raw catalog read/projection admission
+remain open. This is a shared-content screening fix, not a claim that all cafe
+catalog surfaces are moderated or production configured.
+
+Verification: backend gate 11 passed / 0 failed / 1 optional parser skipped;
+focused actual-PostgreSQL tests passed after the final payload minimization,
+including direct cafe recommendation invalidation. Documentation and whitespace
+checks passed. No native source changed. No Simulator session or production
+mutation ran.

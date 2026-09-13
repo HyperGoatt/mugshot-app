@@ -15,7 +15,7 @@ try {
  create table public.visits(id uuid primary key,user_id uuid references public.users,caption text,notes text,drink_type text,drink_subtype text,drink_type_custom text,location_name text,poster_photo_url text,visibility text,upload_state text,cafe_id uuid,brew_method text,equipment text,created_at timestamptz default now());
  create table public.visit_photos(id uuid primary key,visit_id uuid references public.visits on delete cascade,photo_url text);
  create table public.comments(id uuid primary key,user_id uuid references public.users,visit_id uuid references public.visits on delete cascade,text text,removed_at timestamptz);
- create table public.profile_favorite_spots(user_id uuid,position int,descriptor text);
+ create table public.profile_favorite_spots(user_id uuid,position int,descriptor text,cafe_id uuid);
  create table public.cafes(id uuid primary key,name text,address text,city text,latitude double precision,longitude double precision,apple_maps_place_id text,apple_place_id text,website_url text);
  create table public.cafe_lists(id uuid primary key default gen_random_uuid(),owner_id uuid,title text,description text,visibility text,system_kind text,published_at timestamptz,updated_at timestamptz default now(),comments_enabled boolean default true,source_list_id uuid);
  create table public.cafe_list_items(id uuid primary key default gen_random_uuid(),list_id uuid references public.cafe_lists on delete cascade,cafe_id uuid,contributor_id uuid,note text,position int default 0,created_at timestamptz default now());
@@ -26,7 +26,7 @@ try {
  create table public.user_cafe_states(user_id uuid,cafe_id uuid,is_favorite boolean,want_to_try boolean);
  create table public.recipe_identities(id uuid primary key,user_id uuid,name text);
  create table public.recipe_versions(id uuid primary key,recipe_identity_id uuid references public.recipe_identities on delete cascade,version_number int,version_label text,brew_details jsonb,visibility text,source_visit_id uuid,brew_method text,equipment text,source_kind text,redistribution_allowed boolean,source_recipe_version_id uuid,created_at timestamptz default now());
- create table public.trusted_recommendations(id uuid primary key,sender_id uuid,recipient_id uuid,target_kind text,target_recipe_version_id uuid,status text,note text,created_at timestamptz default now());
+ create table public.trusted_recommendations(id uuid primary key,sender_id uuid,recipient_id uuid,target_kind text,target_recipe_version_id uuid,target_cafe_id uuid,status text,note text,created_at timestamptz default now());
  create function private.is_public_cafe_list_as(uuid,uuid) returns boolean language sql as $$select false$$;
  create function private.can_socially_mutate_as(uuid) returns boolean language sql as $$select true$$;
  create function private.can_manage_cafe_list_as(uuid,uuid) returns boolean language sql as $$select false$$;
@@ -41,7 +41,7 @@ try {
  insert into public.visits(id,user_id,caption,notes,drink_type_custom,location_name,poster_photo_url,visibility,upload_state) values('${visit}','${owner}','Shared caption','PRIVATE SENTINEL','Latte','Synthetic cafe',null,'friends','complete');
  insert into public.comments values('${comment}','${friend}','${visit}','Synthetic comment',null);
  `)
- for(const file of ['20260913025947_sprint1_screening_queue.sql','20260913030620_sprint1_primary_screening_gates.sql','20260913032223_sprint1_shared_collection_screening.sql','20260913042453_sprint1_private_collaboration_screening_exclusion.sql','20260913050554_sprint1_private_recipe_screening_exclusion.sql','20260913050851_sprint1_shared_drink_text_screening.sql','20260913054056_sprint1_recipe_recipient_authorization.sql']) await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'))
+ for(const file of ['20260913025947_sprint1_screening_queue.sql','20260913030620_sprint1_primary_screening_gates.sql','20260913032223_sprint1_shared_collection_screening.sql','20260913042453_sprint1_private_collaboration_screening_exclusion.sql','20260913050554_sprint1_private_recipe_screening_exclusion.sql','20260913050851_sprint1_shared_drink_text_screening.sql','20260913054056_sprint1_recipe_recipient_authorization.sql','20260913072019_sprint1_shared_cafe_text_screening.sql']) await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'))
  const allowed=async(name,...params)=>(await db.query(`select private.${name}(${params.map((_,i)=>'$'+(i+1)).join(',')}) as allowed`,params)).rows[0].allowed
  const approve=()=>db.exec("update private.screening_jobs set state='approved'")
  const snapshot=async(kind)=>(await db.query('select * from private.screening_jobs where subject_kind=$1 and subject_id=$2',[kind,kind==='visit'?visit:comment])).rows[0]
@@ -119,7 +119,36 @@ try {
  await db.query("update public.cafe_list_items set note='Edited item note' where id=$1",[item])
  assert.equal((await publicList()).items.length,0,'edited list note loses its approval')
  await db.query('update public.cafe_list_items set note=null where id=$1',[item])
- assert.equal((await publicList()).items.length,1,'structured cafe row with no note needs no AI call')
+ assert.equal((await publicList()).items.length,0,'an empty note cannot bypass displayed cafe text screening')
+ const cafeItemJob=async()=>(await db.query("select * from private.screening_jobs where subject_kind='list_item' and subject_id=$1",[item])).rows[0]
+ assert((await cafeItemJob()).payload.text.includes('Synthetic cafe'))
+ await approve()
+ const priorCafeRevision=(await cafeItemJob()).revision
+ await db.query("update public.cafes set name='Corrected synthetic cafe',address='Shared cafe address' where id=$1",[cafe])
+ assert.equal((await publicList()).items.length,0,'server catalog corrections invalidate admitted item metadata')
+ assert.notEqual((await cafeItemJob()).revision,priorCafeRevision)
+ assert((await cafeItemJob()).payload.text.includes('Shared cafe address'))
+ const refreshedCafeText=(await cafeItemJob()).payload.text
+ await db.query("select private.refresh_collection_screening_v1('list_item',$1)",[item])
+ assert.equal((await cafeItemJob()).payload.text,refreshedCafeText,'refresh rebuilds without duplicate cafe text')
+ await db.query("insert into public.profile_favorite_spots(user_id,position,descriptor,cafe_id) values($1,0,'Favorite descriptor',$2)",[owner,cafe])
+ assert((await db.query("select payload->>'text' as text from private.screening_jobs where subject_kind='user' and subject_id=$1",[owner])).rows[0].text.includes('Corrected synthetic cafe'),'profile favorite names are included')
+ const cafeVisit='20000000-0000-4000-8000-000000000099'
+ await db.query("insert into public.visits(id,user_id,cafe_id,visibility,upload_state,caption,notes) values($1,$2,$3,'private','complete','PRIVATE CAFE CAPTION','PRIVATE CAFE NOTE')",[cafeVisit,owner,cafe])
+ assert.equal((await db.query("select count(*)::int n from private.screening_jobs where subject_kind='visit' and subject_id=$1",[cafeVisit])).rows[0].n,0,'private cafe choice creates no screening payload')
+ await db.query("update public.visits set visibility='everyone',caption='Shared cafe caption' where id=$1",[cafeVisit])
+ const cafeVisitPayload=(await db.query("select payload from private.screening_jobs where subject_kind='visit' and subject_id=$1",[cafeVisit])).rows[0].payload
+ assert(cafeVisitPayload.text.includes('Corrected synthetic cafe') && !cafeVisitPayload.text.includes('PRIVATE CAFE NOTE'))
+ await db.query('delete from public.visits where id=$1',[cafeVisit])
+ await db.query('delete from public.profile_favorite_spots where user_id=$1',[owner])
+ await approve()
+ const cafeRecommendation=(await db.query("insert into public.trusted_recommendations(id,sender_id,recipient_id,target_kind,target_cafe_id,status,note) values(gen_random_uuid(),$1,$2,'cafe',$3,'sent','Shared recommendation') returning id",[owner,friend,cafe])).rows[0].id
+ const cafeRecommendationJob=async()=>(await db.query("select * from private.screening_jobs where subject_kind='recommendation' and subject_id=$1",[cafeRecommendation])).rows[0]
+ assert((await cafeRecommendationJob()).payload.text.includes('Corrected synthetic cafe'))
+ await approve()
+ await db.query("update public.cafes set website_url='https://synthetic.invalid/shared-site' where id=$1",[cafe])
+ assert.equal((await cafeRecommendationJob()).state,'pending','catalog correction invalidates direct cafe recommendation')
+ await db.query('delete from public.trusted_recommendations where id=$1',[cafeRecommendation])
  await db.query("update public.cafe_lists set visibility='private' where id=$1",[list])
  assert.equal((await db.query("select count(*)::int as total from private.screening_jobs where subject_kind in ('list','list_item','list_comment')")).rows[0].total,0,'private list removes all nested payloads')
  assert.equal(await allowed('can_view_cafe_list_as',list,friend),false,'friendship alone does not expose a private list')
