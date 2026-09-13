@@ -8,6 +8,30 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Replayed all 152 migrations in the second data-less hosted QA branch. The
+  refreshed suite reports 32 passes and 24 failures across 56 contracts,
+  including a pass for the corrected owner-edit rollback check. Deleted the
+  branch and verified its absence after evidence capture; remaining failures
+  are still release gates.
+
+- Repaired 84 incorrect production migration statement records after guarded
+  forward/rollback rehearsal in disposable QA. One of the initially counted
+  85 records was legitimate and remains untouched. Schema and application row
+  fingerprints are unchanged; production migration head is unchanged. Recorded
+  the exact old/new hash ledger. Fresh automatic replay passed the repaired
+  history and reached 113 migrations before scheduler configuration was needed;
+  the check branch was deleted. Sprint 1 features remain undeployed.
+- Corrected the owner-edit rollback test to inspect canonical tag storage.
+  Screened public tag projections cannot establish whether a pending profile's
+  stored tag was rolled back; the mutation and cross-owner checks remain under
+  the authenticated role.
+
+- Completed approved Apple and PostHog credential provisioning into restricted,
+  Git-ignored local files. Apple client-secret signature verification and a
+  synthetic PostHog lookup pass; neither credential is deployed. Recorded the
+  Apple renewal deadline. Disabled PostHog project session recording and
+  verified the saved setting; complete retained-recording evidence remains open.
+
 - Recovered native test results hidden by Xcode diagnostic finalization: both
   attempts ran 446 tests, with six assertion failures in one stale Home
   Workbench expectation. Updated that existing test for the August criterion

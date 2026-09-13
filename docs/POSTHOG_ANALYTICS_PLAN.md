@@ -119,13 +119,21 @@ The native deletion response distinguishes pending, verified event cleanup,
 attention, and unconfirmed status independently of Mugshot and Apple cleanup.
 The provider's event receipt is not proof of recording deletion. Recording
 absence or separate recording-erasure evidence remains an activation gate;
-reviewed native source disables session replay.
+reviewed native source disables session replay. On September 13, the project
+recording switch was found enabled, switched off, and verified disabled after
+reload. The default last-30-days list found no matches, but its active-duration
+filter means this is not complete recording-absence evidence.
 
 Activation requires server-only `POSTHOG_ERASURE_PROJECT_ID=521217`,
-`POSTHOG_ERASURE_PERSONAL_API_KEY` with `person:read` and `person:write`, and
+`POSTHOG_ERASURE_PERSONAL_API_KEY` with project-scoped `person:write` (which
+also permits the required person lookup), and
 `POSTHOG_ERASURE_ENABLED=true`. The worker rejects other projects/regions and
-uses claim limit zero when disabled, preserving queued attempts. No personal
-key has been created or deployed, and no live analytics deletion has run.
+uses claim limit zero when disabled, preserving queued attempts. The approved
+personal key was created on September 13 and saved locally with
+mode 0600 outside Git. Its UI scope is only `person:write` for this project; a
+random synthetic UUID lookup returned HTTP 200 with zero results. The key is
+not deployed, the local enable flag remains false, and no live analytics
+deletion has run.
 Native queued-event runtime acceptance, support recovery for attention items,
 recording evidence, and disposable-account acceptance remain open.
 

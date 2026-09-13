@@ -74,6 +74,55 @@ production session restoration. The full 446-test suite was not repeated after
 the expectation-only fix; the previous run plus this focused correction is the
 current unit evidence. Live backend and cross-screen acceptance remain open.
 
+## Migration metadata repair — 2026-09-13
+
+Exact comparison corrected the initial count: 84 stored migration statements
+were wrong; one of the 85 repeated records legitimately owned that SQL.
+Repaired those 84 statement arrays in production after exact forward/rollback
+rehearsal on disposable QA. The guarded transaction verified unchanged schema
+and application/Auth/Storage row fingerprints. Production still has 127
+migration records at `20260826143102`; Sprint 1 features remain undeployed.
+See the [repair evidence and exact hash ledger](SPRINT_1_MIGRATION_HISTORY_REPAIR_2026-09-13.md).
+A fresh data-less branch automatically replayed 113 migrations through
+`20260809144548`, past the repaired history. Its next migration requires the
+operational scheduler Vault secret; complete replay still requires isolated
+prerequisite provisioning. The fresh check branch was deleted and its absence
+verified. Full application acceptance remains open.
+
+## Second hosted QA checkpoint — 2026-09-13
+
+The second data-less QA branch replayed all 152 repository migrations with
+isolated scheduler prerequisites and inactive jobs. The refreshed full suite
+reported **32 passed, 24 failed, 56 total**. Both the explicit cafe-grant contract
+and screening queue contract pass. The owner-edit rollback test now verifies
+canonical stored tags instead of a public projection that correctly withholds
+unscreened profile names; it passes with authenticated mutation and cross-owner
+rejection checks intact. The prior cafe permission failures progressed to
+screening-related unavailable-profile/friend assertions. None of the remaining
+24 failures is waived. This branch was deleted, absence verified, and its local
+database credential file removed after testing.
+
+## Provider configuration checkpoint — 2026-09-13
+
+The approved Sign in with Apple key and project-scoped PostHog deletion key
+have been created and saved in Git-ignored local files with mode 0600. Apple’s
+key is restricted to Sign in with Apple for the primary production bundle.
+The generated ES256 client secret passes local P-256 signature verification and
+expires March 12, 2027 at 14:51:49 UTC; renew before February 10, 2027. Apple
+token exchange and revocation still require disposable-account acceptance.
+
+The PostHog key has only `person:write` access in the Mugshot project. A
+synthetic random-UUID lookup returned HTTP 200 and zero people, confirming that
+this write scope also permits the required lookup. No live deletion was run.
+Neither credential has been deployed, and processing remains disabled.
+
+The signed-in PostHog project had session recording enabled even though native
+source disables it. Turned the project setting off and verified the persisted
+Disabled state after reload. The recording list returned no matches for the
+last 30 days with its default active-duration filter; that filtered observation
+is not proof that all retained recordings are absent. Recording erasure or
+complete absence evidence remains an activation gate.
+
 ## Delivery states
 
 | Workstream | Evidence | Remaining |
@@ -82,7 +131,7 @@ current unit evidence. Live backend and cross-screen acceptance remain open.
 | Profile consent | Versioned RPC, disable-only legacy setter, author plus tagged-profile consent; isolated PostgreSQL behavior test and iOS Debug app/test compile pass | Runtime acceptance and production deployment |
 | Screening and review | Revision-bound queue and worker, primary/collection publication gates, sealed review/status/reconsideration RPCs, reviewer preview and native status/review screens implemented. Synthetic PostgreSQL queue/projection contracts and 11 provider/worker tests pass | Batched native and live reviewer-endpoint acceptance; complete outward-surface audit; scheduled activation and throughput acceptance; full-history QA replay and production acceptance |
 | Existing shared content | Not screened | Updated disclosures, staged screening; unscreened content withheld from outward surfaces; owner access retained |
-| Deletion | Existing V3 orchestration plus native Apple code capture, verified exchange, encrypted provider queue and scheduled cleanup integration; deterministic checks and generic compile pass; production initiation remains disabled | Apple credential configuration/rotation; interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
+| Deletion | Existing V3 orchestration plus native Apple code capture, verified exchange, encrypted provider queue and scheduled cleanup integration; deterministic checks and generic compile pass; production initiation remains disabled | Server credential deployment/rotation; interrupted recovery, media/analytics cleanup, disposable-account and production acceptance |
 | Readable profile and sip links | Implemented username RPC/routes, reserved aliases and tombstones, legacy token compatibility, public web recipient pages, and removal of service-worker API caching. Local handle contract and synthetic web render/revocation/retry checks pass | Native runtime acceptance, exact backend replay and deployment, installed-app journey |
 | Reactions | Existing additive migration not production deployed at audit | Isolated replay, capability fallback, production deployment and candidate acceptance |
 | Passport claims | Removed Journal upgrade-only entry and onboarding Passport promotion; marketing promotion, FAQ, feature schema and guide claims removed; legacy web page states unavailability | Source compile and marketing render checks pass; deployment and batched native acceptance remain |

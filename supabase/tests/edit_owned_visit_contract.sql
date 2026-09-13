@@ -219,6 +219,10 @@ begin
 end;
 $$;
 
+-- Check canonical rollback state as the fixture administrator. The public tag
+-- projection intentionally withholds names from profiles awaiting screening;
+-- it cannot tell us whether the mutation itself rolled back.
+reset role;
 do $$
 begin
   if (select caption from public.visits where id = (select visit_id from edit_sip_test_context))
@@ -226,16 +230,17 @@ begin
     raise exception 'failed edit partially mutated the visit';
   end if;
   if not exists (
-    select 1 from public.list_visible_visit_tags_v1(
-      (select visit_id from edit_sip_test_context)
-    ) tag
-    where tag.user_id = (select viewer_id from edit_sip_test_context)
+    select 1 from public.visit_tags tag
+    where tag.visit_id = (select visit_id from edit_sip_test_context)
+      and tag.tagged_user_id = (select viewer_id from edit_sip_test_context)
+      and tag.tagged_by = (select owner_id from edit_sip_test_context)
   ) then
     raise exception 'failed edit partially mutated tags';
   end if;
 end;
 $$;
 
+set local role authenticated;
 select set_config(
   'request.jwt.claims',
   jsonb_build_object(

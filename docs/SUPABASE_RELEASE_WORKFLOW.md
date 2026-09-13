@@ -29,7 +29,14 @@ and QA scripts refuse that production reference.
 The first Sprint 1 QA branch was created without data, used for repository
 replay and remote contracts, then deleted on 2026-09-13. Automatic replay
 exposed damaged stored statements in 85 historical production migration
-records. Production metadata repair and full remote acceptance remain open.
+records. Exact comparison found 84 incorrect records and one legitimate source
+record. The 84 incorrect statement arrays have now been repaired in production
+with verified schema/row invariants and a rehearsed rollback. See the
+[exact repair evidence](SPRINT_1_MIGRATION_HISTORY_REPAIR_2026-09-13.md).
+A fresh data-less branch automatically replayed 113 migrations through
+`20260809144548`; the next migration requires operational scheduler Vault
+configuration. The check branch was deleted and absence verified. Full replay
+with those prerequisites and complete remote acceptance remain open.
 See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
 ## Non-negotiable invariants
