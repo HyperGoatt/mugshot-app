@@ -8,6 +8,13 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Corrected the compile verification scheme to `MugshotTests` and added a
+  generated-manifest check for both test targets. The previous auto-generated
+  scheme could pass with no tests configured. Both test bundles now compile;
+  earlier app-and-test claims are qualified in the Sprint 1 tracker. The
+  isolated unit execution attempt stalled without test results while the Mac
+  was locked and was interrupted; runtime acceptance remains open.
+
 - Prepared protected recipient media: legacy own-project profile/visit URLs
   now use one-minute signatures in shared-profile/shared-mugshot responses,
   with no permanent-URL fallback when signing is unavailable. Native profile

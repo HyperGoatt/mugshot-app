@@ -16,6 +16,28 @@ legacy links, and never transfer old handles to another account. Complete
 deletion, sip-link routing, existing expressive reactions, and removal of
 unavailable Passport promises. Broad redesign and new growth features are out.
 
+## Verification correction — 2026-09-13
+
+Earlier checkpoints described the generic `testMugshot` scheme compile as
+app-and-test evidence. Its generated execution manifest had no test
+configurations, so those runs prove the app compile only. The verification
+script now uses the shared `MugshotTests` scheme and checks that both unit and
+UI test targets appear in its execution manifest. A fresh build using that
+scheme compiled both test targets successfully. This correction supersedes
+only the earlier test-compilation claims; the separately executed hermetic
+backend checks remain valid. The corrected compile gate and manifest check
+passed, as did the fast gate and documentation validation.
+
+A unit-only `test-without-building` attempt on the already booted iPhone 16 Pro
+(iOS 18.6) used an intentionally invalid `MUGSHOT_SUPABASE_URL` in its local
+execution manifest to prevent host-app session restoration and analytics
+startup. It produced no test results before being interrupted after more than
+two minutes. Computer access reported that the Mac was locked and automatic
+unlock failed. This is an unverified runtime attempt, not a unit-test pass or
+an assertion failure. Resume the consolidated unit suite in an unlocked
+session. Live backend journeys still require disposable QA approval and
+configuration; no production database was used for these tests.
+
 ## Delivery states
 
 | Workstream | Evidence | Remaining |
