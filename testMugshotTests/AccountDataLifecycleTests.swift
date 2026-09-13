@@ -1186,7 +1186,20 @@ struct AccountDataLifecycleTests {
         #expect(remaining.isEmpty)
     }
 
+    @Test func deletionWorkerAuthenticationAcceptsOnlySupportedContracts() {
+        for authentication in ["service_role_bearer", "worker_secret_bearer"] {
+            #expect(makeSafeCapability(workerAuthentication: authentication).advertisesSafeV3)
+        }
+        for authentication in ["", "anon", "unknown_bearer"] {
+            #expect(!makeSafeCapability(workerAuthentication: authentication).advertisesSafeV3)
+        }
+    }
+
     private var safeCapability: AccountDeletionCapability {
+        makeSafeCapability(workerAuthentication: "worker_secret_bearer")
+    }
+
+    private func makeSafeCapability(workerAuthentication: String) -> AccountDeletionCapability {
         AccountDeletionCapability(
             protocolName: AccountDeletionService.protocolName,
             protocolVersion: AccountDeletionService.protocolVersion,
@@ -1195,7 +1208,7 @@ struct AccountDataLifecycleTests {
             identityBeforeStorage: true,
             buckets: Array(AccountDeletionService.requiredBuckets),
             cleanupWorkerAction: AccountDeletionService.cleanupWorkerAction,
-            cleanupWorkerAuthentication: "service_role_bearer",
+            cleanupWorkerAuthentication: workerAuthentication,
             cleanupWorkerInvocation: "scheduled_service_role_batch",
             cleanupDelivery: "durable_scheduled_retry",
             automaticCleanupScheduled: true,

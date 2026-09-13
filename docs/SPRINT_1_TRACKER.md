@@ -7,7 +7,45 @@ last_verified: 2026-09-13
 # Sprint 1 delivery: trust, moderation, and working sharing
 
 
-## Current checkpoint — September 13, native acceptance
+## Current checkpoint — September 13, journey acceptance and repairs
+
+The second native walkthrough verified persisted Love reactions, the native
+profile share sheet, Friends-profile consent cancellation/confirmation/off,
+and the shared-content status and founder review queue screens. The system
+Photos picker displayed the synthetic checkerboard but did not accept automated
+selection; photo upload/save/reopen remains unaccepted.
+
+Saved returned Data API 403 because its historical table migration relied on
+project default grants. Migration `20260913212833` explicitly grants only the
+required authenticated CRUD operations and preserves owner-only RLS. The new
+Saved access contract and adjacent cafe-admission contract both pass on isolated
+QA. The same native app then saved a fixture cafe and displayed it in Favorites
+without the previous loading error.
+
+Native deletion failed closed before creating any deletion job. The client
+required the legacy service-role worker contract while the new backend advertises
+its dedicated worker secret. The source now accepts these two known contracts
+and still rejects unknown authentication. Deletion also retains the signed-in
+root while its sheet manages progress, so recoverable failures stay visible.
+All 30 focused account-lifecycle tests pass, including the worker-authentication
+regression. The full-static gate passes 12 checks with the optional SQL parser
+skipped; documentation checks pass. Exact native deletion acceptance must still
+be repeated after this repair. The synthetic Auth/profile remained intact.
+
+The journey QA branch replayed 163 migrations after the Saved fix. Its paid
+branch was deleted and a fresh listing verified only main; its app process and
+temporary keep-awake assertion were stopped. The earlier 62-contract full pass
+is preserved below; this follow-up ran two focused SQL contracts, not a new
+63-contract full suite.
+
+PostHog's existing synthetic erasure receipt is still pending. Apple disposable
+provider revocation, remaining native acceptance, and coordinated production
+rollout remain open. Production has not received these new migrations or clients.
+No training-sharing settings were enabled. TestFlight remains a separate gate.
+
+## Earlier checkpoint — September 13, native acceptance
+
+Superseded by the journey acceptance and repairs checkpoint above.
 
 A fresh disposable native QA branch replayed all 162 migrations and passed all
 62 database contracts together. The native candidate at `e0d1eb0` was rebuilt

@@ -8,6 +8,16 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Fixed Saved Data API permissions on clean replays while preserving owner-only
+  access. Two focused SQL contracts and native Save-to-Favorites passed.
+- Repaired native deletion capability matching for dedicated worker secrets and
+  preserved the deletion sheet during verification/failure. Added focused
+  capability regression coverage; all 30 account-lifecycle tests and full-static
+  checks pass. Revised deletion runtime acceptance is pending.
+- Accepted native Love persistence, profile share-sheet presentation, explicit
+  Friends-profile consent controls, and review/status screen loading. Closed
+  the paid journey QA branch and verified only main remains.
+
 - Fresh native QA passed all 62 database contracts, signed Simulator sign-in,
   session restoration and profile onboarding. Verified the newly created
   profile's screening, readable route and default Friends-profile exclusion.

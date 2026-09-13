@@ -17,7 +17,7 @@ disposable data-less branch, preserve live data with measured evidence, and end
 with local/QA/live histories at the same head.
 
 The repository migration head is
-`20260913202410_sprint1_recipe_identity_admission.sql`. Sprint 1 migrations
+`20260913212833_sprint1_saved_cafe_data_api_access.sql`. Sprint 1 migrations
 are not deployed to production; follow [Sprint 1 delivery](SPRINT_1_TRACKER.md) for activation
 and acceptance gates. Read-only inventory on 2026-09-13 found 127 production
 migrations, most recently `20260826143102_profile_editorial_atlas.sql`.
@@ -275,3 +275,15 @@ new profile was screened in one attempt; its readable route and default absent
 Friends-profile consent were verified through live endpoints. The branch was
 deleted after the Mac locked again; a fresh inventory contains only main.
 Production remains at its original migration head with screening disabled.
+
+
+### Journey QA permission contract — September 13
+
+The native Saved request exposed a missing explicit grant on
+`public.user_cafe_states` in a clean replay. The new migration grants authenticated
+SELECT/INSERT/UPDATE/DELETE with owner-only RLS and explicit UPDATE WITH CHECK;
+anonymous access remains revoked. Cafe-reference admission is unchanged. Both
+the focused Saved owner/isolation test and cafe admission regression passed on
+isolated QA, followed by native saving and Favorites display. All 163 migrations
+were present on that branch before deletion; only main remains after cleanup.
+No new production migration is claimed.

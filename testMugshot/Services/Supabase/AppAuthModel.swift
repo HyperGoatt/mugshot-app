@@ -1006,7 +1006,9 @@ final class AppAuthModel: ObservableObject {
         guard let accountDeletionService,
               let authService,
               let userID = authenticatedUser?.id else { return false }
-        let operationID = beginAuthenticationOperation(status: .working)
+        // The deletion sheet owns its progress state. Replacing the signed-in
+        // root here destroys that sheet and hides recoverable error feedback.
+        let operationID = beginAuthenticationOperation(status: .signedIn)
         profileUpdateError = nil
         let attributableLegacyPhotoKeys = Set(
             dataManager.appData.visits

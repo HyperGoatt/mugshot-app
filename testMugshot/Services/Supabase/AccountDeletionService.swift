@@ -182,7 +182,7 @@ struct AccountDeletionCapability: Decodable, Equatable {
             && identityBeforeStorage
             && Set(buckets).isSuperset(of: AccountDeletionService.requiredBuckets)
             && cleanupWorkerAction == AccountDeletionService.cleanupWorkerAction
-            && cleanupWorkerAuthentication == "service_role_bearer"
+            && ["service_role_bearer", "worker_secret_bearer"].contains(cleanupWorkerAuthentication ?? "")
             && cleanupWorkerInvocation == "scheduled_service_role_batch"
             && cleanupDelivery == "durable_scheduled_retry"
             && automaticCleanupScheduled == true
