@@ -1,12 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-12
 ---
 
 # Mugshot feature status matrix
 
 Status vocabulary follows [the documentation policy](DOCUMENTATION_POLICY.md).
+
+Sprint 1 implementation is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+Its source changes supersede the legacy default-on profile behavior below;
+production and TestFlight retain their separately recorded deployment states.
 
 | Area | Status | Current evidence | Remaining gate |
 | --- | --- | --- | --- |

@@ -1,12 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-12
 ---
 
-# Current sprint: real iOS notifications and TestFlight feedback
+# Current sprint: trust, moderation, and working sharing
 
-## Goal
+Sprint 1 implementation is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+Its source changes supersede the legacy default-on profile behavior below;
+production and TestFlight retain their separately recorded deployment states.
+
+## Previous notification sprint baseline
 
 Physically accept the existing Activity/APNs system, close device-lifecycle and
 badge gaps, and process TestFlight feedback without regressing privacy, data

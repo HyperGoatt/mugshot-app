@@ -158,7 +158,7 @@ final class SharedProfileService {
 
     func showsFriendsOnPublicProfile() async throws -> Bool {
         do {
-            return try await client.rpc("get_profile_friends_visibility_v1")
+            return try await client.rpc("get_profile_friends_visibility_v2")
                 .execute().value
         } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
             return false
@@ -167,7 +167,7 @@ final class SharedProfileService {
 
     func setShowsFriendsOnPublicProfile(_ isEnabled: Bool) async throws -> Bool {
         try await client.rpc(
-            "set_profile_friends_visibility_v1",
+            "set_profile_friends_visibility_v2",
             params: ProfileFriendsVisibilityParameters(isEnabled: isEnabled)
         ).execute().value
     }
@@ -329,7 +329,11 @@ private struct FavoriteSpotsParameters: Encodable {
 
 private struct ProfileFriendsVisibilityParameters: Encodable {
     let isEnabled: Bool
-    enum CodingKeys: String, CodingKey { case isEnabled = "p_enabled" }
+    let consentVersion = 1
+    enum CodingKeys: String, CodingKey {
+        case isEnabled = "p_enabled"
+        case consentVersion = "p_consent_version"
+    }
 }
 
 private struct TaggedPostHiddenParameters: Encodable {

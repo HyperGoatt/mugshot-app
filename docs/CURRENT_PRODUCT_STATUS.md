@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-12
 ---
 
 # Current product status
@@ -50,10 +50,11 @@ fingerprint evidence closed on 2026-08-24.
   links into a wrapping detail rail and do not render the former Taste overlap
   card. Favorite Spot creation presents all six reason categories at once and
   includes a visible custom descriptor path. The Cafes tab keeps one stable
-  scroll owner around its lazy card grid. Friends Mugshots stay in Friends Feed
-  and appear on the public profile by default; the owner can switch the public
-  profile to Everyone-only, while Private Mugshots never appear. Favorite Spots
-  may originate
+  scroll owner around its lazy card grid. Friends Mugshots stay in Friends Feed and
+  require versioned, explicit consent before appearing on public profiles in
+  Sprint 1 source. Legacy default-on preferences do not count as consent;
+  Private Mugshots never appear. This migration is not production deployed.
+  Favorite Spots may originate
   in private history or Apple Maps only through an explicit owner publication
   of cafe identity plus a short descriptor; private media and notes do not
   cross that boundary. Owners can hide a tagged Mugshot from their profile or

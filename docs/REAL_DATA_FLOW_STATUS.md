@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-12
 ---
 
 # Real data flow status
@@ -47,7 +47,10 @@ apply an Everyone-only client filter to visible Mugshots; missing tagged and
 Favorite Spot mutations do not invent local remote truth. Existing v3 profile,
 highlight, and binary social contracts remain available to older clients, but
 the new UI neither reads nor renders Profile Highlight. The new profile contract
-defaults Friends-on-profile on, exposes only caller-bound preference writes,
+now requires version-1 affirmative consent for Friends-on-profile publication
+in Sprint 1 source. V2 writes record consent, legacy V1 can only disable,
+and tagged Friends content also requires author consent. This migration is not
+production deployed. The contract exposes only caller-bound preference writes,
 and excludes Private from authored, cafe, map, tagged, and anonymous-link
 projections regardless of preference.
 Profile-share content consumes that same profile-published sip set, sorts it by
@@ -66,8 +69,9 @@ on RLS for visibility.
 
 ## Current migration boundary
 
-The repository migration head is now
-`20260826143102_profile_editorial_atlas.sql`. It follows the additive reaction
+The Sprint 1 repository migration head is
+`20260913020258_sprint1_profile_consent.sql` (not deployed). The preceding
+`20260826143102_profile_editorial_atlas.sql` is the last deployed profile migration. It follows the additive reaction
 migration in repository order. The profile migration is production-configured
 and its expected tables/RPCs resolve in the connected project; the additive
 reaction migration remains implemented and hermetically verified but undeployed.

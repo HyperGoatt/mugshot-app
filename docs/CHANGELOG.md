@@ -1,10 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-12
 ---
 
 # Mugshot change log
+
+## 2026-09-12
+
+- Created the dedicated Mugshot OpenAI project; verified all three optional
+  training-related data-sharing controls disabled. A synthetic-only moderation
+  request returned HTTP 200. No user content was transmitted.
+- Implemented versioned Friends-on-profile consent and author consent for
+  tagged Friends posts. Legacy clients may withdraw but cannot grant consent.
+  The isolated PostgreSQL consent test and iOS Debug compile pass;
+  production deployment and runtime acceptance remain pending. See [Sprint 1 delivery](SPRINT_1_TRACKER.md).
 
 ## 2026-08-26
 
