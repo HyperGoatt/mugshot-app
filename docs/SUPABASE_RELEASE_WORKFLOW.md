@@ -139,3 +139,27 @@ only after a disposable clean reset and the complete contract suite pass.
 If post-deploy counts or fingerprints differ unexpectedly, stop feature rollout,
 preserve logs/backups, and identify the exact table and migration. Roll forward
 with a reviewed repair; do not reset live or reseed user data.
+
+
+## Media compatibility bridge — September 13
+
+This branch starts from distributed client source `b498d92` and changes only
+media loading/rendering/cache handling. Stored photo URLs and original files
+remain unchanged. Historical own-project public URLs and Private references
+resolve through authenticated Storage signing; missing authorization never
+falls back to a public URL. Signed media is not persisted in the image cache.
+The generic Simulator compile passed, but current/protected backend runtime
+acceptance, device validation and explicitly approved distribution are pending.
+Do not change production bucket visibility until compatible clients are
+accepted and incompatible releases have been retired. No production migration,
+Storage change, archive or upload is authorized by this bridge's compile result.
+
+## Current-contract profile signing exception — September 14
+
+The original backend has no SELECT policy for signing profile-media. The bridge
+therefore returns the validated original public profile/visit URL only for
+`PGRST202` naming the absent `public.can_read_protected_media_v1` function.
+This supersedes earlier absolute no-fallback wording for that exact old-server
+case. Network failures, authorization errors and Private references never fall
+back. Signed Simulator and isolated old/protected access checks pass. Keep the
+production bucket cutover held until compatible-reader distribution is accepted.

@@ -6,6 +6,15 @@ last_verified: 2026-08-26
 
 # Mugshot change log
 
+## 2026-09-13 — media compatibility bridge
+
+- Prepared signed-URL resolution for existing profile/visit URLs and existing
+  Private references, with account/lifecycle image fencing and uncached signed
+  media. No migration, stored URL, photo, audience or owner is changed.
+- Generic Simulator compile passes. Current-backend/protected-backend runtime
+  acceptance and TestFlight distribution remain unverified and are required
+  before any production bucket cutover.
+
 ## 2026-08-26
 
 - Distributed the completed remediation sprint as TestFlight 0.5.3 (6) from
@@ -340,3 +349,10 @@ last_verified: 2026-08-26
 
 Use dated audits, checkpoints, deployment gates, and Git history for earlier
 evidence. Those records remain historical rather than being rewritten here.
+
+## 2026-09-14 compatibility validation
+
+Allow an original profile/visit public URL only on the exact missing protected-
+media RPC response. All other errors fail closed. Current and protected audience
+matrices pass. Signed Simulator shows legacy avatar and protected Journal photos
+across the isolated atomic cutover. No production or TestFlight deployment.

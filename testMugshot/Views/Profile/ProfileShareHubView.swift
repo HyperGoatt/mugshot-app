@@ -472,9 +472,14 @@ enum ProfileShareRemoteImageLoader {
             return nil
         }
         var request = URLRequest(url: url)
-        request.cachePolicy = .returnCacheDataElseLoad
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.timeoutInterval = 15
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        guard let (data, response) = try? await session.data(for: request),
+              !Task.isCancelled,
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
               data.count <= 20_000_000 else { return nil }
