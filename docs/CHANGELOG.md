@@ -54,8 +54,11 @@ updated; the dev build is installed and launched, awaiting owner interaction che
 - Advanced the app, share extension, and widget build number from 6 to 7 while
   keeping the approved 0.5.3 marketing version.
 - The exact build-7 candidate compiled, installed, and launched on the booted
-  iPhone 16 Pro Simulator and on Joe's connected iPhone. Distribution and
-  TestFlight processing are recorded separately after upload.
+  iPhone 16 Pro Simulator and on Joe's connected iPhone. Exact `main` source
+  `bead2de` then passed the Release archive gate, uploaded successfully,
+  completed App Store Connect processing, and entered `Testing` for Mugshot Team
+  and Alpha Friends, including 12 external testers. No App Store release was
+  submitted.
 - Per owner direction, TestFlight **What to Test** for this and future beta
   builds is `Welcome to Mugshot`.
 
