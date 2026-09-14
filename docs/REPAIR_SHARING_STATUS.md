@@ -135,3 +135,30 @@ production success from compilation.
 Disposable QA was deleted after verification; branch listing now contains only
 production main. No QA branch is left accruing compute charges. Local encrypted
 backups and sanitized rehearsal evidence are retained outside version control.
+
+## Final acceptance and rollout checklist
+
+These are remaining gates, not completed claims. Retain the existing passing
+worker, SQL, preservation and unit evidence; repeat a check only for a changed
+artifact or a demonstrated failure.
+
+| Gate | Required evidence | Current state |
+| --- | --- | --- |
+| Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Local synthetic pass only; hosted run pending |
+| Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; integrated UI pending |
+| Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; integrated UI pending |
+| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; remaining integrated paths pending |
+| Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
+| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Provisioning requires Apple sign-in |
+| Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
+
+The function deployment set includes screen-content and moderation-review, plus
+all three consumers of the repaired capability-media helper: shared-profile,
+shared-mugshot and public-cafe-list. Verify their deployed versions together;
+deploying only the profile endpoint would leave the other readers unchanged.
+
+For the owner walkthrough, use the existing account and first confirm old posts
+and photos remain visible. Then inspect the audience notice, one new shared sip,
+its screening detail, an authored profile hide, a reaction, and a copied profile
+link. Keep genuine flagged-content and outage fixtures in isolated QA. Record
+actual outcomes rather than interpreting absence of an error as acceptance.
