@@ -1,10 +1,22 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # Mugshot change log
+
+## 2026-09-14
+
+- Fixed old-backend profile-photo compatibility with a narrowly scoped missing-API
+  fallback; protected-server denials continue to fail closed.
+- Added one-time visibility preservation for existing shared revisions while
+  screening remains pending. Edits/new content require screening; rejection
+  removes preserved visibility. All 64 hosted SQL contracts pass.
+- Verified bytes for all 331 production Storage objects in encrypted backup/isolated restore,
+  unchanged production fingerprints, and current/protected/atomic-transition
+  audience matrices. Cutover changes notification copy in one historical migration;
+  the preservation guard detected it and production remains held.
 
 ## 2026-09-13
 

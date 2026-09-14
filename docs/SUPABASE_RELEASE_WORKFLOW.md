@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # Mugshot Supabase release workflow
@@ -57,8 +57,9 @@ Production read-only inventory found 116 objects across `profile-media` and
 A separate branch, `codex/media-compatibility-bridge`, starts at that distributed
 source and contains only media resolver/rendering/cache changes. It adds no
 Supabase migration, moderation gate, audience change, content rewrite or data
-copy. Its generic Simulator compile passes; it is not yet hardware or
-TestFlight accepted. Do not deploy the full Sprint client first merely because
+copy. Its signed Simulator build renders legacy profile and visit photos against
+the rehearsed cutover. It is not TestFlight accepted. Do not deploy the full
+Sprint client first merely because
 the media bridge compiles: the full client also expects new server contracts.
 
 Required sequence:
@@ -86,11 +87,15 @@ Required sequence:
 5. Rehearse a transition with representative synthetic historical Private,
    Friends and Everyone posts. In addition to row/byte preservation, compare
    actual owner, friend, blocked, stranger and anonymous access before/after.
-   Screening migrations withdraw unapproved shared revisions; do not treat
-   intact database rows as proof that existing shared content stays visible.
-   Do not blanket-approve historical content, widen audiences or screen Private
-   content to force the transition to pass. Complete a staged screening and
-   cafe-admission plan before enforcing those new read rules.
+   Migration `20260914023251` preserves only the exact already-shared revision
+   captured at activation. Pending/needs-review remains the real job state;
+   no provider approval is fabricated. Edits, rejection, approval and withdrawal
+   expire the one-time visibility receipt. New posts receive no receipt.
+   Audience, blocking and enforcement checks still apply; Private content is
+   excluded. Apply all initial Sprint migrations and receipt capture in ONE
+   database transaction so intermediate screening gates cannot hide old posts.
+   The isolated replay rehearsed that transaction successfully. Do not use a
+   sequence of separately committed migrations for initial activation.
 6. Deploy reviewed backend and compatible web readers in the coordinated window
    only after the preceding gates. Verify unchanged original data, byte hashes
    and expected viewer access. Keep writes/activation held if any unexplained
@@ -346,3 +351,33 @@ the focused Saved owner/isolation test and cafe admission regression passed on
 isolated QA, followed by native saving and Favorites display. All 163 migrations
 were present on that branch before deletion; only main remains after cleanup.
 No new production migration is claimed.
+
+## September 14 preservation verification
+
+The bridge allows historical public profile/visit URLs only when the server
+returns the exact missing `can_read_protected_media_v1` API response
+(`PGRST202`). Authorization denials, other server errors and network errors
+never enable this fallback. Durable Private references always require signing.
+The protected backend checks the viewer before issuing a 60-second URL.
+
+Read-only production checks found all 72 original-table fingerprints unchanged.
+The encrypted local Storage backup covers 331 objects / 439,219,602 bytes;
+every object was read back, decrypted in isolation and compared byte-for-byte.
+Keep both the ignored encrypted directory and its separate key. This proves
+Storage-byte recoverability, not a physical database restore drill.
+
+The current-contract QA replica included production's nullable `users.website_url`
+column, which exists outside its recorded 127 migrations. Both current and
+protected QA passed 30 photo/audience cases plus profile authorization checks.
+The same access matrix passed after atomic cutover with all eight pre-existing
+shared jobs still pending. No synthetic approval was used for that transition.
+The fresh protected fixture matrix separately uses synthetic approvals only.
+
+The cutover fingerprint guard intentionally stopped on `activity_events`:
+migration `20260913042008` replaces notification copy and removes `list_title`
+metadata. All other 71 original tables matched, including posts, owners,
+audiences, Auth identities and Storage metadata. This is NOT an unexplained
+post loss and NOT a full 72-table cutover pass. Production activation remains
+held until that notification-copy transformation is explicitly reconciled with
+the preservation requirement and the database recovery gate is satisfied.
+No production migration or bucket change occurred during this verification.

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # Current product status
@@ -15,6 +15,18 @@ production deployed. Focused native and physical photo acceptance passes; the
 owner now has an isolated dev build for whole-app review. Cafe-list, profile
 and post links all honor the configured sharing domain. Current delivery evidence
 is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+
+## Photo preservation candidate — September 14
+
+The compatibility bridge now supports both the existing public-photo contract
+and protected reads, including an exact missing-API fallback for old profiles.
+Encrypted byte backup/restore covers every production Storage object. Synthetic
+current/protected and atomic-transition access matrices pass, and the protected
+schema passes 64 contracts. Existing shared revisions retain visibility while
+pending screening; edits and new posts do not inherit that eligibility.
+Production remains unchanged. The rehearsal detected expected notification-copy
+rewriting in an earlier migration; activation is held for that reconciliation
+and the database recovery gate. See the release workflow for exact evidence.
 
 ## Release baseline
 

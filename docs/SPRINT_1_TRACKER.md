@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # Sprint 1 delivery: trust, moderation, and working sharing
@@ -1707,3 +1707,45 @@ relaunch preserved the session, and profile completion reached Feed. A system
 password-saving prompt was cleared by this planned relaunch without saving the
 disposable credentials. The remaining native journey is unaccepted because the
 Mac locked again. See the [runtime packaging rule](IOS_QA_EFFICIENCY_FRAMEWORK.md).
+
+
+## Preservation and compatibility verification — September 14
+
+Scope: product media behavior, Supabase read/screening contracts, privacy and
+release operations (Tier 4). No production write or TestFlight action.
+
+- Production read-only comparison: all 72 original-table fingerprints unchanged.
+- Encrypted Storage backup: 331 objects, 439,219,602 bytes; every encrypted object
+  decrypted and compared to its original download. Database restore not inferred.
+- Current and protected synthetic media matrices: 30 audience/photo-byte checks
+  each plus profile capability checks. Old raw public URLs retain their existing
+  public exposure until the coordinated protected-bucket cutover.
+- Exact old-server missing-API fallback resolves historical profile photos;
+  protected denials and network failures never downgrade to public access.
+- Atomic cutover: eight existing shared jobs remained honestly pending, with
+  unchanged intended-viewer access in 30 cases. Private content stayed excluded.
+  New SQL regression protects edit/rejection/appeal/withdrawal behavior and seals
+  client access to one-time legacy eligibility. Full hosted suite: 64/64 passed.
+- Preservation guard detected notification title/body/metadata sanitization in
+  the earlier activity migration; all other 71 original tables matched.
+  Production stays held; no claim of a completely unchanged 72-table cutover.
+- Signed bridge Simulator displayed the legacy avatar and then all six Journal
+  entries with protected photo rendering after the rehearsed cutover.
+- Native Debug 0.5.3 (6), separate dev bundle, compiled for the owner's iPhone
+  against the protected isolated QA host. Analytics token is empty. Installation
+  and owner walkthrough are recorded at handoff, not inferred from compilation.
+
+Local-only evidence is under ignored `.codex/`: production byte-backup manifest,
+media-current/media-protected receipts, atomic-cutover-access receipt, production
+preservation baseline and cutover baselines. Never publish keys, media or tokens.
+
+Handoff confirmation: the signed dev build installed and launched on Joe's
+connected iPhone. Device Hub visibly showed the retained QA owner session and
+six synthetic checkerboard-photo Journal entries, including old-URL and durable
+Private references. No real production posts were copied into QA. The owner
+walkthrough screening schedule is active again after deterministic tests.
+The extra current-contract branch was deleted and its absence confirmed; only
+main and the owner-walkthrough QA branch remain. Keep the latter only until the
+owner finishes this phone walkthrough, then delete it to stop QA compute charges.
+Both documentation checks and backend static checks pass (11 passed, 1 optional
+skip); the signed full Sprint Simulator build and device build also pass.
