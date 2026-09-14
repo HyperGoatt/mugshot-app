@@ -8,6 +8,12 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Prepared the owner's full Sprint 1 phone walkthrough on isolated QA with
+  preview sharing sites, screening/review and scheduled email cleanup.
+  Cafe-list share links now honor the configured public domain, as profiles
+  and posts already do. Signed device compile and QA configuration checks
+  passed; owner acceptance is pending. No TestFlight upload occurred.
+
 - Physically accepted Private photo posting on iPhone 16 Pro using signed QA
   development build 0.5.3 (6): save and relaunched photo display passed, owner
   bytes were readable, nonowner/anonymous reads were denied, and no Private

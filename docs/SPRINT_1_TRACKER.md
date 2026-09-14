@@ -7,6 +7,53 @@ last_verified: 2026-09-13
 # Sprint 1 delivery: trust, moderation, and working sharing
 
 
+## Owner dev-build walkthrough — active
+
+The owner requested a full phone walkthrough before TestFlight. A new isolated
+QA branch (`foemiqrvwxavjchokjce`) is active specifically for this session; the
+earlier completed QA branches remain deleted. Cleanup responsibility is tracked
+in `.codex/owner-walkthrough-session.json`. Do not restart the deleted heartbeat.
+Delete this QA branch and verify absence when the owner finishes testing.
+
+Signed development build 0.5.3 (6), bundle `co.mugshot.app.dev`, is installed
+on the owner's iPhone. It uses all 163 migrations and deployed screening,
+review, cafe verification, deletion, sharing, drink-analysis and activity
+functions. Scheduled screening approved both synthetic profiles in one attempt.
+The owner fixture has founder review access. Scheduled email-account deletion
+and in-app activity workers use QA-only destinations and dedicated secrets.
+Analytics is disabled; OpenAI's three training-sharing choices were verified
+Disabled before screening. Private content remains excluded.
+
+The marketing/PWA preview deployments use QA. Authenticated preview verification
+returned the correct synthetic profile through `/profile/final_qa_owner`. Vercel
+protects preview pages, so the owner may need a Vercel login when testing links.
+Cafe-list sharing now uses the configured public base URL, matching profiles
+and posts; it no longer sends QA list links to the live marketing domain.
+The focused signed device compile and built configuration assertions passed.
+This is a dev-build handoff, not whole-app owner acceptance or TestFlight.
+
+### Walkthrough checklist
+
+- Use the provided disposable email account, not a production Apple/Google login.
+- Feed/Journal: create, edit, reopen and delete test sips; try Cafe, Home and
+  Elsewhere; exercise Private, Friends and Everyone audiences.
+- Maps/Saved: search a cafe, add it, save/unsave and reopen Favorites.
+- Profile: edit details and username, copy the readable share link, toggle
+  Friends-on-profile consent, and check the preview recipient page.
+- Shared content: submit harmless public content, observe screening status,
+  and explore founder review, reports and appeals when items are available.
+- Lists/Home: create a cafe list, test its share link, and try coffee bags,
+  equipment, recipes and brew capture.
+- Account/settings: sign out/in and confirm session restoration. If testing
+  account deletion, do it last and only on the disposable account.
+- Collect unexpected behavior and screenshots in one batch before another build.
+
+Isolated-environment limits: Apple/Google OAuth, APNs push and PostHog erasure
+are not configured here. Native email login and in-app activity are available.
+There is no copied production content or social graph. A second disposable
+viewer account is available for audience checks. Production rollout and
+TestFlight upload remain on hold for the owner's walkthrough.
+
 ## Current scope — TestFlight preparation only
 
 The owner explicitly directed TestFlight-only preparation, with no App Store

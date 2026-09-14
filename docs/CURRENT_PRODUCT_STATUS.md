@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 ---
 
 # Current product status
@@ -11,7 +11,9 @@ handle aliases, and anonymous recipient pages in the companion PWA. The
 unavailable Journal Passport entry and onboarding promotion are removed; the
 companion marketing site removes current-feature promises. Local
 handle contracts and synthetic browser checks pass; these changes are not yet
-production deployed or accepted on an installed app. Current delivery evidence
+production deployed. Focused native and physical photo acceptance passes; the
+owner now has an isolated dev build for whole-app review. Cafe-list, profile
+and post links all honor the configured sharing domain. Current delivery evidence
 is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
 
 ## Release baseline

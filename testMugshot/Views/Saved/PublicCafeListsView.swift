@@ -297,7 +297,9 @@ struct PublicCafeListDetailView: View {
             .buttonStyle(.bordered)
             .tint(.mugshotSage)
 
-            if let url = URL(string: "https://mugshotapp.co/l/\(list.slug)") {
+            if let url = MugshotShareConfiguration.load().publicBaseURL?
+                .appendingPathComponent("l")
+                .appendingPathComponent(list.slug) {
                 ShareLink(item: url) {
                     Image(systemName: "square.and.arrow.up")
                 }
