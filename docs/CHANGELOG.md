@@ -8,6 +8,11 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- The repaired native deletion flow passed on isolated QA: fresh verification,
+  preserved progress UI, Auth/profile deletion, completed durable job, clear
+  completion message and signed-out relaunch. Apple revocation remains the
+  explicitly accepted unverified TestFlight boundary.
+
 - Owner narrowed delivery to TestFlight preparation, explicitly excluding App
   Store review submission. Real Apple revocation remains unverified; the owner
   authorized proceeding without a disposable Apple Account. Recorded that

@@ -16,17 +16,29 @@ remains unverified and is a documented TestFlight limitation, not a prerequisite
 for continuing the other work. Do not request that account again or revoke the
 owner's real Apple authorization for testing.
 
-The remaining bounded work is one focused native photo-posting and repaired
-account-deletion acceptance pass, required backend rollout verification, and
+The remaining bounded work is focused native photo-posting acceptance,
+required backend rollout verification, and
 Simulator/connected-iPhone validation before the separate TestFlight upload
 approval. Retain marketing version 0.5.3 unless the owner approves a change;
 choose an unused build number at upload preparation. Do not submit App Store
 review. PostHog's existing pending synthetic erasure request must be monitored
 without blocking unrelated preparation or creating additional test identities.
 
-The Mac is currently locked. No paid QA should exist while waiting for native
-acceptance. Existing passing checks do not need repetition without a new change
-or concrete failure.
+The Mac became available for the final native session. The repaired deletion
+flow passed against isolated QA: the progress sheet stayed visible, fresh sign-in
+completed, Auth and profile rows were removed, the durable deletion job reached
+`completed` with no error, and relaunch stayed signed out. The app disclosed
+pending analytics cleanup. This test used a synthetic email identity; actual
+Apple revocation remains unverified as approved above.
+
+Photo acceptance still requires selecting the synthetic checkerboard in Apple's
+system picker, whose controls do not respond to available automation. A physical
+iPhone is not currently available. No paid QA should remain while waiting for
+user interaction. The final-native QA branch was deleted and a fresh listing
+verified only main remains. The app and temporary keep-awake process were
+stopped. Do not recreate paid QA until the user is available for the known photo
+picker handoff. Existing passing checks do not need repetition without a new
+change or concrete failure.
 
 ## Earlier checkpoint — September 13, journey acceptance and repairs
 
