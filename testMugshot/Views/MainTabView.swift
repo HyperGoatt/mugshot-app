@@ -17,6 +17,7 @@ struct MainTabView: View {
     @StateObject private var systemRouter = SipSystemRouter.shared
     @StateObject private var activityStore = ActivityCenterStore()
     @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
+    @StateObject private var reflectionReminderRouter = ReflectionReminderRouter.shared
     @StateObject private var nearbyReminderRouter = NearbyCafeReminderRouter.shared
     @StateObject private var enforcementStore = EnforcementNoticeStore()
     @StateObject private var automaticSipRecovery = AutomaticSipRecoveryCoordinator()
@@ -41,11 +42,13 @@ struct MainTabView: View {
     @State private var showsActivityCenter = false
     @State private var lastReportedActivityRouteID: UUID?
     @State private var showsEnforcementCenter = false
+    @State private var showsSipRecoveryReview = false
     @State private var systemRouteError: String?
     @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
     @State private var sharedProfileRoute: MugshotProfileSharedLinkRoute?
     @State private var publicCafeListRoute: PublicCafeListLinkRoute?
     @State private var nearbyReminderCafe: Cafe?
+    @State private var selectedReflectionReminderRoute: PendingReflectionReminderRoute?
     @State private var isBottomNavHidden = false
     @State private var feedScrollToTopRequest = 0
     @State private var visitedTabs: Set<MugshotTab> = []
@@ -123,7 +126,8 @@ struct MainTabView: View {
                 }
                 AutomaticSipRecoveryBanner(
                     state: automaticSipRecovery.state,
-                    retry: automaticSipRecovery.retryNow
+                    retry: automaticSipRecovery.retryNow,
+                    review: { showsSipRecoveryReview = true }
                 )
                 if let action = enforcementStore.primaryAction {
                     EnforcementStatusBanner(
@@ -150,7 +154,7 @@ struct MainTabView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
-    private var lifecycleScene: some View {
+    private var primaryLifecycleScene: some View {
         coreScene
         .onAppear {
 #if DEBUG
@@ -171,7 +175,9 @@ struct MainTabView: View {
             }
             handlePendingSystemRoute()
             synchronizeActivityRouter()
+            synchronizeReflectionReminderRouter()
             handlePendingActivityRoute()
+            handlePendingReflectionReminder()
             scheduleGuestIntroductionIfNeeded()
             captureSelectedScreen()
             synchronizeMapLocationUpdates()
@@ -225,8 +231,10 @@ struct MainTabView: View {
             }
             handlePendingSystemRoute()
             synchronizeActivityRouter()
+            synchronizeReflectionReminderRouter()
             enforcementStore.prepare(accountID: userId)
             handlePendingActivityRoute()
+            handlePendingReflectionReminder()
             scheduleGuestIntroductionIfNeeded()
             scheduleSignedInOnboardingIfNeeded()
             Task {
@@ -237,6 +245,10 @@ struct MainTabView: View {
                 )
             }
         }
+    }
+
+    private var routeLifecycleScene: some View {
+        primaryLifecycleScene
         .onChange(of: dataManager.journalRevision) { _, _ in
             activateLocalStorage()
             NearbyCafeReminderCoordinator.shared.refresh(cafes: dataManager.appData.cafes)
@@ -246,8 +258,10 @@ struct MainTabView: View {
         }
         .onChange(of: authModel.status) { _, _ in
             synchronizeActivityRouter()
+            synchronizeReflectionReminderRouter()
             handlePendingSystemRoute()
             handlePendingActivityRoute()
+            handlePendingReflectionReminder()
             scheduleGuestIntroductionIfNeeded()
             scheduleSignedInOnboardingIfNeeded()
         }
@@ -256,6 +270,9 @@ struct MainTabView: View {
         }
         .onChange(of: activityRouter.pendingRoute?.id) { _, _ in
             handlePendingActivityRoute()
+        }
+        .onChange(of: reflectionReminderRouter.pendingRoute?.id) { _, _ in
+            handlePendingReflectionReminder()
         }
         .onChange(of: nearbyReminderRouter.pendingCafeID) { _, _ in
             handlePendingNearbyReminder()
@@ -288,9 +305,16 @@ struct MainTabView: View {
                 await NotificationDeviceCoordinator.shared.refreshPermission()
                 guard !Task.isCancelled,
                       authModel.authenticatedUser?.id == expectedAccountID else { return }
+                await NotificationDeviceCoordinator.shared.refreshReflectionDeliveryCapability()
+                guard !Task.isCancelled,
+                      authModel.authenticatedUser?.id == expectedAccountID else { return }
                 await enforcementStore.refresh()
             }
         }
+    }
+
+    private var lifecycleScene: some View {
+        routeLifecycleScene
         .onChange(of: authModel.pendingGuestSavedCafes.count) { _, count in
             guard count > 0 else {
                 scheduleSignedInOnboardingIfNeeded()
@@ -434,6 +458,16 @@ struct MainTabView: View {
             PasswordRecoveryView(dataManager: dataManager)
                 .environmentObject(authModel)
         }
+        .sheet(isPresented: $showsSipRecoveryReview) {
+            AutomaticSipRecoveryReviewView(
+                state: automaticSipRecovery.state,
+                issues: automaticSipRecovery.issues,
+                onRetry: {
+                    showsSipRecoveryReview = false
+                    automaticSipRecovery.retryNow()
+                }
+            )
+        }
         .sheet(item: $sharedMugshotRoute) { route in
             NavigationStack {
                 CanonicalMugshotLinkRouteView(
@@ -478,6 +512,14 @@ struct MainTabView: View {
             )
             .environmentObject(authModel)
         }
+        .sheet(item: $selectedReflectionReminderRoute) { route in
+            ReflectionReminderRouteView(
+                route: route,
+                dataManager: dataManager,
+                onFinished: { completeReflectionReminderRoute(route) }
+            )
+            .environmentObject(authModel)
+        }
     }
 
     private var routedScene: some View {
@@ -516,6 +558,7 @@ struct MainTabView: View {
         .task(id: authModel.authenticatedUser?.id) {
             let userId = authModel.authenticatedUser?.id
             synchronizeActivityRouter()
+            synchronizeReflectionReminderRouter()
             await activityStore.activate(accountID: userId)
             guard !Task.isCancelled,
                   authModel.authenticatedUser?.id == userId else { return }
@@ -529,10 +572,14 @@ struct MainTabView: View {
             await NotificationDeviceCoordinator.shared.activate(accountID: userId)
             guard !Task.isCancelled,
                   authModel.authenticatedUser?.id == userId else { return }
+            await NotificationDeviceCoordinator.shared.refreshReflectionDeliveryCapability()
+            guard !Task.isCancelled,
+                  authModel.authenticatedUser?.id == userId else { return }
             await enforcementStore.activate(accountID: userId)
             guard !Task.isCancelled,
                   authModel.authenticatedUser?.id == userId else { return }
             handlePendingActivityRoute()
+            handlePendingReflectionReminder()
 
             guard let userId,
                   let client = try? SupabaseClientProvider.shared.client() else { return }
@@ -778,6 +825,29 @@ struct MainTabView: View {
         showsActivityCenter = true
     }
 
+    private func handlePendingReflectionReminder() {
+        guard authModel.status != .checking,
+              authModel.status != .working,
+              let accountID = authModel.authenticatedUser?.id,
+              let route = reflectionReminderRouter.pendingRoute,
+              route.accountID == accountID else { return }
+        switch route.destination {
+        case .journal:
+            tabCoordinator.selectedTab = .journal
+            reflectionReminderRouter.consume(route, accountID: accountID)
+        case .memory:
+            selectedReflectionReminderRoute = route
+        }
+    }
+
+    private func completeReflectionReminderRoute(_ route: PendingReflectionReminderRoute) {
+        guard let accountID = authModel.authenticatedUser?.id else { return }
+        reflectionReminderRouter.consume(route, accountID: accountID)
+        if selectedReflectionReminderRoute?.id == route.id {
+            selectedReflectionReminderRoute = nil
+        }
+    }
+
     private func handlePendingNearbyReminder() {
         guard let cafeID = nearbyReminderRouter.pendingCafeID,
               let cafe = dataManager.getCafe(id: cafeID) else { return }
@@ -846,6 +916,15 @@ struct MainTabView: View {
                 reportActivityRoute(route, result: .accountRejected)
             }
             activityRouter.activate(accountID: accountID)
+        }
+    }
+
+    private func synchronizeReflectionReminderRouter() {
+        if case .signedOut = authModel.status {
+            selectedReflectionReminderRoute = nil
+            reflectionReminderRouter.deactivateForSignedOutSession()
+        } else {
+            reflectionReminderRouter.activate(accountID: authModel.authenticatedUser?.id)
         }
     }
 

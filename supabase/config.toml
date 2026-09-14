@@ -16,6 +16,9 @@ verify_jwt = false
 [functions.deliver-activity]
 verify_jwt = false
 
+[functions.deliver-reflections]
+verify_jwt = false
+
 [functions.screen-content]
 verify_jwt = false
 

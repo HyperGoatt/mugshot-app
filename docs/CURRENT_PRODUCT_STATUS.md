@@ -4,6 +4,39 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## TestFlight feedback follow-up candidate — 2026-09-14
+
+The 14-report follow-up is implemented on
+`codex/testflight-feedback-followup` while keeping marketing version 0.5.3. It
+uses Apple's standard still-photo camera, completed-Mugshot personal Map
+averages, individual Profile cafe pins, bounded per-record publication recovery,
+normalized Instagram destinations, canonical cafe actions, Feed photo paging,
+bold published captions, structured Sip/Cafe/Setting journal headings and the
+approved Feed copy.
+
+On this day and Weekly reflection reminders are opt-in and require a new explicit
+save before delivery activation. The client reports its current IANA timezone and
+destination capability. The backend stores a private occurrence queue and
+per-installation receipts, evaluates local schedules every five minutes, and
+revalidates preference, master push state, account, target ownership,
+eligibility and installation immediately before sending. Push copy contains no
+caption, journal text, cafe name or photo. Migrations `20260914191634` and
+`20260914204700` plus the `deliver-reflections` worker are deployed. The latter
+bounds the deterministic APNs collapse identifier to 47 bytes. The server
+delivery switch migrated off, then was enabled after database, worker and
+APNs-configuration health checks.
+At activation there were zero delivery-active preferences, occurrences or
+deliveries, so only a future explicit compatible save can enter the queue. The
+20:40 UTC scheduled dispatch returned HTTP 200 with zero enqueued, claimed, sent,
+failed or cancelled work, and the queue remained empty afterward.
+
+Focused Swift, worker and isolated database contracts pass. The consolidated
+Simulator session exercised Feed paging and cafe routing, Profile pins, personal
+Map scores and explanation, structured journal headings, recovery Review and dock
+stability. Physical camera capture, visually observed APNs delivery and
+replacement-TestFlight acceptance are still pending and must not be inferred
+from local checks.
+
 ## TestFlight 0.5.3 (7) — 2026-09-14
 
 Build 7 keeps marketing version 0.5.3 and contains the current merged product,

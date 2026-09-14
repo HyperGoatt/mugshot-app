@@ -1,8 +1,40 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
+
+## TestFlight feedback data contracts — 2026-09-14
+
+Personal Map scores are read projections: each account-owned completed visit
+contributes its V3 Mugshot score once at the canonical cafe, with legacy overall
+score used only when V3 is absent. Incomplete, deleted, invalid and unrated
+entries are excluded. The client paginates completed visits, deduplicates stable
+visit IDs, batches an owner-only score projection and averages before one-decimal
+display rounding. Cafe Pulse and Friends-map score semantics are unchanged; no
+stored rating is rewritten.
+
+Pending publication remains local frozen authority until the exact stable visit
+is authoritatively complete. Recovery performs an owner-bound lookup before any
+upload or creation. An authoritative absence may recreate only from a valid
+frozen submission using the same IDs and object paths; lookup failure is unknown
+state. Authentication and network failures pause the pass, while isolated
+missing-media, invalid-payload, publication/setup and local-storage failures stay
+reviewable and do not block later eligible records.
+
+Reflection preferences and compatible-device state are caller-bound Supabase
+contracts. Private occurrence and delivery rows are server-owned. The database
+chooses eligible owner-bound targets from completed visits, while the client
+stores only a pending route for the active matching account. Reminder delivery
+is independent of social Activity history and badge state.
+
+Production migrations `20260914191634` and `20260914204700` own these contracts.
+The follow-up bounds each deterministic APNs collapse identifier to the
+occurrence UUID. The rollback switch migrated disabled and was enabled after
+deployment checks with zero activated preferences, occurrences and deliveries.
+The five-minute cron and worker are live, but a device remains ineligible until
+its owner explicitly saves the new preference contract and reports the supported
+route capability.
 
 ## Regression repair candidate — 2026-09-14
 

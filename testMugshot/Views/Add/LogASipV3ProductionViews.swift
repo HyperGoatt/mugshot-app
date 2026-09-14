@@ -3753,6 +3753,7 @@ private struct LogASipV3VisibilitySelector: View {
                 ForEach(VisitVisibility.allCases) { option in
                     let selected = selection == option
                     let enabled = enabledOptions.contains(option)
+                    let accessibilityScope = title == "Audience" ? "audience" : "rawNote"
                     Button {
                         guard enabled else { return }
                         selection = option
@@ -3767,6 +3768,9 @@ private struct LogASipV3VisibilitySelector: View {
                     .buttonStyle(.plain)
                     .disabled(!enabled)
                     .opacity(enabled ? 1 : 0.35)
+                    .accessibilityIdentifier(
+                        "logASipV3.visibility.\(accessibilityScope).\(option.rawValue.lowercased())"
+                    )
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }

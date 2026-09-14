@@ -15,14 +15,6 @@ struct MotionLabView: View {
     @State private var gazeX = 0.5
     @State private var gazeY = 0.5
     @State private var streakCount = 7.0
-    @State private var cameraState: LabCameraState = .ready
-    @State private var cameraIsFront = false
-    @State private var cameraFlash = false
-    @State private var cameraTimer = 0
-    @State private var cameraZoom = 1.0
-    @State private var cameraExposure = 0.0
-    @State private var cameraFocusX = 0.5
-    @State private var cameraFocusY = 0.5
     @State private var isPaused = false
     @State private var simulateReducedMotion = false
     @State private var showDarkAppearance = false
@@ -163,16 +155,17 @@ struct MotionLabView: View {
                 )
                 .frame(width: 160, height: 184)
             case .camera:
-                MugshotCameraCompanionView(
-                    phase: cameraState.phase(timer: cameraTimer),
-                    zoom: cameraZoom,
-                    exposure: Float(cameraExposure),
-                    focusPoint: UnitPoint(x: cameraFocusX, y: cameraFocusY),
-                    isFrontCamera: cameraIsFront,
-                    flashIsEnabled: cameraFlash,
-                    isPaused: isPaused
-                )
-                .frame(width: 160, height: 184)
+                VStack(spacing: 12) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 44, weight: .semibold))
+                        .foregroundStyle(Color.mugshotSage)
+                    Text("Apple system camera")
+                        .font(.system(size: 15, weight: .bold))
+                    Text("Capture controls are provided by iOS.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                }
+                .frame(width: 210, height: 184)
             case .streak:
                 MugshotRitualCard(dates: ritualDates, now: labNow)
             case .taste:
@@ -231,28 +224,10 @@ struct MotionLabView: View {
     }
 
     private var cameraControls: some View {
-        controlSection("Camera Companion") {
-            Picker("Camera state", selection: $cameraState) {
-                ForEach(LabCameraState.allCases) { Text($0.title).tag($0) }
-            }
-            Toggle("Front camera", isOn: $cameraIsFront)
-            Toggle("Flash", isOn: $cameraFlash)
-            Picker("Timer", selection: $cameraTimer) {
-                Text("Off").tag(0)
-                Text("3 sec").tag(3)
-                Text("10 sec").tag(10)
-            }
-            .pickerStyle(.segmented)
-            labeledSlider("Zoom", value: $cameraZoom, range: 1...5, valueText: String(format: "%.1fx", cameraZoom))
-            labeledSlider("Exposure", value: $cameraExposure, range: -2...2, valueText: String(format: "%+.1f", cameraExposure))
-            labeledSlider("Focus X", value: $cameraFocusX, range: 0...1, valueText: percent(cameraFocusX))
-            labeledSlider("Focus Y", value: $cameraFocusY, range: 0...1, valueText: percent(cameraFocusY))
-            Button("Replay focus tap") {
-                cameraState = .focusing
-                replaySeed += 1
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            LabeledContent("Permission", value: cameraState == .permission ? "Off" : "Available")
+        controlSection("System Camera") {
+            Text("Mugshot presents UIImagePickerController full screen in still-photo mode. Camera controls, Retake, and Use Photo are owned by iOS.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.secondaryText)
         }
     }
 
@@ -367,14 +342,6 @@ struct MotionLabView: View {
         gazeX = 0.5
         gazeY = 0.5
         streakCount = 7
-        cameraState = .ready
-        cameraIsFront = false
-        cameraFlash = false
-        cameraTimer = 0
-        cameraZoom = 1
-        cameraExposure = 0
-        cameraFocusX = 0.5
-        cameraFocusY = 0.5
         isPaused = false
         simulateReducedMotion = false
         showDarkAppearance = false
@@ -405,27 +372,6 @@ private enum LabOutcome: String, CaseIterable, Identifiable {
     case neutral, success, error
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
-}
-
-private enum LabCameraState: String, CaseIterable, Identifiable {
-    case opening, ready, focusing, flipping, countdown, capturing, captured, retake, permission, failure
-    var id: String { rawValue }
-    var title: String { rawValue.capitalized }
-
-    func phase(timer: Int) -> MugshotCameraCompanionPhase {
-        switch self {
-        case .opening: return .opening
-        case .ready: return .ready
-        case .focusing: return .focusing
-        case .flipping: return .flipping
-        case .countdown: return .countdown(max(timer, 3))
-        case .capturing: return .capturing
-        case .captured: return .captured
-        case .retake: return .recovering
-        case .permission: return .permissionDenied
-        case .failure: return .failed
-        }
-    }
 }
 
 private enum LabTypeSize: String, CaseIterable, Identifiable {

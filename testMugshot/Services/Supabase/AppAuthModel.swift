@@ -671,6 +671,13 @@ final class AppAuthModel: ObservableObject {
         guard let authenticatedUser,
               let profileService,
               let authService else { return false }
+        let normalizedInstagramHandle: String?
+        do {
+            normalizedInstagramHandle = try InstagramProfileHandle.normalize(instagramHandle)
+        } catch {
+            profileUpdateError = error.localizedDescription
+            return false
+        }
         let expectedAccountID = authenticatedUser.id
         let mutationID = UUID()
         profileMutationID = mutationID
@@ -683,7 +690,7 @@ final class AppAuthModel: ObservableObject {
             bio: bio.nilIfBlank,
             location: location.nilIfBlank,
             favoriteDrink: favoriteDrink.nilIfBlank,
-            instagramHandle: instagramHandle.nilIfBlank,
+            instagramHandle: normalizedInstagramHandle,
             websiteURL: websiteURL.nilIfBlank
         )
 
@@ -920,6 +927,13 @@ final class AppAuthModel: ObservableObject {
     ) async -> Bool {
         guard let authenticatedUser,
               let authService else { return false }
+        let normalizedInstagramHandle: String?
+        do {
+            normalizedInstagramHandle = try InstagramProfileHandle.normalize(instagramHandle)
+        } catch {
+            profileSetupError = error.localizedDescription
+            return false
+        }
         let expectedAccountID = authenticatedUser.id
         isCompletingProfileSetup = true
         profileSetupError = nil
@@ -938,7 +952,7 @@ final class AppAuthModel: ObservableObject {
                 username: username,
                 bio: bio,
                 location: location,
-                instagramHandle: instagramHandle,
+                instagramHandle: normalizedInstagramHandle ?? "",
                 websiteURL: websiteURL,
                 favoriteDrink: favoriteDrink
             )

@@ -3,6 +3,54 @@ import Testing
 @testable import testMugshot
 
 struct AutomaticSipRecoveryCoordinatorTests {
+    @Test func authoritativeServerStateSelectsTheSafeResumeStage() throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let accountID = UUID()
+        var record = try prepare(
+            fixture.store,
+            accountID: accountID,
+            caption: "Lost response"
+        )
+        let receiptDate = Date(timeIntervalSince1970: 101)
+
+        let existing = PendingVisitPublicationReconciliation.reconcile(
+            record,
+            remoteState: .uploading,
+            now: receiptDate
+        )
+        #expect(existing.phase == .visitCreated)
+
+        record.phase = .photosUploaded
+        record.uploadedPhotoURLs = ["visits/owner/visit/photo.jpg"]
+        record.finalizationRequestedAt = Date(timeIntervalSince1970: 100)
+        let absent = PendingVisitPublicationReconciliation.reconcile(
+            record,
+            remoteState: nil,
+            now: receiptDate
+        )
+        #expect(absent.phase == .prepared)
+        #expect(absent.uploadedPhotoURLs == nil)
+        #expect(absent.finalizationRequestedAt == nil)
+
+        let complete = PendingVisitPublicationReconciliation.reconcile(
+            record,
+            remoteState: .complete,
+            now: receiptDate
+        )
+        #expect(complete.remoteFinalizedAt == receiptDate)
+
+        var finalized = record
+        finalized.remoteFinalizedAt = receiptDate
+        let missingAfterCompletion = PendingVisitPublicationReconciliation.reconcile(
+            finalized,
+            remoteState: nil,
+            now: receiptDate.addingTimeInterval(1)
+        )
+        #expect(missingAfterCompletion.isRemoteFinalized)
+        #expect(missingAfterCompletion.phase == .photosUploaded)
+    }
+
     @MainActor
     @Test func reconnectDrainsFIFOAndReconcilesBeforeRetry() async throws {
         let fixture = try makeStore()
@@ -333,6 +381,54 @@ struct AutomaticSipRecoveryCoordinatorTests {
         #expect(recoveredIDs == [first.id])
         #expect(try fixture.store.loadAll(userId: firstAccountID).isEmpty)
         #expect(try fixture.store.loadAll(userId: secondAccountID).map(\.id) == [second.id])
+    }
+
+    @MainActor
+    @Test func isolatedFailureDoesNotBlockTheNextSavedMugshot() async throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let accountID = UUID()
+        let first = try prepare(fixture.store, accountID: accountID, caption: "Needs review")
+        let second = try prepare(fixture.store, accountID: accountID, caption: "Can finish")
+        var attempted: [UUID] = []
+        let dependencies = AutomaticSipRecoveryDependencies(
+            loadRecords: { try fixture.store.loadAll(userId: $0) },
+            reconcile: { $0 },
+            recover: { candidate in
+                attempted.append(candidate.record.id)
+                if candidate.record.id == first.id {
+                    throw AutomaticSipRecoveryError.invalidPayload
+                }
+                let latest = try #require(
+                    fixture.store.load(
+                        visitId: candidate.record.id,
+                        userId: candidate.record.userId
+                    )
+                )
+                fixture.store.remove(latest)
+                return candidate.record.id
+            }
+        )
+        let coordinator = AutomaticSipRecoveryCoordinator(
+            dependencies: dependencies,
+            observesNetwork: false
+        )
+
+        coordinator.activate(accountID: accountID)
+        coordinator.setNetworkAvailable(true)
+        coordinator.setAppActive(true)
+        let finishedPass = await waitUntil {
+            if case .failed = coordinator.state { return true }
+            return false
+        }
+
+        #expect(finishedPass)
+        #expect(attempted.contains(first.id))
+        #expect(attempted.contains(second.id))
+        #expect(coordinator.completionRevision == 1)
+        #expect(try fixture.store.loadAll(userId: accountID).map(\.id) == [first.id])
+        #expect(coordinator.issues.map(\.visitID) == [first.id])
+        #expect(coordinator.issues.first?.category == .invalidPayload)
     }
 
     @MainActor

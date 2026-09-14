@@ -6,6 +6,27 @@ last_verified: 2026-09-14
 
 # Regression repair delivery
 
+## TestFlight feedback follow-up — 2026-09-14
+
+Actor/action Activity and authorized reaction-people behavior are retained from
+the deployed regression repair. The follow-up adds regression coverage without
+rewriting historical Activity or replaying pushes. The dock retains the outer
+scene keyboard-inset repair and remains in the consolidated runtime matrix.
+
+Publication recovery now attempts every eligible record once per bounded pass,
+reconciles exact owner-bound server state first and exposes sanitized typed Review
+states beside Retry. It never treats a failed lookup as permission to recreate or
+uses a later visit at the same cafe as evidence to merge records.
+
+The reported account's server visit
+`6b50780a-0fd1-4182-93ea-8a33befea2ff` remains `uploading`. It is distinct from
+the later completed visit at the same cafe. No matching frozen submission or
+`MugshotPendingVisits` media directory exists in any accessible Simulator app
+container, so the originating protected payload and media cannot be reconciled
+locally. The row is retained. Its precise remaining blocker is access to the
+originating installation's app container or original photo so recovery can
+verify the frozen payload and resume the exact visit.
+
 Scope: product behavior, account-scoped state/media ownership, Supabase RPC and
 push contracts, and privacy. Existing content and enforcement stay unchanged.
 No TestFlight or App Store distribution.

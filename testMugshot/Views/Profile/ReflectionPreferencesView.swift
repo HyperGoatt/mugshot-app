@@ -1,6 +1,8 @@
 import SwiftUI
+import UIKit
 
 struct ReflectionPreferencesView: View {
+    @StateObject private var notificationDevice = NotificationDeviceCoordinator.shared
     @State private var preferences: UserReflectionPreferences?
     @State private var isLoading = false
     @State private var isSaving = false
@@ -24,13 +26,38 @@ struct ReflectionPreferencesView: View {
 
             Section {
                 if let preferencesBinding {
-                    Toggle("On This Sip reminders", isOn: preferencesBinding.onThisSipReminders)
-                    Toggle("Gentle reflection reminders", isOn: preferencesBinding.reflectionReminders)
+                    Toggle(isOn: preferencesBinding.onThisSipReminders) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("On this day")
+                            Text("At 10 AM, revisit a Mugshot from this date in a previous year.")
+                                .font(.caption)
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                    }
+                    Toggle(isOn: preferencesBinding.reflectionReminders) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Weekly reflection")
+                            Text("On Sundays at 6 PM, revisit the Mugshots you saved during the past week.")
+                                .font(.caption)
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                    }
                 }
             } header: {
                 Text("Reminders")
             } footer: {
-                Text("Both reminder options start off. Progress never expires.")
+                Text("Both reminders are opt-in and use your device timezone. They are sent only when there is something to revisit.")
+            }
+
+            if notificationDevice.permissionState == .denied {
+                Section("Notification access") {
+                    Text("Your reminder preference is saved, but iOS notifications are off for Mugshot.")
+                        .foregroundStyle(Color.secondaryText)
+                    Button("Open Settings") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    }
+                }
             }
 
             Section {
@@ -54,7 +81,10 @@ struct ReflectionPreferencesView: View {
         .background(Color.creamWhite)
         .navigationTitle("Reflections and Recaps")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task {
+            await notificationDevice.refreshPermission(reconcileRegistration: false)
+            await load()
+        }
     }
 
     private var preferencesBinding: Binding<UserReflectionPreferences>? {
@@ -87,7 +117,12 @@ struct ReflectionPreferencesView: View {
         do {
             self.preferences = try await ReflectionPreferencesService(
                 client: try SupabaseClientProvider.shared.client()
-            ).save(preferences)
+            ).save(preferences, timezoneName: TimeZone.current.identifier)
+            await notificationDevice.refreshReflectionDeliveryCapability()
+            if preferences.onThisSipReminders || preferences.reflectionReminders,
+               notificationDevice.permissionState == .notRequested {
+                _ = await notificationDevice.requestAuthorization(source: .reflectionReminders)
+            }
             savedConfirmation = true
             errorMessage = nil
         } catch {

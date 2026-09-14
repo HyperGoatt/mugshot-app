@@ -23,6 +23,35 @@ enum AutomaticSipRecoveryState: Equatable {
     }
 }
 
+enum SipRecoveryFailureCategory: String, Equatable {
+    case authentication
+    case network
+    case missingMedia
+    case invalidPayload
+    case publicationSetup
+    case localStorage
+
+    var title: String {
+        switch self {
+        case .authentication: "Sign in required"
+        case .network: "Waiting for a connection"
+        case .missingMedia: "Saved photo missing"
+        case .invalidPayload: "Saved MugShot needs review"
+        case .publicationSetup: "Sharing still needs to finish"
+        case .localStorage: "Protected save unavailable"
+        }
+    }
+}
+
+struct AutomaticSipRecoveryIssue: Identifiable, Equatable {
+    let visitID: UUID
+    let category: SipRecoveryFailureCategory
+    let isPublished: Bool
+    let message: String
+
+    var id: UUID { visitID }
+}
+
 struct AutomaticSipRecoveryCandidate {
     let record: PendingVisitSubmissionRecord
     let reconciledRemoteState: Bool
@@ -53,6 +82,7 @@ struct AutomaticSipRecoveryDependencies {
 final class AutomaticSipRecoveryCoordinator: ObservableObject {
     @Published private(set) var state: AutomaticSipRecoveryState = .idle
     @Published private(set) var completionRevision = 0
+    @Published private(set) var issues: [AutomaticSipRecoveryIssue] = []
 
     private let dependencies: AutomaticSipRecoveryDependencies
     private let networkObserver: SipRecoveryNetworkObserver?
@@ -84,6 +114,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         }
 
         activeAccountID = accountID
+        issues = []
         suppressAutomaticRetry = false
         if recoveryTask != nil {
             recoveryTask?.cancel()
@@ -170,51 +201,95 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     private func drain(accountID: UUID, runID: UUID) async {
-        var recordAtFailure: PendingVisitSubmissionRecord?
         do {
-            while !Task.isCancelled {
+            let passRecords = try dependencies.loadRecords(accountID)
+            var passIssues: [AutomaticSipRecoveryIssue] = []
+            var shouldPauseGlobally = false
+
+            for record in passRecords {
+                try Task.checkCancellation()
                 guard activeAccountID == accountID else {
                     throw CancellationError()
-                }
-                let records = try dependencies.loadRecords(accountID)
-                guard let record = records.first else {
-                    finish(runID: runID, accountID: accountID, completed: true)
-                    return
                 }
                 guard record.userId == accountID else {
                     throw AutomaticSipRecoveryError.accountMismatch
                 }
 
-                state = .recovering(records.count)
-                recordAtFailure = record
-                // Always probe the owner-bound server row before retrying
-                // local media or insert work. Older app versions can leave a
-                // complete visit beside an outbox record that predates the
-                // finalization marker; treating that record as an upload retry
-                // traps an already-published MugShot behind missing local
-                // photos forever.
-                let reconciled = try await dependencies.reconcile(record)
-                try Task.checkCancellation()
-                recordAtFailure = reconciled
-                let candidate = AutomaticSipRecoveryCandidate(
-                    record: reconciled,
-                    reconciledRemoteState: true
-                )
+                do {
+                    state = .recovering(passRecords.count)
+                    // Reconcile the exact owner-bound row before any create or
+                    // upload. A failed lookup remains unknown and never grants
+                    // permission to recreate the visit.
+                    let reconciled = try await dependencies.reconcile(record)
+                    try Task.checkCancellation()
+                    let candidate = AutomaticSipRecoveryCandidate(
+                        record: reconciled,
+                        reconciledRemoteState: true
+                    )
 
-                let completedVisitID = try await dependencies.recover(candidate)
-                try Task.checkCancellation()
-                guard completedVisitID == record.id else {
-                    throw AutomaticSipRecoveryError.identityMismatch
+                    let completedVisitID = try await dependencies.recover(candidate)
+                    try Task.checkCancellation()
+                    guard completedVisitID == record.id else {
+                        throw AutomaticSipRecoveryError.identityMismatch
+                    }
+                    let remainingRecords = try dependencies.loadRecords(accountID)
+                    guard !remainingRecords.contains(where: { $0.id == record.id }) else {
+                        throw AutomaticSipRecoveryError.noProgress
+                    }
+                    completionRevision &+= 1
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    let latest = try? dependencies.loadRecords(accountID).first {
+                        $0.id == record.id
+                    }
+                    let published = latest?.isRemoteFinalized == true || record.isRemoteFinalized
+                    let category = AutomaticSipRecoveryError.category(for: error)
+                    passIssues.append(
+                        AutomaticSipRecoveryIssue(
+                            visitID: record.id,
+                            category: category,
+                            isPublished: published,
+                            message: AutomaticSipRecoveryError.userMessage(
+                                for: error,
+                                published: published
+                            )
+                        )
+                    )
+                    if category == .authentication || category == .network {
+                        shouldPauseGlobally = true
+                        break
+                    }
                 }
-                let remainingRecords = try dependencies.loadRecords(accountID)
-                guard !remainingRecords.contains(where: {
-                    $0.id == record.id
-                }) else {
-                    throw AutomaticSipRecoveryError.noProgress
-                }
-                completionRevision &+= 1
             }
-            throw CancellationError()
+
+            guard activeRunID == runID else { return }
+            recoveryTask = nil
+            activeRunID = nil
+            guard activeAccountID == accountID else {
+                refreshState()
+                scheduleIfEligible()
+                return
+            }
+
+            let remainingRecords = try dependencies.loadRecords(accountID)
+            issues = passIssues
+            if remainingRecords.isEmpty {
+                suppressAutomaticRetry = false
+                state = .idle
+                return
+            }
+
+            suppressAutomaticRetry = true
+            let firstIssue = passIssues.first
+            state = .failed(
+                count: remainingRecords.count,
+                published: passIssues.contains(where: \.isPublished),
+                message: firstIssue?.message
+                    ?? (shouldPauseGlobally
+                        ? "This MugShot is saved. Sharing will resume when the account and connection are ready."
+                        : "This MugShot is saved. Sharing still needs to finish.")
+            )
         } catch is CancellationError {
             finish(runID: runID, accountID: accountID, completed: false)
         } catch {
@@ -234,14 +309,20 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 recordLocalReadFailure()
                 return
             }
-            let published = recordAtFailure.map { failedRecord in
-                let latestRecord = remainingRecords.first {
-                    $0.id == failedRecord.id
-                }
-                return latestRecord?.isRemoteFinalized == true
-                    || failedRecord.isRemoteFinalized
-            } ?? false
+            let published = remainingRecords.contains(where: \.isRemoteFinalized)
             let count = remainingRecords.count
+            let category = AutomaticSipRecoveryError.category(for: error)
+            issues = remainingRecords.map {
+                AutomaticSipRecoveryIssue(
+                    visitID: $0.id,
+                    category: category,
+                    isPublished: $0.isRemoteFinalized,
+                    message: AutomaticSipRecoveryError.userMessage(
+                        for: error,
+                        published: $0.isRemoteFinalized
+                    )
+                )
+            }
             state = count == 0
                 ? .idle
                 : .failed(
@@ -270,6 +351,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     private func recordLocalReadFailure() {
+        issues = []
         suppressAutomaticRetry = true
         state = .localDataUnavailable(
             message: "Mugshot couldn’t check the protected local queue. Its stored data was left unchanged. Retry after reopening the app."
@@ -315,6 +397,53 @@ struct PublishedSipDraftCleaner {
     }
 }
 
+enum PendingVisitPublicationReconciliation {
+    static func reconcile(
+        _ record: PendingVisitSubmissionRecord,
+        remoteState: VisitUploadState?,
+        now: Date = .now
+    ) -> PendingVisitSubmissionRecord {
+        var reconciled = record
+        switch remoteState {
+        case .complete:
+            if reconciled.remoteFinalizedAt == nil {
+                reconciled.remoteFinalizedAt = now
+            }
+        case .uploading, .failed:
+            // The owner-bound lookup proves the stable visit already exists.
+            // Resume after creation even if the local response was lost.
+            if reconciled.isRemoteFinalized {
+                reconciled.remoteFinalizedAt = nil
+                clearPostPublicationReceipts(&reconciled)
+            }
+            if reconciled.phase == .prepared {
+                reconciled.phase = .visitCreated
+            }
+        case nil:
+            // A durable completion receipt is preserved for review if its
+            // server row later disappears. Recreating that case could restore
+            // content the owner deliberately deleted. An unfinished frozen
+            // submission can safely restart only after this authoritative
+            // absence result.
+            guard !reconciled.isRemoteFinalized else { return reconciled }
+            reconciled.phase = .prepared
+            reconciled.uploadedPhotoURLs = nil
+            reconciled.finalizationRequestedAt = nil
+            clearPostPublicationReceipts(&reconciled)
+        }
+        return reconciled
+    }
+
+    private static func clearPostPublicationReceipts(
+        _ record: inout PendingVisitSubmissionRecord
+    ) {
+        record.cafeSessionPublicationCompletedAt = nil
+        record.v3ReflectionCompletedAt = nil
+        record.recipePublicationCompletedAt = nil
+        record.visitTagsCompletedAt = nil
+    }
+}
+
 private struct PendingVisitPublicationWorker {
     var pendingStore: PendingVisitSubmissionStore = .shared
     var draftStore: SipDraftStore = .shared
@@ -335,19 +464,10 @@ private struct PendingVisitPublicationWorker {
                 visitId: latest.id,
                 userId: latest.userId
             )
-        var reconciled = latest
-        if remoteState == .complete {
-            if reconciled.remoteFinalizedAt == nil {
-                reconciled.remoteFinalizedAt = .now
-            }
-        } else if remoteState == nil,
-                  latest.hasAmbiguousRemoteFinalization {
-            // The owner-bound read proved there is no visit row. Recreate the
-            // same stable ID and frozen payload; the ambiguity marker remains
-            // as evidence that reconciliation was required.
-            reconciled.phase = .prepared
-            reconciled.uploadedPhotoURLs = nil
-        }
+        let reconciled = PendingVisitPublicationReconciliation.reconcile(
+            latest,
+            remoteState: remoteState
+        )
         guard reconciled != latest else { return latest }
         try pendingStore.save(reconciled)
         return pendingStore.load(
@@ -594,6 +714,16 @@ enum AutomaticSipRecoveryError: LocalizedError, Equatable {
            let description = payload.errorDescription {
             return "\(description) Open the saved MugShot to review it."
         }
+        if let storeError = error as? PendingVisitSubmissionStoreError {
+            switch storeError {
+            case .missingLocalPhoto:
+                return "A saved photo is missing. Review this MugShot to continue."
+            case .photoEncodingFailed, .legacyRecordUnreadable, .outboxUnreadable:
+                return "Mugshot couldn’t read part of this protected save. Review it to continue."
+            case .mediaAlreadyUploaded, .submissionIdentityMismatch, .finalizedReceiptConflict:
+                break
+            }
+        }
         if let urlError = error as? URLError,
            [.notConnectedToInternet, .networkConnectionLost, .timedOut]
             .contains(urlError.code) {
@@ -602,7 +732,43 @@ enum AutomaticSipRecoveryError: LocalizedError, Equatable {
                 : "The protected MugShot will retry when the connection is ready."
         }
         return published
-            ? "This MugShot is already published. Mugshot couldn’t finish clearing its local recovery copy."
-            : "Mugshot couldn’t finish this protected retry. Try again or review the saved MugShot."
+            ? "This MugShot is already published. Some setup or local cleanup still needs to finish."
+            : "This MugShot is saved. Sharing still needs to finish."
+    }
+
+    static func category(for error: Error) -> SipRecoveryFailureCategory {
+        if error is PendingVisitRetryPayloadIssue { return .invalidPayload }
+        if let storeError = error as? PendingVisitSubmissionStoreError {
+            switch storeError {
+            case .missingLocalPhoto: return .missingMedia
+            case .photoEncodingFailed, .legacyRecordUnreadable, .outboxUnreadable:
+                return .localStorage
+            case .mediaAlreadyUploaded, .submissionIdentityMismatch, .finalizedReceiptConflict:
+                return .publicationSetup
+            }
+        }
+        if let urlError = error as? URLError,
+           [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost]
+            .contains(urlError.code) {
+            return .network
+        }
+        if let recovery = error as? AutomaticSipRecoveryError {
+            switch recovery {
+            case .accountMismatch, .identityMismatch: return .authentication
+            case .invalidPayload: return .invalidPayload
+            case .reconciliationRequired, .noProgress, .postPublicationPending:
+                return .publicationSetup
+            }
+        }
+        let description = error.localizedDescription.lowercased()
+        if ["unauthorized", "jwt", "session", "authentication", "401"]
+            .contains(where: description.contains) {
+            return .authentication
+        }
+        if ["network", "offline", "connection", "timed out", "internet"]
+            .contains(where: description.contains) {
+            return .network
+        }
+        return .publicationSetup
     }
 }

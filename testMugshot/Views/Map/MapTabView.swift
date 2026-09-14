@@ -483,6 +483,7 @@ struct MapTabView: View {
                     discoveryEvidence: recommendation?.evidence ?? [],
                     discoverySource: recommendation == nil ? .appleSearch : .forYou,
                     applePhoneNumber: recommendation?.candidate.phoneNumber,
+                    mapPinScore: pinScoresByCafeID[cafe.id],
                     onLogVisitRequested: onLogVisitRequested,
                     onAuthenticationRequired: onAuthenticationRequired
                 )
@@ -1251,14 +1252,14 @@ struct MapTabView: View {
             $0.context == .cafe && $0.overallScore > 0
         }
         return Dictionary(grouping: visits, by: \.cafeId).compactMapValues { cafeVisits in
-            MapPinScoreResolver.sessionBalancedSipScore(
+            MapPinScoreResolver.personalMugshotAverage(
                 cafeVisits.map {
                     MapSipScoreSeed(
                         overallScore: $0.overallScore,
-                        cafeSessionID: $0.cafeSessionID
+                        cafeSessionID: $0.cafeSessionID,
+                        mugshotScore: $0.v3Reflection?.mugshotScore
                     )
-                },
-                audience: .personal
+                }
             )
         }
     }
@@ -1684,6 +1685,11 @@ struct MapPinPresentation: Equatable {
 
 // MARK: - Map View Representable (to hide POIs)
 
+enum MapPresentationMode: Equatable {
+    case discovery
+    case profilePins
+}
+
 struct MapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let cafes: [Cafe]
@@ -1693,6 +1699,7 @@ struct MapViewRepresentable: UIViewRepresentable {
     let placeNames: [UUID: String]
     let showsFriendContext: Bool
     var scope: MapDiscoveryScope = .all
+    var presentationMode: MapPresentationMode = .discovery
     let showsUserLocation: Bool
     @Binding var trackingMode: MKUserTrackingMode
     let onCafeTap: (Cafe) -> Void
@@ -1788,6 +1795,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             || context.coordinator.lastPinScores != pinScores
             || context.coordinator.lastShowsFriendContext != showsFriendContext
             || context.coordinator.lastScope != scope
+            || context.coordinator.lastPresentationMode != presentationMode
 
         context.coordinator.lastDisplayedCafes = displayedCafes
         context.coordinator.lastPlaceNames = placeNames
@@ -1796,6 +1804,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         context.coordinator.lastPinScores = pinScores
         context.coordinator.lastShowsFriendContext = showsFriendContext
         context.coordinator.lastScope = scope
+        context.coordinator.lastPresentationMode = presentationMode
         context.coordinator.reconcileAnnotations(
             in: mapView,
             forceRefresh: dataChanged || presentationChanged
@@ -1812,6 +1821,7 @@ struct MapViewRepresentable: UIViewRepresentable {
         var lastPinScores: [UUID: MapPinScore]
         var lastShowsFriendContext: Bool
         var lastScope: MapDiscoveryScope
+        var lastPresentationMode: MapPresentationMode
         var lastDisplayedCafes: [Cafe]
         var lastPlaceNames: [UUID: String]
         var lastHighlightedCafeID: UUID?
@@ -1829,12 +1839,22 @@ struct MapViewRepresentable: UIViewRepresentable {
             lastPinScores = parent.pinScores
             lastShowsFriendContext = parent.showsFriendContext
             lastScope = parent.scope
+            lastPresentationMode = parent.presentationMode
             lastDisplayedCafes = parent.displayedCafes
             lastPlaceNames = parent.placeNames
             lastHighlightedCafeID = parent.highlightedCafe?.id
         }
 
         func reconcileAnnotations(in mapView: MKMapView, forceRefresh: Bool = false) {
+            if parent.presentationMode == .profilePins {
+                guard forceRefresh || applicationAnnotations(in: mapView).isEmpty else { return }
+                mapView.removeAnnotations(applicationAnnotations(in: mapView))
+                displayMode = .cafes
+                cafeClusteringEnabled = false
+                mapView.addAnnotations(parent.displayedCafes.map(CafeAnnotation.init))
+                return
+            }
+
             let groundFootprintMeters = AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView)
             let nextMode = AdaptiveMapCameraPolicy.displayMode(
                 current: displayMode,
@@ -1921,6 +1941,30 @@ struct MapViewRepresentable: UIViewRepresentable {
             guard let cafeAnnotation = annotation as? CafeAnnotation else { return nil }
             
             let cafe = cafeAnnotation.cafe
+            if parent.presentationMode == .profilePins {
+                let identifier = "MugshotProfileMapPin"
+                let annotationView = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: identifier
+                ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(
+                    annotation: annotation,
+                    reuseIdentifier: identifier
+                )
+                annotationView.annotation = annotation
+                annotationView.canShowCallout = false
+                annotationView.markerTintColor = UIColor(Color.mugshotMint)
+                annotationView.glyphImage = UIImage(systemName: "cup.and.saucer.fill")
+                annotationView.glyphTintColor = UIColor(Color.espressoBrown)
+                annotationView.displayPriority = .required
+                annotationView.clusteringIdentifier = nil
+                annotationView.collisionMode = .circle
+                annotationView.isAccessibilityElement = true
+                annotationView.accessibilityTraits = .button
+                annotationView.accessibilityIdentifier = "profile.map.pin.\(cafe.id.uuidString)"
+                annotationView.accessibilityLabel = cafe.name
+                annotationView.accessibilityHint = "Shows cafe details"
+                return annotationView
+            }
+
             let pinScore = parent.pinScores[cafe.id]
             let presentation = MapPinPresentation.resolve(
                 scope: parent.scope,
@@ -2698,7 +2742,7 @@ struct RatingsLegend: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your ratings"))
+            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your Mugshot averages"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown)
 
@@ -3141,14 +3185,16 @@ struct CafeDetailSheet: View {
             sipSeeds = remoteVisits.map {
                 MapSipScoreSeed(
                     overallScore: $0.visit.overallScore,
-                    cafeSessionID: $0.visit.cafeSessionID
+                    cafeSessionID: $0.visit.cafeSessionID,
+                    mugshotScore: $0.v3FeedProjection?.mugshotScore
                 )
             }
         } else {
             sipSeeds = visits.map {
                 MapSipScoreSeed(
                     overallScore: $0.overallScore,
-                    cafeSessionID: $0.cafeSessionID
+                    cafeSessionID: $0.cafeSessionID,
+                    mugshotScore: $0.v3Reflection?.mugshotScore
                 )
             }
         }

@@ -364,6 +364,7 @@ struct PublicProfileView: View {
     @State private var passportState: TastePassportLoadState = .loading
     @State private var selectedSipFilter: PublicSipFilter = .all
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     private enum PublicSipFilter: String, CaseIterable {
         case all = "All"
         case cafe = "Cafe"
@@ -425,6 +426,18 @@ struct PublicProfileView: View {
             .sheet(item: $reportDetailsRequest) { request in
                 SafetyReportDetailsSheet(targetLabel: request.target.reportLabel) { details in
                     Task { await report(reason: .other, details: details) }
+                }
+            }
+            .sheet(item: $selectedCafeRoute) { route in
+                if let cafe = route.cafe {
+                    CafeDetailView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        initialDetent: .medium
+                    )
+                    .environmentObject(authModel)
+                } else {
+                    CanonicalCafeUnavailableView(cafeID: route.cafeID)
                 }
             }
             .alert("Block @\(route.username)?", isPresented: $showBlockConfirmation) {
@@ -646,9 +659,12 @@ struct PublicProfileView: View {
             pinScores: [:],
             placeNames: [:],
             showsFriendContext: false,
+            presentationMode: .profilePins,
             showsUserLocation: false,
             trackingMode: .constant(.none),
-            onCafeTap: { _ in },
+            onCafeTap: { cafe in
+                selectedCafeRoute = CanonicalCafeRoute(cafeID: cafe.id, cafe: cafe)
+            },
             onClusterListRequested: { _ in }
         )
         .frame(height: 230)
@@ -669,12 +685,15 @@ struct PublicProfileView: View {
                 title: { $0.rawValue }
             )
             ForEach(filteredPublicVisits(visits)) { visit in
-                Button {
-                    selectedVisit = visit.summary(profile: payload!.profile)
-                } label: {
-                    RemoteJournalRow(visit: visit.summary(profile: payload!.profile))
-                }
-                .buttonStyle(.plain)
+                let summary = visit.summary(profile: payload!.profile)
+                RemoteJournalRow(
+                    visit: summary,
+                    onOpen: { selectedVisit = summary },
+                    onCafeTap: {
+                        guard let cafe = visit.cafe else { return }
+                        selectedCafeRoute = CanonicalCafeRoute(cafeID: cafe.id, cafe: cafe)
+                    }
+                )
             }
         }
         .padding(.horizontal)

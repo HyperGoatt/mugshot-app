@@ -885,6 +885,16 @@ struct RemoteVisitV3FeedProjection: Decodable, Equatable {
     }
 }
 
+struct RemoteVisitMapScoreProjection: Decodable, Equatable {
+    let visitID: UUID
+    let mugshotScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case visitID = "visit_id"
+        case mugshotScore = "mugshot_score"
+    }
+}
+
 struct RemoteVisitSummary: Identifiable, Equatable {
     let visit: SupabaseVisitRow
     let cafe: SupabaseCafeSummary?
@@ -896,6 +906,7 @@ struct RemoteVisitSummary: Identifiable, Equatable {
     let sessionSipCount: Int
     let cafePulseProjection: RemoteCafePulseProjection?
     let v3FeedProjection: RemoteVisitV3FeedProjection?
+    let photoURLs: [String]
 
     init(
         visit: SupabaseVisitRow,
@@ -911,7 +922,8 @@ struct RemoteVisitSummary: Identifiable, Equatable {
         recommendationReasonType: String? = nil,
         sessionSipCount: Int = 1,
         cafePulseProjection: RemoteCafePulseProjection? = nil,
-        v3FeedProjection: RemoteVisitV3FeedProjection? = nil
+        v3FeedProjection: RemoteVisitV3FeedProjection? = nil,
+        photoURLs: [String] = []
     ) {
         self.visit = visit
         self.cafe = cafe
@@ -923,9 +935,23 @@ struct RemoteVisitSummary: Identifiable, Equatable {
         self.sessionSipCount = max(sessionSipCount, 1)
         self.cafePulseProjection = cafePulseProjection
         self.v3FeedProjection = v3FeedProjection
+        self.photoURLs = Self.coverFirstPhotoURLs(
+            posterPhotoURL: visit.posterPhotoURL,
+            photoURLs: photoURLs
+        )
     }
 
     var id: UUID { visit.id }
+
+    private static func coverFirstPhotoURLs(
+        posterPhotoURL: String?,
+        photoURLs: [String]
+    ) -> [String] {
+        var seen = Set<String>()
+        return ([posterPhotoURL].compactMap { $0 } + photoURLs)
+            .compactMap(\.remoteTrimmedNonEmpty)
+            .filter { seen.insert($0).inserted }
+    }
 
     var locationTitle: String {
         switch visit.journalContext {

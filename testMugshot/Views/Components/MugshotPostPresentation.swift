@@ -197,6 +197,8 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
     let score: Double
     let cornerRadius: CGFloat
     let onLocationTap: (() -> Void)?
+    let locationAccessibilityIdentifier: String?
+    let onMediaTap: (() -> Void)?
     private let content: Content
     @State private var aspectRatio: CGFloat
 
@@ -208,6 +210,8 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
         score: Double,
         cornerRadius: CGFloat = 18,
         onLocationTap: (() -> Void)? = nil,
+        locationAccessibilityIdentifier: String? = nil,
+        onMediaTap: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.ratioCacheKey = ratioCacheKey
@@ -217,6 +221,8 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
         self.score = score
         self.cornerRadius = cornerRadius
         self.onLocationTap = onLocationTap
+        self.locationAccessibilityIdentifier = locationAccessibilityIdentifier
+        self.onMediaTap = onMediaTap
         self.content = content()
         _aspectRatio = State(
             initialValue: MugshotPostAspectRatioCache.shared.ratio(for: ratioCacheKey)
@@ -225,6 +231,40 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
     }
 
     var body: some View {
+        ZStack(alignment: .bottom) {
+            if let onMediaTap {
+                mediaArtwork
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onMediaTap)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Open \(drinkName) at \(displayLocationName)")
+                    .accessibilityHint("Opens post details")
+            } else {
+                mediaArtwork
+            }
+
+            MugshotPostArtworkOverlay(
+                drinkName: drinkName,
+                locationName: locationName,
+                locationDetail: locationDetail,
+                score: score,
+                onLocationTap: onLocationTap,
+                locationAccessibilityIdentifier: locationAccessibilityIdentifier
+            )
+            .padding(.horizontal, 18)
+            .padding(.bottom, 17)
+        }
+            .aspectRatio(aspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
+            .accessibilityLabel("\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5")
+    }
+
+    private var displayLocationName: String {
+        MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail)
+    }
+
+    private var mediaArtwork: some View {
         content
             .environment(\.mugshotImageSizeReporter, reportImageSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -241,25 +281,6 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
                 )
                 .allowsHitTesting(false)
             }
-            .overlay(alignment: .bottom) {
-                MugshotPostArtworkOverlay(
-                    drinkName: drinkName,
-                    locationName: locationName,
-                    locationDetail: locationDetail,
-                    score: score,
-                    onLocationTap: onLocationTap
-                )
-                .padding(.horizontal, 18)
-                .padding(.bottom, 17)
-            }
-            .aspectRatio(aspectRatio, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
-            .accessibilityLabel("\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5")
-    }
-
-    private var displayLocationName: String {
-        MugshotPostLocationLine.displayName(name: locationName, locality: locationDetail)
     }
 
     private func reportImageSize(_ size: CGSize) {
@@ -276,6 +297,7 @@ struct MugshotPostArtworkOverlay: View {
     let locationDetail: String?
     let score: Double
     let onLocationTap: (() -> Void)?
+    let locationAccessibilityIdentifier: String?
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 14) {
@@ -301,7 +323,7 @@ struct MugshotPostArtworkOverlay: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("sip.detail.cafe")
+                    .accessibilityIdentifier(locationAccessibilityIdentifier ?? "sip.detail.cafe")
                     .accessibilityLabel("Open \(locationName) cafe details")
                     .accessibilityHint("Opens this cafe")
                 } else {
@@ -412,14 +434,22 @@ struct MugshotExpandableCaption: View {
     @State private var isExpanded = false
     @State private var availableWidth: CGFloat = 0
 
-    private let font = UIFont.preferredFont(forTextStyle: .subheadline)
+    private var measurementFont: UIFont {
+        let base = usesDetailTypography
+            ? UIFont.preferredFont(forTextStyle: .body)
+            : UIFont.systemFont(ofSize: 15)
+        guard let descriptor = base.fontDescriptor.withSymbolicTraits(.traitBold) else {
+            return UIFont.systemFont(ofSize: base.pointSize, weight: .bold)
+        }
+        return UIFont(descriptor: descriptor, size: base.pointSize)
+    }
 
     private var truncatedCaption: String? {
         guard !alwaysExpanded, !isExpanded else { return nil }
         return MugshotCaptionTruncation.truncatedText(
             caption,
             width: availableWidth,
-            font: font
+            font: measurementFont
         )
     }
 
@@ -443,7 +473,7 @@ struct MugshotExpandableCaption: View {
                     .accessibilityLabel(caption)
             }
         }
-        .font(usesDetailTypography ? .body : .system(size: 15))
+        .font(usesDetailTypography ? .system(.body, weight: .bold) : .system(size: 15, weight: .bold))
         .foregroundStyle(Color.espressoBrown.opacity(0.78))
         .fixedSize(horizontal: false, vertical: true)
         .background {
@@ -460,7 +490,7 @@ struct MugshotExpandableCaption: View {
 
 struct MugshotFeedPostPresentation {
     let visitID: UUID
-    let mediaSource: MugshotPostMediaSource
+    let mediaSources: [MugshotPostMediaSource]
     let drinkName: String
     let locationName: String
     let locationDetail: String?
@@ -480,7 +510,31 @@ struct MugshotFeedPostCard<Footer: View>: View {
     let presentation: MugshotFeedPostPresentation
     let onOpen: () -> Void
     var onAuthorTap: (() -> Void)? = nil
+    var onCafeTap: (() -> Void)? = nil
+    var cafeAccessibilityIdentifier: String? = nil
+    var onMediaOpen: ((String) -> Void)? = nil
+    @State private var selectedMediaKey: String?
     @ViewBuilder let footer: () -> Footer
+
+    init(
+        presentation: MugshotFeedPostPresentation,
+        onOpen: @escaping () -> Void,
+        onAuthorTap: (() -> Void)? = nil,
+        onCafeTap: (() -> Void)? = nil,
+        cafeAccessibilityIdentifier: String? = nil,
+        onMediaOpen: ((String) -> Void)? = nil,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) {
+        self.presentation = presentation
+        self.onOpen = onOpen
+        self.onAuthorTap = onAuthorTap
+        self.onCafeTap = onCafeTap
+        self.cafeAccessibilityIdentifier = cafeAccessibilityIdentifier
+        self.onMediaOpen = onMediaOpen
+        let first = presentation.mediaSources.first?.cacheKey
+        _selectedMediaKey = State(initialValue: first)
+        self.footer = footer
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -537,20 +591,22 @@ struct MugshotFeedPostCard<Footer: View>: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
 
-            Button(action: onOpen) {
-                MugshotAdaptivePostMedia(
-                    ratioCacheKey: presentation.mediaSource.cacheKey,
+            MugshotAdaptivePostMedia(
+                    ratioCacheKey: presentation.mediaSources.first?.cacheKey
+                        ?? "placeholder:false:\(presentation.visitID.uuidString)",
                     drinkName: presentation.drinkName,
                     locationName: presentation.locationName,
                     locationDetail: presentation.locationDetail,
-                    score: presentation.score
+                    score: presentation.score,
+                    onLocationTap: onCafeTap,
+                    locationAccessibilityIdentifier: cafeAccessibilityIdentifier,
+                    onMediaTap: openSelectedMedia
                 ) {
-                    MugshotPostMediaImage(source: presentation.mediaSource)
+                    MugshotFeedMediaCarousel(
+                        sources: presentation.mediaSources,
+                        selectedMediaKey: $selectedMediaKey
+                    )
                 }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open \(presentation.drinkName) at \(presentation.locationName)")
-            .accessibilityHint("Opens post details")
 
             if let caption = presentation.caption {
                 MugshotExpandableCaption(caption: caption, mentions: presentation.mentions)
@@ -569,5 +625,87 @@ struct MugshotFeedPostCard<Footer: View>: View {
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("feed.visitCard.\(presentation.visitID.uuidString)")
+        .onChange(of: presentation.mediaSources.map(\.cacheKey)) { _, keys in
+            if let selectedMediaKey, keys.contains(selectedMediaKey) { return }
+            selectedMediaKey = keys.first
+        }
+    }
+
+    private func openSelectedMedia() {
+        guard let selectedMediaKey else {
+            onOpen()
+            return
+        }
+        if let onMediaOpen {
+            onMediaOpen(selectedMediaKey)
+        } else {
+            onOpen()
+        }
+    }
+}
+
+enum MugshotFeedMediaLoadingPolicy {
+    static func loadedIndices(count: Int, selectedIndex: Int) -> Set<Int> {
+        guard count > 0 else { return [] }
+        let current = min(max(selectedIndex, 0), count - 1)
+        return Set(max(current - 1, 0)...min(current + 1, count - 1))
+    }
+}
+
+private struct MugshotFeedMediaCarousel: View {
+    let sources: [MugshotPostMediaSource]
+    @Binding var selectedMediaKey: String?
+    @Environment(\.mugshotImageSizeReporter) private var reportCoverSize
+
+    var body: some View {
+        let resolvedSources = sources.isEmpty
+            ? [MugshotPostMediaSource.placeholder(usesMugsyFallback: false, stableID: "feed")]
+            : sources
+        ZStack(alignment: .topTrailing) {
+            TabView(selection: $selectedMediaKey) {
+                ForEach(Array(resolvedSources.enumerated()), id: \.element.cacheKey) { index, source in
+                    Group {
+                        if loadedIndices.contains(index) {
+                            MugshotPostMediaImage(source: source)
+                                .environment(
+                                    \.mugshotImageSizeReporter,
+                                    index == 0 ? reportCoverSize : nil
+                                )
+                        } else {
+                            Color.sandBeige.opacity(0.72)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                        .tag(Optional(source.cacheKey))
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            if resolvedSources.count > 1 {
+                HStack(spacing: 4) {
+                    ForEach(resolvedSources, id: \.cacheKey) { source in
+                        Circle()
+                            .fill(source.cacheKey == selectedMediaKey ? Color.foamWhite : Color.foamWhite.opacity(0.46))
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.28), in: Capsule())
+                .padding(12)
+                .accessibilityLabel("Photo \(selectedIndex + 1) of \(resolvedSources.count)")
+            }
+        }
+    }
+
+    private var selectedIndex: Int {
+        max(sources.firstIndex { $0.cacheKey == selectedMediaKey } ?? 0, 0)
+    }
+
+    private var loadedIndices: Set<Int> {
+        MugshotFeedMediaLoadingPolicy.loadedIndices(
+            count: sources.count,
+            selectedIndex: selectedIndex
+        )
     }
 }

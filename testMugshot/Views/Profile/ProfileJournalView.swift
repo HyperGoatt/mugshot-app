@@ -13,6 +13,7 @@ struct JournalTabView: View {
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var journalEntries: [JournalEntryProjection] = []
     @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var lastJournalLoad: Date?
@@ -185,6 +186,18 @@ struct JournalTabView: View {
             ) {
                 if let visit = selectedLocalVisit {
                     VisitDetailView(visit: visit, dataManager: dataManager)
+                }
+            }
+            .sheet(item: $selectedCafeRoute) { route in
+                if let cafe = route.cafe {
+                    CafeDetailView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        initialDetent: .medium
+                    )
+                    .environmentObject(authModel)
+                } else {
+                    CanonicalCafeUnavailableView(cafeID: route.cafeID)
                 }
             }
             .sheet(item: $selectedReflection) { reflection in
@@ -543,7 +556,15 @@ struct JournalTabView: View {
                         VisitCard(
                             visit: visit,
                             dataManager: dataManager,
-                            onOpen: { selectedLocalVisit = visit }
+                            onOpen: { selectedLocalVisit = visit },
+                            onCafeTap: {
+                                guard visit.context == .cafe else { return }
+                                selectedCafeRoute = CanonicalCafeRoute(
+                                    cafeID: visit.cafeId,
+                                    cafe: dataManager.getCafe(id: visit.cafeId)
+                                )
+                            },
+                            cafeAccessibilityIdentifier: "journal.cafe.\(visit.cafeId.uuidString)"
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { selectedLocalVisit = visit }
@@ -556,10 +577,11 @@ struct JournalTabView: View {
             } else if !recentVisits.isEmpty {
                 VStack(spacing: 12) {
                     ForEach(recentVisits) { visit in
-                        Button { selectedRemoteVisit = visit } label: {
-                            RemoteJournalRow(visit: visit)
-                        }
-                        .buttonStyle(.plain)
+                        RemoteJournalRow(
+                            visit: visit,
+                            onOpen: { selectedRemoteVisit = visit },
+                            onCafeTap: { selectedCafeRoute = visit.canonicalCafeRoute }
+                        )
                     }
                 }
                 .padding(.horizontal, 16)
@@ -877,6 +899,7 @@ private struct JournalArchiveView: View {
     @State private var selection: JournalTabView.JournalFilter = .all
     @State private var query = ""
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var showsBookmarksOnly = false
     @State private var mode: JournalArchiveMode = .timeline
     @State private var selectedDate = Date()
@@ -967,6 +990,7 @@ private struct JournalArchiveView: View {
                                     group: group,
                                     bookmarkedIDs: bookmarkedIDs,
                                     onSelect: { selectedVisit = $0.summary },
+                                    onCafeTap: { selectedCafeRoute = $0.summary.canonicalCafeRoute },
                                     onToggleBookmark: toggleBookmark
                                 )
                                 if group.id != timelineGroups.last?.id {
@@ -979,7 +1003,8 @@ private struct JournalArchiveView: View {
                             JournalCalendarView(
                                 entries: filteredEntries,
                                 selectedDate: $selectedDate,
-                                onSelect: { selectedVisit = $0.summary }
+                                onSelect: { selectedVisit = $0.summary },
+                                onCafeTap: { selectedCafeRoute = $0.summary.canonicalCafeRoute }
                             )
                         case .map:
                             JournalMapSummaryView(
@@ -1039,6 +1064,17 @@ private struct JournalArchiveView: View {
                             }
                         }
                     )
+                }
+            }
+            .sheet(item: $selectedCafeRoute) { route in
+                if let cafe = route.cafe {
+                    CafeDetailView(
+                        cafe: cafe,
+                        dataManager: dataManager,
+                        initialDetent: .medium
+                    )
+                } else {
+                    CanonicalCafeUnavailableView(cafeID: route.cafeID)
                 }
             }
         }
@@ -1130,6 +1166,7 @@ private struct JournalTimelineMonthSection: View {
     let group: JournalArchiveMonthGroup
     let bookmarkedIDs: Set<UUID>
     let onSelect: (JournalEntryProjection) -> Void
+    let onCafeTap: (JournalEntryProjection) -> Void
     let onToggleBookmark: (JournalEntryProjection) -> Void
 
     var body: some View {
@@ -1175,10 +1212,11 @@ private struct JournalTimelineMonthSection: View {
             }
 
             ForEach(group.entries) { entry in
-                Button { onSelect(entry) } label: {
-                    RemoteJournalRow(visit: entry.summary)
-                }
-                .buttonStyle(.plain)
+                RemoteJournalRow(
+                    visit: entry.summary,
+                    onOpen: { onSelect(entry) },
+                    onCafeTap: { onCafeTap(entry) }
+                )
                 .contextMenu {
                     Button { onToggleBookmark(entry) } label: {
                         Label(
@@ -1228,6 +1266,7 @@ private struct JournalCalendarView: View {
     let entries: [JournalEntryProjection]
     @Binding var selectedDate: Date
     let onSelect: (JournalEntryProjection) -> Void
+    let onCafeTap: (JournalEntryProjection) -> Void
 
     private var entriesForDay: [JournalEntryProjection] {
         entries.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
@@ -1254,10 +1293,11 @@ private struct JournalCalendarView: View {
                     .padding(.vertical, 22)
             } else {
                 ForEach(entriesForDay) { entry in
-                    Button { onSelect(entry) } label: {
-                        RemoteJournalRow(visit: entry.summary)
-                    }
-                    .buttonStyle(.plain)
+                    RemoteJournalRow(
+                        visit: entry.summary,
+                        onOpen: { onSelect(entry) },
+                        onCafeTap: { onCafeTap(entry) }
+                    )
                 }
             }
         }
@@ -1451,57 +1491,115 @@ private struct RemoteJournalFeatureCard: View {
 
 struct RemoteJournalRow: View {
     let visit: RemoteVisitSummary
+    var onOpen: (() -> Void)? = nil
+    var onCafeTap: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
-            Group {
-                if visit.visit.posterPhotoURL != nil {
-                    RemotePhotoImageView(
-                        urlString: visit.visit.posterPhotoURL,
-                        placeholderSystemName: "cup.and.saucer.fill",
-                        contentMode: .fill
-                    )
-                } else {
-                    RemoteVisitNoPhotoThumbnail(
-                        usesMugsyFallback: visit.usesMugsyPhotoFallback,
-                        stableID: visit.id.uuidString
-                    )
-                }
+            openControl(label: "Open \(visit.visit.drinkDisplayName)") {
+                thumbnail
             }
             .frame(width: 92, height: 96)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 5) {
-                    Image(systemName: visit.visit.journalContext.systemImage)
-                    Text(visit.visit.journalContext == .cafe ? "Cafe Sip" : visit.visit.journalContext.rawValue)
-                    Text("·")
-                    Text(visit.visit.createdAtDate, style: .date)
-                }
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.mugshotSage)
-
-                Text(visit.locationTitle)
-                    .mugshotDisplay(size: 19)
-                    .foregroundColor(.espressoBrown)
-                    .lineLimit(1)
-                Text(visit.visit.drinkDisplayName)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondaryText)
-                    .lineLimit(1)
-                Label(String(format: "%.1f", visit.displayedMugshotScore), systemImage: "star.fill")
-                    .font(.system(size: 12, weight: .bold))
+                openControl(label: "Open \(visit.visit.drinkDisplayName)") {
+                    HStack(spacing: 5) {
+                        Image(systemName: visit.visit.journalContext.systemImage)
+                        Text(visit.visit.journalContext == .cafe ? "Cafe Sip" : visit.visit.journalContext.rawValue)
+                        Text("·")
+                        Text(visit.visit.createdAtDate, style: .date)
+                    }
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.mugshotSage)
+                }
+
+                if visit.visit.journalContext == .cafe, let onCafeTap {
+                    Button(action: onCafeTap) {
+                        HStack(spacing: 5) {
+                            Text(visit.locationTitle)
+                                .mugshotDisplay(size: 19)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.espressoBrown)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("journal.cafe.\(visit.canonicalCafeRoute?.cafeID.uuidString ?? visit.id.uuidString)")
+                    .accessibilityLabel("Open \(visit.locationTitle) cafe details")
+                    .accessibilityHint("Opens this cafe")
+                } else {
+                    openControl(label: "Open \(visit.visit.drinkDisplayName)") {
+                        Text(visit.locationTitle)
+                            .mugshotDisplay(size: 19)
+                            .foregroundColor(.espressoBrown)
+                            .lineLimit(1)
+                    }
+                }
+
+                openControl(label: "Open \(visit.visit.drinkDisplayName)") {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(visit.visit.drinkDisplayName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondaryText)
+                            .lineLimit(1)
+                        Label(String(format: "%.1f", visit.displayedMugshotScore), systemImage: "star.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.mugshotSage)
+                    }
+                }
             }
 
             Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.tertiaryText)
+            openControl(label: "Open \(visit.visit.drinkDisplayName)") {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.tertiaryText)
+                    .frame(width: 36, height: 44)
+            }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if visit.visit.posterPhotoURL != nil {
+            RemotePhotoImageView(
+                urlString: visit.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill",
+                contentMode: .fill
+            )
+        } else {
+            RemoteVisitNoPhotoThumbnail(
+                usesMugsyFallback: visit.usesMugsyPhotoFallback,
+                stableID: visit.id.uuidString
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func openControl<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if let onOpen {
+            Button(action: onOpen, label: content)
+                .buttonStyle(.plain)
+                .accessibilityLabel(label)
+                .accessibilityHint("Opens this Mugshot")
+        } else {
+            content()
+        }
+    }
+}
+
+private extension RemoteVisitSummary {
+    var canonicalCafeRoute: CanonicalCafeRoute? {
+        guard visit.journalContext == .cafe,
+              let cafeID = visit.cafeId ?? cafe?.id else { return nil }
+        return CanonicalCafeRoute(cafeID: cafeID, cafe: cafe?.localCafe())
     }
 }
 

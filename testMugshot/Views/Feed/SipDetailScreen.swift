@@ -408,6 +408,13 @@ struct SipDetailCapabilities: Equatable {
     }
 }
 
+struct SipJournalNoteSection: Identifiable, Equatable {
+    let title: String
+    let text: String
+
+    var id: String { title }
+}
+
 struct SipDetailContentModel: Identifiable, Equatable {
     let id: UUID
     let authorName: String
@@ -427,6 +434,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let contextScore: Double?
     let caption: String?
     let sharedRawNote: String?
+    var sharedRawNoteSections: [SipJournalNoteSection] = []
     let journalVisibility: String?
     let privateNote: String?
     let recipe: SipDetailRecipeModel?
@@ -489,7 +497,8 @@ enum SipDetailPresentationAdapter {
         let isOwner = visit.userId == currentUserID
         let authorName = detail.summary.authorDisplayName
         let caption = consumerCaption(visit.caption)
-        let rawNote = combinedRawNote(detail.v3Reflection, context: visit.journalContext)
+        let rawNoteSections = rawNoteSections(detail.v3Reflection, context: visit.journalContext)
+        let rawNote = combinedRawNote(rawNoteSections)
         let displayedScore = detail.v3Reflection?.mugshotScore
             ?? detail.summary.v3FeedProjection?.mugshotScore
             ?? visit.overallScore
@@ -531,6 +540,7 @@ enum SipDetailPresentationAdapter {
             contextScore: detail.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
+            sharedRawNoteSections: rawNoteSections,
             journalVisibility: detail.v3Reflection.map { audienceLabel($0.rawNoteVisibility.supabaseValue) },
             privateNote: isOwner && detail.v3Reflection == nil
                 ? detail.privateNote?.remoteTrimmedNonEmpty
@@ -642,7 +652,8 @@ enum SipDetailPresentationAdapter {
         let authorDisplayName = user?.displayNameOrUsername ?? "Mugshot User"
         let caption = consumerCaption(visit.caption)
         let orderedPhotos = orderedLocalPhotos(visit)
-        let rawNote = combinedRawNote(visit.v3Reflection, context: visit.context)
+        let rawNoteSections = rawNoteSections(visit.v3Reflection, context: visit.context)
+        let rawNote = combinedRawNote(rawNoteSections)
         let displayedScore = visit.v3Reflection?.mugshotScore ?? visit.overallScore
         let ratings = visit.ratingCriteria
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -673,6 +684,7 @@ enum SipDetailPresentationAdapter {
             contextScore: visit.v3Reflection?.contextScore,
             caption: caption,
             sharedRawNote: rawNote,
+            sharedRawNoteSections: rawNoteSections,
             journalVisibility: visit.v3Reflection.map {
                 $0.rawNoteVisibility == .everyone ? "Public" : $0.rawNoteVisibility.rawValue
             },
@@ -761,19 +773,31 @@ enum SipDetailPresentationAdapter {
         return trimmed
     }
 
-    private static func combinedRawNote(
+    private static func rawNoteSections(
         _ reflection: V3VisitReflection?,
         context: JournalEntryContext
-    ) -> String? {
-        guard let reflection else { return nil }
-        var sections: [String] = []
+    ) -> [SipJournalNoteSection] {
+        guard let reflection else { return [] }
+        var sections: [SipJournalNoteSection] = []
         if let sip = reflection.sipRawNote?.remoteTrimmedNonEmpty {
-            sections.append("Sip\n\(sip)")
+            sections.append(SipJournalNoteSection(title: "Sip", text: sip))
         }
         if let contextNote = reflection.contextRawNote?.remoteTrimmedNonEmpty {
-            sections.append("\(contextRatingLabel(for: context))\n\(contextNote)")
+            sections.append(
+                SipJournalNoteSection(
+                    title: contextRatingLabel(for: context),
+                    text: contextNote
+                )
+            )
         }
-        return sections.joined(separator: "\n\n").remoteTrimmedNonEmpty
+        return sections
+    }
+
+    private static func combinedRawNote(_ sections: [SipJournalNoteSection]) -> String? {
+        sections
+            .map { "\($0.title)\n\($0.text)" }
+            .joined(separator: "\n\n")
+            .remoteTrimmedNonEmpty
     }
 
     private static func contextRatingLabel(for context: JournalEntryContext) -> String {
@@ -1027,6 +1051,7 @@ struct SipDetailScreen: View {
             if let rawNote = presentation.content.sharedRawNote {
                 SipSharedRawNoteSection(
                     text: rawNote,
+                    sections: presentation.content.sharedRawNoteSections,
                     title: presentation.content.journalNoteTitle,
                     visibility: presentation.content.journalVisibility
                         ?? presentation.content.visibility,
@@ -2413,6 +2438,7 @@ private struct SipPrivateNoteSection: View {
 
 private struct SipSharedRawNoteSection: View {
     let text: String
+    let sections: [SipJournalNoteSection]
     let title: String
     let visibility: String
     @Binding var isExpanded: Bool
@@ -2471,11 +2497,28 @@ private struct SipSharedRawNoteSection: View {
                         .font(.system(.subheadline, design: .default, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
 
-                    Text(text)
-                        .font(.system(.subheadline, design: .serif, weight: .regular))
-                        .foregroundStyle(Color.espressoBrown)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 16) {
+                        if sections.isEmpty {
+                            Text(text)
+                                .font(.system(.subheadline, design: .serif, weight: .regular))
+                                .foregroundStyle(Color.espressoBrown)
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            ForEach(sections) { section in
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(section.title)
+                                        .font(.system(.subheadline, design: .serif, weight: .bold))
+                                        .foregroundStyle(Color.mugshotMint)
+                                    Text(section.text)
+                                        .font(.system(.subheadline, design: .serif, weight: .regular))
+                                        .foregroundStyle(Color.espressoBrown)
+                                        .lineSpacing(4)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(

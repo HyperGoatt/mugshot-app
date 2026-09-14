@@ -731,23 +731,22 @@ struct testMugshotTests {
         #expect(snapshot.pins.contains(where: { $0.cafe.id == inactiveCafe.id }) == false)
     }
 
-    @Test func mapPinsPreferCafeEvidenceAndBalanceSipFallbackByPhysicalSession() {
+    @Test func personalMapPinsUseCompletedMugshotScoresWhileFriendsKeepExistingFallback() {
         let sharedSession = UUID()
-        let sipFallback = MapPinScoreResolver.resolve(
+        let personal = MapPinScoreResolver.resolve(
             sips: [
-                MapSipScoreSeed(overallScore: 5, cafeSessionID: sharedSession),
-                MapSipScoreSeed(overallScore: 1, cafeSessionID: sharedSession),
-                MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
+                MapSipScoreSeed(overallScore: 3.1, cafeSessionID: sharedSession, mugshotScore: 3.7),
+                MapSipScoreSeed(overallScore: 4.1, cafeSessionID: sharedSession, mugshotScore: 4.1)
             ],
             cafeSummary: nil,
             audience: .personal
         )
 
-        #expect(sipFallback?.source == .sip)
-        #expect(sipFallback?.value == 4)
-        #expect(sipFallback?.sipCount == 3)
-        #expect(sipFallback?.physicalSessionCount == 2)
-        #expect(sipFallback?.evidenceDescription == "3 sips across 2 visits")
+        #expect(personal?.source == .mugshot)
+        #expect(personal?.value == 3.9)
+        #expect(personal?.sipCount == 2)
+        #expect(personal?.physicalSessionCount == 2)
+        #expect(personal?.evidenceDescription == "Average of your completed Mugshots at this cafe.")
 
         let cafeID = UUID()
         let cafeSummary = RemoteCafeExperienceSummary(
@@ -762,19 +761,19 @@ struct testMugshotTests {
             relationshipStageValue: "first_impression",
             communityThresholdMet: true
         )
-        let cafeFirst = MapPinScoreResolver.resolve(
+        let friends = MapPinScoreResolver.resolve(
             sips: [
                 MapSipScoreSeed(overallScore: 5, cafeSessionID: nil)
             ],
             cafeSummary: cafeSummary,
-            audience: .personal
+            audience: .friends
         )
 
-        #expect(cafeFirst?.source == .cafe)
-        #expect(cafeFirst?.value == 2.5)
-        #expect(cafeFirst?.relationshipStage == .firstImpression)
-        #expect(cafeFirst?.pinUseTitle == "Pin uses your Cafe average")
-        #expect(cafeFirst?.evidenceDescription == "First impression · 1 rated Cafe Session")
+        #expect(friends?.source == .cafe)
+        #expect(friends?.value == 2.5)
+        #expect(friends?.relationshipStage == .unrated)
+        #expect(friends?.pinUseTitle == "Pin uses friends’ Cafe average")
+        #expect(friends?.evidenceDescription == "1 rated Cafe Session · 1 friend")
     }
 
     @Test func mapPinScopesUseTheApprovedJournalFirstOrder() {
