@@ -941,3 +941,14 @@ Apple Developer now has Associated Domains enabled for the dev app and a
 regenerated development profile for the existing iPhone/certificate. Local profile
 retrieval and signed installation remain pending: Chrome blocks the download by
 organization policy, and Xcode authentication is required for managed retrieval.
+
+
+Xcode authentication and managed profile retrieval subsequently succeeded. The
+production-connected repair dev candidate (0.5.3 build 6) compiled and installed
+on the iPhone; launch remains blocked by the phone lock. One focused hosted
+publishing UI test passed the single notice with historical inclusion off.
+Harmless content screened automatically, authored Hide/Show worked, a genuine
+synthetic provider flag was recorded, and a synthetic report reached its queue
+with one operator alert. The final hosted QA branch was deleted and only main
+remains. See the repair status for the precise remaining acceptance gates;
+production repair deployment remains held.

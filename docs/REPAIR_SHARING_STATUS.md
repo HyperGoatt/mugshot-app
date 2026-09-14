@@ -118,18 +118,16 @@ relaunch/resuming the draft; its synthetic account-scoped preference was also pr
 disk. Keyboard Done dismissed editing without publishing. These checks used a local
 synthetic app backend plus live MapKit, not production post writes.
 
-Device signing update: the owner unlocked the Mac and signed into Apple Developer
-and App Store Connect in Chrome. Associated Domains is enabled on co.mugshot.app.dev.
-Apple regenerated Mugshot Debug Push Development for the existing certificate and
-Joe's connected iPhone, with expiry 2027-09-14. Chrome reports the profile download
-is blocked by the organization. Xcode's Apple Accounts settings has no signed-in
-account; its normal sign-in prompt is open for the owner to finish authentication.
-The updated profile is not yet installed locally, and no repaired dev candidate
-has been installed on the phone.
+Device signing update: the owner completed Xcode authentication. Xcode downloaded
+the regenerated development profile through its supported account interface.
+The production-connected Debug candidate (co.mugshot.app.dev, 0.5.3 build 6)
+compiled and installed successfully on the connected iPhone. Its signed
+entitlements contain both associated domains. Device launch was rejected with
+Apple's Locked reason; installation is verified, hardware acceptance is not.
 
-Remaining: finish the consolidated
-runtime matrix, retrieve the regenerated dev profile, install on the connected phone,
-then run the guarded production rollout and measure technical-backlog recovery.
+Remaining: finish the explicitly pending acceptance paths below, launch on the
+unlocked connected phone, then run the guarded production rollout and measure
+technical-backlog recovery.
 Production migrations, screening thresholds, legacy bucket visibility and all
 original data remain unchanged by this repair. Fresh preservation evidence must
 be captured again at the eventual deployment time. Never infer hardware or
@@ -148,11 +146,11 @@ artifact or a demonstrated failure.
 | Gate | Required evidence | Current state |
 | --- | --- | --- |
 | Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Passed signed app email sign-in, profile setup, Feed reads and relaunch against disposable hosted QA |
-| Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; integrated UI pending |
-| Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; integrated UI pending |
-| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; remaining composer paths pending |
+| Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; hosted harmless text post passed automatically and owner details showed Screening passed; real synthetic provider flag confirmed; report submission/listing and one operator alert confirmed; multi-photo integrated UI and service/review actions pending |
+| Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; one notice with historical choice off passed in a focused publishing UI test; authored Hide/Show passed with persisted hide and explanatory feedback; remaining tagged/Private interactive paths pending |
+| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; Friends-labelled Publish and post-save detail passed; remaining edit/dock and fresh-sip pin paths pending |
 | Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
-| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Apple profile regenerated; local retrieval requires Xcode sign-in |
+| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed; launch requires unlocked iPhone |
 | Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
 
 The function deployment set includes screen-content and moderation-review, plus
@@ -179,3 +177,20 @@ coordinate input, so it did not establish composer acceptance. At that checkpoin
 Mac native control was locked and Apple Developer required sign-in; the device
 signing update above records the subsequent unlock and profile regeneration. The hosted branch was
 deleted and the subsequent branch listing contained only production main.
+
+Final hosted checkpoint used disposable repair-final-acceptance-20260914. One
+focused publishing XCTest passed through caption entry, Publish · Friends, the
+single acknowledgment notice (historical choice off), and save. The deployed
+worker automatically approved the synthetic profile and photo-free post; native
+details showed Screening passed. Hide from my profile persisted one hide record;
+Show on my profile restored the control with explicit tagged-profile independence.
+A deliberately unsafe synthetic profile revision produced needs_review with
+provider_flag from the live provider, rather than a technical reason. A synthetic
+report submitted through the public RPC appeared in the pending Reports API and
+created one operator Activity alert. The dashboard visibly separated Flagged
+content, Service status and Reports and appeals. Detailed review actions remain
+unaccepted; these results do not establish every moderation UI path.
+
+This checkpoint's branch was deleted and the subsequent listing showed only main.
+The Simulator's QA session was terminated. No production data changed, no training
+sharing setting changed, and no TestFlight operation occurred.
