@@ -69,3 +69,11 @@ Journal, Saved and Map twice. Open a comment author's avatar/name, then return.
 Open the reaction totals, filter a type and visit a person. Compare the larger
 caption with collapsed/expanded journal text. Hardware delivery and acceptance
 must be recorded separately from compilation and Simulator evidence.
+
+## Accepted-layout polish — 2026-09-14
+
+Owner feedback confirms the repair is working. The follow-up moves reaction
+totals into the action row before Save and replaces the Yummy cutlery icon with
+a coffee mug. Tier 1 Debug compile, scoped diff and documentation checks passed.
+The updated dev build is installed on Joe’s connected iPhone; this placement
+awaits owner visual acceptance. No backend changes or distribution.

@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — Reaction row polish
+
+Move the full-post reaction breakdown into the action row before Save, retaining
+its people-sheet action and adaptive layout. Yummy now uses a coffee mug symbol
+in the picker, selected reaction, breakdown and people list. Presentation-only;
+reaction values and backend behavior are unchanged. Verification: Tier 1 compile
+and documentation check; device installation recorded in the delivery checklist.
+
+
 ## Regression repair candidate — 2026-09-14
 
 Implemented on `codex/regression-repair-reactions`; production migration 171 and

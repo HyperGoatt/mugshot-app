@@ -69,7 +69,9 @@ contains both fields; limits clamp to 1–50. Counts cover all authorized people
 regardless of the selected filter. Blocked/restricted users are excluded using
 the existing user visibility predicate. Historical Likes remain Likes.
 
-The full-post trailing summary opens All/nonzero-type filters. Profile navigation
+The full-post summary sits inside the action row immediately before Save and
+opens All/nonzero-type filters. Yummy uses `cup.and.saucer.fill` consistently
+in the picker, active control, totals and people sheet. Profile navigation
 retains the sheet and selected filter. Existing writes remain optimistic, restore
 prior state on failure, and refresh authorized counts after success. Migration
 `20260914155145` is locally verified and deployed as migration 171. Production

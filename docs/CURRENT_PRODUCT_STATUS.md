@@ -4,6 +4,12 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## Reaction presentation follow-up — 2026-09-14
+
+Full-post reaction totals now sit in the action row before Save. Yummy uses a
+coffee mug icon throughout the native reaction controls and people viewer.
+Presentation-only follow-up; reaction data and sharing behavior are unchanged.
+
 ## Regression repair candidate — 2026-09-14
 
 Implemented on `codex/regression-repair-reactions`; production migration 171 and
