@@ -79,133 +79,106 @@ separately shared profile artwork is unchanged. Both domains are declared in
 native associated domains and their AASA files. Provisioning must include the
 capability before claiming installed-device universal-link acceptance.
 
-## Evidence and remaining gates
+## Current deployment and preservation
 
-Implemented and locally verified: 13 provider/worker tests, seven capability-media
-tests, both focused PGlite repair contracts, Debug compile, 148 unique focused Swift
-tests, 16 unique sharing/link tests, and one isolated Auth identity test (165 distinct
-tests total). Xcode printed
-most results twice; the prior totals counted duplicate log lines.
-Hosted QA: original 64 contracts passed after adapting the lifecycle assertion to
-check the unchanged delegated implementation; an additional hosted publication,
-reaction and operator-alert contract passed. Migration rehearsal preserved all
-72 original tables. A fresh encrypted backup restored and compared all 335 photo
-objects (443,012,737 bytes). No production migration or repaired-worker deployment
-has yet been recorded for this repair.
+On 2026-09-14 the guarded three-migration production transaction completed,
+advancing the existing 164-migration head to 167. Its before/after fingerprints
+matched every original column and row across 72 original tables, including
+owners, audiences and photo references. Bucket visibility did not change.
+The deployment-time inventory contained 82 posts, 18 users and 338 Storage objects.
 
-Web deployed: marketing PR #19 merged as `63d28ad`, PWA PR #14 merged as
-`d96bbcc`; both CI and deployment checks passed. The live preview PNG and app-domain
-AASA endpoint return HTTP 200. The profile Edge Function metadata change remains
-part of the held backend rollout.
+Fresh encrypted backups verified 338 objects / 445,112,136 bytes by decrypting and
+comparing each object. A separate encrypted database snapshot restored 6,230 rows
+across 76 tables into isolated PostgreSQL with matching typed-row fingerprints.
+The snapshot includes account, Storage and moderation records. These local backup
+artifacts remain outside version control.
 
-Runtime gate remains incomplete. The current signed app passed sign-in through
-its real UI against a local synthetic HTTP backend and reached Feed. An additional
-focused AuthSessionIdentityTests regression passed with isolated Keychain storage
-and a synthetic HTTP response. A direct synthetic Keychain write/read/delete probe
-also passed. These rule out a general current-build Keychain or AuthService
-identity failure. Follow-up hosted sign-in, profile setup, Feed reads and session restoration after relaunch now pass against the isolated repaired backend. No production-account
-or authentication safety checks were weakened.
+All five matching functions are deployed: screen-content, moderation-review,
+shared-profile, shared-mugshot and public-cafe-list. Screening was paused during
+the cutover and re-enabled afterward. Existing credentials, disabled training
+sharing, thresholds and legacy bucket visibility were retained.
 
-Live MapKit returned the Burlington result first for “Muddy Waters Vermont” from
-the Charleston search context. Selection reproduced the reported failure. A
-viewport refresh caused by keyboard dismissal can replace the selected lookup;
-the follow-up isolates selection resolution from viewport searches and delays
-keyboard dismissal until selection finishes. The same-path acceptance passed: one tap
-opened Muddy Waters at 184 Main St, Burlington, and Log a Sip opened the composer with
-that cafe selected. The final compiled follow-up was installed and launched
-successfully. Presentation stayed pinned across reflection navigation and app
-relaunch/resuming the draft; its synthetic account-scoped preference was also present on
-disk. Keyboard Done dismissed editing without publishing. These checks used a local
-synthetic app backend plus live MapKit, not production post writes.
+The migration preserved the existing human approval and audited/requeued 70
+current technical failures: 54 provider_configuration, 15 invalid_input and one
+screening_unavailable. Recovery completed: 69 revisions were approved by successful provider responses,
+zero remain pending and zero entered policy review. One pre-existing missing-media
+case reached service_error after five attempts. The existing human approval
+remains intact.
 
-Device signing update: the owner completed Xcode authentication. Xcode downloaded
-the regenerated development profile through its supported account interface.
-The production-connected Debug candidate (co.mugshot.app.dev, 0.5.3 build 6)
-compiled and installed successfully on the connected iPhone. Its signed
-entitlements contain both associated domains. After the owner unlocked the iPhone, devicectl launched the app successfully and
-confirmed its process running (PID 2507). Launch is verified. The owner confirmed the real account and older photos load
-correctly. The owner also confirmed external profile links open Mugshot automatically.
-Remaining feature acceptance and production repair are still pending.
+## Verification evidence
 
-Remaining: finish the explicitly pending acceptance paths below, complete the
-connected-phone walkthrough, then run the guarded production rollout and measure
-technical-backlog recovery.
-Production migrations, screening thresholds, legacy bucket visibility and all
-original data remain unchanged by this repair. Fresh preservation evidence must
-be captured again at the eventual deployment time. Never infer hardware or
-production success from compilation.
+- 21 distinct focused worker/provider/media tests, two PGlite repair contracts and 65
+  hosted SQL contracts passed. These cover the visibility matrix, independent
+  hides, historical choice, Private exclusion, blocks, unrelated feed exclusion,
+  current revisions, reactions, owner/operator access and alert deduplication.
+- 165 distinct focused Swift tests passed: 148 behavior, 16 sharing/link and one
+  isolated Auth identity regression. Debug builds and seven fast static checks
+  passed. Repeated Xcode log lines are not counted as additional tests.
+- Hosted native acceptance passed sign-in, profile setup, Feed reads, session
+  restoration, all four reaction saves and visible rollback on forced failure.
+  One additional publishing XCTest passed caption entry, Publish · Friends,
+  the single notice with historical inclusion off, and saving. Native details
+  showed Screening passed; authored Hide/Show persisted with explanatory copy.
+- The final hosted rollout gate uploaded four real synthetic image objects and
+  processed their post through Storage, the deployed worker and OpenAI: approved
+  automatically, with no human decision. Malformed media stopped at five attempts
+  in Service status with media_format diagnostics. Private conversion removed
+  the screening job. A real synthetic provider flag occupied the policy queue
+  separately; rejection without a reason failed, and approval without a typed
+  reason succeeded with its audit event. Report submission/listing and one
+  operator alert passed in the earlier hosted checkpoint.
+- The signed production-connected iPhone dev build is installed and launched:
+  co.mugshot.app.dev, 0.5.3 build 6. The owner confirmed their account and older
+  photos, Joe profile routing, automatic app opening from an external profile
+  link, Muddy Waters selection from Charleston, draft pin persistence and the
+  audience-labelled Publish action. Provisioning includes both associated domains.
+- Live profile-crawler metadata now returns Add me on Mugshot · @joe, the canonical
+  profile URL and the Mugsy invitation PNG. Native preview logic passed focused
+  tests. A specific rendered iMessage card has not been supplied for visual review.
 
-Disposable QA was deleted after verification; branch listing now contains only
-production main. No QA branch is left accruing compute charges. Local encrypted
-backups and sanitized rehearsal evidence are retained outside version control.
+The full access matrix is covered by hosted contracts rather than manually tapping
+every viewer combination. Physical owner acceptance covers the specific paths
+listed above; it is not a claim of TestFlight acceptance or every phone interaction.
 
-## Final acceptance and rollout checklist
+All disposable QA branches are deleted; the final listing contains only main.
+No recurring automation, TestFlight operation or App Store submission occurred.
 
-These are remaining gates, not completed claims. Retain the existing passing
-worker, SQL, preservation and unit evidence; repeat a check only for a changed
-artifact or a demonstrated failure.
+## Owner walkthrough after backend rollout
 
-| Gate | Required evidence | Current state |
-| --- | --- | --- |
-| Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Passed signed app email sign-in, profile setup, Feed reads and relaunch against disposable hosted QA |
-| Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; hosted harmless text post passed automatically and owner details showed Screening passed; real synthetic provider flag confirmed; report submission/listing and one operator alert confirmed; multi-photo integrated UI and service/review actions pending |
-| Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; one notice with historical choice off passed in a focused publishing UI test; authored Hide/Show passed with persisted hide and explanatory feedback; remaining tagged/Private interactive paths pending |
-| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; Friends-labelled Publish and post-save detail passed; owner also passed Charleston-to-Muddy-Waters selection, draft pin return and audience-labelled Publish on the physical phone; remaining post/edit dock paths pending |
-| Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; owner confirmed delivered profile URL opens Joe in the dev app; owner confirmed an external chat link opens Mugshot automatically; preview acceptance pending |
-| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed and launched; running process confirmed; owner confirmed real account and older photos load; remaining walkthrough pending |
-| Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
+The installed dev build already contains the matching frontend; another compile
+is unnecessary unless source changes. Refresh Shared Content Status to inspect
+recovery, then create a normal multi-photo shared Mugshot, inspect its screening
+status, return to Feed and try a reaction. Check authored Hide/Show and the sharing
+notice on the first new post if it has not yet appeared. Historical Friends
+inclusion remains an initially unselected choice. Private never appears publicly.
 
-The function deployment set includes screen-content and moderation-review, plus
-all three consumers of the repaired capability-media helper: shared-profile,
-shared-mugshot and public-cafe-list. Verify their deployed versions together;
-deploying only the profile endpoint would leave the other readers unchanged.
+Final legacy-photo bucket privatization and unrelated Apple/PostHog verification
+remain outside this repair. Existing TestFlight installations have not received
+this dev candidate.
 
-For the owner walkthrough, use the existing account and first confirm old posts
-and photos remain visible. Then inspect the audience notice, one new shared sip,
-its screening detail, an authored profile hide, a reaction, and a copied profile
-link. Keep genuine flagged-content and outage fixtures in isolated QA. Record
-actual outcomes rather than interpreting absence of an error as acceptance.
+## Individually explained service failure
 
-Follow-up hosted acceptance used disposable branch repair-hosted-runtime-20260914.
-The signed Simulator app completed email sign-in and profile setup, loaded hosted
-Feed data, and restored its session after relaunch. Like, Love, Laugh and Yummy
-were selected through the app and independently confirmed in public.likes. Laugh
-remained visible after relaunch. An isolated forced RPC failure restored the prior
-Yummy icon and preserved the database value; the original QA RPC was restored.
-No production data was used or changed by these synthetic interactions.
+The remaining service item is visit 8f1ba284-4c13-472b-8651-a80f58cdab39,
+`dairiequeen`'s Matcha from 2026-08-29. It references seven private-photo objects;
+five exist and two were absent from Storage before this cutover. Missing filenames:
+1a9cc452-afc4-4f33-82b1-a7be3483eebf.jpg and
+84dde0bb-7307-40d7-b617-958241b51b88.jpg.
 
-The browser Simulator mirror rendered successfully but did not execute its
-coordinate input, so it did not establish composer acceptance. At that checkpoint,
-Mac native control was locked and Apple Developer required sign-in; the device
-signing update above records the subsequent unlock and profile regeneration. The hosted branch was
-deleted and the subsequent branch listing contained only production main.
+Neither missing file appears in any of the three retained photo-backup inventories
+or the connected dev app's URL cache. The post, all photo-reference rows and the
+five existing files were preserved. Its historical-transition visibility still
+passes after the service-error outcome; it was not marked screened or rejected.
+Resolving this one item requires recovery/re-upload of the original missing files,
+then screening a current revision. Do not silently remove the references or
+fabricate approval. No other recovered item requires a moderation decision.
 
-Final hosted checkpoint used disposable repair-final-acceptance-20260914. One
-focused publishing XCTest passed through caption entry, Publish · Friends, the
-single acknowledgment notice (historical choice off), and save. The deployed
-worker automatically approved the synthetic profile and photo-free post; native
-details showed Screening passed. Hide from my profile persisted one hide record;
-Show on my profile restored the control with explicit tagged-profile independence.
-A deliberately unsafe synthetic profile revision produced needs_review with
-provider_flag from the live provider, rather than a technical reason. A synthetic
-report submitted through the public RPC appeared in the pending Reports API and
-created one operator Activity alert. The dashboard visibly separated Flagged
-content, Service status and Reports and appeals. Detailed review actions remain
-unaccepted; these results do not establish every moderation UI path.
+A focused follow-up adds sanitized Storage HTTP status and the fixed
+storage_object_missing diagnostic for future missing-object failures, distinguishing
+them from transient provider/storage outages without retaining raw error bodies.
+All seven worker tests passed after this change, including one new diagnostic
+regression; the updated screen-content function is deployed.
 
-This checkpoint's branch was deleted and the subsequent listing showed only main.
-The Simulator's QA session was terminated. No production data changed, no training
-sharing setting changed, and no TestFlight operation occurred.
-
-Owner confirmation: the production-connected dev build loads the existing account
-and older photos correctly. A profile/joe URL was delivered to the native app with
-devicectl successfully; the owner confirmed it opened the correct Joe profile. A subsequent external link tap also opened Mugshot successfully. This does not constitute backend rollout.
-
-The owner confirmed an external profile-link tap opens Mugshot automatically.
-The requested physical draft walkthrough also passed: Muddy Waters Vermont search
-from Charleston, Burlington selection and Log a Sip, criterion pin persistence
-after leaving/returning, and the audience-labelled Publish button. No publication
-was requested in that walkthrough. A subsequent production read found 70 current
-technical-error queue entries: 54 provider_configuration, 15 invalid_input and one
-screening_unavailable; one human approval remains recorded separately. This is a
-fresh backlog observation, not a repaired-worker or rollout success claim.
+Final production check: 82 posts, 18 users, 338 Storage objects, zero pending
+screening jobs, zero policy-review jobs, one preserved human approval and the one
+explained service item. The repaired frontend was already installed on the phone;
+no new mobile build is needed for the server-only diagnostic follow-up.

@@ -6,7 +6,7 @@ last_verified: 2026-09-14
 
 # Mugshot change log
 
-## 2026-09-14 — Moderation and sharing repair (implemented; rollout pending)
+## 2026-09-14 — Moderation and sharing repair (production deployed; recovery complete)
 
 Repair album screening through individual image requests, bounded technical retries,
 service diagnostics and distinct moderation queues. Add acknowledged Friends
@@ -971,3 +971,28 @@ readable profile link, Muddy Waters selection from Charleston, draft pin
 persistence and audience-labelled Publish. Production repair is still pending;
 a fresh read found 70 technical failures (54 provider_configuration, 15
 invalid_input, one screening_unavailable), with human approval preserved.
+
+
+## 2026-09-14 — Repair production cutover
+
+Applied the three repair migrations with all 72 original-table fingerprints and
+bucket visibility unchanged. Deployed all five matching functions and re-enabled
+screening. Audited and requeued 70 technical-failure revisions while preserving
+the human approval. Recovery completed with 69 automatic approvals, zero pending/flagged items and
+one explained missing-media service item.
+
+Fresh backups restored 338 objects (445,112,136 bytes) byte-for-byte and 6,230 rows
+across 76 typed tables. The final hosted checks passed real four-photo automatic
+approval, bounded malformed-media retries, Private withdrawal, separate service
+and flagged queues, and approval/rejection reason rules. All QA branches were
+deleted. The repaired production-connected dev build is on the owner's phone;
+no TestFlight distribution or App Store submission occurred.
+
+
+Recovery finished with 69 automatic approvals and no content flags. One August 29
+Matcha references two files absent from all retained backups and the phone cache;
+it is a service issue, retains historical visibility and was not falsely approved.
+A focused worker follow-up records sanitized missing-object HTTP/code diagnostics;
+its seven tests passed and the updated function is deployed. Final production
+counts remain 82 posts, 18 users and 338 objects. See the repair status for the
+specific recovery action. No TestFlight build was distributed.

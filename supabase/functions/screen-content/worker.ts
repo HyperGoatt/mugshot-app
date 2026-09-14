@@ -130,11 +130,25 @@ export async function processScreeningJob(
             location.path,
           );
           if (media.error || !media.data) {
+            const storageError = media.error && typeof media.error === "object"
+              ? media.error as Record<string, unknown>
+              : {};
+            const status = Number(
+              storageError.statusCode ?? storageError.status,
+            );
+            const missing = status === 404 ||
+              storageError.error === "not_found";
             outcome = {
               state: "retry",
-              reason: "provider_unavailable",
+              reason: missing ? "invalid_input" : "provider_unavailable",
               retryAfterSeconds: 60,
-              diagnostics: { stage: "media_download" },
+              diagnostics: {
+                stage: "media_download",
+                ...(Number.isInteger(status) && status >= 100 && status <= 599
+                  ? { http_status: status }
+                  : {}),
+                ...(missing ? { error_code: "storage_object_missing" } : {}),
+              },
             };
             break;
           }

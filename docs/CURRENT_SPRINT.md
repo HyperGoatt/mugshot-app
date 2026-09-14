@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-12
+last_verified: 2026-09-14
 ---
 
 # Current sprint: trust, moderation, and working sharing
@@ -10,6 +10,18 @@ last_verified: 2026-09-12
 > the earlier delivery and acceptance statements below for moderation, Friends
 > publication, profile sharing and the reported native bugs. Those earlier
 > checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+## Current repair deployment — 2026-09-14
+
+The repair is now production-configured at 167 migrations with all five matching
+functions deployed. Original-table fingerprints and bucket visibility passed
+preservation checks. The dev candidate is installed on the owner's iPhone and
+the recorded phone checks passed. Technical-backlog recovery completed with 69
+approvals and one explained missing-photo service item; see [the current repair status](REPAIR_SHARING_STATUS.md) for exact outcomes.
+All disposable QA branches are deleted. TestFlight distribution remains held.
+
+The older checkpoints below are historical evidence and do not describe the
+current production head or active QA resources.
 
 
 Sprint 1 source adds readable `/profile/username` links, permanently reserved

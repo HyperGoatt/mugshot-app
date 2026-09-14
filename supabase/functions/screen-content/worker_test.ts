@@ -289,3 +289,60 @@ Deno.test("legacy owner uploads resolve without accepting another owner's photo"
     );
   }
 });
+
+Deno.test("missing Storage objects carry sanitized diagnostics without becoming policy flags", async () => {
+  for (const status of [404, 503]) {
+    let finished: Record<string, unknown> | undefined;
+    const client: ScreeningClient = {
+      rpc: (name, params) =>
+        Promise.resolve(
+          name === "read_screening_lease_v1"
+            ? { data: { text: "Synthetic", images: [ref] }, error: null }
+            : (finished = params, { data: true, error: null }),
+        ),
+      storage: {
+        from: () => ({
+          download: () =>
+            Promise.resolve({
+              data: null,
+              error: {
+                statusCode: String(status),
+                message: "sensitive path and content",
+              },
+            }),
+        }),
+      },
+    };
+    let calls = 0;
+    await processScreeningJob(client, job, config, () => {
+      calls++;
+      throw Error("must not transmit");
+    });
+    const evidence = finished?.p_evidence as {
+      reason: string;
+      diagnostics: { http_status: number; error_code?: string };
+    };
+    assert(
+      finished?.p_state === "retry" && calls === 0,
+      "technical failures never become policy flags",
+    );
+    assert(
+      evidence.reason ===
+        (status === 404 ? "invalid_input" : "provider_unavailable"),
+      "missing files differ from outages",
+    );
+    assert(
+      evidence.diagnostics.http_status === status,
+      "sanitized HTTP status retained",
+    );
+    assert(
+      evidence.diagnostics.error_code ===
+        (status === 404 ? "storage_object_missing" : undefined),
+      "fixed missing-file diagnostic",
+    );
+    assert(
+      !JSON.stringify(finished).includes("sensitive"),
+      "raw error content excluded",
+    );
+  }
+});
