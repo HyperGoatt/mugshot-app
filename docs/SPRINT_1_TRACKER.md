@@ -16,10 +16,10 @@ remains unverified and is a documented TestFlight limitation, not a prerequisite
 for continuing the other work. Do not request that account again or revoke the
 owner's real Apple authorization for testing.
 
-The remaining bounded work is focused native photo-posting acceptance,
-required backend rollout verification, and
-Simulator/connected-iPhone validation before the separate TestFlight upload
-approval. Retain marketing version 0.5.3 unless the owner approves a change;
+The remaining bounded work is coordinated backend/client rollout verification
+and the separate TestFlight upload approval after candidate validation. The
+focused physical-iPhone photo acceptance below now passes. Retain marketing
+version 0.5.3 unless the owner approves a change;
 choose an unused build number at upload preparation. Do not submit App Store
 review. PostHog's existing pending synthetic erasure request must be monitored
 without blocking unrelated preparation or creating additional test identities.
@@ -31,14 +31,25 @@ completed, Auth and profile rows were removed, the durable deletion job reached
 pending analytics cleanup. This test used a synthetic email identity; actual
 Apple revocation remains unverified as approved above.
 
-Photo acceptance still requires selecting the synthetic checkerboard in Apple's
-system picker, whose controls do not respond to available automation. A physical
-iPhone is not currently available. No paid QA should remain while waiting for
-user interaction. The final-native QA branch was deleted and a fresh listing
-verified only main remains. The app and temporary keep-awake process were
-stopped. Do not recreate paid QA until the user is available for the known photo
-picker handoff. Existing passing checks do not need repetition without a new
-change or concrete failure.
+The owner completed the physical photo-picker handoff on an iPhone 16 Pro
+running iOS 27.0. Signed development build 0.5.3 (6), source `6886a19`, used
+isolated QA with analytics disabled. Native email sign-in, Private photo-post
+save, and photo display after process termination/relaunch passed. The stored
+post has `upload_state=complete`; the owner downloaded nonempty photo bytes,
+while a separate account and anonymous access were denied. Both nonowners
+also received no visit row. The Private visit has zero screening jobs. This
+is physical development-build acceptance, not TestFlight acceptance.
+
+The paid phone-photo QA branch was deleted and a fresh listing verified only
+main remains. Local receipts are `.codex/phone-photo-privacy-receipt.json` and
+`.codex/sprint1-phone-photo-session.json`. Production was not modified, and
+no archive, upload, or App Store review submission occurred.
+
+The owner requested removal of the continuation loop; the
+`finish-mugshot-sprint-1` automation was deleted. Earlier checkpoints' active
+heartbeat and photo/device-block statements are historical and superseded by
+this checkpoint. Do not recreate the loop or repeat passing acceptance checks
+without a concrete change or failure.
 
 ## Earlier checkpoint — September 13, journey acceptance and repairs
 

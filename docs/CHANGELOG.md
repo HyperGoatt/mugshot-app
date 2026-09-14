@@ -8,6 +8,13 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Physically accepted Private photo posting on iPhone 16 Pro using signed QA
+  development build 0.5.3 (6): save and relaunched photo display passed, owner
+  bytes were readable, nonowner/anonymous reads were denied, and no Private
+  visit screening job was created. Deleted paid QA and verified only main.
+  Removed the Sprint 1 heartbeat at the owner's request. No TestFlight upload
+  or production rollout occurred.
+
 - The repaired native deletion flow passed on isolated QA: fresh verification,
   preserved progress UI, Auth/profile deletion, completed durable job, clear
   completion message and signed-out relaunch. Apple revocation remains the
