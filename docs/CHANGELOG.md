@@ -952,3 +952,8 @@ synthetic provider flag was recorded, and a synthetic report reached its queue
 with one operator alert. The final hosted QA branch was deleted and only main
 remains. See the repair status for the precise remaining acceptance gates;
 production repair deployment remains held.
+
+After the owner unlocked the iPhone, the installed repair dev app launched
+successfully and its running process was confirmed. This resolves the physical
+launch blocker; owner screen acceptance, installed links and production repair
+rollout remain pending.

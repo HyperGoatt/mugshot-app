@@ -122,11 +122,12 @@ Device signing update: the owner completed Xcode authentication. Xcode downloade
 the regenerated development profile through its supported account interface.
 The production-connected Debug candidate (co.mugshot.app.dev, 0.5.3 build 6)
 compiled and installed successfully on the connected iPhone. Its signed
-entitlements contain both associated domains. Device launch was rejected with
-Apple's Locked reason; installation is verified, hardware acceptance is not.
+entitlements contain both associated domains. After the owner unlocked the iPhone, devicectl launched the app successfully and
+confirmed its process running (PID 2507). Launch is verified; screen-level owner
+acceptance and installed universal-link routing remain pending.
 
-Remaining: finish the explicitly pending acceptance paths below, launch on the
-unlocked connected phone, then run the guarded production rollout and measure
+Remaining: finish the explicitly pending acceptance paths below, complete the
+connected-phone walkthrough, then run the guarded production rollout and measure
 technical-backlog recovery.
 Production migrations, screening thresholds, legacy bucket visibility and all
 original data remain unchanged by this repair. Fresh preservation evidence must
@@ -150,7 +151,7 @@ artifact or a demonstrated failure.
 | Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; one notice with historical choice off passed in a focused publishing UI test; authored Hide/Show passed with persisted hide and explanatory feedback; remaining tagged/Private interactive paths pending |
 | Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; Friends-labelled Publish and post-save detail passed; remaining edit/dock and fresh-sip pin paths pending |
 | Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
-| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed; launch requires unlocked iPhone |
+| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed and launched; running process confirmed; owner walkthrough pending |
 | Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
 
 The function deployment set includes screen-content and moderation-review, plus
