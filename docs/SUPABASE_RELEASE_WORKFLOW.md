@@ -153,3 +153,13 @@ acceptance, device validation and explicitly approved distribution are pending.
 Do not change production bucket visibility until compatible clients are
 accepted and incompatible releases have been retired. No production migration,
 Storage change, archive or upload is authorized by this bridge's compile result.
+
+## Current-contract profile signing exception — September 14
+
+The original backend has no SELECT policy for signing profile-media. The bridge
+therefore returns the validated original public profile/visit URL only for
+`PGRST202` naming the absent `public.can_read_protected_media_v1` function.
+This supersedes earlier absolute no-fallback wording for that exact old-server
+case. Network failures, authorization errors and Private references never fall
+back. Signed Simulator and isolated old/protected access checks pass. Keep the
+production bucket cutover held until compatible-reader distribution is accepted.

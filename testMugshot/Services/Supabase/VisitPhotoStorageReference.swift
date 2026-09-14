@@ -174,6 +174,30 @@ actor VisitPhotoAccessService {
         }
         let client = try SupabaseClientProvider.shared.client()
         let accountID = client.auth.currentUser?.id
+        // The pre-cutover server cannot sign profile-media reads. Only an exact
+        // missing-API response permits legacy public URLs; auth/network errors
+        // must never downgrade a protected read. Private references never fall back.
+        if storedValue.hasPrefix("https://"),
+           ["profile-media", "visit-photos"].contains(location.bucketName) {
+            do {
+                let permitted: Bool = try await client.rpc(
+                    "can_read_protected_media_v1",
+                    params: ["p_bucket": location.bucketName, "p_name": location.objectPath]
+                ).execute().value
+                guard permitted else { throw VisitPhotoAccessError.accessDenied }
+            } catch let error as PostgrestError where
+                error.code == "PGRST202" &&
+                error.message.contains("public.can_read_protected_media_v1") {
+                guard client.auth.currentUser?.id == accountID else {
+                    throw VisitPhotoAccessError.accountScopeChanged
+                }
+                try Task.checkCancellation()
+                guard let url = URL(string: storedValue) else {
+                    throw VisitPhotoAccessError.invalidReference
+                }
+                return url
+            }
+        }
         // Every resolution rechecks Storage authorization; never reuse an old
         // signature after a privacy edit or account switch.
         let signedURL = try await client.storage
@@ -190,11 +214,14 @@ actor VisitPhotoAccessService {
 enum VisitPhotoAccessError: LocalizedError, Equatable {
     case invalidReference
     case accountScopeChanged
+    case accessDenied
 
     var errorDescription: String? {
         switch self {
         case .invalidReference:
             return "This photo reference is invalid."
+        case .accessDenied:
+            return "This photo is not available to your account."
         case .accountScopeChanged:
             return "Your account changed while loading this photo."
         }

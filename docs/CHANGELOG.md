@@ -347,3 +347,10 @@ last_verified: 2026-08-26
 
 Use dated audits, checkpoints, deployment gates, and Git history for earlier
 evidence. Those records remain historical rather than being rewritten here.
+
+## 2026-09-14 compatibility validation
+
+Allow an original profile/visit public URL only on the exact missing protected-
+media RPC response. All other errors fail closed. Current and protected audience
+matrices pass. Signed Simulator shows legacy avatar and protected Journal photos
+across the isolated atomic cutover. No production or TestFlight deployment.
