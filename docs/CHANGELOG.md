@@ -49,6 +49,22 @@ updated; the dev build is installed and launched, awaiting owner interaction che
 
 # Mugshot change log
 
+## 2026-09-14 — Require an explicitly chosen public username
+
+- Added a separate username-confirmation receipt to profile setup. Existing
+  accounts that still match the exact collision-safe signup placeholder return
+  to setup without any automatic rename; intentional handles remain complete.
+- Generated handles no longer prefill the public username field. A setup-state
+  failure now offers Retry or Sign out instead of bypassing setup. The server
+  rejects an unchanged placeholder from older clients as well.
+- Added an optional final setup step for up to three Favorite Spots using the
+  existing cafe picker, publication boundary, and privacy copy.
+- Production migrations 172–173 are configured. All 18 usernames remained
+  unchanged; eight exact generated placeholders now require explicit choice.
+- Full-static passed 12/0/1 (the one skip is optional `pglast`). The signed Debug
+  build compiled, installed, and launched as `co.mugshot.app.dev` on Joe's
+  connected iPhone. No TestFlight upload was performed.
+
 ## 2026-09-14 — Moderation and sharing repair (production deployed; recovery complete)
 
 Repair album screening through individual image requests, bounded technical retries,

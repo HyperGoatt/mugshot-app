@@ -37,6 +37,10 @@ $$;
 create function auth.uid() returns uuid language sql stable as $$
   select nullif((current_setting('request.jwt.claims', true)::jsonb)->>'sub', '')::uuid
 $$;
+create table auth.users (
+  id uuid primary key,
+  email text
+);
 
 create type public.report_reason as enum ('spam');
 
@@ -301,10 +305,15 @@ begin
 end;
 $$;
 
+insert into auth.users (id, email) values
+  ('${ownerID}', 'owner@example.com'),
+  ('${otherID}', 'other@example.com'),
+  ('${strangerID}', 'stranger@example.com'),
+  ('${unrelatedID}', 'unrelated@example.com');
 insert into public.users (id, display_name, username, avatar_url) values
   ('${ownerID}', 'Journal Owner', 'owner', 'https://example.com/avatar.jpg'),
   ('${otherID}', 'Other Person', 'other', null),
-  ('${strangerID}', 'Stranger', 'stranger', null),
+  ('${strangerID}', 'Stranger', 'stranger_1000', null),
   ('${unrelatedID}', 'Unrelated', 'unrelated', null);
 insert into public.cafes (id, name, city, identity_key) values
   ('${cafeID}', 'Public Test Cafe', 'Test City', 'test:public-cafe');
@@ -349,6 +358,18 @@ const editorialAtlasMigration = await fs.readFile(
   'utf8',
 )
 await db.exec(editorialAtlasMigration)
+const explicitUsernameMigration = await fs.readFile(
+  repoPath +
+    'supabase/migrations/20260914172200_require_explicit_profile_username.sql',
+  'utf8',
+)
+await db.exec(explicitUsernameMigration)
+const explicitUsernameEnforcementMigration = await fs.readFile(
+  repoPath +
+    'supabase/migrations/20260914174000_enforce_explicit_profile_username_choice.sql',
+  'utf8',
+)
+await db.exec(explicitUsernameEnforcementMigration)
 const contract = await fs.readFile(
   repoPath + 'supabase/tests/mugshot_share_links_contract.sql',
   'utf8',
@@ -773,8 +794,22 @@ const incompleteSetup = await authenticatedAs(
   'select public.get_profile_setup_state_v1() state',
 )
 assert(
-  incompleteSetup.rows[0]?.state?.is_complete === false,
-  'new account was not gated by profile setup',
+  incompleteSetup.rows[0]?.state?.is_complete === false &&
+    incompleteSetup.rows[0]?.state?.requires_username_confirmation === true,
+  'generated username was not gated for explicit confirmation',
+)
+let unchangedGeneratedUsernameRejected = false
+try {
+  await authenticatedAs(
+    strangerID,
+    `select public.complete_profile_setup_v1('Stranger', 'stranger_1000')`,
+  )
+} catch {
+  unchangedGeneratedUsernameRejected = true
+}
+assert(
+  unchangedGeneratedUsernameRejected,
+  'an older client confirmed the generated username unchanged',
 )
 const completedSetup = await authenticatedAs(
   strangerID,
@@ -784,6 +819,15 @@ assert(
   completedSetup.rows[0]?.profile?.username === 'amanda_test' &&
     completedSetup.rows[0]?.profile?.profile_setup_completed_at,
   'required profile setup did not complete atomically',
+)
+const confirmedSetup = await authenticatedAs(
+  strangerID,
+  'select public.get_profile_setup_state_v1() state',
+)
+assert(
+  confirmedSetup.rows[0]?.state?.is_complete === true &&
+    confirmedSetup.rows[0]?.state?.requires_username_confirmation === false,
+  'explicit username choice did not close the setup gate',
 )
 
 await db.exec(`

@@ -148,11 +148,22 @@ struct ProfileSetupState: Decodable, Equatable {
     let userID: UUID
     let isComplete: Bool
     let completedAt: String?
+    let requiresUsernameConfirmation: Bool
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
         case isComplete = "is_complete"
         case completedAt = "completed_at"
+        case requiresUsernameConfirmation = "requires_username_confirmation"
+    }
+}
+
+enum ProfileSetupPresentationPolicy {
+    static func initialUsername(
+        storedUsername: String,
+        requiresConfirmation: Bool
+    ) -> String {
+        requiresConfirmation ? "" : storedUsername
     }
 }
 

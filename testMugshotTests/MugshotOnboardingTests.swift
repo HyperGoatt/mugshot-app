@@ -3,6 +3,21 @@ import Testing
 @testable import testMugshot
 
 struct MugshotOnboardingTests {
+    @Test func generatedUsernameRequiresAnExplicitChoice() {
+        #expect(
+            ProfileSetupPresentationPolicy.initialUsername(
+                storedUsername: "jacobbacik_08f8",
+                requiresConfirmation: true
+            ) == ""
+        )
+        #expect(
+            ProfileSetupPresentationPolicy.initialUsername(
+                storedUsername: "caitpryce",
+                requiresConfirmation: false
+            ) == "caitpryce"
+        )
+    }
+
     @Test func onboardingGoalDefaultsToNearbyWithoutInventingCompletedProgress() {
         #expect(CapturePreferences.empty.onboardingGoal == nil)
         #expect(CapturePreferences.empty.setupCompletedAt == nil)
