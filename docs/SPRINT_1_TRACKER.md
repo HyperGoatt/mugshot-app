@@ -7,6 +7,25 @@ last_verified: 2026-09-13
 # Sprint 1 delivery: trust, moderation, and working sharing
 
 
+## Current preservation hold and compatibility work
+
+The owner required preservation of all posts, photos, ownership and audiences.
+Production remains at its original head and storage settings; the attempted
+release preflight performed dry runs and read-only inventory only. The current
+TestFlight reader cannot load older public URLs after bucket privatization.
+A minimal `codex/media-compatibility-bridge` candidate based on `b498d92` now
+compiles, with no backend or data changes. Hardware/both-backend acceptance and
+TestFlight distribution remain separate gates. The full transition, including
+existing-content screening/access preservation, is specified in
+[the preservation-first release sequence](SUPABASE_RELEASE_WORKFLOW.md).
+
+A read-only 72-table production fingerprint baseline is saved locally. The new
+preservation guard passes QA unchanged-data and mismatch-rejection checks.
+The full hosted SQL gate passes 63/63; the reflection fixture now uses reserved
+IDs rather than whichever users happened to exist first. No production posts
+were used as QA fixtures. The walkthrough QA remains active with schedules
+paused for deterministic verification; no automatic continuation loop runs.
+
 ## Owner dev-build walkthrough — active
 
 The owner requested a full phone walkthrough before TestFlight. A new isolated

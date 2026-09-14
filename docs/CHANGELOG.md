@@ -8,6 +8,13 @@ last_verified: 2026-09-13
 
 ## 2026-09-13
 
+- Added a read-only content-preservation fingerprint guard and a client-first
+  compatibility release sequence. Captured production's original-column
+  baseline without changing production. The isolated media bridge compiles;
+  hardware/distribution and byte/access-preservation gates remain.
+- Restricted the reflection SQL fixture to reserved synthetic accounts, fixing
+  a failure caused by selecting unrelated QA users. All 63 hosted contracts pass.
+
 - Prepared the owner's full Sprint 1 phone walkthrough on isolated QA with
   preview sharing sites, screening/review and scheduled email cleanup.
   Cafe-list share links now honor the configured public domain, as profiles

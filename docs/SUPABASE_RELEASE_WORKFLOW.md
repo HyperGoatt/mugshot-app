@@ -46,6 +46,65 @@ The complete suite was not repeated after that test-only correction. Native
 runtime acceptance remains separate.
 See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
+## Preservation-first compatibility transition — September 13
+
+Production rollout is held at the owner's explicit preservation requirement.
+The distributed `b498d92` client returns historical public photo URLs directly;
+it cannot read those URLs after the two legacy buckets become private.
+Production read-only inventory found 116 objects across `profile-media` and
+`visit-photos`. Counts are objects, not a count of posts or lost records.
+
+A separate branch, `codex/media-compatibility-bridge`, starts at that distributed
+source and contains only media resolver/rendering/cache changes. It adds no
+Supabase migration, moderation gate, audience change, content rewrite or data
+copy. Its generic Simulator compile passes; it is not yet hardware or
+TestFlight accepted. Do not deploy the full Sprint client first merely because
+the media bridge compiles: the full client also expects new server contracts.
+
+Required sequence:
+
+1. Validate the bridge against the current backend contract and against the
+   protected-media QA contract. Cover older profile/visit URLs, newer Private
+   references, avatars/banners, photo sharing, account switches and relaunch.
+2. Distribute compatible native readers only after the separate TestFlight
+   authorization. Verify adoption/retirement of incompatible builds before
+   the private-bucket cutover. An old anonymous public-object request cannot
+   convey the identity needed to authorize Friends or Private media. There is
+   no safe universal server redirect that retrofits that identity.
+3. Capture a fresh physical database recovery point and a separate recoverable
+   Storage-byte backup. A database backup does not back up stored image bytes.
+   Prove restoration in isolation; inventory counts alone are insufficient.
+4. Capture the read-only content baseline immediately before the change.
+   `scripts/check-content-preservation.mjs snapshot receipt.json` requires
+   `MUGSHOT_PRESERVATION_DATABASE_URL` explicitly; `verify receipt.json` compares
+   original column values and counts, including ownership and audiences, across
+   public tables, Auth users/identities and Storage object metadata. Use a
+   restricted ignored receipt path. It runs in a read-only repeatable-read
+   transaction, never exports rows and refuses to overwrite a baseline.
+   It does not replace byte checks or audience/access tests. Concurrent genuine
+   writes cause a mismatch requiring investigation, never automatic repair.
+5. Rehearse a transition with representative synthetic historical Private,
+   Friends and Everyone posts. In addition to row/byte preservation, compare
+   actual owner, friend, blocked, stranger and anonymous access before/after.
+   Screening migrations withdraw unapproved shared revisions; do not treat
+   intact database rows as proof that existing shared content stays visible.
+   Do not blanket-approve historical content, widen audiences or screen Private
+   content to force the transition to pass. Complete a staged screening and
+   cafe-admission plan before enforcing those new read rules.
+6. Deploy reviewed backend and compatible web readers in the coordinated window
+   only after the preceding gates. Verify unchanged original data, byte hashes
+   and expected viewer access. Keep writes/activation held if any unexplained
+   mismatch occurs. Never reset live, rewrite old URLs, move/delete originals
+   or restore public access as an automatic fallback.
+
+Evidence: the preservation guard passed unchanged-data and deliberately
+incorrect-fingerprint checks on isolated QA (72 tables). A production baseline
+was captured through the read-only MCP connection at
+`.codex/production-content-preservation-baseline.json`; the CLI's direct main
+branch password was not usable. All 63 hosted SQL contracts now pass after
+the reflection contract was restricted to its reserved synthetic fixture IDs.
+Production migration head, bucket settings and user content were not changed.
+
 ## Non-negotiable invariants
 
 - Never reset, seed, or run behavioral SQL contracts against the linked live

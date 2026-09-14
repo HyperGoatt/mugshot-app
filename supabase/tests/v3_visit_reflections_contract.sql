@@ -118,6 +118,10 @@ create temp table v3_reflection_test_context as
 with ordered_users as (
   select id, row_number() over (order by created_at, id) as position
   from public.users
+  where id in (
+    '00000000-0000-4000-8000-000000000101'::uuid,
+    '00000000-0000-4000-8000-000000000102'::uuid
+  )
 )
 select
   (max(id::text) filter (where position = 1))::uuid as owner_id,
