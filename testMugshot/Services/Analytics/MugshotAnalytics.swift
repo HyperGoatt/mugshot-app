@@ -82,6 +82,7 @@ enum ActivityNotificationEducationSource: String {
     case activityCenter = "activity_center"
     case notificationSettings = "notification_settings"
     case nearbyReminder = "nearby_reminder"
+    case reflectionReminders = "reflection_reminders"
 
     var requiresRemotePush: Bool { self != .nearbyReminder }
 }

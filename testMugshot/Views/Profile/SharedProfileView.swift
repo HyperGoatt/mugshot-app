@@ -26,7 +26,6 @@ struct SharedProfileView: View {
     @State private var selectedTab: SharedProfileTab = .mugshots
     @State private var selectedVisit: RemoteVisitSummary?
     @State private var selectedCafe: Cafe?
-    @State private var selectedClusterCafes: [Cafe] = []
     @State private var isLoading = true
     @State private var isLoadingMore = false
     @State private var canLoadMore = true
@@ -59,6 +58,24 @@ struct SharedProfileView: View {
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: source) { await loadInitial() }
+        .onChange(of: authModel.profile) { _, updatedProfile in
+            guard showsOwnerControls,
+                  let updatedProfile,
+                  let current = projection,
+                  current.profile.id == updatedProfile.id else { return }
+            projection = SharedProfileProjection(
+                profile: updatedProfile,
+                friendshipState: current.friendshipState,
+                stats: current.stats,
+                highlight: current.highlight,
+                favoriteSpots: current.favoriteSpots,
+                topCafes: current.topCafes,
+                tastePassportVisible: current.tastePassportVisible,
+                tastePassport: current.tastePassport,
+                viewerProjection: current.viewerProjection,
+                profileContractVersion: current.profileContractVersion
+            )
+        }
         .navigationDestination(
             isPresented: Binding(
                 get: { selectedVisit != nil },
@@ -95,18 +112,6 @@ struct SharedProfileView: View {
         .sheet(item: $selectedCafe) { cafe in
             CafeDetailView(cafe: cafe, dataManager: dataManager, initialDetent: .medium)
                 .environmentObject(authModel)
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { !selectedClusterCafes.isEmpty },
-                set: { if !$0 { selectedClusterCafes = [] } }
-            )
-        ) {
-            ProfileMapClusterSheet(cafes: selectedClusterCafes) { cafe in
-                selectedClusterCafes = []
-                selectedCafe = cafe
-            }
-            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showsFriends) {
             if let projection {
@@ -278,12 +283,11 @@ struct SharedProfileView: View {
 
     @ViewBuilder
     private func profileDetailRail(_ profile: SupabaseUserProfile) -> some View {
-        let instagram = profile.instagramHandle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        let instagramURL = InstagramProfileHandle.profileURL(for: profile.instagramHandle)
         let website = normalizedURL(profile.websiteURL)
         if profile.location?.remoteTrimmedNonEmpty != nil
             || profile.favoriteDrink?.remoteTrimmedNonEmpty != nil
-            || instagram?.isEmpty == false
+            || instagramURL != nil
             || website != nil {
             TastingLensFlowLayout(spacing: 14) {
                 if let location = profile.location?.remoteTrimmedNonEmpty {
@@ -294,8 +298,7 @@ struct SharedProfileView: View {
                     Label(favorite, systemImage: "cup.and.saucer.fill")
                         .font(.system(size: 12, weight: .semibold))
                 }
-                if let instagram, !instagram.isEmpty,
-                   let url = URL(string: "https://instagram.com/\(instagram)") {
+                if let url = instagramURL {
                     Link(destination: url) { Label("Instagram", systemImage: "camera") }
                         .font(.system(size: 13, weight: .bold))
                 }
@@ -444,8 +447,7 @@ struct SharedProfileView: View {
         case .map:
             ProfileExplorationMap(
                 cafes: cafes,
-                onCafeTap: { selectedCafe = $0 },
-                onClusterTap: { selectedClusterCafes = $0 }
+                onCafeTap: { selectedCafe = $0 }
             )
             .padding(.horizontal, 18)
             .padding(.top, 16)
@@ -851,7 +853,6 @@ struct SharedProfileView: View {
 private struct ProfileExplorationMap: View {
     let cafes: [SharedProfilePublicCafe]
     let onCafeTap: (Cafe) -> Void
-    let onClusterTap: ([Cafe]) -> Void
 
     @StateObject private var locationManager = LocationManager()
     @State private var trackingMode: MKUserTrackingMode = .none
@@ -859,12 +860,10 @@ private struct ProfileExplorationMap: View {
 
     init(
         cafes: [SharedProfilePublicCafe],
-        onCafeTap: @escaping (Cafe) -> Void,
-        onClusterTap: @escaping ([Cafe]) -> Void
+        onCafeTap: @escaping (Cafe) -> Void
     ) {
         self.cafes = cafes
         self.onCafeTap = onCafeTap
-        self.onClusterTap = onClusterTap
         let coordinates = cafes.compactMap(\.localCafe.location)
         _region = State(initialValue: Self.fittedRegion(coordinates))
     }
@@ -909,10 +908,11 @@ private struct ProfileExplorationMap: View {
                         pinScores: scores,
                         placeNames: [:],
                         showsFriendContext: false,
+                        presentationMode: .profilePins,
                         showsUserLocation: true,
                         trackingMode: $trackingMode,
                         onCafeTap: onCafeTap,
-                        onClusterListRequested: onClusterTap
+                        onClusterListRequested: { _ in }
                     )
 
                     VStack(alignment: .trailing, spacing: 12) {
@@ -957,27 +957,6 @@ private struct ProfileExplorationMap: View {
                 longitudeDelta: max(0.05, (maxLon - minLon) * 1.45)
             )
         )
-    }
-}
-
-private struct ProfileMapClusterSheet: View {
-    let cafes: [Cafe]
-    let onSelect: (Cafe) -> Void
-
-    var body: some View {
-        NavigationStack {
-            List(cafes) { cafe in
-                Button { onSelect(cafe) } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(cafe.name).fontWeight(.semibold).foregroundStyle(Color.espressoBrown)
-                        if !cafe.address.isEmpty {
-                            Text(cafe.address).font(.caption).foregroundStyle(Color.secondaryText)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Cafes in this area")
-        }
     }
 }
 

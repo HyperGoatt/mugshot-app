@@ -99,6 +99,10 @@ struct RequiredProfileSetupView: View {
                         capitalization: .never,
                         autocorrectionDisabled: true
                     )
+                    Text("Your Instagram username is separate from your Mugshot username. You can paste a profile link.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                     setupField(
                         "Website",
                         text: $websiteURL,

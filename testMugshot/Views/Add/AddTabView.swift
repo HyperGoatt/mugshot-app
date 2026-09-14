@@ -240,7 +240,7 @@ struct LegacyLogVisitView: View {
                 } message: {
                     Text("A photo gives this sip its cover. You can add up to ten.")
                 }
-                .sheet(isPresented: $showCamera) {
+                .fullScreenCover(isPresented: $showCamera) {
                     CameraCaptureView(image: Binding(
                         get: { nil },
                         set: { image in

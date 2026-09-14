@@ -304,7 +304,7 @@ struct LogVisitView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $showCamera) {
+            .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView(
                     image: Binding(
                         get: { nil },
@@ -1673,7 +1673,10 @@ struct LogVisitView: View {
                 options: [VisitVisibility.private, .friends, .everyone],
                 selection: $composerModel.draft.visibility,
                 title: { $0.rawValue },
-                icon: { visibilityIcon($0) }
+                icon: { visibilityIcon($0) },
+                accessibilityIdentifier: { option in
+                    "logASipV3.visibility.audience.\(option.rawValue.lowercased())"
+                }
             )
 
             if draft.visibility == .friends {

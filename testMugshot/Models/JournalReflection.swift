@@ -225,6 +225,10 @@ struct UserReflectionPreferences: Codable, Equatable {
     var yearlyRecaps: Bool
     var onThisSipReminders: Bool
     var reflectionReminders: Bool
+    var timezoneName: String = "UTC"
+    var deliveryActivated: Bool = false
+    var deliveryActivatedAt: Date? = nil
+    var clientCapabilityVersion: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
@@ -232,5 +236,44 @@ struct UserReflectionPreferences: Codable, Equatable {
         case yearlyRecaps = "yearly_recaps"
         case onThisSipReminders = "on_this_sip_reminders"
         case reflectionReminders = "reflection_reminders"
+        case timezoneName = "timezone_name"
+        case deliveryActivated = "delivery_activated"
+        case deliveryActivatedAt = "delivery_activated_at"
+        case clientCapabilityVersion = "client_capability_version"
+    }
+
+    init(
+        userID: UUID,
+        monthlyRecaps: Bool,
+        yearlyRecaps: Bool,
+        onThisSipReminders: Bool,
+        reflectionReminders: Bool,
+        timezoneName: String = "UTC",
+        deliveryActivated: Bool = false,
+        deliveryActivatedAt: Date? = nil,
+        clientCapabilityVersion: Int = 0
+    ) {
+        self.userID = userID
+        self.monthlyRecaps = monthlyRecaps
+        self.yearlyRecaps = yearlyRecaps
+        self.onThisSipReminders = onThisSipReminders
+        self.reflectionReminders = reflectionReminders
+        self.timezoneName = timezoneName
+        self.deliveryActivated = deliveryActivated
+        self.deliveryActivatedAt = deliveryActivatedAt
+        self.clientCapabilityVersion = clientCapabilityVersion
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userID = try container.decode(UUID.self, forKey: .userID)
+        monthlyRecaps = try container.decode(Bool.self, forKey: .monthlyRecaps)
+        yearlyRecaps = try container.decode(Bool.self, forKey: .yearlyRecaps)
+        onThisSipReminders = try container.decode(Bool.self, forKey: .onThisSipReminders)
+        reflectionReminders = try container.decode(Bool.self, forKey: .reflectionReminders)
+        timezoneName = try container.decodeIfPresent(String.self, forKey: .timezoneName) ?? "UTC"
+        deliveryActivated = try container.decodeIfPresent(Bool.self, forKey: .deliveryActivated) ?? false
+        deliveryActivatedAt = try container.decodeIfPresent(Date.self, forKey: .deliveryActivatedAt)
+        clientCapabilityVersion = try container.decodeIfPresent(Int.self, forKey: .clientCapabilityVersion) ?? 0
     }
 }

@@ -182,19 +182,33 @@ final class VisitService {
 
     func fetchMapVisitSeeds(userId: UUID) async throws -> [RemoteMapVisitSeed] {
         let rows: [MapVisitRow] = try await withCafeSessionSchemaFallback { hasCafeSessions in
-            try await client
-                .from("visits")
-                .select(
-                    hasCafeSessions
-                        ? "cafe_id, overall_score, context_type, cafe_session_id, created_at, poster_photo_url"
-                        : "cafe_id, overall_score, context_type, created_at, poster_photo_url"
-                )
-                .eq("user_id", value: userId.uuidString)
-                .eq("upload_state", value: VisitUploadState.complete.rawValue)
-                .not("cafe_id", operator: .is, value: "null")
-                .execute()
-                .value
+            var result: [MapVisitRow] = []
+            let pageSize = 500
+            var offset = 0
+            while true {
+                let page: [MapVisitRow] = try await client
+                    .from("visits")
+                    .select(
+                        hasCafeSessions
+                            ? "id, cafe_id, overall_score, context_type, cafe_session_id, created_at, poster_photo_url"
+                            : "id, cafe_id, overall_score, context_type, created_at, poster_photo_url"
+                    )
+                    .eq("user_id", value: userId.uuidString)
+                    .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                    .not("cafe_id", operator: .is, value: "null")
+                    .order("created_at", ascending: false)
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+                result.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
+            return result
         }
+        let projections = try await fetchOwnedMapScoreProjections(
+            visitIDs: rows.map(\.id)
+        )
         let cafes = try await cafeService.fetchCafes(ids: rows.compactMap { row in
             JournalEntryContext(backendValue: row.contextType) == .cafe
                 ? row.cafeId
@@ -206,8 +220,10 @@ final class VisitService {
                   let cafeId = row.cafeId,
                   let cafe = cafesByID[cafeId] else { return nil }
             return RemoteMapVisitSeed(
+                visitID: row.id,
                 cafe: cafe,
                 overallScore: row.overallScore,
+                mugshotScore: projections[row.id],
                 cafeSessionID: row.cafeSessionID,
                 createdAt: MapVisitDateParser.date(from: row.createdAt) ?? .distantPast,
                 posterPhotoURL: row.posterPhotoURL?.remoteTrimmedNonEmpty
@@ -264,7 +280,8 @@ final class VisitService {
             rows: rows,
             includeAuthors: true,
             currentUserId: currentUserId,
-            includeSocialState: true
+            includeSocialState: true,
+            includePhotoMetadata: true
         )
         let summariesByID = Dictionary(uniqueKeysWithValues: summaries.map { ($0.id, $0) })
         return references.compactMap { reference in
@@ -282,7 +299,8 @@ final class VisitService {
                 recommendationReasonType: reference.reasonType,
                 sessionSipCount: summary.sessionSipCount,
                 cafePulseProjection: summary.cafePulseProjection,
-                v3FeedProjection: summary.v3FeedProjection
+                v3FeedProjection: summary.v3FeedProjection,
+                photoURLs: summary.photoURLs
             )
         }
     }
@@ -1043,7 +1061,8 @@ final class VisitService {
         rows: [SupabaseVisitRow],
         includeAuthors: Bool,
         currentUserId: UUID? = nil,
-        includeSocialState: Bool = false
+        includeSocialState: Bool = false,
+        includePhotoMetadata: Bool = false
     ) async throws -> [RemoteVisitSummary] {
         guard !rows.isEmpty else { return [] }
 
@@ -1064,6 +1083,9 @@ final class VisitService {
         async let v3FeedProjectionsRequest = fetchVisibleV3FeedProjections(
             visitIDs: rows.map(\.id)
         )
+        async let photoRowsRequest: [SupabaseVisitPhotoRow] = includePhotoMetadata
+            ? fetchVisiblePhotoRows(visitIDs: rows.map(\.id))
+            : []
 
         let (
             cafes,
@@ -1071,17 +1093,26 @@ final class VisitService {
             socialStates,
             sessionSipCounts,
             cafePulseProjections,
-            v3FeedProjections
+            v3FeedProjections,
+            photoRows
         ) = try await (
             cafesRequest,
             profilesRequest,
             socialStatesRequest,
             sessionSipCountsRequest,
             cafePulseProjectionsRequest,
-            v3FeedProjectionsRequest
+            v3FeedProjectionsRequest,
+            photoRowsRequest
         )
         let cafeCache = Dictionary(uniqueKeysWithValues: cafes.map { ($0.id, $0) })
         let profileCache = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        let photoURLsByVisit = Dictionary(grouping: photoRows, by: \.visitId)
+            .mapValues { rows in
+                rows.sorted { lhs, rhs in
+                    if lhs.sortOrder == rhs.sortOrder { return lhs.createdAt < rhs.createdAt }
+                    return lhs.sortOrder < rhs.sortOrder
+                }.map(\.photoURL)
+            }
 
         return rows.map { row in
             let cafeSessionID = row.journalContext == .cafe ? row.cafeSessionID : nil
@@ -1098,9 +1129,25 @@ final class VisitService {
                 ),
                 sessionSipCount: cafeSessionID.flatMap { sessionSipCounts[$0] } ?? 1,
                 cafePulseProjection: cafeSessionID.flatMap { cafePulseProjections[$0] },
-                v3FeedProjection: v3FeedProjections[row.id]
+                v3FeedProjection: v3FeedProjections[row.id],
+                photoURLs: photoURLsByVisit[row.id] ?? []
             )
         }
+    }
+
+    private func fetchVisiblePhotoRows(
+        visitIDs: some Collection<UUID>
+    ) async throws -> [SupabaseVisitPhotoRow] {
+        let identifiers = Array(Set(visitIDs))
+        guard !identifiers.isEmpty else { return [] }
+        return try await client
+            .from("visit_photos")
+            .select(photoColumns)
+            .in("visit_id", values: identifiers.map(\.uuidString))
+            .order("sort_order", ascending: true)
+            .order("created_at", ascending: true)
+            .execute()
+            .value
     }
 
     static func v3ProjectionBatches(visitIDs: [UUID]) -> [[UUID]] {
@@ -1108,6 +1155,40 @@ final class VisitService {
         let identifiers = visitIDs.filter { seen.insert($0).inserted }
         return stride(from: 0, to: identifiers.count, by: 100).map { start in
             Array(identifiers[start..<min(start + 100, identifiers.count)])
+        }
+    }
+
+    private func fetchOwnedMapScoreProjections(
+        visitIDs: some Collection<UUID>
+    ) async throws -> [UUID: Double] {
+        let batches = Self.v3ProjectionBatches(visitIDs: Array(visitIDs))
+        guard !batches.isEmpty else { return [:] }
+        do {
+            var projections: [UUID: Double] = [:]
+            for identifiers in batches {
+                let rows: [RemoteVisitMapScoreProjection] = try await client
+                    .rpc(
+                        "get_owned_visit_map_scores_v1",
+                        params: V3FeedProjectionParameters(visitIDs: identifiers)
+                    )
+                    .execute()
+                    .value
+                for row in rows { projections[row.visitID] = row.mugshotScore }
+            }
+            return projections
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            var projections: [UUID: Double] = [:]
+            for identifiers in batches {
+                let rows: [RemoteVisitV3FeedProjection] = try await client
+                    .rpc(
+                        "get_visit_v3_feed_projections_v1",
+                        params: V3FeedProjectionParameters(visitIDs: identifiers)
+                    )
+                    .execute()
+                    .value
+                for row in rows { projections[row.visitID] = row.mugshotScore }
+            }
+            return projections
         }
     }
 
@@ -1505,6 +1586,7 @@ private struct CafeSessionSipCountRow: Decodable {
 }
 
 private struct MapVisitRow: Decodable {
+    let id: UUID
     let cafeId: UUID?
     let overallScore: Double
     let contextType: String?
@@ -1513,6 +1595,7 @@ private struct MapVisitRow: Decodable {
     let posterPhotoURL: String?
 
     enum CodingKeys: String, CodingKey {
+        case id
         case cafeId = "cafe_id"
         case overallScore = "overall_score"
         case contextType = "context_type"

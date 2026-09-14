@@ -378,6 +378,10 @@ struct SipDetailPresentationTests {
         #expect(presentation.content.contextRatingLabel == "Cafe")
         #expect(presentation.content.contextScore == 3.5)
         #expect(presentation.content.sharedRawNote == "Sip\nSweet opening.\n\nCafe\nQuiet back room.")
+        #expect(presentation.content.sharedRawNoteSections == [
+            SipJournalNoteSection(title: "Sip", text: "Sweet opening."),
+            SipJournalNoteSection(title: "Cafe", text: "Quiet back room.")
+        ])
         #expect(presentation.content.journalVisibility == "Public")
         #expect(presentation.content.journalNoteTitle == "Journal note · Public")
         #expect(presentation.content.locationName == "Babas on Cannon")
@@ -403,6 +407,65 @@ struct SipDetailPresentationTests {
         )
         #expect(privatePresentation.content.journalVisibility == "Private")
         #expect(privatePresentation.content.journalNoteTitle == "Journal note · Only you")
+    }
+
+    @Test func authoredSipWordsRemainBodyTextInsideStructuredJournalSections() {
+        let visitID = UUID()
+        let userID = UUID()
+        let row = SupabaseVisitRow(
+            id: visitID,
+            userId: userID,
+            cafeId: nil,
+            drinkType: "Coffee",
+            drinkTypeCustom: nil,
+            drinkSubtype: "Pour over",
+            caption: "A careful brew.",
+            notes: nil,
+            visibility: "friends",
+            ratings: [:],
+            overallScore: 4,
+            posterPhotoURL: nil,
+            contextType: "Home",
+            locationName: "Home",
+            cityState: nil,
+            brewMethod: nil,
+            createdAt: "2026-09-14T12:00:00Z"
+        )
+        let reflection = V3VisitReflection(
+            visitID: visitID,
+            sipScore: 4,
+            contextScore: nil,
+            contextCriteria: [],
+            sipRawNote: "Sip slowly; the word Cafe is part of my note.",
+            contextRawNote: "Quiet kitchen.",
+            rawNoteVisibility: .friends,
+            photoFallback: nil,
+            homeMakeAgain: nil
+        )
+        let presentation = SipDetailPresentationAdapter.remote(
+            detail: RemoteVisitDetail(
+                summary: RemoteVisitSummary(visit: row, cafe: nil),
+                photos: [],
+                comments: [],
+                likeCount: 0,
+                currentUserHasLiked: false,
+                v3Reflection: reflection
+            ),
+            currentUserID: userID,
+            reactions: [],
+            isCafeSaved: false,
+            canRecommend: false,
+            canRepeat: false,
+            replyingToUsername: nil
+        )
+
+        #expect(presentation.content.sharedRawNoteSections == [
+            SipJournalNoteSection(
+                title: "Sip",
+                text: "Sip slowly; the word Cafe is part of my note."
+            ),
+            SipJournalNoteSection(title: "Setting", text: "Quiet kitchen.")
+        ])
     }
 
     @Test func authorizedRecipeProjectionDrivesBlueprintAndReusableAction() {

@@ -648,6 +648,7 @@ struct CafeDetailView: View {
     let discoveryEvidence: [DiscoveryEvidence]
     let discoverySource: DiscoveryAttributionSource?
     let applePhoneNumber: String?
+    let mapPinScore: MapPinScore?
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
@@ -682,6 +683,7 @@ struct CafeDetailView: View {
         discoveryEvidence: [DiscoveryEvidence] = [],
         discoverySource: DiscoveryAttributionSource? = nil,
         applePhoneNumber: String? = nil,
+        mapPinScore: MapPinScore? = nil,
         onLogVisitRequested: ((Cafe) -> Void)? = nil,
         onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     ) {
@@ -692,6 +694,7 @@ struct CafeDetailView: View {
         self.discoveryEvidence = discoveryEvidence
         self.discoverySource = discoverySource
         self.applePhoneNumber = applePhoneNumber
+        self.mapPinScore = mapPinScore
         self.onLogVisitRequested = onLogVisitRequested
         self.onAuthenticationRequired = onAuthenticationRequired
         _selectedDetent = State(initialValue: initialDetent)
@@ -1210,6 +1213,19 @@ struct CafeDetailView: View {
                 title: "Your Mugshot",
                 subtitle: personalRelationshipSubtitle
             )
+
+            if let mapPinScore {
+                HStack(spacing: 12) {
+                    MugshotRatingBadge(score: mapPinScore.value, label: mapPinScore.sourceLabel)
+                        .accessibilityLabel(mapPinScore.accessibilityLabel)
+                    Text(mapPinScore.evidenceDescription)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+            }
 
             detailStatsSection
 

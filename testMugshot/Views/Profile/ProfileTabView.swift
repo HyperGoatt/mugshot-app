@@ -484,6 +484,11 @@ struct EditProfileView: View {
                         autocorrectionDisabled: true
                     )
 
+                    Text("Your Instagram username is separate from your Mugshot username. You can paste a profile link.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     profileField(
                         title: "Website",
                         text: $websiteURL,

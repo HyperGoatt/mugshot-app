@@ -22,11 +22,18 @@ final class testMugshotUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS[c] %@", "already published")
         ).firstMatch.exists)
         XCTAssertTrue(app.buttons["Finish"].exists)
+        XCTAssertTrue(app.buttons["Review"].exists)
         XCTAssertFalse(app.buttons["Retry"].exists)
         XCTAssertFalse(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "online")
         ).firstMatch.exists)
         attachScreenshot(named: "04 After - Published recovery")
+
+        app.buttons["Review"].tap()
+        XCTAssertTrue(app.staticTexts["Publication recovery"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Server publication confirmed"].exists)
+        XCTAssertTrue(app.staticTexts["6b50780a-0fd1-4182-93ea-8a33befea2ff"].exists)
+        app.buttons["Done"].tap()
 
         app.buttons["automaticSipRecoveryBanner.dismiss"].tap()
         XCTAssertTrue(banner.waitForNonExistence(timeout: 1))
@@ -207,7 +214,7 @@ final class testMugshotUITests: XCTestCase {
         let app = launch(reset: true)
         app.buttons["mugshot.tab.map"].tap()
 
-        XCTAssertTrue(app.staticTexts["Your ratings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Your Mugshot averages"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["Cafe average when available · Sip average otherwise"].exists)
         XCTAssertEqual(app.staticTexts["High"].value as? String, "4.0 or higher")
         XCTAssertEqual(app.staticTexts["Mid"].value as? String, "3.0 to 3.9")
@@ -369,11 +376,27 @@ final class testMugshotUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Feed"].waitForExistence(timeout: 5))
         app.buttons["Feed"].tap()
         XCTAssertTrue(app.staticTexts[drinkName].waitForExistence(timeout: 3))
-        app.buttons["Open sip"].tap()
+        tapAfterRevealing(app.buttons["Open sip"].firstMatch, in: app)
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 3))
         let cafeLink = v3Element("sip.detail.cafe", in: app)
         XCTAssertTrue(cafeLink.waitForExistence(timeout: 3))
         XCTAssertTrue(cafeLink.label.contains("Mugshot Test Cafe"))
+        cafeLink.tap()
+        XCTAssertTrue(app.staticTexts["Mugshot Test Cafe"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Close cafe card"].exists)
+
+        app.buttons["Close cafe card"].tap()
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 2))
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.buttons["Journal"].waitForExistence(timeout: 3))
+        app.buttons["Journal"].tap()
+        XCTAssertTrue(app.staticTexts[drinkName].waitForExistence(timeout: 3))
+        let journalCafe = app.descendants(matching: .any).matching(
+            identifier: "journal.cafe.00000000-0000-4000-8000-000000000002"
+        ).firstMatch
+        XCTAssertTrue(journalCafe.waitForExistence(timeout: 3))
+        journalCafe.tap()
+        XCTAssertTrue(app.buttons["Close cafe card"].waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -659,7 +682,11 @@ final class testMugshotUITests: XCTestCase {
     ) {
         app.buttons["Saved"].tap()
         XCTAssertTrue(app.staticTexts["Mugshot Test Cafe"].waitForExistence(timeout: 3))
-        tapAfterRevealing(app.buttons["Log a Sip"], in: app)
+        let cafeCardAction = app.descendants(matching: .any).matching(
+            identifier: "saved.cafe.logSip.00000000-0000-4000-8000-000000000002"
+        ).firstMatch
+        XCTAssertTrue(cafeCardAction.waitForExistence(timeout: 3))
+        tapAfterRevealing(cafeCardAction, in: app)
         completeCurrentV3CafeDraftToPublish(in: app, drinkName: drinkName)
     }
 
@@ -705,7 +732,13 @@ final class testMugshotUITests: XCTestCase {
         in app: XCUIApplication,
         audience: String = "Private"
     ) {
-        let audienceButton = app.buttons[audience].firstMatch
+        let audienceButton = app.buttons.matching(
+            NSPredicate(
+                format: "label == %@ AND identifier != %@",
+                audience,
+                "feed.scope.control"
+            )
+        ).firstMatch
         XCTAssertTrue(audienceButton.waitForExistence(timeout: 2))
         if !audienceButton.isSelected {
             tapAfterRevealing(audienceButton, in: app)

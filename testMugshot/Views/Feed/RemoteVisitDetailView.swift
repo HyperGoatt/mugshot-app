@@ -55,6 +55,7 @@ struct RemoteVisitDetailView: View {
     let onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)?
     let onSocialStateChanged: ((RemoteVisitSocialState) -> Void)?
     let onCafeRequested: ((Cafe) -> Void)?
+    let initialPhotoCacheKey: String?
 
     init(
         visitId: UUID,
@@ -62,6 +63,7 @@ struct RemoteVisitDetailView: View {
         currentUserId: UUID?,
         dataManager: DataManager,
         justPosted: Bool = false,
+        initialPhotoCacheKey: String? = nil,
         onRepeat: ((RemoteVisitDetail) -> Void)? = nil,
         onComposeDraft: ((SipDraft) -> Void)? = nil,
         presentationMode: SipDetailPresentationMode = .pushed,
@@ -74,6 +76,7 @@ struct RemoteVisitDetailView: View {
         self.currentUserId = currentUserId
         self.dataManager = dataManager
         self.justPosted = justPosted
+        self.initialPhotoCacheKey = initialPhotoCacheKey
         self.onRepeat = onRepeat
         self.onComposeDraft = onComposeDraft
         self.presentationMode = presentationMode
@@ -120,7 +123,7 @@ struct RemoteVisitDetailView: View {
     @State private var showMoreActions = false
     @State private var recipeAdaptationRequest: SipDetailRecipeModel?
     @State private var selectedTaggedProfile: PeopleProfileRoute?
-    @State private var selectedCafeDetail: Cafe?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @FocusState private var isCommentFocused: Bool
 
@@ -134,6 +137,11 @@ struct RemoteVisitDetailView: View {
         return dataManager.appData.cafes.first(where: {
             $0.remoteCafeId == remoteCafe.id || $0.id == remoteCafe.id
         }) ?? remoteCafe.localCafe()
+    }
+
+    private var postCafeID: UUID? {
+        guard displayedSummary.visit.journalContext == .cafe else { return nil }
+        return displayedSummary.visit.cafeId ?? displayedSummary.cafe?.id
     }
 
     private var heroHeight: CGFloat { 500 }
@@ -197,7 +205,7 @@ struct RemoteVisitDetailView: View {
                             openCommentAuthorProfile(comment)
                         }
                     },
-                    onCafeTap: postCafe == nil ? nil : openPostCafe,
+                    onCafeTap: postCafeID == nil ? nil : openPostCafe,
                     onRecipeAction: performRecipeAction,
                     onTaggedAccount: openTaggedProfile,
                     onCommentMention: openCommentMentionProfile,
@@ -289,22 +297,29 @@ struct RemoteVisitDetailView: View {
                 try await saveRecipeAdaptation(recipe, name: name)
             }
         }
-        .sheet(item: $selectedCafeDetail) { cafe in
-            CafeDetailView(
-                cafe: cafe,
-                dataManager: dataManager,
-                initialDetent: .medium,
-                onAuthenticationRequired: onAuthenticationRequired
-            )
+        .sheet(item: $selectedCafeRoute) { route in
+            if let cafe = route.cafe {
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    initialDetent: .medium,
+                    onAuthenticationRequired: onAuthenticationRequired
+                )
+            } else {
+                CanonicalCafeUnavailableView(cafeID: route.cafeID)
+            }
         }
     }
 
     private func openPostCafe() {
-        guard let postCafe else { return }
-        if let onCafeRequested {
+        guard let postCafeID else { return }
+        if let postCafe, let onCafeRequested {
             onCafeRequested(postCafe)
         } else {
-            selectedCafeDetail = postCafe
+            selectedCafeRoute = CanonicalCafeRoute(
+                cafeID: postCafeID,
+                cafe: postCafe
+            )
         }
     }
 
@@ -1529,7 +1544,15 @@ struct RemoteVisitDetailView: View {
                 reactions = (try? await SocialDiscoveryService(client: client).reactions(for: visitId)) ?? []
             }
             await refreshReactionCounts()
-            selectedPhotoIndex = 0
+            if let initialPhotoCacheKey,
+               let loadedDetail = detail,
+               let index = loadedDetail.photoURLs.firstIndex(where: {
+                   MugshotPostMediaSource.remote($0).cacheKey == initialPhotoCacheKey
+               }) {
+                selectedPhotoIndex = index
+            } else {
+                selectedPhotoIndex = 0
+            }
             isLoading = false
         } catch {
             detail = nil

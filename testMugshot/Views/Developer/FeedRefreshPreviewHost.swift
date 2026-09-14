@@ -3,7 +3,9 @@ import SwiftUI
 
 struct FeedRefreshPreviewHost: View {
     @State private var selectedRoute: FeedPostRoute?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var selectedScope: FeedScope = .friends
+    @StateObject private var dataManager = DataManager()
 
     private let visits = FeedRefreshPreviewFixtures.visits
 
@@ -36,6 +38,13 @@ struct FeedRefreshPreviewHost: View {
                                 isSocialActionInFlight: false,
                                 showsRecommendationReason: false,
                                 onOpen: { selectedRoute = .remote(visit) },
+                                onCafeTap: {
+                                    guard let cafeID = visit.visit.cafeId else { return }
+                                    selectedCafeRoute = CanonicalCafeRoute(
+                                        cafeID: cafeID,
+                                        cafe: visit.cafe?.localCafe()
+                                    )
+                                },
                                 onLike: {},
                                 onSaveCafe: {},
                                 onComment: { selectedRoute = .remote(visit) }
@@ -52,6 +61,13 @@ struct FeedRefreshPreviewHost: View {
                 FeedRefreshPreviewDetail(route: route)
                     .id(route.id)
                     .accessibilityIdentifier("feed.destination.\(route.visitID.uuidString)")
+            }
+            .sheet(item: $selectedCafeRoute) { route in
+                if let cafe = route.cafe {
+                    CafeDetailView(cafe: cafe, dataManager: dataManager, initialDetent: .medium)
+                } else {
+                    CanonicalCafeUnavailableView(cafeID: route.cafeID)
+                }
             }
         }
         .preferredColorScheme(.light)
@@ -347,7 +363,11 @@ private enum FeedRefreshPreviewFixtures {
                 visitID: id,
                 mugshotScore: score,
                 photoFallbackValue: assetName == nil ? SipPhotoFallback.mugsyMissedPhoto.rawValue : nil
-            )
+            ),
+            photoURLs: id == amandaID ? [
+                "asset://V3OrangeCreamsicleHeroV2",
+                "asset://V3QuietCafeCorner"
+            ] : []
         )
     }
 }

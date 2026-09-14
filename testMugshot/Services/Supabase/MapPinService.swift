@@ -6,11 +6,13 @@
 import Foundation
 
 enum MapPinScoreSource: String, Equatable {
+    case mugshot
     case cafe
     case sip
 
     var label: String {
         switch self {
+        case .mugshot: "Mugshot avg"
         case .cafe: "Cafe avg"
         case .sip: "Sip avg"
         }
@@ -36,6 +38,8 @@ struct MapPinScore: Equatable {
 
     var pinUseTitle: String {
         switch (source, audience) {
+        case (.mugshot, .personal): "Average of your completed Mugshots at this cafe"
+        case (.mugshot, .friends): "Friends’ Mugshot average"
         case (.cafe, .personal): "Pin uses your Cafe average"
         case (.sip, .personal): "Pin uses your Sip fallback"
         case (.cafe, .friends): "Pin uses friends’ Cafe average"
@@ -50,6 +54,10 @@ struct MapPinScore: Equatable {
 
     var evidenceDescription: String {
         switch (source, audience) {
+        case (.mugshot, .personal):
+            return "Average of your completed Mugshots at this cafe."
+        case (.mugshot, .friends):
+            return "\(sipCount) shared \(Self.mugshotNoun(sipCount)) · \(contributorCount) \(Self.friendNoun(contributorCount))"
         case (.cafe, .personal):
             return "\(relationshipStage.title) · \(ratedCafeSessionCount) rated \(Self.sessionNoun(ratedCafeSessionCount))"
         case (.cafe, .friends):
@@ -69,6 +77,10 @@ struct MapPinScore: Equatable {
         count == 1 ? "sip" : "sips"
     }
 
+    private static func mugshotNoun(_ count: Int) -> String {
+        count == 1 ? "Mugshot" : "Mugshots"
+    }
+
     private static func visitNoun(_ count: Int) -> String {
         count == 1 ? "visit" : "visits"
     }
@@ -81,6 +93,17 @@ struct MapPinScore: Equatable {
 struct MapSipScoreSeed: Equatable {
     let overallScore: Double
     let cafeSessionID: UUID?
+    let mugshotScore: Double?
+
+    init(
+        overallScore: Double,
+        cafeSessionID: UUID?,
+        mugshotScore: Double? = nil
+    ) {
+        self.overallScore = overallScore
+        self.cafeSessionID = cafeSessionID
+        self.mugshotScore = mugshotScore
+    }
 }
 
 enum MapPinScoreResolver {
@@ -90,6 +113,10 @@ enum MapPinScoreResolver {
         audience: MapPinScoreAudience,
         contributorCount: Int = 1
     ) -> MapPinScore? {
+        if audience == .personal {
+            return personalMugshotAverage(sips)
+        }
+
         if let cafeSummary,
            let cafeScore = cafeSummary.averageCafeRating,
            cafeScore > 0,
@@ -112,6 +139,24 @@ enum MapPinScoreResolver {
             sips,
             audience: audience,
             contributorCount: contributorCount
+        )
+    }
+
+    static func personalMugshotAverage(_ sips: [MapSipScoreSeed]) -> MapPinScore? {
+        let scores = sips.compactMap { sip -> Double? in
+            let value = sip.mugshotScore ?? sip.overallScore
+            return value > 0 && value.isFinite ? value : nil
+        }
+        guard !scores.isEmpty else { return nil }
+        return MapPinScore(
+            value: scores.reduce(0, +) / Double(scores.count),
+            source: .mugshot,
+            audience: .personal,
+            ratedCafeSessionCount: 0,
+            physicalSessionCount: scores.count,
+            sipCount: scores.count,
+            contributorCount: 1,
+            relationshipStage: .unrated
         )
     }
 
@@ -156,9 +201,9 @@ enum MapPinScoreResolver {
 /// own map. Pins never come from the public feed: they are derived only from
 /// the signed-in person's completed sip logs and active saved-cafe states.
 ///
-/// A true Cafe Pulse aggregate wins immediately. When none exists, a
-/// session-balanced Sip average is an explicitly typed fallback rather than a
-/// synthetic Cafe rating.
+/// Personal pins average each completed Mugshot once. The combined V3 score is
+/// preferred, with the legacy overall score used only when no V3 projection
+/// exists for that visit.
 struct RemoteMapPin: Identifiable, Equatable {
     let cafe: SupabaseCafeSummary
     let visitCount: Int
@@ -199,7 +244,11 @@ struct RemoteMapPinSnapshot: Equatable {
         let statesByCafeID = Dictionary(grouping: activeStates) {
             cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
         }
-        let visitsByCafeID = Dictionary(grouping: visits.compactMap { summary -> RemoteVisitSummary? in
+        let uniqueVisits = Dictionary(
+            visits.map { ($0.id, $0) },
+            uniquingKeysWith: { current, _ in current }
+        ).values
+        let visitsByCafeID = Dictionary(grouping: uniqueVisits.compactMap { summary -> RemoteVisitSummary? in
             summary.cafe == nil ? nil : summary
         }) { cafeIndex.canonicalIDByCafeID[$0.cafe!.id] ?? $0.cafe!.id }
         let experienceByCafeID = Dictionary(grouping: cafeExperienceSummaries) {
@@ -225,7 +274,8 @@ struct RemoteMapPinSnapshot: Equatable {
                 sips: cafeVisits.map {
                     MapSipScoreSeed(
                         overallScore: $0.visit.overallScore,
-                        cafeSessionID: $0.visit.cafeSessionID
+                        cafeSessionID: $0.visit.cafeSessionID,
+                        mugshotScore: $0.v3FeedProjection?.mugshotScore
                     )
                 },
                 cafeSummary: experience,
@@ -270,7 +320,11 @@ struct RemoteMapPinSnapshot: Equatable {
         let statesByCafeID = Dictionary(grouping: activeStates) {
             cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
         }
-        let visitsByCafeID = Dictionary(grouping: mapVisits) {
+        let uniqueVisits = Dictionary(
+            mapVisits.map { ($0.visitID, $0) },
+            uniquingKeysWith: { current, _ in current }
+        ).values
+        let visitsByCafeID = Dictionary(grouping: uniqueVisits) {
             cafeIndex.canonicalIDByCafeID[$0.cafe.id] ?? $0.cafe.id
         }
         let cafeIDs = Set(visitsByCafeID.keys).union(statesByCafeID.keys)
@@ -294,7 +348,8 @@ struct RemoteMapPinSnapshot: Equatable {
                 sips: visits.map {
                     MapSipScoreSeed(
                         overallScore: $0.overallScore,
-                        cafeSessionID: $0.cafeSessionID
+                        cafeSessionID: $0.cafeSessionID,
+                        mugshotScore: $0.mugshotScore
                     )
                 },
                 cafeSummary: experience,
@@ -398,11 +453,31 @@ struct RemoteMapPinSnapshot: Equatable {
 }
 
 struct RemoteMapVisitSeed: Equatable {
+    let visitID: UUID
     let cafe: SupabaseCafeSummary
     let overallScore: Double
+    let mugshotScore: Double?
     let cafeSessionID: UUID?
     let createdAt: Date
     let posterPhotoURL: String?
+
+    init(
+        visitID: UUID = UUID(),
+        cafe: SupabaseCafeSummary,
+        overallScore: Double,
+        mugshotScore: Double? = nil,
+        cafeSessionID: UUID?,
+        createdAt: Date,
+        posterPhotoURL: String?
+    ) {
+        self.visitID = visitID
+        self.cafe = cafe
+        self.overallScore = overallScore
+        self.mugshotScore = mugshotScore
+        self.cafeSessionID = cafeSessionID
+        self.createdAt = createdAt
+        self.posterPhotoURL = posterPhotoURL
+    }
 }
 
 private enum RemoteMapPinDateParser {

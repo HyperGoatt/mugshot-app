@@ -153,6 +153,8 @@ struct FeedTabView: View {
     @State private var selectedScope: FeedScope = .ranked
     @State private var selectedPostRoute: FeedPostRoute?
     @State private var selectedProfileRoute: PeopleProfileRoute?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
+    @State private var selectedPostPhotoKey: String?
     @State private var remoteVisits: [RemoteVisitSummary] = []
     @State private var canonicalSipCount = 0
     @State private var isLoadingRemoteVisits = false
@@ -193,7 +195,7 @@ struct FeedTabView: View {
         case .friends:
             return "Sips from friends"
         case .everyone:
-            return "Fresh public sips"
+            return "See what everyone is sipping"
         }
     }
     
@@ -343,13 +345,18 @@ struct FeedTabView: View {
                 Group {
                     switch route {
                     case .local(let visit):
-                        VisitDetailView(visit: visit, dataManager: dataManager)
+                        VisitDetailView(
+                            visit: visit,
+                            dataManager: dataManager,
+                            initialPhotoCacheKey: selectedPostPhotoKey
+                        )
                     case .remote(let visit):
                     RemoteVisitDetailView(
                         visitId: visit.id,
                         initialSummary: visit,
                         currentUserId: authModel.authenticatedUser?.id,
                         dataManager: dataManager,
+                        initialPhotoCacheKey: selectedPostPhotoKey,
                         onComposeDraft: { draft in
                             selectedPostRoute = nil
                             onComposeDraft?(draft)
@@ -373,6 +380,14 @@ struct FeedTabView: View {
         }
         .sheet(isPresented: $isPeopleHubPresented) {
             PeopleHubView(dataManager: dataManager)
+        }
+        .sheet(item: $selectedCafeRoute) { route in
+            if let cafe = route.cafe {
+                CafeDetailView(cafe: cafe, dataManager: dataManager, initialDetent: .medium)
+                    .environmentObject(authModel)
+            } else {
+                CanonicalCafeUnavailableView(cafeID: route.cafeID)
+            }
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in
             pendingSocialVisitIDs.removeAll()
@@ -531,10 +546,23 @@ struct FeedTabView: View {
                     isSocialActionInFlight: pendingSocialVisitIDs.contains(visit.id),
                     showsRecommendationReason: phase3ExplainableTasteGraph && selectedScope == .ranked,
                     onOpen: {
+                        selectedPostPhotoKey = nil
                         selectedPostRoute = .remote(visit)
                     },
                     onAuthorTap: {
                         openAuthorProfile(for: visit)
+                    },
+                    onMediaOpen: { key in
+                        selectedPostPhotoKey = key
+                        selectedPostRoute = .remote(visit)
+                    },
+                    onCafeTap: {
+                        guard visit.visit.journalContext == .cafe,
+                              let cafeID = visit.visit.cafeId else { return }
+                        selectedCafeRoute = CanonicalCafeRoute(
+                            cafeID: cafeID,
+                            cafe: visit.cafe?.localCafe()
+                        )
                     },
                     onLike: {
                         toggleRemoteLike(for: visit)
@@ -546,6 +574,7 @@ struct FeedTabView: View {
                         saveCafe(from: visit)
                     },
                     onComment: {
+                        selectedPostPhotoKey = nil
                         selectedPostRoute = .remote(visit)
                     }
                 )
@@ -601,7 +630,19 @@ struct FeedTabView: View {
                     visit: visit,
                     dataManager: dataManager,
                     onOpen: {
+                        selectedPostPhotoKey = nil
                         selectedPostRoute = .local(visit)
+                    },
+                    onMediaOpen: { key in
+                        selectedPostPhotoKey = key
+                        selectedPostRoute = .local(visit)
+                    },
+                    onCafeTap: {
+                        guard visit.context == .cafe else { return }
+                        selectedCafeRoute = CanonicalCafeRoute(
+                            cafeID: visit.cafeId,
+                            cafe: dataManager.getCafe(id: visit.cafeId)
+                        )
                     }
                 )
             }
@@ -1012,6 +1053,8 @@ struct RemoteFeedVisitCard: View {
     let showsRecommendationReason: Bool
     let onOpen: () -> Void
     var onAuthorTap: (() -> Void)? = nil
+    var onMediaOpen: ((String) -> Void)? = nil
+    var onCafeTap: (() -> Void)? = nil
     let onLike: () -> Void
     var onReaction: ((PostReactionKind) -> Void)? = nil
     let onSaveCafe: () -> Void
@@ -1035,7 +1078,7 @@ struct RemoteFeedVisitCard: View {
         MugshotFeedPostCard(
             presentation: MugshotFeedPostPresentation(
                 visitID: visit.id,
-                mediaSource: feedMediaSource,
+                mediaSources: feedMediaSources,
                 drinkName: visit.visit.drinkDisplayName,
                 locationName: visit.locationTitle,
                 locationDetail: visit.visit.journalContext == .cafe
@@ -1059,26 +1102,32 @@ struct RemoteFeedVisitCard: View {
                 recommendationSystemImage: recommendationIcon
             ),
             onOpen: onOpen,
-            onAuthorTap: onAuthorTap
+            onAuthorTap: onAuthorTap,
+            onCafeTap: visit.visit.journalContext == .cafe ? onCafeTap : nil,
+            onMediaOpen: onMediaOpen
         ) {
             footer
         }
         .accessibilityIdentifier("feed.remoteVisitCard.\(visit.id.uuidString)")
     }
 
-    private var feedMediaSource: MugshotPostMediaSource {
-        guard let reference = visit.visit.posterPhotoURL?.remoteTrimmedNonEmpty else {
-            return .placeholder(
+    private var feedMediaSources: [MugshotPostMediaSource] {
+        let references = visit.photoURLs
+        guard !references.isEmpty else {
+            return [.placeholder(
                 usesMugsyFallback: usesMugsyPhotoFallback,
                 stableID: visit.id.uuidString
-            )
+            )]
         }
 #if DEBUG
-        if reference.hasPrefix("asset://") {
-            return .asset(String(reference.dropFirst("asset://".count)))
+        return references.map { reference in
+            reference.hasPrefix("asset://")
+                ? .asset(String(reference.dropFirst("asset://".count)))
+                : .remote(reference)
         }
+#else
+        return references.map(MugshotPostMediaSource.remote)
 #endif
-        return .remote(reference)
     }
 
     private var recommendationIcon: String {
@@ -1272,6 +1321,9 @@ struct VisitCard: View {
     let visit: Visit
     @ObservedObject var dataManager: DataManager
     var onOpen: (() -> Void)? = nil
+    var onMediaOpen: ((String) -> Void)? = nil
+    var onCafeTap: (() -> Void)? = nil
+    var cafeAccessibilityIdentifier: String? = nil
     
     var cafe: Cafe? {
         dataManager.getCafe(id: visit.cafeId)
@@ -1300,11 +1352,7 @@ struct VisitCard: View {
         MugshotFeedPostCard(
             presentation: MugshotFeedPostPresentation(
                 visitID: visit.id,
-                mediaSource: visit.posterImagePath.map(MugshotPostMediaSource.local)
-                    ?? .placeholder(
-                        usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto,
-                        stableID: visit.id.uuidString
-                    ),
+                mediaSources: localMediaSources,
                 drinkName: localDrinkDisplayName,
                 locationName: localLocationName,
                 locationDetail: localLocationDetail,
@@ -1319,11 +1367,31 @@ struct VisitCard: View {
                 recommendation: nil,
                 recommendationSystemImage: "sparkles"
             ),
-            onOpen: { onOpen?() }
+            onOpen: { onOpen?() },
+            onCafeTap: visit.context == .cafe ? onCafeTap : nil,
+            cafeAccessibilityIdentifier: cafeAccessibilityIdentifier,
+            onMediaOpen: onMediaOpen
         ) {
             localFooter
         }
         .accessibilityIdentifier("feed.localVisitCard.\(visit.id.uuidString)")
+    }
+
+    private var localMediaSources: [MugshotPostMediaSource] {
+        guard !visit.photos.isEmpty else {
+            return [.placeholder(
+                usesMugsyFallback: visit.v3Reflection?.photoFallback == .mugsyMissedPhoto,
+                stableID: visit.id.uuidString
+            )]
+        }
+        var ordered = visit.photos
+        if let poster = visit.posterImagePath,
+           let index = ordered.firstIndex(of: poster) {
+            ordered.remove(at: index)
+            ordered.insert(poster, at: 0)
+        }
+        var seen = Set<String>()
+        return ordered.filter { seen.insert($0).inserted }.map(MugshotPostMediaSource.local)
     }
 
     private var localLocationName: String {
@@ -1422,15 +1490,28 @@ struct VisitDetailView: View {
     @State private var showMoreActions = false
     @State private var toolbarProgress: CGFloat = 0
     @State private var photoViewerPresentation: SipDetailPhotoViewerPresentation?
-    @State private var selectedCafeDetail: Cafe?
+    @State private var selectedCafeRoute: CanonicalCafeRoute?
     
     init(
         visit: Visit,
         dataManager: DataManager,
         presentationMode: SipDetailPresentationMode = .pushed,
+        initialPhotoCacheKey: String? = nil,
         onCafeRequested: ((Cafe) -> Void)? = nil
     ) {
         self._visit = State(initialValue: visit)
+        var orderedPhotos = visit.photos
+        if let poster = visit.posterImagePath,
+           let posterIndex = orderedPhotos.firstIndex(of: poster) {
+            orderedPhotos.remove(at: posterIndex)
+            orderedPhotos.insert(poster, at: 0)
+        }
+        let initialIndex = initialPhotoCacheKey.flatMap { key in
+            orderedPhotos.firstIndex {
+                MugshotPostMediaSource.local($0).cacheKey == key
+            }
+        } ?? 0
+        self._selectedPhotoIndex = State(initialValue: initialIndex)
         self.dataManager = dataManager
         self.presentationMode = presentationMode
         self.onCafeRequested = onCafeRequested
@@ -1489,7 +1570,7 @@ struct VisitDetailView: View {
                     locationName: sharedPresentation.content.locationName
                 )
             },
-            onCafeTap: cafe == nil ? nil : openLocalCafe,
+            onCafeTap: visit.context == .cafe ? openLocalCafe : nil,
             onRecipeAction: { _ in },
             onTaggedAccount: { _ in },
             onCommentMention: { _ in },
@@ -1518,12 +1599,16 @@ struct VisitDetailView: View {
             .presentationDetents([.height(340)])
             .presentationDragIndicator(.visible)
         }
-        .sheet(item: $selectedCafeDetail) { cafe in
-            CafeDetailView(
-                cafe: cafe,
-                dataManager: dataManager,
-                initialDetent: .medium
-            )
+        .sheet(item: $selectedCafeRoute) { route in
+            if let cafe = route.cafe {
+                CafeDetailView(
+                    cafe: cafe,
+                    dataManager: dataManager,
+                    initialDetent: .medium
+                )
+            } else {
+                CanonicalCafeUnavailableView(cafeID: route.cafeID)
+            }
         }
         .fullScreenCover(item: $photoViewerPresentation) { presentation in
             SipDetailPhotoViewer(presentation: presentation)
@@ -1587,11 +1672,13 @@ struct VisitDetailView: View {
     }
 
     private func openLocalCafe() {
-        guard let cafe else { return }
-        if let onCafeRequested {
+        if let cafe, let onCafeRequested {
             onCafeRequested(cafe)
         } else {
-            selectedCafeDetail = cafe
+            selectedCafeRoute = CanonicalCafeRoute(
+                cafeID: visit.cafeId,
+                cafe: cafe
+            )
         }
     }
 

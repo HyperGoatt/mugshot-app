@@ -67,7 +67,6 @@ struct SavedCafeComfortableCard: View {
         .shadow(color: DesignSystem.cardShadow.color, radius: 12, y: 4)
         .opacity(isSyncing ? 0.82 : 1)
         .animation(DesignSystem.Motion.fast, value: isSyncing)
-        .accessibilityIdentifier("saved.cafe.card.\(cafe.id.uuidString)")
     }
 
     private var logSipButton: some View {
@@ -81,6 +80,7 @@ struct SavedCafeComfortableCard: View {
                 .background(Color.mugshotSageText, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("saved.cafe.logSip.\(cafe.id.uuidString)")
         .accessibilityHint("Starts a sip with this cafe selected")
     }
 
@@ -101,6 +101,7 @@ struct SavedCafeComfortableCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("saved.cafe.card.\(cafe.id.uuidString)")
             .accessibilityLabel(cafeAccessibilityLabel)
             .accessibilityHint("Opens cafe details")
 
@@ -138,6 +139,7 @@ struct SavedCafeComfortableCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("saved.cafe.card.\(cafe.id.uuidString)")
             .accessibilityLabel(cafeAccessibilityLabel)
             .accessibilityHint("Opens cafe details")
 
