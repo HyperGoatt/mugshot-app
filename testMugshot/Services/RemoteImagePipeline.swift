@@ -7,6 +7,7 @@ actor RemoteImagePipeline {
 
     private let cache = NSCache<NSString, UIImage>()
     private let session: URLSession
+    private let protectedSession: URLSession
     private var inFlight: [String: Task<UIImage, Error>] = [:]
 
     init() {
@@ -21,9 +22,26 @@ actor RemoteImagePipeline {
         configuration.requestCachePolicy = .returnCacheDataElseLoad
         configuration.waitsForConnectivity = true
         session = URLSession(configuration: configuration)
+        let protectedConfiguration = URLSessionConfiguration.ephemeral
+        protectedConfiguration.urlCache = nil
+        protectedConfiguration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        protectedSession = URLSession(configuration: protectedConfiguration)
     }
 
     func image(for url: URL, maxPixelSize: Int = 1_200) async throws -> UIImage {
+        // Signed capabilities must not outlive authorization in memory or on disk.
+        if url.path.hasPrefix("/storage/v1/object/sign/") {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.timeoutInterval = 30
+            let (data, response) = try await protectedSession.data(for: request)
+            if let response = response as? HTTPURLResponse,
+               !(200..<300).contains(response.statusCode) {
+                throw RemoteImagePipelineError.httpStatus(response.statusCode)
+            }
+            try Task.checkCancellation()
+            return try Self.downsample(data: data, maxPixelSize: maxPixelSize)
+        }
         let key = "\(url.absoluteString)#\(maxPixelSize)"
         if let cached = cache.object(forKey: key as NSString) {
             return cached

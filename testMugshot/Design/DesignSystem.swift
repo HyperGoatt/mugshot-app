@@ -521,15 +521,13 @@ struct MugshotAvatar: View {
                 Image(String(imageURL.dropFirst("asset://".count)))
                     .resizable()
                     .scaledToFill()
-            } else if let imageURL,
-                      let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
+            } else if let imageURL {
+                ProtectedRemoteImage(storedValue: imageURL) { loaded in
+                    if let loaded {
+                        Image(uiImage: loaded)
                             .resizable()
                             .scaledToFill()
-                    default:
+                    } else {
                         avatarInitial
                     }
                 }
@@ -572,15 +570,13 @@ struct MugshotProfileBanner: View {
                 Image(String(imageURL.dropFirst("asset://".count)))
                     .resizable()
                     .scaledToFill()
-            } else if let imageURL,
-                      let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
+            } else if let imageURL {
+                ProtectedRemoteImage(storedValue: imageURL) { loaded in
+                    if let loaded {
+                        Image(uiImage: loaded)
                             .resizable()
                             .scaledToFill()
-                    default:
+                    } else {
                         EmptyView()
                     }
                 }

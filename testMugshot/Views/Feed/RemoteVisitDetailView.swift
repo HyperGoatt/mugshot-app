@@ -2251,56 +2251,32 @@ struct RemotePhotoImageView: View {
     let urlString: String?
     let placeholderSystemName: String
     var contentMode: ContentMode = .fill
-    @State private var image: UIImage?
-    @State private var didFail = false
     @Environment(\.mugshotImageSizeReporter) private var reportImageSize
 
     var body: some View {
         Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
+            if let value = urlString?.remoteTrimmedNonEmpty {
+                if value.hasPrefix("asset://"),
+                   let image = UIImage(named: String(value.dropFirst("asset://".count))) {
+                    photo(image)
+                } else {
+                    ProtectedRemoteImage(storedValue: value) { image in
+                        if let image { photo(image) } else { placeholder }
+                    }
+                }
             } else {
                 placeholder
-                    .overlay {
-                        if !didFail, hasPhotoReference {
-                            ProgressView()
-                                .tint(.mugshotSage)
-                        }
-                    }
             }
         }
         .background(Color.sandBeige.opacity(0.72))
         .clipped()
-        .task(id: urlString) {
-            image = nil
-            didFail = false
-            guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
-            do {
-                if urlString.hasPrefix("asset://") {
-                    let assetName = String(urlString.dropFirst("asset://".count))
-                    guard let assetImage = UIImage(named: assetName) else {
-                        throw VisitPhotoAccessError.invalidReference
-                    }
-                    image = assetImage
-                    reportImageSize?(assetImage.size)
-                    return
-                }
-                let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
-                let loadedImage = try await RemoteImagePipeline.shared.image(for: url)
-                image = loadedImage
-                reportImageSize?(loadedImage.size)
-            } catch is CancellationError {
-                return
-            } catch {
-                didFail = true
-            }
-        }
     }
 
-    private var hasPhotoReference: Bool {
-        urlString?.remoteTrimmedNonEmpty != nil
+    private func photo(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: contentMode)
+            .onAppear { reportImageSize?(image.size) }
     }
 
     private var placeholder: some View {

@@ -6,6 +6,15 @@ last_verified: 2026-08-26
 
 # Mugshot change log
 
+## 2026-09-13 — media compatibility bridge
+
+- Prepared signed-URL resolution for existing profile/visit URLs and existing
+  Private references, with account/lifecycle image fencing and uncached signed
+  media. No migration, stored URL, photo, audience or owner is changed.
+- Generic Simulator compile passes. Current-backend/protected-backend runtime
+  acceptance and TestFlight distribution remain unverified and are required
+  before any production bucket cutover.
+
 ## 2026-08-26
 
 - Promoted the completed remediation sprint to release candidate 0.5.3 (6).
