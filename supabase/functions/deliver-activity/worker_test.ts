@@ -2,6 +2,7 @@ import {
   type AdminClient,
   type APNSConfiguration,
   buildAPNSPayload,
+  buildAPNSRequestHeaders,
   classifyAPNSFailure,
   fetchResponseWithTimeout,
   parseRetryAfter,
@@ -113,6 +114,61 @@ Deno.test("APNs badge is additive and preserves the Mugshot route envelope", () 
     aps: Record<string, unknown>;
   };
   assert(badgePayload.aps.badge === 7, "v3 badge was omitted");
+});
+
+Deno.test("reflection pushes use generic private copy without Activity badges", () => {
+  const delivery: PushDelivery = {
+    delivery_id: "10000000-0000-4000-8000-000000000010",
+    activity_event_id: "20000000-0000-4000-8000-000000000010",
+    recipient_id: "25000000-0000-4000-8000-000000000010",
+    device_record_id: "30000000-0000-4000-8000-000000000010",
+    push_token: "e".repeat(64),
+    environment: "production",
+    title: "A Mugshot to remember",
+    body: "Revisit a sip you saved on this day.",
+    deep_link:
+      "mugshot://reflection/memory/50000000-0000-4000-8000-000000000010",
+    attempt_count: 1,
+    claim_token: "40000000-0000-4000-8000-000000000010",
+    lease_version: 1,
+    payload_kind: "reflection",
+    reminder_kind: "on_this_day",
+    collapse_id: "reflection:account:on_this_day:2026-09-14",
+    expires_at: "2026-09-14T20:00:00Z",
+  };
+  const payload = buildAPNSPayload(delivery) as {
+    aps: Record<string, unknown>;
+    mugshot_reflection: Record<string, unknown>;
+  };
+  const serialized = JSON.stringify(payload);
+
+  assert(!("badge" in payload.aps), "reflection changed the Activity badge");
+  assert(!("mugshot" in payload), "reflection was inserted into Activity");
+  assert(
+    payload.mugshot_reflection.occurrence_id === delivery.activity_event_id &&
+      payload.mugshot_reflection.recipient_id === delivery.recipient_id,
+    "reflection route lost its account-bound identifiers",
+  );
+  for (const privateField of ["caption", "notes", "cafe", "photo", "journal"]) {
+    assert(
+      !serialized.includes(privateField),
+      `${privateField} leaked into push`,
+    );
+  }
+
+  const headers = buildAPNSRequestHeaders(
+    delivery,
+    { host: "https://api.push.apple.com", topic: "co.mugshot.app" },
+    "provider-token",
+  );
+  assert(
+    headers["apns-collapse-id"] === delivery.collapse_id,
+    "deterministic collapse identifier was omitted",
+  );
+  assert(
+    headers["apns-expiration"] === "1789416000",
+    "delivery-window expiration was omitted",
+  );
 });
 
 Deno.test("APNs transport is aborted at the configured bound", async () => {

@@ -18,6 +18,10 @@ export interface PushDelivery {
   claim_token: string;
   lease_version: number;
   badge?: number;
+  payload_kind?: "activity" | "reflection";
+  reminder_kind?: "on_this_day" | "weekly_reflection";
+  collapse_id?: string;
+  expires_at?: string;
 }
 
 export interface APNSConfiguration {
@@ -230,6 +234,17 @@ export function buildAPNSPayload(
     aps.badge = delivery.badge;
   }
 
+  if (delivery.payload_kind === "reflection") {
+    return {
+      aps,
+      mugshot_reflection: {
+        occurrence_id: delivery.activity_event_id,
+        recipient_id: delivery.recipient_id,
+        reminder_kind: delivery.reminder_kind,
+        deep_link: delivery.deep_link,
+      },
+    };
+  }
   return {
     aps,
     mugshot: {
@@ -237,6 +252,30 @@ export function buildAPNSPayload(
       recipient_id: delivery.recipient_id,
       deep_link: delivery.deep_link,
     },
+  };
+}
+
+export function buildAPNSRequestHeaders(
+  delivery: PushDelivery,
+  target: APNSTarget,
+  providerTokenValue: string,
+): Record<string, string> {
+  const expiration = delivery.expires_at
+    ? new Date(delivery.expires_at).getTime()
+    : Number.NaN;
+  return {
+    authorization: `bearer ${providerTokenValue}`,
+    "apns-topic": target.topic,
+    "apns-push-type": "alert",
+    "apns-priority": "10",
+    "apns-id": delivery.delivery_id,
+    ...(delivery.collapse_id
+      ? { "apns-collapse-id": delivery.collapse_id }
+      : {}),
+    ...(Number.isFinite(expiration)
+      ? { "apns-expiration": String(Math.floor(expiration / 1000)) }
+      : {}),
+    "content-type": "application/json",
   };
 }
 
@@ -282,14 +321,7 @@ export async function sendAPNS(
       `${target.host}/3/device/${encodeURIComponent(delivery.push_token)}`,
       {
         method: "POST",
-        headers: {
-          authorization: `bearer ${token}`,
-          "apns-topic": target.topic,
-          "apns-push-type": "alert",
-          "apns-priority": "10",
-          "apns-id": delivery.delivery_id,
-          "content-type": "application/json",
-        },
+        headers: buildAPNSRequestHeaders(delivery, target, token),
         body: JSON.stringify(buildAPNSPayload(delivery)),
       },
       10_000,
