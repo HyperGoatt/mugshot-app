@@ -366,7 +366,9 @@ struct MugshotProfileSharedLinkRoute: Identifiable, Equatable {
         }
         guard let publicBaseURL,
               url.scheme?.lowercased() == "https",
-              url.host?.lowercased() == publicBaseURL.host?.lowercased() else { return nil }
+              let expectedHost = publicBaseURL.host?.lowercased(),
+              let incomingHost = url.host?.lowercased(),
+              incomingHost == expectedHost || (expectedHost == "mugshotapp.co" && incomingHost == "app.mugshotapp.co") else { return nil }
         return MugshotProfileSharedLinkRoute(slug: identifier)
     }
 }

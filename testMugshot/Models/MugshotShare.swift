@@ -320,6 +320,7 @@ final class MugshotShareLinkItemSource: NSObject, @preconcurrency UIActivityItem
         metadata.originalURL = url
         metadata.url = url
         metadata.imageProvider = NSItemProvider(object: previewImage)
+        if let icon = UIImage(named: "MugshotAppIcon") { metadata.iconProvider = NSItemProvider(object: icon) }
         return metadata
     }
 }

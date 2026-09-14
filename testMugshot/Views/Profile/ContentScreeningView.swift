@@ -32,10 +32,13 @@ private struct ScreeningAccountView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if reviewer {
-                NavigationLink("Review shared content") {
+                NavigationLink("Flagged content") {
                     ScreeningQueueView(accountID: accountID)
                 }
-                NavigationLink("Review reports and appeals") {
+                NavigationLink("Service status") {
+                    ScreeningQueueView(accountID: accountID, serviceStatus: true)
+                }
+                NavigationLink("Reports and appeals") {
                     ModerationCasesView(accountID: accountID)
                 }
             }
@@ -99,6 +102,7 @@ private struct ScreeningRow: View {
 
 private struct ScreeningQueueView: View {
     let accountID: UUID
+    var serviceStatus = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var items: [ContentScreeningItem] = []
     @State private var filter = "needs_review"
@@ -110,7 +114,8 @@ private struct ScreeningQueueView: View {
     var body: some View {
         List {
             Picker("Queue", selection: $filter) {
-                Text("Awaiting review").tag("needs_review")
+                if serviceStatus { Text("Needs repair").tag("service_error") }
+                else { Text("Flagged content").tag("needs_review") }
                 Text("Pending screening").tag("pending")
                 Text("Rejected").tag("rejected")
                 Text("Approved").tag("approved")
@@ -130,7 +135,8 @@ private struct ScreeningQueueView: View {
                 Button("Load more") { Task { await load(more: true) } }.disabled(loading)
             }
         }
-        .navigationTitle("Content Review")
+        .navigationTitle(serviceStatus ? "Service Status" : "Flagged Content")
+        .onAppear { if serviceStatus { filter = "service_error" } }
         .task(id: "\(filter)-\(scenePhase)") {
             requestID = UUID(); loading = false; error = nil
             items = []; hasMore = false
@@ -210,16 +216,23 @@ struct ScreeningDetailView: View {
                 } else if let reviewReason = current.review_reason {
                     Section("Review reason") { Text(reviewReason) }
                 }
-                if reviewing && current.self_review_conflict == true {
+                if current.isTechnicalFailure {
+                    Text("A technical problem delayed this check. This is not a content flag and does not require your approval.")
+                    if reviewing, let diagnostic = current.evidence?.diagnostics {
+                        Text("Stage: \(diagnostic.stage ?? "unknown")")
+                        if let code = diagnostic.error_code { Text("Service code: \(code)") }
+                        if let status = diagnostic.http_status { Text("HTTP \(status)") }
+                    }
+                } else if reviewing && current.self_review_conflict == true {
                     Text("Another appointed reviewer must decide on your own content.")
-                } else if reviewing || (["needs_review", "rejected"].contains(current.state) && current.appeal_requested_at == nil) {
+                } else if (reviewing && ["needs_review", "rejected"].contains(current.state)) || (!reviewing && ["needs_review", "rejected"].contains(current.state) && current.appeal_requested_at == nil) {
                     Section(reviewing ? "Reason shown to the owner if rejected" : "What should the reviewer know?") {
                         TextEditor(text: $reason).frame(minHeight: 110)
                             .accessibilityLabel("Review reason")
                         Text("\(reason.count) of 1,000 characters").font(.caption)
                         if reviewing {
                             Button("Approve sharing") { decision = "approved" }
-                                .disabled(busy || !validReason || loadedImages.count != (current.payload?.images.count ?? 0))
+                                .disabled(busy || loadedImages.count != (current.payload?.images.count ?? 0))
                             Button("Reject sharing", role: .destructive) { decision = "rejected" }
                                 .disabled(busy || !validReason)
                         } else {
@@ -283,7 +296,7 @@ struct ScreeningDetailView: View {
     }
 
     @MainActor private func submit(_ decision: String?) async {
-        guard !busy, validReason, let current else { return }
+        guard !busy, (decision == "approved" || validReason), let current else { return }
         let request = UUID(); requestID = request
         busy = true
         defer { if requestID == request { busy = false } }
@@ -325,7 +338,7 @@ private struct ScreeningReviewImage: View {
                 let (data, response) = try await session.data(from: url)
                 guard !Task.isCancelled else { return }
                 guard (response as? HTTPURLResponse)?.statusCode == 200,
-                      data.count <= 8 * 1024 * 1024, let decoded = UIImage(data: data) else {
+                      data.count <= 20 * 1024 * 1024, let decoded = UIImage(data: data) else {
                     failed = true; return
                 }
                 image = decoded

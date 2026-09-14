@@ -266,6 +266,8 @@ struct ActivityCenterView: View {
         switch destination {
         case .center:
             EmptyView()
+        case .moderation:
+            ContentScreeningView()
         case .visit(let visitID):
             ActivityVisitDestination(
                 visitID: visitID,

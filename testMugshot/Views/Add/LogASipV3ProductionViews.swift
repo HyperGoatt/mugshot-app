@@ -1663,7 +1663,7 @@ private struct LogASipV3PublishSurface: View {
         LogASipV3ScrollableSurface(
             actionTitle: isSaving
                 ? "Publishing Mugshot…"
-                : (isHome ? "Post Mugshot" : "Publish Mugshot"),
+                : "Publish · \(draft.visibility.rawValue.capitalized)",
             actionSubtitle: publishSubtitle,
             actionIcon: "arrow.up.circle.fill",
             actionEnabled: isReadyToPublish
@@ -1783,7 +1783,7 @@ private struct LogASipV3PublishSurface: View {
                 )
 
                 if draft.visibility == .friends {
-                    Text("Friends keeps this in Friends Feed. It also appears on your public profile unless you turn that off in Privacy and Visibility.")
+                    Text("Friends: Appears in Friends Feed and on your public profile and tagged friends’ public profiles. Does not appear in Everyone Feed. Your profile preferences and individual hides still apply.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)

@@ -6,6 +6,12 @@ last_verified: 2026-09-12
 
 # Current sprint: trust, moderation, and working sharing
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 Sprint 1 source adds readable `/profile/username` links, permanently reserved
 handle aliases, and anonymous recipient pages in the companion PWA. The
 unavailable Journal Passport entry and onboarding promotion are removed; the

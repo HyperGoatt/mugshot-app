@@ -6,6 +6,12 @@ last_verified: 2026-09-14
 
 # Sprint 1 delivery: trust, moderation, and working sharing
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 
 ## Current preservation hold and compatibility work
 

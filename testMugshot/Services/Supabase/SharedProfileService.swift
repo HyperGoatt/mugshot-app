@@ -171,6 +171,25 @@ final class SharedProfileService {
         ).execute().value
     }
 
+    struct PublicationPolicy: Decodable {
+        let acknowledged: Bool?
+        let show_friends: Bool
+        let include_historical: Bool
+    }
+
+    func publicationPolicy() async throws -> PublicationPolicy {
+        try await client.rpc("get_profile_publication_policy_v1").execute().value
+    }
+
+    func acknowledgePublication(includeHistorical: Bool) async throws {
+        let _: PublicationPolicy = try await client.rpc("acknowledge_profile_publication_v1",
+            params: ["p_include_historical": includeHistorical]).execute().value
+    }
+
+    func isPostHidden(visitID: UUID) async throws -> Bool {
+        try await client.rpc("get_profile_post_hidden_v1", params: ["p_visit_id": visitID.uuidString]).execute().value
+    }
+
     func showsFriendsOnPublicProfile() async throws -> Bool {
         do {
             return try await client.rpc("get_profile_friends_visibility_v2")
@@ -182,8 +201,8 @@ final class SharedProfileService {
 
     func setShowsFriendsOnPublicProfile(_ isEnabled: Bool) async throws -> Bool {
         try await client.rpc(
-            "set_profile_friends_visibility_v2",
-            params: ProfileFriendsVisibilityParameters(isEnabled: isEnabled)
+            "set_profile_friends_visibility_v3",
+            params: ["p_enabled": isEnabled]
         ).execute().value
     }
 

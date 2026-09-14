@@ -26,8 +26,7 @@ struct PrivacyVisibilitySettingsView: View {
                 Toggle("Show Friends Mugshots", isOn: Binding(
                     get: { showsFriendsOnProfile },
                     set: { enabled in
-                        if enabled { showPublicProfileConsent = true }
-                        else { updateProfileVisibility(false) }
+                        updateProfileVisibility(enabled)
                     }
                 ))
                 .disabled(isSavingProfileVisibility || !hasLoadedProfileVisibility)
@@ -41,7 +40,7 @@ struct PrivacyVisibilitySettingsView: View {
                     .foregroundStyle(Color.secondaryText)
                 }
 
-                Text("When on, anyone with your public profile link can see your existing and future Friends Mugshots, including people outside your friends. Turning this off leaves only Everyone Mugshots on your public profile. Private Mugshots never appear.")
+                Text("Friends posts can appear on your public profile after you acknowledge the sharing notice. Historical posts keep their existing choices unless you include them. Turning this off hides Friends posts from your profile only; tagged friends control their own profiles. Private posts never appear.")
 
                 if let profileVisibilityError {
                     Label(profileVisibilityError, systemImage: "exclamationmark.triangle.fill")
@@ -67,14 +66,6 @@ struct PrivacyVisibilitySettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Privacy and Visibility")
-        .confirmationDialog("Publish Friends Mugshots on your public profile?", isPresented: $showPublicProfileConsent, titleVisibility: .visible) {
-            Button("Publish existing and future Friends Mugshots") {
-                updateProfileVisibility(true)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Anyone visiting your public profile will be able to see these Mugshots, even if they are not your friend. You can turn this off at any time. Private Mugshots stay private.")
-        }
         .task(id: authModel.authenticatedUser?.id) {
             let scope = LocalAccountScope.forUserID(authModel.authenticatedUser?.id)
             cafeVisibility = CafeVisibilityPreferenceStore.shared
@@ -100,7 +91,7 @@ struct PrivacyVisibilitySettingsView: View {
         guard let ownerID = authModel.authenticatedUser?.id else { return }
         do {
             let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
-            let enabled = try await service.showsFriendsOnPublicProfile()
+            let enabled = try await service.publicationPolicy().show_friends
             guard authModel.authenticatedUser?.id == ownerID else { return }
             showsFriendsOnProfile = enabled
             hasLoadedProfileVisibility = true

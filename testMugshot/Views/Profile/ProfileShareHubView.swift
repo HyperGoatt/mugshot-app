@@ -65,7 +65,7 @@ struct ProfileShareContent: Equatable {
     }
 
     var linkMetadataTitle: String {
-        "Add \(atUsername) on Mugshot"
+        "Add me on Mugshot · \(atUsername)"
     }
 
     private static func safeText(_ value: String?, fallback: String, limit: Int) -> String {
@@ -787,45 +787,22 @@ struct ProfileShareLinkPreviewView: View {
     var body: some View {
         ZStack {
             Color.creamWhite
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(spacing: 14) {
-                        Image("MugshotAppIcon")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        Text("Mugshot")
-                            .font(.system(size: 34, weight: .bold, design: .serif))
-                            .foregroundStyle(Color.espressoBrown)
+            HStack(spacing: 30) {
+                VStack(alignment: .leading, spacing: 28) {
+                    HStack {
+                        Image("MugshotAppIcon").resizable().frame(width: 68, height: 68).clipShape(RoundedRectangle(cornerRadius: 16))
+                        Text("Mugshot").font(.system(size: 34, weight: .bold, design: .serif))
                     }
-                    Spacer()
-                    Text("Add me on Mugshot")
-                        .font(.system(size: 44, weight: .regular, design: .serif))
-                        .foregroundStyle(Color.espressoBrown)
-                    HStack(spacing: 18) {
-                        avatar
-                            .frame(width: 96, height: 96)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.foamWhite, lineWidth: 4))
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(content.displayName)
-                                .font(.system(size: 30, weight: .bold, design: .serif))
-                                .foregroundStyle(Color.espressoBrown)
-                                .lineLimit(1)
-                            Text(content.atUsername)
-                                .font(.system(size: 19, weight: .semibold))
-                                .foregroundStyle(Color.mugshotSage)
-                        }
+                    VStack(alignment: .leading, spacing: 22) {
+                        Text("Add me on Mugshot").font(.system(size: 52, design: .serif))
+                        Text(content.atUsername).font(.system(size: 36, weight: .semibold)).minimumScaleFactor(0.6).lineLimit(1)
+                        Text("Coffee tastes better with friends.").font(.system(size: 24))
                     }
-                }
-                .padding(48)
-                .frame(width: 700, alignment: .leading)
-
-                coverPhoto
-                    .frame(width: 500, height: 630)
-                    .clipped()
-            }
+                    .padding(36).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 36))
+                    Text("mugshotapp.co").font(.system(size: 24))
+                }.frame(width: 680)
+                Image("MugsyNoFriends").resizable().scaledToFit().frame(width: 390, height: 470)
+            }.padding(40).foregroundStyle(Color.espressoBrown)
         }
     }
 

@@ -5,6 +5,13 @@ export type ScreeningInput = {
   text: string;
   images: { mime: "image/jpeg" | "image/png"; bytes: Uint8Array }[];
 };
+export type ScreeningDiagnostic = {
+  stage: string;
+  http_status?: number;
+  error_code?: string;
+  request_id?: string;
+};
+
 export type ScreeningResult =
   | { state: "excluded" }
   | {
@@ -27,7 +34,12 @@ export type ScreeningResult =
   }
   | {
     state: "retry";
-    reason: "provider_unavailable";
+    reason:
+      | "provider_unavailable"
+      | "invalid_input"
+      | "provider_configuration"
+      | "invalid_response";
+    diagnostics?: ScreeningDiagnostic;
     retryAfterSeconds: number;
   };
 
@@ -159,16 +171,28 @@ export async function screenContent(
   if (
     input.audience !== "shared" || typeof input.text !== "string" ||
     input.text.length > 16000 || !Array.isArray(input.images) ||
-    input.images.length > 12 ||
+    input.images.length > 1 ||
     input.images.some((image) =>
       !(image.bytes instanceof Uint8Array) ||
-      image.bytes.length > 8 * 1024 * 1024
+      image.bytes.length > 20 * 1024 * 1024
     ) ||
     input.images.reduce((sum, image) => sum + image.bytes.length, 0) >
-      16 * 1024 * 1024
-  ) return { state: "needs_review", reason: "invalid_input" };
+      20 * 1024 * 1024
+  ) {
+    return {
+      state: "retry",
+      reason: "invalid_input",
+      retryAfterSeconds: 60,
+      diagnostics: { stage: "input_validation" },
+    };
+  }
   if (!configuration.apiKey || !configuration.noTrainingControlsVerified) {
-    return { state: "needs_review", reason: "provider_configuration" };
+    return {
+      state: "retry",
+      reason: "provider_configuration",
+      retryAfterSeconds: 60,
+      diagnostics: { stage: "configuration" },
+    };
   }
   if (
     (input.text.match(/https?:\/\//gi)?.length ?? 0) > 3 ||
@@ -187,9 +211,21 @@ export async function screenContent(
       });
     }
   } catch {
-    return { state: "needs_review", reason: "invalid_input" };
+    return {
+      state: "retry",
+      reason: "invalid_input",
+      retryAfterSeconds: 60,
+      diagnostics: { stage: "input_validation" },
+    };
   }
-  if (!parts.length) return { state: "needs_review", reason: "invalid_input" };
+  if (!parts.length) {
+    return {
+      state: "retry",
+      reason: "invalid_input",
+      retryAfterSeconds: 60,
+      diagnostics: { stage: "input_validation" },
+    };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
@@ -203,18 +239,41 @@ export async function screenContent(
       },
       body: JSON.stringify({ model: "omni-moderation-latest", input: parts }),
     });
+    const diagnostics: ScreeningDiagnostic = {
+      stage: "provider_request",
+      http_status: response.status,
+    };
+    const requestID = response.headers.get("x-request-id");
+    if (requestID && /^[a-zA-Z0-9_-]{1,100}$/.test(requestID)) {
+      diagnostics.request_id = requestID;
+    }
+    if (!response.ok) {
+      const error = await response.clone().json().catch(() => null);
+      const code = error?.error?.code;
+      if (typeof code === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(code)) {
+        diagnostics.error_code = code;
+      }
+    }
     if (response.status === 429 || response.status >= 500) {
       const delay = Number(response.headers.get("retry-after"));
       return {
         state: "retry",
         reason: "provider_unavailable",
+        diagnostics,
         retryAfterSeconds: Number.isFinite(delay) && delay > 0
           ? Math.min(3600, Math.max(60, delay))
           : 60,
       };
     }
     if (!response.ok) {
-      return { state: "needs_review", reason: "provider_configuration" };
+      return {
+        state: "retry",
+        reason: response.status === 400
+          ? "invalid_input"
+          : "provider_configuration",
+        retryAfterSeconds: 60,
+        diagnostics,
+      };
     }
     const payload = await response.json();
     const result = payload?.results?.[0];
@@ -229,7 +288,12 @@ export async function screenContent(
         result.category_scores[category] <= 1
       )
     ) {
-      return { state: "needs_review", reason: "invalid_response" };
+      return {
+        state: "retry",
+        reason: "invalid_response",
+        retryAfterSeconds: 60,
+        diagnostics: { stage: "provider_response" },
+      };
     }
     const flags = Object.fromEntries(
       categories.map((category) => [category, result.categories[category]]),

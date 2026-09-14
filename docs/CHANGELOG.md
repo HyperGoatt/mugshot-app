@@ -6,6 +6,15 @@ last_verified: 2026-09-14
 
 # Mugshot change log
 
+## 2026-09-14 — Moderation and sharing repair (implemented; rollout pending)
+
+Repair album screening through individual image requests, bounded technical retries,
+service diagnostics and distinct moderation queues. Add acknowledged Friends
+publication, independent authored/tagged profile hides, pin persistence, broader
+named cafe search, audience-labelled Publish, selected reaction icons and Mugsy
+profile previews. Preservation and verification evidence: [repair status](REPAIR_SHARING_STATUS.md).
+
+
 ## 2026-09-14
 
 - Staged Sprint 1 on production for the owner's real-account dev test. The

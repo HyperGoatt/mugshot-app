@@ -120,6 +120,7 @@ struct MainTabView: View {
         // sits with the home indicator instead of hovering a full safe-area
         // height above it.
         .ignoresSafeArea(.container, edges: .bottom)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     private var lifecycleScene: some View {

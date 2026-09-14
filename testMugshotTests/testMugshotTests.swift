@@ -560,6 +560,14 @@ struct testMugshotTests {
     }
 
     @MainActor
+    @Test func namedCafeSearchDoesNotDiscardDistantExactMatch() {
+        let region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93), span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1))
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: 44.476, longitude: -73.212)))
+        item.name = "Muddy Waters"
+        #expect(MapSearchService.credibleResults([item], query: "Muddy Waters", region: region).count == 1)
+    }
+
+    @MainActor
     @Test func mapSearchRejectsUnrelatedAndImplausiblyDistantFallbacks() {
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 32.78, longitude: -79.93),

@@ -260,3 +260,37 @@ Deno.test("public-list media respects anonymous Storage denials without public f
     "both legacy and private references require anonymous authorization",
   );
 });
+
+Deno.test("legacy projected visit media retains owner isolation", () => {
+  const ownerID = "10000000-0000-4000-8000-000000000001";
+  const visitID = "20000000-0000-4000-8000-000000000001";
+  const scope = { kind: "visit" as const, ownerID, visitID };
+  assert(
+    mediaBelongsToScope(
+      { bucket: "visit-photos", path: `${ownerID}/old.jpg` },
+      scope,
+    ),
+    "legacy owner media must remain resolvable",
+  );
+  assert(
+    mediaBelongsToScope({
+      bucket: "profile-media",
+      path: `${ownerID}/visits/old.jpg`,
+    }, scope),
+    "legacy owner media must remain resolvable",
+  );
+  assert(
+    !mediaBelongsToScope(
+      { bucket: "visit-photos", path: `${visitID}/old.jpg` },
+      scope,
+    ),
+    "foreign owner denied",
+  );
+  assert(
+    !mediaBelongsToScope({
+      bucket: "visit-photos-private",
+      path: `${ownerID}/old.jpg`,
+    }, scope),
+    "private paths require visit identity",
+  );
+});

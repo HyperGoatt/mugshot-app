@@ -75,6 +75,14 @@ begin
   select pg_get_functiondef(
     'private.activity_event_is_visible(public.activity_events,uuid)'::regprocedure
   ) into definition;
+  if definition not ilike '%activity_event_is_visible_before_moderation_alerts(p_event,p_viewer)%'
+     or definition not ilike '%moderation_operators%'
+     or definition not ilike '%is_active%' then
+    raise exception 'moderation wrapper lost delegation or operator authorization';
+  end if;
+  select pg_get_functiondef(
+    'private.activity_event_is_visible_before_moderation_alerts(public.activity_events,uuid)'::regprocedure
+  ) into definition;
   if definition not ilike '%p_event.recipient_id = p_viewer%'
      or definition not ilike '%p_event.suppressed_at is null%'
      or definition not ilike '%activity_recipient_is_eligible_v2(p_viewer)%'

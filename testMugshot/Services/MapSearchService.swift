@@ -79,7 +79,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         let queryChanged = rawQuery != lastRawQuery
         lastRawQuery = rawQuery
         lastRegion = region
-        completer.region = region
+        completer.region = MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: 180, longitudeDelta: 360))
         completer.queryFragment = rawQuery
 
         activeSearchID = UUID()
@@ -124,7 +124,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         request.region = region
         run(
             request: request,
-            query: completion.title,
+            query: "\(completion.title) \(completion.subtitle)",
             region: region,
             searchID: beginImmediateSearch(rawQuery: completion.title, region: region),
             allowsExpandedRetry: true
@@ -142,7 +142,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         request.region = region
         return await resolve(
             request: request,
-            query: completion.title,
+            query: "\(completion.title) \(completion.subtitle)",
             region: region
         )
     }
@@ -391,8 +391,8 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         let expanded = MKCoordinateRegion(
             center: region.center,
             span: MKCoordinateSpan(
-                latitudeDelta: max(region.span.latitudeDelta * 8, 0.5),
-                longitudeDelta: max(region.span.longitudeDelta * 8, 0.5)
+                latitudeDelta: 180,
+                longitudeDelta: 360
             )
         )
         beginSearch(
@@ -540,7 +540,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         ]
         let isGenericDiscovery = !queryTokens.isEmpty &&
             queryTokens.allSatisfy(genericDiscoveryTerms.contains)
-        let allowsRemotePlanning = queryTokens.count >= 3 || query.contains(",")
+        let allowsRemotePlanning = !isGenericDiscovery
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
         return items.filter { item in
@@ -549,7 +549,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             // region so a list can be planned before a trip.
             if let location = item.placemark.location,
                location.distance(from: center) > 100_000,
-               (isGenericDiscovery || !allowsRemotePlanning) {
+               isGenericDiscovery {
                 return false
             }
 
@@ -558,11 +558,11 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             let itemTokens = searchable.split(separator: " ").map(String.init)
             let matchedTokenCount = queryTokens.filter { queryToken in
                 itemTokens.contains { itemToken in
-                    itemToken.hasPrefix(queryToken) || queryToken.hasPrefix(itemToken)
+                    itemToken.hasPrefix(queryToken)
                 }
             }.count
             let requiredMatches = allowsRemotePlanning
-                ? max(2, queryTokens.count - 1)
+                ? max(1, queryTokens.count - 1)
                 : queryTokens.count
             return !queryTokens.isEmpty && matchedTokenCount >= requiredMatches
         }

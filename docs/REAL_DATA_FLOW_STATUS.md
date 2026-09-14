@@ -6,6 +6,12 @@ last_verified: 2026-09-13
 
 # Real data flow status
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 Sprint 1 source adds readable `/profile/username` links, permanently reserved
 handle aliases, and anonymous recipient pages in the companion PWA. Local
 handle contracts and synthetic browser checks pass; these changes are not yet

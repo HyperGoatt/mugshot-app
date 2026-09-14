@@ -1102,7 +1102,7 @@ struct RemoteFeedVisitCard: View {
             } label: {
                 socialActionLabel(
                     value: visit.socialState.likeCount,
-                    systemImage: visit.socialState.currentUserHasLiked ? "heart.fill" : "heart",
+                    systemImage: visit.socialState.viewerReaction?.systemImage ?? "heart",
                     isActive: visit.socialState.currentUserHasLiked
                 )
             } primaryAction: {

@@ -202,8 +202,90 @@ Deno.test("unsupported references and Storage outages remain held without provid
       "held outcome recorded",
     );
     assert(
-      state === (outage ? "retry" : "needs_review") && calls === 0,
+      state === "retry" && calls === 0,
       "outage retries, unsupported media needs review",
+    );
+  }
+});
+
+Deno.test("albums screen one image per request and never approve partial success", async () => {
+  for (const failAt of [-1, 2]) {
+    let calls = 0;
+    let finished: Record<string, unknown> | undefined;
+    const payload = {
+      text: "Synthetic coffee album",
+      images: [ref, ref, ref, ref],
+    };
+    const client: ScreeningClient = {
+      rpc: (name, params) =>
+        Promise.resolve(
+          name === "read_screening_lease_v1"
+            ? { data: payload, error: null }
+            : (finished = params, { data: true, error: null }),
+        ),
+      storage: {
+        from: () => ({
+          download: () =>
+            Promise.resolve({ data: new Blob([syntheticJPEG]), error: null }),
+        }),
+      },
+    };
+    await processScreeningJob(client, job, config, (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert(
+        body.input.filter((p: { type: string }) => p.type === "image_url")
+          .length === 1,
+        "API permits one image only",
+      );
+      return Promise.resolve(
+        calls++ === failAt
+          ? new Response(
+            JSON.stringify({
+              error: { code: "invalid_image", message: "sensitive body" },
+            }),
+            { status: 400 },
+          )
+          : response(),
+      );
+    });
+    assert(
+      finished?.p_state === (failAt < 0 ? "approved" : "retry"),
+      "partial result never approves",
+    );
+    assert(
+      calls === (failAt < 0 ? 4 : 3),
+      "each image processed until first failure",
+    );
+    assert(
+      !JSON.stringify(finished).includes("sensitive body"),
+      "no raw provider body",
+    );
+  }
+});
+Deno.test("legacy owner uploads resolve without accepting another owner's photo", () => {
+  for (
+    const path of [
+      `visit-photos/${job.owner_id}/legacy.jpg`,
+      `profile-media/${job.owner_id}/visits/legacy.jpg`,
+    ]
+  ) {
+    assert(
+      screeningMediaLocation(
+        `${config.supabaseURL}/storage/v1/object/public/${path}`,
+        job,
+        config.supabaseURL,
+      ),
+      "legacy path from sealed payload accepted",
+    );
+    assert(
+      !screeningMediaLocation(
+        `${config.supabaseURL}/storage/v1/object/public/${
+          path.replace(job.owner_id, "another-owner")
+        }`,
+        job,
+        config.supabaseURL,
+      ),
+      "other owner rejected",
     );
   }
 });

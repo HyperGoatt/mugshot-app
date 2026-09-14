@@ -6,6 +6,12 @@ last_verified: 2026-09-13
 
 # Mugshot notification system
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 Sprint 1 source update (not deployed): notification events can wait for content
 screening before public activity/push delivery. Held pushes expire after 24
 hours; edits release the current lease for later approval. Generated titles and

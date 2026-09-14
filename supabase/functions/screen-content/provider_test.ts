@@ -54,7 +54,7 @@ Deno.test("Private and disabled no-training configuration never transmit", async
     (await screenContent(shared, {
       ...configuration,
       noTrainingControlsVerified: false,
-    }, forbidden)).state === "needs_review",
+    }, forbidden)).state === "retry",
     "disabled configuration holds",
   );
 });
@@ -111,7 +111,7 @@ Deno.test("flags and contradictory or incomplete responses never approve", async
   ) {
     assert(
       (await screenContent(shared, configuration, respond(payload))).state ===
-        "needs_review",
+        "retry",
       "malformed result must hold",
     );
   }
@@ -141,7 +141,7 @@ Deno.test("rate limits, provider outages and network failures retry without expo
   );
   assert(
     (await screenContent(shared, configuration, respond({}, 401))).state ===
-      "needs_review",
+      "retry",
     "configuration error needs operator",
   );
 });
@@ -167,7 +167,7 @@ Deno.test("spam signals and invalid images stop before provider", async () => {
   ) {
     assert(
       (await screenContent(input, configuration, inspect)).state ===
-        "needs_review",
+        (input.images.length ? "retry" : "needs_review"),
       "unsupported input holds",
     );
   }

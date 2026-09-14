@@ -58,12 +58,17 @@ export function screeningMediaLocation(
         !part || part === "." || part === ".." || /[\\\u0000-\u001f]/.test(part)
       ) || segments[0].toLowerCase() !== job.owner_id.toLowerCase()
     ) return null;
-    if (bucket === "profile-media") {
-      if (job.subject_kind !== "user" || segments.length !== 2) return null;
-    } else if (
-      job.subject_kind !== "visit" || segments.length < 3 ||
-      segments[1].toLowerCase() !== job.subject_id.toLowerCase()
-    ) return null;
+    // Historical uploads used owner/file.jpg and owner/folder/file.jpg.
+    // The caller accepts references only from a freshly leased server payload.
+    if (job.subject_kind === "user") {
+      if (bucket !== "profile-media") return null;
+    } else if (job.subject_kind === "visit") {
+      if (
+        bucket === "visit-photos-private" &&
+        (segments.length < 3 ||
+          segments[1].toLowerCase() !== job.subject_id.toLowerCase())
+      ) return null;
+    } else return null;
     return { bucket, path };
   } catch {
     return null;
@@ -91,34 +96,55 @@ export async function processScreeningJob(
     if (current.error) return "deferred";
     if (!current.data) return "stale";
     const payload = current.data as { text?: unknown; images?: unknown };
-    let outcome: ScreeningResult;
-    if (typeof payload.text !== "string" || !Array.isArray(payload.images)) {
-      outcome = { state: "needs_review", reason: "invalid_input" };
-    } else {
-      const images: ScreeningInput["images"] = [];
-      let failed: "invalid_input" | "provider_unavailable" | null = null;
-      let total = 0;
-      if (payload.images.length > 12) failed = "invalid_input";
-      else {for (const ref of payload.images) {
+    let outcome: ScreeningResult = {
+      state: "retry",
+      reason: "invalid_input",
+      retryAfterSeconds: 60,
+      diagnostics: { stage: "payload" },
+    };
+    if (
+      typeof payload.text === "string" && Array.isArray(payload.images) &&
+      payload.images.length <= 12
+    ) {
+      const refs = payload.images.length ? payload.images : [null];
+      let aggregate: Extract<ScreeningResult, { state: "approved" }> | null =
+        null;
+      for (const ref of refs) {
+        const images: ScreeningInput["images"] = [];
+        if (ref !== null) {
           const location = screeningMediaLocation(
             ref,
             job,
             configuration.supabaseURL,
           );
           if (!location) {
-            failed = "invalid_input";
+            outcome = {
+              state: "retry",
+              reason: "invalid_input",
+              retryAfterSeconds: 60,
+              diagnostics: { stage: "media_reference" },
+            };
             break;
           }
           const media = await client.storage.from(location.bucket).download(
             location.path,
           );
           if (media.error || !media.data) {
-            failed = "provider_unavailable";
+            outcome = {
+              state: "retry",
+              reason: "provider_unavailable",
+              retryAfterSeconds: 60,
+              diagnostics: { stage: "media_download" },
+            };
             break;
           }
-          total += media.data.size;
-          if (media.data.size > 8 * 1024 * 1024 || total > 16 * 1024 * 1024) {
-            failed = "invalid_input";
+          if (media.data.size > 20 * 1024 * 1024) {
+            outcome = {
+              state: "retry",
+              reason: "invalid_input",
+              retryAfterSeconds: 60,
+              diagnostics: { stage: "media_size" },
+            };
             break;
           }
           const bytes = new Uint8Array(await media.data.arrayBuffer());
@@ -128,28 +154,35 @@ export async function processScreeningJob(
             ? "image/png"
             : null;
           if (!mime) {
-            failed = "invalid_input";
+            outcome = {
+              state: "retry",
+              reason: "invalid_input",
+              retryAfterSeconds: 60,
+              diagnostics: { stage: "media_format" },
+            };
             break;
           }
           images.push({ mime, bytes });
-        }}
-      // Recheck after media loading, immediately before any external transmission.
-      const fresh = await client.rpc("read_screening_lease_v1", identity);
-      if (fresh.error) return "deferred";
-      if (!fresh.data) return "stale";
-      outcome = failed === "provider_unavailable"
-        ? {
-          state: "retry",
-          reason: "provider_unavailable",
-          retryAfterSeconds: 60,
         }
-        : failed
-        ? { state: "needs_review", reason: failed }
-        : await screenContent(
+        // Check deletion, audience and revision before EACH external request.
+        const fresh = await client.rpc("read_screening_lease_v1", identity);
+        if (fresh.error) return "deferred";
+        if (!fresh.data) return "stale";
+        outcome = await screenContent(
           { audience: "shared", text: payload.text, images },
           configuration,
           request,
         );
+        if (outcome.state !== "approved") break;
+        if (!aggregate) aggregate = outcome;
+        else {for (const key of Object.keys(outcome.scores)) {
+            aggregate.scores[key] = Math.max(
+              aggregate.scores[key],
+              outcome.scores[key],
+            );
+          }}
+      }
+      if (outcome.state === "approved" && aggregate) outcome = aggregate;
     }
     if (outcome.state === "excluded") return "stale";
     const { state, ...details } = outcome;

@@ -237,6 +237,8 @@ struct MugshotShareTests {
     @Test func profileLinksNormalizeUsernamesAndPreserveLegacyTokens() {
         let base = URL(string: "https://mugshotapp.co")!
         #expect(MugshotProfileSharedLinkRoute.resolve(URL(string: "https://mugshotapp.co/profile/Joe")!, publicBaseURL: base)?.slug == "@joe")
+        #expect(MugshotProfileSharedLinkRoute.resolve(URL(string: "https://app.mugshotapp.co/profile/Joe")!, publicBaseURL: base)?.slug == "@joe")
+        #expect(MugshotProfileSharedLinkRoute.resolve(URL(string: "https://evil.mugshotapp.co/profile/Joe")!, publicBaseURL: base) == nil)
         #expect(MugshotProfileSharedLinkRoute.resolve(URL(string: "mugshot://profile/joe")!, publicBaseURL: nil)?.slug == "@joe")
         let token = String(repeating: "a", count: 48)
         #expect(MugshotProfileSharedLinkRoute.resolve(URL(string: "https://mugshotapp.co/p/\(token)")!, publicBaseURL: base)?.slug == token)

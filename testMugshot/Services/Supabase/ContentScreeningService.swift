@@ -17,6 +17,8 @@ struct ContentScreeningItem: Decodable, Identifiable {
 
     struct Evidence: Decodable {
         let categories: [String: Bool]?
+        let diagnostics: Diagnostic?
+        struct Diagnostic: Decodable { let stage: String?; let http_status: Int?; let error_code: String?; let request_id: String? }
     }
     let media_urls: [String?]?
 
@@ -44,12 +46,14 @@ struct ContentScreeningItem: Decodable, Identifiable {
         default: "Shared content"
         }
     }
+    var isTechnicalFailure: Bool { state == "service_error" || (state != "approved" && ["invalid_input", "provider_configuration", "invalid_response", "provider_unavailable", "screening_unavailable"].contains(reason ?? "")) }
     var stateTitle: String {
-        switch state {
+        if isTechnicalFailure { return state == "pending" ? "Checking sharing · retrying" : "Sharing check delayed" }
+        return switch state {
         case "approved": "Screening passed"
         case "rejected": "Not shared"
         case "needs_review": "Awaiting review"
-        default: "Screening pending"
+        default: "Checking sharing"
         }
     }
 }

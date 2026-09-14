@@ -209,11 +209,7 @@ Deno.serve(async (request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
     : null;
-  const imageURL = await resolveImage(
-    projection.profile,
-    adminClient,
-    supabaseURL,
-  );
+  const imageURL = `${marketingURL}/og/profile/${encodeURIComponent(projection.profile.username.toLowerCase())}.png`;
   if (wantsJSON) {
     const { data: sips, error: sipsError } = await client.rpc(
       "list_profile_link_sips_v1",
@@ -240,7 +236,7 @@ Deno.serve(async (request) => {
     });
   }
   const title =
-    `${projection.profile.display_name} (@${projection.profile.username}) on Mugshot`;
+    `Add me on Mugshot · @${projection.profile.username}`;
   const description = projection.profile.bio?.trim() ||
     `Explore ${projection.profile.display_name}'s public Mugshot profile.`;
   const body = metadataPage({ title, description, canonicalURL, imageURL });

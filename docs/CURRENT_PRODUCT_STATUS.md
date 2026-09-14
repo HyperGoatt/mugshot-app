@@ -6,6 +6,12 @@ last_verified: 2026-09-14
 
 # Current product status
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 Sprint 1 is staged on production for the owner's real-account dev-build test.
 Readable profile links, screening/review and updated server contracts are deployed.
 The signed dev build 0.5.3 (6) is installed on the owner's iPhone, configured for

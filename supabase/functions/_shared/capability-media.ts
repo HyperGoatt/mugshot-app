@@ -74,7 +74,7 @@ export function legacyCapabilityStorageReference(
       !["profile-media", "visit-photos", "visit-photos-private"].includes(
         bucket,
       ) ||
-      parts.length < (bucket === "profile-media" ? 2 : 3) ||
+      parts.length < (bucket === "visit-photos-private" ? 3 : 2) ||
       parts.some((part) => !part || part === "." || part === "..")
     ) return null;
     return { bucket, path: parts.join("/") };
@@ -103,6 +103,13 @@ export function mediaBelongsToScope(
   const parts = reference.path.split("/");
   if (parts[0]?.toLowerCase() !== scope.ownerID.toLowerCase()) return false;
   if (scope.kind === "profile") return reference.bucket === "profile-media";
+  // Historical projections contain owner/file and owner/visits/file objects.
+  // The caller must obtain the exact reference from an authorized projection.
+  if (reference.bucket === "visit-photos" && parts.length === 2) return true;
+  if (
+    reference.bucket === "profile-media" && parts[1] === "visits" &&
+    parts.length >= 3
+  ) return true;
   return ["visit-photos", "visit-photos-private"].includes(reference.bucket) &&
     typeof scope.visitID === "string" && uuid.test(scope.visitID) &&
     parts[1]?.toLowerCase() === scope.visitID.toLowerCase();

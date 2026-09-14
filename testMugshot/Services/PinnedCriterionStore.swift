@@ -53,6 +53,21 @@ final class PinnedCriterionStore {
         })
     }
 
+    /// Update explicit pin toggles only. Replacing a draft's criteria during
+    /// initialization must not erase preferences that have yet to be restored.
+    func synchronizeChanges(from old: [SipRatingCriterionSnapshot], to new: [SipRatingCriterionSnapshot], scope: String) {
+        let resolvedScope = normalized(scope)
+        var updated = records
+        for criterion in new {
+            guard let previous = old.first(where: { $0.id == criterion.id }),
+                  previous.isPinned != criterion.isPinned else { continue }
+            let name = normalized(criterion.name)
+            updated.removeAll { $0.scope == resolvedScope && $0.name == name }
+            if criterion.isPinned == true { updated.append(Record(scope: resolvedScope, name: name)) }
+        }
+        save(updated)
+    }
+
     func pinnedNames(scope: String) -> [String] {
         records
             .filter { $0.scope == normalized(scope) }

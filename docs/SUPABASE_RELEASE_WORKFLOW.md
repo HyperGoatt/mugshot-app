@@ -6,6 +6,12 @@ last_verified: 2026-09-14
 
 # Mugshot Supabase release workflow
 
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
 Date established: 2026-07-22
 
 ## Outcome
