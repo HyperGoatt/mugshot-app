@@ -1889,32 +1889,32 @@ private struct SipDetailActionDock: View {
     let onReaction: (PostReactionKind) -> Void
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
         HStack(spacing: 4) {
             ForEach(leadingActions) { action in
                 actionControl(action)
             }
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
+
+            if let state = model.reactionState, state.totalCount > 0 {
+                Button(action: onReactionPeople) {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) { reactionTotals(state) }
+                        VStack(alignment: .trailing, spacing: 6) { reactionTotals(state) }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSage)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("See all \(state.totalCount) reactions")
+                .accessibilityIdentifier("sip.detail.reactionPeople")
+            }
 
             ForEach(trailingActions) { action in
                 actionControl(action)
             }
-        }
-        if let state = model.reactionState, state.totalCount > 0 {
-            Button(action: onReactionPeople) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { reactionTotals(state) }
-                    VStack(alignment: .trailing, spacing: 6) { reactionTotals(state) }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.mugshotSage)
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("See all \(state.totalCount) reactions")
-            .accessibilityIdentifier("sip.detail.reactionPeople")
-        }
         }
         .frame(minHeight: 52)
         .background(Color.creamWhite)

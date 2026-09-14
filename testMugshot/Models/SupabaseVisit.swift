@@ -528,7 +528,7 @@ enum PostReactionKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .like: "hand.thumbsup.fill"
         case .love: "heart.fill"
         case .laugh: "face.smiling.fill"
-        case .yummy: "fork.knife"
+        case .yummy: "cup.and.saucer.fill"
         }
     }
 }
