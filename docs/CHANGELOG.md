@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — Keep restricted-content previews current
+
+Retain the restriction and audit history while updating the review revision when
+shared content changes. Private withdrawal retains the original owner for account
+deletion cleanup. Focused SQL checks cover current preview and stale revision
+invalidation. Production migration count is 170. Both public privacy pages are
+updated; the dev build is installed and launched, awaiting owner interaction checks.
+
 ## 2026-09-14 — Local text filtering and report-driven moderation
 
 - Replaced external provider execution with transactional blocked-term validation

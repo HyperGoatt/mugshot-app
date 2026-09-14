@@ -10,7 +10,7 @@ Production now uses synchronous server-side blocked-term validation for shared t
 and report-driven human moderation for photos and other shared content. OpenAI
 provider execution is removed, its worker endpoint returns 410, its schedule is
 retired, and its five server configuration secrets are removed. Migration history
-is 169. Existing reporting, retry deduplication, block enforcement, operator alerts,
+is 170. Existing reporting, retry deduplication, block enforcement, operator alerts,
 review decisions and appeals remain. The five initial English rules target explicit
 threats, exploitation and slurs; they are a narrow blocklist, not semantic analysis
 or a guarantee of App Review approval. Private journal text remains excluded.
