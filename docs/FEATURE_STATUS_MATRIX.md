@@ -100,13 +100,13 @@ production and TestFlight retain their separately recorded deployment states.
 | Account export/deletion | Existing production backend gates; Sprint 1 Apple cleanup integration in source | Export manifest, step-up deletion and scheduled cleanup; native Apple code capture, encrypted provider queue and lease-fenced worker with synthetic contracts | Configure Apple credentials, full QA replay and destructive-flow acceptance |
 | Analytics | Implemented for core journeys and notification lifecycle | Pinned PostHog SDK; coarse education, permission, registration, preference, Activity-open and route events with no token/content identifiers | Monitor opt-outs, failures, and tester noise after distribution |
 | Documentation | Living baseline merged | PR #46; canonical index, change log, policy and automated checks | Keep current in every PR |
-| TestFlight | 0.5.3 (6) uploaded, processed, and `Testing` | Exact `b498d92` Simulator and Release archive gates passed; the owner reported completed device QA and waived a redundant rerun. App Store Connect published `Welcome to Mugshot!` and assigned Mugshot Team plus Alpha Friends | Keep reports open until hands-on replacement-build acceptance; complete the remaining production notification matrix |
+| TestFlight | 0.5.3 (7) uploaded, processed, and `Testing` | Exact `bead2de` iPhone 16 Pro Simulator, connected-iPhone build/install/launch, and Release archive gates passed. App Store Connect published `Welcome to Mugshot` and assigned Mugshot Team plus Alpha Friends with 12 external testers. No App Store release was submitted | Keep reports open until hands-on build-7 acceptance; complete the remaining production notification matrix |
 
 ## Notification sprint priority
 
 1. Complete foreground alert, background alert/icon badge, terminated-tap,
    category suppression, and sign-out checks.
-2. Collect hands-on acceptance from TestFlight 0.5.3 (6) and keep unresolved
+2. Collect hands-on acceptance from TestFlight 0.5.3 (7) and keep unresolved
    reports open until their replacement-build behavior is accepted.
 
 

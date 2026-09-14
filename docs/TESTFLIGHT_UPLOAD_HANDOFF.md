@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-14
 ---
 
 # TestFlight Upload Handoff
@@ -9,34 +9,28 @@ last_verified: 2026-08-26
 Use this format for every Mugshot TestFlight archive, upload, or testing-group
 handoff.
 
-Organizer and the cached Xcode feedback packages confirm tester use of 0.5.3
-(5). The completed 44-report remediation candidate is 0.5.3 (6). On 2026-08-26
-the exact `main` candidate at `b498d92` passed its Simulator and Release archive
-gates, uploaded to App Store Connect, completed processing, and entered
-TestFlight testing. The owner reported that the candidate had already been
-tested on the connected iPhone and explicitly waived a redundant device rerun
-before upload; Codex did not repeat that install after the final `main` sync.
-Every report remains open until the replacement build is accepted; see the
-[feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
+TestFlight 0.5.3 (7) is the current beta. The exact `main` source at `bead2de`
+passed its iPhone 16 Pro Simulator gate, signed connected-iPhone build, install,
+and launch gate, and Release archive gate. Xcode uploaded the archive on
+2026-09-14; App Store Connect completed processing and records the build as
+`Testing` with a 90-day testing window. Mugshot Team and Alpha Friends are
+assigned, including 12 external testers. No App Store release was submitted.
 
-Current remediation evidence includes 425 unit tests, eight focused Simulator
-UI journeys, all 43 screenshot reports plus the text-only report, later focused
-profile/feed checks, and consolidated Simulator acceptance. Earlier signed
-Debug sources built, installed, and launched on the connected iPhone. Xcode
-Organizer records build 6 as uploaded at 9:37 PM EDT, and App Store Connect
-records the processed build as `Testing` with a 90-day testing window. The
-reaction migration is not production-configured.
+Build 7 contains the current merged product, moderation, sharing,
+regression-repair, reaction, and explicit-profile-identity work. Test results
+and unresolved acceptance items remain tracked in the
+[feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
 
 ## Build status
 
-- Version/build: 0.5.3 (6)
+- Version/build: 0.5.3 (7)
 - App Store Connect status: Testing; upload and processing complete
-- Testing groups: Mugshot Team and Alpha Friends assigned
-- Build record: `ccea92e7-f782-47ad-af67-c5da0cbf86cc`
+- Testing groups: Mugshot Team and Alpha Friends assigned; 12 external testers
+- Build record: `590450f6-54b2-4927-9ff9-57e7362f085f`
 
 ## What to Test — published
 
-> Welcome to Mugshot!
+> Welcome to Mugshot
 
 ## Historical example: Build 0.5.2 (3)
 
