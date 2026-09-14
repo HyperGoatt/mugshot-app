@@ -27,28 +27,25 @@ private struct ScreeningAccountView: View {
     var body: some View {
         List {
             Section {
-                Text("Shared content is checked before others can see it. Content awaiting screening or review remains available to you. Passing screening does not change your audience or profile consent.")
-                Text("Private journal content is excluded. Shared text and supported photos are processed by OpenAI for safety screening, without opting into model training. Mugshot handles review decisions.")
+                Text("Shared text is checked against basic blocked terms when you save. People can report shared posts, photos, and profiles for Mugshot to review. Your audience and profile settings still apply.")
+                Text("Private journal content is excluded. Photos are moderated through reports and human review. Mugshot does not send content to OpenAI.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if reviewer {
                 NavigationLink("Flagged content") {
                     ScreeningQueueView(accountID: accountID)
                 }
-                NavigationLink("Service status") {
-                    ScreeningQueueView(accountID: accountID, serviceStatus: true)
-                }
                 NavigationLink("Reports and appeals") {
                     ModerationCasesView(accountID: accountID)
                 }
             }
-            Section("Your latest 100 screening records") {
+            Section("Your latest 100 sharing records") {
                 if loading { ProgressView("Checking status…") }
                 if let error {
                     Text(error).foregroundStyle(.secondary)
                     Button("Try again") { Task { await load() } }
                 } else if !loading && items.isEmpty {
-                    Text("No screening records are available for this account.")
+                    Text("No sharing records are available for this account.")
                 }
                 ForEach(items) { item in
                     NavigationLink {
@@ -79,7 +76,7 @@ private struct ScreeningAccountView: View {
         } catch {
             guard requestID == request else { return }
             clear()
-            if !Task.isCancelled { self.error = "Screening status is unavailable. Try again when connected." }
+            if !Task.isCancelled { self.error = "Sharing status is unavailable. Try again when connected." }
         }
     }
 }

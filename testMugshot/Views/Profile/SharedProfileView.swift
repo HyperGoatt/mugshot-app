@@ -37,7 +37,8 @@ struct SharedProfileView: View {
     @State private var showsEveryonePreview = false
     @State private var showsFriends = false
     @State private var showsFavoriteEditor = false
-    @State private var taggedAction: TaggedProfileAction?
+    @State private var hiddenProfileSip: PublicProfileVisit?
+    @State private var profileActionBusy = false
 
     var body: some View {
         Group {
@@ -134,24 +135,6 @@ struct SharedProfileView: View {
                 .environmentObject(authModel)
             }
         }
-        .confirmationDialog(
-            "Tagged Mugshot",
-            isPresented: Binding(
-                get: { taggedAction != nil },
-                set: { if !$0 { taggedAction = nil } }
-            ),
-            presenting: taggedAction
-        ) { action in
-            Button("Hide from profile") {
-                Task { await hideTaggedSip(action.sip) }
-            }
-            Button("Remove my tag", role: .destructive) {
-                Task { await removeTag(from: action.sip) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Hiding keeps your tag on the Mugshot. Removing your tag also removes it from this profile tab.")
-        }
     }
 
     private func profileBody(_ projection: SharedProfileProjection) -> some View {
@@ -181,6 +164,21 @@ struct SharedProfileView: View {
                 profileTabRail
                     .padding(.top, 14)
 
+                if showsOwnerControls {
+                    if let hiddenProfileSip {
+                        HStack {
+                            Text("Hidden from your profile only.")
+                            Spacer()
+                            Button("Undo") { Task { await setProfileHidden(hiddenProfileSip, hidden: false) } }
+                                .disabled(profileActionBusy)
+                        }
+                        .font(.footnote)
+                        .padding()
+                    }
+                    if let errorMessage {
+                        Text(errorMessage).font(.footnote).foregroundStyle(.red).padding(.horizontal)
+                    }
+                }
                 tabContent(projection)
             }
             .padding(.bottom, 42)
@@ -493,18 +491,22 @@ struct SharedProfileView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Open \(sip.drinkDisplayName)")
-
-                            if isTagged && showsOwnerControls {
-                                Button { taggedAction = TaggedProfileAction(sip: sip) } label: {
-                                    Image(systemName: "ellipsis")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 30, height: 30)
-                                        .background(.black.opacity(0.48), in: Circle())
-                                        .padding(6)
+                            .contextMenu {
+                                if showsOwnerControls, authModel.authenticatedUser?.id == profile.id {
+                                    Button {
+                                        Task { await setProfileHidden(sip, hidden: true) }
+                                    } label: {
+                                        Label("Hide from my profile", systemImage: "eye.slash")
+                                    }
+                                    .disabled(profileActionBusy)
+                                    Text("Only hides from your profile. Other profiles and feeds are unchanged.")
+                                    if isTagged {
+                                        Button("Remove my tag", role: .destructive) {
+                                            Task { await removeTag(from: sip) }
+                                        }
+                                        .disabled(profileActionBusy)
+                                    }
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Tagged Mugshot actions")
                             }
                         }
                         .onAppear {
@@ -767,13 +769,28 @@ struct SharedProfileView: View {
     }
 
     @MainActor
-    private func hideTaggedSip(_ sip: PublicProfileVisit) async {
+    private func setProfileHidden(_ sip: PublicProfileVisit, hidden: Bool) async {
+        guard !profileActionBusy, showsOwnerControls,
+              let accountID = authModel.authenticatedUser?.id,
+              projection?.profile.id == accountID else { return }
+        profileActionBusy = true
+        defer { profileActionBusy = false }
         do {
             let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
-            _ = try await service.setTaggedPostHidden(visitID: sip.id, hidden: true)
-            taggedSips.removeAll { $0.id == sip.id }
+            _ = try await service.setTaggedPostHidden(visitID: sip.id, hidden: hidden)
+            guard authModel.authenticatedUser?.id == accountID else { return }
+            errorMessage = nil
+            if hidden {
+                sips.removeAll { $0.id == sip.id }
+                taggedSips.removeAll { $0.id == sip.id }
+                hiddenProfileSip = sip
+            } else {
+                hiddenProfileSip = nil
+                await loadInitial()
+            }
         } catch {
-            errorMessage = "Mugshot couldn’t hide this tagged Mugshot."
+            guard authModel.authenticatedUser?.id == accountID else { return }
+            errorMessage = "Mugshot couldn’t update your profile. Please try again."
         }
     }
 
@@ -829,11 +846,6 @@ struct SharedProfileView: View {
             return $0.sipCount > $1.sipCount
         }
     }
-}
-
-private struct TaggedProfileAction: Identifiable {
-    let sip: PublicProfileVisit
-    var id: UUID { sip.id }
 }
 
 private struct ProfileExplorationMap: View {

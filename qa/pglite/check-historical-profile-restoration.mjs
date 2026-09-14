@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';import fs from 'node:fs/promises';import {PGlite} from '@electric-sql/pglite';
+const db=new PGlite();const a='10000000-0000-4000-8000-000000000001',b='10000000-0000-4000-8000-000000000002',v='20000000-0000-4000-8000-000000000001',n='20000000-0000-4000-8000-000000000002';
+try{
+ await db.exec(`create role anon;create role authenticated;create schema auth;create schema private;
+ create table public.users(id uuid primary key);insert into public.users values('${a}'),('${b}');
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.actor',true),'')::uuid$$;
+ create function private.is_live_account_as(uuid) returns boolean language sql stable as $$select $1 is not null$$;
+ create table public.profile_visibility_preferences(user_id uuid primary key,show_friends_on_public_profile boolean not null default true,created_at timestamptz default now(),updated_at timestamptz default now());
+ create table public.visits(id uuid primary key,user_id uuid,visibility text,upload_state text,created_at timestamptz default now());
+ create table public.visit_tags(visit_id uuid,tagged_user_id uuid);
+ create table public.profile_tagged_post_hides(user_id uuid,visit_id uuid,primary key(user_id,visit_id));
+ create function private.profile_owner_visible_v2(uuid,uuid) returns boolean language sql as $$select true$$;
+ create function private.has_active_moderation_action(text,uuid,text[]) returns boolean language sql as $$select false$$;
+ create function private.screening_approved_v1(text,uuid) returns boolean language sql as $$select true$$;
+ insert into public.visits(id,user_id,visibility,upload_state) values('${v}','${a}','friends','complete');insert into public.visit_tags values('${v}','${b}');`);
+ for(const f of ['20260913020258_sprint1_profile_consent.sql','20260914043621_profile_publication_preferences.sql'])await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+ const actor=async id=>db.query("select set_config('test.actor',$1,false)",[id]);
+ const visible=async(id,profile)=>(await db.query('select private.profile_visit_published_v1($1,$2) ok',[id,profile])).rows[0].ok;
+ const snapshot=async()=> (await db.query("select (select jsonb_agg(to_jsonb(v)) from public.visits v) visits,(select jsonb_agg(to_jsonb(p)) from public.profile_visibility_preferences p) preferences,(select jsonb_agg(to_jsonb(h)) from public.profile_tagged_post_hides h) hides")).rows[0];
+ const before=await snapshot();assert.equal(await visible(v,a),false,'reproduce historical Friends exclusion without consent');
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260914144708_restore_historical_friends_publication.sql',import.meta.url),'utf8'));
+ assert.deepEqual(await snapshot(),before,'no original posts, preferences or hides changed');
+ assert.equal(await visible(v,a),true,'historical author projection restored');assert.equal(await visible(v,b),true,'historical tagged projection restored');
+ assert.equal((await db.query('select count(*)::int n from public.profile_visibility_preferences')).rows[0].n,0,'no fabricated consent');
+ await actor(a);await db.query('select public.set_profile_tagged_post_hidden_v1($1,true)',[v]);assert.equal(await visible(v,a),false);assert.equal(await visible(v,b),true,'author hide independent');await db.query('select public.set_profile_tagged_post_hidden_v1($1,false)',[v]);
+ await db.query('select public.set_profile_friends_visibility_v3(false)');assert.equal(await visible(v,a),false,'author opt-out preserved');assert.equal(await visible(v,b),false,'historical author opt-out not bypassed');await db.query('select public.set_profile_friends_visibility_v3(true)');
+ await actor(b);await db.query('select public.set_profile_friends_visibility_v3(false)');assert.equal(await visible(v,a),true);assert.equal(await visible(v,b),false,'tagged profile opt-out respected');await db.query('select public.set_profile_friends_visibility_v3(true)');
+ await db.query("update public.visits set visibility='private' where id=$1",[v]);assert.equal(await visible(v,a),false);assert.equal(await visible(v,b),false,'Private excluded everywhere');await db.query("update public.visits set visibility='friends' where id=$1",[v]);
+ await db.exec("create or replace function private.has_active_moderation_action(text,uuid,text[]) returns boolean language sql as $$select true$$;");assert.equal(await visible(v,a),false,'real enforcement retained');await db.exec("create or replace function private.has_active_moderation_action(text,uuid,text[]) returns boolean language sql as $$select false$$;");
+ await db.exec("create or replace function private.profile_owner_visible_v2(uuid,uuid) returns boolean language sql as $$select false$$;");assert.equal(await visible(v,a),false,'profile availability gate retained');await db.exec("create or replace function private.profile_owner_visible_v2(uuid,uuid) returns boolean language sql as $$select true$$;");
+ await db.query("insert into public.visits(id,user_id,visibility,upload_state) values($1,$2,'friends','complete')",[n,a]);assert.equal(await visible(n,a),false,'future unacknowledged posts not silently grandfathered');
+ await db.query('delete from public.visits where id=$1',[v]);assert.equal(await visible(v,a),false,'deleted post excluded');
+ console.log('PASS historical restoration: authored/tagged projections, no data/consent edits, opt-outs, hides, Private, enforcement, profile availability, future boundaries, deletion');
+}finally{await db.close();}

@@ -38,7 +38,6 @@ struct LogVisitView: View {
     @State private var isSaving = false
     @State private var checkingPublicationPolicy = false
     @State private var showPublicationNotice = false
-    @State private var includeHistoricalFriends = false
     @State private var noticeProfileEnabled = true
     @State private var showSavedConfirmation = false
     @State private var completionSummary: SipCompletionSummary?
@@ -335,8 +334,7 @@ struct LogVisitView: View {
                             if !noticeProfileEnabled { Text("Your previous choice to hide Friends posts from your own profile is preserved.") }
                         }
                         Section {
-                            Toggle("Also include my older Friends posts", isOn: $includeHistoricalFriends)
-                            Text("Off keeps your historical sharing choices unchanged.")
+                            Text("Existing Friends posts follow this rule too. Your profile settings and individually hidden posts are respected.")
                         }
                         if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
                         Button(checkingPublicationPolicy ? "Saving…" : "Got it · Publish") { acknowledgePublication() }
@@ -2953,7 +2951,6 @@ struct LogVisitView: View {
                 if policy.acknowledged == true { saveSip() }
                 else {
                     noticeProfileEnabled = policy.show_friends
-                    includeHistoricalFriends = false
                     showPublicationNotice = true
                 }
             } catch { errorMessage = "Couldn’t check your sharing preferences. Your draft is saved; try again when connected." }
@@ -2967,7 +2964,7 @@ struct LogVisitView: View {
             defer { checkingPublicationPolicy = false }
             do {
                 let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
-                try await service.acknowledgePublication(includeHistorical: includeHistoricalFriends)
+                try await service.acknowledgePublication(includeHistorical: false)
                 guard authModel.authenticatedUser?.id == owner else { return }
                 showPublicationNotice = false
                 saveSip()
