@@ -103,7 +103,7 @@ its real UI against a local synthetic HTTP backend and reached Feed. An addition
 focused AuthSessionIdentityTests regression passed with isolated Keychain storage
 and a synthetic HTTP response. A direct synthetic Keychain write/read/delete probe
 also passed. These rule out a general current-build Keychain or AuthService
-identity failure; live hosted acceptance remains unverified. No production-account
+identity failure. Follow-up hosted sign-in, profile setup, Feed reads and session restoration after relaunch now pass against the isolated repaired backend. No production-account
 or authentication safety checks were weakened.
 
 Live MapKit returned the Burlington result first for “Muddy Waters Vermont” from
@@ -124,7 +124,7 @@ browser session requires sign-in. Computer control also reported a locked Mac.
 The owner was asked only to unlock and sign in; provisioning and installation
 remain agent work afterward. No repaired dev candidate is installed on the phone.
 
-Remaining: verify the app session against a live hosted backend, finish the consolidated
+Remaining: finish the consolidated
 runtime matrix, regenerate dev provisioning, install on the connected phone,
 then run the guarded production rollout and measure technical-backlog recovery.
 Production migrations, screening thresholds, legacy bucket visibility and all
@@ -144,10 +144,10 @@ artifact or a demonstrated failure.
 
 | Gate | Required evidence | Current state |
 | --- | --- | --- |
-| Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Local synthetic pass only; hosted run pending |
+| Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Passed signed app email sign-in, profile setup, Feed reads and relaunch against disposable hosted QA |
 | Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; integrated UI pending |
 | Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; integrated UI pending |
-| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; remaining integrated paths pending |
+| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; remaining composer paths pending |
 | Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
 | Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Provisioning requires Apple sign-in |
 | Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
@@ -162,3 +162,17 @@ and photos remain visible. Then inspect the audience notice, one new shared sip,
 its screening detail, an authored profile hide, a reaction, and a copied profile
 link. Keep genuine flagged-content and outage fixtures in isolated QA. Record
 actual outcomes rather than interpreting absence of an error as acceptance.
+
+Follow-up hosted acceptance used disposable branch repair-hosted-runtime-20260914.
+The signed Simulator app completed email sign-in and profile setup, loaded hosted
+Feed data, and restored its session after relaunch. Like, Love, Laugh and Yummy
+were selected through the app and independently confirmed in public.likes. Laugh
+remained visible after relaunch. An isolated forced RPC failure restored the prior
+Yummy icon and preserved the database value; the original QA RPC was restored.
+No production data was used or changed by these synthetic interactions.
+
+The browser Simulator mirror rendered successfully but did not execute its
+coordinate input, so it did not establish composer acceptance. Mac native control
+remains locked and Apple Developer remains at sign-in. Do not repeat completed
+checks while awaiting that physical/authentication handoff. The hosted branch was
+deleted and the subsequent branch listing contained only production main.

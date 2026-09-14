@@ -931,3 +931,8 @@ device and production rollout gates remain pending.
 Recorded the remaining repair acceptance gates and the complete shared-media
 function deployment set. This documentation checkpoint makes no additional
 runtime or production acceptance claim.
+
+Follow-up hosted runtime acceptance passed email sign-in, profile setup, session
+restoration, all four reaction saves, and visible rollback on a forced save
+failure. The disposable hosted branch was deleted and its removal verified.
+Remaining interactive acceptance, signing and production rollout remain pending.
