@@ -49,6 +49,16 @@ updated; the dev build is installed and launched, awaiting owner interaction che
 
 # Mugshot change log
 
+## 2026-09-14 — Prepare TestFlight 0.5.3 (7)
+
+- Advanced the app, share extension, and widget build number from 6 to 7 while
+  keeping the approved 0.5.3 marketing version.
+- The exact build-7 candidate compiled, installed, and launched on the booted
+  iPhone 16 Pro Simulator and on Joe's connected iPhone. Distribution and
+  TestFlight processing are recorded separately after upload.
+- Per owner direction, TestFlight **What to Test** for this and future beta
+  builds is `Welcome to Mugshot`.
+
 ## 2026-09-14 — Require an explicitly chosen public username
 
 - Added a separate username-confirmation receipt to profile setup. Existing

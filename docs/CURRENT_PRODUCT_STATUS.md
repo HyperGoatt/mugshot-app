@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## TestFlight 0.5.3 (7) candidate — 2026-09-14
+
+Build 7 keeps marketing version 0.5.3 and contains the current merged product,
+moderation, sharing, regression-repair, reaction, and explicit-profile-identity
+work. The exact candidate compiled, installed, and launched on the booted iPhone
+16 Pro Simulator and on Joe's connected iPhone. Upload and App Store Connect
+processing remain separate until recorded after distribution. The owner set the
+standing beta **What to Test** copy to `Welcome to Mugshot`.
+
 ## Explicit profile identity setup — 2026-09-14
 
 The next candidate no longer treats a collision-safe signup username as the
