@@ -6,27 +6,30 @@ last_verified: 2026-09-14
 
 # Current product status
 
-Sprint 1 source adds readable `/profile/username` links, permanently reserved
-handle aliases, and anonymous recipient pages in the companion PWA. The
-unavailable Journal Passport entry and onboarding promotion are removed; the
-companion marketing site removes current-feature promises. Local
-handle contracts and synthetic browser checks pass; these changes are not yet
-production deployed. Focused native and physical photo acceptance passes; the
-owner now has an isolated dev build for whole-app review. Cafe-list, profile
-and post links all honor the configured sharing domain. Current delivery evidence
-is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+Sprint 1 is staged on production for the owner's real-account dev-build test.
+Readable profile links, screening/review and updated server contracts are deployed.
+The signed dev build 0.5.3 (6) is installed on the owner's iPhone, configured for
+production; the real feed and photos visibly loaded. No TestFlight upload or
+App Store submission was performed. Owner acceptance with real data is pending.
 
-## Photo preservation candidate — September 14
+The atomic update preserved all 72 original tables, including 80 posts and all
+notification text. All 331 Storage objects remain. Encrypted photo-byte recovery
+and an isolated typed database-data restore (72 tables / 6,036 rows) passed.
+For compatibility with existing installs, original bucket visibility remains:
+legacy profile/visit buckets are still public; the Private bucket stays private.
+The final bucket-privacy cutover awaits compatible-client distribution/adoption.
+New native/web readers use caller-authorized signing.
 
-The compatibility bridge now supports both the existing public-photo contract
-and protected reads, including an exact missing-API fallback for old profiles.
-Encrypted byte backup/restore covers every production Storage object. Synthetic
-current/protected and atomic-transition access matrices pass, and the protected
-schema passes 64 contracts. Existing shared revisions retain visibility while
-pending screening; edits and new posts do not inherit that eligibility.
-Production remains unchanged. The rehearsal detected expected notification-copy
-rewriting in an earlier migration; activation is held for that reconciliation
-and the database recovery gate. See the release workflow for exact evidence.
+OpenAI sharing choices were reloaded and verified Disabled before activation.
+Screening is enabled; existing shared revisions retain their audience visibility
+while pending, and Private visits have zero screening jobs. Joe's creator account
+has founder review access. Scheduled deletion worker HTTP 200 is verified.
+PostHog erasure remains disabled pending its prior provider verification; real
+Apple revocation remains unverified. Do not test account deletion on the owner's
+real account as an acceptance shortcut. All disposable QA branches are deleted.
+
+Current evidence: [Sprint 1 tracker](SPRINT_1_TRACKER.md) and
+[staged rollout](SUPABASE_RELEASE_WORKFLOW.md#staged-production-owner-test--september-14).
 
 ## Release baseline
 

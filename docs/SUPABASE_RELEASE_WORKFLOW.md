@@ -46,6 +46,11 @@ The complete suite was not repeated after that test-only correction. Native
 runtime acceptance remains separate.
 See [the dated QA checkpoint](SPRINT_1_QA_2026-09-13.md).
 
+Current staging status: the owner requested real-account production testing
+before any TestFlight distribution. The [September 14 staged rollout](#staged-production-owner-test--september-14)
+supersedes earlier production-hold checkpoints below. Final bucket privatization
+remains held for compatible-client adoption.
+
 ## Preservation-first compatibility transition — September 13
 
 Production rollout is held at the owner's explicit preservation requirement.
@@ -381,3 +386,49 @@ post loss and NOT a full 72-table cutover pass. Production activation remains
 held until that notification-copy transformation is explicitly reconciled with
 the preservation requirement and the database recovery gate is satisfied.
 No production migration or bucket change occurred during this verification.
+
+## Staged production owner test — September 14
+
+The owner clarified rollout scope: install the new dev build against real
+production data for personal validation; keep TestFlight and App Store review
+on hold. The production database now has all 164 migrations and ten updated
+Sprint functions. Original bucket visibility is deliberately retained during
+this stage; this is not completion of legacy public-photo protection.
+
+`scripts/build-preserving-sprint1-rollout.mjs` generates the exact reviewed
+37-migration SQL bundle from the 127-migration source head. It never connects to
+a database itself. The artifact runs a single transaction, locks original tables
+against concurrent writes, fingerprints every original column, captures existing
+notification copy and bucket visibility, applies the migrations and their original
+history statements, restores notification copy/visibility, and aborts the entire
+transaction if any original table differs. Locks have a five-second timeout.
+Never replay the generated artifact after the source head has advanced.
+
+An isolated hosted rehearsal proved all 72 original tables unchanged and passed
+30 photo/audience checks plus profile checks, with eight historical jobs honestly
+pending. The identical production artifact committed with 72/72 preservation
+checks passing. Original notification titles/bodies/list metadata were retained;
+future notification generation follows the new generic-copy implementation.
+Do not later replace historical notification copy without a separate decision.
+
+Before deployment, encrypted database data was restored into isolated PostgreSQL:
+72 tables, 6,036 rows, original column types and every row fingerprint matched.
+This is a logical data-recovery proof, not a physical backup or a full schema/
+RLS/index restoration. The previously verified provider physical backup remains
+additional recovery evidence. Production Edge Function source was also downloaded
+into the ignored backup folder. Keep these backups and their separate keys.
+
+OpenAI feedback/evaluation/input-output sharing was freshly verified Disabled.
+The deployed privacy disclosure explicitly describes screening and no training.
+Screening and its schedule are enabled; live jobs have begun receiving approval.
+Private visits are excluded. The creator account `joe` has founder-review access.
+Dedicated production worker secrets are stored server-side and in Vault; the
+actual scheduled deletion response returned HTTP 200 before its scheduled flag
+was enabled. PostHog erasure stays disabled pending its prior verification;
+Apple revocation remains an accepted unverified boundary.
+
+Marketing PR 18 and PWA PR 13 passed checks, were merged, and local main branches
+were synchronized. Live privacy, readable-profile and PWA routes return HTTP 200.
+The production iPhone dev build installed and launched; Device Hub showed real
+feed photos. Analytics is disabled for this dev build. No TestFlight action.
+All disposable QA branches were deleted and only production remained in inventory.

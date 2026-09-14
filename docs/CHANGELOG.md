@@ -8,6 +8,20 @@ last_verified: 2026-09-14
 
 ## 2026-09-14
 
+- Staged Sprint 1 on production for the owner's real-account dev test. The
+  guarded atomic rollout preserved all 72 original tables and all original
+  bucket visibility; historical notification copy is preserved too.
+- Restored the encrypted logical backup into isolated PostgreSQL and matched
+  all 6,036 rows across 72 typed tables. Production photo inventory remains 331.
+- Deployed server functions, enabled no-training-verified screening and founder
+  review, published the companion web updates, and installed the production-
+  connected dev build on iPhone. TestFlight and final legacy bucket privacy
+  cutover remain held. All disposable QA branches are deleted.
+
+- Owner completed physical dev-build testing and requested rollout. Deleted the
+  remaining paid QA branch and verified only production remains. Final bucket-privacy
+  activation still requires the compatible-reader distribution gate.
+
 - Fixed old-backend profile-photo compatibility with a narrowly scoped missing-API
   fallback; protected-server denials continue to fail closed.
 - Added one-time visibility preservation for existing shared revisions while

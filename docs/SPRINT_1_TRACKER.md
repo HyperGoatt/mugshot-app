@@ -1749,3 +1749,45 @@ main and the owner-walkthrough QA branch remain. Keep the latter only until the
 owner finishes this phone walkthrough, then delete it to stop QA compute charges.
 Both documentation checks and backend static checks pass (11 passed, 1 optional
 skip); the signed full Sprint Simulator build and device build also pass.
+
+
+## Owner acceptance and production rollout request — September 14
+
+The owner reports phone testing finished and requests production rollout.
+The remaining owner-walkthrough QA branch was deleted; a fresh Supabase branch
+inventory confirms only main. The six synthetic phone-test posts belonged to
+that disposable environment and were not migrated to production. The encrypted
+production photo backup and key remain preserved locally.
+
+Fresh production read-only inventory: 127 migrations at 20260826143102, 80 posts,
+331 Storage objects. The activity-copy transformation would affect 485 existing
+notifications. No production schema, function, bucket or activation change has
+been made at this checkpoint. TestFlight upload scope is being clarified because
+existing distributed clients still require the compatibility update before
+bucket protection can switch on. No App Store review submission is authorized.
+
+
+## Real-account production dev handoff — September 14
+
+The owner clarified that the next acceptance is the new dev build with their
+actual production account/data, before TestFlight. A guarded staged rollout is
+now applied: 164 migrations, ten updated functions, screening enabled after
+fresh no-training/disclosure checks, and creator review access configured.
+All 72 original tables matched inside the atomic production transaction, including
+all 80 posts and existing notification text. All 331 Storage objects remain.
+The added logical recovery drill restored 72 typed tables / 6,036 rows and matched
+every fingerprint after decrypting the backup. No full physical restore is claimed.
+
+Original bucket visibility is preserved for existing clients; final legacy-bucket
+privatization still awaits compatible-client distribution. The isolated adjusted
+rollout and 30 access checks passed before production application. The extra
+rehearsal QA branch was deleted immediately afterward; only main remains.
+Production scheduled deletion returned HTTP 200 with its dedicated secret.
+PostHog erasure remains disabled and real Apple revocation remains unverified.
+
+Signed dev 0.5.3 (6) built for production, installed and launched on the connected
+iPhone; the real feed and its photos were visibly rendered. The Mac locked after
+this observed checkpoint, so the owner's personal real-data walkthrough is still
+pending. No request for TestFlight upload or App Store review is inferred.
+Marketing PR 18 (f8795c6) and PWA PR 13 (44ea573) are merged, synchronized and live.
+Native source remains on the Sprint branch for this owner acceptance phase.
