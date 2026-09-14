@@ -6,6 +6,45 @@ last_verified: 2026-09-14
 
 # Mugshot notification system
 
+## Reflection reminder extension — 2026-09-14
+
+On this day and Weekly reflection reminders are separate from social Activity
+events and unread badges. Both are opt-in. Existing stored Boolean preferences
+remain delivery-inactive until the owner explicitly saves the new settings with
+an IANA timezone and destination-capability version. On this day evaluates at
+10 AM local time only when an owned completed Mugshot exists on that month and
+day in a prior year. Weekly reflection evaluates Sundays at 6 PM local time only
+when the owner completed at least one Mugshot during the preceding seven days.
+
+Private tables own occurrence deduplication and per-installation delivery
+receipts. A five-minute cron dispatcher claims bounded work through the same
+secret-authenticated worker boundary and APNs transport as Activity. The worker
+uses deterministic collapse identifiers, six-hour anniversary expiration and
+four-hour weekly expiration. It rechecks the preference, master push setting,
+account, target ownership, current eligibility, compatible registration and the
+server rollback switch before sending. Opt-out cancels queued work; account and
+device deletion cascade through reminder state. Migration `20260914191634`
+created the switch off. Follow-up migration `20260914204700` bounds the
+deterministic APNs collapse identifier to `reflection:<occurrence UUID>`, which
+is 47 bytes and remains below Apple's 64-byte limit. Production enabled the
+switch after the scheduled worker and APNs configuration passed their health
+checks; zero preferences were delivery-active and both private queue tables were
+empty at that boundary.
+
+The payload is account-bound and routes to the selected owned memory or Journal.
+Its lock-screen title and body are generic, contain no caption, journal text,
+cafe name or photo, and do not include a badge. Older clients and installations
+that have not reported destination capability are ineligible. Simulator tests
+can prove routing and payload construction but cannot prove APNs receipt.
+
+Production has one active `mugshot-reflection-delivery-v1` five-minute cron job
+and `deliver-reflections` reports its APNs transport configured. This deployment
+does not activate legacy stored preferences. The first post-redeploy scheduled
+response at 2026-09-14 20:40 UTC was HTTP 200, protocol version 1, with zero
+enqueued, claimed, sent, failed or cancelled items; the private queue remained
+empty. Actual reminder receipt on hardware and production notification-tap
+acceptance remain pending.
+
 > Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
 > the earlier delivery and acceptance statements below for moderation, Friends
 > publication, profile sharing and the reported native bugs. Those earlier

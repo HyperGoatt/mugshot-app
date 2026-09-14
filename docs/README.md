@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-14
 ---
 
 # Mugshot documentation
@@ -22,7 +22,7 @@ with it.
 | [Product roadmap](PRODUCT_ROADMAP.md) | Current sequencing and deferred product work |
 | [Notification system](NOTIFICATION_SYSTEM.md) | Activity, APNs, device lifecycle, privacy, operations, and acceptance |
 | [Current sprint](CURRENT_SPRINT.md) | Active notification work and TestFlight feedback ledger |
-| [TestFlight feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md) | Organizer-backed disposition and acceptance state for all 44 reports |
+| [TestFlight feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md) | Organizer-backed disposition and acceptance state for all 58 reports |
 | [Post reaction contract](POST_REACTION_CONTRACT.md) | Expressive post-reaction ownership, compatibility, Activity, and verification contract |
 | [Mugsy asset status](MUGSY_ASSET_STATUS.md) | Production artwork authority and review-only vector handoff state |
 | [Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md) | Backend release, QA, safety, and drift policy |

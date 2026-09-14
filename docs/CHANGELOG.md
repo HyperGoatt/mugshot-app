@@ -4,6 +4,33 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — TestFlight feedback repair and reflection reminders
+
+- Replaced the custom capture screen with Apple's standard still-photo camera,
+  while retaining the existing photo-library path, draft ordering and media limits.
+- Personal Map pins now average the owner's completed Mugshot scores per canonical
+  cafe. Profile maps use individual mint cafe pins without regional aggregation.
+- Publication recovery now reconciles each stable visit before resuming, continues
+  past isolated failures, pauses on account-wide failures and exposes typed Retry
+  and Review states without deleting unrecovered submissions.
+- Normalized Instagram handles across setup, editing and link rendering; refreshed
+  the owner projection after save. Cafe labels now route by canonical ID, Feed
+  supports ordered photo paging, and published captions and structured journal
+  headings use the approved emphasis and copy.
+- Added explicit On this day and Weekly reflection preferences, account-bound
+  destinations, a private scheduled queue, per-installation receipts and generic
+  privacy-safe APNs payloads. Production migrations `20260914191634` and
+  `20260914204700` plus the `deliver-reflections` worker are deployed. The
+  follow-up migration bounds every APNs collapse identifier to the 47-byte
+  `reflection:<occurrence UUID>` form. The rollback switch migrated off and
+  was enabled only after health checks; zero preferences were delivery-active and
+  the queue was empty at activation. The first post-redeploy five-minute dispatch
+  returned HTTP 200 with zero enqueued, claimed, sent or failed work.
+- Added focused Swift, Edge worker and isolated PGlite contracts plus a consolidated
+  Simulator pass for Feed paging/routes, Map semantics, Profile pins, recovery,
+  journal presentation and dock stability. Hardware camera, actual APNs receipt
+  and replacement-TestFlight acceptance remain separate gates.
+
 ## 2026-09-14 — Reaction row polish
 
 Move the full-post reaction breakdown into the action row before Save, retaining

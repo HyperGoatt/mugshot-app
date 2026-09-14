@@ -1,10 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # TestFlight feedback ledger
+
+The 2026-09-14 follow-up addresses 14 selected open reports. Thirteen are new to
+the earlier 45-report ledger and one updates report 45, bringing the tracked
+total to 58. Source implementation and local verification
+remain distinct from physical and replacement-TestFlight acceptance. Missing
+hardware or TestFlight proof keeps a report open even when source exists.
+Xcode's Feedback view was inspected again on 2026-09-14 with its unresolved-only
+filter active. Every selected report's Mark as Resolved toggle remained off, so
+the Xcode status column below remains Open independently of source disposition.
 
 This is the privacy-safe disposition ledger for the 45 feedback packages
 found in the Xcode Organizer cache on 2026-09-13. It excludes tester names, email addresses,
@@ -184,7 +193,20 @@ tests passed. This source is not physically or TestFlight accepted.
 | 42 | `AEGrCESnxmyyrJrT3DMLHSc` | 0.5.2 (3), iPhone18,1, iOS 26.6 | Make profile identity clickable | R2 | Accepted for Feed and Journal identity | Yes | Passed | Pending | Open |
 | 43 | `ACAWYPJWgTrrqw9fVH1vu_w` | 0.5.2 (2), iPhone17,1, iOS 27.0 | Account deletion incomplete | R1 | Existing hardened deletion worker/step-up contract retained and regression-gated | Yes | Passed | Pending | Open |
 | 44 | `AFa47DQy7rf5-HvXhhIv6lM` | 0.5.2 (2), iPhone17,1, iOS 27.0 | Post deletion does not work | R1 | Existing caller-bound delete-owned-visit RPC retained and regression-gated | Yes | Passed | Pending | Open |
-| 45 | `ALhLR_VlbvOYXGmj8eTLOKs` | 0.5.3 (6), iPhone18,1, iOS 26.6 | Consider “Journal entry: Sip” wording with a brief explanation of sharing | R2 | Open product suggestion; not approved for Sprint 1; preserve Private-note semantics | No | Not run | Pending | Open |
+| 45 | `ALhLR_VlbvOYXGmj8eTLOKs` | 0.5.3 (6), iPhone18,1, iOS 26.6 | Clarify published Journal entry sections and sharing meaning | Follow-up | Structured Sip/Cafe/Setting headings accepted while preserving audience and Private-note boundaries | Yes | Focused presentation and Simulator checks passed | Pending | Open |
+| 46 | `ALdOmSOoFLgvimrwg8ZCu7g` | Open feedback, 2026-09-14 | Notifications should identify actor and action | Follow-up | Existing deployed actor/action projection retained; historical records preserved | Yes | Focused passed; current payload inspection passed | Pending receipt | Open |
+| 47 | `AC1rUs7Uh4HP4jN8_Wkckg` | Open feedback, 2026-09-14 | Identify who liked a post | Follow-up | Existing authorized reaction people, names, avatars and profile routes retained | Yes | Focused passed | Pending | Open |
+| 48 | `AGrEETtC9WZ_yB1KoOhHdDM` | Open feedback, 2026-09-13 | Bottom navigation intermittently moves upward | Follow-up | Existing outer-scene keyboard inset repair retained; runtime matrix expanded | Yes | Focused UI tab/keyboard and Simulator matrix passed | Physical/TestFlight pending | Open |
+| 49 | `AGi4dpYz48JGFdwWiZebaPw` | Open feedback, 2026-09-14 | Simplify camera to normal photo capture | Follow-up | Custom controls replaced by Apple's standard still-photo camera | Yes | Compile and Simulator unavailable-camera fallback passed | Camera hardware pending | Open |
+| 50 | `Not supplied` | Open feedback, 2026-09-13 | Personal Prophet Coffee rating shows 4.2 instead of 3.7 | Follow-up | Personal pins average completed Mugshot scores; Cafe Pulse is excluded | Yes | Focused 3.7/3.9 plus Simulator pin/detail passed | Physical/TestFlight pending | Open |
+| 51 | `ADARObOWGbQ8-J6EEpdJGNo` | Open feedback, 2026-09-13 | Publishing remains stuck for days | Follow-up | Bounded exact-ID reconciliation, typed Review and truthful retry states; inaccessible originating media retained as blocker | Yes | Focused queue/reconciliation and Simulator Review passed | Originating device data pending | Open |
+| 52 | `ABBGeyxrCHUbYZhXV02h8zA` | Open feedback, 2026-09-10 | Use small pins on the Profile map | Follow-up | Profile-only individual mint pins; clustering and regional cards disabled | Yes | Simulator individual-pin/detail route passed | Physical/TestFlight pending | Open |
+| 53 | `APJiIxPGsHMD85In4qZn0qg` | Open feedback, 2026-09-10 | Explain the two reflection reminder settings | Follow-up | Renamed and explained as On this day and Weekly reflection; real schedules implemented | Yes | Focused client/SQL/worker tests and production health passed | APNs receipt pending | Open |
+| 54 | `ADc5D6oTIhvMllrbIKYtgi0` | Open feedback, 2026-09-10 | Instagram destination cannot be changed | Follow-up | Shared normalization, clearing and owner-projection refresh implemented | Yes | Focused normalization tests passed | Cross-account runtime pending | Open |
+| 55 | `AGs4jf24y9j8LGbsXeacPoA` | Open feedback, 2026-09-10 | Replace “Fresh public sips” | Follow-up | Changed to “See what everyone is sipping” | Yes | Simulator presentation passed | Physical/TestFlight pending | Open |
+| 56 | `AAoc1b4qRo1mZtAgBjy4ZrI` | Open feedback, 2026-09-10 | Make caption text as bold as the drink name | Follow-up | Feed and detail captions use bold metrics for measurement and rendering | Yes | Focused presentation and Simulator checks passed | Physical/TestFlight pending | Open |
+| 57 | `ADepXVMstvpdY8BIbuRc92Y` | Open feedback, 2026-09-09 | Swipe the photo carousel directly in Feed | Follow-up | Ordered, lazy adjacent-page Feed pager with stable photo identity | Yes | Focused ordering/loading plus Simulator gesture passed | Physical/TestFlight pending | Open |
+| 58 | `ACtvG36UYmRdg6WKz-1dd-U` | Open feedback, 2026-09-08 | Cannot tap the coffee shop | Follow-up | Cafe labels route by canonical ID across Feed, detail, Journal and Profile surfaces | Yes | Focused UI and Simulator canonical-route checks passed | Physical/TestFlight pending | Open |
 
 ## Locked acceptance rules
 
