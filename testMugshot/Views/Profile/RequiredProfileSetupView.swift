@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct RequiredProfileSetupView: View {
     @ObservedObject var dataManager: DataManager
+    let requiresUsernameConfirmation: Bool
     let onCompleted: () -> Void
 
     @EnvironmentObject private var authModel: AppAuthModel
@@ -19,6 +20,7 @@ struct RequiredProfileSetupView: View {
     @State private var avatarImage: UIImage?
     @State private var bannerImage: UIImage?
     @State private var isPreparingMedia = false
+    @State private var completedProfileID: UUID?
 
     private var normalizedUsername: String {
         username
@@ -38,6 +40,20 @@ struct RequiredProfileSetupView: View {
     }
 
     var body: some View {
+        Group {
+            if let completedProfileID {
+                ProfileSetupFavoriteSpotsStep(
+                    userID: completedProfileID,
+                    dataManager: dataManager,
+                    onCompleted: onCompleted
+                )
+            } else {
+                profileDetails
+            }
+        }
+    }
+
+    private var profileDetails: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -54,12 +70,19 @@ struct RequiredProfileSetupView: View {
 
                     setupField("Display name", text: $displayName, placeholder: "Your name")
                     setupField(
-                        "Handle",
+                        "Choose your username",
                         text: $username,
-                        placeholder: "your_handle",
+                        placeholder: "your_username",
                         capitalization: .never,
                         autocorrectionDisabled: true
                     )
+
+                    if requiresUsernameConfirmation {
+                        Text("Mugshot created a temporary username during sign-in. Choose the public username people will see and share.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     if !username.isEmpty && !(3...30).contains(normalizedUsername.count) {
                         Text("Use 3–30 letters, numbers, or underscores.")
@@ -218,7 +241,10 @@ struct RequiredProfileSetupView: View {
     private func seedProfile() {
         guard let profile = authModel.profile else { return }
         displayName = profile.displayName
-        username = profile.username
+        username = ProfileSetupPresentationPolicy.initialUsername(
+            storedUsername: profile.username,
+            requiresConfirmation: requiresUsernameConfirmation
+        )
         bio = profile.bio ?? ""
         location = profile.location ?? ""
         instagramHandle = profile.instagramHandle ?? ""
@@ -257,6 +283,95 @@ struct RequiredProfileSetupView: View {
             favoriteDrink: favoriteDrink,
             dataManager: dataManager
         )
-        if succeeded { onCompleted() }
+        if succeeded, let userID = authModel.authenticatedUser?.id {
+            completedProfileID = userID
+        }
+    }
+}
+
+@MainActor
+private struct ProfileSetupFavoriteSpotsStep: View {
+    let userID: UUID
+    @ObservedObject var dataManager: DataManager
+    let onCompleted: () -> Void
+
+    @State private var spots: [SharedProfileFavoriteSpot] = []
+    @State private var isLoading = true
+    @State private var loadError: String?
+    @State private var showsEditor = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Add your favorite spots")
+                        .mugshotDisplay(size: 34)
+                        .foregroundStyle(Color.espressoBrown)
+                    Text("Choose up to three cafes that feel like you. This is optional and can be changed from your profile anytime.")
+                        .font(.body)
+                        .foregroundStyle(Color.secondaryText)
+                }
+
+                if isLoading {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading your profile…")
+                    }
+                    .foregroundStyle(Color.secondaryText)
+                } else if loadError == nil {
+                    Button { showsEditor = true } label: {
+                        Label(
+                            spots.isEmpty
+                                ? "Choose Favorite Spots"
+                                : "Edit \(spots.count) Favorite Spot\(spots.count == 1 ? "" : "s")",
+                            systemImage: "storefront.fill"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+
+                if let loadError {
+                    Text(loadError)
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondaryText)
+                }
+
+                Spacer()
+
+                if spots.isEmpty {
+                    Button("Do this later", action: onCompleted)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    Button("Continue to Mugshot", action: onCompleted)
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+            }
+            .padding(24)
+            .background(Color.creamWhite)
+            .navigationTitle("Finish profile")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(true)
+        .task { await loadSpots() }
+        .sheet(isPresented: $showsEditor) {
+            ProfileFavoriteSpotsEditor(
+                spots: spots,
+                dataManager: dataManager
+            ) { spots = $0 }
+        }
+    }
+
+    private func loadSpots() async {
+        defer { isLoading = false }
+        do {
+            spots = try await SharedProfileService(
+                client: SupabaseClientProvider.shared.client()
+            ).projection(userID: userID).favoriteSpots
+        } catch {
+            loadError = "Favorite Spots couldn't load right now. You can continue and add them later from your profile."
+        }
     }
 }

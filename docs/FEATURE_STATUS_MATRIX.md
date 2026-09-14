@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-09-13
 ---
 
+## Explicit profile identity setup — 2026-09-14
+
+The next candidate distinguishes temporary collision-safe signup usernames from
+explicitly chosen public handles. Accounts that still match the exact legacy
+placeholder formula return to required setup without being renamed. The handle
+field starts empty, failed setup-state checks cannot silently bypass the gate,
+and a final optional step offers the existing up-to-three Favorite Spots editor.
+Intentional handles, profile content, and permanent link aliases are preserved.
+Production migrations 172–173 are configured: all 18 usernames retain the same
+fingerprint and eight exact placeholders require a choice. Full-static and the
+focused profile contract pass. The signed Debug build compiled, installed, and
+launched on Joe's connected iPhone; interaction with the reopened setup path
+remains owner acceptance.
+
 ## Current moderation amendment — 2026-09-14
 
 Production now uses synchronous server-side blocked-term validation for shared text
@@ -68,7 +82,7 @@ production and TestFlight retain their separately recorded deployment states.
 | Area | Status | Current evidence | Remaining gate |
 | --- | --- | --- | --- |
 | Auth and session restore | Implemented, locally verified | Supabase Auth, callback queue, account-checked session restoration | Signed-build provider regression pass when auth configuration changes |
-| Profile and public identity | Latest share-media follow-up locally verified; prior source physically launched; profile contract production-configured | Compact 112-point banner, foam-white tappable stats dock, compact sparse-profile metadata with no Taste overlap card, fully visible reason-first Favorite Spot categories plus custom descriptor entry, stable Cafes scrolling, Mugshots/cafes/existing-map/tagged tabs, no redundant profile-map ratings legend, tagged hide/remove controls, default-on Friends plus Everyone profile publication, owner opt-out to Everyone-only, strict Private exclusion, sealed mutations, owner export, and fixed Story/Post profile snapshots carrying marketing copy plus the canonical active link. Snapshot media is newest-first and resolves durable private-Storage references before rendering; focused tests, live Simulator parity, and comparison evidence pass. The earlier source completed connected-iPhone build/install/launch | Promote the latest source only on owner request; replacement TestFlight acceptance remains separate |
+| Profile and public identity | Latest source physically launched; profile contract production-configured | Compact 112-point banner, foam-white tappable stats dock, compact sparse-profile metadata with no Taste overlap card, fully visible reason-first Favorite Spot categories plus custom descriptor entry, stable Cafes scrolling, Mugshots/cafes/existing-map/tagged tabs, no redundant profile-map ratings legend, tagged hide/remove controls, default-on Friends plus Everyone profile publication, owner opt-out to Everyone-only, strict Private exclusion, sealed mutations, owner export, and fixed Story/Post profile snapshots carrying marketing copy plus the canonical active link. Snapshot media is newest-first and resolves durable private-Storage references before rendering. Profile setup now requires an explicitly chosen username for exact generated-placeholder accounts, rejects unchanged placeholders from older clients, and offers an optional Favorite Spots step. Production migrations 172–173, focused contracts, full-static, and signed connected-iPhone build/install/launch pass | Owner interaction with the reopened setup path; replacement TestFlight acceptance remains separate |
 | Guided sip composer | QA follow-up locally verified | Cafe, Home, Elsewhere, fresh central Add, explicit one/multi-draft recovery, all-step close, photos, publish recovery, edit/delete; focused domain tests and full-static pass | Manual Simulator persistence acceptance; preserve zero-loss and privacy contracts |
 | Home Workbench | Implemented, production-configured | Recipe templates, planned/actual brews, bag media, reuse, journal projection; live migrations and protected-data fingerprints verified | Feedback-driven product acceptance |
 | Feed and visit detail | Seventh QA follow-up locally verified | Compact cards, profile routing, one-level comments, reactions, tags, reselect-to-top, and a scope bar isolated from refresh/lazy content with matching eight-point upper/lower resting gaps that holds for 60 upward points and slides continuously beneath the header. Stable scope geometry and structured comment mentions remain; the Debug Simulator build/launch, focused motion/gap test, live capture, and same-input spacing comparison pass | Owner feel acceptance, production reaction migration, replacement TestFlight |

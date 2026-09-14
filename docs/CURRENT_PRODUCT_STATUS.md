@@ -4,6 +4,33 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## Explicit profile identity setup — 2026-09-14
+
+The next candidate no longer treats a collision-safe signup username as the
+account owner's chosen public handle. Production evidence showed that affected
+accounts reached the existing setup screen, but its prefilled generated value
+could be accepted unchanged. The new profile contract records explicit username
+confirmation separately, reopens setup only for accounts still matching the
+exact legacy email/account-ID placeholder pattern, and changes no username or
+other user-selected profile value during migration. New and affected accounts receive an empty
+**Choose your username** field; setup-state failures show Retry and Sign out
+instead of silently entering the app. The server also rejects an unchanged
+generated placeholder submitted by an older client. After identity and optional profile media,
+bio, location, favorite drink, Instagram, and website, an optional second step
+reuses the existing protected Favorite Spots editor for up to three cafes.
+
+Implemented on `codex/profile-setup-username-confirmation`; production migrations
+172–173 are configured. The production username fingerprint remained unchanged
+across all 18 profiles, while the eight exact generated-placeholder accounts now
+require a choice. The additive confirmation backfill advanced the standard
+`updated_at` bookkeeping field on already-confirmed rows; no user-selected profile
+value changed. Full-static passed 12/0/1, with only optional `pglast` skipped, and
+the focused profile contract passed. A signed Debug build then compiled, installed,
+and launched as `co.mugshot.app.dev` on Joe's connected iPhone. Interaction with the
+reopened setup path remains owner acceptance because Joe's confirmed account does
+not trigger it.
+Existing intentional usernames and permanent readable-link aliases remain unchanged.
+
 ## Reaction presentation follow-up — 2026-09-14
 
 Full-post reaction totals now sit in the action row before Save. Yummy uses a

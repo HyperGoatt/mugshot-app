@@ -154,10 +154,19 @@ struct MugshotRootView: View {
         switch profileSetupGate {
         case .checking:
             AuthLoadingView()
-        case .required:
-            RequiredProfileSetupView(dataManager: dataManager) {
+        case .required(let state):
+            RequiredProfileSetupView(
+                dataManager: dataManager,
+                requiresUsernameConfirmation: state.requiresUsernameConfirmation
+            ) {
                 profileSetupGate = .complete
             }
+        case .unavailable(let message):
+            ProfileSetupUnavailableView(
+                message: message,
+                onRetry: { Task { await refreshProfileSetupGate() } },
+                onSignOut: { Task { await authModel.signOut(dataManager: dataManager) } }
+            )
         case .complete:
             MainTabView(dataManager: dataManager, initialTab: firstLaunchLandingTab ?? .feed)
         }
@@ -174,11 +183,11 @@ struct MugshotRootView: View {
             let service = ProfileSetupService(client: try SupabaseClientProvider.shared.client())
             let state = try await service.state()
             guard !Task.isCancelled else { return }
-            profileSetupGate = state.isComplete ? .complete : .required
+            profileSetupGate = state.isComplete ? .complete : .required(state)
         } catch {
-            // Older environments do not have the additive gate yet. Preserve
-            // established-account access until the migration is deployed.
-            profileSetupGate = .complete
+            profileSetupGate = .unavailable(
+                "Mugshot couldn't confirm your profile setup. Try again so a temporary username is never published as your chosen handle."
+            )
         }
     }
 
@@ -203,8 +212,42 @@ struct MugshotRootView: View {
 
 private enum ProfileSetupGate: Equatable {
     case checking
-    case required
+    case required(ProfileSetupState)
+    case unavailable(String)
     case complete
+}
+
+private struct ProfileSetupUnavailableView: View {
+    let message: String
+    let onRetry: () -> Void
+    let onSignOut: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 62, weight: .medium))
+                .foregroundStyle(Color.mugshotSage)
+
+            Text("Profile setup needs a moment")
+                .mugshotDisplay(size: 30)
+                .foregroundStyle(Color.espressoBrown)
+
+            Text(message)
+                .font(.body)
+                .foregroundStyle(Color.secondaryText)
+                .multilineTextAlignment(.center)
+
+            Button("Try again", action: onRetry)
+                .buttonStyle(PrimaryButtonStyle())
+
+            Button("Sign out", action: onSignOut)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.espressoBrown)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.creamWhite)
+    }
 }
 
 private struct MugshotDebugDynamicTypeModifier: ViewModifier {
