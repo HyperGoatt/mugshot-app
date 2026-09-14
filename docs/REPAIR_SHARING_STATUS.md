@@ -4,6 +4,45 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## Current moderation amendment — 2026-09-14
+
+Production now uses synchronous server-side blocked-term validation for shared text
+and report-driven human moderation for photos and other shared content. OpenAI
+provider execution is removed, its worker endpoint returns 410, its schedule is
+retired, and its five server configuration secrets are removed. Migration history
+is 169. Existing reporting, retry deduplication, block enforcement, operator alerts,
+review decisions and appeals remain. The five initial English rules target explicit
+threats, exploitation and slurs; they are a narrow blocklist, not semantic analysis
+or a guarantee of App Review approval. Private journal text remains excluded.
+
+The transition preserves prior provider evidence in sealed receipts, retains actual
+flags and human restrictions, and labels technical waits `reactive_policy_transition`,
+not a successful photo screening. Original posts, photos, audience selections,
+profile hides, blocks and all 72 checked data tables were unchanged by the cutover.
+Amanda's historical Friends Matcha post remains public under the separately approved
+restoration policy. Two missing photo references are preserved; this change does
+not recreate missing files.
+
+The native profile grid now offers long-press **Hide from my profile** on authored
+and tagged posts, with Undo after a successful save. Tagged posts also retain
+Remove my tag in that menu. The inline tagged-card ellipsis is removed. Hiding is
+profile-specific and does not delete a post or alter another person's profile.
+The existing detail control remains an additional route to show a hidden post.
+
+Verification: isolated local/reactive SQL contract passed (validation rollback,
+Private withdrawal, real-decision preservation, no dispatch, protected rules);
+historical profile visibility contract passed; four human-review media tests passed;
+Debug iPhone compilation passed. Production verification reports 143 sharing-allowed records, zero pending/service
+issues and zero Private-post jobs; the original human review event is preserved.
+The dev build was installed and launched on Joe’s iPhone (0.5.3 build 6); long-press
+interaction awaits owner acceptance. Public disclosure builds passed. No TestFlight or App Store submission.
+
+## Earlier implementation evidence (superseded for moderation)
+
+The sections below document earlier repair work. Their descriptions of active
+OpenAI screening are historical; the amendment above is the current behavior.
+
+
 # Repair and sharing update
 
 This is the current repair status and supersedes earlier Sprint 1 acceptance claims
@@ -53,7 +92,10 @@ Friends: Appears in Friends Feed and on your public profile and tagged friends'
 public profiles. Does not appear in Everyone Feed.
 
 One acknowledged version-2 notice precedes an existing account's first new post.
-Historical Friends inclusion starts unselected. New publication receipts use
+The owner subsequently approved restoring already-published historical Friends
+posts by default. A sealed migration receipt records that existing set without
+fabricating consent or editing posts. The obsolete historical opt-in checkbox
+is removed from the notice. New publication receipts use
 insertion time, so a backdated new sip follows the acknowledged policy. Prior
 explicit profile opt-outs and hides remain. Public profile availability defaults
 on; Private remains excluded. Author and tagged-user hides are independent and
@@ -149,8 +191,8 @@ The installed dev build already contains the matching frontend; another compile
 is unnecessary unless source changes. Refresh Shared Content Status to inspect
 recovery, then create a normal multi-photo shared Mugshot, inspect its screening
 status, return to Feed and try a reaction. Check authored Hide/Show and the sharing
-notice on the first new post if it has not yet appeared. Historical Friends
-inclusion remains an initially unselected choice. Private never appears publicly.
+notice on the first new post if it has not yet appeared. Historical Friends publication now follows the owner-approved restoration,
+subject to profile opt-outs and individual hides. Private never appears publicly.
 
 Final legacy-photo bucket privatization and unrelated Apple/PostHog verification
 remain outside this repair. Existing TestFlight installations have not received
@@ -165,9 +207,10 @@ five exist and two were absent from Storage before this cutover. Missing filenam
 84dde0bb-7307-40d7-b617-958241b51b88.jpg.
 
 Neither missing file appears in any of the three retained photo-backup inventories
-or the connected dev app's URL cache. The post, all photo-reference rows and the
-five existing files were preserved. Its historical-transition visibility still
-passes after the service-error outcome; it was not marked screened or rejected.
+or the connected dev app's URL cache. The post, all photo-reference rows and the five existing files were preserved.
+Its screening-transition access predicate passes after the service-error outcome;
+it was not marked screened or rejected. This does not establish public-profile
+publication: the separate Friends-publication policy still applies.
 Resolving this one item requires recovery/re-upload of the original missing files,
 then screening a current revision. Do not silently remove the references or
 fabricate approval. No other recovered item requires a moderation decision.
@@ -182,3 +225,47 @@ Final production check: 82 posts, 18 users, 338 Storage objects, zero pending
 screening jobs, zero policy-review jobs, one preserved human approval and the one
 explained service item. The repaired frontend was already installed on the phone;
 no new mobile build is needed for the server-only diagnostic follow-up.
+
+
+## Correction: Amanda public-profile visibility — 2026-09-14
+
+The owner reported the remaining service-error post absent from Amanda's public
+profile. A direct production projection check confirms that absence. The post is
+Friends, not individually hidden, and its owner profile is available. The screening
+transition predicate is true, but profile_visit_published_v1 is false because
+Amanda has no historical-Friends public-consent/publication preference record.
+
+All 15 of Amanda's Friends posts are excluded from her anonymous public profile:
+14 passed screening and one is the missing-photo service item. Her 11 Everyone
+posts are published. Therefore automatic screening is not the exclusion cause.
+Earlier claims that the post's visibility was preserved were too broad: only the
+screening predicate was checked, not the actual final public-profile projection.
+
+The historical opt-in rule was explicit in the approved repair plan. Changing it
+to restore historical Friends publication by default is a product-policy amendment,
+not an approval of flagged content. No audience, consent, hide or moderation state
+was changed during this diagnosis. The owner approved restoring historical Friends visibility. The amendment below
+preserves explicit opt-outs, individual hides, blocks and Private exclusion.
+
+
+## Approved historical restoration — 2026-09-14
+
+Migration 20260914144708 records the existing complete Friends-post set in the
+sealed historical_profile_publications table and restores authored/tagged profile
+publication subject to every existing availability, screening, enforcement,
+opt-out and per-profile hide check. It does not change audience selections or
+consent records. Future posts are not automatically added to this historical set.
+The new-post notice remains; its obsolete historical inclusion checkbox is removed.
+
+The guarded production transaction advanced history to 168 migrations and matched
+all 72 original-table fingerprints. A focused PGlite regression covers authored
+and tagged results, unchanged records, no fabricated consent, author/tagged
+opt-outs, independent hides, Private changes, enforcement, profile availability,
+future post boundaries and deletion. The signed device Debug compile passed.
+
+Crucially, the actual anonymous shared-profile HTTP response now contains the
+August 29 Matcha with visibility Friends. Amanda's current Friends posts pass the
+public-profile projection. Production checks found zero publicly included Private
+posts, zero violated explicit opt-outs and zero violated individual hides. The
+Matcha remains excluded from unrelated public discovery. Its missing-photo
+service issue is unchanged; no screening approval was fabricated.

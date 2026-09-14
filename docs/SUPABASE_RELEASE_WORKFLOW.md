@@ -4,6 +4,13 @@ status: current
 last_verified: 2026-09-14
 ---
 
+Current amendment (2026-09-14): production is at 169 migrations with local shared-text
+validation and reactive human moderation. OpenAI execution, schedule and server
+secrets are retired. See [current repair status](REPAIR_SHARING_STATUS.md) for
+preservation evidence and long-press profile controls. Earlier OpenAI rollout notes
+below are historical and superseded by this amendment.
+
+
 # Mugshot Supabase release workflow
 
 > Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
@@ -13,12 +20,15 @@ last_verified: 2026-09-14
 
 ## Current repair deployment — 2026-09-14
 
-The repair is now production-configured at 167 migrations with all five matching
+The repair is now production-configured at 168 migrations with all five matching
 functions deployed. Original-table fingerprints and bucket visibility passed
 preservation checks. The dev candidate is installed on the owner's iPhone and
 the recorded phone checks passed. Technical-backlog recovery completed with 69
 approvals and one explained missing-photo service item; see [the current repair status](REPAIR_SHARING_STATUS.md) for exact outcomes.
 All disposable QA branches are deleted. TestFlight distribution remains held.
+The owner-approved historical Friends restoration is deployed; Amanda's previously
+excluded Matcha now appears in the anonymous profile response. Opt-outs, hides
+and Private exclusion remain enforced.
 
 The older checkpoints below are historical evidence and do not describe the
 current production head or active QA resources.

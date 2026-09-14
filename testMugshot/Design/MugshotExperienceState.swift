@@ -31,6 +31,9 @@ enum MugshotUserFacingError {
         }
 
         let lowercased = error.localizedDescription.lowercased()
+        if lowercased.contains("shared_text_not_allowed") {
+            return "Some shared text isn’t allowed. Edit your caption or other shared text and try again. Your draft is still here."
+        }
         let authenticationFailureMarkers = [
             "auth session missing",
             "session_not_found",

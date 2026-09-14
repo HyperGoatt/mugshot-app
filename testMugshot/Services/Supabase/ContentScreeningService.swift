@@ -50,7 +50,7 @@ struct ContentScreeningItem: Decodable, Identifiable {
     var stateTitle: String {
         if isTechnicalFailure { return state == "pending" ? "Checking sharing · retrying" : "Sharing check delayed" }
         return switch state {
-        case "approved": "Screening passed"
+        case "approved": "Sharing allowed"
         case "rejected": "Not shared"
         case "needs_review": "Awaiting review"
         default: "Checking sharing"

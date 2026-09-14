@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — Local text filtering and report-driven moderation
+
+- Replaced external provider execution with transactional blocked-term validation
+  on existing shared-content write paths; photos use reports and human review.
+- Retired worker scheduling and provider secrets; retained all human decisions,
+  appeals, audit evidence, audiences, and existing content. Technical waits receive
+  an explicit policy-transition reason. Production is at 169 migrations.
+- Added long-press profile hiding and Undo for authored and tagged Mugshots; removed
+  the tagged grid ellipsis. Normal taps still open the post.
+- Updated native and web privacy/terms disclosures. Local SQL contracts, four
+  review-media tests and Debug iPhone compilation passed. No distribution upload.
+
+
 # Mugshot change log
 
 ## 2026-09-14 — Moderation and sharing repair (production deployed; recovery complete)
@@ -996,3 +1009,25 @@ A focused worker follow-up records sanitized missing-object HTTP/code diagnostic
 its seven tests passed and the updated function is deployed. Final production
 counts remain 82 posts, 18 users and 338 objects. See the repair status for the
 specific recovery action. No TestFlight build was distributed.
+
+
+## 2026-09-14 — Correction to public-profile preservation claim
+
+Directly verified that Amanda's 15 Friends posts are excluded by the separate
+historical-publication opt-in rule, including 14 with successful screening. Her
+11 Everyone posts appear. The prior screening-transition check did not prove
+public-profile inclusion; the earlier visibility claim was too broad. This
+read-only diagnosis makes no publication or moderation-policy changes. Current
+evidence and the requested policy clarification are in REPAIR_SHARING_STATUS.md.
+
+
+## 2026-09-14 — Restore historical Friends profile visibility
+
+At the owner's explicit request, restored the existing complete Friends-post set
+on authored/tagged public profiles, retaining explicit opt-outs, per-profile hides,
+blocks, enforcement and Private exclusion. The additive migration preserved all
+72 original-table fingerprints and changed no post audiences or consent records.
+Amanda's August 29 Matcha now appears in the actual anonymous profile response.
+A focused restoration regression and signed Debug compile passed. Removed the
+now-obsolete historical opt-in checkbox from the single new-post notice. The
+missing-photo service issue remains separate and no content was falsely approved.

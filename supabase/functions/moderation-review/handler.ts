@@ -1,4 +1,4 @@
-import { screeningMediaLocation } from "../screen-content/worker.ts";
+import { screeningMediaLocation } from "../_shared/review-media.ts";
 
 type Parameters = { p_kind: string; p_id: string; p_revision: string };
 type Item = Record<string, unknown> & {

@@ -4,6 +4,45 @@ status: current
 last_verified: 2026-09-13
 ---
 
+## Current moderation amendment — 2026-09-14
+
+Production now uses synchronous server-side blocked-term validation for shared text
+and report-driven human moderation for photos and other shared content. OpenAI
+provider execution is removed, its worker endpoint returns 410, its schedule is
+retired, and its five server configuration secrets are removed. Migration history
+is 169. Existing reporting, retry deduplication, block enforcement, operator alerts,
+review decisions and appeals remain. The five initial English rules target explicit
+threats, exploitation and slurs; they are a narrow blocklist, not semantic analysis
+or a guarantee of App Review approval. Private journal text remains excluded.
+
+The transition preserves prior provider evidence in sealed receipts, retains actual
+flags and human restrictions, and labels technical waits `reactive_policy_transition`,
+not a successful photo screening. Original posts, photos, audience selections,
+profile hides, blocks and all 72 checked data tables were unchanged by the cutover.
+Amanda's historical Friends Matcha post remains public under the separately approved
+restoration policy. Two missing photo references are preserved; this change does
+not recreate missing files.
+
+The native profile grid now offers long-press **Hide from my profile** on authored
+and tagged posts, with Undo after a successful save. Tagged posts also retain
+Remove my tag in that menu. The inline tagged-card ellipsis is removed. Hiding is
+profile-specific and does not delete a post or alter another person's profile.
+The existing detail control remains an additional route to show a hidden post.
+
+Verification: isolated local/reactive SQL contract passed (validation rollback,
+Private withdrawal, real-decision preservation, no dispatch, protected rules);
+historical profile visibility contract passed; four human-review media tests passed;
+Debug iPhone compilation passed. Production verification reports 143 sharing-allowed records, zero pending/service
+issues and zero Private-post jobs; the original human review event is preserved.
+The dev build was installed and launched on Joe’s iPhone (0.5.3 build 6); long-press
+interaction awaits owner acceptance. Public disclosure builds passed. No TestFlight or App Store submission.
+
+## Earlier implementation evidence (superseded for moderation)
+
+The sections below document earlier repair work. Their descriptions of active
+OpenAI screening are historical; the amendment above is the current behavior.
+
+
 # Real data flow status
 
 > Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
