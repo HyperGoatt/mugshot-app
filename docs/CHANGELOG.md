@@ -936,3 +936,8 @@ Follow-up hosted runtime acceptance passed email sign-in, profile setup, session
 restoration, all four reaction saves, and visible rollback on a forced save
 failure. The disposable hosted branch was deleted and its removal verified.
 Remaining interactive acceptance, signing and production rollout remain pending.
+
+Apple Developer now has Associated Domains enabled for the dev app and a
+regenerated development profile for the existing iPhone/certificate. Local profile
+retrieval and signed installation remain pending: Chrome blocks the download by
+organization policy, and Xcode authentication is required for managed retrieval.

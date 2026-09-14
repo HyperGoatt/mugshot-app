@@ -118,14 +118,17 @@ relaunch/resuming the draft; its synthetic account-scoped preference was also pr
 disk. Keyboard Done dismissed editing without publishing. These checks used a local
 synthetic app backend plus live MapKit, not production post writes.
 
-Device gate is blocked: the existing dev provisioning profile lacks Associated
-Domains, automatic provisioning reports no Xcode account, and the Apple Developer
-browser session requires sign-in. Computer control also reported a locked Mac.
-The owner was asked only to unlock and sign in; provisioning and installation
-remain agent work afterward. No repaired dev candidate is installed on the phone.
+Device signing update: the owner unlocked the Mac and signed into Apple Developer
+and App Store Connect in Chrome. Associated Domains is enabled on co.mugshot.app.dev.
+Apple regenerated Mugshot Debug Push Development for the existing certificate and
+Joe's connected iPhone, with expiry 2027-09-14. Chrome reports the profile download
+is blocked by the organization. Xcode's Apple Accounts settings has no signed-in
+account; its normal sign-in prompt is open for the owner to finish authentication.
+The updated profile is not yet installed locally, and no repaired dev candidate
+has been installed on the phone.
 
 Remaining: finish the consolidated
-runtime matrix, regenerate dev provisioning, install on the connected phone,
+runtime matrix, retrieve the regenerated dev profile, install on the connected phone,
 then run the guarded production rollout and measure technical-backlog recovery.
 Production migrations, screening thresholds, legacy bucket visibility and all
 original data remain unchanged by this repair. Fresh preservation evidence must
@@ -149,7 +152,7 @@ artifact or a demonstrated failure.
 | Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; integrated UI pending |
 | Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; remaining composer paths pending |
 | Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
-| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Provisioning requires Apple sign-in |
+| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Apple profile regenerated; local retrieval requires Xcode sign-in |
 | Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
 
 The function deployment set includes screen-content and moderation-review, plus
@@ -172,7 +175,7 @@ Yummy icon and preserved the database value; the original QA RPC was restored.
 No production data was used or changed by these synthetic interactions.
 
 The browser Simulator mirror rendered successfully but did not execute its
-coordinate input, so it did not establish composer acceptance. Mac native control
-remains locked and Apple Developer remains at sign-in. Do not repeat completed
-checks while awaiting that physical/authentication handoff. The hosted branch was
+coordinate input, so it did not establish composer acceptance. At that checkpoint,
+Mac native control was locked and Apple Developer required sign-in; the device
+signing update above records the subsequent unlock and profile regeneration. The hosted branch was
 deleted and the subsequent branch listing contained only production main.
