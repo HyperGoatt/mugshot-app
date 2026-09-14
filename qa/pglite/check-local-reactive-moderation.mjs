@@ -14,6 +14,7 @@ try {
   await db.query('insert into private.screening_jobs(subject_kind,subject_id,owner_id,payload,state,reason,evidence) values(\'visit\',$1,$2,$3,$4,$5,\'{"historical":true}\')',[ids[i],owner,payload('Matcha at Prophet Coffee'),state,reason]);
  }
  await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260914145946_local_text_and_reactive_moderation.sql',import.meta.url),'utf8'));
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260914151146_preserve_current_report_review_revision.sql',import.meta.url),'utf8'));
  const read=async id=>(await db.query('select * from private.screening_jobs where subject_id=$1',[id])).rows[0];
  const save=async(id,text)=>db.query("select private.enqueue_screening_v1('visit',$1,$2,$3)",[id,owner,text===null?null:payload(text)]);
  assert.equal((await read(ids[0])).reason,'reactive_policy_transition');
@@ -28,7 +29,7 @@ try {
  await assert.rejects(save(ids[4],'child pornography'),/shared_text_not_allowed/);assert.equal(await read(ids[4]),undefined,'invalid shared insert absent');
  await save(ids[3],null);assert.equal(await read(ids[3]),undefined,'private withdrawal leaves no payload');
  await save(ids[2],null);assert.equal(await read(ids[2]),undefined);await save(ids[2],'Harmless revised caption');assert.equal((await read(ids[2])).state,'rejected','Private roundtrip cannot bypass rejection');
- await save(ids[1],'New caption');assert.equal((await read(ids[1])).state,'needs_review','real flag retained');
+ const oldFlagRevision=(await read(ids[1])).revision;await save(ids[1],'New caption');assert.equal((await read(ids[1])).payload.text,'New caption');assert.notEqual((await read(ids[1])).revision,oldFlagRevision);assert.equal((await read(ids[1])).state,'needs_review','real flag retained');
  assert.equal((await db.query('select * from public.claim_screening_jobs_v1(10)')).rows.length,0);
  assert.equal((await db.query('select private.dispatch_screening_worker_v1() result')).rows[0].result,null);
  await db.exec('set role authenticated');await assert.rejects(db.query('select * from private.moderation_text_rules'));await db.exec('reset role');

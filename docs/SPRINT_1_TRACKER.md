@@ -4,7 +4,7 @@ status: current
 last_verified: 2026-09-14
 ---
 
-Current amendment (2026-09-14): production is at 169 migrations with local shared-text
+Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server
 secrets are retired. See [current repair status](REPAIR_SHARING_STATUS.md) for
 preservation evidence and long-press profile controls. Earlier OpenAI rollout notes
