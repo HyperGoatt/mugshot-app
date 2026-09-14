@@ -1,16 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-13
 ---
 
 # TestFlight feedback ledger
 
-This is the privacy-safe disposition ledger for the 44 feedback packages
-currently cached by Xcode Organizer. It excludes tester names, email addresses,
+This is the privacy-safe disposition ledger for the 45 feedback packages
+found in the Xcode Organizer cache on 2026-09-13. It excludes tester names, email addresses,
 account identifiers, private content, and raw logs. Xcode evidence confirms that
-the latest reports were submitted against 0.5.3 (5); older reports came from
+the newly reconciled report was submitted against 0.5.3 (6); the prior batch
+included 0.5.3 (5), and older reports came from
 0.5.3 (1), 0.5.2 (3), and 0.5.2 (2).
+
+The original 44-report remediation evidence below remains dated historical
+acceptance evidence. Report 45 was submitted on 2026-09-03 and is an open copy
+suggestion, not an accepted Sprint 1 requirement or a resolved defect. Its
+wording must preserve the distinction between shared captions and Private
+journal notes if considered in a later product decision.
 
 `Implemented` means source exists on `codex/testflight-feedback-remediation`.
 `Local` is updated only after the named deterministic or runtime gate passes.
@@ -177,6 +184,7 @@ tests passed. This source is not physically or TestFlight accepted.
 | 42 | `AEGrCESnxmyyrJrT3DMLHSc` | 0.5.2 (3), iPhone18,1, iOS 26.6 | Make profile identity clickable | R2 | Accepted for Feed and Journal identity | Yes | Passed | Pending | Open |
 | 43 | `ACAWYPJWgTrrqw9fVH1vu_w` | 0.5.2 (2), iPhone17,1, iOS 27.0 | Account deletion incomplete | R1 | Existing hardened deletion worker/step-up contract retained and regression-gated | Yes | Passed | Pending | Open |
 | 44 | `AFa47DQy7rf5-HvXhhIv6lM` | 0.5.2 (2), iPhone17,1, iOS 27.0 | Post deletion does not work | R1 | Existing caller-bound delete-owned-visit RPC retained and regression-gated | Yes | Passed | Pending | Open |
+| 45 | `ALhLR_VlbvOYXGmj8eTLOKs` | 0.5.3 (6), iPhone18,1, iOS 26.6 | Consider “Journal entry: Sip” wording with a brief explanation of sharing | R2 | Open product suggestion; not approved for Sprint 1; preserve Private-note semantics | No | Not run | Pending | Open |
 
 ## Locked acceptance rules
 

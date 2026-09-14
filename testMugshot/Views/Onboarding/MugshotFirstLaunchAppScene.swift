@@ -134,7 +134,7 @@ private extension MugshotFirstLaunchStep {
             .init(x: 0.07, y: 0.835, width: 0.86, height: 0.09)
         case .map, .feed, .googleMaps:
             .init(x: 0.07, y: 0.855, width: 0.86, height: 0.09)
-        case .friends, .saved, .journal, .tastePassport:
+        case .friends, .saved, .journal:
             .init(x: 0.07, y: 0.875, width: 0.86, height: 0.08)
         case .add:
             .zero
@@ -147,7 +147,7 @@ private extension MugshotFirstLaunchStep {
             .init(x: 0.18, y: 0.92, width: 0.64, height: 0.07)
         case .map, .feed, .googleMaps:
             .init(x: 0.18, y: 0.93, width: 0.64, height: 0.065)
-        case .friends, .saved, .journal, .tastePassport:
+        case .friends, .saved, .journal:
             .init(x: 0.18, y: 0.945, width: 0.64, height: 0.055)
         case .add:
             .zero

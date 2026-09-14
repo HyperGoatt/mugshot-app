@@ -142,6 +142,8 @@ select set_config(
   true
 );
 
+select pg_temp.approve_shared_fixture('visit', (select id from alpha_activity_state where key='friend_visit'));
+
 do $$
 declare
   marked_count integer;

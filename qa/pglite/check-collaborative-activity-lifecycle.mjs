@@ -946,7 +946,27 @@ const securityContract = await fs.readFile(
     'supabase/tests/alpha_collaborative_list_activity_lifecycle_security.sql',
   'utf8',
 )
+// Behavior above isolates July's lifecycle. Apply the current superseding
+// definitions before inspecting September's source and grant contract.
+const screenedSource = await fs.readFile(repoPath + 'supabase/migrations/20260913042008_sprint1_screened_activity_delivery.sql', 'utf8');
+const transferSource = await fs.readFile(repoPath + 'supabase/migrations/20260913152645_sprint1_transfer_screening_receipt.sql', 'utf8');
+function definitionOf(source, name) {
+  const escaped = name.replaceAll('.', '\\.');
+  const match = source.match(new RegExp('create (?:or replace )?function ' + escaped + '\\([\\s\\S]*?\\n\\$\\$;', 'i'));
+  if (!match) throw new Error('Missing current definition: ' + name);
+  return match[0];
+}
+// The July fixture lacks later moderation tables; hosted full-history QA
+// separately validates dependency resolution and execution. Here inspect source.
+await db.exec('set check_function_bodies = off');
+await db.exec(definitionOf(screenedSource, 'private.activity_candidate_user_v1'));
+await db.exec(definitionOf(screenedSource, 'private.create_cafe_list_lifecycle_activity_v1'));
+await db.exec(definitionOf(transferSource, 'private.cafe_list_transfer_result_v1'));
+await db.exec(definitionOf(transferSource, 'public.transfer_cafe_list_ownership_v2'));
+await db.exec('revoke all on function private.activity_candidate_user_v1(uuid,uuid), private.cafe_list_transfer_result_v1(uuid,uuid,uuid) from public,anon,authenticated');
 await db.exec(securityContract)
+await db.exec('set check_function_bodies = on')
+
 
 console.log(
   'PGlite collaborative-list lifecycle, transfer, deletion, privacy, idempotency, and grant checks passed',

@@ -91,6 +91,7 @@ with cafe as (
 )
 insert into sprint_public_projection_target
 select cafe_id, id, poster_photo_url from visit;
+select pg_temp.approve_shared_fixture('visit',visit_id) from sprint_public_projection_target;
 grant select on sprint_public_projection_target to anon;
 
 set local role anon;
@@ -297,6 +298,8 @@ do $$ begin
     where previous_created_at < created_at
   ) then raise exception 'Friends feed is not reverse chronological'; end if;
 end $$;
+
+select pg_temp.approve_shared_fixture('visit',home_visit) from sprint_visits;
 
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from sprint_users where n=2), 'role', 'authenticated'

@@ -46,12 +46,12 @@ struct MugshotOnboardingTests {
     }
 
     @Test func firstLaunchEducationCoversCoreTabsFriendsAndGoogleMapsBeforeAuthentication() {
-        #expect(MugshotFirstLaunchStep.allCases.count == 9)
-        #expect(MugshotFirstLaunchStep.allCases.map(\.number) == Array(1...9))
+        #expect(MugshotFirstLaunchStep.allCases.count == 8)
+        #expect(MugshotFirstLaunchStep.allCases.map(\.number) == Array(1...8))
         #expect(
             MugshotFirstLaunchStep.allCases == [
                 .welcome, .map, .feed, .friends, .saved, .journal,
-                .tastePassport, .googleMaps, .add
+                .googleMaps, .add
             ]
         )
         #expect(MugshotFirstLaunchStep.allCases.last == .add)
@@ -70,7 +70,6 @@ struct MugshotOnboardingTests {
             "OnboardingMarketing04Friends",
             "OnboardingMarketing05Saved",
             "OnboardingMarketing06Journal",
-            "OnboardingMarketing07TastePassport",
             "OnboardingMarketing08GoogleMaps",
             "OnboardingMarketing09Account"
         ])

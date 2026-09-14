@@ -120,64 +120,110 @@ struct VisitPhotoStorageLocation: Equatable, Hashable {
     }
 }
 
+/// Parses only this project's durable media references. This is separate from
+/// deletion-path parsing so read compatibility cannot expand cleanup authority.
+struct ProtectedStorageMediaLocation: Equatable {
+    let bucketName: String
+    let objectPath: String
+
+    init?(storedValue: String, projectURL: URL) {
+        if let reference = VisitPhotoStorageReference(storedValue: storedValue) {
+            bucketName = reference.bucketName
+            objectPath = reference.objectPath
+            return
+        }
+        guard let components = URLComponents(string: storedValue),
+              components.scheme == "https",
+              components.host?.lowercased() == projectURL.host?.lowercased(),
+              (components.port ?? 443) == (projectURL.port ?? 443),
+              components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil else { return nil }
+        let prefix = "/storage/v1/object/public/"
+        guard components.percentEncodedPath.hasPrefix(prefix),
+              let path = String(components.percentEncodedPath.dropFirst(prefix.count)).removingPercentEncoding else { return nil }
+        var parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard !parts.isEmpty else { return nil }
+        let bucket = parts.removeFirst()
+        guard ["profile-media", "visit-photos", "visit-photos-private"].contains(bucket),
+              parts.count >= (bucket == "profile-media" ? 2 : 3),
+              parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
+        bucketName = bucket
+        objectPath = parts.joined(separator: "/")
+    }
+}
+
 actor VisitPhotoAccessService {
     static let shared = VisitPhotoAccessService()
 
-    private struct SignedURLCacheEntry {
-        let url: URL
-        let refreshAfter: Date
-    }
-
-    private let signedURLLifetimeSeconds = 300
-    private let signedURLRefreshSeconds: TimeInterval = 240
-    private var signedURLCache: [String: SignedURLCacheEntry] = [:]
-
     func resolvedURL(for storedValue: String) async throws -> URL {
-        guard let privateReference = VisitPhotoStorageReference(storedValue: storedValue) else {
+        let configuration = try SupabaseConfiguration.load()
+        guard let location = ProtectedStorageMediaLocation(storedValue: storedValue, projectURL: configuration.url) else {
             guard let publicURL = URL(string: storedValue),
                   let scheme = publicURL.scheme?.lowercased(),
-                  scheme == "https" || scheme == "http" else {
+                  scheme == "https" || scheme == "http",
+                  publicURL.user == nil, publicURL.password == nil else {
                 throw VisitPhotoAccessError.invalidReference
             }
-            // Historical photos already carry durable public-bucket URLs.
-            // Re-signing them adds an authenticated request that can race a
-            // sign-out even though the object itself remains publicly readable.
+            // Keep foreign image compatibility without granting Storage access.
+            // Malformed own-project public-object references must not bypass signing.
+            if publicURL.host?.lowercased() == configuration.url.host?.lowercased(),
+               publicURL.path.hasPrefix("/storage/v1/object/public/") {
+                throw VisitPhotoAccessError.invalidReference
+            }
             return publicURL
         }
-        let location = VisitPhotoStorageLocation(
-            bucketName: privateReference.bucketName,
-            objectPath: privateReference.objectPath
-        )
-
         let client = try SupabaseClientProvider.shared.client()
-        let accountScope = client.auth.currentUser?.id.uuidString.lowercased() ?? "anon"
-        let cacheKey = "\(accountScope)|\(location.cleanupIdentifier)"
-        if let cached = signedURLCache[cacheKey], cached.refreshAfter > Date() {
-            return cached.url
+        let accountID = client.auth.currentUser?.id
+        // The pre-cutover server cannot sign profile-media reads. Only an exact
+        // missing-API response permits legacy public URLs; auth/network errors
+        // must never downgrade a protected read. Private references never fall back.
+        if storedValue.hasPrefix("https://"),
+           ["profile-media", "visit-photos"].contains(location.bucketName) {
+            do {
+                let permitted: Bool = try await client.rpc(
+                    "can_read_protected_media_v1",
+                    params: ["p_bucket": location.bucketName, "p_name": location.objectPath]
+                ).execute().value
+                guard permitted else { throw VisitPhotoAccessError.accessDenied }
+            } catch let error as PostgrestError where
+                error.code == "PGRST202" &&
+                error.message.contains("public.can_read_protected_media_v1") {
+                guard client.auth.currentUser?.id == accountID else {
+                    throw VisitPhotoAccessError.accountScopeChanged
+                }
+                try Task.checkCancellation()
+                guard let url = URL(string: storedValue) else {
+                    throw VisitPhotoAccessError.invalidReference
+                }
+                return url
+            }
         }
-
-        signedURLCache = signedURLCache.filter { $0.value.refreshAfter > Date() }
+        // Every resolution rechecks Storage authorization; never reuse an old
+        // signature after a privacy edit or account switch.
         let signedURL = try await client.storage
             .from(location.bucketName)
-            .createSignedURL(
-                path: location.objectPath,
-                expiresIn: signedURLLifetimeSeconds
-            )
-        signedURLCache[cacheKey] = SignedURLCacheEntry(
-            url: signedURL,
-            refreshAfter: Date().addingTimeInterval(signedURLRefreshSeconds)
-        )
+            .createSignedURL(path: location.objectPath, expiresIn: 60)
+        guard client.auth.currentUser?.id == accountID else {
+            throw VisitPhotoAccessError.accountScopeChanged
+        }
+        try Task.checkCancellation()
         return signedURL
     }
 }
 
 enum VisitPhotoAccessError: LocalizedError, Equatable {
     case invalidReference
+    case accountScopeChanged
+    case accessDenied
 
     var errorDescription: String? {
         switch self {
         case .invalidReference:
             return "This photo reference is invalid."
+        case .accessDenied:
+            return "This photo is not available to your account."
+        case .accountScopeChanged:
+            return "Your account changed while loading this photo."
         }
     }
 }

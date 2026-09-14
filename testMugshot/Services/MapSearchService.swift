@@ -30,6 +30,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     @Published private(set) var completions: [MKLocalSearchCompletion] = []
     @Published private(set) var recents: [MapSearchRecent] = []
     @Published private(set) var isSearching = false
+    @Published private(set) var isResolvingSelection = false
     @Published private(set) var isUpdatingSuggestions = false
     @Published private(set) var searchError: String?
     @Published private(set) var completedQuery = ""
@@ -79,9 +80,10 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         let queryChanged = rawQuery != lastRawQuery
         lastRawQuery = rawQuery
         lastRegion = region
-        completer.region = region
+        completer.region = MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: 180, longitudeDelta: 360))
         completer.queryFragment = rawQuery
 
+        isResolvingSelection = false
         activeSearchID = UUID()
         let searchID = activeSearchID
         currentSearch?.cancel()
@@ -170,6 +172,8 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         region: MKCoordinateRegion
     ) async -> MKMapItem? {
         let searchID = beginImmediateSearch(rawQuery: query, region: region)
+        isResolvingSelection = true
+        defer { if searchID == activeSearchID { isResolvingSelection = false } }
         let search = MKLocalSearch(request: request)
         currentSearch = search
 
@@ -283,6 +287,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     func cancelSearch() {
+        isResolvingSelection = false
         activeSearchID = UUID()
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
@@ -312,6 +317,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     private func beginImmediateSearch(rawQuery: String, region: MKCoordinateRegion) -> UUID {
+        isResolvingSelection = false
         activeSearchID = UUID()
         currentSearch?.cancel()
         pendingSearchTask?.cancel()
@@ -391,8 +397,8 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         let expanded = MKCoordinateRegion(
             center: region.center,
             span: MKCoordinateSpan(
-                latitudeDelta: max(region.span.latitudeDelta * 8, 0.5),
-                longitudeDelta: max(region.span.longitudeDelta * 8, 0.5)
+                latitudeDelta: 180,
+                longitudeDelta: 360
             )
         )
         beginSearch(
@@ -540,7 +546,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         ]
         let isGenericDiscovery = !queryTokens.isEmpty &&
             queryTokens.allSatisfy(genericDiscoveryTerms.contains)
-        let allowsRemotePlanning = queryTokens.count >= 3 || query.contains(",")
+        let allowsRemotePlanning = !isGenericDiscovery
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
 
         return items.filter { item in
@@ -549,7 +555,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             // region so a list can be planned before a trip.
             if let location = item.placemark.location,
                location.distance(from: center) > 100_000,
-               (isGenericDiscovery || !allowsRemotePlanning) {
+               isGenericDiscovery {
                 return false
             }
 
@@ -558,11 +564,11 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
             let itemTokens = searchable.split(separator: " ").map(String.init)
             let matchedTokenCount = queryTokens.filter { queryToken in
                 itemTokens.contains { itemToken in
-                    itemToken.hasPrefix(queryToken) || queryToken.hasPrefix(itemToken)
+                    itemToken.hasPrefix(queryToken)
                 }
             }.count
             let requiredMatches = allowsRemotePlanning
-                ? max(2, queryTokens.count - 1)
+                ? max(1, queryTokens.count - 1)
                 : queryTokens.count
             return !queryTokens.isEmpty && matchedTokenCount >= requiredMatches
         }

@@ -1,5 +1,9 @@
 project_id = "quskamnfwglctqewwfln"
 
+[functions.delete-account]
+# Auth.getUser protects user actions; recovery and the worker use scoped secrets.
+verify_jwt = false
+
 [functions.shared-mugshot]
 verify_jwt = false
 
@@ -11,3 +15,15 @@ verify_jwt = false
 
 [functions.deliver-activity]
 verify_jwt = false
+
+[functions.screen-content]
+verify_jwt = false
+
+[functions.moderation-review]
+verify_jwt = false
+
+[functions.notify-friends-on-new-visit]
+verify_jwt = true
+
+[functions.verify-cafe]
+verify_jwt = true

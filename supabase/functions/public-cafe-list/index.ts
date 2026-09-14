@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolvedPublicAudienceMediaURL } from "../_shared/capability-media.ts";
 import { getPublicSupabaseKey } from "../_shared/public-key.ts";
 
 type PublicCafeListItem = {
@@ -29,7 +30,7 @@ const sharedHeaders = {
 
 const successHeaders = {
   ...sharedHeaders,
-  "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
+  "Cache-Control": "private, no-store",
 };
 
 const unavailableHeaders = {
@@ -145,11 +146,23 @@ Deno.serve(async (request) => {
     : null;
   if (!list) return unavailable(destination);
 
+  // The client above has only the anonymous publishable key. Storage RLS
+  // admits current, screened Everyone images; Friends/Private objects fail closed.
+  const resolvedItems = await Promise.all(
+    (list.items ?? []).map(async (item) => ({
+      ...item,
+      photo_url: await resolvedPublicAudienceMediaURL(
+        item.photo_url,
+        client,
+        supabaseURL,
+      ),
+    })),
+  );
   const creator = list.creator?.display_name ?? list.creator?.username ??
     "a Mugshot creator";
   const description = list.description ??
     `${list.cafe_count} cafes selected by ${creator}.`;
-  const items = (list.items ?? [])
+  const items = resolvedItems
     .map((item, index) => {
       const location = item.cafe_address ?? item.cafe_city ?? "";
       const photo = item.photo_url
@@ -195,7 +208,7 @@ Deno.serve(async (request) => {
       list.title,
       description,
       body,
-      list.items?.find((item) => item.photo_url)?.photo_url,
+      resolvedItems.find((item) => item.photo_url)?.photo_url,
       `${marketingURL}/l/${encodeURIComponent(slug)}`,
     ),
     { status: 200, headers: successHeaders },

@@ -36,6 +36,10 @@ struct LogVisitView: View {
     @State private var showDiscardPendingConfirmation = false
     @State private var confirmedTextOnlyEveryone = false
     @State private var isSaving = false
+    @State private var checkingPublicationPolicy = false
+    @State private var showPublicationNotice = false
+    @State private var includeHistoricalFriends = false
+    @State private var noticeProfileEnabled = true
     @State private var showSavedConfirmation = false
     @State private var completionSummary: SipCompletionSummary?
     @State private var v3CompletionSummary: LogASipV3PassportSummary?
@@ -322,6 +326,26 @@ struct LogVisitView: View {
                     maximumSelectionCount: max(1, 10 - photoImages.count)
                 )
             }
+            .sheet(isPresented: $showPublicationNotice) {
+                NavigationStack {
+                    Form {
+                        Section("How sharing works") {
+                            Text("Friends posts appear in Friends Feed and on your public profile and tagged friends’ public profiles. They do not appear in Everyone Feed. Private posts stay private.")
+                            Text("Hide a post from your profile at any time. Hiding it there does not hide it from a tagged friend’s profile.")
+                            if !noticeProfileEnabled { Text("Your previous choice to hide Friends posts from your own profile is preserved.") }
+                        }
+                        Section {
+                            Toggle("Also include my older Friends posts", isOn: $includeHistoricalFriends)
+                            Text("Off keeps your historical sharing choices unchanged.")
+                        }
+                        if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                        Button(checkingPublicationPolicy ? "Saving…" : "Got it · Publish") { acknowledgePublication() }
+                            .disabled(checkingPublicationPolicy)
+                    }
+                    .navigationTitle("Your public profile")
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Back") { showPublicationNotice = false } } }
+                }
+            }
             .sheet(isPresented: $showPhotoOrganizer, onDismiss: finishOrganizingPhotos) {
                 SipPhotoOrganizer(
                     images: $photoImages,
@@ -456,12 +480,12 @@ struct LogVisitView: View {
                     .sipStepViewed(analyticsSnapshot)
                 )
             }
-            .onChange(of: draft.ratingCriteria) { _, criteria in
-                PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedSipScope)
+            .onChange(of: draft.ratingCriteria) { previous, criteria in
+                PinnedCriterionStore.shared.synchronizeChanges(from: previous, to: criteria, scope: pinnedSipScope)
                 CriterionImportanceStore.shared.synchronize(criteria, scope: pinnedSipScope)
             }
-            .onChange(of: draft.contextRatingCriteria) { _, criteria in
-                PinnedCriterionStore.shared.synchronize(criteria, scope: pinnedContextScope)
+            .onChange(of: draft.contextRatingCriteria) { previous, criteria in
+                PinnedCriterionStore.shared.synchronizeChanges(from: previous, to: criteria, scope: pinnedContextScope)
                 CriterionImportanceStore.shared.synchronize(criteria, scope: pinnedContextScope)
             }
             .onChange(of: locationManager.location) { _, location in
@@ -535,7 +559,7 @@ struct LogVisitView: View {
             onUseLastSipSetup: useLastSipCriteriaSetup,
             onUseLastContextSetup: useLastContextCriteriaSetup,
             onDismissFirstSipGuidance: onFirstSipGuidanceDismissed,
-            onPublish: saveSip,
+            onPublish: preparePublication,
             onViewPublishedMugshot: viewPublishedMugshot,
             onViewPassport: viewPassportAfterCompletion,
             onUndoWantToTryRemoval: undoWantToTryRemoval,
@@ -1655,7 +1679,7 @@ struct LogVisitView: View {
             )
 
             if draft.visibility == .friends {
-                Text("Friends Feed · also on your public profile unless disabled in Privacy and Visibility")
+                Text("Friends Feed and public profiles · not Everyone Feed")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2914,6 +2938,41 @@ struct LogVisitView: View {
         persistDraft()
         tabCoordinator.returnFromComposer()
         dismiss()
+    }
+
+    private func preparePublication() {
+        guard !isSaving, !checkingPublicationPolicy else { return }
+        guard let owner = authModel.authenticatedUser?.id else { saveSip(); return }
+        checkingPublicationPolicy = true
+        Task { @MainActor in
+            defer { checkingPublicationPolicy = false }
+            do {
+                let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+                let policy = try await service.publicationPolicy()
+                guard authModel.authenticatedUser?.id == owner else { return }
+                if policy.acknowledged == true { saveSip() }
+                else {
+                    noticeProfileEnabled = policy.show_friends
+                    includeHistoricalFriends = false
+                    showPublicationNotice = true
+                }
+            } catch { errorMessage = "Couldn’t check your sharing preferences. Your draft is saved; try again when connected." }
+        }
+    }
+
+    private func acknowledgePublication() {
+        guard !checkingPublicationPolicy, let owner = authModel.authenticatedUser?.id else { return }
+        checkingPublicationPolicy = true
+        Task { @MainActor in
+            defer { checkingPublicationPolicy = false }
+            do {
+                let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+                try await service.acknowledgePublication(includeHistorical: includeHistoricalFriends)
+                guard authModel.authenticatedUser?.id == owner else { return }
+                showPublicationNotice = false
+                saveSip()
+            } catch { errorMessage = "Your sharing preference wasn’t saved. Please try again." }
+        }
     }
 
     private func saveSip() {

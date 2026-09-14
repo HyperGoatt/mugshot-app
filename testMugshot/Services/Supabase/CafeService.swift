@@ -124,6 +124,16 @@ final class CafeService {
             return existingCafe
         }
 
+        // The server reads canonical fields from Apple. A caller-provided ID
+        // alone is not proof of the submitted name, address, or coordinates.
+        if let placeID = cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty {
+            return try await client.functions.invoke(
+                "verify-cafe", options: FunctionInvokeOptions(body: [
+                    "provider": "apple", "place_id": placeID
+                ])
+            )
+        }
+
         let identityKey = CafeIdentity.key(for: cafe)
         if let existingCafe = try await fetchCafe(identityKey: identityKey) {
             return existingCafe

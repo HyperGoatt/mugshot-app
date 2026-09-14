@@ -353,7 +353,7 @@ compile_for_testing_without_simulator() {
 
   xcodebuild \
     -project "${REPO_ROOT}/testMugshot.xcodeproj" \
-    -scheme testMugshot \
+    -scheme MugshotTests \
     -configuration Debug \
     -destination 'generic/platform=iOS Simulator' \
     -derivedDataPath "${derived_data_path}" \
@@ -364,7 +364,35 @@ compile_for_testing_without_simulator() {
     -skipPackageUpdates \
     CODE_SIGNING_ALLOWED=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
-    build-for-testing
+    build-for-testing || return $?
+
+  # An empty auto-generated test scheme can successfully build only the app.
+  # Require both repository test targets in the generated execution manifest.
+  python3 - "${derived_data_path}/Build/Products" <<'PY'
+import pathlib
+import plistlib
+import sys
+
+manifests = list(pathlib.Path(sys.argv[1]).glob("MugshotTests_*.xctestrun"))
+if not manifests:
+    raise SystemExit("Missing MugshotTests execution manifest")
+manifest = max(manifests, key=lambda path: path.stat().st_mtime)
+data = plistlib.loads(manifest.read_bytes())
+targets = {
+    target.get("BlueprintName")
+    for configuration in data.get("TestConfigurations", [])
+    for target in configuration.get("TestTargets", [])
+}
+targets.update(
+    value.get("BlueprintName")
+    for value in data.values()
+    if isinstance(value, dict) and "TestBundlePath" in value
+)
+required = {"testMugshotTests", "testMugshotUITests"}
+if not required.issubset(targets):
+    raise SystemExit(f"Missing compiled test targets: {sorted(required - targets)}")
+print("Verified app unit and UI test targets in execution manifest")
+PY
 }
 
 if [ "$#" -gt 1 ]; then

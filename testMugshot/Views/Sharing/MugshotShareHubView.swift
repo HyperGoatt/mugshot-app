@@ -153,13 +153,13 @@ struct MugshotShareHubView: View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Mugshot published.")
+                    Text("Mugshot saved.")
                         .mugshotDisplay(size: 34)
                         .foregroundStyle(Color.espressoBrown)
                     Text(
                         startAnotherTitle == "Brew Again"
                             ? "Your attempt is saved in your Home journal."
-                            : "Your sip is live and safely in your journal."
+                            : "Your sip is saved in your journal."
                     )
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
@@ -170,7 +170,7 @@ struct MugshotShareHubView: View {
                     .foregroundStyle(Color.foamWhite)
                     .frame(width: 38, height: 38)
                     .background(Color.mugshotSage, in: Circle())
-                    .accessibilityLabel("Published")
+                    .accessibilityLabel("Saved")
             }
 
             MugshotAdaptivePostMedia(
@@ -245,7 +245,7 @@ struct MugshotShareHubView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(isPostPublish ? "Mugshot published" : "Share your Mugshot")
+                Text(isPostPublish ? "Mugshot saved" : "Share your Mugshot")
                     .mugshotDisplay(size: 34)
                     .foregroundStyle(Color.espressoBrown)
                 Text(
@@ -262,7 +262,7 @@ struct MugshotShareHubView: View {
                 .foregroundStyle(Color.foamWhite)
                 .frame(width: 38, height: 38)
                 .background(Color.mugshotSage, in: Circle())
-                .accessibilityLabel("Published")
+                .accessibilityLabel("Saved")
         }
     }
 

@@ -1663,7 +1663,7 @@ private struct LogASipV3PublishSurface: View {
         LogASipV3ScrollableSurface(
             actionTitle: isSaving
                 ? "Publishing Mugshot…"
-                : (isHome ? "Post Mugshot" : "Publish Mugshot"),
+                : "Publish · \(draft.visibility.rawValue.capitalized)",
             actionSubtitle: publishSubtitle,
             actionIcon: "arrow.up.circle.fill",
             actionEnabled: isReadyToPublish
@@ -1783,7 +1783,7 @@ private struct LogASipV3PublishSurface: View {
                 )
 
                 if draft.visibility == .friends {
-                    Text("Friends keeps this in Friends Feed. It also appears on your public profile unless you turn that off in Privacy and Visibility.")
+                    Text("Friends: Appears in Friends Feed and on your public profile and tagged friends’ public profiles. Does not appear in Everyone Feed. Your profile preferences and individual hides still apply.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -3970,15 +3970,17 @@ private struct LogASipV3Avatar: View {
     let companion: SipCompanion
 
     var body: some View {
-        AsyncImage(url: companion.avatarURL.flatMap(URL.init(string:))) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFill()
+        Group {
+            if let value = companion.avatarURL {
+                ProtectedRemoteImage(storedValue: value) { image in
+                    if let image {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    } else {
+                        initial
+                    }
+                }
             } else {
-                Text(companion.displayName.prefix(1).uppercased())
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.espressoBrown)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.sandBeige)
+                initial
             }
         }
         .frame(width: 40, height: 40)
@@ -3986,6 +3988,15 @@ private struct LogASipV3Avatar: View {
         .overlay(Circle().stroke(Color.foamWhite, lineWidth: 2))
         .accessibilityLabel(companion.displayName)
     }
+
+    private var initial: some View {
+        Text(companion.displayName.prefix(1).uppercased())
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(Color.espressoBrown)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.sandBeige)
+    }
+
 }
 
 // MARK: - Helper sheets

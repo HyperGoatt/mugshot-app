@@ -114,7 +114,7 @@ struct ModerationEnforcementAction: Codable, Identifiable, Equatable {
     var subjectTitle: String {
         switch subjectKind {
         case "visit": "MugShot post"
-        case "comment": "Comment"
+        case "comment", "cafe_list_comment": "Comment"
         default: "Account"
         }
     }

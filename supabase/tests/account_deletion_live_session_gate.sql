@@ -28,10 +28,16 @@ begin
     'anon', 'public.enforce_mugshot_live_session_v3()', 'EXECUTE'
   ) or not has_function_privilege(
     'authenticated', 'public.enforce_mugshot_live_session_v3()', 'EXECUTE'
+  ) or not has_function_privilege(
+    'service_role', 'public.enforce_mugshot_live_session_v3()', 'EXECUTE'
   ) then
     raise exception 'PostgREST request roles cannot execute the live-session hook';
   end if;
 end;
 $test$;
 
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select public.enforce_mugshot_live_session_v3();
+reset role;
 rollback;

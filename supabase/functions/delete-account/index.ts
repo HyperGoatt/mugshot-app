@@ -1,4 +1,7 @@
+import { drainAnalyticsErasures } from "./analytics-worker.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.110.3";
+import { drainAppleRevocations } from "./provider-worker.ts";
+import { stageAppleDeletionCredential } from "./provider-stage.ts";
 import {
   accountDeletionSubjectMatches,
   cleanupWorkerContract,
@@ -101,7 +104,9 @@ function capability() {
     exactOwnerValidatedStorageManifest: true,
     statusRpc: "read_account_deletion_job_by_recovery_v3",
     cleanupWorkerAction: cleanupAction,
-    cleanupWorkerAuthentication: cleanupWorkerContract.authentication,
+    cleanupWorkerAuthentication: Deno.env.get("ACCOUNT_DELETION_WORKER_SECRET")
+      ? "worker_secret_bearer"
+      : cleanupWorkerContract.authentication,
     cleanupWorkerInvocation: cleanupWorkerContract.invocation,
     cleanupDelivery: cleanupWorkerContract.delivery,
     automaticCleanupScheduled,
@@ -119,11 +124,42 @@ function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-function responseFor(result: ProcessResult): Response {
+async function responseFor(
+  admin: AdminClient,
+  result: ProcessResult,
+): Promise<Response> {
+  let providerCleanup: string | null = null;
+  try {
+    const status = await admin.rpc("read_account_apple_revocation_status_v1", {
+      p_request_id: result.requestId,
+      p_job_id: result.jobId,
+    });
+    if (
+      !status.error &&
+      ["pending", "revoked", "unavailable"].includes(status.data)
+    ) {
+      providerCleanup = status.data;
+    }
+  } catch {
+    // Provider status does not weaken the verified Mugshot deletion receipt.
+  }
+  let analyticsCleanup: string | null = null;
+  try {
+    const status = await admin.rpc("read_account_analytics_erasure_status_v1", {
+      p_request_id: result.requestId,
+      p_job_id: result.jobId,
+    });
+    if (
+      !status.error &&
+      ["pending", "verified", "attention"].includes(status.data)
+    ) analyticsCleanup = status.data;
+  } catch { /* The Mugshot receipt remains separate from processor cleanup. */ }
   return json({
     protocol: protocolName,
     protocolVersion,
     ...result,
+    providerCleanup,
+    analyticsCleanup,
     cleanupDelivery: result.cleanupStatus === "completed"
       ? "none_required"
       : cleanupWorkerContract.delivery,
@@ -360,9 +396,9 @@ async function markPending(
     },
   );
   if (receiptError) {
-    console.error("delete-account pending receipt failed", receiptError);
+    console.error("delete-account pending receipt failed");
   } else if (data !== true) {
-    console.warn("delete-account pending receipt lost its lease", { jobID });
+    console.warn("delete-account pending receipt lost its lease");
   }
 }
 
@@ -714,7 +750,9 @@ Deno.serve(async (request) => {
   });
 
   if (action === cleanupAction) {
-    if (!token || !constantTimeEqual(token, serviceRoleKey)) {
+    const workerSecret = Deno.env.get("ACCOUNT_DELETION_WORKER_SECRET") ??
+      serviceRoleKey;
+    if (!token || !constantTimeEqual(token, workerSecret)) {
       return json({ error: "unauthorized" }, 401);
     }
     const purged = await admin.rpc(
@@ -722,7 +760,7 @@ Deno.serve(async (request) => {
       {},
     );
     if (purged.error) {
-      console.error("delete-account receipt purge failed", purged.error);
+      console.error("delete-account receipt purge failed");
     }
     const leaseToken = crypto.randomUUID();
     const claimed = await admin.rpc("claim_account_deletion_jobs_v3", {
@@ -745,7 +783,7 @@ Deno.serve(async (request) => {
         result.status === "completed" ? completed += 1 : pending += 1;
       } catch (error) {
         pending += 1;
-        console.error("delete-account scheduled worker failed", error);
+        console.error("delete-account scheduled worker failed");
       } finally {
         await admin.rpc("release_account_deletion_job_v3", {
           p_job_id: row.job_id,
@@ -753,7 +791,30 @@ Deno.serve(async (request) => {
         });
       }
     }
-    return json({ claimed: (claimed.data ?? []).length, completed, pending });
+    const provider = await drainAppleRevocations(
+      (name, args) => admin.rpc(name, args),
+      {
+        clientID: Deno.env.get("APPLE_DELETION_CLIENT_ID") ?? "",
+        clientSecret: Deno.env.get("APPLE_DELETION_CLIENT_SECRET") ?? "",
+      },
+      Deno.env.get("ACCOUNT_PROVIDER_ENCRYPTION_KEY") ?? "",
+    );
+    const analytics = await drainAnalyticsErasures(
+      (name, args) => admin.rpc(name, args),
+      {
+        region: "us",
+        projectID: Number(Deno.env.get("POSTHOG_ERASURE_PROJECT_ID") ?? "0"),
+        personalAPIKey: Deno.env.get("POSTHOG_ERASURE_PERSONAL_API_KEY") ?? "",
+      },
+      Deno.env.get("POSTHOG_ERASURE_ENABLED") === "true",
+    );
+    return json({
+      analytics,
+      claimed: (claimed.data ?? []).length,
+      completed,
+      pending,
+      provider,
+    });
   }
 
   const requestID = body.requestId;
@@ -808,7 +869,7 @@ Deno.serve(async (request) => {
         reauthenticationRequired: true,
       }, 201);
     } catch (error) {
-      console.error("delete-account step-up challenge failed", error);
+      console.error("delete-account step-up challenge failed");
       return json({ error: "step_up_challenge_unavailable" }, 503);
     }
   }
@@ -859,6 +920,28 @@ Deno.serve(async (request) => {
       if (!data || data.authorized !== true) {
         throw new Error("step_up_authorization_unavailable");
       }
+      const appleConfig = {
+        clientID: Deno.env.get("APPLE_DELETION_CLIENT_ID") ?? "",
+        clientSecret: Deno.env.get("APPLE_DELETION_CLIENT_SECRET") ?? "",
+      };
+      const providerCleanup = await stageAppleDeletionCredential({
+        identities: user.identities ?? [],
+        authorizationCode: body.appleAuthorizationCode,
+        config: appleConfig,
+        encryptionKey: Deno.env.get("ACCOUNT_PROVIDER_ENCRYPTION_KEY") ?? "",
+        requestID,
+        stage: async (ciphertext) => {
+          const staged = await admin.rpc("stage_account_apple_revocation_v1", {
+            p_challenge_id: challengeID,
+            p_subject_id: user.id,
+            p_request_id: requestID,
+            p_session_id: evidence.sessionID,
+            p_client_id: appleConfig.clientID || "unconfigured",
+            p_ciphertext: ciphertext,
+          });
+          return !staged.error && staged.data === true;
+        },
+      });
       return json({
         protocol: protocolName,
         protocolVersion,
@@ -869,9 +952,10 @@ Deno.serve(async (request) => {
         authorizationSecret,
         expiresAt: data.expires_at,
         singleUse: true,
+        providerCleanup,
       });
     } catch (error) {
-      console.error("delete-account step-up authorization failed", error);
+      console.error("delete-account step-up authorization failed");
       return json({ error: "step_up_authorization_unavailable" }, 503);
     }
   }
@@ -895,17 +979,21 @@ Deno.serve(async (request) => {
         });
       }
       if (job.status === "completed") {
-        return responseFor(pendingResultFor(job, expectedSubjectID));
+        return responseFor(admin, pendingResultFor(job, expectedSubjectID));
       }
       const leaseToken = crypto.randomUUID();
       if (!await claimJobLease(admin, job.job_id, leaseToken)) {
-        return responseFor(pendingResultFor(
-          await readJob(admin, job.job_id),
-          expectedSubjectID,
-        ));
+        return responseFor(
+          admin,
+          pendingResultFor(
+            await readJob(admin, job.job_id),
+            expectedSubjectID,
+          ),
+        );
       }
       try {
         return responseFor(
+          admin,
           await processJob(
             admin,
             job,
@@ -920,7 +1008,7 @@ Deno.serve(async (request) => {
         });
       }
     } catch (error) {
-      console.error("delete-account recovery failed", error);
+      console.error("delete-account recovery failed");
       return json({ error: "recovery_unavailable" }, 503);
     }
   }
@@ -957,7 +1045,7 @@ Deno.serve(async (request) => {
         finalRetentionDays: 30,
       });
     } catch (error) {
-      console.error("delete-account acknowledgement failed", error);
+      console.error("delete-account acknowledgement failed");
       return json({ error: "acknowledgement_unavailable" }, 503);
     }
   }
@@ -1025,10 +1113,13 @@ Deno.serve(async (request) => {
 
     const leaseToken = crypto.randomUUID();
     if (!await claimJobLease(admin, prepared.data.job_id, leaseToken)) {
-      return responseFor(pendingResultFor(
-        await readJob(admin, prepared.data.job_id),
-        user.id,
-      ));
+      return responseFor(
+        admin,
+        pendingResultFor(
+          await readJob(admin, prepared.data.job_id),
+          user.id,
+        ),
+      );
     }
 
     try {
@@ -1040,6 +1131,7 @@ Deno.serve(async (request) => {
         console.warn("delete-account global sign-out needed SQL fallback");
       }
       return responseFor(
+        admin,
         await processJob(
           admin,
           prepared.data as DeletionJob,
@@ -1054,7 +1146,7 @@ Deno.serve(async (request) => {
       });
     }
   } catch (error) {
-    console.error("delete-account v3 failed before confirmation", error);
+    console.error("delete-account v3 failed before confirmation");
     return json({ error: "deletion_unavailable" }, 503);
   }
 });

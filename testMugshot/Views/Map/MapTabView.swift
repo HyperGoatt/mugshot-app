@@ -188,6 +188,7 @@ struct MapTabView: View {
                         // the person is actually looking at, not the last
                         // location that happened to initialize the screen.
                         if isSearchActive,
+                           !searchService.isResolvingSelection,
                            !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             searchService.search(query: searchText, region: updatedRegion)
                         }
@@ -4171,7 +4172,8 @@ struct SearchResultsList: View {
 
     private func selectCompletion(_ completion: MKLocalSearchCompletion) {
         resolvingRecentID = nil
-        isSearchFieldFocused.wrappedValue = false
+        // Keep the keyboard stable until selection completes. Its dismissal
+        // changes the viewport and must not replace this explicit lookup.
         selectionResolutionTask?.cancel()
         selectionResolutionTask = Task { @MainActor in
             guard let mapItem = await searchService.resolve(

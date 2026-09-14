@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-13
 ---
 
 # Mugshot PostHog analytics plan
@@ -87,3 +87,148 @@ The five free-tier alert slots are used for:
 - Any prevented duplicate sip publication.
 
 The existing wizard dashboard is aligned with the canonical names instead of creating a duplicate basics dashboard. All saved insights exclude the existing Internal / Test users cohort.
+
+## Sprint 1 account erasure follow-up
+
+Read-only project metadata on September 13 identified project `521217` in US
+Cloud. Its public project token matches the native configuration; no person or
+event records were read. The existing SDK identifies accounts by Supabase UUID,
+so resetting the SDK locally is not evidence that server-side analytics was
+removed.
+
+`supabase/functions/delete-account/analytics.ts` implements an isolated erasure
+adapter, with four focused synthetic Deno tests passing. It verifies the exact
+account/person mapping, submits one person's events and recordings for cleanup,
+and treats provider acceptance as submitted rather than complete. Verification
+requires a matching completed receipt created after the current submission and
+a valid verification timestamp. Requests use fixed regional API hosts, bounded
+responses, no redirects, and coarse errors without provider payloads.
+
+Migration `20260913065006_sprint1_analytics_erasure_queue.sql` captures the
+account identifier when the deletion job is created. The scheduled deletion
+worker claims it only after identity deletion is confirmed. It persists the
+provider target before submission, checks receipts before retrying uncertain
+submissions, and rejects a provider person linked to another existing account.
+A durable provider-acceptance bit prevents repeated deletion submissions while
+completion is pending. Unacknowledged submissions still check the saved receipt
+before retrying. Five-minute leases fence concurrent workers. Thirty unsuccessful attempts move
+the item to `attention`; unresolved identifiers are retained for support and
+must not be silently purged. Verified event receipts clear those identifiers.
+
+The native deletion response distinguishes pending, verified event cleanup,
+attention, and unconfirmed status independently of Mugshot and Apple cleanup.
+The provider's event receipt is not proof of recording deletion. Recording
+absence or separate recording-erasure evidence is required before activation.
+Reviewed native source disables session replay. On September 13, the project
+recording switch was found enabled, switched off, and verified disabled after
+reload. The authenticated PostHog project endpoint also confirms
+`session_recording_opt_in=false` and 30-day retention. An unfiltered recording
+query from July 1, before the project's July 20 creation, returned zero results
+with internal/test users included and no duration/property filter. This closes
+the current recording-inventory gate. It is dated provider inventory evidence,
+not proof about provider backups or future configuration changes. Recheck before
+activation; any future recording requires separate erasure evidence.
+
+Activation requires server-only `POSTHOG_ERASURE_PROJECT_ID=521217`,
+`POSTHOG_ERASURE_PERSONAL_API_KEY` with project-scoped `person:write` (which
+also permits the required person lookup), and
+`POSTHOG_ERASURE_ENABLED=true`. The worker rejects other projects/regions and
+uses claim limit zero when disabled, preserving queued attempts. The approved
+personal key was created on September 13 and saved locally with
+mode 0600 outside Git. Its UI scope is only `person:write` for this project; a
+random synthetic UUID lookup returned HTTP 200 with zero results. The key is
+not deployed, the local enable flag remains false, and no live analytics
+deletion has run.
+Native queued-event runtime acceptance and disposable-account acceptance remain
+open. The service-only support recovery below is implemented and locally tested;
+the focused recovery contract and full 57-contract hosted run also pass.
+
+References: [Persons API](https://posthog.com/docs/api/persons) and
+[data deletion](https://posthog.com/docs/privacy/data-storage#data-deletion).
+
+### Native queued-event finding
+
+The resolved PostHog SDK source explicitly preserves its current event/replay/log
+queues in `reset()`. `close()` stops queues but does not erase their disk files;
+`optOut()` stops capture/integrations rather than proving queue disposal. Native
+startup configures the SDK before account recovery, so queued events from a
+previous run could be sent before a pending deletion is recovered. A deletion
+integration must gate startup and dispose the deleted account's queued events,
+including in-flight/relaunch handling. Do not substitute `flush()` as evidence:
+provider documentation describes it as best-effort and asynchronous.
+
+This finding is addressed in source by the startup/deletion boundary below;
+consolidated runtime and provider acceptance remain required.
+The PostHog credential setup tab currently redirects to sign-in. No credential
+was created or provider person record changed during this inspection.
+See [iOS configuration](https://posthog.com/docs/libraries/ios/configuration).
+
+### Native deletion startup boundary
+
+Source now starts analytics only after the account status is signed in/out and
+Keychain deletion recovery is clear. App initialization no longer configures the
+SDK. Immediately before the real deletion POST, an atomic local marker is
+written and the SDK is closed. Capture, identification, reset and configuration
+share a lifecycle lock; this process cannot restart analytics after suspension,
+even if the network result is ambiguous or a different account signs in.
+
+On a later process launch, marked telemetry is deleted before SDK setup. The
+cleanup targets only the configured project's PostHog directory and legacy
+`posthog.*` files under this app's Application Support bundle directory. It
+preserves journal/media/Auth files and other project directories. It rejects
+path traversal and a symbolic-link base. A cleanup failure leaves analytics
+off and the marker retained for retry. Signed-out startup also discards the old
+SDK identity/queue. Same-process analytics delivery remains paused after a
+failed deletion attempt and resumes on a later eligible launch; account features
+continue working. The disk cleanup is deferred to that launch so callbacks from
+a stopped SDK cannot repopulate a newly started SDK's queue.
+
+The layout was inspected against pinned PostHog iOS `3.68.4`, revision
+`fe6193716ed54b0430b2d5370b746885fd442787`. Dependency upgrades must recheck
+that layout. The SDK uses an ephemeral URL session with 15-second request and
+30-second resource timeouts. Backend analytics erasure starts no sooner than
+five minutes after identity deletion. These bounds and the quiet interval
+reduce in-flight overlap; they are not proof of provider ingestion completion
+or protection against events from older clients on another device.
+
+Local evidence: the standalone Swift file-cleanup check passes durable restart,
+namespace isolation, legacy cleanup, marker clearing, signed-out disposal and
+invalid-path handling. The facade test covers same-process suppression and a
+fresh-process restart, and is queued for the consolidated native test run.
+Offline deletion/relaunch, failures, account switching, bounded outstanding
+uploads and multi-device/older-client behavior remain acceptance gates.
+
+Standalone check:
+`swiftc testMugshot/Services/Analytics/AnalyticsDeletionQuarantine.swift qa/check-analytics-quarantine.swift -o /tmp/mugshot-analytics-quarantine-check`
+then `/tmp/mugshot-analytics-quarantine-check`.
+
+
+## Recovering an analytics cleanup attention item
+
+Migration `20260913153904` adds a service-only recovery RPC and private audit
+receipts. An authorized operator first diagnoses and repairs the provider,
+configuration, or identity mapping issue. Read the exact request's current
+`updated_at` from `private.account_analytics_erasures`, then call
+`retry_account_analytics_erasure_v1` with that request UUID, a fresh operation
+UUID, that exact timestamp, and one of `provider_restored`,
+`configuration_repaired`, or `identity_mapping_reviewed`. Keep the operation
+UUID and timestamp unchanged when retrying a lost response. Do not put a name,
+email, raw content, or free-text support note in the reason field.
+
+Only an `attention` item with a retained owner, deleted identity, no lease, and
+a matching timestamp can return `requeued`. `already_applied` means that exact
+operation was previously accepted, not that cleanup is complete. `unavailable`
+requires a fresh inspection; it must not trigger an automatic retry loop.
+A reused operation with different inputs fails. The RPC resets only retry
+scheduling and the attempt budget, preserving the owner/person mapping,
+submission timestamp, and provider acceptance. Normal worker alias checks,
+leases and receipt verification still apply. It never marks cleanup verified.
+
+Audit receipts record the request, operation, previous attempts/timestamp and
+fixed reason without copying owner or person identifiers. Receipts follow the
+queue row's retention via a cascading foreign key. Client roles have no table
+or RPC access. The focused hermetic test covers stale snapshots, lost responses,
+active leases, preserved targets/evidence, alias rejection after recovery,
+verified-row rejection, and denied client grants. Hosted rehearsal and the full
+57-contract suite pass on isolated QA.
+Live operational acceptance remains pending; production is unchanged.

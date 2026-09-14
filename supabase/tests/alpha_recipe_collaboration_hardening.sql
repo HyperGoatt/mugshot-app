@@ -73,11 +73,11 @@ begin
        from cron.job
        where jobname = 'mugshot-alpha-ephemera-v3'
          and schedule = '*/15 * * * *'
-         and active
+         and active = (current_setting('mugshot.qa_contract', true) is distinct from 'isolated')
          and command ilike '%purge_expired_recipe_staging_v3(1000)%'
          and command ilike '%purge_expired_collaboration_invites_v3(1000)%'
      ) then
-    raise exception 'alpha ephemera cleanup scheduler is missing or inactive';
+    raise exception 'alpha ephemera cleanup scheduler is missing or has an unexpected activation state';
   end if;
 
   if not has_function_privilege(

@@ -436,6 +436,22 @@ struct LogASipV3DomainTests {
         #expect(expiredVisitID == record.visitID)
     }
 
+    @Test func draftInitializationDoesNotErasePinsAndExplicitUnpinPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: UUID().uuidString))
+        let store = PinnedCriterionStore(defaults: defaults)
+        let pinned = SipRatingCriterionSnapshot(name: "Sweetness", score: 4, weight: 1, sortOrder: 0, isPinned: true)
+        store.synchronize([pinned], scope: "owner.sip")
+        store.synchronizeChanges(from: [], to: [], scope: "owner.sip")
+        var restored: [SipRatingCriterionSnapshot] = []
+        store.applyPins(to: &restored, scope: "owner.sip")
+        #expect(restored.first?.isPinned == true)
+        #expect(restored.first?.score == 0)
+        let old = restored
+        restored[0].isPinned = false
+        store.synchronizeChanges(from: old, to: restored, scope: "owner.sip")
+        #expect(store.pinnedNames(scope: "owner.sip").isEmpty)
+    }
+
     @Test func pinnedCriteriaReturnBlankWithRememberedImportance() throws {
         let suiteName = "PinnedCriterionStoreTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

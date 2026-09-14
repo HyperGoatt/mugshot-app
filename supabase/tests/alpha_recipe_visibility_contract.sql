@@ -98,6 +98,8 @@ set recipe_version_id = legacy.recipe_version_id
 from alpha_legacy_recipe legacy
 where visit.id = legacy.visit_id;
 grant select on alpha_legacy_recipe to authenticated;
+select pg_temp.approve_shared_fixture('visit',visit_id) from alpha_legacy_recipe;
+select pg_temp.approve_shared_fixture('recipe',recipe_version_id) from alpha_legacy_recipe;
 
 create temp table alpha_legacy_adaptation (recipe_version_id uuid not null);
 grant select, insert on alpha_legacy_adaptation to authenticated;
@@ -263,6 +265,7 @@ select public.set_recipe_visibility_v1(
   'everyone',
   true
 );
+select pg_temp.approve_shared_fixture('recipe',recipe_version_id) from alpha_recipe_target;
 
 -- A social restriction may not expand public recipe reuse, even when the
 -- recipe audience itself remains Everyone. Privacy/safety reductions continue
@@ -332,6 +335,7 @@ select public.set_recipe_visibility_v1(
   'everyone',
   true
 );
+select pg_temp.approve_shared_fixture('recipe',recipe_version_id) from alpha_recipe_target;
 
 select set_config('request.jwt.claims', jsonb_build_object(
   'sub', (select id from alpha_recipe_users where n = 3),
@@ -408,6 +412,9 @@ select public.send_trusted_recommendation(
   (select recipe_version_id from alpha_recipe_target),
   'Projection enforcement contract'
 );
+reset role;
+select pg_temp.approve_shared_fixture('recommendation',id)
+from public.trusted_recommendations where target_recipe_version_id=(select recipe_version_id from alpha_recipe_target);
 
 reset role;
 select set_config('request.jwt.claims', '{}'::jsonb::text, true);

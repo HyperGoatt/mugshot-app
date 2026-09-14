@@ -122,8 +122,8 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
             "A successful V3 Home publication should land on the post-publish share hub."
         )
         XCTAssertTrue(
-            app.staticTexts["Mugshot published."].exists
-                || app.staticTexts["Mugshot published"].exists
+            app.staticTexts["Mugshot saved."].exists
+                || app.staticTexts["Mugshot saved"].exists
         )
         attachScreenshot(named: "07-share-hub", app: app)
 

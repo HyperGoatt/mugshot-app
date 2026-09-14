@@ -1,12 +1,42 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-14
 ---
 
-# Current sprint: real iOS notifications and TestFlight feedback
+# Current sprint: trust, moderation, and working sharing
 
-## Goal
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+## Current repair deployment — 2026-09-14
+
+The repair is now production-configured at 167 migrations with all five matching
+functions deployed. Original-table fingerprints and bucket visibility passed
+preservation checks. The dev candidate is installed on the owner's iPhone and
+the recorded phone checks passed. Technical-backlog recovery completed with 69
+approvals and one explained missing-photo service item; see [the current repair status](REPAIR_SHARING_STATUS.md) for exact outcomes.
+All disposable QA branches are deleted. TestFlight distribution remains held.
+
+The older checkpoints below are historical evidence and do not describe the
+current production head or active QA resources.
+
+
+Sprint 1 source adds readable `/profile/username` links, permanently reserved
+handle aliases, and anonymous recipient pages in the companion PWA. The
+unavailable Journal Passport entry and onboarding promotion are removed; the
+companion marketing site removes current-feature promises. Local
+handle contracts and synthetic browser checks pass; these changes are not yet
+production deployed or accepted on an installed app. Current delivery evidence
+is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+
+Sprint 1 implementation is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+Its source changes supersede the legacy default-on profile behavior below;
+production and TestFlight retain their separately recorded deployment states.
+
+## Previous notification sprint baseline
 
 Physically accept the existing Activity/APNs system, close device-lifecycle and
 badge gaps, and process TestFlight feedback without regressing privacy, data

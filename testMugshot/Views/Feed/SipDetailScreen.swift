@@ -1922,7 +1922,8 @@ private struct SipDetailActionDock: View {
                 SipDetailDockLabel(
                     action: action,
                     isActive: isActive(action),
-                    value: displayValue(for: action)
+                    value: displayValue(for: action),
+                    reaction: model.reactionState?.viewerReaction
                 )
             } primaryAction: {
                 onAction(action)
@@ -1942,7 +1943,8 @@ private struct SipDetailActionDock: View {
                 SipDetailDockLabel(
                     action: action,
                     isActive: isActive(action),
-                    value: displayValue(for: action)
+                    value: displayValue(for: action),
+                    reaction: model.reactionState?.viewerReaction
                 )
             }
             .buttonStyle(SipDetailPressButtonStyle())
@@ -1987,6 +1989,8 @@ struct SipDetailDockLabel: View {
     let isActive: Bool
     let value: String?
 
+    var reaction: PostReactionKind? = nil
+
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: activeSystemImage)
@@ -2007,7 +2011,7 @@ struct SipDetailDockLabel: View {
     private var activeSystemImage: String {
         guard isActive else { return action.systemImage }
         switch action {
-        case .like: return "heart.fill"
+        case .like: return reaction?.systemImage ?? "heart.fill"
         case .saveCafe: return "bookmark.fill"
         default: return action.systemImage
         }

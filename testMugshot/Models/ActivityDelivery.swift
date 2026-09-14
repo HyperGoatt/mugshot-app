@@ -140,10 +140,12 @@ enum ActivityDeepLinkDestination: Codable, Hashable {
     case visit(UUID)
     case profile(UUID)
     case collaborativeLists
+    case moderation
 
     static func resolve(_ url: URL) -> ActivityDeepLinkDestination? {
         guard url.scheme?.lowercased() == "mugshot",
               url.host?.lowercased() == "activity" else { return nil }
+        if URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "screen" && $0.value == "moderation" }) == true { return .moderation }
         let components = url.pathComponents.filter { $0 != "/" }
         guard let first = components.first else { return .center }
         switch first.lowercased() {
@@ -172,6 +174,8 @@ enum ActivityDeepLinkDestination: Codable, Hashable {
             URL(string: "mugshot://activity/visit/\(id.uuidString.lowercased())")!
         case .profile(let id):
             URL(string: "mugshot://activity/people/\(id.uuidString.lowercased())")!
+        case .moderation:
+            URL(string: "mugshot://activity?screen=moderation")!
         case .collaborativeLists:
             URL(string: "mugshot://activity/lists")!
         }

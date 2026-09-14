@@ -1,10 +1,396 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-14
 ---
 
 # Mugshot change log
+
+## 2026-09-14 — Moderation and sharing repair (production deployed; recovery complete)
+
+Repair album screening through individual image requests, bounded technical retries,
+service diagnostics and distinct moderation queues. Add acknowledged Friends
+publication, independent authored/tagged profile hides, pin persistence, broader
+named cafe search, audience-labelled Publish, selected reaction icons and Mugsy
+profile previews. Preservation and verification evidence: [repair status](REPAIR_SHARING_STATUS.md).
+
+
+## 2026-09-14
+
+- Staged Sprint 1 on production for the owner's real-account dev test. The
+  guarded atomic rollout preserved all 72 original tables and all original
+  bucket visibility; historical notification copy is preserved too.
+- Restored the encrypted logical backup into isolated PostgreSQL and matched
+  all 6,036 rows across 72 typed tables. Production photo inventory remains 331.
+- Deployed server functions, enabled no-training-verified screening and founder
+  review, published the companion web updates, and installed the production-
+  connected dev build on iPhone. TestFlight and final legacy bucket privacy
+  cutover remain held. All disposable QA branches are deleted.
+
+- Owner completed physical dev-build testing and requested rollout. Deleted the
+  remaining paid QA branch and verified only production remains. Final bucket-privacy
+  activation still requires the compatible-reader distribution gate.
+
+- Fixed old-backend profile-photo compatibility with a narrowly scoped missing-API
+  fallback; protected-server denials continue to fail closed.
+- Added one-time visibility preservation for existing shared revisions while
+  screening remains pending. Edits/new content require screening; rejection
+  removes preserved visibility. All 64 hosted SQL contracts pass.
+- Verified bytes for all 331 production Storage objects in encrypted backup/isolated restore,
+  unchanged production fingerprints, and current/protected/atomic-transition
+  audience matrices. Cutover changes notification copy in one historical migration;
+  the preservation guard detected it and production remains held.
+
+## 2026-09-13
+
+- Added a read-only content-preservation fingerprint guard and a client-first
+  compatibility release sequence. Captured production's original-column
+  baseline without changing production. The isolated media bridge compiles;
+  hardware/distribution and byte/access-preservation gates remain.
+- Restricted the reflection SQL fixture to reserved synthetic accounts, fixing
+  a failure caused by selecting unrelated QA users. All 63 hosted contracts pass.
+
+- Prepared the owner's full Sprint 1 phone walkthrough on isolated QA with
+  preview sharing sites, screening/review and scheduled email cleanup.
+  Cafe-list share links now honor the configured public domain, as profiles
+  and posts already do. Signed device compile and QA configuration checks
+  passed; owner acceptance is pending. No TestFlight upload occurred.
+
+- Physically accepted Private photo posting on iPhone 16 Pro using signed QA
+  development build 0.5.3 (6): save and relaunched photo display passed, owner
+  bytes were readable, nonowner/anonymous reads were denied, and no Private
+  visit screening job was created. Deleted paid QA and verified only main.
+  Removed the Sprint 1 heartbeat at the owner's request. No TestFlight upload
+  or production rollout occurred.
+
+- The repaired native deletion flow passed on isolated QA: fresh verification,
+  preserved progress UI, Auth/profile deletion, completed durable job, clear
+  completion message and signed-out relaunch. Apple revocation remains the
+  explicitly accepted unverified TestFlight boundary.
+
+- Owner narrowed delivery to TestFlight preparation, explicitly excluding App
+  Store review submission. Real Apple revocation remains unverified; the owner
+  authorized proceeding without a disposable Apple Account. Recorded that
+  limitation and the bounded remaining release checks.
+
+- Fixed Saved Data API permissions on clean replays while preserving owner-only
+  access. Two focused SQL contracts and native Save-to-Favorites passed.
+- Repaired native deletion capability matching for dedicated worker secrets and
+  preserved the deletion sheet during verification/failure. Added focused
+  capability regression coverage; all 30 account-lifecycle tests and full-static
+  checks pass. Revised deletion runtime acceptance is pending.
+- Accepted native Love persistence, profile share-sheet presentation, explicit
+  Friends-profile consent controls, and review/status screen loading. Closed
+  the paid journey QA branch and verified only main remains.
+
+- Fresh native QA passed all 62 database contracts, signed Simulator sign-in,
+  session restoration and profile onboarding. Verified the newly created
+  profile's screening, readable route and default Friends-profile exclusion.
+  Deleted QA after the Mac locked again. Documented why unsigned compile-only
+  artifacts cannot prove Keychain-dependent runtime behavior.
+
+- Closed paid catalog QA and verified that only the main branch remains.
+  Staged approved production OpenAI/Maps credentials with screening disabled;
+  verified secret digests. Native/provider acceptance and rollout remain open.
+
+- Legacy reflection and comment projections now enforce current screening
+  admission, including reply counts. Recipe identity lookup respects the linked
+  recipe visibility and screening state. Owner-only criterion extras remain
+  available to the owner and are excluded from outward reflection projection.
+
+- Canonical post screening now includes explicitly shared raw notes, visible
+  brew/equipment fields and visible criterion names. Reflection edits refresh
+  revisions; Private posts and private raw notes remain excluded. Canonical
+  criteria omit arbitrary extra keys, and discovery enrichment respects cafe
+  admission and screened public evidence. Focused hosted acceptance passes.
+
+- Added a dedicated deletion-worker secret override after live scheduled QA
+  exposed a legacy credential mismatch. User authorization is unchanged;
+  production activation requires a verified scheduled HTTP response.
+
+- Fixed initial deletion manifest counts for accounts with stored photos. The
+  regression contract and live synthetic fresh-login/deletion/recovery flow
+  pass, including actual Auth and Storage cleanup and stale-session denial.
+  Production rollout remains pending.
+
+- Live QA exposed and fixed missing service-role execution of the existing
+  PostgREST session hook. Authenticated cafe verification and synthetic
+  screening/reviewer flows now pass through deployed endpoints. User-session
+  enforcement is unchanged; production is not yet updated.
+- Restored the missing profile website column to reproducible migration history
+  and included website text in shared-profile screening. A non-empty hosted
+  profile contract passes; actual readable web profiles render on QA.
+
+
+- Added authenticated server cafe verification for Apple/Google selections,
+  service-only admission and rate limits, contextual catalog reads, and guarded
+  cafe references. Manual saves remain supported without private-content
+  screening. All 156 migrations replayed and all 58 hosted contracts passed;
+  four provider/handler tests, native app/test compilation and PWA build pass.
+  Production deployment remains pending.
+- Updated the isolated lifecycle and Home test harnesses to inspect the current
+  superseding security definitions, and fixed the discovery cursor contract to
+  use the actual last visible row when fewer than five cafes are available.
+
+
+- Completed approved Apple Maps identifier and Maps-only key provisioning.
+  Stored the private key outside Git with owner-only permissions. Local ES256
+  verification and Apple's server-scoped token exchange passed (HTTP 200).
+  Cafe verification implementation and production deployment remain pending;
+  no user content was sent during the check.
+
+- Replayed all 155 migrations and passed all 57 contracts in one isolated hosted
+  run, including analytics recovery. Deleted the paid branch, verified absence,
+  and removed its local credential. Production remains unchanged. Reverified
+  all three OpenAI model-improvement sharing controls remain Disabled.
+
+- Companion PWA cafe-search functions now omit raw queries, coordinates and
+  arbitrary provider/network errors from logs and error responses. Two focused
+  handler tests and Deno checks pass. Deployment is pending. Prepared Apple Maps
+  identifier/key setup for catalog verification; new access awaits approval.
+
+- Added audited service-only recovery for exhausted analytics cleanup. Stale
+  snapshots, reused operation IDs, active work, and verified rows cannot reset
+  the queue; original targets and provider evidence remain intact. Focused
+  hermetic checks pass. Hosted rehearsal and production deployment are pending.
+
+- Verified PostHog recording is disabled and an authenticated recording query
+  from before project creation returns no results, without duration or test-user
+  exclusions. This closes the dated recording-inventory gate; provider deletion
+  and runtime acceptance remain separate. No recordings were deleted.
+
+- Fixed cafe-list ownership transfers that rolled back when their new screening
+  revision hid the response from the former owner. A content-free confirmation
+  preserves existing client decoding and exact-epoch retries without approving
+  the content. The focused hosted contract passes; production is unchanged.
+
+- Fixed screening's suppression of the existing content-free Private tag notice.
+  A completed Private sip can retain its canonical tag notice without entering
+  screening or granting sip access. Shared pending content, blocked actors and
+  removed tags stay withheld. Focused hermetic and hosted activity checks pass;
+  the migration is not production deployed.
+
+- Aligned hosted QA setup with explicit consent, admitted base shared fixtures,
+  and inactive scheduler isolation. Later test mutations remain subject to
+  screening. Updated legacy media assertions to require private buckets.
+  All 56 hosted contracts now have passing evidence across the 55-pass full
+  run and the final focused security-assertion correction. The paid QA branch
+  was deleted and absence verified. Production behavior is unchanged.
+
+- Replayed all 152 migrations in the second data-less hosted QA branch. The
+  refreshed suite reports 32 passes and 24 failures across 56 contracts,
+  including a pass for the corrected owner-edit rollback check. Deleted the
+  branch and verified its absence after evidence capture; remaining failures
+  are still release gates.
+
+- Repaired 84 incorrect production migration statement records after guarded
+  forward/rollback rehearsal in disposable QA. One of the initially counted
+  85 records was legitimate and remains untouched. Schema and application row
+  fingerprints are unchanged; production migration head is unchanged. Recorded
+  the exact old/new hash ledger. Fresh automatic replay passed the repaired
+  history and reached 113 migrations before scheduler configuration was needed;
+  the check branch was deleted. Sprint 1 features remain undeployed.
+- Corrected the owner-edit rollback test to inspect canonical tag storage.
+  Screened public tag projections cannot establish whether a pending profile's
+  stored tag was rolled back; the mutation and cross-owner checks remain under
+  the authenticated role.
+
+- Completed approved Apple and PostHog credential provisioning into restricted,
+  Git-ignored local files. Apple client-secret signature verification and a
+  synthetic PostHog lookup pass; neither credential is deployed. Recorded the
+  Apple renewal deadline. Disabled PostHog project session recording and
+  verified the saved setting; complete retained-recording evidence remains open.
+
+- Recovered native test results hidden by Xcode diagnostic finalization: both
+  attempts ran 446 tests, with six assertion failures in one stale Home
+  Workbench expectation. Updated that existing test for the August criterion
+  catalog; the focused suite passes 15/15 with a successful xcresult. Corrected
+  the prior no-tests-ran interpretation in the sprint tracker.
+
+- Ran the first approved hosted Sprint 1 QA branch and deleted it after
+  evidence capture; branch absence is verified. Source replay passed with
+  isolated scheduler prerequisites. The full remote suite reported 30 passes
+  and 25 failures; production history also contains 85 damaged statement
+  records requiring repair. Neither finding is waived.
+- Added explicit least-privilege cafe catalog grants for fresh Supabase
+  environments. The new grant contract and screening queue contract pass on
+  hosted QA. Production remains unchanged; full-suite triage is still open.
+
+- Corrected the compile verification scheme to `MugshotTests` and added a
+  generated-manifest check for both test targets. The previous auto-generated
+  scheme could pass with no tests configured. Both test bundles now compile;
+  earlier app-and-test claims are qualified in the Sprint 1 tracker. The
+  isolated unit execution attempt stalled without test results while the Mac
+  was locked and was interrupted; runtime acceptance remains open.
+
+- Prepared protected recipient media: legacy own-project profile/visit URLs
+  now use one-minute signatures in shared-profile/shared-mugshot responses,
+  with no permanent-URL fallback when signing is unavailable. Native profile
+  and visit media resolution is implemented and compile-verified; the protected
+  bucket migration is implemented and locally RLS-tested, not deployed.
+- Added exact author/visit/bucket checks before privileged shared-link media
+  signing. Five focused Edge tests pass. Migration `20260913061308` closes
+  public user-media buckets and gates reads on current screened references;
+  actual hermetic RLS tests pass for anonymous, friend, blocked, Private, and
+  owner-recovery paths. Remaining web consumers and isolated remote QA are
+  still deployment gates.
+
+- Verified repaired marketing CI and preview deployment. Read-only Storage
+  inventory confirmed public profile/legacy photo buckets; protected delivery
+  and cache acceptance remain required before screening activation.
+
+- Published the reviewed Sprint 1 implementation and website disclosures to
+  their existing draft PRs. Repaired the marketing dependency audit failure;
+  local website verification and npm audit pass. Production release remains
+  gated on remote QA, configuration and runtime acceptance.
+
+- Preserved owner-level moderation actions after reported content deletion by
+  resolving the owner from server-captured report evidence. Deleted content
+  cannot receive a hide action, and self-review remains prohibited.
+
+- Aligned raw recipe recipient reads with projection authorization: suspended,
+  blocked or unavailable owners/senders no longer retain a raw-table access
+  path. Private recipes remain outside provider screening.
+
+- Minimized reviewer queue listings to status/reference metadata; raw content,
+  evidence and history now load only through the protected detail path. Owned
+  screening review/reconsideration records cascade on account deletion instead
+  of retaining free-text reasons after the owner is removed.
+
+- Fenced screening status, queue and preview loads with request identities.
+  Old responses cannot replace newer results or strand a background-cleared
+  screen; refreshed previews reload their images and restart expiration.
+
+- Bound expressive reaction writes to the initiating account with a V2 RPC.
+  Native service and Feed/detail response handling reject account switches;
+  legacy Like-only fallback remains available when the RPC is absent. Focused
+  PostgreSQL checks reject a mismatched actor and preserve Love behavior.
+
+- Reconciled the Xcode feedback cache against the ledger: 45 packages, with
+  one newly recorded build-6 copy suggestion. Preserved the original 44-report
+  acceptance history and left the new suggestion Open, outside approved Sprint 1.
+
+- Prepared the Apple provider-encryption key in ignored, mode-0600 local
+  configuration without exposing its value. Server provisioning is pending;
+  Apple Developer requires sign-in and native access reports a locked Mac.
+
+- Added the new screening queue contract to the actual remote SQL suite.
+  It checks sealed worker grants, lease/revision changes, stale approval
+  rejection and withdrawal under a disposable fixture guard, then rolls back.
+  The same SQL passes hermetic PostgreSQL; remote execution remains pending.
+
+- Prepared retirement of the obsolete `notify-friends-on-new-visit` endpoint.
+  Its replacement returns HTTP 410 without reading payloads, looking up devices
+  or sending pushes. Read-only production inspection found legacy version 8
+  still active; deploying the replacement remains a required release action.
+
+- Removed unrestricted client updates to shared cafe catalog records. Native
+  and PWA resolve/insert paths remain available, and trusted server corrections
+  remain possible. A PostgreSQL role test verifies the permission boundary;
+  no existing cafe rows are rewritten by this migration.
+
+- Closed a shared-text screening gap: displayed drink type/subtype now join the
+  existing caption/custom-name allowlist. Edits invalidate prior approval;
+  Private notes remain excluded. The forward migration recomputes shared
+  payloads without making provider requests.
+
+- Fixed a screening-gate regression for explicitly shared Private recipes.
+  Existing recipient access is preserved without sending Private recipe content
+  to the provider; friendship alone and anonymous access remain insufficient,
+  and dismissal/blocks revoke access. Focused PostgreSQL checks pass.
+
+- Added an inactive-by-default screening scheduler definition with a dedicated
+  Vault credential, strict worker URL validation, an idempotent ten-second
+  schedule and empty-queue skip. Explicit operational activation remains gated
+  by disclosures, no-training verification, isolated QA and server configuration.
+
+- Added database-enforced screening dispatch limits: 60 claims per minute,
+  ten per owner, six concurrent leases globally and two per owner. Throttled
+  jobs stay pending without consuming attempts. Limits are serialized across
+  worker calls, and owner budget records cascade with account deletion.
+
+- Added capability-verified Apple cleanup status to normal and recovered
+  deletion responses. Native completion copy distinguishes pending, revoked
+  and unconfirmed Apple access from completed Mugshot data deletion. Status
+  lookup is service-only and bound to the exact deletion request/job pair.
+
+- Connected native Apple deletion authorization codes to verified server-side
+  exchange and an encrypted, account-bound provider cleanup queue. Scheduled
+  cleanup waits for confirmed Mugshot identity deletion, retries with leases,
+  and erases credentials on success or bounded expiry. Provider failures do
+  not block Mugshot data deletion. Synthetic checks cover encryption, staging,
+  retry and failure paths; Apple configuration and live acceptance remain open.
+
+- Added the Apple deletion-token exchange/revocation boundary with signed
+  identity checks and sanitized errors. Five synthetic tests pass; durable
+  storage and deletion-flow integration were pending at that checkpoint and are
+  implemented in the later integration entry above. Removed raw error
+  objects and job IDs from deletion endpoint logs.
+
+- Made notification events durable while screening is pending, with approval-
+  gated delivery, edit/reclaim fencing and 24-hour expiry for held pushes.
+  Generated notification copy and lifecycle metadata no longer retain user-
+  written names/list titles. Focused synthetic checks pass; production remains
+  unchanged. Private-list invitation access is preserved without screening
+  Private content; focused tests cover invitation, acceptance, blocks and removal.
+
+- Added matching native, marketing and PWA disclosures for shared-content
+  screening, Private exclusions, no model training opt-in, review and appeals.
+  Privacy summaries no longer promise the unavailable Passport flow. Disclosure
+  publication and processing activation remain coordinated release gates.
+
+- Added report navigation to the current shared-content preview and four
+  synthetic reviewer endpoint tests. Authentication, operator revocation,
+  privacy withdrawal, bounded requests and media admission fail closed.
+  Private/deleted revisions have no preview; live acceptance remains pending.
+
+- Connected legacy and new cafe-list comment reports to durable review,
+  enforcement and appeals. Original receipts/evidence survive retries; focused
+  synthetic checks pass hide, reversal, ownership and deletion retention.
+- Corrected post-save receipts to confirm journal storage without claiming the
+  content is already live. Updated native acceptance assertions.
+
+## 2026-09-12
+
+- Added founder queues and native decisions for existing reports and enforcement
+  appeals. Expected-account/status checks fence stale decisions; existing audit
+  and ownership triggers remain in use. Focused synthetic PostgreSQL checks
+  pass enforcement and reversal. List-comment report integration and runtime/
+  production acceptance remain pending.
+
+- Connected shared-content queue revisions, bounded worker leases and retries,
+  primary/collection publication checks, protected review/status/reconsideration
+  RPCs and reviewer media preview. Edits, Storage replacements and privacy
+  withdrawal invalidate stale results. Nested recipe fields and public-list
+  copies now filter data that must not be exposed. Synthetic queue/projection
+  contracts pass. Added native status/reconsideration and operator review screens
+  with expiring media and account-bound decisions; generic Debug compile passes.
+  Complete surface audit, report enforcement, scheduling and runtime/production
+  acceptance remain pending. No production configuration changed.
+
+- Added the standalone moderation provider boundary with Private exclusion,
+  metadata stripping, explicit input fields and fail-closed error handling.
+  Seven synthetic Deno tests pass. Queue and publication integration progressed in the entry above; no user content has been sent and no worker is deployed.
+
+- Removed the unavailable Journal Passport shortcut and upgrade holding screen,
+  along with onboarding and marketing promises. Existing working profile
+  summaries remain. The legacy marketing landing now explains unavailability.
+
+- Implemented readable `/profile/username` links with permanent owner aliases
+  and deleted-handle tombstones. Existing revoked tokens stay unavailable.
+  Anonymous PWA sip/profile recipients and marketing rewrites are implemented
+  in companion repositories; public API data is no longer service-worker cached.
+  Local handle, Edge type and synthetic browser checks pass; production and
+  installed-app acceptance remain pending. Share artwork now stops if the
+  anonymous projection cannot load, instead of falling back to owner data.
+
+- Created the dedicated Mugshot OpenAI project; verified all three optional
+  training-related data-sharing controls disabled. A synthetic-only moderation
+  request returned HTTP 200. No user content was transmitted.
+- Implemented versioned Friends-on-profile consent and author consent for
+  tagged Friends posts. Legacy clients may withdraw but cannot grant consent.
+  The isolated PostgreSQL consent test and iOS Debug compile pass;
+  production deployment and runtime acceptance remain pending. See [Sprint 1 delivery](SPRINT_1_TRACKER.md).
 
 ## 2026-08-26
 
@@ -340,3 +726,273 @@ last_verified: 2026-08-26
 
 Use dated audits, checkpoints, deployment gates, and Git history for earlier
 evidence. Those records remain historical rather than being rewritten here.
+
+### Native protected-media preparation — September 13, 2026
+
+Implemented in source: own-project legacy profile/visit public URLs now resolve
+through viewer-authorized Storage signing for 60 seconds. Avatar, banner, and
+visit-photo views discard displayed bytes on account/foreground changes and
+reauthorize visible images every 55 seconds. Signed image downloads bypass the
+shared image memory/disk caches; profile-share artwork uses an ephemeral session.
+Foreign image compatibility remains under audit. Previously downloaded or cached
+public copies cannot be recalled by this change.
+
+This changes product media loading, Storage compatibility, and privacy behavior.
+Production buckets are still public where inventoried; protected-bucket policies,
+remaining media consumers, consolidated runtime acceptance, and deployment remain
+open. Focused parser tests are added for own-origin, traversal, query, and bucket
+boundaries. Compile/static evidence will be recorded after this source batch.
+
+### Protected web-media compatibility — September 13, 2026
+
+Public cafe-list HTML now resolves user photos with the anonymous publishable
+client and Storage RLS, with no privileged signing or permanent URL fallback.
+Successful pages use private/no-store headers instead of shared caches. Six
+focused Deno media tests pass, including anonymous Storage denials; the cafe-list
+entrypoint type-checks.
+
+The companion PWA now routes every user-image element through protected loading;
+only bundled branding retains raw image elements. It clears signed blobs on
+account/visibility/source changes, refreshes Storage authorization, and refreshes
+shared-link projections every 45 seconds while visible. Postcard export waits
+for image authorization/decoding and fences account changes. Seven focused web
+tests, TypeScript, Vite build and targeted new-file ESLint pass. Existing upload
+regression checks exposed stale header expectations; committed "Log a Sip" copy
+was preserved and test expectations corrected.
+
+This affects media loading, web sharing, Storage compatibility and privacy.
+Production buckets and Edge Functions remain unchanged. Live signing/CORS,
+remaining native direct-image consumers, cafe admission, telemetry/data export,
+full isolated QA and consolidated runtime/deployment acceptance remain open.
+
+### Native media consumer closure — September 13, 2026
+
+Source inspection found one remaining native `AsyncImage` consumer: companion
+avatars in the Log a Sip form. It now uses the existing protected-image component
+while preserving its initials fallback, size and appearance. The anonymous
+Mugshot projection request now uses an ephemeral session without a URL cache and
+checks cancellation before decoding. This changes media-loading/privacy behavior;
+no Storage schema or production configuration is changed by this follow-up.
+
+The native source inventory has no remaining direct `AsyncImage` calls or shared
+URLSession data calls. Other `Data(contentsOf:)` calls found by the inventory read
+local draft/library/photo-cache files, not remote Storage URLs. Focused generic
+Debug compilation is the verification gate for this contained consumer change;
+consolidated runtime and live Storage acceptance remain pending.
+
+### Analytics erasure adapter — September 13, 2026
+
+Historical adapter-only checkpoint; superseded by the queue integration below
+and the current [analytics plan](POSTHOG_ANALYTICS_PLAN.md).
+
+Audited native event snapshot construction: content-presence booleans and
+controlled values are used instead of raw captions/notes. The PostHog identity
+maps to the Supabase UUID, but the local deletion worker has no PostHog cleanup
+integration. Read-only project metadata confirmed project `521217` matches the
+native public token. No person/event records were read or deleted.
+
+Added `delete-account/analytics.ts` for exact-account person lookup, scoped
+cleanup submission, and asynchronous verification with submission-time fencing.
+Four synthetic Deno tests pass, including stale receipts, partial cleanup,
+owner mismatch and oversized response rejection. The adapter is not connected
+to production or the deletion worker. Durable queue integration, scoped personal
+API-key setup, SDK queue/reset handling and disposable-account acceptance remain
+required. This is a privacy/analytics and backend-provider contract change; it is
+not evidence of completed analytics erasure.
+
+See [PostHog analytics plan](POSTHOG_ANALYTICS_PLAN.md) for the current contract
+and authoritative provider references.
+
+### September 13 analytics erasure queue integration
+
+Added a durable account-bound PostHog erasure queue before identity deletion,
+service-only lease/retry RPCs, scheduled worker integration, and a separate
+native analytics cleanup receipt. The focused PGlite contract passes identity
+ordering, surviving job removal, stale leases, other-account alias isolation,
+and identifier clearing on verified completion. Provider acceptance remains
+pending; event verification does not certify recordings. Production remains
+unconfigured. See [analytics plan](POSTHOG_ANALYTICS_PLAN.md) for outstanding
+SDK, support, credential, recording, and disposable-account gates.
+
+Analytics queue checkpoint verification: seven synthetic Deno adapter/worker
+tests passed; the backend gate passed 11 checks with no failures (optional
+`pglast` parser unavailable; actual PGlite contracts passed). Generic Debug
+Simulator build-for-testing compiled successfully. Documentation validation and
+diff whitespace checks passed. No Simulator runtime or remote mutation ran.
+
+### September 13 analytics accepted-submission retry fix
+
+Persist provider acceptance separately from completion so pending erasure polls
+its existing receipt instead of repeatedly enqueueing deletions. The focused
+worker regression and actual queue contract verify this state survives retries.
+SDK source inspection also confirmed reset/close do not dispose current disk
+queues and app startup precedes deletion recovery; this remains an explicit
+implementation gate in the [analytics plan](POSTHOG_ANALYTICS_PLAN.md).
+
+Verification: eight synthetic Deno tests, the focused PGlite queue contract,
+and documentation/whitespace checks passed. No native source changed, so no
+additional compile or Simulator run was needed for this follow-up.
+
+### September 13 native analytics deletion boundary
+
+Moved SDK startup after account recovery. The real deletion POST now requires a
+durable local analytics marker and closes telemetry for the rest of that process.
+The next eligible launch purges only the configured PostHog namespace before
+setup; failure keeps analytics off. Journal/media/Auth files are preserved.
+Added isolated Swift disposal checks and a facade suppression/restart test.
+The backend waits five minutes after identity removal; SDK requests use bounded
+ephemeral sessions. Runtime and older-client/multi-device ingestion acceptance
+remain open; see [analytics plan](POSTHOG_ANALYTICS_PLAN.md) for exact limits.
+
+Verification: generic Debug Simulator build-for-testing compiled; fast gate
+7 passed / 0 failed; standalone Swift quarantine and focused PGlite hold/queue
+contracts passed. The native facade test compiled but awaits the consolidated
+Simulator test run. No remote mutation or live provider upload was performed.
+
+### September 13 shared cafe text screening
+
+Native/PWA clients can supply cafe catalog text; provider IDs alone are not
+verified provenance. The displayed cafe name/address/city/country/website now
+joins the screening payload for shared visits, profile favorites, list items
+and direct cafe recommendations. Empty notes no longer auto-approve unchecked
+catalog text. Private-only visits/lists return before catalog lookup and still
+produce no payload. Coordinates and provider place IDs are omitted.
+
+Server catalog text corrections invalidate dependent revisions/leases in the
+same transaction. Rebuilding snapshots is idempotent and does not append text
+repeatedly. The migration rebuilds affected snapshots locally without provider
+calls; it leaves direct catalog rows unchanged. Tests verify a pending public
+list item is withheld, a correction invalidates approval, names/addresses enter
+snapshots, and Private notes/selections stay excluded.
+
+Direct catalog insert provenance and raw catalog read/projection admission
+remain open. This is a shared-content screening fix, not a claim that all cafe
+catalog surfaces are moderated or production configured.
+
+Verification: backend gate 11 passed / 0 failed / 1 optional parser skipped;
+focused actual-PostgreSQL tests passed after the final payload minimization,
+including direct cafe recommendation invalidation. Documentation and whitespace
+checks passed. No native source changed. No Simulator session or production
+mutation ran.
+
+### September 13 PWA sip-detail compatibility and account scoping
+
+The raw-note concern resolves to an existing backend contract: legacy notes are
+routed to the owner-only table and constrained null. Direct SELECT on both notes
+and protected brew columns is revoked. PWA detail still requested them, so its
+whole visit query could fail. The companion source now selects safe columns,
+uses owner/shared recipe RPCs for brew method and drops the unused notes field.
+Account/generation-scoped query keys, cancellation, cache removal and final
+session checks prevent a late owner response from being reused after switching.
+
+Three focused hook tests pass, along with TypeScript, focused ESLint and Vite
+build checks. These are local synthetic checks; runtime/production acceptance
+remain pending. The outward field inventory also identified shared `city_state`
+and rating labels for screening-policy verification; do not infer full audit
+completion from this compatibility fix.
+
+PWA checkpoint `5f58528` is committed on `codex/sprint-1-sharing` for draft
+PR 13. Native/backend source is unchanged in this follow-up.
+
+### September 13 displayed visit location and rating labels
+
+Verified native/PWA rendering uses `city_state` and custom names from `ratings`
+and `category_scores`; these fields were missing from the visit screening text.
+The new migration adds those displayed labels with a strict projection. Numeric
+scores/weights, internal IDs, private notes and unexpected nested properties
+are not serialized. Changing a displayed location/label invalidates approval;
+changing only a numeric score or hidden metadata does not enqueue new text.
+Private visits still return a null payload before any added text projection.
+
+The focused PGlite screening/projection suite passes, including custom labels,
+nested-field exclusion, revision changes and Private withdrawal. This is a
+Supabase/privacy contract change with no native or web source changes. Remote
+full-history QA and production activation remain pending; direct cafe catalog
+admission is still open.
+
+Checkpoint verification: focused PGlite behavior contracts passed and the fast
+gate passed 7 checks with no failures. Documentation and diff checks passed.
+No app build, Simulator session, provider request or production mutation ran
+for this SQL-only change.
+
+### Repair follow-up verification
+
+Added an isolated Auth session-identity regression and corrected duplicate Xcode
+log counting. The signed app reaches Feed using a local synthetic Auth backend.
+Live MapKit reproduced suggestion-selection cancellation during keyboard/viewport
+changes; the follow-up protects the selected lookup from viewport refreshes.
+
+The repaired Burlington suggestion opened its cafe card and Log a Sip in live
+MapKit acceptance. Pins survived reflection navigation and relaunch/resume;
+keyboard Done left the draft unpublished. The final Debug candidate compiles and
+launches. These runtime checks used synthetic local app data; live hosted, physical
+device and production rollout gates remain pending.
+
+Recorded the remaining repair acceptance gates and the complete shared-media
+function deployment set. This documentation checkpoint makes no additional
+runtime or production acceptance claim.
+
+Follow-up hosted runtime acceptance passed email sign-in, profile setup, session
+restoration, all four reaction saves, and visible rollback on a forced save
+failure. The disposable hosted branch was deleted and its removal verified.
+Remaining interactive acceptance, signing and production rollout remain pending.
+
+Apple Developer now has Associated Domains enabled for the dev app and a
+regenerated development profile for the existing iPhone/certificate. Local profile
+retrieval and signed installation remain pending: Chrome blocks the download by
+organization policy, and Xcode authentication is required for managed retrieval.
+
+
+Xcode authentication and managed profile retrieval subsequently succeeded. The
+production-connected repair dev candidate (0.5.3 build 6) compiled and installed
+on the iPhone; launch remains blocked by the phone lock. One focused hosted
+publishing UI test passed the single notice with historical inclusion off.
+Harmless content screened automatically, authored Hide/Show worked, a genuine
+synthetic provider flag was recorded, and a synthetic report reached its queue
+with one operator alert. The final hosted QA branch was deleted and only main
+remains. See the repair status for the precise remaining acceptance gates;
+production repair deployment remains held.
+
+After the owner unlocked the iPhone, the installed repair dev app launched
+successfully and its running process was confirmed. This resolves the physical
+launch blocker; owner screen acceptance, installed links and production repair
+rollout remain pending.
+
+The owner confirmed that the repair dev build loads the real account and older
+photos correctly. Remaining feature acceptance and the backend repair remain
+held; this confirmation is limited to account and photo compatibility.
+
+The owner also confirmed that the readable Joe profile URL delivered to the
+installed dev app opens the correct profile. Cross-app universal-link selection
+and preview acceptance remain distinct pending checks.
+
+Owner physical acceptance now includes automatic app opening from the external
+readable profile link, Muddy Waters selection from Charleston, draft pin
+persistence and audience-labelled Publish. Production repair is still pending;
+a fresh read found 70 technical failures (54 provider_configuration, 15
+invalid_input, one screening_unavailable), with human approval preserved.
+
+
+## 2026-09-14 — Repair production cutover
+
+Applied the three repair migrations with all 72 original-table fingerprints and
+bucket visibility unchanged. Deployed all five matching functions and re-enabled
+screening. Audited and requeued 70 technical-failure revisions while preserving
+the human approval. Recovery completed with 69 automatic approvals, zero pending/flagged items and
+one explained missing-media service item.
+
+Fresh backups restored 338 objects (445,112,136 bytes) byte-for-byte and 6,230 rows
+across 76 typed tables. The final hosted checks passed real four-photo automatic
+approval, bounded malformed-media retries, Private withdrawal, separate service
+and flagged queues, and approval/rejection reason rules. All QA branches were
+deleted. The repaired production-connected dev build is on the owner's phone;
+no TestFlight distribution or App Store submission occurred.
+
+
+Recovery finished with 69 automatic approvals and no content flags. One August 29
+Matcha references two files absent from all retained backups and the phone cache;
+it is a service issue, retains historical visibility and was not falsely approved.
+A focused worker follow-up records sanitized missing-object HTTP/code diagnostics;
+its seven tests passed and the updated function is deployed. Final production
+counts remain 82 posts, 18 users and 338 objects. See the repair status for the
+specific recovery action. No TestFlight build was distributed.

@@ -36,10 +36,19 @@ const connect = () => new Client({
     : { rejectUnauthorized: false },
 });
 
+const fixtureScreeningHelpers = fs.readFileSync(
+  path.join(repositoryRoot, "qa", "supabase", "fixture_screening_helpers.sql"),
+  "utf8",
+);
+
 const runSQL = async (source) => {
   const client = connect();
   await client.connect();
   try {
+    // Test-only operating mode: isolated branches must never dispatch jobs.
+    // This setting affects contract expectations, never application permissions.
+    await client.query("select set_config('mugshot.qa_contract', 'isolated', false)");
+    await client.query(fixtureScreeningHelpers);
     return await client.query(source);
   } finally {
     await client.end();
@@ -61,6 +70,11 @@ if (!sslCAPath) {
       + "set MUGSHOT_QA_SSL_CA_PATH for verify-full.",
   );
 }
+await runSQL(`do $$ begin
+  if exists(select 1 from cron.job where active) then
+    raise exception 'Remote QA requires all scheduled jobs to be inactive';
+  end if;
+end $$;`);
 await runSQL(fs.readFileSync(seedPath, "utf8"));
 console.log("PASS deterministic alpha QA seed");
 

@@ -1,3 +1,9 @@
+---
+document_type: living
+status: current
+last_verified: 2026-09-13
+---
+
 # MugShot iOS QA Efficiency Framework
 
 Date: 2026-07-22
@@ -27,7 +33,7 @@ The modes are cumulative:
 
 - `fast`: repository preflight, unstaged/staged/untracked text checks, migration filename integrity, and the required ASCII `cafe`/`cafes` spelling check.
 - `backend`: `fast`, optional local PostgreSQL syntax parsing through Python `pglast`, offline Deno formatting/type/test checks when Deno is installed and dependencies are cached, and the committed in-memory PostgreSQL behavior suite when its pinned Node dependency is installed. It never invokes the Supabase CLI or a network database connection.
-- `full-static`: `backend` plus a Debug `build-for-testing` compile against `generic/platform=iOS Simulator`. This compiles the app and test bundles with the Simulator SDK but does not boot, install, launch, or run tests on a Simulator.
+- `full-static`: `backend` plus a Debug `build-for-testing` compile using the shared `MugshotTests` scheme against `generic/platform=iOS Simulator`. This compiles the app and test bundles with the Simulator SDK and requires both unit and UI test targets in the generated execution manifest. It does not boot, install, launch, or run tests on a Simulator.
 
 The backend and full-static modes require the repository-pinned Deno/PGlite toolchain; missing required tools fail instead of producing a false-green result. Local `pglast` parsing remains optional and is reported as `SKIP`, never as a pass. Package versions are locked to the committed lockfiles and package updates are disabled. Xcode may still need to retrieve an exactly pinned dependency if it is not already present in the local package cache; that is package setup, not a Supabase connection.
 
@@ -78,6 +84,12 @@ The focused repository-owned PGlite harness in `qa/pglite` exercises account del
 Prepare the account states and checklist first. Boot one standard Simulator, run the consolidated unit suite once if needed, build/install/launch once, and walk the matrix below without stopping to repair each issue. A human may perform the taps while Codex records evidence and inspects logs. This is often faster and more reliable for system UI, gestures, scrolling, and visual judgment.
 
 If the session finds a bug, capture the exact state, expected result, observed result, and logs if relevant. Continue through every unblocked row. Fix the findings together after the session, rerun the no-Simulator checks, then schedule another batched acceptance round only when the batch is coherent.
+
+For isolated unit execution, `-collect-test-diagnostics never` avoids expensive
+verbose diagnostic collection after assertion failures. Retain the xcresult
+and read its test results; if command finalization stalls, inspect staged test
+stdout/session logs before concluding that tests did not run. Collect targeted
+launch or crash diagnostics when the actual failure requires them.
 
 ## Change-to-check matrix
 
@@ -159,3 +171,20 @@ Report concise, exact evidence:
 - one grouped list of failures from the acceptance session.
 
 Do not call static SQL parsing a migration test, a generic build a runtime test, or read-only app viewing proof that destructive flows are safe.
+
+
+## Simulator packaging for runtime acceptance
+
+Compile-only artifacts may be unsigned. Do not reuse an unsigned artifact for
+authentication, Keychain, app-group or other entitlement-dependent acceptance.
+An unsigned Sprint 1 artifact produced Keychain status `-34018` and an apparent
+authentication session mismatch; the signed candidate passed sign-in and
+restoration.
+
+Use a normal signed Debug Simulator build for the batched runtime session. Put
+the disposable backend URL/public key and disabled production analytics token
+in a restricted local xcconfig before building. Verify the generated app's
+signature and environment before installation. Do not patch a signed Info.plist
+afterward, and do not alter production signing or account data to repair QA.
+Reuse the resulting signed candidate until source or configuration changes
+justify another build. This does not change the compile-only fast path.

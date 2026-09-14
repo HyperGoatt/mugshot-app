@@ -794,6 +794,7 @@ protocol MugshotAnalyticsTransport: AnyObject {
     func capture(_ payload: MugshotAnalyticsPayload)
     func identify(distinctID: String)
     func reset()
+    func close()
 }
 
 private final class PostHogMugshotAnalyticsTransport: MugshotAnalyticsTransport {
@@ -802,6 +803,11 @@ private final class PostHogMugshotAnalyticsTransport: MugshotAnalyticsTransport 
             projectToken: configuration.projectToken,
             host: configuration.host.absoluteString
         )
+        let session = URLSessionConfiguration.ephemeral
+        session.timeoutIntervalForRequest = 15
+        session.timeoutIntervalForResource = 30
+        session.urlCache = nil
+        config.urlSessionConfiguration = session
         config.captureApplicationLifecycleEvents = true
         config.captureScreenViews = false
         config.captureElementInteractions = false
@@ -825,6 +831,10 @@ private final class PostHogMugshotAnalyticsTransport: MugshotAnalyticsTransport 
     func reset() {
         PostHogSDK.shared.reset()
     }
+
+    func close() {
+        PostHogSDK.shared.close()
+    }
 }
 
 final class MugshotAnalytics {
@@ -833,6 +843,9 @@ final class MugshotAnalytics {
     )
 
     private let transport: MugshotAnalyticsTransport
+    private var suspendedForDeletion = false
+    private let quarantine: AnalyticsDeletionQuarantine
+    private let lifecycleLock = NSRecursiveLock()
     private let metadata: [String: MugshotAnalyticsPropertyValue]
     private(set) var isConfigured = false
     private(set) var isAuthenticated = false
@@ -846,9 +859,11 @@ final class MugshotAnalytics {
 #else
             "release"
 #endif
-        }()
+        }(),
+        quarantine: AnalyticsDeletionQuarantine = .live
     ) {
         self.transport = transport
+        self.quarantine = quarantine
         metadata = [
             "analytics_version": .integer(2),
             "platform": .string("ios"),
@@ -867,19 +882,42 @@ final class MugshotAnalytics {
     }
 
     func configure(
-        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        discardPriorIdentity: Bool = false
     ) {
-        guard !isConfigured,
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        guard !isConfigured, !suspendedForDeletion,
               let configuration = MugshotAnalyticsConfiguration(
                 infoDictionary: infoDictionary
               ) else {
             return
         }
+        do {
+            try quarantine.purgeBeforeStartup(
+                projectToken: configuration.projectToken,
+                discardPriorIdentity: discardPriorIdentity
+            )
+        } catch {
+            return // Keep telemetry off while local disposal is unconfirmed.
+        }
         transport.configure(configuration)
         isConfigured = true
     }
 
+    func prepareForAccountDeletion() throws {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        try quarantine.prepare()
+        suspendedForDeletion = true
+        isConfigured = false
+        isAuthenticated = false
+        transport.close()
+    }
+
     func capture(_ event: MugshotAnalyticsEvent) {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
         guard isConfigured else { return }
         let eventPayload = event.payload
         let properties = metadata
@@ -896,12 +934,16 @@ final class MugshotAnalytics {
     }
 
     func identify(userID: UUID) {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
         guard isConfigured else { return }
         transport.identify(distinctID: userID.uuidString.lowercased())
         isAuthenticated = true
     }
 
     func reset() {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
         guard isConfigured else { return }
         transport.reset()
         isAuthenticated = false

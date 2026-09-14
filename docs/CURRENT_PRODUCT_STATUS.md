@@ -1,10 +1,41 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-14
 ---
 
 # Current product status
+
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
+Sprint 1 is staged on production for the owner's real-account dev-build test.
+Readable profile links, screening/review and updated server contracts are deployed.
+The signed dev build 0.5.3 (6) is installed on the owner's iPhone, configured for
+production; the real feed and photos visibly loaded. No TestFlight upload or
+App Store submission was performed. Owner acceptance with real data is pending.
+
+The atomic update preserved all 72 original tables, including 80 posts and all
+notification text. All 331 Storage objects remain. Encrypted photo-byte recovery
+and an isolated typed database-data restore (72 tables / 6,036 rows) passed.
+For compatibility with existing installs, original bucket visibility remains:
+legacy profile/visit buckets are still public; the Private bucket stays private.
+The final bucket-privacy cutover awaits compatible-client distribution/adoption.
+New native/web readers use caller-authorized signing.
+
+OpenAI sharing choices were reloaded and verified Disabled before activation.
+Screening is enabled; existing shared revisions retain their audience visibility
+while pending, and Private visits have zero screening jobs. Joe's creator account
+has founder review access. Scheduled deletion worker HTTP 200 is verified.
+PostHog erasure remains disabled pending its prior provider verification; real
+Apple revocation remains unverified. Do not test account deletion on the owner's
+real account as an acceptance shortcut. All disposable QA branches are deleted.
+
+Current evidence: [Sprint 1 tracker](SPRINT_1_TRACKER.md) and
+[staged rollout](SUPABASE_RELEASE_WORKFLOW.md#staged-production-owner-test--september-14).
 
 ## Release baseline
 
@@ -50,10 +81,11 @@ fingerprint evidence closed on 2026-08-24.
   links into a wrapping detail rail and do not render the former Taste overlap
   card. Favorite Spot creation presents all six reason categories at once and
   includes a visible custom descriptor path. The Cafes tab keeps one stable
-  scroll owner around its lazy card grid. Friends Mugshots stay in Friends Feed
-  and appear on the public profile by default; the owner can switch the public
-  profile to Everyone-only, while Private Mugshots never appear. Favorite Spots
-  may originate
+  scroll owner around its lazy card grid. Friends Mugshots stay in Friends Feed and
+  require versioned, explicit consent before appearing on public profiles in
+  Sprint 1 source. Legacy default-on preferences do not count as consent;
+  Private Mugshots never appear. This migration is not production deployed.
+  Favorite Spots may originate
   in private history or Apple Maps only through an explicit owner publication
   of cafe identity plus a short descriptor; private media and notes do not
   cross that boundary. Owners can hide a tagged Mugshot from their profile or

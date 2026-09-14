@@ -207,7 +207,7 @@ begin
     select 1
     from storage.buckets
     where id='visit-photos'
-      and public
+      and not public
       and file_size_limit=10485760
       and allowed_mime_types @> array['image/jpeg','image/png','image/gif','image/webp','image/heic']
   ) then raise exception 'visit-photo bucket contract is incomplete'; end if;

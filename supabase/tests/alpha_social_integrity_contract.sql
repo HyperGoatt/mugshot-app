@@ -116,6 +116,8 @@ where caption = 'Block coherence target'
 order by created_at desc, id desc
 limit 1;
 
+select pg_temp.approve_shared_fixture('visit',id) from alpha_integrity_state;
+
 -- ---------------------------------------------------------------------------
 -- Idempotent reports retain immutable target identity and evidence after the
 -- target row is deleted.

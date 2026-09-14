@@ -166,6 +166,8 @@ select set_config(
   )::text,
   true
 );
+select pg_temp.approve_shared_fixture('visit',(select id from activity_hardening_state where key='visit'));
+
 select public.toggle_visit_reaction(
   (select id from activity_hardening_state where key = 'visit'), 'cozy'
 );

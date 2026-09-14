@@ -5,7 +5,8 @@
     "npm:@types/react@19": "19.2.18",
     "npm:@vercel/og@~0.8.5": "0.8.6",
     "npm:react@*": "19.2.8",
-    "npm:react@19": "19.2.8"
+    "npm:react@19": "19.2.8",
+    "npm:@supabase/supabase-js@2.110.8": "2.110.8"
   },
   "npm": {
     "@resvg/resvg-wasm@2.4.0": {

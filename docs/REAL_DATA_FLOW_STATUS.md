@@ -1,10 +1,49 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-26
+last_verified: 2026-09-13
 ---
 
 # Real data flow status
+
+> Current repair: [Repair and sharing status](REPAIR_SHARING_STATUS.md) supersedes
+> the earlier delivery and acceptance statements below for moderation, Friends
+> publication, profile sharing and the reported native bugs. Those earlier
+> checkpoints remain evidence of the previous candidate, not this repair's acceptance.
+
+
+Sprint 1 source adds readable `/profile/username` links, permanently reserved
+handle aliases, and anonymous recipient pages in the companion PWA. Local
+handle contracts and synthetic browser checks pass; these changes are not yet
+production deployed or accepted on an installed app. Current delivery evidence
+is tracked in [Sprint 1 delivery](SPRINT_1_TRACKER.md).
+
+Revision-bound screening queues, workers and outward-read gates are implemented
+and pass isolated hosted contracts. Private content and private notes remain
+excluded; production screening is not active. See the current Sprint 1 tracker
+for exact activation and runtime gates.
+
+## Cafe catalog admission — source and isolated QA
+
+The `verify-cafe` Edge Function accepts only an authenticated provider/ID pair.
+Native Apple selections and PWA Google selections use this endpoint for new
+provider records. It fetches canonical fields from the matching provider, uses
+a service-only database admission function, preserves the existing provider
+record ID on retries, and limits each live account to 30 attempts per hour.
+Maps credentials remain server-only; errors omit raw provider details.
+
+Manual cafe saves retain their private journal path. New manual identities are
+scoped to their submitter. Raw catalog reads and the two legacy catalog-wide
+RPCs require provider verification or an existing authorized content context.
+Creating a reference to a guessed hidden cafe ID cannot create read access.
+Provider verification is withdrawn when a catalog correction changes its fields;
+shared text continues through the existing revision-bound screening workflow.
+Private-only cafe fields are never submitted to OpenAI.
+
+Migration `20260913191001` and its focused role/retry/rate contracts pass hosted
+QA. This is not a production deployment claim. Google verification uses the
+existing Places key; Apple uses the approved Maps-only key and `server_api` JWT
+scope. Production activation still follows the release workflow.
 
 ## Authority model
 
@@ -47,7 +86,10 @@ apply an Everyone-only client filter to visible Mugshots; missing tagged and
 Favorite Spot mutations do not invent local remote truth. Existing v3 profile,
 highlight, and binary social contracts remain available to older clients, but
 the new UI neither reads nor renders Profile Highlight. The new profile contract
-defaults Friends-on-profile on, exposes only caller-bound preference writes,
+now requires version-1 affirmative consent for Friends-on-profile publication
+in Sprint 1 source. V2 writes record consent, legacy V1 can only disable,
+and tagged Friends content also requires author consent. This migration is not
+production deployed. The contract exposes only caller-bound preference writes,
 and excludes Private from authored, cafe, map, tagged, and anonymous-link
 projections regardless of preference.
 Profile-share content consumes that same profile-published sip set, sorts it by
@@ -66,8 +108,9 @@ on RLS for visibility.
 
 ## Current migration boundary
 
-The repository migration head is now
-`20260826143102_profile_editorial_atlas.sql`. It follows the additive reaction
+The Sprint 1 repository migration head is
+`20260913023233_sprint1_readable_profile_links.sql` (not deployed). The preceding
+`20260826143102_profile_editorial_atlas.sql` is the last deployed profile migration. It follows the additive reaction
 migration in repository order. The profile migration is production-configured
 and its expected tables/RPCs resolve in the connected project; the additive
 reaction migration remains implemented and hermetically verified but undeployed.
@@ -94,3 +137,40 @@ speculative backfill.
 - Never remove a protected draft or pending submission before remote success.
 - Never trust a client-supplied account ID when Auth can supply the caller.
 - Never make push availability a requirement for viewing in-app Activity.
+
+
+The live QA endpoint also verifies provider authentication and persistence.
+Migration `20260913192620` permits service-role workers to execute the existing
+PostgREST session hook. Migration `20260913193804` restores the production
+website field to replayable history and includes it in shared-profile screening.
+Actual QA profile projection and synthetic worker/reviewer acceptance pass;
+these changes remain pending production rollout.
+
+The QA deletion journey now includes actual uploaded bytes and fresh-session
+authorization. Initial manifest counts are fixed by migration `20260913195241`;
+identity removal, media removal and recovery without authentication pass.
+This does not yet establish production activation or Apple provider revocation.
+
+
+Canonical shared-post text includes visible brew/equipment fields, context
+criterion names, and raw notes only when explicitly shared. Reflection changes
+refresh the associated screening revision. Private posts and private raw notes
+are excluded. The canonical criterion projection uses an explicit key allowlist.
+Discovery enrichment cannot reveal hidden cafe IDs and only aggregates admitted
+public visit evidence. Migration `20260913200859` is verified on isolated QA.
+
+Legacy reflection reads now require current visit admission, comment lists and
+reply counts exclude pending comment revisions, and recipe identity lookup
+requires the same authorization as recipe projection. The focused hosted
+regression passes at migration `20260913202410`.
+
+Paid catalog QA is deleted and absence verified. OpenAI and Maps credentials
+are staged in production with screening disabled; this does not establish
+production feature activation. Native acceptance and the asynchronous
+PostHog erasure confirmation remain open.
+
+A subsequent signed native candidate passed email sign-in, session restoration
+and profile onboarding on fresh isolated QA. All 62 contracts passed together.
+The native-created profile was screened and its readable endpoint and default
+Friends-profile exclusion verified. That QA branch is also deleted. Remaining
+native screens and provider/production acceptance are not yet established.

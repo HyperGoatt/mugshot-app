@@ -1,8 +1,7 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.8";
 import {
   type MediaSigningClient,
   resolvedCapabilityMediaURL,
-  safeHTTPSURL,
 } from "../_shared/capability-media.ts";
 import { getPublicSupabaseKey } from "../_shared/public-key.ts";
 import { getSecretSupabaseKey } from "../_shared/secret-key.ts";
@@ -32,6 +31,7 @@ type PublicMugshot = {
 };
 
 const privateHeaders = {
+  "Access-Control-Allow-Origin": "*",
   "Cache-Control": "private, no-store",
   "X-Content-Type-Options": "nosniff",
   "X-Robots-Tag": "noindex, nofollow, noarchive",
@@ -59,6 +59,8 @@ function isLinkPreviewAgent(userAgent: string): boolean {
 async function resolveMugshotMedia(
   mugshot: PublicMugshot,
   adminClient: MediaSigningClient | null,
+  supabaseURL: string,
+  ownerID: string | null,
 ): Promise<PublicMugshot> {
   const rawCandidates = [
     mugshot.cover_photo_url,
@@ -69,7 +71,11 @@ async function resolveMugshotMedia(
     .slice(0, 10);
   const resolved = await Promise.all(
     rawCandidates.map((value) =>
-      resolvedCapabilityMediaURL(value, adminClient)
+      resolvedCapabilityMediaURL(value, adminClient, supabaseURL, {
+        kind: "visit",
+        ownerID,
+        visitID: mugshot.visit_id,
+      })
     ),
   );
   const mediaByReference = new Map(
@@ -83,7 +89,12 @@ async function resolveMugshotMedia(
     : null;
   return {
     ...mugshot,
-    author_avatar_url: safeHTTPSURL(mugshot.author_avatar_url),
+    author_avatar_url: await resolvedCapabilityMediaURL(
+      mugshot.author_avatar_url,
+      adminClient,
+      supabaseURL,
+      { kind: "profile", ownerID },
+    ),
     cover_photo_url: coverPhotoURL ?? photoURLs[0] ?? null,
     photo_urls: photoURLs,
   };
@@ -209,7 +220,23 @@ Deno.serve(async (request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
     : null;
-  const resolvedMugshot = await resolveMugshotMedia(mugshot, adminClient);
+  // The anonymous capability projection intentionally omits the author's ID.
+  // Resolve only that admitted visit's owner server-side; never infer it from
+  // a client-editable URL. Do not add the private lookup to the response.
+  const ownerResult = adminClient
+    ? await adminClient.from("visits").select("user_id")
+      .eq("id", mugshot.visit_id).maybeSingle()
+    : null;
+  const ownerID =
+    !ownerResult?.error && typeof ownerResult?.data?.user_id === "string"
+      ? ownerResult.data.user_id
+      : null;
+  const resolvedMugshot = await resolveMugshotMedia(
+    mugshot,
+    adminClient,
+    supabaseURL,
+    ownerID,
+  );
 
   if (requestURL.searchParams.get("format") === "json") {
     return new Response(isHead ? null : JSON.stringify(resolvedMugshot), {

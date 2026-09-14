@@ -103,6 +103,10 @@ struct RemoteVisitDetailView: View {
     @State private var editingComment: RemoteVisitComment?
     @State private var editCommentError: String?
     @State private var commentPendingRemoval: RemoteVisitComment?
+    @State private var screeningStatus: String?
+    @State private var profilePostHidden = false
+    @State private var savingProfileHide = false
+    @State private var profileHideLoaded = false
     @State private var editSipSeed: SipPostEditSeed?
     @State private var isShowingDrinkInterpretation = false
     @State private var isDeletingVisit = false
@@ -155,7 +159,7 @@ struct RemoteVisitDetailView: View {
                     toolbarProgress: $toolbarProgress,
                     commentFocus: $isCommentFocused,
                     isWorking: isSavingSocialAction || isDeletingVisit,
-                    statusMessage: socialError ?? socialStatus,
+                    statusMessage: socialError ?? socialStatus ?? screeningStatus,
                     mentionSuggestions: mentionSuggestions.map {
                         SipDetailMentionSuggestion(
                             id: $0.id,
@@ -220,7 +224,24 @@ struct RemoteVisitDetailView: View {
                 )
             )
         }
-        .task(id: visitId) { await loadDetail() }
+        .onChange(of: currentUserId) { _, _ in
+            detail = nil
+            socialError = nil
+            isSavingSocialAction = false
+            dismiss()
+        }
+        .task(id: visitId) {
+            await loadDetail()
+            if let detail, isOwnVisit(detail) {
+                do {
+                    profilePostHidden = try await SharedProfileService(client: SupabaseClientProvider.shared.client()).isPostHidden(visitID: visitId)
+                    profileHideLoaded = true
+                    if let currentUserId {
+                        screeningStatus = try await ContentScreeningService(accountID: currentUserId).status().first(where: { $0.subject_id == visitId && $0.subject_kind == "visit" })?.stateTitle
+                    }
+                } catch { profileHideLoaded = false }
+            }
+        }
         .task(id: commentText) { await updateMentionSuggestions() }
         .navigationDestination(item: $selectedTaggedProfile) { route in
             PublicProfileView(
@@ -321,6 +342,7 @@ struct RemoteVisitDetailView: View {
     private var safetyDialogsScene: some View {
         mediaPresentedScene
         .confirmationDialog("Sip actions", isPresented: $showMoreActions, titleVisibility: .visible) {
+            profileHideAction
             if let detail {
                 ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
                     Button(action.title, role: action == .delete ? .destructive : nil) {
@@ -417,6 +439,26 @@ struct RemoteVisitDetailView: View {
         }
     }
 
+    @ViewBuilder private var profileHideAction: some View {
+        if let detail, isOwnVisit(detail) {
+            Button(profilePostHidden ? "Show on my profile" : "Hide from my profile") {
+                guard !savingProfileHide else { return }
+                savingProfileHide = true
+                let owner = currentUserId
+                Task { @MainActor in
+                    defer { savingProfileHide = false }
+                    do {
+                        let hidden = try await SharedProfileService(client: SupabaseClientProvider.shared.client())
+                            .setTaggedPostHidden(visitID: visitId, hidden: !profilePostHidden)
+                        guard currentUserId == owner else { return }
+                        profilePostHidden = hidden
+                        socialStatus = hidden ? "Hidden from your profile. Tagged friends’ profiles are unchanged." : "Shown on your profile, subject to your audience and sharing settings."
+                    } catch { socialError = "Your profile visibility change wasn’t saved. Please try again." }
+                }
+            }.disabled(!profileHideLoaded || savingProfileHide)
+        }
+    }
+
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
@@ -438,6 +480,7 @@ struct RemoteVisitDetailView: View {
         ToolbarItem(placement: .topBarTrailing) {
             if let detail {
                 Menu {
+                    profileHideAction
                     ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
                         Button(role: action == .delete ? .destructive : nil) {
                             perform(action)
@@ -738,6 +781,8 @@ struct RemoteVisitDetailView: View {
                     } label: {
                         Label("Edit Sip", systemImage: "pencil")
                     }
+
+
 
                     Button {
                         isShowingDrinkInterpretation = true
@@ -1513,7 +1558,7 @@ struct RemoteVisitDetailView: View {
               let detail else {
             return
         }
-        guard !requestAuthenticationIfNeeded(for: .like) else { return }
+        guard !isSavingSocialAction, !requestAuthenticationIfNeeded(for: .like) else { return }
 
         let previousDetail = detail
         let optimisticReactionState = detail.summary.socialState.reactionState
@@ -1537,6 +1582,11 @@ struct RemoteVisitDetailView: View {
                 userId: currentUserId,
                 reaction: reaction
             )
+            guard self.currentUserId == currentUserId,
+                  (try? SupabaseClientProvider.shared.client())?.auth.currentUser?.id == currentUserId else {
+                isSavingSocialAction = false
+                return
+            }
             let state = RemoteVisitSocialState(
                 likeCount: reactionState.totalCount,
                 commentCount: detail.commentCount,
@@ -1553,6 +1603,11 @@ struct RemoteVisitDetailView: View {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
+            guard self.currentUserId == currentUserId,
+                  (try? SupabaseClientProvider.shared.client())?.auth.currentUser?.id == currentUserId else {
+                isSavingSocialAction = false
+                return
+            }
             self.detail = previousDetail
             socialError = MugshotUserFacingError.message(for: error, context: .social)
             UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -2251,56 +2306,32 @@ struct RemotePhotoImageView: View {
     let urlString: String?
     let placeholderSystemName: String
     var contentMode: ContentMode = .fill
-    @State private var image: UIImage?
-    @State private var didFail = false
     @Environment(\.mugshotImageSizeReporter) private var reportImageSize
 
     var body: some View {
         Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
+            if let value = urlString?.remoteTrimmedNonEmpty {
+                if value.hasPrefix("asset://"),
+                   let image = UIImage(named: String(value.dropFirst("asset://".count))) {
+                    photo(image)
+                } else {
+                    ProtectedRemoteImage(storedValue: value) { image in
+                        if let image { photo(image) } else { placeholder }
+                    }
+                }
             } else {
                 placeholder
-                    .overlay {
-                        if !didFail, hasPhotoReference {
-                            ProgressView()
-                                .tint(.mugshotSage)
-                        }
-                    }
             }
         }
         .background(Color.sandBeige.opacity(0.72))
         .clipped()
-        .task(id: urlString) {
-            image = nil
-            didFail = false
-            guard let urlString = urlString?.remoteTrimmedNonEmpty else { return }
-            do {
-                if urlString.hasPrefix("asset://") {
-                    let assetName = String(urlString.dropFirst("asset://".count))
-                    guard let assetImage = UIImage(named: assetName) else {
-                        throw VisitPhotoAccessError.invalidReference
-                    }
-                    image = assetImage
-                    reportImageSize?(assetImage.size)
-                    return
-                }
-                let url = try await VisitPhotoAccessService.shared.resolvedURL(for: urlString)
-                let loadedImage = try await RemoteImagePipeline.shared.image(for: url)
-                image = loadedImage
-                reportImageSize?(loadedImage.size)
-            } catch is CancellationError {
-                return
-            } catch {
-                didFail = true
-            }
-        }
     }
 
-    private var hasPhotoReference: Bool {
-        urlString?.remoteTrimmedNonEmpty != nil
+    private func photo(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: contentMode)
+            .onAppear { reportImageSize?(image.size) }
     }
 
     private var placeholder: some View {

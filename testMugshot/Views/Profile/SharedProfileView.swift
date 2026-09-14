@@ -737,7 +737,7 @@ struct SharedProfileView: View {
 
     @MainActor
     private func shareProfile() async {
-        guard !isPreparingProfileShare, let projection else { return }
+        guard !isPreparingProfileShare, projection != nil else { return }
         isPreparingProfileShare = true
         defer { isPreparingProfileShare = false }
         do {
@@ -747,16 +747,12 @@ struct SharedProfileView: View {
                 return
             }
 
-            var publicProjection = projection
-            var publicSips = sips
-            if let route = MugshotProfileSharedLinkRoute.resolve(publicURL) {
-                if let exactProjection = try? await service.sharedProjection(slug: route.slug) {
-                    publicProjection = exactProjection
-                }
-                if let exactSips = try? await service.sharedSips(slug: route.slug) {
-                    publicSips = exactSips
-                }
+            guard let route = MugshotProfileSharedLinkRoute.resolve(publicURL),
+                  let publicProjection = try await service.sharedProjection(slug: route.slug) else {
+                errorMessage = "Mugshot couldn’t load the public profile for sharing."
+                return
             }
+            let publicSips = try await service.sharedSips(slug: route.slug)
 
             profileSharePresentation = ProfileSharePresentation(
                 content: ProfileShareContent(

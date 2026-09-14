@@ -118,6 +118,10 @@ create temp table v3_reflection_test_context as
 with ordered_users as (
   select id, row_number() over (order by created_at, id) as position
   from public.users
+  where id in (
+    '00000000-0000-4000-8000-000000000101'::uuid,
+    '00000000-0000-4000-8000-000000000102'::uuid
+  )
 )
 select
   (max(id::text) filter (where position = 1))::uuid as owner_id,
@@ -269,6 +273,8 @@ end;
 $$;
 
 reset role;
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -384,6 +390,8 @@ select * from public.upsert_visit_v3_reflection_v1(
 );
 
 reset role;
+-- Shared reflection edits require admission of the new visit revision.
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -430,6 +438,8 @@ select * from public.upsert_visit_v3_reflection_v1(
 );
 
 reset role;
+-- Shared reflection edits require admission of the new visit revision.
+select pg_temp.approve_shared_fixture('visit',(select visit_id from v3_reflection_test_context));
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

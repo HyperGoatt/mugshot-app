@@ -122,6 +122,11 @@ begin
 
   select pg_get_functiondef('public.get_recipe_projection_v1(uuid)'::regprocedure)
   into projection_definition;
+  if position('private.recipe_shared_brew_details_v1(target.brew_details)' in projection_definition) = 0 then
+    raise exception 'recipe projection bypasses the shared brew allowlist';
+  end if;
+  select pg_get_functiondef('private.recipe_shared_brew_details_v1(jsonb)'::regprocedure)
+  into projection_definition;
   if position('coffeeBag' in projection_definition) = 0
     or position('equipmentSnapshots' in projection_definition) = 0
     or position('homeMethodDetails' in projection_definition) = 0

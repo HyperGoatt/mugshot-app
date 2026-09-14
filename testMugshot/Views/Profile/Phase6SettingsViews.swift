@@ -6,7 +6,9 @@ struct PrivacyVisibilitySettingsView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @State private var cafeVisibility = VisitVisibility.friends.rawValue
     @State private var hasLoadedVisibility = false
-    @State private var showsFriendsOnProfile = true
+    @State private var showsFriendsOnProfile = false
+    @State private var hasLoadedProfileVisibility = false
+    @State private var showPublicProfileConsent = false
     @State private var isSavingProfileVisibility = false
     @State private var profileVisibilityError: String?
 
@@ -23,9 +25,11 @@ struct PrivacyVisibilitySettingsView: View {
             Section("Public profile") {
                 Toggle("Show Friends Mugshots", isOn: Binding(
                     get: { showsFriendsOnProfile },
-                    set: updateProfileVisibility
+                    set: { enabled in
+                        updateProfileVisibility(enabled)
+                    }
                 ))
-                .disabled(isSavingProfileVisibility)
+                .disabled(isSavingProfileVisibility || !hasLoadedProfileVisibility)
 
                 if isSavingProfileVisibility {
                     HStack(spacing: 9) {
@@ -36,7 +40,7 @@ struct PrivacyVisibilitySettingsView: View {
                     .foregroundStyle(Color.secondaryText)
                 }
 
-                Text("When on, Friends Mugshots stay in Friends Feed and also appear on your public profile. When off, only Everyone Mugshots appear there. Private Mugshots never appear.")
+                Text("Friends posts can appear on your public profile after you acknowledge the sharing notice. Historical posts keep their existing choices unless you include them. Turning this off hides Friends posts from your profile only; tagged friends control their own profiles. Private posts never appear.")
 
                 if let profileVisibilityError {
                     Label(profileVisibilityError, systemImage: "exclamationmark.triangle.fill")
@@ -48,6 +52,10 @@ struct PrivacyVisibilitySettingsView: View {
             Section("Home and Recipe") {
                 LabeledContent("Default audience", value: "Private")
                 Text("Home and Recipe entries always begin Private. You make any sharing decision inside the sip composer.")
+            }
+            Section("Shared-content screening") {
+                Text("Profile information visible to others and shared text and photos are screened with OpenAI before publication. Private journal content is excluded. Mugshot does not opt into using this data for OpenAI model training.")
+                Text("Screening or review may delay sharing. Passing does not change your audience. See Shared Content Status in Settings for decisions and reconsideration.")
             }
             Section("Private notes") {
                 Label("Never included in Feed or sharing", systemImage: "lock.shield.fill")
@@ -78,18 +86,25 @@ struct PrivacyVisibilitySettingsView: View {
 
     @MainActor
     private func loadProfileVisibility() async {
-        guard authModel.authenticatedUser != nil else { return }
+        hasLoadedProfileVisibility = false
+        showsFriendsOnProfile = false
+        guard let ownerID = authModel.authenticatedUser?.id else { return }
         do {
             let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
-            showsFriendsOnProfile = try await service.showsFriendsOnPublicProfile()
+            let enabled = try await service.publicationPolicy().show_friends
+            guard authModel.authenticatedUser?.id == ownerID else { return }
+            showsFriendsOnProfile = enabled
+            hasLoadedProfileVisibility = true
             profileVisibilityError = nil
         } catch {
+            guard authModel.authenticatedUser?.id == ownerID else { return }
             profileVisibilityError = "Mugshot couldn’t load this setting."
         }
     }
 
     private func updateProfileVisibility(_ isEnabled: Bool) {
-        guard !isSavingProfileVisibility else { return }
+        guard !isSavingProfileVisibility,
+              let ownerID = authModel.authenticatedUser?.id else { return }
         let previousValue = showsFriendsOnProfile
         showsFriendsOnProfile = isEnabled
         isSavingProfileVisibility = true
@@ -98,9 +113,13 @@ struct PrivacyVisibilitySettingsView: View {
         Task { @MainActor in
             defer { isSavingProfileVisibility = false }
             do {
+                guard authModel.authenticatedUser?.id == ownerID else { return }
                 let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
-                showsFriendsOnProfile = try await service.setShowsFriendsOnPublicProfile(isEnabled)
+                let enabled = try await service.setShowsFriendsOnPublicProfile(isEnabled)
+                guard authModel.authenticatedUser?.id == ownerID else { return }
+                showsFriendsOnProfile = enabled
             } catch {
+                guard authModel.authenticatedUser?.id == ownerID else { return }
                 showsFriendsOnProfile = previousValue
                 profileVisibilityError = "That change wasn’t saved. Please try again."
             }
