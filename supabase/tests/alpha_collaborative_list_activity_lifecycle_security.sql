@@ -75,6 +75,12 @@ begin
   select pg_get_functiondef(
     'private.activity_event_is_visible(public.activity_events,uuid)'::regprocedure
   ) into definition;
+  if definition ilike '%activity_event_visible_before_regression_repair%' then
+    if definition not ilike '%moderation:service:%' then
+      raise exception 'retired service alert filter missing';
+    end if;
+    select pg_get_functiondef('private.activity_event_visible_before_regression_repair(public.activity_events,uuid)'::regprocedure) into definition;
+  end if;
   if definition not ilike '%activity_event_is_visible_before_moderation_alerts(p_event,p_viewer)%'
      or definition not ilike '%moderation_operators%'
      or definition not ilike '%is_active%' then

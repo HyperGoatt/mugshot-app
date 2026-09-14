@@ -16,6 +16,8 @@ struct SavedTabView: View {
     @State private var activeSheet: SavedLibrarySheet?
     @State private var isLoading = false
     @State private var loadError: String?
+    @Environment(\.isMugshotTabActive) private var tabIsActive
+    @State private var loadedRevision: Int?
     @State private var lastRefresh: Date?
     @State private var coverURLs: [UUID: String] = [:]
     @State private var pendingRows: [UUID: Cafe] = [:]
@@ -107,7 +109,9 @@ struct SavedTabView: View {
             }
             .background(Color.creamWhite)
             .toolbar(.hidden, for: .navigationBar)
-            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "guest")-\(dataManager.journalRevision)") {
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "guest")-\(dataManager.journalRevision)-\(tabIsActive)") {
+                guard tabIsActive else { return }
+                if let lastRefresh, Date().timeIntervalSince(lastRefresh) < 60, loadedRevision == dataManager.journalRevision { return }
                 if authModel.authenticatedUser == nil { selectedSection = .cafes }
                 await refreshLibrary()
             }
@@ -698,7 +702,7 @@ struct SavedTabView: View {
             loadError = nil
             return
         }
-        isLoading = true
+        isLoading = lastRefresh == nil
         defer { isLoading = false }
         do {
             let client = try SupabaseClientProvider.shared.client()
@@ -726,6 +730,7 @@ struct SavedTabView: View {
                 }
             }
             coverURLs = resolvedCovers
+            loadedRevision = dataManager.journalRevision
             lastRefresh = .now
             loadError = nil
         } catch is CancellationError {

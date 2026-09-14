@@ -110,6 +110,9 @@ struct MapTabView: View {
     var hidesUserLocation = false
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
+    @State private var lastMapLoad: Date?
+    @State private var lastMapSignature = ""
+    @Environment(\.isMugshotTabActive) private var tabIsActive
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var searchService = MapSearchService()
@@ -224,7 +227,7 @@ struct MapTabView: View {
                 presentPendingSavedCafeIfNeeded()
             }
             .onChange(of: locationManager.location) { oldValue, newLocation in
-                guard !MugshotLaunchEnvironment.isUITesting else { return }
+                guard tabIsActive, !MugshotLaunchEnvironment.isUITesting else { return }
                 // When we get a location update and we have permission, center the map
                 if let location = newLocation {
                     let isAuthorized = locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways
@@ -247,6 +250,7 @@ struct MapTabView: View {
                 }
             }
             .onChange(of: locationManager.authorizationStatus) { oldValue, status in
+                guard tabIsActive else { return }
                 switch status {
                 case .authorizedWhenInUse, .authorizedAlways:
                     // Permission granted - start updating location
@@ -407,7 +411,7 @@ struct MapTabView: View {
         .task(id: localAccountScope.defaultsComponent) {
             searchService.activate(scope: localAccountScope)
         }
-        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(discoveryScope.rawValue)-\(discoveryRadiusMiles)") {
+        .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(discoveryScope.rawValue)-\(discoveryRadiusMiles)-\(tabIsActive)") {
             await loadRemoteMapPins()
         }
         .task(id: "apple-cafes-\(discoveryScope.rawValue)-\(authModel.authenticatedUser?.id.uuidString ?? "guest")") {
@@ -688,6 +692,7 @@ struct MapTabView: View {
 
     @MainActor
     private func refreshAppleCafeDiscovery() async {
+        guard tabIsActive else { return }
         if MugshotLaunchEnvironment.isUITesting {
             appleCafeDiscovery.refreshLocalState(knownCafes: dataManager.appData.cafes)
             appleCafeDiscovery.markRegionAsSearched(effectiveRegion)
@@ -1358,6 +1363,9 @@ struct MapTabView: View {
 
     @MainActor
     private func loadRemoteMapPins() async {
+        guard tabIsActive else { return }
+        let signature = "\(authModel.authenticatedUser?.id.uuidString ?? "guest")|\(dataManager.journalRevision)|\(discoveryScope.rawValue)|\(discoveryRadiusMiles)"
+        if signature == lastMapSignature, let lastMapLoad, Date().timeIntervalSince(lastMapLoad) < 60 { return }
         let loadID = UUID()
         activeMapLoadID = loadID
         guard let userId = authModel.authenticatedUser?.id else {
@@ -1374,6 +1382,7 @@ struct MapTabView: View {
                 discoveryCafesByID = Dictionary(uniqueKeysWithValues: discovery.map { ($0.id, $0) })
                 friendCafeSummariesByID = [:]
                 friendSipSummariesByID = [:]
+                lastMapLoad = Date(); lastMapSignature = signature
                 remoteStateError = nil
                 remoteMapPinUserId = nil
                 rebuildForYouRecommendations()
@@ -1427,6 +1436,7 @@ struct MapTabView: View {
             friendSipSummariesByID = Dictionary(
                 uniqueKeysWithValues: (friendSipSummaries ?? []).map { ($0.cafeID, $0) }
             )
+            lastMapLoad = Date(); lastMapSignature = signature
             dataManager.applyPersonalMapSnapshot(snapshot, for: userId)
             remoteMapPinUserId = userId
             if let selectedID = selectedCafe.map({ $0.remoteCafeId ?? $0.id }),

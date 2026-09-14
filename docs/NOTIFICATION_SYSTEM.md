@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-14
 ---
 
 # Mugshot notification system
@@ -12,11 +12,12 @@ last_verified: 2026-09-13
 > checkpoints remain evidence of the previous candidate, not this repair's acceptance.
 
 
-Sprint 1 source update (not deployed): notification events can wait for content
-screening before public activity/push delivery. Held pushes expire after 24
-hours; edits release the current lease for later approval. Generated titles and
-bodies use generic app copy and omit list titles from lifecycle metadata. See
-[Sprint 1 delivery](SPRINT_1_TRACKER.md) for verification and release status.
+Regression candidate: actor/action copy is reconstructed at authorized retrieval
+and push claim/final revalidation. Historical rows and read states remain intact;
+no historical pushes are resent. Bodies contain no comment or private journal
+excerpts. Retired `moderation:service:` events are excluded from consumer Activity
+and delivery while audit records remain stored. Actionable report alerts retain
+their existing operator authorization. See [delivery checklist](REGRESSION_REPAIR_STATUS.md).
 
 Read-only production inspection on 2026-09-13 found the obsolete
 `notify-friends-on-new-visit` version 8 still deployed. The old trigger was

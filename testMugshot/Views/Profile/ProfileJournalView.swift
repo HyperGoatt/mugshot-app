@@ -14,6 +14,9 @@ struct JournalTabView: View {
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
     @State private var journalEntries: [JournalEntryProjection] = []
+    @Environment(\.isMugshotTabActive) private var tabIsActive
+    @State private var lastJournalLoad: Date?
+    @State private var loadedJournalRevision: Int?
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var showOwnerProfile = false
@@ -200,10 +203,12 @@ struct JournalTabView: View {
                     showsPhase2Tools: phase2CanonicalJournal
                 )
             }
-            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {
+            .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(tabIsActive)") {
+                guard tabIsActive else { return }
                 localDrafts = SipDraftStore.shared
                     .allDrafts(in: localAccountScope)
                     .sorted { $0.updatedAt > $1.updatedAt }
+                if let lastJournalLoad, Date().timeIntervalSince(lastJournalLoad) < 60, loadedJournalRevision == dataManager.journalRevision { return }
                 await loadJournal()
             }
             .onAppear {
@@ -602,7 +607,8 @@ struct JournalTabView: View {
             return
         }
 
-        isLoading = true
+        isLoading = journalEntries.isEmpty
+        defer { isLoading = false }
         loadError = nil
         do {
             let client = try SupabaseClientProvider.shared.client()
@@ -633,6 +639,8 @@ struct JournalTabView: View {
             let loadedMonthlyPeople = (try? await monthlyPeopleRequest) ?? []
             let loadedYearlyPeople = (try? await yearlyPeopleRequest) ?? []
             guard !Task.isCancelled else { return }
+            lastJournalLoad = Date()
+            loadedJournalRevision = dataManager.journalRevision
             journalEntries = loadedEntries
             cafeExperienceSummaries = loadedCafeSummaries
             peopleByReflectionPeriod = [

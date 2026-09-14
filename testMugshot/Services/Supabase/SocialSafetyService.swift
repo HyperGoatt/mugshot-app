@@ -788,6 +788,8 @@ final class SocialSafetyService {
               result.blockedID == userID else {
             throw SocialSafetyServiceError.invalidServerResponse
         }
+        await ProtectedImageStore.shared.clear()
+        NotificationCenter.default.post(name: .mugshotSafetyAccessChanged, object: nil)
         return result
     }
 

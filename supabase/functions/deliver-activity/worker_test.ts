@@ -250,7 +250,7 @@ Deno.test("recipient eligibility is revalidated immediately before APNs", async 
   assert(result.receiptFailures === 0, "a clean cancellation became an error");
 });
 
-Deno.test("v3-capable delivery receives the authoritative badge", async () => {
+Deno.test("final revalidation supplies current actor copy and authoritative badge", async () => {
   const delivery: PushDelivery = {
     delivery_id: "10000000-0000-4000-8000-000000000003",
     activity_event_id: "20000000-0000-4000-8000-000000000003",
@@ -271,6 +271,8 @@ Deno.test("v3-capable delivery receives the authoritative badge", async () => {
         return Promise.resolve({
           data: {
             eligible: true,
+            title: "Amanda loved your Mugshot",
+            body: "See who enjoyed your sip.",
             unread_count: 12,
             supports_badge_sync: true,
           },
@@ -296,6 +298,11 @@ Deno.test("v3-capable delivery receives the authoritative badge", async () => {
     configuration,
     async (candidate) => {
       observedBadge = candidate.badge;
+      assert(
+        candidate.title === "Amanda loved your Mugshot",
+        "fresh actor title",
+      );
+      assert(candidate.body === "See who enjoyed your sip.", "safe body");
       return { outcome: "succeeded" };
     },
   );

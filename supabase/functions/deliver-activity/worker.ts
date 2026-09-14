@@ -339,7 +339,7 @@ async function complete(
 }
 
 type RevalidationDecision =
-  | { status: "eligible"; badge?: number }
+  | { status: "eligible"; badge?: number; title?: string; body?: string }
   | { status: "cancelled" | "unavailable" };
 
 async function revalidateImmediatelyBeforeSend(
@@ -362,8 +362,12 @@ async function revalidateImmediatelyBeforeSend(
   if (result.eligible === false) return { status: "cancelled" };
   if (result.eligible !== true) return { status: "unavailable" };
 
+  const copy =
+    typeof result.title === "string" && typeof result.body === "string"
+      ? { title: result.title, body: result.body }
+      : {};
   if (result.supports_badge_sync !== true) {
-    return { status: "eligible" };
+    return { status: "eligible", ...copy };
   }
   if (
     typeof result.unread_count !== "number" ||
@@ -372,7 +376,7 @@ async function revalidateImmediatelyBeforeSend(
   ) {
     return { status: "unavailable" };
   }
-  return { status: "eligible", badge: result.unread_count };
+  return { status: "eligible", badge: result.unread_count, ...copy };
 }
 
 export async function processDeliveries(
@@ -405,9 +409,15 @@ export async function processDeliveries(
           cancelledBeforeSend: revalidation.status === "cancelled",
         };
       }
-      const deliveryForAPNS = revalidation.badge === undefined
-        ? delivery
-        : { ...delivery, badge: revalidation.badge };
+      const deliveryForAPNS = {
+        ...delivery,
+        ...(revalidation.badge === undefined
+          ? {}
+          : { badge: revalidation.badge }),
+        ...(revalidation.title === undefined
+          ? {}
+          : { title: revalidation.title, body: revalidation.body! }),
+      };
       const result = await sender(deliveryForAPNS, configuration);
       try {
         await complete(admin, delivery, result);

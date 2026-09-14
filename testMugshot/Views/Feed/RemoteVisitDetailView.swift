@@ -53,6 +53,7 @@ struct RemoteVisitDetailView: View {
     let onComposeDraft: ((SipDraft) -> Void)?
     let presentationMode: SipDetailPresentationMode
     let onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)?
+    let onSocialStateChanged: ((RemoteVisitSocialState) -> Void)?
     let onCafeRequested: ((Cafe) -> Void)?
 
     init(
@@ -65,7 +66,8 @@ struct RemoteVisitDetailView: View {
         onComposeDraft: ((SipDraft) -> Void)? = nil,
         presentationMode: SipDetailPresentationMode = .pushed,
         onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil,
-        onCafeRequested: ((Cafe) -> Void)? = nil
+        onCafeRequested: ((Cafe) -> Void)? = nil,
+        onSocialStateChanged: ((RemoteVisitSocialState) -> Void)? = nil
     ) {
         self.visitId = visitId
         self.initialSummary = initialSummary
@@ -77,6 +79,7 @@ struct RemoteVisitDetailView: View {
         self.presentationMode = presentationMode
         self.onAuthenticationRequired = onAuthenticationRequired
         self.onCafeRequested = onCafeRequested
+        self.onSocialStateChanged = onSocialStateChanged
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -103,7 +106,6 @@ struct RemoteVisitDetailView: View {
     @State private var editingComment: RemoteVisitComment?
     @State private var editCommentError: String?
     @State private var commentPendingRemoval: RemoteVisitComment?
-    @State private var screeningStatus: String?
     @State private var profilePostHidden = false
     @State private var savingProfileHide = false
     @State private var profileHideLoaded = false
@@ -112,6 +114,7 @@ struct RemoteVisitDetailView: View {
     @State private var isDeletingVisit = false
     @State private var showDeleteConfirmation = false
     @State private var reactions: [SipReactionRecord] = []
+    @State private var showsReactionPeople = false
     @State private var isShowingRecommendation = false
     @State private var toolbarProgress: CGFloat = 0
     @State private var showMoreActions = false
@@ -159,7 +162,7 @@ struct RemoteVisitDetailView: View {
                     toolbarProgress: $toolbarProgress,
                     commentFocus: $isCommentFocused,
                     isWorking: isSavingSocialAction || isDeletingVisit,
-                    statusMessage: socialError ?? socialStatus ?? screeningStatus,
+                    statusMessage: socialError ?? socialStatus,
                     mentionSuggestions: mentionSuggestions.map {
                         SipDetailMentionSuggestion(
                             id: $0.id,
@@ -187,7 +190,13 @@ struct RemoteVisitDetailView: View {
                             locationName: detail.summary.locationTitle
                         )
                     },
+                    onReactionPeople: { showsReactionPeople = true },
                     onAuthorTap: openAuthorProfile,
+                    onCommentAuthor: { authorID in
+                        if let comment = detail.comments.first(where: { $0.comment.userId == authorID }) {
+                            openCommentAuthorProfile(comment)
+                        }
+                    },
                     onCafeTap: postCafe == nil ? nil : openPostCafe,
                     onRecipeAction: performRecipeAction,
                     onTaggedAccount: openTaggedProfile,
@@ -236,11 +245,11 @@ struct RemoteVisitDetailView: View {
                 do {
                     profilePostHidden = try await SharedProfileService(client: SupabaseClientProvider.shared.client()).isPostHidden(visitID: visitId)
                     profileHideLoaded = true
-                    if let currentUserId {
-                        screeningStatus = try await ContentScreeningService(accountID: currentUserId).status().first(where: { $0.subject_id == visitId && $0.subject_kind == "visit" })?.stateTitle
-                    }
                 } catch { profileHideLoaded = false }
             }
+        }
+        .sheet(isPresented: $showsReactionPeople) {
+            ReactionPeopleView(visitID: visitId, dataManager: dataManager)
         }
         .task(id: commentText) { await updateMentionSuggestions() }
         .navigationDestination(item: $selectedTaggedProfile) { route in
@@ -1519,6 +1528,7 @@ struct RemoteVisitDetailView: View {
             if phase4LightweightFriends {
                 reactions = (try? await SocialDiscoveryService(client: client).reactions(for: visitId)) ?? []
             }
+            await refreshReactionCounts()
             selectedPhotoIndex = 0
             isLoading = false
         } catch {
@@ -1550,6 +1560,16 @@ struct RemoteVisitDetailView: View {
         await setPostReaction(
             detail.summary.socialState.viewerReaction == nil ? .like : nil
         )
+    }
+
+    @MainActor
+    private func refreshReactionCounts() async {
+        guard currentUserId != nil,
+              let page = try? await ReactionPeopleService().page(visitID: visitId, limit: 1),
+              let detail else { return }
+        applySocialState(RemoteVisitSocialState(likeCount: page.counts.totalCount,
+            commentCount: detail.commentCount, currentUserHasLiked: page.counts.viewerReaction != nil,
+            reactionState: page.counts))
     }
 
     @MainActor
@@ -1594,6 +1614,7 @@ struct RemoteVisitDetailView: View {
                 reactionState: reactionState
             )
             applySocialState(state)
+            await refreshReactionCounts()
             MugshotAnalytics.shared.capture(
                 .sipLiked(
                     action: reaction == nil ? .removed : .added,
@@ -1609,6 +1630,7 @@ struct RemoteVisitDetailView: View {
                 return
             }
             self.detail = previousDetail
+            onSocialStateChanged?(previousDetail.summary.socialState)
             socialError = MugshotUserFacingError.message(for: error, context: .social)
             UINotificationFeedbackGenerator().notificationOccurred(.error)
             isSavingSocialAction = false
@@ -2018,6 +2040,7 @@ struct RemoteVisitDetailView: View {
     }
 
     private func applySocialState(_ state: RemoteVisitSocialState) {
+        onSocialStateChanged?(state)
         guard let detail else {
             return
         }

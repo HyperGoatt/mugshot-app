@@ -48,6 +48,8 @@ struct MainTabView: View {
     @State private var nearbyReminderCafe: Cafe?
     @State private var isBottomNavHidden = false
     @State private var feedScrollToTopRequest = 0
+    @State private var visitedTabs: Set<MugshotTab> = []
+    @State private var safetyGeneration = 0
 
     init(dataManager: DataManager, initialTab: MugshotTab = .feed) {
         self.dataManager = dataManager
@@ -60,7 +62,32 @@ struct MainTabView: View {
 
     private var coreScene: some View {
         ZStack(alignment: .bottom) {
-            activeTab
+            ZStack {
+                ForEach([MugshotTab.map, .feed, .saved, .journal], id: \.self) { tab in
+                    if visitedTabs.contains(tab) || tabCoordinator.selectedTab == tab {
+                        tabContent(tab)
+                            .environment(\.isMugshotTabActive, tabCoordinator.selectedTab == tab)
+                            .opacity(tabCoordinator.selectedTab == tab ? 1 : 0)
+                            .allowsHitTesting(tabCoordinator.selectedTab == tab)
+                            .accessibilityHidden(tabCoordinator.selectedTab != tab)
+                            .transformPreference(MugshotBottomNavHiddenPreferenceKey.self) { hidden in
+                                if tabCoordinator.selectedTab != tab { hidden = false }
+                            }
+                    }
+                }
+                if tabCoordinator.selectedTab == .add { tabContent(.add) }
+            }
+            .id("\(authModel.authenticatedUser?.id.uuidString ?? "guest")|\(safetyGeneration)")
+            .onAppear { visitedTabs.insert(tabCoordinator.selectedTab) }
+            .onReceive(NotificationCenter.default.publisher(for: .mugshotSafetyAccessChanged)) { _ in
+                RemoteFeedMemoryCache.shared.clear()
+                safetyGeneration += 1
+            }
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                RemoteFeedMemoryCache.shared.clear()
+                visitedTabs = [tabCoordinator.selectedTab]
+                Task { await ProtectedImageStore.shared.switchAccount(authModel.authenticatedUser?.id.uuidString ?? "anonymous") }
+            }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.creamWhite)
 
@@ -163,6 +190,7 @@ struct MainTabView: View {
             }
         }
         .onChange(of: tabCoordinator.selectedTab) { previousTab, selectedTab in
+            visitedTabs.insert(selectedTab)
             if selectedTab == .add,
                previousTab != .add,
                composerDraft == nil {
@@ -525,8 +553,8 @@ struct MainTabView: View {
     }
 
     @ViewBuilder
-    private var activeTab: some View {
-        switch tabCoordinator.selectedTab {
+    private func tabContent(_ tab: MugshotTab) -> some View {
+        switch tab {
         case .map:
             MapTabView(
                 dataManager: dataManager,
@@ -1790,3 +1818,12 @@ private struct MugshotTabItem: Identifiable {
 
     var id: MugshotTab { tab }
 }
+
+private struct MugshotTabActiveKey: EnvironmentKey { static let defaultValue = true }
+extension EnvironmentValues {
+    var isMugshotTabActive: Bool {
+        get { self[MugshotTabActiveKey.self] }
+        set { self[MugshotTabActiveKey.self] = newValue }
+    }
+}
+extension Notification.Name { static let mugshotSafetyAccessChanged = Notification.Name("mugshot.safetyAccessChanged") }
