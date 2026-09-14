@@ -957,3 +957,17 @@ After the owner unlocked the iPhone, the installed repair dev app launched
 successfully and its running process was confirmed. This resolves the physical
 launch blocker; owner screen acceptance, installed links and production repair
 rollout remain pending.
+
+The owner confirmed that the repair dev build loads the real account and older
+photos correctly. Remaining feature acceptance and the backend repair remain
+held; this confirmation is limited to account and photo compatibility.
+
+The owner also confirmed that the readable Joe profile URL delivered to the
+installed dev app opens the correct profile. Cross-app universal-link selection
+and preview acceptance remain distinct pending checks.
+
+Owner physical acceptance now includes automatic app opening from the external
+readable profile link, Muddy Waters selection from Charleston, draft pin
+persistence and audience-labelled Publish. Production repair is still pending;
+a fresh read found 70 technical failures (54 provider_configuration, 15
+invalid_input, one screening_unavailable), with human approval preserved.

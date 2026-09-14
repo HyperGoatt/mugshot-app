@@ -123,8 +123,9 @@ the regenerated development profile through its supported account interface.
 The production-connected Debug candidate (co.mugshot.app.dev, 0.5.3 build 6)
 compiled and installed successfully on the connected iPhone. Its signed
 entitlements contain both associated domains. After the owner unlocked the iPhone, devicectl launched the app successfully and
-confirmed its process running (PID 2507). Launch is verified; screen-level owner
-acceptance and installed universal-link routing remain pending.
+confirmed its process running (PID 2507). Launch is verified. The owner confirmed the real account and older photos load
+correctly. The owner also confirmed external profile links open Mugshot automatically.
+Remaining feature acceptance and production repair are still pending.
 
 Remaining: finish the explicitly pending acceptance paths below, complete the
 connected-phone walkthrough, then run the guarded production rollout and measure
@@ -149,9 +150,9 @@ artifact or a demonstrated failure.
 | Hosted app session | Signed candidate signs in, restores the same account after relaunch and reads its real hosted projections | Passed signed app email sign-in, profile setup, Feed reads and relaunch against disposable hosted QA |
 | Moderation UI | Harmless multi-photo post passes without a decision; real test flag/report appears with reason; technical retry appears only in Service status | Worker and hosted SQL contracts pass; hosted harmless text post passed automatically and owner details showed Screening passed; real synthetic provider flag confirmed; report submission/listing and one operator alert confirmed; multi-photo integrated UI and service/review actions pending |
 | Sharing UI | Single notice, historical choice initially off, independent authored/tagged hides, Private removal everywhere and Friends excluded from Everyone Feed | Hosted visibility contracts pass; one notice with historical choice off passed in a focused publishing UI test; authored Hide/Show passed with persisted hide and explanatory feedback; remaining tagged/Private interactive paths pending |
-| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; Friends-labelled Publish and post-save detail passed; remaining edit/dock and fresh-sip pin paths pending |
-| Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; hardware routing/preview pending |
-| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed and launched; running process confirmed; owner walkthrough pending |
+| Composer and Feed | New applicable sip restores pins without scores; audience-labelled Publish preserves draft choice; post/edit/keyboard return retains dock position; reactions persist or visibly roll back | Pin navigation/relaunch and keyboard Done pass; all four reaction saves and forced-save rollback pass against hosted QA; Friends-labelled Publish and post-save detail passed; owner also passed Charleston-to-Muddy-Waters selection, draft pin return and audience-labelled Publish on the physical phone; remaining post/edit dock paths pending |
+| Installed links | Canonical profile link opens the signed app, browser fallback works, Mugsy invitation preview and marketing beta destination appear | Web endpoints and native unit checks pass; owner confirmed delivered profile URL opens Joe in the dev app; owner confirmed an external chat link opens Mugshot automatically; preview acceptance pending |
+| Owner handoff | Signed dev build installed and launched on the connected iPhone with production configuration, followed by a concise owner walkthrough | Signed production-connected build installed and launched; running process confirmed; owner confirmed real account and older photos load; remaining walkthrough pending |
 | Production repair | Refresh preservation evidence, apply guarded transaction, deploy matching functions, reprocess only eligible current technical failures and report actual outcomes | Held until acceptance gates pass |
 
 The function deployment set includes screen-content and moderation-review, plus
@@ -195,3 +196,16 @@ unaccepted; these results do not establish every moderation UI path.
 This checkpoint's branch was deleted and the subsequent listing showed only main.
 The Simulator's QA session was terminated. No production data changed, no training
 sharing setting changed, and no TestFlight operation occurred.
+
+Owner confirmation: the production-connected dev build loads the existing account
+and older photos correctly. A profile/joe URL was delivered to the native app with
+devicectl successfully; the owner confirmed it opened the correct Joe profile. A subsequent external link tap also opened Mugshot successfully. This does not constitute backend rollout.
+
+The owner confirmed an external profile-link tap opens Mugshot automatically.
+The requested physical draft walkthrough also passed: Muddy Waters Vermont search
+from Charleston, Burlington selection and Log a Sip, criterion pin persistence
+after leaving/returning, and the audience-labelled Publish button. No publication
+was requested in that walkthrough. A subsequent production read found 70 current
+technical-error queue entries: 54 provider_configuration, 15 invalid_input and one
+screening_unavailable; one human approval remains recorded separately. This is a
+fresh backlog observation, not a repaired-worker or rollout success claim.
