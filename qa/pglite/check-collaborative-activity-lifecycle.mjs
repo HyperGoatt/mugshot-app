@@ -964,6 +964,10 @@ await db.exec(definitionOf(screenedSource, 'private.create_cafe_list_lifecycle_a
 await db.exec(definitionOf(transferSource, 'private.cafe_list_transfer_result_v1'));
 await db.exec(definitionOf(transferSource, 'public.transfer_cafe_list_ownership_v2'));
 await db.exec('revoke all on function private.activity_candidate_user_v1(uuid,uuid), private.cafe_list_transfer_result_v1(uuid,uuid,uuid) from public,anon,authenticated');
+const alertSource = await fs.readFile(repoPath + 'supabase/migrations/20260914044322_moderation_activity_alerts.sql', 'utf8');
+await db.exec('alter function private.activity_event_is_visible(public.activity_events,uuid) rename to activity_event_is_visible_before_moderation_alerts');
+await db.exec(definitionOf(alertSource, 'private.activity_event_is_visible'));
+await db.exec('revoke all on function private.activity_event_is_visible(public.activity_events,uuid) from public,anon,authenticated');
 await db.exec(securityContract)
 await db.exec('set check_function_bodies = on')
 

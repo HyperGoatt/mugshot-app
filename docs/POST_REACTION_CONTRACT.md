@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-14
 ---
 
 # Post reaction contract
@@ -58,3 +58,19 @@ No historical `visit_reactions` rows are backfilled or rewritten.
   state, and Activity deduplication/removal.
 - Production configuration, physical acceptance, and TestFlight acceptance are
   pending and must be reported separately.
+
+## Reaction people candidate
+
+`list_visit_reaction_people_v1(p_visit_id, p_reaction_kind, p_cursor, p_limit)`
+requires an authenticated live account and post access. It returns `people`,
+`counts`, and `next_cursor`; people use stable user IDs and authorized profile
+summaries. Pages sort by `(created_at DESC, user_id DESC)`. The optional cursor
+contains both fields; limits clamp to 1–50. Counts cover all authorized people
+regardless of the selected filter. Blocked/restricted users are excluded using
+the existing user visibility predicate. Historical Likes remain Likes.
+
+The full-post trailing summary opens All/nonzero-type filters. Profile navigation
+retains the sheet and selected filter. Existing writes remain optimistic, restore
+prior state on failure, and refresh authorized counts after success. Migration
+`20260914155145` is locally verified and deployed as migration 171. Production
+reaction samples passed; the dev build is installed, with owner acceptance pending.

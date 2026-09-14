@@ -55,17 +55,19 @@ struct PosterImageView: View {
 }
 
 @MainActor
-private final class RemoteFeedMemoryCache {
+final class RemoteFeedMemoryCache {
     struct Entry {
         let visits: [RemoteVisitSummary]
         let hasMore: Bool
         let updatedAt: Date
 
-        var isFresh: Bool { Date().timeIntervalSince(updatedAt) < 30 }
+        var isFresh: Bool { Date().timeIntervalSince(updatedAt) < 60 }
     }
 
     static let shared = RemoteFeedMemoryCache()
     private var entries: [String: Entry] = [:]
+
+    func clear() { entries.removeAll() }
 
     func entry(for key: String) -> Entry? { entries[key] }
 
@@ -147,6 +149,7 @@ struct FeedTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var locationManager = LocationManager()
+    @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var selectedScope: FeedScope = .ranked
     @State private var selectedPostRoute: FeedPostRoute?
     @State private var selectedProfileRoute: PeopleProfileRoute?
@@ -350,11 +353,9 @@ struct FeedTabView: View {
                         onComposeDraft: { draft in
                             selectedPostRoute = nil
                             onComposeDraft?(draft)
-                        }
+                        },
+                        onSocialStateChanged: { updateRemoteVisit(id: visit.id, socialState: $0) }
                     )
-                    .onDisappear {
-                        Task { await loadRemoteFeedIfNeeded(forceRefresh: true) }
-                    }
                     }
                 }
                 .id(route.id)
@@ -377,7 +378,8 @@ struct FeedTabView: View {
             pendingSocialVisitIDs.removeAll()
             socialRecoveryMessage = nil
         }
-        .task(id: feedTaskID) {
+        .task(id: "\(feedTaskID)|\(tabIsActive)") {
+            guard tabIsActive else { return }
             await loadRemoteFeedIfNeeded()
         }
     }
@@ -687,7 +689,6 @@ struct FeedTabView: View {
             hasMoreRemoteVisits = cached.hasMore
             isLoadingRemoteVisits = false
             if cached.isFresh {
-                await refreshCanonicalSipCount(userID: userId)
                 return
             }
         }
@@ -708,14 +709,14 @@ struct FeedTabView: View {
                     location: locationManager.location
                 )
             }
-            guard scope == selectedScope, activeFeedRequestID == requestID else { return }
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return }
             remoteVisits = visits
             hasMoreRemoteVisits = visits.count == feedPageSize
             RemoteFeedMemoryCache.shared.store(visits, hasMore: hasMoreRemoteVisits, for: cacheKey)
             isLoadingRemoteVisits = false
             await refreshCanonicalSipCount(userID: userId, service: service)
         } catch {
-            guard scope == selectedScope, activeFeedRequestID == requestID else { return }
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return }
             guard !Task.isCancelled else { return }
             let message = MugshotUserFacingError.message(for: error, context: .loading)
             if remoteVisits.isEmpty {
@@ -966,6 +967,7 @@ struct FeedTabView: View {
             cafePulseProjection: visit.cafePulseProjection,
             v3FeedProjection: visit.v3FeedProjection
         )
+        RemoteFeedMemoryCache.shared.store(remoteVisits, hasMore: hasMoreRemoteVisits, for: feedTaskID)
     }
 }
 

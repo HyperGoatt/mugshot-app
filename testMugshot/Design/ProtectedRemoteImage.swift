@@ -1,44 +1,59 @@
 import SwiftUI
 
-/// Resolves stored media through the current viewer and drops displayed bytes
-/// on account/lifecycle changes. Protected media is reauthorized while visible.
 struct ProtectedRemoteImage<Content: View>: View {
     let storedValue: String
     @ViewBuilder let content: (UIImage?) -> Content
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var image: UIImage?
     @State private var loadedScope: String?
+    @State private var safetyGeneration = 0
+    @State private var authorizedUntil = Date.distantPast
 
-    private var scope: String {
-        "\(authModel.authenticatedUser?.id.uuidString ?? "anonymous")|\(scenePhase)|\(storedValue)"
-    }
+    private var account: String { authModel.authenticatedUser?.id.uuidString ?? "anonymous" }
+    private var scope: String { "\(account)|\(storedValue)|\(safetyGeneration)" }
+    private var visible: Bool { scenePhase == .active && tabIsActive }
 
     var body: some View {
-        content(loadedScope == scope && scenePhase == .active ? image : nil)
-            .task(id: scope) {
-                image = nil
-                loadedScope = nil
-                guard scenePhase == .active else { return }
-                let expectedScope = scope
+        ZStack {
+            Color.clear
+            content(loadedScope == scope && visible && authorizedUntil > Date() ? image : nil)
+        }
+            .onReceive(NotificationCenter.default.publisher(for: .mugshotSafetyAccessChanged)) { _ in
+                image = nil; loadedScope = nil; safetyGeneration += 1
+            }
+            .task(id: "\(scope)|\(visible)") {
+                guard visible else { return }
+                let expected = scope
+                var renew = false
                 do {
                     while !Task.isCancelled {
-                        let started = ContinuousClock.now
-                        let url = try await VisitPhotoAccessService.shared.resolvedURL(for: storedValue)
-                        let loaded = try await RemoteImagePipeline.shared.image(for: url)
+                        let receipt = try await ProtectedImageStore.shared.load(storedValue, account: account, renew: renew)
                         try Task.checkCancellation()
-                        guard expectedScope == scope, scenePhase == .active else { return }
-                        image = loaded
-                        loadedScope = expectedScope
-                        guard url.path.hasPrefix("/storage/v1/object/sign/") else { return }
-                        try await Task.sleep(until: started.advanced(by: .seconds(55)), clock: .continuous)
-                        image = nil
-                        loadedScope = nil
+                        guard scope == expected, visible else { return }
+                        image = receipt.image; loadedScope = expected; authorizedUntil = receipt.expiresAt
+                        // Renew ten seconds before expiry. If renewal is slow,
+                        // the expiry task removes the old pixels on time.
+                        let remaining = max(0, receipt.expiresAt.timeIntervalSinceNow)
+                        let expiryTask = Task { @MainActor in
+                            try await Task.sleep(for: .seconds(remaining))
+                            guard scope == expected else { return }
+                            image = nil; loadedScope = nil
+                        }
+                        do {
+                            try await Task.sleep(for: .seconds(max(0, remaining - 10)))
+                            let next = try await ProtectedImageStore.shared.load(storedValue, account: account, renew: true)
+                            expiryTask.cancel()
+                            try Task.checkCancellation()
+                            guard scope == expected, visible else { return }
+                            image = next.image; loadedScope = expected; authorizedUntil = next.expiresAt
+                        } catch { expiryTask.cancel(); throw error }
+                        renew = false
                     }
                 } catch {
-                    guard expectedScope == scope else { return }
-                    image = nil
-                    loadedScope = nil
+                    guard !Task.isCancelled, scope == expected else { return }
+                    image = nil; loadedScope = nil
                 }
             }
     }

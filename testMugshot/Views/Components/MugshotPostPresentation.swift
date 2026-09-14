@@ -408,6 +408,7 @@ struct MugshotExpandableCaption: View {
     let caption: String
     var mentions: [Mention] = []
     var alwaysExpanded = false
+    var usesDetailTypography = false
     @State private var isExpanded = false
     @State private var availableWidth: CGFloat = 0
 
@@ -442,7 +443,7 @@ struct MugshotExpandableCaption: View {
                     .accessibilityLabel(caption)
             }
         }
-        .font(.system(size: 15))
+        .font(usesDetailTypography ? .body : .system(size: 15))
         .foregroundStyle(Color.espressoBrown.opacity(0.78))
         .fixedSize(horizontal: false, vertical: true)
         .background {

@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## Regression repair candidate — 2026-09-14
+
+Implemented on `codex/regression-repair-reactions`; production migration 171 and
+`deliver-activity` are deployed. The dev build is installed and launched on Joe’s
+iPhone; owner acceptance remains pending. This candidate retains visited tabs by account,
+reuses fresh lists for 60 seconds, caches protected image pixels only in bounded
+memory with renewed authorization, restores actor/action Activity and push copy,
+adds comment-author navigation and reaction people, removes routine sharing-status
+banners from post detail, and makes detail captions larger than journal notes.
+No posts, photos, audiences, reaction rows or notification history are rewritten.
+See [regression delivery checklist](REGRESSION_REPAIR_STATUS.md) for exact gates.
+
+
 ## 2026-09-14 — Keep restricted-content previews current
 
 Retain the restriction and audit history while updating the review revision when

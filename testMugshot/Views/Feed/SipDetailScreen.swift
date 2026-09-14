@@ -122,6 +122,7 @@ enum SipDetailCommentActionPolicy {
 
 struct SipDetailCommentModel: Identifiable, Equatable {
     let id: UUID
+    let authorID: UUID?
     let parentID: UUID?
     let authorName: String
     let username: String
@@ -135,6 +136,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
     init(
         id: UUID,
         parentID: UUID? = nil,
+        authorID: UUID? = nil,
         authorName: String,
         username: String,
         avatarURL: String? = nil,
@@ -146,6 +148,7 @@ struct SipDetailCommentModel: Identifiable, Equatable {
     ) {
         self.id = id
         self.parentID = parentID
+        self.authorID = authorID
         self.authorName = authorName
         self.username = username
         self.avatarURL = avatarURL
@@ -565,6 +568,7 @@ enum SipDetailPresentationAdapter {
                 SipDetailCommentModel(
                     id: comment.id,
                     parentID: comment.comment.parentCommentId,
+                    authorID: comment.comment.userId,
                     authorName: comment.authorDisplayName,
                     username: "@\(comment.authorUsername)",
                     avatarURL: comment.author?.avatarURL,
@@ -698,6 +702,7 @@ enum SipDetailPresentationAdapter {
                 SipDetailCommentModel(
                     id: comment.id,
                     parentID: nil,
+                    authorID: comment.userId,
                     authorName: comment.userId == user?.id ? authorDisplayName : "Mugshot User",
                     username: comment.userId == user?.id ? "@\(user?.username ?? "user")" : "@user",
                     text: comment.text,
@@ -927,7 +932,9 @@ struct SipDetailScreen: View {
     let onCancelReply: () -> Void
     let onSelectMention: (UUID) -> Void
     let onPhotoTap: (Int) -> Void
+    var onReactionPeople: () -> Void = {}
     var onAuthorTap: () -> Void = {}
+    var onCommentAuthor: (UUID) -> Void = { _ in }
     var onCafeTap: (() -> Void)? = nil
     let onRecipeAction: (SipDetailRecipeAction) -> Void
     let onTaggedAccount: (UUID) -> Void
@@ -1041,6 +1048,7 @@ struct SipDetailScreen: View {
                 model: presentation.content,
                 isWorking: isWorking,
                 onAction: { action in handle(action, proxy: proxy) },
+                onReactionPeople: onReactionPeople,
                 onReaction: onSetReaction
             )
             .padding(.horizontal, 22)
@@ -1107,6 +1115,7 @@ struct SipDetailScreen: View {
                     },
                     onCompose: { focusComposer(proxy: proxy) },
                     onMention: onCommentMention,
+                    onAuthor: onCommentAuthor,
                     onCommentAction: onCommentAction
                 )
                 .padding(.horizontal, 22)
@@ -1865,7 +1874,7 @@ private struct SipDetailPostSummary: View {
     var body: some View {
         Group {
             if let caption = model.caption {
-                MugshotExpandableCaption(caption: caption, alwaysExpanded: true)
+                MugshotExpandableCaption(caption: caption, alwaysExpanded: true, usesDetailTypography: true)
             }
         }
     }
@@ -1876,9 +1885,11 @@ private struct SipDetailActionDock: View {
     let model: SipDetailContentModel
     let isWorking: Bool
     let onAction: (SipDetailAction) -> Void
+    let onReactionPeople: () -> Void
     let onReaction: (PostReactionKind) -> Void
 
     var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
         HStack(spacing: 4) {
             ForEach(leadingActions) { action in
                 actionControl(action)
@@ -1890,10 +1901,34 @@ private struct SipDetailActionDock: View {
                 actionControl(action)
             }
         }
+        if let state = model.reactionState, state.totalCount > 0 {
+            Button(action: onReactionPeople) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { reactionTotals(state) }
+                    VStack(alignment: .trailing, spacing: 6) { reactionTotals(state) }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.mugshotSage)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("See all \(state.totalCount) reactions")
+            .accessibilityIdentifier("sip.detail.reactionPeople")
+        }
+        }
         .frame(minHeight: 52)
         .background(Color.creamWhite)
         .overlay(alignment: .top) { Divider().foregroundStyle(Color.mugshotLine) }
         .overlay(alignment: .bottom) { Divider().foregroundStyle(Color.mugshotLine) }
+    }
+
+    @ViewBuilder private func reactionTotals(_ state: VisitReactionState) -> some View {
+        ForEach(PostReactionKind.allCases) { kind in
+            if state.count(for: kind) > 0 {
+                Label("\(state.count(for: kind))", systemImage: kind.systemImage)
+                    .accessibilityLabel("\(kind.title), \(state.count(for: kind))")
+            }
+        }
     }
 
     private var leadingActions: [SipDetailAction] {
@@ -2365,7 +2400,7 @@ private struct SipPrivateNoteSection: View {
                 .tracking(1.2)
                 .foregroundStyle(Color.mugshotSage)
             Text(text)
-                .font(.system(.title3, design: .serif, weight: .regular))
+                .font(.system(.subheadline, design: .serif, weight: .regular))
                 .foregroundStyle(Color.espressoBrown)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -2417,7 +2452,7 @@ private struct SipSharedRawNoteSection: View {
 
             if !isExpanded {
                 Text(text)
-                    .font(.system(.body, design: .serif, weight: .regular))
+                    .font(.system(.subheadline, design: .serif, weight: .regular))
                     .foregroundStyle(Color.espressoBrown)
                     .lineLimit(3)
                     .lineSpacing(3)
@@ -2437,7 +2472,7 @@ private struct SipSharedRawNoteSection: View {
                         .foregroundStyle(Color.secondaryText)
 
                     Text(text)
-                        .font(.system(.title3, design: .serif, weight: .regular))
+                        .font(.system(.subheadline, design: .serif, weight: .regular))
                         .foregroundStyle(Color.espressoBrown)
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
@@ -2537,6 +2572,7 @@ private struct SipConversationSection: View {
     let onReply: (UUID) -> Void
     let onCompose: () -> Void
     let onMention: (UUID) -> Void
+    let onAuthor: (UUID) -> Void
     let onCommentAction: (UUID, SipDetailCommentAction) -> Void
 
     private var threadedComments: [SipDetailThreadedComment] {
@@ -2565,6 +2601,7 @@ private struct SipConversationSection: View {
                             depth: threaded.depth,
                             onReply: onReply,
                             onMention: onMention,
+                            onAuthor: onAuthor,
                             onAction: onCommentAction
                         )
                         if index < threadedComments.count - 1 {
@@ -2605,6 +2642,7 @@ private struct SipDetailCommentRow: View {
     let depth: Int
     let onReply: (UUID) -> Void
     let onMention: (UUID) -> Void
+    let onAuthor: (UUID) -> Void
     let onAction: (UUID, SipDetailCommentAction) -> Void
 
     var body: some View {
@@ -2622,12 +2660,21 @@ private struct SipDetailCommentRow: View {
                 .accessibilityHidden(true)
             }
 
-            MugshotAvatar(name: comment.authorName, size: 36, imageURL: comment.avatarURL)
+            Button { if let id = comment.authorID { onAuthor(id) } } label: {
+                MugshotAvatar(name: comment.authorName, size: 36, imageURL: comment.avatarURL)
+            }
+            .buttonStyle(.plain)
+            .disabled(comment.authorID == nil)
+            .accessibilityLabel("Open \(comment.authorName)'s profile")
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(comment.authorName)
-                        .font(.system(.subheadline, design: .default, weight: .bold))
+                    Button { if let id = comment.authorID { onAuthor(id) } } label: {
+                        Text(comment.authorName)
+                            .font(.system(.subheadline, design: .default, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(comment.authorID == nil)
                     Text(comment.timestamp)
                         .font(.caption2)
                         .foregroundStyle(Color.tertiaryText)
