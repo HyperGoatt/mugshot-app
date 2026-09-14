@@ -943,6 +943,16 @@ struct RemoteVisitSummary: Identifiable, Equatable {
 
     var id: UUID { visit.id }
 
+    func updatingSocialState(_ state: RemoteVisitSocialState) -> RemoteVisitSummary {
+        RemoteVisitSummary(
+            visit: visit, cafe: cafe, author: author, socialState: state,
+            rankingScore: rankingScore, recommendationReason: recommendationReason,
+            recommendationReasonType: recommendationReasonType,
+            sessionSipCount: sessionSipCount, cafePulseProjection: cafePulseProjection,
+            v3FeedProjection: v3FeedProjection, photoURLs: photoURLs
+        )
+    }
+
     private static func coverFirstPhotoURLs(
         posterPhotoURL: String?,
         photoURLs: [String]

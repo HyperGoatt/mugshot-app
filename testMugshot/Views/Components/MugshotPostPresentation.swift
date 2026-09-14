@@ -506,6 +506,29 @@ struct MugshotFeedPostPresentation {
     let recommendationSystemImage: String
 }
 
+/// Owned by the Feed, rather than a recycled LazyVStack row. This object does
+/// not publish changes across the Feed when one carousel advances.
+final class FeedMediaSelectionStore {
+    private var selections: [UUID: String] = [:]
+    func selection(for visitID: UUID, available: [String]) -> String? {
+        if let key = selections[visitID], available.contains(key) { return key }
+        selections[visitID] = available.first
+        return available.first
+    }
+    func select(_ key: String?, for visitID: UUID) { selections[visitID] = key }
+}
+
+private struct FeedMediaSelectionKey: EnvironmentKey {
+    static let defaultValue: FeedMediaSelectionStore? = nil
+}
+
+extension EnvironmentValues {
+    var feedMediaSelections: FeedMediaSelectionStore? {
+        get { self[FeedMediaSelectionKey.self] }
+        set { self[FeedMediaSelectionKey.self] = newValue }
+    }
+}
+
 struct MugshotFeedPostCard<Footer: View>: View {
     let presentation: MugshotFeedPostPresentation
     let onOpen: () -> Void
@@ -514,6 +537,7 @@ struct MugshotFeedPostCard<Footer: View>: View {
     var cafeAccessibilityIdentifier: String? = nil
     var onMediaOpen: ((String) -> Void)? = nil
     @State private var selectedMediaKey: String?
+    @Environment(\.feedMediaSelections) private var mediaSelections
     @ViewBuilder let footer: () -> Footer
 
     init(
@@ -625,6 +649,17 @@ struct MugshotFeedPostCard<Footer: View>: View {
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 8)
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("feed.visitCard.\(presentation.visitID.uuidString)")
+        .onAppear {
+            if let mediaSelections {
+                selectedMediaKey = mediaSelections.selection(
+                    for: presentation.visitID,
+                    available: presentation.mediaSources.map(\.cacheKey)
+                )
+            }
+        }
+        .onChange(of: selectedMediaKey) { _, key in
+            mediaSelections?.select(key, for: presentation.visitID)
+        }
         .onChange(of: presentation.mediaSources.map(\.cacheKey)) { _, keys in
             if let selectedMediaKey, keys.contains(selectedMediaKey) { return }
             selectedMediaKey = keys.first

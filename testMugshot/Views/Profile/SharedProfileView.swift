@@ -605,11 +605,13 @@ struct SharedProfileView: View {
             let loadedSips: [PublicProfileVisit]
             switch source {
             case .user(let userID, _):
-                loadedProjection = try await service.projection(userID: userID, asEveryone: true)
-                loadedSips = try await service.publicSips(userID: userID)
+                async let profileRequest = service.projection(userID: userID, asEveryone: true)
+                async let sipsRequest = service.publicSips(userID: userID)
+                (loadedProjection, loadedSips) = try await (profileRequest, sipsRequest)
             case .share(let slug):
-                loadedProjection = try await service.sharedProjection(slug: slug)
-                loadedSips = try await service.sharedSips(slug: slug)
+                async let profileRequest = service.sharedProjection(slug: slug)
+                async let sipsRequest = service.sharedSips(slug: slug)
+                (loadedProjection, loadedSips) = try await (profileRequest, sipsRequest)
             }
             guard let loadedProjection else {
                 projection = nil
@@ -617,6 +619,10 @@ struct SharedProfileView: View {
                 return
             }
 
+            try Task.checkCancellation()
+            // Show the authorized profile and first page immediately; secondary
+            // cafe/tag sections should not gate the first useful content.
+            projection = loadedProjection
             sips = loadedSips.filter(\.isPublishedOnProfile)
             canLoadMore = loadedSips.count == 24
 
@@ -667,6 +673,8 @@ struct SharedProfileView: View {
                     profileContractVersion: loadedProjection.profileContractVersion
                 )
             }
+        } catch is CancellationError {
+            return
         } catch {
             projection = nil
             sips = []
