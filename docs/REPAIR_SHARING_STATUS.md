@@ -64,7 +64,8 @@ unrelated public discovery eligibility.
 ## Native and web repairs
 
 Named cafe searches can return distant relevant results while nearby Discover
-remains bounded. Full suggestion titles and locations resolve selection. Pin
+remains bounded. Selected MapKit completions retain their location context;
+keyboard-driven viewport updates cannot replace an active selection lookup. Pin
 changes persist immediately by account and criterion scope without copying prior
 scores. Publish shows its selected audience; keyboard Done only dismisses input.
 The tab dock ignores keyboard inset movement. Feed and detail show the selected
@@ -81,7 +82,10 @@ capability before claiming installed-device universal-link acceptance.
 ## Evidence and remaining gates
 
 Implemented and locally verified: 13 provider/worker tests, seven capability-media
-tests, both focused PGlite repair contracts, Debug compile and 296 focused Swift tests plus 32 sharing/link tests.
+tests, both focused PGlite repair contracts, Debug compile, 148 unique focused Swift
+tests, 16 unique sharing/link tests, and one isolated Auth identity test (165 distinct
+tests total). Xcode printed
+most results twice; the prior totals counted duplicate log lines.
 Hosted QA: original 64 contracts passed after adapting the lifecycle assertion to
 check the unchanged delegated implementation; an additional hosted publication,
 reaction and operator-alert contract passed. Migration rehearsal preserved all
@@ -94,10 +98,25 @@ Web deployed: marketing PR #19 merged as `63d28ad`, PWA PR #14 merged as
 AASA endpoint return HTTP 200. The profile Edge Function metadata change remains
 part of the held backend rollout.
 
-Runtime gate remains incomplete: the app launches in Simulator, but synthetic QA
-sign-in returns a session-identity mismatch after the Auth API succeeds. No
-production-account or authentication safety checks were weakened to bypass it.
-The original focused unit run passed; this is a separate live runtime failure.
+Runtime gate remains incomplete. The current signed app passed sign-in through
+its real UI against a local synthetic HTTP backend and reached Feed. An additional
+focused AuthSessionIdentityTests regression passed with isolated Keychain storage
+and a synthetic HTTP response. A direct synthetic Keychain write/read/delete probe
+also passed. These rule out a general current-build Keychain or AuthService
+identity failure; live hosted acceptance remains unverified. No production-account
+or authentication safety checks were weakened.
+
+Live MapKit returned the Burlington result first for “Muddy Waters Vermont” from
+the Charleston search context. Selection reproduced the reported failure. A
+viewport refresh caused by keyboard dismissal can replace the selected lookup;
+the follow-up isolates selection resolution from viewport searches and delays
+keyboard dismissal until selection finishes. The same-path acceptance passed: one tap
+opened Muddy Waters at 184 Main St, Burlington, and Log a Sip opened the composer with
+that cafe selected. The final compiled follow-up was installed and launched
+successfully. Presentation stayed pinned across reflection navigation and app
+relaunch/resuming the draft; its synthetic account-scoped preference was also present on
+disk. Keyboard Done dismissed editing without publishing. These checks used a local
+synthetic app backend plus live MapKit, not production post writes.
 
 Device gate is blocked: the existing dev provisioning profile lacks Associated
 Domains, automatic provisioning reports no Xcode account, and the Apple Developer
@@ -105,7 +124,7 @@ browser session requires sign-in. Computer control also reported a locked Mac.
 The owner was asked only to unlock and sign in; provisioning and installation
 remain agent work afterward. No repaired dev candidate is installed on the phone.
 
-Remaining: resolve the live Simulator session issue, finish the one consolidated
+Remaining: verify the app session against a live hosted backend, finish the consolidated
 runtime matrix, regenerate dev provisioning, install on the connected phone,
 then run the guarded production rollout and measure technical-backlog recovery.
 Production migrations, screening thresholds, legacy bucket visibility and all

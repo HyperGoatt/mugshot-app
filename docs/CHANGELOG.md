@@ -914,3 +914,16 @@ Checkpoint verification: focused PGlite behavior contracts passed and the fast
 gate passed 7 checks with no failures. Documentation and diff checks passed.
 No app build, Simulator session, provider request or production mutation ran
 for this SQL-only change.
+
+### Repair follow-up verification
+
+Added an isolated Auth session-identity regression and corrected duplicate Xcode
+log counting. The signed app reaches Feed using a local synthetic Auth backend.
+Live MapKit reproduced suggestion-selection cancellation during keyboard/viewport
+changes; the follow-up protects the selected lookup from viewport refreshes.
+
+The repaired Burlington suggestion opened its cafe card and Log a Sip in live
+MapKit acceptance. Pins survived reflection navigation and relaunch/resume;
+keyboard Done left the draft unpublished. The final Debug candidate compiles and
+launches. These runtime checks used synthetic local app data; live hosted, physical
+device and production rollout gates remain pending.

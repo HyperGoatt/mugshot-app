@@ -30,6 +30,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     @Published private(set) var completions: [MKLocalSearchCompletion] = []
     @Published private(set) var recents: [MapSearchRecent] = []
     @Published private(set) var isSearching = false
+    @Published private(set) var isResolvingSelection = false
     @Published private(set) var isUpdatingSuggestions = false
     @Published private(set) var searchError: String?
     @Published private(set) var completedQuery = ""
@@ -82,6 +83,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         completer.region = MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: 180, longitudeDelta: 360))
         completer.queryFragment = rawQuery
 
+        isResolvingSelection = false
         activeSearchID = UUID()
         let searchID = activeSearchID
         currentSearch?.cancel()
@@ -124,7 +126,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         request.region = region
         run(
             request: request,
-            query: "\(completion.title) \(completion.subtitle)",
+            query: completion.title,
             region: region,
             searchID: beginImmediateSearch(rawQuery: completion.title, region: region),
             allowsExpandedRetry: true
@@ -142,7 +144,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         request.region = region
         return await resolve(
             request: request,
-            query: "\(completion.title) \(completion.subtitle)",
+            query: completion.title,
             region: region
         )
     }
@@ -170,6 +172,8 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
         region: MKCoordinateRegion
     ) async -> MKMapItem? {
         let searchID = beginImmediateSearch(rawQuery: query, region: region)
+        isResolvingSelection = true
+        defer { if searchID == activeSearchID { isResolvingSelection = false } }
         let search = MKLocalSearch(request: request)
         currentSearch = search
 
@@ -283,6 +287,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     func cancelSearch() {
+        isResolvingSelection = false
         activeSearchID = UUID()
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
@@ -312,6 +317,7 @@ final class MapSearchService: NSObject, ObservableObject, @preconcurrency MKLoca
     }
 
     private func beginImmediateSearch(rawQuery: String, region: MKCoordinateRegion) -> UUID {
+        isResolvingSelection = false
         activeSearchID = UUID()
         currentSearch?.cancel()
         pendingSearchTask?.cancel()
