@@ -6,7 +6,7 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
     }
 
     @MainActor
-    func testAdaptiveMapMovesFromPinsToClustersAndNamedPlaces() throws {
+    func testAdaptiveMapKeepsPinsVisibleAndRevealsRatingsWhenClose() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
@@ -30,9 +30,10 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
         )
         XCTAssertTrue(
             northBeachPin.waitForExistence(timeout: 5),
-            "The close city-scale fixture should preserve individual cafe scores."
+            "The close fixture should show an individual cafe pin."
         )
-        attachScreenshot(named: "06 After - Map individual scores")
+        XCTAssertEqual(northBeachPin.value as? String, "Rating visible at this zoom")
+        attachScreenshot(named: "06 After - Neighborhood rating pins")
 
         northBeachPin.tap()
         XCTAssertTrue(
@@ -42,55 +43,36 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
         app.buttons["Close cafe card"].tap()
         XCTAssertTrue(map.waitForExistence(timeout: 3))
 
-        gestureSurface.pinch(withScale: 0.2, velocity: -2)
-        let namedPlace = app.descendants(matching: .button).matching(
-            NSPredicate(
-                format: "identifier == %@ AND (label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@)",
-                "map.place",
-                "San Francisco",
-                "Oakland",
-                "Berkeley",
-                "Sacramento"
-            )
-        ).firstMatch
-        XCTAssertTrue(
-            namedPlace.waitForExistence(timeout: 6),
-            "Zooming out should replace pin-level detail with named place aggregates."
+        gestureSurface.pinch(withScale: 0.18, velocity: -2)
+        let cityPin = element(
+            "map.pin.00000000-0000-4000-8001-000000000001",
+            in: app
         )
-        let regionalCluster = app.descendants(matching: .button).matching(
-            NSPredicate(
-                format: "identifier == %@ AND label BEGINSWITH %@",
-                "map.cluster",
-                "Across "
-            )
-        ).firstMatch
-        XCTAssertTrue(regionalCluster.waitForExistence(timeout: 3))
-        attachScreenshot(named: "06b After - Map named places")
+        XCTAssertTrue(cityPin.waitForExistence(timeout: 6))
+        let ratingHidden = NSPredicate(
+            format: "value == %@",
+            "Rating hidden at this zoom"
+        )
+        expectation(for: ratingHidden, evaluatedWith: cityPin)
+        waitForExpectations(timeout: 6)
+        attachScreenshot(named: "06b After - City travel pins")
 
-        regionalCluster.tap()
-        XCTAssertTrue(namedPlace.waitForNonExistence(timeout: 6))
-        let cafeCluster = app.descendants(matching: .button).matching(
-            NSPredicate(
-                format: "identifier == %@ AND NOT label BEGINSWITH %@",
-                "map.cluster",
-                "Across "
-            )
-        ).firstMatch
-        XCTAssertTrue(
-            cafeCluster.waitForExistence(timeout: 6),
-            "Tapping the regional cluster should reveal cafe-level clusters."
+        for _ in 0..<2 {
+            gestureSurface.pinch(withScale: 0.18, velocity: -2)
+        }
+        let distantPin = element(
+            "map.pin.00000000-0000-4000-8001-000000000001",
+            in: app
         )
-        attachScreenshot(named: "06c After - Map cafe clusters")
-
-        cafeCluster.tap()
-        let revealedPin = app.descendants(matching: .button).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "map.pin.")
-        ).firstMatch
         XCTAssertTrue(
-            revealedPin.waitForExistence(timeout: 6),
-            "Tapping a cafe cluster should reveal individual cafe scores."
+            distantPin.waitForExistence(timeout: 6),
+            "The same cafe pin should remain represented after zooming far out."
         )
-        attachScreenshot(named: "06d After - Map revealed cafes")
+        expectation(for: ratingHidden, evaluatedWith: distantPin)
+        waitForExpectations(timeout: 6)
+        XCTAssertFalse(app.descendants(matching: .any)["map.place"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["map.cluster"].exists)
+        attachScreenshot(named: "06c After - Persistent world pins")
     }
 
     @MainActor

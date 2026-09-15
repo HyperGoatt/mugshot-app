@@ -86,67 +86,68 @@ struct AdaptiveMapClusteringTests {
         ))
     }
 
-    @Test func cameraPolicyUsesHysteresisAcrossSemanticBoundary() {
-        #expect(
-            AdaptiveMapCameraPolicy.displayMode(
-                current: .cafes,
-                groundFootprintMeters: 89_999
-            ) == .cafes
-        )
-        #expect(
-            AdaptiveMapCameraPolicy.displayMode(
-                current: .cafes,
-                groundFootprintMeters: 90_000
-            ) == .places
-        )
-        #expect(
-            AdaptiveMapCameraPolicy.displayMode(
-                current: .places,
-                groundFootprintMeters: 70_001
-            ) == .places
-        )
-        #expect(
-            AdaptiveMapCameraPolicy.displayMode(
-                current: .places,
-                groundFootprintMeters: 70_000
-            ) == .cafes
-        )
+    @Test func mapKeepsIndividualCafeAnnotationsAtEveryZoomLevel() {
+        for footprint in [500.0, 3_000, 90_000, 2_000_000] {
+            #expect(
+                AdaptiveMapCameraPolicy.displayMode(
+                    current: .places,
+                    groundFootprintMeters: footprint
+                ) == .cafes
+            )
+            #expect(
+                !AdaptiveMapCafeClusteringPolicy.isEnabled(
+                    current: true,
+                    groundFootprintMeters: footprint
+                )
+            )
+        }
     }
 
-    @Test func cityAndMetroFootprintsKeepIndividualCafeAnnotations() {
-        #expect(
-            AdaptiveMapCameraPolicy.displayMode(
-                current: .cafes,
-                groundFootprintMeters: 50_000
-            ) == .cafes
+    @Test func travelPinsScaleContinuouslyFromWorldToNeighborhood() {
+        let world = ZoomAdaptiveMapPinStyle.resolve(
+            groundFootprintMeters: 2_000_000,
+            showsRating: false
         )
+        let region = ZoomAdaptiveMapPinStyle.resolve(
+            groundFootprintMeters: 90_000,
+            showsRating: false
+        )
+        let city = ZoomAdaptiveMapPinStyle.resolve(
+            groundFootprintMeters: 3_000,
+            showsRating: false
+        )
+        let neighborhood = ZoomAdaptiveMapPinStyle.resolve(
+            groundFootprintMeters: 500,
+            showsRating: true
+        )
+
+        #expect(world.headDiameter == ZoomAdaptiveMapPinStyle.minimumHeadDiameter)
+        #expect(world.headDiameter < region.headDiameter)
+        #expect(region.headDiameter < city.headDiameter)
+        #expect(city.headDiameter < neighborhood.headDiameter)
+        #expect(neighborhood.headDiameter == ZoomAdaptiveMapPinStyle.maximumHeadDiameter)
+        #expect(ZoomAdaptiveMapPinStyle.hitTargetSize >= 44)
+        #expect(!world.showsRating)
+        #expect(neighborhood.showsRating)
     }
 
-    @Test func cafeClusteringBeginsOnlyAfterTheCharlestonLevelWithHysteresis() {
-        #expect(
-            AdaptiveMapCafeClusteringPolicy.isEnabled(
-                current: false,
-                groundFootprintMeters: 3_199
-            ) == false
-        )
-        #expect(
-            AdaptiveMapCafeClusteringPolicy.isEnabled(
-                current: false,
-                groundFootprintMeters: 3_200
-            ) == true
-        )
-        #expect(
-            AdaptiveMapCafeClusteringPolicy.isEnabled(
-                current: true,
-                groundFootprintMeters: 2_401
-            ) == true
-        )
-        #expect(
-            AdaptiveMapCafeClusteringPolicy.isEnabled(
-                current: true,
-                groundFootprintMeters: 2_400
-            ) == false
-        )
+    @Test func ratingVisibilityUsesHysteresisNearTheCloseZoomBoundary() {
+        #expect(ZoomAdaptiveMapRatingVisibilityPolicy.isVisible(
+            current: false,
+            groundFootprintMeters: 1_100
+        ))
+        #expect(!ZoomAdaptiveMapRatingVisibilityPolicy.isVisible(
+            current: false,
+            groundFootprintMeters: 1_101
+        ))
+        #expect(ZoomAdaptiveMapRatingVisibilityPolicy.isVisible(
+            current: true,
+            groundFootprintMeters: 1_500
+        ))
+        #expect(!ZoomAdaptiveMapRatingVisibilityPolicy.isVisible(
+            current: true,
+            groundFootprintMeters: 1_501
+        ))
     }
 
     @Test func canonicalSnapshotDeduplicatesAndConservesRepresentationCount() {

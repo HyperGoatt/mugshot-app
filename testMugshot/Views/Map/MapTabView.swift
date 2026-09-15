@@ -1683,6 +1683,152 @@ struct MapPinPresentation: Equatable {
     }
 }
 
+final class MugshotTravelPinAnnotationView: MKAnnotationView {
+    private let stemLayer = CAShapeLayer()
+    private let headView = UIView()
+    private let ratingLabel = UILabel()
+    private let glyphView = UIImageView()
+    private var lastPresentation: MapPinPresentation?
+    private var lastStyle: ZoomAdaptiveMapPinStyle?
+
+    override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        frame = CGRect(
+            origin: .zero,
+            size: CGSize(
+                width: ZoomAdaptiveMapPinStyle.hitTargetSize,
+                height: ZoomAdaptiveMapPinStyle.hitTargetSize
+            )
+        )
+        centerOffset = CGPoint(
+            x: 0,
+            y: -ZoomAdaptiveMapPinStyle.hitTargetSize / 2
+        )
+        backgroundColor = .clear
+
+        stemLayer.lineCap = .round
+        layer.addSublayer(stemLayer)
+
+        headView.isUserInteractionEnabled = false
+        headView.layer.shadowColor = UIColor.black.cgColor
+        headView.layer.shadowOpacity = 0.18
+        headView.layer.shadowRadius = 2.5
+        headView.layer.shadowOffset = CGSize(width: 0, height: 1.5)
+        addSubview(headView)
+
+        ratingLabel.textAlignment = .center
+        ratingLabel.adjustsFontSizeToFitWidth = true
+        ratingLabel.minimumScaleFactor = 0.75
+        headView.addSubview(ratingLabel)
+
+        glyphView.contentMode = .scaleAspectFit
+        headView.addSubview(glyphView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        lastPresentation = nil
+        lastStyle = nil
+    }
+
+    func configure(
+        presentation: MapPinPresentation,
+        style: ZoomAdaptiveMapPinStyle
+    ) {
+        guard presentation != lastPresentation || style != lastStyle else { return }
+        lastPresentation = presentation
+        lastStyle = style
+
+        let headDiameter = style.headDiameter
+        let stemLength = style.stemLength
+        let headOriginY = bounds.height - headDiameter - stemLength
+        let headFrame = CGRect(
+            x: (bounds.width - headDiameter) / 2,
+            y: headOriginY,
+            width: headDiameter,
+            height: headDiameter
+        )
+        let color = UIColor(presentation.ratingBand.color)
+        let foreground = presentation.ratingBand.usesDarkForeground
+            ? UIColor(Color.espressoBrown)
+            : UIColor(Color.foamWhite)
+
+        stemLayer.frame = bounds
+        stemLayer.path = UIBezierPath(
+            roundedRect: CGRect(
+                x: (bounds.width - max(1, headDiameter * 0.09)) / 2,
+                y: headFrame.maxY - max(1, headDiameter * 0.08),
+                width: max(1, headDiameter * 0.09),
+                height: stemLength + max(1, headDiameter * 0.08)
+            ),
+            cornerRadius: max(0.5, headDiameter * 0.045)
+        ).cgPath
+        stemLayer.fillColor = color.darker(by: 0.24).cgColor
+
+        headView.frame = headFrame
+        headView.backgroundColor = color
+        headView.layer.cornerRadius = headDiameter / 2
+        headView.layer.borderWidth = max(0.65, headDiameter * 0.055)
+        headView.layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+
+        let canShowDetail = headDiameter >= 22
+        let displaysRating = canShowDetail && style.showsRating && presentation.scoreText != nil
+        ratingLabel.isHidden = !displaysRating
+        ratingLabel.frame = headView.bounds.insetBy(dx: headDiameter * 0.12, dy: 0)
+        ratingLabel.text = presentation.scoreText
+        ratingLabel.textColor = foreground
+        ratingLabel.font = .systemFont(
+            ofSize: max(9, headDiameter * 0.37),
+            weight: .bold
+        )
+
+        glyphView.isHidden = displaysRating || !canShowDetail
+        glyphView.image = UIImage(systemName: glyphName(for: presentation.primaryKind))
+        glyphView.tintColor = foreground
+        glyphView.frame = headView.bounds.insetBy(
+            dx: headDiameter * 0.28,
+            dy: headDiameter * 0.28
+        )
+
+        accessibilityValue = displaysRating
+            ? "Rating visible at this zoom"
+            : "Rating hidden at this zoom"
+    }
+
+    private func glyphName(for kind: MapPinPrimaryKind) -> String {
+        switch kind {
+        case .forYou: "sparkles"
+        case .journal: "cup.and.saucer.fill"
+        case .friends: "person.2.fill"
+        case .favorite: "heart.fill"
+        case .wantToTry: "bookmark.fill"
+        }
+    }
+}
+
+private extension UIColor {
+    func darker(by amount: CGFloat) -> UIColor {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return self
+        }
+        return UIColor(
+            red: max(0, red * (1 - amount)),
+            green: max(0, green * (1 - amount)),
+            blue: max(0, blue * (1 - amount)),
+            alpha: alpha
+        )
+    }
+}
+
 // MARK: - Map View Representable (to hide POIs)
 
 enum MapPresentationMode: Equatable {
@@ -1827,6 +1973,8 @@ struct MapViewRepresentable: UIViewRepresentable {
         var lastHighlightedCafeID: UUID?
         var displayMode: AdaptiveMapDisplayMode = .cafes
         var cafeClusteringEnabled = false
+        var currentPinStyle: ZoomAdaptiveMapPinStyle?
+        var ratingsAreVisible = false
         var isCameraChanging = false
         var queuedExternalRegion: MKCoordinateRegion?
         var cameraSourceRegion: MKCoordinateRegion?
@@ -1855,40 +2003,17 @@ struct MapViewRepresentable: UIViewRepresentable {
                 return
             }
 
-            let groundFootprintMeters = AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView)
-            let nextMode = AdaptiveMapCameraPolicy.displayMode(
-                current: displayMode,
-                groundFootprintMeters: groundFootprintMeters
-            )
-            let nextClusteringEnabled = AdaptiveMapCafeClusteringPolicy.isEnabled(
-                current: cafeClusteringEnabled,
-                groundFootprintMeters: groundFootprintMeters
-            )
-            let modeChanged = nextMode != displayMode
-            let clusteringChanged = nextClusteringEnabled != cafeClusteringEnabled
-            guard forceRefresh || modeChanged || clusteringChanged
-                    || applicationAnnotations(in: mapView).isEmpty else {
+            let currentAnnotations = applicationAnnotations(in: mapView)
+            guard forceRefresh || currentAnnotations.isEmpty else {
+                updatePinStyles(in: mapView, force: true)
                 return
             }
 
-            if forceRefresh || modeChanged || clusteringChanged {
-                mapView.removeAnnotations(applicationAnnotations(in: mapView))
-            }
-            displayMode = nextMode
-            cafeClusteringEnabled = nextClusteringEnabled
-
-            switch displayMode {
-            case .cafes:
-                let existingIDs = Set(
-                    mapView.annotations.compactMap { ($0 as? CafeAnnotation)?.cafe.id }
-                )
-                let annotations = parent.displayedCafes
-                    .filter { !existingIDs.contains($0.id) }
-                    .map(CafeAnnotation.init)
-                mapView.addAnnotations(annotations)
-            case .places:
-                addPlaceAnnotations(to: mapView)
-            }
+            mapView.removeAnnotations(currentAnnotations)
+            displayMode = .cafes
+            cafeClusteringEnabled = false
+            mapView.addAnnotations(parent.displayedCafes.map(CafeAnnotation.init))
+            updatePinStyles(in: mapView, force: true)
         }
 
         private func applicationAnnotations(in mapView: MKMapView) -> [MKAnnotation] {
@@ -1972,37 +2097,28 @@ struct MapViewRepresentable: UIViewRepresentable {
                 pinScore: pinScore,
                 friendCount: parent.friendCounts[cafe.id] ?? 0
             )
-            let identifier = "MugshotMapPin-\(presentation.primaryKind.rawValue)-\(presentation.hasStateBadges)"
-            var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            
-            if annotationView == nil {
-                annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-                annotationView?.canShowCallout = false
-                annotationView?.isEnabled = true
-                annotationView?.isUserInteractionEnabled = true
-            } else {
-                annotationView?.annotation = annotation
-            }
-            
-            let containerView = createPinContainer(presentation)
-            let pinSize = containerView.bounds.width
-            
-            // Clear existing subviews
-            annotationView?.subviews.forEach { $0.removeFromSuperview() }
-            annotationView?.addSubview(containerView)
-            annotationView?.frame = CGRect(x: 0, y: 0, width: pinSize, height: pinSize)
-            annotationView?.centerOffset = CGPoint(x: 0, y: -pinSize / 2)
-            annotationView?.clusteringIdentifier = clusteringIdentifier(for: cafe)
-            annotationView?.collisionMode = .circle
-            annotationView?.displayPriority = .required
-            annotationView?.isAccessibilityElement = true
-            annotationView?.accessibilityTraits = .button
-            annotationView?.accessibilityIdentifier = "map.pin.\(cafe.id.uuidString)"
+            let identifier = "MugshotTravelPin"
+            let annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: identifier
+            ) as? MugshotTravelPinAnnotationView ?? MugshotTravelPinAnnotationView(
+                annotation: annotation,
+                reuseIdentifier: identifier
+            )
+            annotationView.annotation = annotation
+            annotationView.canShowCallout = false
+            annotationView.isEnabled = true
+            annotationView.isUserInteractionEnabled = true
+            annotationView.clusteringIdentifier = nil
+            annotationView.collisionMode = .circle
+            annotationView.displayPriority = .required
+            annotationView.isAccessibilityElement = true
+            annotationView.accessibilityTraits = .button
+            annotationView.accessibilityIdentifier = "map.pin.\(cafe.id.uuidString)"
             if parent.showsFriendContext {
                 let friendCount = presentation.friendCount
                 let scoreDescription = pinScore?.accessibilityLabel ?? "Cafe not rated by friends"
-                annotationView?.accessibilityLabel = "\(cafe.name), \(scoreDescription), \(friendCount) \(friendCount == 1 ? "friend" : "friends")"
-                annotationView?.accessibilityHint = "Shows the friends who visited"
+                annotationView.accessibilityLabel = "\(cafe.name), \(scoreDescription), \(friendCount) \(friendCount == 1 ? "friend" : "friends")"
+                annotationView.accessibilityHint = "Shows the friends who visited"
             } else {
                 let scoreDescription = pinScore.map { ", \($0.accessibilityLabel)" } ?? ", Not rated"
                 var stateDescriptions: [String] = []
@@ -2016,20 +2132,53 @@ struct MapViewRepresentable: UIViewRepresentable {
                 let stateDescription = stateDescriptions.isEmpty
                     ? ""
                     : ", " + stateDescriptions.joined(separator: ", ")
-                annotationView?.accessibilityLabel = cafe.name + scoreDescription + stateDescription
-                annotationView?.accessibilityHint = "Shows cafe details"
+                annotationView.accessibilityLabel = cafe.name + scoreDescription + stateDescription
+                annotationView.accessibilityHint = "Shows cafe details"
             }
-            
+            annotationView.configure(
+                presentation: presentation,
+                style: resolvedPinStyle(in: mapView)
+            )
             return annotationView
         }
 
-        private func clusteringIdentifier(for cafe: Cafe) -> String? {
-            let highlightedID = parent.highlightedCafe.map { $0.remoteCafeId ?? $0.id }
-            guard cafeClusteringEnabled,
-                  (cafe.remoteCafeId ?? cafe.id) != highlightedID else {
-                return nil
+        private func resolvedPinStyle(in mapView: MKMapView) -> ZoomAdaptiveMapPinStyle {
+            let footprint = AdaptiveMapCameraPolicy.groundFootprintMeters(in: mapView)
+            ratingsAreVisible = ZoomAdaptiveMapRatingVisibilityPolicy.isVisible(
+                current: ratingsAreVisible,
+                groundFootprintMeters: footprint
+            )
+            return ZoomAdaptiveMapPinStyle.resolve(
+                groundFootprintMeters: footprint,
+                showsRating: ratingsAreVisible
+            )
+        }
+
+        private func updatePinStyles(in mapView: MKMapView, force: Bool = false) {
+            guard parent.presentationMode == .discovery else { return }
+            let style = resolvedPinStyle(in: mapView)
+            if !force,
+               let currentPinStyle,
+               abs(currentPinStyle.headDiameter - style.headDiameter) < 0.15,
+               currentPinStyle.showsRating == style.showsRating {
+                return
             }
-            return "MugshotCafe"
+            currentPinStyle = style
+            for annotation in mapView.annotations {
+                guard let cafeAnnotation = annotation as? CafeAnnotation,
+                      let annotationView = mapView.view(for: cafeAnnotation)
+                        as? MugshotTravelPinAnnotationView else { continue }
+                let cafe = cafeAnnotation.cafe
+                annotationView.configure(
+                    presentation: MapPinPresentation.resolve(
+                        scope: parent.scope,
+                        cafe: cafe,
+                        pinScore: parent.pinScores[cafe.id],
+                        friendCount: parent.friendCounts[cafe.id] ?? 0
+                    ),
+                    style: style
+                )
+            }
         }
 
         private func clusterView(
@@ -2518,6 +2667,10 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
             cameraChangeWasUserInitiated = isUserInitiated
             cameraSettledWorkItem?.cancel()
+        }
+
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            updatePinStyles(in: mapView)
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
