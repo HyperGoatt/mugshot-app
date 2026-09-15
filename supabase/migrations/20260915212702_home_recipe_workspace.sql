@@ -23,14 +23,60 @@ revoke all on private.home_recipe_contents from public, anon, authenticated;
 
 -- One projection is used for both outward content and screening. Only recipe
 -- fields may enter it; workspace attempts, drafts and media are never expanded.
-create or replace function private.home_recipe_public_content_v1(p_content jsonb)
+create or replace function private.home_recipe_scalars_v1(p_value jsonb, p_keys text[])
 returns jsonb language sql immutable set search_path = '' as $$
   select coalesce(jsonb_object_agg(key,value),'{}'::jsonb)
-  from jsonb_each(coalesce(p_content,'{}'::jsonb)) where key = any(array[
-    'name','template','method','targets','ingredients','steps','fields',
-    'hiddenFields','servings','yieldDescription','sourceURL','creatorCredit',
-    'sourceVersionID','tags','notes','coffee','equipment','legacyDetails'
+  from jsonb_each(case when jsonb_typeof(p_value)='object' then p_value else '{}'::jsonb end)
+  where key=any(p_keys) and jsonb_typeof(value) in ('string','number','boolean','null');
+$$;
+revoke all on function private.home_recipe_scalars_v1(jsonb,text[]) from public,anon,authenticated;
+
+create or replace function private.home_recipe_public_content_v1(p_content jsonb)
+returns jsonb language plpgsql immutable set search_path = '' as $$
+declare result jsonb; key text; item jsonb; projected jsonb; entries jsonb;
+begin
+  result := private.home_recipe_scalars_v1(p_content,array[
+    'name','template','method','servings','yieldDescription','sourceURL','creatorCredit','sourceVersionID','notes'
   ]);
+  if jsonb_typeof(p_content->'targets')='object' then
+    result := result || jsonb_build_object('targets',private.home_recipe_scalars_v1(p_content->'targets',array[
+      'dose','ratio','output','calculation','seconds','temperature','grind','preinfusion','pressure','steepSeconds','dilution']));
+  end if;
+  if jsonb_typeof(p_content->'coffee')='object' then
+    result := result || jsonb_build_object('coffee',private.home_recipe_scalars_v1(p_content->'coffee',array[
+      'roaster','name','producer','origin','process','variety','roastLevel','roastDate','tastingNotes']));
+  end if;
+  if jsonb_typeof(p_content->'legacyDetails')='object' then
+    result := result || jsonb_build_object('legacyDetails',private.recipe_shared_brew_details_v1(p_content->'legacyDetails'));
+  end if;
+  foreach key in array array['ingredients','steps','fields','metricConfiguration','equipment','tags','hiddenFields'] loop
+    if jsonb_typeof(p_content->key) is distinct from 'array' then continue; end if;
+    entries := '[]'::jsonb;
+    for item in select value from jsonb_array_elements(p_content->key) loop
+      if key in ('tags','hiddenFields') then
+        if jsonb_typeof(item)='string' then entries := entries || jsonb_build_array(item); end if;
+        continue;
+      end if;
+      if jsonb_typeof(item)<>'object' then continue; end if;
+      projected := private.home_recipe_scalars_v1(item,case key
+        when 'ingredients' then array['id','name','amount','unit']
+        when 'steps' then array['id','instruction','startSeconds','waitSeconds','waterGrams','waterMode']
+        when 'fields' then array['id','label','kind','value','unit','isVisible']
+        when 'metricConfiguration' then array['metric','label','isVisible']
+        when 'equipment' then array['role','displayName','brand','model'] end);
+      if key='ingredients' and jsonb_typeof(item->'recipe')='object' then
+        projected := projected || jsonb_build_object('recipe',private.home_recipe_scalars_v1(item->'recipe',array['recipeID','versionID']));
+      end if;
+      if key='fields' and jsonb_typeof(item->'choices')='array' then
+        projected := projected || jsonb_build_object('choices',(
+          select coalesce(jsonb_agg(value),'[]'::jsonb) from jsonb_array_elements(item->'choices') where jsonb_typeof(value)='string'));
+      end if;
+      entries := entries || jsonb_build_array(projected);
+    end loop;
+    result := result || jsonb_build_object(key,entries);
+  end loop;
+  return result;
+end;
 $$;
 revoke all on function private.home_recipe_public_content_v1(jsonb) from public,anon,authenticated;
 
@@ -105,6 +151,18 @@ begin
       end if;
       if length(trim(content->>'name')) not between 1 and 120 then raise exception 'Invalid recipe name'; end if;
       source_id := nullif(content->>'sourceVersionID', '')::uuid;
+      -- Editing an adaptation cannot erase its provenance to regain original
+      -- recipe publication rights. Existing immutable source rows remain the
+      -- authority, even when a direct client omits local attribution fields.
+      if exists (
+        select 1 from public.recipe_versions prior
+        where prior.recipe_identity_id=recipe_id and prior.source_recipe_version_id is not null
+          and prior.source_recipe_version_id is distinct from source_id
+      ) then raise exception 'Recipe source attribution must be preserved' using errcode='42501'; end if;
+      if coalesce(trim(content->>'sourceURL'),'')='' and exists (
+        select 1 from public.recipe_versions prior
+        where prior.recipe_identity_id=recipe_id and prior.source_kind in ('external','purchased')
+      ) then raise exception 'External recipe source must be preserved' using errcode='42501'; end if;
       if source_id is not null and not exists (
         select 1 from public.recipe_versions source join public.recipe_identities identity on identity.id = source.recipe_identity_id
         where source.id = source_id and private.can_project_recipe_version_as(source.id, actor)

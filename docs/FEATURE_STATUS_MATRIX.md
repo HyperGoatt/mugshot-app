@@ -10,6 +10,8 @@ Independent recipes, private attempts, quick logging and preparation have an
 initial native implementation. The complete release is **not accepted**; shared
 recipe discovery and explicit attachment recovery now have native paths, but
 their integrated acceptance plus continuity and migration work remain.
+Field configuration, component preparation and comparison surfaces are now in
+source; 16 focused native tests and a bounded field-editor smoke check passed.
 [Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Explicit profile identity setup — 2026-09-14

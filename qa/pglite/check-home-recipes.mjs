@@ -37,6 +37,18 @@ grant usage on schema public,auth to authenticated;
 `);
 const migration = await readFile(new URL('../../supabase/migrations/20260915212702_home_recipe_workspace.sql', import.meta.url), 'utf8');
 await db.exec(migration);
+const projected = (await db.query('select private.home_recipe_public_content_v1($1) content', [{
+  name: 'Safe recipe', privateNote: 'private', targets: { dose: 18, privateNote: 'private' },
+  ingredients: [{ name: 'Syrup', recipe: { recipeID: randomUUID(), versionID: randomUUID(), instructions: 'private' }, privatePhotoPath: 'private' }],
+  fields: [{ id: randomUUID(), label: 'Choice', choices: ['one', { privateNote: 'private' }] }],
+  metricConfiguration: [{ metric: 'dose', label: 'Basket', isVisible: false, privateNote: 'private' }],
+  coffee: { name: 'Beans', remainingWeight: 500, privatePhotoPath: 'private' },
+  equipment: [{ role: 'grinder', displayName: 'Grinder', notes: 'private' }]
+}])).rows[0].content;
+assert.equal(JSON.stringify(projected).includes('private'), false, 'nested private payload fields must not escape');
+assert.equal(projected.metricConfiguration[0].label, 'Basket');
+assert.equal(projected.targets.dose, 18);
+assert.deepEqual(projected.fields[0].choices, ['one']);
 const owner = randomUUID(), other = randomUUID();
 let activeOwner;
 await db.query('insert into auth.users values ($1),($2)', [owner, other]);
@@ -108,6 +120,14 @@ assert.equal((await db.query('select visibility from public.recipe_versions wher
 await asUser(other);
 await assert.rejects(db.query('select public.get_home_post_recipes_v1($1)', [postID]), /Post access denied/);
 await assert.rejects(db.query('select public.set_home_post_recipes_v1($1,$2,$3)', [postID,other,attachments]), /Post access denied/);
+await asUser(owner);
+const ownAdaptation = { id: randomUUID(), versions: [{ id: randomUUID(), number: 1,
+  content: { name: 'Latte variation', ingredients: [], sourceVersionID: parent.versions[0].id } }] };
+const adaptedWorkspace = { ...document, recipes: [recipe, parent, component, ownAdaptation] };
+await save(2, adaptedWorkspace);
+const stripped = structuredClone(adaptedWorkspace);
+stripped.recipes[3].versions.push({ id: randomUUID(), number: 2, content: { name: 'Unattributed copy', ingredients: [] } });
+await assert.rejects(save(3, stripped), /source attribution must be preserved/);
 await db.exec('reset role; set role anon');
 await assert.rejects(db.query('select public.get_home_workspace_v1($1)', [owner]), /permission denied/);
 await db.close();

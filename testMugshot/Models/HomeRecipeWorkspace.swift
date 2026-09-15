@@ -119,6 +119,43 @@ struct HomeCustomField: Identifiable, Codable, Equatable, Sendable {
     var isVisible = true
 }
 
+enum HomeRecipeMetric: String, Codable, CaseIterable, Identifiable, Sendable {
+    case dose, output, seconds, temperature, grind, preinfusion, pressure, steepSeconds, dilution
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .dose: "Coffee dose (g)"
+        case .output: "Yield or water (g)"
+        case .seconds: "Target time (seconds)"
+        case .temperature: "Temperature (°C)"
+        case .grind: "Grinder setting"
+        case .preinfusion: "Preinfusion (seconds)"
+        case .pressure: "Pressure (bar)"
+        case .steepSeconds: "Steep duration (seconds)"
+        case .dilution: "Serving dilution"
+        }
+    }
+    var numericKeyPath: WritableKeyPath<HomeRecipeTargets, Double?>? {
+        switch self {
+        case .dose: \.dose
+        case .output: \.output
+        case .seconds: \.seconds
+        case .temperature: \.temperature
+        case .preinfusion: \.preinfusion
+        case .pressure: \.pressure
+        case .steepSeconds: \.steepSeconds
+        case .grind, .dilution: nil
+        }
+    }
+}
+
+struct HomeRecipeMetricConfiguration: Identifiable, Codable, Equatable, Sendable {
+    var metric: HomeRecipeMetric
+    var label: String
+    var isVisible = true
+    var id: String { metric.rawValue }
+}
+
 /// A reusable blueprint. Feedback and private attempt media never belong here.
 struct HomeRecipeContent: Codable, Equatable, Sendable {
     var name = ""
@@ -141,6 +178,14 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     /// Retained without guessing whether old measurements were targets or actuals.
     var legacyDetails: BrewDetails?
     var sourceReuseAllowed: Bool?
+    var metricConfiguration: [HomeRecipeMetricConfiguration]?
+
+    var configuredMetrics: [HomeRecipeMetricConfiguration] {
+        metricConfiguration ?? HomeRecipeMetric.allCases.map {
+            HomeRecipeMetricConfiguration(metric: $0, label: $0.label,
+                isVisible: !hiddenFields.contains($0.rawValue))
+        }
+    }
 
     var isActionable: Bool {
         !ingredients.isEmpty || steps.contains { !$0.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -278,11 +323,22 @@ struct HomePreparationSession: Identifiable, Codable, Equatable, Sendable {
     var stepIndex = 0
     var completedIngredientIDs: Set<UUID> = []
     var preparedRecipeIDs: Set<UUID> = []
+    /// Key readiness by immutable version, not identity: two linked versions can
+    /// have different preparation. Optional for decoding earlier workspaces.
+    var linkedPreparations: [HomeLinkedPreparationProgress]?
     var reminderEnabled = false
     var finishedAt: Date?
     var timerStartedAt: Date?
     var readyAt: Date? { attempt.preparation?.targets.steepSeconds.map { startedAt.addingTimeInterval($0) } }
     func elapsed(at date: Date) -> TimeInterval { max(0, (finishedAt ?? date).timeIntervalSince(startedAt)) }
+}
+
+struct HomeLinkedPreparationProgress: Identifiable, Codable, Equatable, Sendable {
+    var reference: HomeRecipeReference
+    var stepIndex = 0
+    var startedAt: Date?
+    var completedAt: Date?
+    var id: UUID { reference.versionID }
 }
 
 struct HomeRecipeEditorDraft: Identifiable, Codable, Equatable, Sendable {

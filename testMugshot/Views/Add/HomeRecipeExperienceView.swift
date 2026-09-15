@@ -16,7 +16,8 @@ struct HomeRecipeExperienceView: View {
     @State private var path: [HomeRecipeRoute] = []
     @SceneStorage private var tab: String
     @SceneStorage private var query: String
-    @State private var filter: HomeRecipeTemplate?
+    @SceneStorage private var filterValue: String
+    private var filter: HomeRecipeTemplate? { HomeRecipeTemplate(rawValue: filterValue) }
     @State private var editor: HomeRecipeEditorDraft?
     @State private var openedInitial = false
     @State private var sharedRecipe: HomeLinkedRecipeSheet?
@@ -29,6 +30,7 @@ struct HomeRecipeExperienceView: View {
         let account = LocalAccountScope.forUserID(ownerID).storageComponent
         _tab = SceneStorage(wrappedValue: "My makes", "home.recipes.\(account).tab")
         _query = SceneStorage(wrappedValue: "", "home.recipes.\(account).query")
+        _filterValue = SceneStorage(wrappedValue: "", "home.recipes.\(account).filter")
     }
 
     var body: some View {
@@ -195,7 +197,7 @@ struct HomeRecipeExperienceView: View {
         }
         Section {
             TextField("Search recipes, tags, beans, or gear", text: $query)
-            Picker("Filter", selection: $filter) {
+            Picker("Filter", selection: Binding<HomeRecipeTemplate?>(get: { filter }, set: { filterValue = $0?.rawValue ?? "" })) {
                 Text("All").tag(nil as HomeRecipeTemplate?)
                 Text("Coffee").tag(HomeRecipeTemplate.coffee as HomeRecipeTemplate?)
                 Text("Components").tag(HomeRecipeTemplate.component as HomeRecipeTemplate?)
@@ -333,13 +335,17 @@ struct HomeQuickLogScreen: View {
                 TextField("Serving dilution", text: $attempt.actuals.dilution)
             }
             DisclosureGroup("Preparation details (optional)", isExpanded: $details) {
-                HomeActualsEditor(actuals: $attempt.actuals, method: attempt.preparation?.method)
+                HomeActualsEditor(actuals: $attempt.actuals, method: attempt.preparation?.method, template: attempt.preparation?.template)
             }
             if attempt.preparation != nil {
                 DisclosureGroup("Change this make’s recipe", isExpanded: $editTargets) {
                     if attempt.preparation?.template == .coffee {
-                        HomeTargetsEditor(targets: Binding(get: { attempt.preparation?.targets ?? HomeRecipeTargets() }, set: { attempt.preparation?.targets = $0 }),
-                            method: attempt.preparation?.method ?? .other, advanced: $advanced)
+                        if attempt.preparation?.metricConfiguration != nil {
+                            HomeConfiguredTargetsEditor(content: Binding(get: { attempt.preparation ?? HomeRecipeContent() }, set: { attempt.preparation = $0 }))
+                        } else {
+                            HomeTargetsEditor(targets: Binding(get: { attempt.preparation?.targets ?? HomeRecipeTargets() }, set: { attempt.preparation?.targets = $0 }),
+                                method: attempt.preparation?.method ?? .other, advanced: $advanced)
+                        }
                     }
                     ForEach(attempt.preparation?.ingredients.indices.map { $0 } ?? [], id: \.self) { index in
                         HomeNumberField(title: attempt.preparation?.ingredients[index].name ?? "Ingredient", value: Binding(
@@ -393,12 +399,17 @@ struct HomeQuickLogScreen: View {
 struct HomeActualsEditor: View {
     @Binding var actuals: HomeAttemptActuals
     var method: HomeBrewMethod?
+    var template: HomeRecipeTemplate?
     var body: some View {
-        HomeNumberField(title: "Actual coffee (g)", value: $actuals.dose)
-        HomeNumberField(title: "Actual yield or water (g)", value: $actuals.output)
+        if template == nil || template == .coffee {
+            if method != .pod { HomeNumberField(title: "Actual coffee (g)", value: $actuals.dose) }
+            HomeNumberField(title: method == .espresso || method == .pod ? "Actual beverage (g)" : "Actual water (g)", value: $actuals.output)
+            HomeNumberField(title: "Temperature (°C)", value: $actuals.temperature)
+            if method != .pod { TextField("Grinder setting", text: $actuals.grind) }
+        } else {
+            HomeNumberField(title: "Amount made (ml)", value: $actuals.batchMilliliters)
+        }
         HomeNumberField(title: "Actual time (seconds)", value: $actuals.seconds)
-        HomeNumberField(title: "Temperature (°C)", value: $actuals.temperature)
-        TextField("Grinder setting", text: $actuals.grind)
         if method == .coldBrew {
             HomeNumberField(title: "Batch made (ml)", value: $actuals.batchMilliliters)
             TextField("Serving dilution", text: $actuals.dilution)

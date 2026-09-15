@@ -11,6 +11,9 @@ not released. Existing production Home and recipe behavior remains the default.
 See [implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md) for
 the exact boundary; shared-recipe and attachment paths are present in source,
 but continuity, migration and integrated acceptance remain required before enabling it.
+The continuation adds configurable preparation fields, linked-component progress,
+recorded-attempt comparisons and stronger nested publication projections; these
+do not change the disabled release status.
 
 ## Zoom-adaptive Map pins — 2026-09-14
 

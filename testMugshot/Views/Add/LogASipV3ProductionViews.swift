@@ -255,9 +255,17 @@ struct LogASipV3ProductionView: View {
     }
 
     private var usesHomeRecipeWorkspace: Bool {
-        homeRecipesEnabled && isHomeFlow && draft.homeWorkbenchPhase != .publish
+        homeRecipesEnabled && isHomeFlow && draft.homeWorkbenchPhase == .workbench
             && !draft.brewDetails.hasStructuredData && photoImages.isEmpty
             && draft.overallScore == 0 && draft.privateNotes.isEmpty
+            && draft.socialCaption.isEmpty && draft.contextNotes.isEmpty
+            && draft.localPhotoNames.isEmpty && draft.drinkName.isEmpty
+            && draft.homeMakeAgain == nil && draft.homeComparisonSource == nil
+            && draft.homeCoffeeBagID == nil && draft.sensorySnapshot == nil
+            && draft.sipReorderIntention == nil && draft.contextScore == nil
+            && draft.orderNotes.isEmpty && draft.tags.isEmpty
+            && !draft.ratingCriteria.contains(where: { $0.score > 0 })
+            && !draft.contextRatingCriteria.contains(where: { $0.score > 0 })
     }
 
     @ViewBuilder

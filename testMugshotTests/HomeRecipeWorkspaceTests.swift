@@ -58,6 +58,21 @@ struct HomeRecipeWorkspaceTests {
         #expect(content.validationMessage != nil)
     }
 
+    @Test func fieldLabelsOrderAndVisibilityDoNotChangeMetricMeaning() throws {
+        var content = espresso()
+        content.metricConfiguration = [
+            HomeRecipeMetricConfiguration(metric: .seconds, label: "My shot time"),
+            HomeRecipeMetricConfiguration(metric: .dose, label: "Basket", isVisible: false),
+            HomeRecipeMetricConfiguration(metric: .output, label: "Cup")
+        ]
+        let decoded = try JSONDecoder().decode(HomeRecipeContent.self, from: JSONEncoder().encode(content))
+        #expect(decoded.configuredMetrics.map(\.metric) == [.seconds, .dose, .output])
+        #expect(decoded.configuredMetrics[1].isVisible == false)
+        #expect(decoded.targets.dose == 18)
+        #expect(decoded.targets.resolvedOutput == 36)
+        #expect(decoded.scaled(by: 2).configuredMetrics == decoded.configuredMetrics)
+    }
+
     @Test func versionedAttemptsDraftsAndAccountIsolationSurviveReload() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -129,5 +144,44 @@ struct HomeRecipeWorkspaceTests {
         #expect(store.workspace.recipes.count == 1)
         store.activate(.guest)
         #expect(store.workspace.recipes.isEmpty)
+    }
+
+    @Test func updatingFromAttemptRejectsCyclesWithoutSavingPartialResult() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        _ = try store.saveRecipe(HomeRecipeEditorDraft(content: espresso()))
+        let recipe = try #require(store.workspace.recipes.first)
+        var attempt = HomeAttemptRecord.fresh(from: recipe)
+        attempt.preparation?.ingredients.append(HomeRecipeIngredient(name: "Self", recipe: attempt.recipe))
+        try store.saveAttemptDraft(attempt)
+        #expect(throws: (any Error).self) { try store.saveAttempt(attempt, updateRecipe: true) }
+        #expect(store.workspace.attempts.isEmpty)
+        #expect(store.workspace.recipes[0].versions.count == 1)
+        #expect(store.workspace.attemptDrafts.first == attempt)
+        // The variation remains loggable without changing the reusable recipe.
+        try store.saveAttempt(attempt)
+        #expect(store.workspace.attempts.count == 1)
+        #expect(store.workspace.recipes[0].versions.count == 1)
+    }
+
+    @Test func linkedPreparationSurvivesReloadWithoutCreatingAttempts() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        _ = try store.saveRecipe(HomeRecipeEditorDraft(content: espresso()))
+        let recipe = try #require(store.workspace.recipes.first)
+        let reference = HomeRecipeReference(recipeID: recipe.id, versionID: try #require(recipe.current?.id))
+        let began = Date(timeIntervalSince1970: 1_700_000_000)
+        var parent = HomePreparationSession(attempt: HomeAttemptRecord(name: "My latte"))
+        parent.linkedPreparations = [HomeLinkedPreparationProgress(reference: reference, stepIndex: 2, startedAt: began, completedAt: began.addingTimeInterval(28))]
+        try store.saveSession(parent)
+        let reopened = HomeRecipeWorkspaceStore(root: root)
+        reopened.activate(.guest)
+        #expect(reopened.workspace.sessions.first == parent)
+        #expect(reopened.workspace.attempts.isEmpty)
+        #expect(reopened.workspace.sessions.first?.linkedPreparations?.first?.reference.versionID == reference.versionID)
     }
 }

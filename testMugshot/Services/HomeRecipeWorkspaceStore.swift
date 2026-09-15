@@ -91,7 +91,8 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
 
     func mutate(_ change: (inout HomeRecipeWorkspace) throws -> Void) throws {
         guard canWrite else { throw HomeRecipeWorkspaceError.corruptData }
-        guard !hasRemoteConflict else { throw HomeRecipeWorkspaceError.conflict }
+        // A remote edit conflict pauses synchronization, not private journaling.
+        // Reconciliation reads the latest local workspace, including these saves.
         var next = workspace
         try change(&next)
         next.pendingOperationID = UUID()
@@ -111,6 +112,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             }
             if let index = state.recipes.firstIndex(where: { $0.id == id }) {
                 guard state.recipes[index].current?.id == draft.baseVersionID else { throw HomeRecipeWorkspaceError.conflict }
+                try Self.validateAttribution(draft.content, previous: state.recipes[index].current?.content)
                 if state.recipes[index].current?.content != draft.content {
                     state.recipes[index].versions.append(HomeRecipeVersion(number: (state.recipes[index].current?.number ?? 0) + 1, content: draft.content))
                 }
@@ -155,6 +157,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 if updateRecipe, let preparation = attempt.preparation, preparation != attempt.targets {
                     guard state.recipes[index].current?.id == reference.versionID else { throw HomeRecipeWorkspaceError.conflict }
                     if let message = preparation.validationMessage { throw HomeRecipeWorkspaceError.invalid(message) }
+                    try Self.validateAttribution(preparation, previous: state.recipes[index].current?.content)
+                    guard !state.wouldCreateCycle(recipeID: reference.recipeID, content: preparation) else {
+                        throw HomeRecipeWorkspaceError.invalid("A recipe cannot link back to itself.")
+                    }
+                    for linked in preparation.ingredients.compactMap(\.recipe) {
+                        guard state.version(linked) != nil else { throw HomeRecipeWorkspaceError.unavailableReference }
+                    }
                     state.recipes[index].versions.append(HomeRecipeVersion(number: (state.recipes[index].current?.number ?? 0) + 1, content: preparation))
                 }
                 state.recipes[index].lastUsedAt = saved.createdAt
@@ -197,8 +206,17 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             try await center.add(UNNotificationRequest(identifier: identifier, content: content,
                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, readyAt.timeIntervalSinceNow), repeats: false)))
         } else { center.removePendingNotificationRequests(withIdentifiers: [identifier]) }
-        guard scope == capturedScope else { return }
-        var updated = session
+        guard scope == capturedScope else {
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            return
+        }
+        // Authorization can suspend while the user advances or finishes a batch.
+        // Never replace that newer progress with the pre-authorization snapshot.
+        guard var updated = workspace.sessions.first(where: { $0.id == session.id }),
+              updated.finishedAt == nil else {
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            return
+        }
         updated.reminderEnabled = enabled
         try saveSession(updated)
     }
@@ -212,13 +230,23 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         try jpeg.write(to: directory(scope).appendingPathComponent(name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         return name
     }
+
+    private static func validateAttribution(_ content: HomeRecipeContent, previous: HomeRecipeContent?) throws {
+        if let source = previous?.sourceVersionID, content.sourceVersionID != source {
+            throw HomeRecipeWorkspaceError.invalid("Keep the original recipe attribution when saving a new version.")
+        }
+        if previous?.sourceURL.isEmpty == false, content.sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw HomeRecipeWorkspaceError.invalid("Keep the inspiration link when saving a new version.")
+        }
+    }
     func photo(_ name: String) -> UIImage? {
         guard name == URL(fileURLWithPath: name).lastPathComponent else { return nil }
         return UIImage(contentsOfFile: directory(scope).appendingPathComponent(name).path)
     }
 
     func synchronize() async {
-        guard !isSyncing, canWrite, !hasRemoteConflict, let owner = scope.userID,
+        guard !MugshotLaunchEnvironment.isUITesting,
+              !isSyncing, canWrite, !hasRemoteConflict, let owner = scope.userID,
               let client = try? SupabaseClientProvider.shared.client() else { return }
         isSyncing = true
         let taskID = UUID()

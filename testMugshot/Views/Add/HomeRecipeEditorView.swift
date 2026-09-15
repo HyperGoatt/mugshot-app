@@ -26,7 +26,14 @@ struct HomeRecipeEditorView: View {
                     Picker("Method", selection: $draft.content.method) {
                         ForEach(HomeBrewMethod.allCases) { Text($0.title).tag($0) }
                     }
-                    HomeTargetsEditor(targets: $draft.content.targets, method: draft.content.method, advanced: $advanced)
+                    if draft.content.metricConfiguration != nil {
+                        HomeConfiguredTargetsEditor(content: $draft.content)
+                    } else if draft.content.method != .other {
+                        HomeTargetsEditor(targets: $draft.content.targets, method: draft.content.method, advanced: $advanced)
+                    }
+                    NavigationLink("Customize preparation fields") {
+                        HomeRecipeFieldConfigurationScreen(content: $draft.content)
+                    }
                 }
                 Section("Beans and equipment") {
                     let library = HomeLibraryStore.shared.load(in: store.scope)
@@ -157,6 +164,63 @@ struct HomeRecipeEditorView: View {
     }
 }
 
+private struct HomeRecipeFieldConfigurationScreen: View {
+    @Binding var content: HomeRecipeContent
+    private var fields: Binding<[HomeRecipeMetricConfiguration]> {
+        Binding(get: { content.configuredMetrics }, set: { content.metricConfiguration = $0 })
+    }
+    var body: some View {
+        List {
+            Section {
+                Text("Rename, hide, or reorder fields for this recipe. Hiding a field keeps its saved value and calculations.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            ForEach(fields) { $field in
+                VStack(alignment: .leading) {
+                    TextField(field.metric.label, text: $field.label)
+                        .accessibilityLabel("Label for \(field.metric.label)")
+                    Toggle("Show field", isOn: $field.isVisible)
+                }
+            }
+            .onMove { source, destination in
+                var values = content.configuredMetrics
+                values.move(fromOffsets: source, toOffset: destination)
+                content.metricConfiguration = values
+            }
+            Button("Use method defaults") { content.metricConfiguration = nil }
+        }
+        .navigationTitle("Preparation fields")
+        .toolbar { EditButton() }
+        .scrollContentBackground(.hidden).background(Color.creamWhite)
+    }
+}
+
+struct HomeConfiguredTargetsEditor: View {
+    @Binding var content: HomeRecipeContent
+    var body: some View {
+        Picker("Calculate", selection: $content.targets.calculation) {
+            ForEach(HomeRecipeCalculation.allCases, id: \.self) { Text($0.title).tag($0) }
+        }
+        if content.targets.calculation == .ratio {
+            HomeNumberField(title: "Ratio · 1 to", value: $content.targets.ratio)
+        } else {
+            LabeledContent("Calculated ratio", value: content.targets.resolvedRatio.map { "1:\(HomeRecipeContent.number($0))" } ?? "Not set")
+        }
+        ForEach(content.configuredMetrics.filter(\.isVisible)) { field in
+            let label = field.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? field.metric.label : field.label
+            if field.metric == .output, content.targets.calculation == .ratio {
+                LabeledContent(label, value: content.targets.resolvedOutput.map { "\(HomeRecipeContent.number($0)) g" } ?? "Not set")
+            } else if let keyPath = field.metric.numericKeyPath {
+                HomeNumberField(title: label, value: Binding(get: { content.targets[keyPath: keyPath] }, set: { content.targets[keyPath: keyPath] = $0 }))
+            } else if field.metric == .grind {
+                TextField(label, text: $content.targets.grind)
+            } else if field.metric == .dilution {
+                TextField(label, text: $content.targets.dilution)
+            }
+        }
+    }
+}
+
 struct HomeNumberField: View {
     let title: String
     @Binding var value: Double?
@@ -176,6 +240,13 @@ struct HomeTargetsEditor: View {
     let method: HomeBrewMethod
     @Binding var advanced: Bool
     var body: some View {
+        if method == .pod {
+            HomeNumberField(title: "Target beverage (g)", value: Binding(get: { targets.output }, set: {
+                targets.output = $0
+                targets.calculation = .output
+            }))
+            HomeNumberField(title: "Target time (seconds)", value: $targets.seconds)
+        } else {
         HomeNumberField(title: "Coffee dose (g)", value: $targets.dose)
         Picker("Calculate", selection: $targets.calculation) {
             ForEach(HomeRecipeCalculation.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -191,9 +262,11 @@ struct HomeTargetsEditor: View {
             HomeNumberField(title: "Steep duration (hours)", value: Binding(get: { targets.steepSeconds.map { $0 / 3600 } }, set: { targets.steepSeconds = $0.map { $0 * 3600 } }))
             TextField("Serving dilution (optional)", text: $targets.dilution)
         } else {
-            HomeNumberField(title: "Target time (seconds)", value: $targets.seconds)
+            HomeNumberField(title: method == .frenchPress || method == .immersion ? "Steep time (seconds)" : "Target time (seconds)", value: $targets.seconds)
+        }
         }
         DisclosureGroup("More details", isExpanded: $advanced) {
+            if method == .pod { HomeNumberField(title: "Coffee dose (g)", value: $targets.dose) }
             TextField("Grinder setting", text: $targets.grind)
             HomeNumberField(title: "Temperature (°C)", value: $targets.temperature)
             if method == .espresso {

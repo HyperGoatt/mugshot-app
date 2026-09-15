@@ -10,6 +10,9 @@ not deployed. It introduces owner-bound workspace synchronization and private
 version content. Do not enable the native flag or deploy until the outstanding
 [release requirements](HOME_RECIPES_IMPLEMENTATION.md) are accepted. No legacy
 measurement backfill is performed.
+The unreleased migration now also applies nested projection allowlists and
+prevents appending a version that drops established source attribution. These
+contracts passed the local PGlite harness, not a production migration run.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

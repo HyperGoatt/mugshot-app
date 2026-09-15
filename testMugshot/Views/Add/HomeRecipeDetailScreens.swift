@@ -113,10 +113,14 @@ struct HomeRecipeInformation: View {
         if content.template == .coffee {
             Section("Preparation targets") {
                 Text(content.method.title)
-                if !content.summary.isEmpty { Text(content.summary) }
-                if let temperature = content.targets.temperature { LabeledContent("Temperature", value: "\(HomeRecipeContent.number(temperature)) °C") }
-                if !content.targets.grind.isEmpty { LabeledContent("Grind", value: content.targets.grind) }
-                if !content.targets.dilution.isEmpty { LabeledContent("Serving dilution", value: content.targets.dilution) }
+                if content.metricConfiguration != nil {
+                    HomeConfiguredTargetSummary(content: content)
+                } else {
+                    if !content.summary.isEmpty { Text(content.summary) }
+                    if let temperature = content.targets.temperature { LabeledContent("Temperature", value: "\(HomeRecipeContent.number(temperature)) °C") }
+                    if !content.targets.grind.isEmpty { LabeledContent("Grind", value: content.targets.grind) }
+                    if !content.targets.dilution.isEmpty { LabeledContent("Serving dilution", value: content.targets.dilution) }
+                }
                 if let coffee = content.coffee?.displayName { Text(coffee) }
                 ForEach(content.equipment) { Text($0.displayName) }
             }
@@ -166,6 +170,24 @@ struct HomeRecipeInformation: View {
     }
 }
 
+private struct HomeConfiguredTargetSummary: View {
+    let content: HomeRecipeContent
+    var body: some View {
+        ForEach(content.configuredMetrics.filter(\.isVisible)) { field in
+            let title = field.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? field.metric.label : field.label
+            if field.metric == .output, let value = content.targets.resolvedOutput {
+                LabeledContent(title, value: HomeRecipeContent.number(value))
+            } else if let keyPath = field.metric.numericKeyPath, let value = content.targets[keyPath: keyPath] {
+                LabeledContent(title, value: HomeRecipeContent.number(value))
+            } else if field.metric == .grind, !content.targets.grind.isEmpty {
+                LabeledContent(title, value: content.targets.grind)
+            } else if field.metric == .dilution, !content.targets.dilution.isEmpty {
+                LabeledContent(title, value: content.targets.dilution)
+            }
+        }
+    }
+}
+
 struct HomeAttemptDetailScreen: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let attemptID: UUID
@@ -173,6 +195,7 @@ struct HomeAttemptDetailScreen: View {
     let onServing: (HomeAttemptRecord) -> Void
     let onSaveRecipe: (HomeRecipeContent) -> Void
     let onShare: (HomeAttemptRecord) -> Void
+    @State private var comparison: HomeAttemptRecord?
     private var attempt: HomeAttemptRecord? { store.workspace.attempts.first { $0.id == attemptID } }
     private var recipe: HomeRecipeRecord? { store.workspace.recipes.first { $0.id == attempt?.recipe?.recipeID } }
 
@@ -192,14 +215,31 @@ struct HomeAttemptDetailScreen: View {
                     if let makeAgain = attempt.makeAgain { LabeledContent("Make again", value: makeAgain.title) }
                 }
                 Section("Recorded measurements") {
-                    measurement("Coffee", value: attempt.actuals.dose, target: attempt.targets?.targets.dose, unit: "g")
-                    measurement("Yield or water", value: attempt.actuals.output, target: attempt.targets?.targets.resolvedOutput, unit: "g")
+                    if attempt.preparation == nil || attempt.preparation?.template == .coffee {
+                        measurement("Coffee", value: attempt.actuals.dose, target: attempt.targets?.targets.dose, unit: "g")
+                        measurement("Yield or water", value: attempt.actuals.output, target: attempt.targets?.targets.resolvedOutput, unit: "g")
+                    }
                     measurement("Time", value: attempt.actuals.seconds, target: attempt.targets?.targets.seconds, unit: "sec")
                     if !attempt.actuals.dilution.isEmpty { LabeledContent("Serving dilution", value: attempt.actuals.dilution) }
                     if let amount = attempt.actuals.batchMilliliters { LabeledContent("Batch made", value: "\(HomeRecipeContent.number(amount)) ml") }
                     if let amount = attempt.actuals.servingMilliliters { LabeledContent("Serving amount", value: "\(HomeRecipeContent.number(amount)) ml") }
                 }
                 if !attempt.nextTimeNote.isEmpty { Section("For next time") { Text(attempt.nextTimeNote) } }
+                if let reference = attempt.recipe {
+                    let others = store.workspace.attempts.filter { $0.id != attempt.id && $0.recipe?.recipeID == reference.recipeID }
+                        .sorted { $0.createdAt > $1.createdAt }
+                    if !others.isEmpty {
+                        Section("Compare results") {
+                            Menu("Compare with another make") {
+                                ForEach(others) { other in
+                                    Button("\(other.createdAt.formatted(date: .abbreviated, time: .shortened)) · \(other.rating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")") {
+                                        comparison = other
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 Section {
                     if attempt.preparation?.method == .coldBrew, attempt.batchSourceAttemptID == nil {
                         Button("Log a serving from this batch") { onServing(attempt) }
@@ -224,6 +264,9 @@ struct HomeAttemptDetailScreen: View {
             }
         }.navigationTitle("My make").navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden).background(Color.creamWhite)
+            .sheet(item: $comparison) { other in
+                if let attempt { HomeAttemptComparisonScreen(current: attempt, previous: other) }
+            }
     }
     private func measurement(_ name: String, value: Double?, target: Double?, unit: String) -> some View {
         VStack(alignment: .leading) {
@@ -233,12 +276,67 @@ struct HomeAttemptDetailScreen: View {
     }
 }
 
+/// Each side describes observations, not inferred causes or missing measurements.
+private struct HomeAttemptComparisonScreen: View {
+    let current: HomeAttemptRecord
+    let previous: HomeAttemptRecord
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Compare what you recorded. Different beans, equipment, or preparation can change the result; this comparison does not identify the cause.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                result(current, title: "This make")
+                result(previous, title: "Compared make")
+            }
+            .navigationTitle("Compare makes").navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+            .scrollContentBackground(.hidden).background(Color.creamWhite)
+        }
+    }
+
+    private func result(_ attempt: HomeAttemptRecord, title: String) -> some View {
+        Section(title) {
+            Text(attempt.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
+            LabeledContent("Rating", value: attempt.rating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
+            if !attempt.reaction.isEmpty { LabeledContent("Reaction", value: attempt.reaction) }
+            let preparation = attempt.preparation ?? attempt.targets
+            if preparation?.template == .coffee {
+                metric("Coffee", attempt.actuals.dose, "g")
+                metric(preparation?.method == .espresso ? "Beverage yield" : "Water", attempt.actuals.output, "g")
+                metric("Time", attempt.actuals.seconds, "sec")
+                metric("Temperature", attempt.actuals.temperature, "°C")
+                LabeledContent("Grind", value: attempt.actuals.grind.isEmpty ? "Not recorded" : attempt.actuals.grind)
+                LabeledContent("Beans", value: preparation?.coffee?.displayName ?? "Not recorded")
+                LabeledContent("Equipment", value: preparation?.equipment.map(\.displayName).joined(separator: ", ").nonemptyComparisonValue ?? "Not recorded")
+            }
+            if attempt.actuals.servingMilliliters != nil { metric("Serving", attempt.actuals.servingMilliliters, "ml") }
+            if !attempt.actuals.dilution.isEmpty { LabeledContent("Dilution", value: attempt.actuals.dilution) }
+            if !attempt.privateNote.isEmpty { Text(attempt.privateNote) }
+        }
+    }
+
+    private func metric(_ title: String, _ value: Double?, _ unit: String) -> some View {
+        LabeledContent(title, value: value.map { "\(HomeRecipeContent.number($0)) \(unit)" } ?? "Not recorded")
+    }
+}
+
+private extension String {
+    var nonemptyComparisonValue: String? { isEmpty ? nil : self }
+}
+
 struct HomePreparationScreen: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let sessionID: UUID
     let onFinish: (HomeAttemptRecord) -> Void
     @State private var linked: HomeLinkedRecipeSheet?
+    @State private var preparingLinked: HomeLinkedRecipeSheet?
     @State private var scale: Double = 1
+    @State private var scalingBasis = "Multiplier"
+    @State private var scalingError: String?
     private var session: HomePreparationSession? { store.workspace.sessions.first { $0.id == sessionID } }
 
     var body: some View {
@@ -270,14 +368,28 @@ struct HomePreparationScreen: View {
                         }
                     }
                     if session.stepIndex == 0 {
+                        Picker("Scale by", selection: $scalingBasis) {
+                            Text("Multiplier").tag("Multiplier")
+                            Text("Servings").tag("Servings")
+                            if content.targets.dose != nil { Text("Coffee dose").tag("Coffee dose") }
+                        }
                         HStack {
-                            TextField("Scale", value: $scale, format: .number).keyboardType(.decimalPad)
+                            TextField(scalingBasis == "Coffee dose" ? "Coffee dose (g)" : scalingBasis, value: $scale, format: .number)
+                                .keyboardType(.decimalPad).accessibilityLabel(scalingBasis)
                             Button("Scale amounts") {
-                                guard scale.isFinite, scale > 0 else { return }
-                                change { $0.attempt.preparation = content.scaled(by: scale) }
+                                let divisor = scalingBasis == "Servings" ? content.servings
+                                    : scalingBasis == "Coffee dose" ? (content.targets.dose ?? 0) : 1
+                                guard scale.isFinite, scale > 0, divisor.isFinite, divisor > 0 else {
+                                    scalingError = "Enter a positive amount to scale this recipe."
+                                    return
+                                }
+                                change { $0.attempt.preparation = content.scaled(by: scale / divisor) }
+                                scalingError = nil
+                                scalingBasis = "Multiplier"
                                 scale = 1
                             }
                         }
+                        if let scalingError { Text(scalingError).font(.footnote).foregroundStyle(.red) }
                     }
                 }
                 if !content.ingredients.isEmpty {
@@ -290,9 +402,17 @@ struct HomePreparationScreen: View {
                             }
                             if let reference = item.recipe {
                                 Button("View \(item.name)") { linked = HomeLinkedRecipeSheet(reference: reference) }
-                                Toggle("Already prepared", isOn: Binding(get: { session.preparedRecipeIDs.contains(reference.recipeID) }, set: { ready in
-                                    change { if ready { $0.preparedRecipeIDs.insert(reference.recipeID) } else { $0.preparedRecipeIDs.remove(reference.recipeID) } }
+                                Toggle("Already prepared", isOn: Binding(get: {
+                                    session.linkedPreparations?.first { $0.reference == reference }?.completedAt != nil
+                                }, set: { ready in
+                                    change {
+                                        var progress = $0.linkedPreparations ?? []
+                                        progress.removeAll { $0.reference == reference }
+                                        progress.append(HomeLinkedPreparationProgress(reference: reference, completedAt: ready ? .now : nil))
+                                        $0.linkedPreparations = progress
+                                    }
                                 }))
+                                Button("Prepare \(item.name)") { preparingLinked = HomeLinkedRecipeSheet(reference: reference) }
                             }
                         }
                     }
@@ -322,6 +442,9 @@ struct HomePreparationScreen: View {
         }.navigationTitle("Make").navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden).background(Color.creamWhite)
             .sheet(item: $linked) { item in HomeLinkedRecipeDetail(store: store, reference: item.reference) }
+            .sheet(item: $preparingLinked) { item in
+                HomeLinkedPreparationScreen(store: store, parentSessionID: sessionID, reference: item.reference)
+            }
     }
     private func change(_ update: (inout HomePreparationSession) -> Void) {
         guard var value = session else { return }
@@ -333,5 +456,77 @@ struct HomePreparationScreen: View {
         if measured, let start = session.timerStartedAt { attempt.actuals.seconds = max(0, Date.now.timeIntervalSince(start)) }
         if attempt.preparation?.method == .coldBrew { attempt.batchID = session.id }
         onFinish(attempt)
+    }
+}
+
+private struct HomeLinkedPreparationScreen: View {
+    @ObservedObject var store: HomeRecipeWorkspaceStore
+    let parentSessionID: UUID
+    let reference: HomeRecipeReference
+    @Environment(\.dismiss) private var dismiss
+    @State private var error: String?
+    private var progress: HomeLinkedPreparationProgress {
+        store.workspace.sessions.first { $0.id == parentSessionID }?.linkedPreparations?
+            .first { $0.reference == reference } ?? HomeLinkedPreparationProgress(reference: reference)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let content = store.workspace.version(reference)?.content {
+                    Section {
+                        HomeRecipeRow(content: content)
+                        Text("This prepares a component for your drink. It does not create a separate journal entry.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        if let startedAt = progress.startedAt {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                Text(Duration.seconds(max(0, (progress.completedAt ?? context.date).timeIntervalSince(startedAt))).formatted(.time(pattern: .hourMinuteSecond)))
+                                    .font(.title.monospacedDigit())
+                            }
+                        }
+                        Button(progress.startedAt == nil ? "Start timer" : "Restart timer") { update { $0.startedAt = .now; $0.completedAt = nil } }
+                    }
+                    HomeRecipeInformation(content: content, onLinked: nil)
+                    if content.steps.indices.contains(progress.stepIndex) {
+                        Section("Current step") {
+                            Text(content.steps[progress.stepIndex].instruction).font(.headline)
+                            if let water = content.cumulativeWater(through: progress.stepIndex) {
+                                LabeledContent("Cumulative water", value: "\(HomeRecipeContent.number(water)) g")
+                            }
+                            if progress.stepIndex + 1 < content.steps.count {
+                                Button("Next step") { update { $0.stepIndex += 1 } }
+                            }
+                            if progress.stepIndex > 0 { Button("Previous step") { update { $0.stepIndex -= 1 } } }
+                        }
+                    }
+                    Section {
+                        Button("Ready for my drink") {
+                            if update({ $0.completedAt = .now }) { dismiss() }
+                        }.buttonStyle(.borderedProminent).tint(.mugshotSage)
+                    }
+                } else { Text("This linked version is unavailable. Your drink progress is saved.") }
+                if let error { Text(error).foregroundStyle(.red) }
+            }
+            .navigationTitle("Prepare component").navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Close") { dismiss() } }
+            .scrollContentBackground(.hidden).background(Color.creamWhite)
+        }
+    }
+
+    @discardableResult private func update(_ change: (inout HomeLinkedPreparationProgress) -> Void) -> Bool {
+        do {
+            try store.mutate { state in
+                guard let index = state.sessions.firstIndex(where: { $0.id == parentSessionID }) else {
+                    throw HomeRecipeWorkspaceError.unavailableReference
+                }
+                var value = progress
+                change(&value)
+                var all = state.sessions[index].linkedPreparations ?? []
+                all.removeAll { $0.reference == reference }
+                all.append(value)
+                state.sessions[index].linkedPreparations = all
+            }
+            return true
+        } catch { self.error = error.localizedDescription; return false }
     }
 }

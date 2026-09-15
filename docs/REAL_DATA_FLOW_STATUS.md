@@ -11,6 +11,9 @@ records and draft/session persistence, plus an additive owner-bound workspace
 RPC that mirrors immutable recipe versions without creating visits. Targets and
 actuals are separate. Private photo synchronization and complete multi-device
 reconciliation remain release blockers. See [data ownership and gaps](HOME_RECIPES_IMPLEMENTATION.md).
+Version-specific component progress and optional metric layouts persist in the
+same document. Conflicts pause remote sync without blocking local saves. Shared
+recipe content uses nested per-type allowlists; synthetic UI tests skip workspace sync.
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

@@ -127,6 +127,7 @@ struct RemoteVisitDetailView: View {
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
     @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
     @State private var homeRecipeRoute: HomeLinkedRecipeSheet?
+    @State private var homePublicationDraft: SipDraft?
     @State private var showsHomeRecipeAttachments = false
     @FocusState private var isCommentFocused: Bool
 
@@ -301,10 +302,20 @@ struct RemoteVisitDetailView: View {
             }
         }
         .sheet(item: $homeRecipeRoute) { recipe in
-            HomeSharedRecipeScreen(versionID: recipe.reference.versionID, ownerID: currentUserId) { draft in onComposeDraft?(draft) }
+            HomeSharedRecipeScreen(versionID: recipe.reference.versionID, ownerID: currentUserId) { draft in
+                homePublicationDraft = draft
+            }
+            .fullScreenCover(item: $homePublicationDraft) { draft in
+                LogVisitView(dataManager: dataManager, initialDraft: draft)
+            }
         }
         .sheet(isPresented: $showsHomeRecipeAttachments) {
-            HomePostRecipeList(visitID: visitId, ownerID: currentUserId) { draft in onComposeDraft?(draft) }
+            HomePostRecipeList(visitID: visitId, ownerID: currentUserId) { draft in
+                homePublicationDraft = draft
+            }
+            .fullScreenCover(item: $homePublicationDraft) { draft in
+                LogVisitView(dataManager: dataManager, initialDraft: draft)
+            }
         }
         .toolbar {
             if homeRecipesEnabled, displayedSummary.visit.journalContext == .home {

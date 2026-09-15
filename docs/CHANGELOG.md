@@ -6,6 +6,26 @@ last_verified: 2026-09-15
 
 ## 2026-09-15 — Native Home and Recipes foundation (flag off)
 
+Continuation adds recorded-attempt comparisons and account-scoped filter
+restoration, keeps private logging available during remote conflicts, validates
+attempt-driven recipe links, and preserves newer batch progress during reminder
+authorization. Legacy drafts with captions or contextual feedback stay in their
+original composer. Feed recipe sheets now own a real publication destination
+instead of silently dropping Share when no parent callback is installed.
+These changes remain part of the incomplete, disabled release implementation.
+Linked components now have a parent-preserving preparation surface with durable
+version-specific timer, step and readiness state and no automatic child logs.
+Built-in preparation fields now support persisted labels, ordering and visibility
+without changing calculation identifiers. Scaling supports target servings and
+coffee dose as well as a multiplier.
+The shared recipe projection now allowlists nested fields, and version writes
+reject attempts to erase existing source attribution. Hermetic tests exercise
+direct payload injection and attribution-removal denial.
+The continuation passed 16 focused native tests and the 12-check full-static
+gate. A bounded native field-customization check preserved the espresso
+calculation. Synthetic UI-test launches now explicitly disable workspace sync.
+Complete release acceptance, remote media and migration continuity remain open.
+
 Added independent versioned recipes, private attempt snapshots, a flexible
 native editor, two-surface quick logging, preparation sessions, local drafts,
 account-scoped persistence and an additive owner-bound synchronization contract.
