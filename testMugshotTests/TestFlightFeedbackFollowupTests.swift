@@ -110,6 +110,11 @@ struct TestFlightFeedbackFollowupTests {
             ]
         )
 
+        let updated = summary.updatingSocialState(RemoteVisitSocialState(
+            likeCount: 1, commentCount: 0, currentUserHasLiked: true
+        ))
+        #expect(updated.photoURLs == summary.photoURLs)
+        #expect(updated.socialState.likeCount == 1)
         #expect(summary.photoURLs == [
             "https://images.example/cover.jpg",
             "https://images.example/second.jpg"
@@ -190,4 +195,20 @@ struct TestFlightFeedbackFollowupTests {
         restored.activate(accountID: UUID())
         #expect(restored.pendingRoute == nil)
     }
+}
+
+@MainActor
+struct PerformanceLifecycleRegressionTests {
+    @Test func carouselSelectionSurvivesRowRecreationAndResetsForRemovedPhoto() {
+        let store = FeedMediaSelectionStore()
+        let visit = UUID()
+        let photos = ["first", "second", "third"]
+        #expect(store.selection(for: visit, available: photos) == "first")
+        store.select("second", for: visit)
+        #expect(store.selection(for: visit, available: photos) == "second")
+        #expect(store.selection(for: UUID(), available: photos) == "first")
+        #expect(store.selection(for: visit, available: ["first", "third"]) == "first")
+        #expect(store.selection(for: visit, available: []) == nil)
+    }
+
 }

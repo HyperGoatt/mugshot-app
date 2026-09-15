@@ -4,6 +4,10 @@ status: current
 last_verified: 2026-09-14
 ---
 
+Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
+The client now exposes Save in the navigation bar and marks unsaved changes;
+delivery still requires explicit saving. No reminder backend change is involved.
+
 # Mugshot notification system
 
 ## Reflection reminder extension — 2026-09-14

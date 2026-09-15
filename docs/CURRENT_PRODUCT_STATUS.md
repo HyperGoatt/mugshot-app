@@ -4,6 +4,37 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — Physical-device performance regression follow-up
+
+Owner testing of `62991fa` reported text-input freezes, carousel loss after post
+detail, page reset after scrolling, and image disappearance in the app switcher.
+Two retrieved iPhone watchdog reports show synchronous UIKit image-pasteboard
+probing while opening the keyboard, with negligible app CPU; this is distinct
+from network latency. A Simulator stack capture reproduced the blocked system
+pasteboard service. Plain-text UIKit configurations did not eliminate the wait
+and were removed; standard SwiftUI fields remain. After disabling Simulator clipboard synchronization and restarting the Simulator,
+the standard-input response-time test passed in 36.95 seconds for the full journey;
+repeated Map focus-to-typing transitions took approximately 0.34 seconds. The
+previous run stalled 33–58 seconds at one field. The physical-device freeze remains
+unaccepted pending system-service recovery and retesting on that iPhone.
+
+Feed social-state updates retain the complete photo collection, and Feed-owned
+page selection survives recycled rows. Authorized images remain visible during
+inactive app-switcher transitions until their existing expiry; background,
+account changes, access revocation and expiry still hide protected pixels.
+Profile header and post requests run concurrently and render before secondary
+sections finish. No authorization lifetime has been extended.
+
+The owner confirmed reminder preferences persist after tapping Save. A navigation
+bar Save action and unsaved-change message clarify that explicit activation step.
+This is a usability adjustment, not a backend persistence repair.
+
+Verification: the Tier 3 full-static gate passed (12 passed, zero failed, optional
+pglast skipped); focused photo-selection, photo-metadata and protected-image tests
+passed. The bounded keyboard journey passed after Simulator clipboard isolation.
+No crash-free physical acceptance or overall loading-speed benchmark is claimed.
+No backend migration, TestFlight upload or marketing-version change is involved.
+
 ## TestFlight feedback follow-up candidate — 2026-09-14
 
 The 14-report follow-up is implemented on

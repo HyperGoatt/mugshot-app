@@ -210,6 +210,40 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testPlainTextSearchAndDrinkNameRemainResponsive() throws {
+        let app = launch(reset: true)
+        app.buttons["mugshot.tab.map"].tap()
+        for _ in 0..<3 {
+            let search = app.textFields["map.search.query"]
+            XCTAssertTrue(search.waitForExistence(timeout: 3))
+            let focusStarted = Date()
+            search.tap()
+            search.typeText("coffee")
+            XCTAssertLessThan(Date().timeIntervalSince(focusStarted), 10, "Opening search must not wait on the pasteboard service")
+            XCTAssertTrue(app.buttons["map.search.cancel"].waitForExistence(timeout: 3))
+            app.buttons["map.search.cancel"].tap()
+        }
+        app.buttons["Saved"].tap()
+        let log = app.descendants(matching: .any).matching(
+            identifier: "saved.cafe.logSip.00000000-0000-4000-8000-000000000002"
+        ).firstMatch
+        XCTAssertTrue(log.waitForExistence(timeout: 3))
+        tapAfterRevealing(log, in: app)
+        let fallback = v3Element("logASipV3.photoFallback.missed", in: app)
+        XCTAssertTrue(fallback.waitForExistence(timeout: 3))
+        fallback.tap()
+        let drink = app.textFields["logASipV3.drinkName"]
+        let drinkFocusStarted = Date()
+        tapAfterRevealing(drink, in: app)
+        drink.typeText("Responsive latte\n")
+        XCTAssertLessThan(Date().timeIntervalSince(drinkFocusStarted), 15, "Drink input must remain responsive")
+        drink.tap()
+        drink.typeText(" again\n")
+        XCTAssertTrue((drink.value as? String)?.contains("Responsive latte") == true)
+        XCTAssertTrue(v3Element("logASipV3.primaryAction", in: app).exists)
+    }
+
+    @MainActor
     func testMapShowsTheCompactRatingsLegend() throws {
         let app = launch(reset: true)
         app.buttons["mugshot.tab.map"].tap()

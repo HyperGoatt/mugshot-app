@@ -156,6 +156,7 @@ struct FeedTabView: View {
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var selectedPostPhotoKey: String?
     @State private var remoteVisits: [RemoteVisitSummary] = []
+    @State private var mediaSelections = FeedMediaSelectionStore()
     @State private var canonicalSipCount = 0
     @State private var isLoadingRemoteVisits = false
     @State private var isLoadingMoreRemoteVisits = false
@@ -390,9 +391,11 @@ struct FeedTabView: View {
             }
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+            mediaSelections = FeedMediaSelectionStore()
             pendingSocialVisitIDs.removeAll()
             socialRecoveryMessage = nil
         }
+        .environment(\.feedMediaSelections, mediaSelections)
         .task(id: "\(feedTaskID)|\(tabIsActive)") {
             guard tabIsActive else { return }
             await loadRemoteFeedIfNeeded()
@@ -996,18 +999,7 @@ struct FeedTabView: View {
         }
 
         let visit = remoteVisits[index]
-        remoteVisits[index] = RemoteVisitSummary(
-            visit: visit.visit,
-            cafe: visit.cafe,
-            author: visit.author,
-            socialState: socialState,
-            rankingScore: visit.rankingScore,
-            recommendationReason: visit.recommendationReason,
-            recommendationReasonType: visit.recommendationReasonType,
-            sessionSipCount: visit.sessionSipCount,
-            cafePulseProjection: visit.cafePulseProjection,
-            v3FeedProjection: visit.v3FeedProjection
-        )
+        remoteVisits[index] = visit.updatingSocialState(socialState)
         RemoteFeedMemoryCache.shared.store(remoteVisits, hasMore: hasMoreRemoteVisits, for: feedTaskID)
     }
 }

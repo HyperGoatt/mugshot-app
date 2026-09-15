@@ -8,6 +8,7 @@ struct ReflectionPreferencesView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var savedConfirmation = false
+    @State private var hasUnsavedChanges = false
 
     var body: some View {
         Form {
@@ -51,7 +52,7 @@ struct ReflectionPreferencesView: View {
 
             if notificationDevice.permissionState == .denied {
                 Section("Notification access") {
-                    Text("Your reminder preference is saved, but iOS notifications are off for Mugshot.")
+                    Text("iOS notifications are off for Mugshot. Save your preferences here, then enable notification access in Settings.")
                         .foregroundStyle(Color.secondaryText)
                     Button("Open Settings") {
                         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
@@ -61,6 +62,11 @@ struct ReflectionPreferencesView: View {
             }
 
             Section {
+                if hasUnsavedChanges {
+                    Text("Unsaved changes — tap Save to apply your preferences.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondaryText)
+                }
                 Button {
                     Task { await save() }
                 } label: {
@@ -77,10 +83,17 @@ struct ReflectionPreferencesView: View {
                 Section { Text(errorMessage).foregroundColor(.red) }
             }
         }
+        .disabled(isSaving)
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Reflections and Recaps")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(isSaving ? "Saving…" : "Save") { Task { await save() } }
+                    .disabled(preferences == nil || isSaving || !hasUnsavedChanges)
+            }
+        }
         .task {
             await notificationDevice.refreshPermission(reconcileRegistration: false)
             await load()
@@ -91,7 +104,7 @@ struct ReflectionPreferencesView: View {
         guard preferences != nil else { return nil }
         return Binding(
             get: { preferences! },
-            set: { preferences = $0; savedConfirmation = false }
+            set: { preferences = $0; savedConfirmation = false; hasUnsavedChanges = true }
         )
     }
 
@@ -112,6 +125,7 @@ struct ReflectionPreferencesView: View {
     @MainActor
     private func save() async {
         guard let preferences else { return }
+        guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
         do {
@@ -124,6 +138,7 @@ struct ReflectionPreferencesView: View {
                 _ = await notificationDevice.requestAuthorization(source: .reflectionReminders)
             }
             savedConfirmation = true
+            hasUnsavedChanges = false
             errorMessage = nil
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .account)

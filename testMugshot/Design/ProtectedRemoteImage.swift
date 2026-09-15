@@ -18,10 +18,20 @@ struct ProtectedRemoteImage<Content: View>: View {
     var body: some View {
         ZStack {
             Color.clear
-            content(loadedScope == scope && visible && authorizedUntil > Date() ? image : nil)
+            content(loadedScope == scope && scenePhase != .background && authorizedUntil > Date() ? image : nil)
         }
             .onReceive(NotificationCenter.default.publisher(for: .mugshotSafetyAccessChanged)) { _ in
                 image = nil; loadedScope = nil; safetyGeneration += 1
+            }
+            .task(id: authorizedUntil) {
+                let expiry = authorizedUntil
+                guard expiry > Date() else { return }
+                do {
+                    try await Task.sleep(for: .seconds(max(0, expiry.timeIntervalSinceNow)))
+                    try Task.checkCancellation()
+                    guard authorizedUntil == expiry else { return }
+                    image = nil; loadedScope = nil
+                } catch { }
             }
             .task(id: "\(scope)|\(visible)") {
                 guard visible else { return }
@@ -33,23 +43,10 @@ struct ProtectedRemoteImage<Content: View>: View {
                         try Task.checkCancellation()
                         guard scope == expected, visible else { return }
                         image = receipt.image; loadedScope = expected; authorizedUntil = receipt.expiresAt
-                        // Renew ten seconds before expiry. If renewal is slow,
-                        // the expiry task removes the old pixels on time.
+                        // Renew while visible without tearing down already-authorized pixels.
                         let remaining = max(0, receipt.expiresAt.timeIntervalSinceNow)
-                        let expiryTask = Task { @MainActor in
-                            try await Task.sleep(for: .seconds(remaining))
-                            guard scope == expected else { return }
-                            image = nil; loadedScope = nil
-                        }
-                        do {
-                            try await Task.sleep(for: .seconds(max(0, remaining - 10)))
-                            let next = try await ProtectedImageStore.shared.load(storedValue, account: account, renew: true)
-                            expiryTask.cancel()
-                            try Task.checkCancellation()
-                            guard scope == expected, visible else { return }
-                            image = next.image; loadedScope = expected; authorizedUntil = next.expiresAt
-                        } catch { expiryTask.cancel(); throw error }
-                        renew = false
+                        try await Task.sleep(for: .seconds(max(0, remaining - 10)))
+                        renew = true
                     }
                 } catch {
                     guard !Task.isCancelled, scope == expected else { return }
