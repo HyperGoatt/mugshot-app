@@ -34,11 +34,6 @@ enum AdaptiveMapClusterTapPolicy {
 
 enum AdaptiveMapCameraPolicy {
     static let maximumCafeFootprintPoints = 60.0
-    // MapKit already groups colliding cafe pins. Keep those useful, individual
-    // memories visible throughout city and metro views, and reserve the broad
-    // place aggregates for genuinely regional camera footprints.
-    static let aggregateEntryMeters = 90_000.0
-    static let cafeReturnMeters = 70_000.0
 
     static func groundFootprintMeters(in mapView: MKMapView) -> Double {
         guard mapView.bounds.width > 0 else { return 0 }
@@ -51,33 +46,94 @@ enum AdaptiveMapCameraPolicy {
         current: AdaptiveMapDisplayMode,
         groundFootprintMeters: Double
     ) -> AdaptiveMapDisplayMode {
-        switch current {
-        case .cafes:
-            return groundFootprintMeters >= aggregateEntryMeters
-                ? .places
-                : .cafes
-        case .places:
-            return groundFootprintMeters <= cafeReturnMeters
-                ? .cafes
-                : .places
-        }
+        _ = current
+        _ = groundFootprintMeters
+        return .cafes
     }
 }
 
 enum AdaptiveMapCafeClusteringPolicy {
-    // `groundFootprintMeters` measures the ground covered by one 60-point
-    // cafe pin. The Charleston peninsula remains individually readable below
-    // this boundary; clustering begins only after the next material zoom-out.
-    static let clusteringEntryMeters = 3_200.0
-    static let individualReturnMeters = 2_400.0
-
     static func isEnabled(
         current: Bool,
         groundFootprintMeters: Double
     ) -> Bool {
+        _ = current
+        _ = groundFootprintMeters
+        return false
+    }
+}
+
+struct ZoomAdaptiveMapPinStyle: Equatable {
+    static let hitTargetSize: CGFloat = 44
+    static let minimumHeadDiameter: CGFloat = 7
+    static let cityHeadDiameter: CGFloat = 17
+    static let maximumHeadDiameter: CGFloat = 30
+    static let closeFootprintMeters = 700.0
+    static let cityFootprintMeters = 3_000.0
+    static let worldFootprintMeters = 700_000.0
+
+    let headDiameter: CGFloat
+    let stemLength: CGFloat
+    let showsRating: Bool
+
+    static func resolve(
+        groundFootprintMeters: Double,
+        showsRating: Bool
+    ) -> ZoomAdaptiveMapPinStyle {
+        let footprint = max(groundFootprintMeters, 1)
+        let headDiameter: CGFloat
+        if footprint <= closeFootprintMeters {
+            headDiameter = maximumHeadDiameter
+        } else if footprint <= cityFootprintMeters {
+            headDiameter = interpolateLogarithmically(
+                value: footprint,
+                lowerBound: closeFootprintMeters,
+                upperBound: cityFootprintMeters,
+                lowerResult: maximumHeadDiameter,
+                upperResult: cityHeadDiameter
+            )
+        } else if footprint < worldFootprintMeters {
+            headDiameter = interpolateLogarithmically(
+                value: footprint,
+                lowerBound: cityFootprintMeters,
+                upperBound: worldFootprintMeters,
+                lowerResult: cityHeadDiameter,
+                upperResult: minimumHeadDiameter
+            )
+        } else {
+            headDiameter = minimumHeadDiameter
+        }
+
+        let scale = (headDiameter - minimumHeadDiameter)
+            / (maximumHeadDiameter - minimumHeadDiameter)
+        return ZoomAdaptiveMapPinStyle(
+            headDiameter: headDiameter,
+            stemLength: 3 + (5 * scale),
+            showsRating: showsRating
+        )
+    }
+
+    private static func interpolateLogarithmically(
+        value: Double,
+        lowerBound: Double,
+        upperBound: Double,
+        lowerResult: CGFloat,
+        upperResult: CGFloat
+    ) -> CGFloat {
+        let progress = (log(value) - log(lowerBound))
+            / (log(upperBound) - log(lowerBound))
+        return lowerResult + ((upperResult - lowerResult) * CGFloat(progress))
+    }
+}
+
+enum ZoomAdaptiveMapRatingVisibilityPolicy {
+    static let revealFootprintMeters = 1_100.0
+    static let hideFootprintMeters = 1_500.0
+
+    static func isVisible(current: Bool, groundFootprintMeters: Double) -> Bool {
         current
-            ? groundFootprintMeters > individualReturnMeters
-            : groundFootprintMeters >= clusteringEntryMeters
+            ? groundFootprintMeters <= hideFootprintMeters
+            : groundFootprintMeters <= revealFootprintMeters
     }
 }
 

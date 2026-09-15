@@ -4,6 +4,24 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## 2026-09-14 — Persistent zoom-adaptive Map pins
+
+- Replaced Map-tab cafe clusters and regional cards with individual travel-pin
+  annotations that remain geographically anchored at every zoom level.
+- Pin heads interpolate from 7 points at world scale to 30 points at close
+  neighborhood scale while retaining a 44-point tap target.
+- Rating colors remain stable through zoom. Rating numbers appear only at close
+  scale, with hysteresis to prevent flicker near the visibility threshold.
+- Map camera changes resize existing annotation views in place rather than
+  rebuilding the annotation collection during a pinch. Existing cafe detail
+  routing, canonical identity, score meaning, legend, and VoiceOver labels remain.
+- Locally verified with the Tier 3 full-static gate (12 passed, zero failed, one
+  optional skip), 14 focused Map policy tests, and a Simulator interaction test
+  covering neighborhood, city, and world scales plus cafe-detail routing. No
+  backend, stored-data, marketing-version, or TestFlight change is involved.
+- The verified Debug candidate was built, installed, and launched on Joe's
+  connected iPhone for owner testing; physical visual acceptance remains pending.
+
 ## 2026-09-14 — Physical-device performance regression follow-up
 
 Owner testing of `62991fa` reported text-input freezes, carousel loss after post

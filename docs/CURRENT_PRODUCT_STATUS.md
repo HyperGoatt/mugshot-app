@@ -4,6 +4,28 @@ status: current
 last_verified: 2026-09-14
 ---
 
+## Zoom-adaptive Map pins — 2026-09-14
+
+The Map tab represents each located cafe as an individual travel pin at every
+camera scale. Pins retain their rating-band color and geographic coordinate as
+the camera moves. Their visible head scales continuously from 7 points at world
+scale to 30 points at neighborhood scale, while the annotation keeps a 44-point
+interactive target. Rating text appears only at close scale and uses separate
+reveal and hide thresholds to avoid flicker during small zoom adjustments.
+
+The Map updates the artwork of visible annotation views during camera movement;
+it does not replace cafe annotations with clusters or regional cards. Canonical
+cafe deduplication, score projections, the ratings legend, cafe-detail routing,
+and accessible score descriptions keep their existing contracts. Profile maps
+retain their separate Profile-only individual-pin presentation.
+
+Local verification passed the Tier 3 full-static gate (12 passed, zero failed,
+one optional skip), 14 focused Map tests, and a Simulator interaction test that
+captured neighborhood, city, and world states and reopened cafe detail from a
+pin. The same Debug candidate was installed and launched on Joe's connected
+iPhone. Physical visual acceptance and TestFlight acceptance remain separate
+pending gates.
+
 ## 2026-09-14 — Physical-device performance regression follow-up
 
 Owner testing of `62991fa` reported text-input freezes, carousel loss after post
