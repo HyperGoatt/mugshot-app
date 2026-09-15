@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## Native Home workspace — 2026-09-15
+
+The default-off Home/Recipes implementation adds atomic account-scoped local
+records and draft/session persistence, plus an additive owner-bound workspace
+RPC that mirrors immutable recipe versions without creating visits. Targets and
+actuals are separate. Private photo synchronization and complete multi-device
+reconciliation remain release blockers. See [data ownership and gaps](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

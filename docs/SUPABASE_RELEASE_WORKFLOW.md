@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+Home/Recipes amendment (2026-09-15): migration
+`20260915212702_home_recipe_workspace.sql` is local, additive work in progress,
+not deployed. It introduces owner-bound workspace synchronization and private
+version content. Do not enable the native flag or deploy until the outstanding
+[release requirements](HOME_RECIPES_IMPLEMENTATION.md) are accepted. No legacy
+measurement backfill is performed.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

@@ -125,6 +125,9 @@ struct RemoteVisitDetailView: View {
     @State private var selectedTaggedProfile: PeopleProfileRoute?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @State private var homeRecipeRoute: HomeLinkedRecipeSheet?
+    @State private var showsHomeRecipeAttachments = false
     @FocusState private var isCommentFocused: Bool
 
     private var displayedSummary: RemoteVisitSummary {
@@ -295,6 +298,19 @@ struct RemoteVisitDetailView: View {
         .sheet(item: $recipeAdaptationRequest) { recipe in
             SipRecipeAdaptationSheet(recipe: recipe) { name in
                 try await saveRecipeAdaptation(recipe, name: name)
+            }
+        }
+        .sheet(item: $homeRecipeRoute) { recipe in
+            HomeSharedRecipeScreen(versionID: recipe.reference.versionID, ownerID: currentUserId) { draft in onComposeDraft?(draft) }
+        }
+        .sheet(isPresented: $showsHomeRecipeAttachments) {
+            HomePostRecipeList(visitID: visitId, ownerID: currentUserId) { draft in onComposeDraft?(draft) }
+        }
+        .toolbar {
+            if homeRecipesEnabled, displayedSummary.visit.journalContext == .home {
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Attached recipes", systemImage: "book") { showsHomeRecipeAttachments = true }
+                }
             }
         }
         .sheet(item: $selectedCafeRoute) { route in
@@ -584,6 +600,10 @@ struct RemoteVisitDetailView: View {
         }
         socialError = nil
         socialStatus = nil
+        if homeRecipesEnabled, let versionID = recipe.recipeVersionID, let projection = detail.recipeProjection {
+            homeRecipeRoute = HomeLinkedRecipeSheet(reference: HomeRecipeReference(recipeID: projection.recipeIdentityID, versionID: versionID))
+            return
+        }
         switch action {
         case .brewAgain:
             guard recipe.canBrewAgain else { return }

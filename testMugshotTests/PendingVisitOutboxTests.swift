@@ -4,6 +4,22 @@ import UIKit
 @testable import testMugshot
 
 struct PendingVisitOutboxTests {
+    @Test func homeAttachmentsRemainPendingUntilDurableReceipt() throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        var record = try prepare(store: fixture.store, userID: UUID(), caption: "Component make", image: image(.brown))
+        record.homeRecipeAttachments = [HomeRecipePostAttachment(versionID: UUID(), audience: "friends", acknowledgesSharing: true)]
+        #expect(!record.needsHomeRecipeAttachmentsCompletion)
+        record.remoteFinalizedAt = .now
+        #expect(record.needsHomeRecipeAttachmentsCompletion)
+        #expect(!record.isPostPublicationSetupComplete)
+        try fixture.store.save(record)
+        let loaded = try #require(fixture.store.load(visitId: record.id, userId: record.userId))
+        #expect(loaded.homeRecipeAttachments == record.homeRecipeAttachments)
+        record.homeRecipeAttachmentsCompletedAt = .now
+        try fixture.store.save(record)
+        #expect(fixture.store.load(visitId: record.id, userId: record.userId)?.needsHomeRecipeAttachmentsCompletion == false)
+    }
     @Test func unreadableOutboxIsReportedWithoutChangingStoredBytes() throws {
         let resources = try makeResources()
         defer { resources.cleanup() }

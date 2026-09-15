@@ -1186,6 +1186,8 @@ final class AppAuthModel: ObservableObject {
         CriterionImportanceStore.shared.removeAll(ownerUserID: userID)
         RecentCriterionSetupStore.shared.removeAll(ownerUserID: userID)
         HomeLibraryStore.shared.removeAll(ownerUserID: userID)
+        do { try HomeRecipeWorkspaceStore.shared.removeAll(ownerUserID: userID) }
+        catch { completed = false }
         TastingLensPreferencesStore().removeAll(userID: userID)
         VisitMediaCleanupStore.shared.removeAll(userId: userID)
         DrinkAnalysisRetryStore.shared.removeAll(userId: userID)
@@ -1359,6 +1361,7 @@ final class AppAuthModel: ObservableObject {
     }
 
     private func clearAuthenticatedAccountState(dataManager: DataManager) {
+        HomeRecipeWorkspaceStore.shared.activate(.guest)
         authenticatedUser = nil
         profile = nil
         pendingGuestSavedCafes = []

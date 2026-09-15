@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## 2026-09-15 — Native Home and Recipes foundation (flag off)
+
+Added independent versioned recipes, private attempt snapshots, a flexible
+native editor, two-surface quick logging, preparation sessions, local drafts,
+account-scoped persistence and an additive owner-bound synchronization contract.
+Added shared-recipe detail/reference/adaptation routes and explicit version
+attachments with audience confirmation and durable outbox receipts. Legacy flows
+remain available. This is an incomplete release implementation; migration,
+continuity and integrated privacy/runtime acceptance are not yet complete.
+See [implementation status](HOME_RECIPES_IMPLEMENTATION.md) for the
+exact implemented boundary and remaining release gates. No production backend
+deployment or TestFlight change is claimed.
+
+The initial full-static gate passed (12 checks, zero failures, one optional
+skip), followed by incremental app/test compiles and 13 focused native tests.
+A limited Simulator smoke pass verified optional-feedback logging, recipe
+calculation, independent saving, persisted actuals and the repaired Share
+transition. No remote publication or full release acceptance is claimed.
 
 ## 2026-09-14 — Persistent zoom-adaptive Map pins
 

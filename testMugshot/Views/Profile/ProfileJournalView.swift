@@ -9,6 +9,8 @@ struct JournalTabView: View {
     @StateObject private var passportRouter = JournalPassportRouter.shared
 
     @State private var selectedFilter: JournalFilter = .all
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @State private var showsHomeRecipes = false
     @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
@@ -139,6 +141,13 @@ struct JournalTabView: View {
                 }
             }
             .background(Color.creamWhite)
+            .navigationDestination(isPresented: $showsHomeRecipes) {
+                HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id) { draft in
+                    showsHomeRecipes = false
+                    onComposeDraft(draft)
+                }
+                .id(authModel.authenticatedUser?.id)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
                 switch sheet {
@@ -538,6 +547,26 @@ struct JournalTabView: View {
 
             JournalFilterBar(selection: $selectedFilter)
                 .padding(.horizontal, 16)
+
+            if homeRecipesEnabled, selectedFilter == .home || selectedFilter == .recipes {
+                Button {
+                    showsHomeRecipes = true
+                } label: {
+                    HStack {
+                        Image(systemName: "house")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("My makes and recipes").font(.headline)
+                            Text("Your usuals, active batches, and recipe library").font(.caption)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .padding(16)
+                    .background(Color.mugshotSage.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+            }
 
             if phase2CanonicalJournal, !journalTags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {

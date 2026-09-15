@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## Native Home and Recipes — 2026-09-15
+
+The new native Home/Recipes foundation is implemented behind a default-off flag,
+not released. Existing production Home and recipe behavior remains the default.
+See [implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md) for
+the exact boundary; shared-recipe and attachment paths are present in source,
+but continuity, migration and integrated acceptance remain required before enabling it.
 
 ## Zoom-adaptive Map pins — 2026-09-14
 

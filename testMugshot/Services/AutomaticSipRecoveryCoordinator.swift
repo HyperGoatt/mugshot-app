@@ -440,6 +440,7 @@ enum PendingVisitPublicationReconciliation {
         record.cafeSessionPublicationCompletedAt = nil
         record.v3ReflectionCompletedAt = nil
         record.recipePublicationCompletedAt = nil
+        record.homeRecipeAttachmentsCompletedAt = nil
         record.visitTagsCompletedAt = nil
     }
 }

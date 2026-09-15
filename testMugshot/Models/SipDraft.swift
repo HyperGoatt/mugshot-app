@@ -25,6 +25,10 @@ struct SipComposerLaunchContext: Codable, Equatable {
     var sourceRecipeIdentityID: UUID?
     var sourceRecipeVersion: String?
     var returnTab: MugshotTab?
+    /// Identifies an already-saved private Home attempt. Older launches decode
+    /// without it and retain their existing capture/validation behavior.
+    var homeAttemptID: UUID?
+    var homeRecipeAttachments: [HomeRecipePostAttachment]?
 
     static let centralAdd = SipComposerLaunchContext(source: .centralAdd)
 }

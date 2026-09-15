@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-15
 ---
+
+## Native Home and Recipes — flag-off implementation
+
+Independent recipes, private attempts, quick logging and preparation have an
+initial native implementation. The complete release is **not accepted**; shared
+recipe discovery and explicit attachment recovery now have native paths, but
+their integrated acceptance plus continuity and migration work remain.
+[Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Explicit profile identity setup — 2026-09-14
 

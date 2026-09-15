@@ -2454,7 +2454,9 @@ struct LogVisitView: View {
                 source: pending.cafeSession?.sipRole == .secondary
                     ? .addAnotherSip
                     : .centralAdd,
-                preselectedCafe: pending.cafe
+                preselectedCafe: pending.cafe,
+                homeAttemptID: pending.homeAttemptID,
+                homeRecipeAttachments: pending.homeRecipeAttachments
             ),
             context: pending.resolvedEntryContext,
             cafe: pending.cafe,
@@ -2877,6 +2879,7 @@ struct LogVisitView: View {
     private func adoptGuestDraft(for userID: UUID) {
         do {
             _ = try HomeLibraryStore.shared.adoptGuestLibrary(for: userID)
+            try HomeRecipeWorkspaceStore.shared.adoptGuestWorkspace(for: userID)
             let adopted = try SipDraftStore.shared.adoptGuestDraft(
                 draft,
                 images: photoImages,
@@ -3128,7 +3131,8 @@ struct LogVisitView: View {
         if draft.captureMode == .addDetails && draft.sensorySnapshot == nil {
             return "Finish or switch from Tasting Lens before saving this sip."
         }
-        if draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5 {
+        if (draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5)
+            && !(draft.context == .home && draft.launchContext.homeAttemptID != nil && draft.resolvedOverallScore == 0) {
             return "Add your personal How was it? rating."
         }
         if draft.context == .cafe,
@@ -3364,6 +3368,8 @@ struct LogVisitView: View {
                     recipePublication: draft.includesRecipeBlueprint
                         ? draft.recipePublication
                         : nil,
+                    homeRecipeAttachments: draft.launchContext.homeRecipeAttachments,
+                    homeAttemptID: draft.launchContext.homeAttemptID,
                     taggedCompanions: draft.taggedCompanions,
                     cafeSession: makePendingCafeSessionLink(userID: authenticatedUser.id),
                     images: photoImages,

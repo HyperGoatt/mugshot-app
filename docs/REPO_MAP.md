@@ -1,10 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-15
 ---
 
 # Repository map
+
+## Native Home/Recipes work in progress
+
+`Models/HomeRecipeWorkspace.swift`, `Services/HomeRecipeWorkspaceStore.swift`,
+`Services/Supabase/HomeRecipeWorkspaceService.swift`, and the `Views/Add/Home*`
+recipe screens contain the default-off native implementation. Tests live in
+`testMugshotTests/HomeRecipeWorkspaceTests.swift` and
+`qa/pglite/check-home-recipes.mjs`. [Ownership and release boundary](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Repository and targets
 
