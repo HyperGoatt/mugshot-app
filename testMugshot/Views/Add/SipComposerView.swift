@@ -4791,7 +4791,7 @@ struct LogVisitView: View {
     private func initializeLocationIfAvailable() {
         let status = locationManager.authorizationStatus
         guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
-        locationManager.startUpdatingLocation()
+        locationManager.requestCurrentLocation()
         if let location = locationManager.location { updateSearchRegion(for: location) }
     }
 

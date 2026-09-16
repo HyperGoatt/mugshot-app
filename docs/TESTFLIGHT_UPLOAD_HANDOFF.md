@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-16
 ---
 
 # TestFlight Upload Handoff
@@ -15,6 +15,14 @@ and launch gate, and Release archive gate. Xcode uploaded the archive on
 2026-09-14; App Store Connect completed processing and records the build as
 `Testing` with a 90-day testing window. Mugshot Team and Alpha Friends are
 assigned, including 12 external testers. No App Store release was submitted.
+
+**Battery release hold:** Build 7 contains the confirmed continuous-location
+lifecycle defect documented in the
+[battery and thermal audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
+Current source contains a locally verified remediation, but physical battery,
+thermal, background, locked, and movement acceptance remains open. Do not upload
+or assign another build until that gate passes and the owner explicitly requests
+the TestFlight handoff.
 
 Build 7 contains the current merged product, moderation, sharing,
 regression-repair, reaction, and explicit-profile-identity work. Test results

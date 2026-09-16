@@ -4,6 +4,32 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## 2026-09-16 — Battery-drain location lifecycle remediation
+
+- Restricted continuous best-accuracy location updates to the active Map owner.
+  Permission changes and cafe-search screens now request one bounded location fix,
+  inactive scenes and tabs stop Map updates, and manager teardown stops any
+  remaining standard updates.
+- Kept opt-in nearby reminders while preventing empty or unchanged region plans
+  from repeatedly restarting monitoring. Monitoring now stops when Always access
+  is unavailable and significant-change monitoring requires at least one eligible
+  saved cafe.
+- Cancelled visit recovery and Home synchronization when the app becomes inactive.
+  Automatic Home synchronization now has one foreground lifecycle owner instead
+  of duplicate view-launched tasks. Both paths retain durable local state and
+  resume idempotently after activation; Home synchronization treats cancellation
+  as lifecycle control instead of a sync failure.
+- The Debug app/test compile and all hermetic backend contracts passed. Fifteen
+  focused location, reminder, and recovery tests plus the permitted-location
+  repeated-tab Simulator test passed on iOS 27. A 30.777-second settled Feed Time
+  Profiler capture recorded five 1 ms running samples, approximately 0.016% of one
+  core. This is Simulator evidence, not physical-device energy proof.
+- The signed `co.mugshot.app.dev` candidate built and installed on Joe's iPhone 16
+  Pro. Launch and physical Power Profiler acceptance were blocked because the phone
+  was locked. TestFlight 0.5.3 (7) remains affected and distribution remains held;
+  no Supabase environment, production data, TestFlight build, or App Store state
+  changed.
+
 ## 2026-09-16 — Battery, thermal, and runtime release audit
 
 - Audited both installed 0.5.3 (7) identities, current source, historical device

@@ -279,7 +279,11 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func synchronize() async {
-        guard !isSyncing, canWrite, !hasRemoteConflict, let owner = scope.userID else { return }
+        guard !Task.isCancelled,
+              !isSyncing,
+              canWrite,
+              !hasRemoteConflict,
+              let owner = scope.userID else { return }
         let remoteTransport: any HomeRecipeWorkspaceTransport
         if let transport { remoteTransport = transport }
         else {
@@ -296,10 +300,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         defer {
             if syncTaskID == taskID {
                 isSyncing = false
-                if needsAnotherPass { Task { await self.synchronize() } }
+                if needsAnotherPass, !Task.isCancelled {
+                    Task { await self.synchronize() }
+                }
             }
         }
         do {
+            try Task.checkCancellation()
             let receiptURL = directory(capturedScope).appendingPathComponent("uploaded-photos-v1.json")
             var uploaded = (try? JSONDecoder().decode(Set<String>.self, from: Data(contentsOf: receiptURL))) ?? []
             for name in captured.referencedPhotoNames.subtracting(uploaded) {
@@ -308,11 +315,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 guard FileManager.default.fileExists(atPath: source.path) else { continue }
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 try await remoteTransport.uploadPhoto(Data(contentsOf: source), name: name, ownerID: owner)
+                try Task.checkCancellation()
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 uploaded.insert(name)
                 try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             }
             let remote = try await remoteTransport.synchronize(captured, ownerID: owner)
+            try Task.checkCancellation()
             guard scope == capturedScope, syncTaskID == taskID else { return }
             if workspace.pendingOperationID != captured.pendingOperationID {
                 if captured.pendingOperationID == nil, remote.remoteRevision != captured.remoteRevision {
@@ -336,6 +345,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 guard !FileManager.default.fileExists(atPath: destination.path) else { continue }
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 let bytes = try await remoteTransport.downloadPhoto(name: name, ownerID: owner)
+                try Task.checkCancellation()
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 guard bytes.count <= 10_485_760, UIImage(data: bytes) != nil else {
                     throw HomeRecipeWorkspaceError.invalid("A synced photo could not be opened. Your journal entry is saved.")
@@ -346,7 +356,10 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 objectWillChange.send()
             }
             errorMessage = nil
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled else { return }
             guard scope == capturedScope, syncTaskID == taskID else { return }
             errorMessage = "Saved on this device. Sync needs attention: \(error.localizedDescription)"
             MugshotAnalytics.shared.capture(.homeRecipe(.syncFailed, hasRecipe: !captured.recipes.isEmpty, durationSeconds: 0))

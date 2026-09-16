@@ -26,7 +26,6 @@ struct HomeRecipeExperienceView: View {
     var onEarlierEntries: (() -> Void)?
     var initialCollection: String?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var path: [HomeRecipeRoute] = []
     @SceneStorage private var tab: String
@@ -167,13 +166,6 @@ struct HomeRecipeExperienceView: View {
                     perform { try store.saveAttemptDraft(restored); path.append(.log(restored.id)) }
                 }
             }
-            await store.synchronize()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await store.synchronize() } }
-        }
-        .onChange(of: store.workspace.pendingOperationID) { _, _ in
-            Task { await store.synchronize() }
         }
     }
 

@@ -4,24 +4,32 @@ status: current
 last_verified: 2026-09-16
 ---
 
-## Battery and thermal release hold — 2026-09-16
+## Battery and thermal remediation release hold — 2026-09-16
 
-Further distribution is held pending remediation and physical validation of a
-confirmed location lifecycle defect in TestFlight 0.5.3 (7) and current source.
-Multiple best-accuracy location managers can start continuous updates without a
-complete active-screen/scene owner or stop path. Historical physical snapshots
-show sustained Mugshot CPU during intervals of much larger `locationd` CPU, and
-the active development installation had nearby reminders enabled. This supports
-Mugshot as a likely major contributor to the reported drain, but physical energy,
-thermal, wakeup, and iOS Battery attribution could not be captured, so sole
-causality and battery percentage remain unproved.
+The confirmed location lifecycle defect is remediated in current source.
+Continuous best-accuracy updates now belong only to the visible Map while its scene
+is active. Permission transitions and cafe search use one-shot requests, manager
+teardown stops standard updates, and inactive scenes stop Map updates. Opt-in nearby
+reminders retain region behavior while skipping empty and unchanged configurations;
+significant-change monitoring requires Always authorization and at least one
+eligible saved cafe. Visit and Home recovery tasks cancel on inactivity and resume
+from durable state after activation; automatic Home synchronization has one
+foreground lifecycle owner.
 
-The installed development process was force-quit after preserving evidence. No
-app code, backend, production data, TestFlight build, or App Store state changed.
-Release requires explicit location ownership/cancellation plus clean physical
-foreground, background, locked, movement, media, recovery, and matched three-hour
-control measurements. See the
-[battery, thermal, and runtime audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
+Local Tier 4 evidence is green: generic Debug app/test compilation and hermetic
+backend contracts passed; 15 focused location/reminder/recovery tests and one
+permitted-location repeated-tab UI test passed on an iOS 27 Simulator. A settled
+30.777-second Feed Time Profiler capture recorded five 1 ms running samples,
+approximately 0.016% of one core. Simulator evidence cannot establish physical
+battery or thermal impact.
+
+The signed development candidate built and installed as `co.mugshot.app.dev` on
+Joe's iPhone 16 Pro without replacing `co.mugshot.app`. iOS denied launch because
+the phone was locked, so physical foreground/background/lock, movement, thermal,
+wakeup, charging, and extended discharge acceptance remain open. TestFlight 0.5.3
+(7) still contains the defect and further distribution remains held. No Supabase
+environment, production data, TestFlight build, or App Store state changed. See the
+[original battery, thermal, and runtime audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
 
 ## Native Home and Recipes — 2026-09-16
 
