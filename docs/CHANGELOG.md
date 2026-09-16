@@ -4,70 +4,40 @@ status: current
 last_verified: 2026-09-15
 ---
 
-## 2026-09-15 — Native Home and Recipes foundation (flag off)
+## 2026-09-15 — Native Home and Recipes implementation complete (flag off)
 
-Created the owner-approved isolated Home acceptance database and aligned 177
-migrations without changing production. Added real Auth/Data API/private Storage
-and opt-in native transport harnesses. Real HTTP acceptance passes recipe/attempt
-round-trips, conflicts, idempotence, explicit attachment consent and audience/block
-privacy. A forward migration returns business conflicts as HTTP 409 instead of a
-retriable serialization error. Unrated Home posts now use the existing zero-score
-wire sentinel without a rated reflection or fabricated numeric badge. Cafe and
-Elsewhere validation is unchanged. The broad hosted SQL gate is 58/65: seven older
-moderation/push contracts remain unresolved, so this is not release acceptance.
-The hosted native transport journey and 20 Home model/store tests passed together
-on iOS 26.3 (21 total), including real private-photo synchronization, conflict
-reconciliation, account isolation and unrated/photo-free publication.
-See [backend evidence](HOME_RECIPES_IMPLEMENTATION.md#isolated-backend-integration--september-15-continuation).
-
-The current continuation adds direct Journal Home navigation with account-scoped
-collection scroll state and an explicit Earlier entries route; authenticated private
-photo upload/download with durable retry receipts; centralized foreground/network
-recovery; owner workspace/media export; and historical-version, result and preparation
-conflict preservation. Accessible no-copy recipes can be followed without persisting
-their instructions. Repeats retain external recipe references. New funnel events use
-only controlled booleans and bounded durations. The hermetic Home projection matrix
-now runs through actual recipient/screening functions as well as the isolated RPC
-fixture. These are source changes pending consolidated acceptance, not deployment.
-The iOS 26.3 acceptance pass also identified and fixed adjusted-target display and
-Just this time validation; conflicting attempt-draft recovery is now idempotent.
-
-Continuation adds recorded-attempt comparisons and account-scoped filter
-restoration, keeps private logging available during remote conflicts, validates
-attempt-driven recipe links, and preserves newer batch progress during reminder
-authorization. Legacy drafts with captions or contextual feedback stay in their
-original composer. Feed recipe sheets now own a real publication destination
-instead of silently dropping Share when no parent callback is installed.
-These changes remain part of the incomplete, disabled release implementation.
-Linked components now have a parent-preserving preparation surface with durable
-version-specific timer, step and readiness state and no automatic child logs.
-Built-in preparation fields now support persisted labels, ordering and visibility
-without changing calculation identifiers. Scaling supports target servings and
-coffee dose as well as a multiplier.
-The shared recipe projection now allowlists nested fields, and version writes
-reject attempts to erase existing source attribution. Hermetic tests exercise
-direct payload injection and attribution-removal denial.
-The continuation passed 16 focused native tests and the 12-check full-static
-gate. A bounded native field-customization check preserved the espresso
-calculation. Synthetic UI-test launches now explicitly disable workspace sync.
-Complete release acceptance, remote media and migration continuity remain open.
-
-Added independent versioned recipes, private attempt snapshots, a flexible
-native editor, two-surface quick logging, preparation sessions, local drafts,
-account-scoped persistence and an additive owner-bound synchronization contract.
-Added shared-recipe detail/reference/adaptation routes and explicit version
-attachments with audience confirmation and durable outbox receipts. Legacy flows
-remain available. This is an incomplete release implementation; migration,
-continuity and integrated privacy/runtime acceptance are not yet complete.
-See [implementation status](HOME_RECIPES_IMPLEMENTATION.md) for the
-exact implemented boundary and remaining release gates. No production backend
-deployment or TestFlight change is claimed.
-
-The initial full-static gate passed (12 checks, zero failures, one optional
-skip), followed by incremental app/test compiles and 13 focused native tests.
-A limited Simulator smoke pass verified optional-feedback logging, recipe
-calculation, independent saving, persisted actuals and the repaired Share
-transition. No remote publication or full release acceptance is claimed.
+- Completed the find/create → save → make or quick-log → reflect → improve →
+  optionally share loop in native source. Home now has persistent My makes and
+  Recipes collections, usuals, active batches/drafts, intentional empty states,
+  two-surface optional-feedback logging, saved-entry actions, comparisons,
+  next-time notes, repeat clearing, Save as recipe, and immutable history.
+- Replaced the dense generic creation form with Coffee, Component, Complete drink,
+  and Blank starting templates plus progressive optional sections. Added
+  method-aware defaults, user-tag filters, and searchable/previewable exact-version
+  recipe linking while preserving a single flexible underlying model.
+- Completed espresso calculation, mixed-water guided pour-over, resumable cold
+  brew and serving logs, other-method defaults, linked component readiness,
+  quantity scaling, arbitrary custom fields, inspiration links, beans/equipment,
+  and source-only recipes. Targets and actuals remain separate and unknown values
+  remain unknown.
+- Completed unified Feed/Saved recipe routes, attributed adaptations, protected
+  no-copy making, private-save-first posting, explicit version attachments,
+  audience/rights confirmation, non-recursive linked privacy, and retry-safe
+  composer recovery. Private reflections and media paths never enter post payloads.
+- Added account-scoped atomic persistence, durable preparation/draft recovery,
+  private photo upload receipts and downloads, owner export v4, operation/account
+  fences, explicit conflict reconciliation, nested projection allowlists, cycle
+  prevention, and immediate HTTP 409 business conflicts.
+- All 65 hosted SQL contracts passed on the data-free 177-migration acceptance
+  branch. Real isolated Auth/API/Storage acceptance and all 21 focused Home tests
+  passed on iOS 26.3. Connected Simulator journeys passed all recipe families,
+  guided pour-over, cold-brew relaunch, linked-component preparation, and unrated
+  private saving; the linked drink journey also passed at the largest Dynamic Type
+  size. The full-static gate passed 12 required checks with one optional parser skip.
+- Deleted the synthetic acceptance branch after verification, stopping its hourly
+  charge. Production was not migrated, the feature flag remains off, and no
+  physical-device or TestFlight acceptance is claimed. See
+  [implementation and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## 2026-09-14 — Persistent zoom-adaptive Map pins
 

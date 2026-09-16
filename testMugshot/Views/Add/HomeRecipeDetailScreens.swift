@@ -19,8 +19,10 @@ struct HomeRecipeDetailScreen: View {
                     if version.content.isActionable {
                         Button("Make this", systemImage: "play.fill") { onMake(recipe) }
                             .buttonStyle(.borderedProminent).tint(.mugshotSage)
+                            .accessibilityIdentifier("home.recipe.make")
                     } else { Button("Add preparation details") { edit(recipe, version: version) } }
                     Button("Log a make", systemImage: "plus") { onLog(recipe) }
+                        .accessibilityIdentifier("home.recipe.log")
                 }
                 if !recipe.nextTimeNote.isEmpty {
                     Section("For next time") {
@@ -434,11 +436,16 @@ struct HomePreparationScreen: View {
                         if let start = step.startSeconds { Text("At \(HomeRecipeContent.number(start)) seconds") }
                         if let water = content.cumulativeWater(through: session.stepIndex) {
                             LabeledContent("Cumulative water", value: "\(HomeRecipeContent.number(water)) g")
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel("Cumulative water")
+                                .accessibilityValue("\(HomeRecipeContent.number(water)) grams")
+                                .accessibilityIdentifier("home.make.cumulative-water")
                         }
                         if let wait = step.waitSeconds { Text("Wait \(HomeRecipeContent.number(wait)) seconds") }
                         if content.visibleSteps.indices.contains(session.stepIndex + 1) {
                             Text("Next: \(content.visibleSteps[session.stepIndex + 1].instruction)").font(.caption).foregroundStyle(.secondary)
                             Button("Next step") { change { $0.stepIndex += 1 } }
+                                .accessibilityIdentifier("home.make.next")
                         }
                         if session.stepIndex > 0 { Button("Previous step") { change { $0.stepIndex -= 1 } } }
                     }
@@ -446,6 +453,7 @@ struct HomePreparationScreen: View {
                 Section {
                     Button(content.method == .coldBrew ? "Finish batch" : "Finished") { finish(session, measured: true) }
                         .buttonStyle(.borderedProminent).tint(.mugshotSage)
+                        .accessibilityIdentifier("home.make.finish")
                     Button("I’ve already made it") { finish(session, measured: false) }
                 }
             } else if let session {
@@ -526,6 +534,10 @@ private struct HomeLinkedPreparationScreen: View {
                             Text(content.visibleSteps[progress.stepIndex].instruction).font(.headline)
                             if let water = content.cumulativeWater(through: progress.stepIndex) {
                                 LabeledContent("Cumulative water", value: "\(HomeRecipeContent.number(water)) g")
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityLabel("Cumulative water")
+                                    .accessibilityValue("\(HomeRecipeContent.number(water)) grams")
+                                    .accessibilityIdentifier("home.make.component.cumulative-water")
                             }
                             if progress.stepIndex + 1 < content.visibleSteps.count {
                                 Button("Next step") { update { $0.stepIndex += 1 } }

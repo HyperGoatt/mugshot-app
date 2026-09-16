@@ -8,245 +8,158 @@ last_verified: 2026-09-15
 
 ## Release state
 
-Work in progress on `codex/home-recipes-production`. The feature flag
-`MugshotRoadmap.homeRecipes.v1` defaults off. This is not a production-enabled,
-Simulator-accepted, hardware-accepted, or TestFlight-accepted release.
-The browser prototype remains a visual reference, not production navigation.
-Limited native smoke checks passed; the complete release acceptance matrix has
-not been run and the distinction below is intentional.
+The approved Home and Recipes plan is implemented in native source and locally
+accepted behind `MugshotRoadmap.homeRecipes.v1`, which still defaults off. The
+browser gallery remains design evidence rather than production navigation.
 
-## Implemented foundation
+Implementation acceptance is complete for the repository candidate: deterministic
+contracts, all hosted SQL contracts, real isolated Auth/API/Storage transport,
+the focused native model/store suite, the connected Simulator journeys, and the
+largest Dynamic Type journey pass. The disposable acceptance branch was deleted
+after verification. Production was not migrated, the flag was not enabled, and
+no physical-device or TestFlight acceptance is claimed.
 
-- Independent, name-only-valid recipe records with immutable versions and
-  coffee, component, drink, and custom starting templates.
-- Ingredients, source URL and credit, tags, safe bean/equipment snapshots,
-  preparation targets, ordered/timed steps, and typed custom fields.
-- Built-in preparation fields can be renamed, reordered and hidden per recipe;
-  stable metric identifiers retain calculation meaning and hidden values. The
-  optional configuration decodes older workspaces without a backfill.
-- Instructions can be hidden without deletion; guidance and cumulative pouring
-  targets use only visible steps. Older steps default visible.
-- Ratio/yield calculation, mixed incremental/cumulative pour steps, quantity
-  scaling without changing temperature, pressure, grind, or time.
-- Separate Home attempts with frozen targets, optional actuals, optional rating,
-  reaction, private note, next-time note, make-again intent, and local photos.
-- Two-surface quick logging, saved-entry detail, repeating with empty feedback,
-  save-as-recipe, favorite results, next-time reminders, and version history.
-- Attempt comparison presents recorded measurements, taste, beans and equipment
-  without causal claims. Recipe filters persist per account.
-- Remote conflicts pause synchronization without preventing local drafts or
-  private saves. Attempt-driven recipe updates validate linked references and
-  cycles atomically. Reminder authorization preserves newer session progress.
-- Resumable preparation sessions and timestamp-based optional timers; cold-brew
-  reminders and separately linked serving attempts.
-- Atomic account-scoped JSON persistence, draft restoration, verified guest
-  adoption, account cleanup, and a compare-and-swap synchronization contract.
-- Explicit owner binding on the workspace RPC prevents an account/token race
-  from writing one account's local document into another account's workspace.
-- Recipe-link sheets preserve the parent editor. Linked content is not expanded
-  into a parent publication projection. Cyclic references are rejected.
-- Linked component preparation persists its timer, step and readiness inside
-  the parent session, keyed by exact version, without creating child attempts.
-- Sharing begins after the local attempt is saved and uses the existing Sip
-  draft/outbox system, with empty private reflection fields and stable identity.
-- Explicit version attachments require an online audience/rights check and
-  confirmation. The existing publication worker holds a durable attachment
-  receipt; failed attachment setup remains retryable without another post.
-- Feed recipe actions, post attachments and recipes shared by friends have a
-  unified native detail route. Reference saving is separate from an editable
-  adaptation. Legacy values are retained without relabeling them as actuals or
-  targets; adaptation preserves credit and does not copy linked instructions.
-- Shared sources without copying rights retain only a reference in a new log;
-  protected instructions remain in the re-authorized viewing surface rather
-  than being persisted into an offline attempt snapshot.
+## Product behavior
 
-## Data ownership
+### Home and daily logging
 
-`HomeRecipeWorkspaceStore` owns the new local workspace under
+- Journal > Home retains independent My makes and Recipes collection state,
+  surfaces active batches and interrupted drafts first, and provides usuals,
+  recent makes, Earlier entries, intentional empty states, and the full library.
+- Add > Home and Recipe > Log a make attach a recipe without forcing guidance.
+  The first surface captures the creation and optional preparation/photo data;
+  the second captures optional rating, reaction, private note, make-again intent,
+  and next-time note. A photo-free, unrated entry is valid.
+- Saving always opens the real private attempt. Make again, Save as recipe, Share,
+  favorite-result, batch-serving, history, comparison, and next-time-note actions
+  operate on that saved attempt rather than a transient example.
+- Repeating retains the selected recipe version and targets while clearing old
+  actuals, photos, ratings, and reflections. A historical variation can be chosen
+  explicitly. Unchanged makes create no recipe version; Update my recipe appends
+  an immutable version and Just this time remains the default.
+
+### One flexible recipe system
+
+- Coffee preparation, Component, Complete drink, and Blank are starting templates,
+  not separate data models. Only the name is required.
+- New-recipe creation is template-first and progressively discloses inspiration,
+  beans/equipment, ingredients, instructions, yield/tags/notes, and custom fields.
+  Source-only and arbitrary custom recipes remain valid.
+- Search covers names, tags, methods, beans, and equipment. All, Coffee,
+  Components, Drinks, and user-tag filters coexist with pinned and recent recipes.
+- Built-in and custom fields can be renamed, reordered, hidden, and restored per
+  recipe. Stable metric identifiers preserve calculations independently of labels.
+- Inspiration links store Instagram, TikTok, or website URLs and creator credit;
+  unavailable links never block saving and no video extraction is promised.
+
+### Preparation breadth
+
+- Espresso starts at 18 g, 1:2, and 28 seconds. Ratio or yield can drive the
+  calculated counterpart. Grind, temperature, preinfusion, pressure, and notes
+  remain optional. Targets never become recorded actuals.
+- Pour-over starts at 20 g and 300 g with three editable steps: bloom to 60 g and
+  wait 40 seconds, pour to 180 g, then finish to 300 g at 1:20. Incremental and
+  cumulative water modes can be mixed; guidance exposes the current cumulative
+  target, next action, timer, and previous/next navigation.
+- Cold brew separates brew ratio, steep duration, and serving dilution. A batch
+  uses durable timestamps and optional reminders, resumes after relaunch, and can
+  produce multiple serving logs without duplicating batch production.
+- AeroPress, French press, immersion, moka pot, batch, pods, and unknown methods
+  receive sensible editable starting fields. Quantities scale by multiplier,
+  servings, or coffee dose without silently changing time, temperature, grind,
+  pressure, or steep duration, and without mass/volume conversion.
+- Components and drinks use ingredient checklists and ordered instructions. An
+  ingredient may point to an exact immutable recipe version and amount. Its detail
+  opens without losing parent edits. Preparation readiness is explicit and making
+  a parent drink never creates a child attempt unless the user separately logs one.
+
+### Discovery and sharing
+
+- Existing Feed, Saved, and shared-recipe entry points open the unified recipe
+  detail. An accessible recipe can be saved as a reference, made directly, or
+  adapted into an editable personal copy with retained attribution and rights.
+- Protected no-copy instructions are authorized for viewing/making without being
+  persisted into an offline attempt or adaptation. Archived versions remain
+  resolvable by historical attempts.
+- A private attempt is saved before the post composer opens. The composer uses the
+  attempt's real media, supports Friends or Everyone, previews the post payload,
+  and preserves its draft on failure.
+- Recipe attachments are explicit, version-specific, audience-checked, retry-safe,
+  and non-recursive. A parent never publishes linked component instructions.
+  Private notes, next-time notes, inventory, and private media paths are excluded.
+  Component-only, photo-free, and unrated posts remain valid.
+
+## Architecture and data ownership
+
+`HomeRecipeWorkspaceStore` owns an atomic account-scoped document under
 `Application Support/MugshotHomeRecipes/<account scope>/workspace-v1.json`.
-Photo files are account-scoped and use generated basenames. Private synchronization
-uses the existing owner-only `home-coffee-bag-photos` bucket under
-`<owner>/home-attempts/<generated basename>`, with durable per-account upload
-receipts, idempotent uploads and authenticated downloads. Foreground/network
-recovery coordinates workspace sync. Publishing still uses the separate existing
-publication media path only after Share. Owner exports include the local workspace,
-local attempt photos and, through additive export v4, the remote workspace. The
-existing owner media export/deletion allowlist already includes this private bucket.
+Recipes, immutable versions, attempts, frozen target snapshots, optional actuals,
+preparation sessions, batch references, drafts, preferences, and conflict state
+have typed identifiers. Account and operation fences prevent an old asynchronous
+task from applying after an account change. Guest adoption is verified and
+idempotent.
 
-Explicit conflict reconciliation retains displaced immutable versions for historical
-attempt lookup. New recipes depending on displaced versions become editable drafts
-instead of an invalid canonical graph. Divergent drafts remain separate; conflicting
-saved results and preparation progress require explicit choices in Home. Account and
-operation fences prevent an old async task from applying results after switching.
-Recovering the same conflicting attempt draft is idempotent, including when another
-device already saved its attempt. Saved result targets reflect the preparation
-chosen for that make; the original recipe snapshot and optional actuals stay separate.
-Positive-amount validation also applies to changes saved Just this time.
+Private attempt images use generated basenames in the existing owner-only
+`home-coffee-bag-photos` bucket under
+`<owner>/home-attempts/<generated basename>`. Durable receipts make uploads
+idempotent and allow authenticated downloads on another device. Owner export v4
+includes the workspace and private media; optional posting uses the separate
+publication media path only after Share.
 
-`home_recipe_workspaces` is an owner-readable, RPC-write-only synchronization
-document. The RPC atomically mirrors owned recipe identities and immutable
-versions into the existing recipe tables. Private full content is stored in
-`private.home_recipe_contents`; the shared projection and moderation input use
-the same recipe-field allowlist. No attempt reflection is included there.
-Nested targets, ingredients, linked references, custom fields, metric layout,
-beans and equipment are projected through explicit per-type allowlists rather
-than accepting arbitrary nested payloads. Existing adaptation source references
-cannot be erased by appending an unattributed version through the direct RPC.
+`home_recipe_workspaces` is owner-readable and RPC-write-only. The RPC binds the
+expected owner, compares revisions, mirrors recipe identities and immutable
+versions, and stores full private content in `private.home_recipe_contents`.
+Shared projections use explicit nested allowlists and retain source attribution.
+Linked-reference ownership and cycles are validated atomically. Conflicting edits
+preserve both drafts and displaced immutable versions for explicit reconciliation.
 
-The migration is additive. It does not backfill legacy measurements or fabricate
-visits for independent recipes. Legacy Home and `.recipe` entries keep their
-existing reading paths. Existing drafts with structured preparation, feedback,
-or photos retain the old composer until a lossless migration adapter is ready.
+The additive migrations do not fabricate journal visits, reinterpret ambiguous
+legacy values, or remove legacy `.recipe` reading paths. Existing structured
+legacy drafts remain in their lossless composer until a safe adapter exists.
 
-## Remaining release requirements
+## Verification record
 
-The following are not complete and must not be inferred from the foundation:
+Tier 4 acceptance used synthetic local data and a disposable, data-free Supabase
+branch containing all 177 repository migrations through
+`20260916020417_home_recipe_http_conflicts.sql`. Production reference
+`quskamnfwglctqewwfln` was never targeted.
 
-1. Runtime acceptance of inline Journal Home navigation, account-scoped collection
-   scroll restoration and Earlier Home entries. Legacy owner recipes open the unified
-   detail and can be explicitly adapted without interpreting ambiguous measurements.
-2. Full runtime acceptance of method-specific actuals, field customization and
-   linked component preparation.
-3. Full acceptance of Discovery/Feed/Saved routes, shared references, adaptations
-   and version-specific attachment selection, including nested sheet dismissal
-   and account changes while requests are in flight.
-4. Full source-rights, audience, blocked-user and moderation integration tests
-   against the complete migration stack. The new attachment harness uses
-   controlled legacy helper fixtures, not live production authorization.
-5. Runtime transport acceptance of private-photo continuity and recovery; the source
-   paths and explicit historical conflict reconciliation are now implemented.
-6. Runtime acceptance of method-relevant attempt comparisons, complete
-   accessibility review. Structural funnel instrumentation is implemented; validate
-   the event payload contract without collecting content.
-7. Representative legacy migration fixtures, full social authorization matrix,
-   consolidated Simulator journeys, and backward-compatible deployment review.
+- All 65 files in `supabase/tests` passed together. The seven formerly stale
+  provider-queue/moderation expectations now follow the current local-text and
+  reactive-human-moderation contract.
+- `qa/pglite/check-home-recipes.mjs` and the remote-screening hermetic contract
+  pass owner isolation, conflicts, cycles, projection allowlists, attribution,
+  audience consent, retry idempotency, and non-recursive privacy.
+- Hosted native acceptance on iOS 26.3 passed real Auth sign-in, workspace sync,
+  typed projection decoding, private JPEG upload/download into a second store,
+  immediate conflict recovery, account isolation, and unrated photo-free
+  publication. The same run passed all 21 `HomeRecipeWorkspaceTests`.
+- Simulator journeys pass independent creation and unrated logging for espresso,
+  pour-over, cold brew, component, complete drink, and blank recipes; guided
+  mixed-water pour-over; a cold-brew batch resumed after relaunch; exact-version
+  linked component preparation without a child attempt; and private saving.
+- The final consolidated iOS 26.3 bundle passed all 21 focused Home tests and all
+  three end-to-end journeys together with zero failures.
+- The linked component/drink journey also passes at
+  `accessibility-extra-extra-extra-large`. Preparation water rows expose explicit
+  accessibility labels, values, and stable identifiers.
+- The repository full-static gate passes 12 required checks with zero failures;
+  optional `pglast` parsing is skipped when that package is unavailable.
 
-These remain part of the user's requested release, not optional follow-up scope.
-Keep the rollout flag off and do not deploy this migration or merge as a
-release-ready feature until those requirements pass.
+The acceptance branch `home-recipes-acceptance`
+(`rfjbunvhidcyyzyzcyvh`) contained only synthetic `.invalid` users and disabled
+schedules. It was deleted after the final hosted runs, stopping its hourly charge.
 
-## Verification
+## Remaining rollout gates
 
-The focused hermetic contract is `node qa/pglite/check-home-recipes.mjs`.
-It covers owner isolation, expected-owner mismatch, immutable versions,
-compare-and-swap conflicts, idempotent operation retries, linked-reference
-ownership, cycle rejection, source-rights denial, explicit attachment consent,
-attachment retry deduplication and non-recursive visibility. Its social-access helper
-is a controlled fixture; it does not replace the full friendship/block/deletion
-suite or production migration verification.
+No implementation item from the approved Home and Recipes plan remains open in
+this source candidate. The following are release operations, not missing product
+scope:
 
-The initial foundation passed `scripts/verify-no-simulator.sh full-static`
-(12 passed, zero failed, one optional skip). A subsequent generic Debug
-app/test compile passed after adding the shared-recipe and attachment routes.
-These checks do not establish runtime or production acceptance.
-
-The final native increment compiled for generic iOS Simulator. The focused
-`HomeRecipeWorkspaceTests` and `PendingVisitOutboxTests` run passed 13 tests,
-zero failed or skipped. The attachment contract also passed after the
-audience/source-rights hardening.
-
-The bounded iOS 27 Simulator smoke check verified an unstructured photo-free,
-unrated make through two input surfaces; independent Save as recipe; an espresso
-target of 18 g × 1:2 = 36 g at 28 seconds; logging a 40.5 g actual without
-populating dose or time; persistence after app relaunch; and private-save-first
-sharing without a forced photo/rating. It caught and resolved a nested
-navigation-stack issue that had kept the saved-entry screen visible after Share.
-No remote post was submitted. Automated tap injection did not change screens;
-native accessibility actions provided the bounded smoke evidence instead.
-
-`HomeRecipeWorkspaceTests` covers calculation, missing actuals, scaling, mixed
-pour targets, custom fields, persistence, repeat clearing, version conflicts,
-cycle rejection, account isolation, and guest adoption. This does not substitute
-for the remaining six-method end-to-end, migration and remote-media acceptance.
-
-Required release gates remain repository Tier 3 deterministic checks followed
-by Tier 4 consolidated Simulator acceptance. Hardware and TestFlight are
-separate owner-promoted gates.
-
-The continuation passed the full-static gate (12 passed, zero failed, optional
-`pglast` parser skipped because it is not installed) and 16 focused native tests.
-The local contract now additionally checks nested projection allowlists and
-adaptation provenance. A bounded native check confirmed renaming a built-in dose
-label, hiding Temperature and retaining the 18 g to 36 g calculation on returning
-to the editor. This is not full journey acceptance. Synthetic launch mode was
-found attempting workspace sync to the configured backend; its unavailable RPC
-rejected the request, and an explicit UI-test guard now disables workspace sync
-for synthetic runs. No remote mutation or migration was performed.
-
-The latest continuity increment passed full-static (12 passed, zero failed, one
-optional parser skip), plus 71 focused tests covering Home, the publication outbox,
-recovery, account lifecycle and analytics. The expanded Home-only suite subsequently
-passed 16 tests, including hidden-step behavior. Mock transport coverage verifies
-photo retry receipts, downloads on a second local store, and account switching;
-this is not acceptance against live Storage.
-
-A bounded iOS 26.3 check verified direct Journal Home navigation, independent
-espresso recipe save (18 g, 1:2, 28 seconds), skipped guidance, a 37.5 g actual yield
-with unrecorded dose/time, unrated photo-free private saving, repeat clearing,
-private-note persistence, and a share preview excluding that note. It caught an
-adjusted-target display issue, now covered by a focused regression test. Attachment
-consent was cancelled without publishing; remote publication remains unaccepted.
-
-The consolidated local template test then passed on iOS 26.3: espresso, pour-over,
-cold brew, component, complete drink and custom recipes each saved to recipe detail
-and completed the two-surface log without photos or ratings. The combined run passed
-19 tests (18 Home model/store tests and one six-template UI journey), zero failures
-or skips. Screenshots are retained in its xcresult bundle. This test covers the
-common create/log loop, not detailed guidance, live discovery or remote posting.
-After the final Just this time validation fix, the generic Debug app/test compile
-and all 19 Home model/store tests passed again (zero failures or skips).
-Documentation validation and whitespace checks passed. No hardware or TestFlight
-acceptance is implied by these local results.
-
-### Isolated backend integration — September 15 continuation
-
-With owner approval, the data-free `home-recipes-acceptance` Supabase branch was
-created (`rfjbunvhidcyyzyzcyvh`, branch ID
-`c4ff1c10-7437-48f7-8490-15ba253d268f`). It remains available for acceptance at
-$0.01344/hour (about $0.32/day); delete it after acceptance. Production was not
-modified. All 177 repository migrations are aligned through
-`20260916020417_home_recipe_http_conflicts.sql`. Historical scheduler prerequisites
-use random dummy secrets, and every scheduled job is disabled. No production
-users, data, or operational secrets were copied.
-
-The real Auth/Data API/Storage harness passes six-template persistence, separate
-targets/actuals, owner isolation, immutable versions, retry idempotence, private
-photo byte round-trips and cross-account denial. Publication checks pass explicit
-attachment consent, Friends access, stranger/block denial, nonrecursive component
-privacy and owner export. The forward migration changes business conflicts from
-SQLSTATE `40001` (retried by PostgREST) to `PT409` (an immediate HTTP 409).
-
-Native publishing now accepts an unrated Home attempt using the existing wire
-sentinel `overall_score = 0` with empty ratings; this is not a user rating.
-It omits the legacy rated reflection and renders an Unrated post badge. Cafe and
-Elsewhere score validation remains unchanged. The opt-in hosted Swift test uses
-synthetic QA credentials in process environment only; ordinary tests skip it.
-
-The hosted native acceptance passed on iOS 26.3: a real Auth sign-in, recipe and
-attempt sync, private JPEG upload/download into a second local store, typed recipe
-projection decoding, immediate conflict detection and reconciliation, account
-isolation, and unrated/photo-free publication through `VisitService`. The same
-run passed all 20 focused Home model/store tests (21 total, no failures or skips).
-The unsigned test build uses an isolated in-memory Auth session because Keychain
-is unavailable; production authentication storage is unchanged. A stalled initial
-Simulator launch was recovered; it is not counted as evidence. The final generic
-Debug compile, script syntax checks, documentation checker and whitespace check
-also passed. Full-static previously passed 12 checks with one optional parser skip.
-
-The full hosted SQL regression run passed 58 of 65 contracts. Seven remain red:
-`alpha_activity_delivery_hardening_security`,
-`alpha_collaborative_cafe_lists_contract`, `sprint1_canonical_post_screening`,
-`sprint1_existing_revision_visibility`, `sprint1_legacy_projection_screening`,
-`sprint1_profile_live_projection`, and `sprint1_screening_queue_contract`.
-Inspection identifies obsolete provider-pending/queue assumptions and a function
-body assertion that does not follow the new push wrapper. They have not been
-silently skipped or declared accepted. Reconcile these against current moderation
-policy before a clean integrated release gate; do not restore retired provider work.
-
-The security advisor reports no ERROR-level finding. It reports 44 private-table
-no-policy notices and executable-security-definer warnings (29 anonymous, 202
-authenticated), including intended owner-bound Home RPCs. These are not a blanket
-security approval. See Supabase guidance for [deny-by-default RLS tables](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
-[anonymous definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable),
-and [authenticated definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
-The complete release flag remains off; no hardware or TestFlight gate was run.
+1. Deploy the reviewed additive migrations through the normal production
+   preservation workflow and verify migration/history parity.
+2. Enable the native flag only after the production capability is present; the
+   rollback path must keep saved data readable while the flag is off.
+3. Run physical-device acceptance only when the owner promotes the candidate.
+4. Archive, upload, or assign a TestFlight build only after an explicit TestFlight
+   request and the required Simulator and connected-iPhone gates.

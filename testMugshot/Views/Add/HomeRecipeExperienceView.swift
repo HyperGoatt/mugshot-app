@@ -5,6 +5,18 @@ private enum HomeRecipeRoute: Hashable {
     case recipe(UUID), attempt(UUID), preparation(UUID), log(UUID)
 }
 
+private enum HomeRecipeEditorSheet: Identifiable {
+    case create
+    case edit(HomeRecipeEditorDraft)
+
+    var id: String {
+        switch self {
+        case .create: "create"
+        case .edit(let draft): "edit-\(draft.id.uuidString)"
+        }
+    }
+}
+
 struct HomeRecipeExperienceView: View {
     let ownerID: UUID?
     var initialAttempt: HomeAttemptRecord?
@@ -20,8 +32,9 @@ struct HomeRecipeExperienceView: View {
     @SceneStorage private var tab: String
     @SceneStorage private var query: String
     @SceneStorage private var filterValue: String
+    @SceneStorage private var selectedTag: String
     private var filter: HomeRecipeTemplate? { HomeRecipeTemplate(rawValue: filterValue) }
-    @State private var editor: HomeRecipeEditorDraft?
+    @State private var editorSheet: HomeRecipeEditorSheet?
     @State private var openedInitial = false
     @State private var sharedRecipe: HomeLinkedRecipeSheet?
 
@@ -39,6 +52,7 @@ struct HomeRecipeExperienceView: View {
         _tab = SceneStorage(wrappedValue: "My makes", "home.recipes.\(account).tab")
         _query = SceneStorage(wrappedValue: "", "home.recipes.\(account).query")
         _filterValue = SceneStorage(wrappedValue: "", "home.recipes.\(account).filter")
+        _selectedTag = SceneStorage(wrappedValue: "", "home.recipes.\(account).tag")
     }
 
     var body: some View {
@@ -80,14 +94,14 @@ struct HomeRecipeExperienceView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button(tab == "Recipes" ? "New recipe" : "Log a make", systemImage: "plus") {
-                        if tab == "Recipes" { editor = HomeRecipeEditorDraft() } else { startLog(nil) }
+                        if tab == "Recipes" { editorSheet = .create } else { startLog(nil) }
                     }
                 }
             }
             .navigationDestination(for: HomeRecipeRoute.self) { route in
                 switch route {
                 case .recipe(let id):
-                    HomeRecipeDetailScreen(store: store, recipeID: id, onEdit: { editor = $0 },
+                    HomeRecipeDetailScreen(store: store, recipeID: id, onEdit: { editorSheet = .edit($0) },
                         onLog: { startLog($0) }, onMake: { startMaking($0) },
                         onAttempt: { path.append(.attempt($0)) })
                 case .attempt(let id):
@@ -108,7 +122,7 @@ struct HomeRecipeExperienceView: View {
                             serving.actuals = HomeAttemptActuals()
                             perform { try store.saveAttemptDraft(serving); path.append(.log(serving.id)) }
                         },
-                        onSaveRecipe: { editor = HomeRecipeEditorDraft(content: $0) }, onShare: share)
+                        onSaveRecipe: { editorSheet = .edit(HomeRecipeEditorDraft(content: $0)) }, onShare: share)
                 case .preparation(let id):
                     HomePreparationScreen(store: store, sessionID: id) { attempt in
                         perform { try store.saveAttemptDraft(attempt); path.append(.log(attempt.id)) }
@@ -122,10 +136,13 @@ struct HomeRecipeExperienceView: View {
                     } else { ContentUnavailableView("Draft unavailable", systemImage: "doc") }
                 }
             }
-            .sheet(item: $editor) { draft in
-                NavigationStack {
-                    HomeRecipeEditorView(store: store, draft: draft) { id in
-                        path.append(.recipe(id))
+            .sheet(item: $editorSheet) { destination in
+                switch destination {
+                case .create:
+                    HomeRecipeCreationFlow(store: store) { id in path.append(.recipe(id)) }
+                case .edit(let draft):
+                    NavigationStack {
+                        HomeRecipeEditorView(store: store, draft: draft) { id in path.append(.recipe(id)) }
                     }
                 }
             }
@@ -231,11 +248,16 @@ struct HomeRecipeExperienceView: View {
                     Button(draft.name.isEmpty ? "Unfinished make" : draft.name) { path.append(.log(draft.id)) }
                 }
                 ForEach(store.workspace.recipeDrafts) { draft in
-                    Button(draft.content.name.isEmpty ? "Unfinished recipe" : draft.content.name) { editor = draft }
+                    Button(draft.content.name.isEmpty ? "Unfinished recipe" : draft.content.name) { editorSheet = .edit(draft) }
                 }
             }
         }
         Section("Your usuals") {
+            if store.workspace.usuals.isEmpty {
+                Label("Pin a favorite recipe or make one once to keep it close.", systemImage: "pin")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(store.workspace.usuals.prefix(5)) { recipe in
                 if let content = recipe.current?.content {
                     Button { startLog(recipe) } label: { HomeRecipeRow(content: content) }
@@ -283,11 +305,22 @@ struct HomeRecipeExperienceView: View {
                 Text("Components").tag(HomeRecipeTemplate.component as HomeRecipeTemplate?)
                 Text("Drinks").tag(HomeRecipeTemplate.drink as HomeRecipeTemplate?)
             }.pickerStyle(.segmented)
+            if !availableTags.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        tagButton("All tags", value: "")
+                        ForEach(availableTags, id: \.self) { tag in tagButton(tag, value: tag) }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .accessibilityLabel("Recipe tags")
+            }
         }
         Section("Your recipes") {
             let visible = store.workspace.recipes.filter {
                 !$0.isArchived && (filter == nil || $0.current?.content.template == filter)
                     && (query.isEmpty || $0.current?.content.searchText.contains(query.lowercased()) == true)
+                    && (selectedTag.isEmpty || $0.current?.content.tags.contains(where: { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) == true)
             }.sorted { lhs, rhs in
                 if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
                 return (lhs.lastUsedAt ?? lhs.current?.createdAt ?? .distantPast) > (rhs.lastUsedAt ?? rhs.current?.createdAt ?? .distantPast)
@@ -297,9 +330,33 @@ struct HomeRecipeExperienceView: View {
                     Button { path.append(.recipe(recipe.id)) } label: { HomeRecipeRow(content: content) }
                 }
             }
-            if visible.isEmpty { Text(query.isEmpty ? "Save something you want to make." : "No matching recipes.").foregroundStyle(.secondary) }
-            Button("New recipe", systemImage: "plus") { editor = HomeRecipeEditorDraft() }
+            if visible.isEmpty {
+                ContentUnavailableView(
+                    query.isEmpty && selectedTag.isEmpty ? "No recipes yet" : "No matching recipes",
+                    systemImage: "book.closed",
+                    description: Text(query.isEmpty && selectedTag.isEmpty
+                        ? "Save a coffee, component, drink, or anything you want to make again."
+                        : "Try a different search, type, or tag.")
+                )
+            }
+            Button("New recipe", systemImage: "plus") { editorSheet = .create }
         }
+    }
+
+    private var availableTags: [String] {
+        Array(Set(store.workspace.recipes.filter { !$0.isArchived }.flatMap { $0.current?.content.tags ?? [] }))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func tagButton(_ title: String, value: String) -> some View {
+        Button(title) { selectedTag = value }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .foregroundStyle(selectedTag == value ? Color.foamWhite : Color.mugshotSageText)
+            .background(selectedTag == value ? Color.mugshotSage : Color.sandBeige, in: Capsule())
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selectedTag == value ? .isSelected : [])
     }
 
     private func startLog(_ recipe: HomeRecipeRecord?, setup: HomeRecipeContent? = nil) {

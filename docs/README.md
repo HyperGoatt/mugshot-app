@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
 
 # Mugshot documentation
@@ -16,6 +16,7 @@ with it.
 | Document | Authority |
 | --- | --- |
 | [Current product status](CURRENT_PRODUCT_STATUS.md) | Shipped behavior, validation state, and release gates |
+| [Home and Recipes implementation](HOME_RECIPES_IMPLEMENTATION.md) | Native product, data ownership, acceptance evidence, and rollout boundary |
 | [Feature status matrix](FEATURE_STATUS_MATRIX.md) | Feature-by-feature implementation and risk status |
 | [Real data flow status](REAL_DATA_FLOW_STATUS.md) | Remote authority, local fallback, and ownership boundaries |
 | [Repository map](REPO_MAP.md) | App, target, service, test, and backend architecture |

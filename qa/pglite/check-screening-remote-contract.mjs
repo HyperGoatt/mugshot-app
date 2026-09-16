@@ -9,7 +9,11 @@ try {
  create table private.moderation_operators(user_id uuid,is_active boolean,role text);
  create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
  create function private.is_live_account_as(id uuid) returns boolean language sql stable as $$select true$$;`)
- for(const name of ['20260913025947_sprint1_screening_queue','20260913045917_sprint1_screening_rate_limits']) await db.exec(await fs.readFile(new URL(`../../supabase/migrations/${name}.sql`,import.meta.url),'utf8'))
+ for(const name of [
+  '20260913025947_sprint1_screening_queue',
+  '20260913045917_sprint1_screening_rate_limits',
+  '20260914145946_local_text_and_reactive_moderation',
+ ]) await db.exec(await fs.readFile(new URL(`../../supabase/migrations/${name}.sql`,import.meta.url),'utf8'))
  const source=await fs.readFile(new URL('../../supabase/tests/sprint1_screening_queue_contract.sql',import.meta.url),'utf8')
  await db.exec(source.replace(/^\s*\\[^\n]*(?:\n|$)/gm,''))
  console.log('PASS remote screening SQL contract in hermetic PostgreSQL; full-history remote run remains required')

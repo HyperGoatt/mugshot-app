@@ -4,26 +4,22 @@ status: current
 last_verified: 2026-09-15
 ---
 
-Home/Recipes amendment (2026-09-15): migration
-`20260915212702_home_recipe_workspace.sql` is additive work in progress,
-deployed only to isolated QA, not production. It introduces owner-bound workspace
-synchronization and private version content. Do not enable the native flag or deploy until the outstanding
-[release requirements](HOME_RECIPES_IMPLEMENTATION.md) are accepted. No legacy
-measurement backfill is performed.
-The unreleased migration now also applies nested projection allowlists and
-prevents appending a version that drops established source attribution. These
-contracts passed the local PGlite harness, not a production migration run.
-The same unreleased migration adds owner export v4 while preserving v3 collections.
-Attempt media uses owner-prefixed `home-attempts` objects in the existing private
-Home bucket; no bucket is made public and no storage policy is widened.
+Home/Recipes amendment (2026-09-15): additive migrations
+`20260915212702_home_recipe_workspace.sql` through
+`20260916020417_home_recipe_http_conflicts.sql` are implementation-complete but
+not production-deployed. They introduce owner-bound workspace synchronization,
+private version content, nested projection allowlists, attribution preservation,
+owner export v4, private attempt-media paths, and immediate HTTP 409 conflicts.
+They do not backfill ambiguous legacy measurements, make a bucket public, or widen
+Storage access.
 
-Owner-approved `home-recipes-acceptance` now holds all 177 repository migrations,
-including forward fix `20260916020417_home_recipe_http_conflicts.sql`. The isolated
-branch has all schedules disabled and no production data or credentials. Real
-Home Auth/API/Storage acceptance passes; the broad SQL gate is 58/65, with seven
-older moderation/push contract failures still requiring reconciliation. See the
-[current evidence and branch lifecycle](HOME_RECIPES_IMPLEMENTATION.md#isolated-backend-integration--september-15-continuation).
-No production deployment or native flag activation was performed.
+The owner-approved data-free `home-recipes-acceptance` branch aligned all 177
+repository migrations with schedules disabled. All 65 SQL contracts, the real
+Home Auth/API/Storage harness, and native hosted transport passed. The synthetic
+branch was then deleted and its absence verified. Production was not modified and
+the native flag was not enabled. Follow the normal preservation/deployment sequence
+before production activation. See the
+[current evidence and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

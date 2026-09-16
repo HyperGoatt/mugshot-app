@@ -6,13 +6,14 @@ last_verified: 2026-09-15
 
 # Product roadmap
 
-## In progress: native Home and Recipes
+## Implementation complete; production rollout held: native Home and Recipes
 
-Deliver the complete find/create → save → make/log → reflect → improve → share
-loop in the native app. The independent recipe and private-attempt foundation is
-behind a default-off flag; it is not the completed release. Finish discovery,
-explicit recipe attachments, continuity, compatibility and integrated acceptance
-before rollout. [Milestone status and remaining requirements](HOME_RECIPES_IMPLEMENTATION.md).
+The complete find/create → save → make/log → reflect → improve → share loop is
+implemented and locally/isolated-backend accepted. The default-off flag remains
+the release boundary. Next steps are production migration through the preservation
+workflow, capability verification, flag activation, and owner-promoted physical
+and TestFlight gates—not additional product scope.
+[Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning
 

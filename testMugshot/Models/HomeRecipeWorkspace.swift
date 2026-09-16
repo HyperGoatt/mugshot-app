@@ -181,6 +181,60 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     var sourceReuseAllowed: Bool?
     var metricConfiguration: [HomeRecipeMetricConfiguration]?
 
+    static func starting(_ template: HomeRecipeTemplate) -> Self {
+        var content = Self()
+        content.template = template
+        if template == .coffee {
+            content.method = .espresso
+            content.targets = defaultTargets(for: .espresso)
+        }
+        return content
+    }
+
+    static func defaultTargets(for method: HomeBrewMethod) -> HomeRecipeTargets {
+        switch method {
+        case .espresso:
+            return HomeRecipeTargets(dose: 18, ratio: 2, calculation: .ratio, seconds: 28)
+        case .pourOver:
+            return HomeRecipeTargets(dose: 20, ratio: 15, calculation: .ratio, seconds: 180)
+        case .aeroPress:
+            return HomeRecipeTargets(dose: 15, ratio: 16, calculation: .ratio, seconds: 120)
+        case .frenchPress:
+            return HomeRecipeTargets(dose: 30, ratio: 16.67, calculation: .ratio, steepSeconds: 240)
+        case .immersion:
+            return HomeRecipeTargets(dose: 20, ratio: 16, calculation: .ratio, steepSeconds: 180)
+        case .mokaPot:
+            return HomeRecipeTargets(dose: 18, ratio: 8, calculation: .ratio, seconds: 300)
+        case .coldBrew:
+            return HomeRecipeTargets(dose: 100, ratio: 8, calculation: .ratio, steepSeconds: 57_600)
+        case .batch:
+            return HomeRecipeTargets(dose: 60, ratio: 16.67, calculation: .ratio, seconds: 360)
+        case .pod:
+            return HomeRecipeTargets(output: 180, calculation: .output, seconds: 30)
+        case .other:
+            return HomeRecipeTargets()
+        }
+    }
+
+    static func defaultSteps(for method: HomeBrewMethod) -> [HomePreparationStep] {
+        guard method == .pourOver else { return [] }
+        return [
+            HomePreparationStep(instruction: "Bloom", waitSeconds: 40, waterGrams: 60, waterMode: .cumulative),
+            HomePreparationStep(instruction: "Pour steadily", waterGrams: 180, waterMode: .cumulative),
+            HomePreparationStep(instruction: "Finish the pour", startSeconds: 80, waterGrams: 300, waterMode: .cumulative)
+        ]
+    }
+
+    mutating func changeMethod(from oldMethod: HomeBrewMethod, to newMethod: HomeBrewMethod) {
+        if targets == Self.defaultTargets(for: oldMethod) || !isActionable {
+            targets = Self.defaultTargets(for: newMethod)
+        }
+        if steps.isEmpty || steps == Self.defaultSteps(for: oldMethod) {
+            steps = Self.defaultSteps(for: newMethod)
+        }
+        method = newMethod
+    }
+
     var configuredMetrics: [HomeRecipeMetricConfiguration] {
         metricConfiguration ?? HomeRecipeMetric.allCases.map {
             HomeRecipeMetricConfiguration(metric: $0, label: $0.label,

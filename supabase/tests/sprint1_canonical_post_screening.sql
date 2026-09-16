@@ -11,10 +11,15 @@ begin
  update public.visit_v3_reflections set sip_raw_note='SHARED RAW NOTE',context_raw_note=null,raw_note_visibility='everyone' where visit_v3_reflections.visit_id=test_visit;
  select j.payload->>'text' into payload from private.screening_jobs j where subject_kind='visit' and subject_id=test_visit;
  if payload not like '%SHARED RAW NOTE%' then raise exception 'reflection edit did not refresh';end if;
- if public.get_canonical_post_v1(test_visit) is not null then raise exception 'pending canonical post exposed';end if;
- perform pg_temp.approve_shared_fixture('visit',test_visit);
+ if not exists(select 1 from private.screening_jobs where subject_kind='visit' and subject_id=test_visit
+   and state='approved' and reason='local_text_filter') then raise exception 'safe canonical post was not locally admitted';end if;
  projection:=public.get_canonical_post_v1(test_visit);
  if projection is null or projection->'journal_note'->>'sip_note' is distinct from 'SHARED RAW NOTE' or projection::text like '%PRIVATE EXTRA%' then raise exception 'canonical admitted projection mismatch';end if;
+ update private.screening_jobs set state='rejected',reason='human_review'
+ where subject_kind='visit' and subject_id=test_visit;
+ if public.get_canonical_post_v1(test_visit) is not null then raise exception 'rejected canonical post exposed';end if;
+ update private.screening_jobs set state='approved',reason='human_review'
+ where subject_kind='visit' and subject_id=test_visit;
  update public.visits set visibility='private' where id=test_visit;
  if exists(select 1 from private.screening_jobs where subject_kind='visit' and subject_id=test_visit) then raise exception 'Private post was queued';end if;
 end;

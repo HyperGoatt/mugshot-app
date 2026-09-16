@@ -6,22 +6,23 @@ last_verified: 2026-09-15
 
 ## Native Home and Recipes — 2026-09-15
 
-The new native Home/Recipes foundation is implemented behind a default-off flag,
-not released. Existing production Home and recipe behavior remains the default.
-See [implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md) for
-the exact boundary; shared-recipe and attachment paths are present in source,
-but continuity, migration and integrated acceptance remain required before enabling it.
-The continuation adds configurable preparation fields, linked-component progress,
-recorded-attempt comparisons and stronger nested publication projections; these
-do not change the disabled release status.
-The latest continuation adds direct Journal Home navigation, collection scroll state,
-private media synchronization, coordinated recovery, owner export v4, and explicit
-conflict review. These are implemented, not yet production-configured or accepted.
-An owner-approved isolated database now has all 177 migrations. Real Home
-Auth/API/Storage and sharing-boundary checks pass; production is untouched.
-The real native transport journey plus 20 Home model/store tests also pass.
-The complete hosted SQL gate is 58/65 and remains a release blocker. Detailed
-evidence and the temporary branch lifecycle are in the implementation document.
+The complete native Home/Recipes plan is implemented and locally accepted behind
+a default-off flag. Existing production Home and recipe behavior remains the
+default because the additive backend has not been deployed to production and the
+flag has not been enabled.
+
+The source includes template-first progressive recipe creation, two-surface quick
+logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,
+exact-version linking, custom fields, immutable history, comparison and repeat,
+discovery/adaptation, private-save-first posting, explicit attachments, durable
+recovery, private media synchronization, owner export, and conflict review.
+
+All 65 SQL contracts passed against an isolated 177-migration database. Real
+Auth/API/Storage transport plus all 21 Home model/store tests passed on iOS 26.3.
+The complete connected journeys and largest Dynamic Type route pass. The synthetic
+branch was deleted after acceptance; production is untouched. Physical-device and
+TestFlight acceptance remain owner-promoted gates. See
+[implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Zoom-adaptive Map pins — 2026-09-14
 

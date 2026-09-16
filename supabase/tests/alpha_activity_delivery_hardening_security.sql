@@ -35,6 +35,9 @@ declare
   badge_revalidation_body text := pg_get_functiondef(
     'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)'::regprocedure
   );
+  badge_revalidation_base_body text := pg_get_functiondef(
+    'public.revalidate_activity_push_delivery_before_copy(uuid,uuid,bigint)'::regprocedure
+  );
   badge_registration_body text := pg_get_functiondef(
     'public.register_user_device_v3(uuid,text,text,boolean)'::regprocedure
   );
@@ -49,6 +52,9 @@ begin
      ) is null
      or to_regprocedure(
        'public.revalidate_activity_push_delivery_v3(uuid,uuid,bigint)'
+     ) is null
+     or to_regprocedure(
+       'public.revalidate_activity_push_delivery_before_copy(uuid,uuid,bigint)'
      ) is null
      or to_regprocedure(
        'public.register_user_device_v3(uuid,text,text,boolean)'
@@ -125,10 +131,14 @@ begin
   if badge_registration_body not ilike '%register_user_device_v2%'
      or badge_registration_body not ilike '%device.user_id = actor%'
      or badge_registration_body not ilike '%supports_badge_sync%'
-     or badge_revalidation_body not ilike '%revalidate_activity_push_delivery_v2%'
-     or badge_revalidation_body not ilike '%activity_event_is_visible%'
-     or badge_revalidation_body not ilike '%event.read_at is null%'
-     or badge_revalidation_body not ilike '%supports_badge_sync%' then
+     or badge_revalidation_body not ilike '%revalidate_activity_push_delivery_before_copy%'
+     or badge_revalidation_body not ilike '%activity_display_copy_v1%'
+     or badge_revalidation_body not ilike '%claim_token=p_claim_token%'
+     or badge_revalidation_body not ilike '%lease_version=p_lease_version%'
+     or badge_revalidation_base_body not ilike '%revalidate_activity_push_delivery_v2%'
+     or badge_revalidation_base_body not ilike '%activity_event_is_visible%'
+     or badge_revalidation_base_body not ilike '%event.read_at is null%'
+     or badge_revalidation_base_body not ilike '%supports_badge_sync%' then
     raise exception 'badge registration or authoritative unread revalidation is incomplete';
   end if;
 

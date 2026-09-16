@@ -241,6 +241,38 @@ struct HomeRecipeWorkspaceTests {
         #expect(content.targets.resolvedRatio == nil)
     }
 
+    @Test func startingTemplatesStayFlexibleAndCoffeeDefaultsAreMethodAware() {
+        let espresso = HomeRecipeContent.starting(.coffee)
+        #expect(espresso.template == .coffee)
+        #expect(espresso.method == .espresso)
+        #expect(espresso.targets.dose == 18)
+        #expect(espresso.targets.resolvedOutput == 36)
+        #expect(espresso.targets.seconds == 28)
+
+        var pourOver = espresso
+        pourOver.changeMethod(from: .espresso, to: .pourOver)
+        #expect(pourOver.targets.dose == 20)
+        #expect(pourOver.targets.resolvedOutput == 300)
+        #expect(pourOver.steps.count == 3)
+        #expect(pourOver.cumulativeWater(through: 0) == 60)
+        #expect(pourOver.cumulativeWater(through: 2) == 300)
+
+        var customEspresso = espresso
+        customEspresso.targets.dose = 19
+        customEspresso.changeMethod(from: .espresso, to: .coldBrew)
+        #expect(customEspresso.targets.dose == 19, "Changing methods must not overwrite deliberate values")
+        #expect(customEspresso.steps.isEmpty)
+
+        for template in HomeRecipeTemplate.allCases {
+            var content = HomeRecipeContent.starting(template)
+            content.name = "Anything"
+            content.ingredients = [HomeRecipeIngredient(name: "Optional", amount: 1, unit: "part")]
+            content.steps = [HomePreparationStep(instruction: "Do the useful thing")]
+            content.fields = [HomeCustomField(label: "My field", value: "My value")]
+            #expect(content.validationMessage == nil)
+        }
+    }
+
     @Test func scalingAndMixedPourStepsPreserveNonQuantitySettings() {
         var content = espresso()
         content.targets.temperature = 94

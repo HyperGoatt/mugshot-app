@@ -4,24 +4,18 @@ status: current
 last_verified: 2026-09-15
 ---
 
-## Native Home and Recipes — flag-off implementation
+## Native Home and Recipes — implementation complete, flag off
 
-Independent recipes, private attempts, quick logging and preparation have an
-initial native implementation. The complete release is **not accepted**; shared
-recipe discovery and explicit attachment recovery now have native paths, but
-their integrated acceptance plus continuity and migration work remain.
-Field configuration, component preparation and comparison surfaces are now in
-source; 16 focused native tests and a bounded field-editor smoke check passed.
-[Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
-Private-photo transport, recovery coordination, export v4 and explicit conflict
-review are now in source, alongside direct Journal Home navigation. A hermetic test
-also exercises Home projections with the actual recipient/screening policy functions.
-Isolated hosted Home Auth/API/Storage checks now pass against the complete
-177-migration schema, including owner isolation, media round-trips and explicit
-attachment privacy. This is QA-configured, not production-configured. Seven older
-contracts fail in the broad 65-contract run; full integrated release remains held.
-Native hosted sync/media/conflict/publication acceptance and 20 focused Home tests
-pass on iOS 26.3; this does not replace the complete release journey matrix.
+Independent recipes, private attempts, quick logging, flexible preparation,
+linked components, discovery/adaptation, improvement history, and optional
+sharing are implemented through the complete planned loop. All 65 hosted SQL
+contracts, real isolated Auth/API/Storage transport, 21 Home model/store tests,
+the connected Simulator journeys, and the largest Dynamic Type route pass.
+
+This evidence is local/isolated QA, not production configuration. The disposable
+177-migration branch was deleted after acceptance. Production migration, flag
+activation, physical-device acceptance, and TestFlight acceptance remain separate
+release gates. [Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Explicit profile identity setup — 2026-09-14
 

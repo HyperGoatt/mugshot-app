@@ -9,6 +9,7 @@ declare
   first_job private.screening_jobs;
   next_job private.screening_jobs;
   client_role text;
+  forbidden_blocked boolean:=false;
 begin
   if not exists(select 1 from auth.users where id=qa_owner_id and email='alpha-fixture-1@example.invalid') then
     raise exception 'disposable QA fixture required';
@@ -21,29 +22,35 @@ begin
       raise exception 'screening worker boundary exposed to %',client_role;
     end if;
   end loop;
-  -- Isolate queue selection; all changes are rolled back below.
-  update private.screening_jobs set available_at=now()+interval '1 day',lease_until=null;
-  delete from private.screening_owner_budget where screening_owner_budget.owner_id=qa_owner_id;
-  update private.screening_dispatch_budget set claimed=0;
+  -- External provider dispatch is retired. Safe text is admitted locally while
+  -- the same sealed table continues to hold reactive moderation decisions.
   perform private.enqueue_screening_v1('visit',item_id,qa_owner_id,'{"text":"Synthetic shared text","images":[]}'::jsonb);
-  select * into first_job from public.claim_screening_jobs_v1(1);
-  if first_job.subject_id is distinct from item_id or first_job.lease_token is null then
-    raise exception 'eligible synthetic revision was not leased';
+  select * into first_job from private.screening_jobs where subject_kind='visit' and subject_id=item_id;
+  if first_job.state is distinct from 'approved' or first_job.reason is distinct from 'local_text_filter'
+    or first_job.lease_token is not null then
+    raise exception 'safe synthetic revision was not admitted locally';
+  end if;
+  if exists(select 1 from public.claim_screening_jobs_v1(1)) then
+    raise exception 'retired provider queue still leased work';
   end if;
   perform private.enqueue_screening_v1('visit',item_id,qa_owner_id,'{"text":"Edited synthetic text","images":[]}'::jsonb);
-  if public.finish_screening_job_v1('visit',item_id,first_job.revision,first_job.lease_token,'approved','{"categories":{"sexual":false}}'::jsonb) then
-    raise exception 'stale screening result approved edited content';
-  end if;
-  select * into next_job from public.claim_screening_jobs_v1(1);
-  if next_job.revision is not distinct from first_job.revision then
+  select * into next_job from private.screening_jobs where subject_kind='visit' and subject_id=item_id;
+  if next_job.revision is not distinct from first_job.revision or next_job.state is distinct from 'approved' then
     raise exception 'shared edit did not create a new revision';
-  end if;
-  if not public.finish_screening_job_v1('visit',item_id,next_job.revision,next_job.lease_token,'approved','{"categories":{"sexual":false}}'::jsonb) then
-    raise exception 'current unflagged revision was not approved';
   end if;
   if not private.screening_approved_v1('visit',item_id) then
     raise exception 'approved revision is not publishable';
   end if;
+  begin
+    perform private.enqueue_screening_v1('visit',item_id,qa_owner_id,'{"text":"I will kill you","images":[]}'::jsonb);
+  exception when sqlstate '22023' then forbidden_blocked:=true;
+  end;
+  if not forbidden_blocked then raise exception 'forbidden local text was admitted';end if;
+  if not private.screening_approved_v1('visit',item_id) then raise exception 'rejected edit damaged the last admitted revision';end if;
+  update private.screening_jobs set state='rejected',reason='human_review'
+  where subject_kind='visit' and subject_id=item_id;
+  perform private.enqueue_screening_v1('visit',item_id,qa_owner_id,'{"text":"Another safe edit","images":[]}'::jsonb);
+  if private.screening_approved_v1('visit',item_id) then raise exception 'safe edit cleared a genuine rejection';end if;
   perform private.enqueue_screening_v1('visit',item_id,qa_owner_id,null);
   if private.screening_approved_v1('visit',item_id)
     or exists(select 1 from private.screening_jobs where subject_kind='visit' and subject_id=item_id) then
