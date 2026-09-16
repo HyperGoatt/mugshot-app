@@ -130,6 +130,16 @@ struct SipPostPublicationSetupWorker {
             }
         }
 
+        if submission.needsHomeRecipeAttachmentsCompletion {
+            do {
+                try await HomeRecipeWorkspaceService(client: client).attachRecipes(
+                    submission.homeRecipeAttachments ?? [], visitID: submission.id, ownerID: submission.userId)
+                updatedSubmission = try saveReceipt(updatedSubmission) { $0.homeRecipeAttachmentsCompletedAt = .now }
+            } catch {
+                failedActions.append("its recipe attachments")
+            }
+        }
+
         let warning = failedActions.isEmpty
             ? nil
             : "Your MugShot is safely published. Mugshot will retry \(failedActions.joined(separator: ", ")) without publishing a duplicate."

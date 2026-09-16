@@ -1,8 +1,28 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## Native Home and Recipes — 2026-09-15
+
+The complete native Home/Recipes plan is implemented and locally accepted behind
+a default-off flag. Existing production Home and recipe behavior remains the
+default because the additive backend has not been deployed to production and the
+flag has not been enabled.
+
+The source includes template-first progressive recipe creation, two-surface quick
+logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,
+exact-version linking, custom fields, immutable history, comparison and repeat,
+discovery/adaptation, private-save-first posting, explicit attachments, durable
+recovery, private media synchronization, owner export, and conflict review.
+
+All 65 SQL contracts passed against an isolated 177-migration database. Real
+Auth/API/Storage transport plus all 21 Home model/store tests passed on iOS 26.3.
+The complete connected journeys and largest Dynamic Type route pass. The synthetic
+branch was deleted after acceptance; production is untouched. Physical-device and
+TestFlight acceptance remain owner-promoted gates. See
+[implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Zoom-adaptive Map pins — 2026-09-14
 

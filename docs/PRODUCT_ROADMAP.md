@@ -1,10 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-09-15
 ---
 
 # Product roadmap
+
+## Implementation complete; production rollout held: native Home and Recipes
+
+The complete find/create → save → make/log → reflect → improve → share loop is
+implemented and locally/isolated-backend accepted. The default-off flag remains
+the release boundary. Next steps are production migration through the preservation
+workflow, capability verification, flag activation, and owner-promoted physical
+and TestFlight gates—not additional product scope.
+[Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning
 

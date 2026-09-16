@@ -1,8 +1,43 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## 2026-09-15 — Native Home and Recipes implementation complete (flag off)
+
+- Completed the find/create → save → make or quick-log → reflect → improve →
+  optionally share loop in native source. Home now has persistent My makes and
+  Recipes collections, usuals, active batches/drafts, intentional empty states,
+  two-surface optional-feedback logging, saved-entry actions, comparisons,
+  next-time notes, repeat clearing, Save as recipe, and immutable history.
+- Replaced the dense generic creation form with Coffee, Component, Complete drink,
+  and Blank starting templates plus progressive optional sections. Added
+  method-aware defaults, user-tag filters, and searchable/previewable exact-version
+  recipe linking while preserving a single flexible underlying model.
+- Completed espresso calculation, mixed-water guided pour-over, resumable cold
+  brew and serving logs, other-method defaults, linked component readiness,
+  quantity scaling, arbitrary custom fields, inspiration links, beans/equipment,
+  and source-only recipes. Targets and actuals remain separate and unknown values
+  remain unknown.
+- Completed unified Feed/Saved recipe routes, attributed adaptations, protected
+  no-copy making, private-save-first posting, explicit version attachments,
+  audience/rights confirmation, non-recursive linked privacy, and retry-safe
+  composer recovery. Private reflections and media paths never enter post payloads.
+- Added account-scoped atomic persistence, durable preparation/draft recovery,
+  private photo upload receipts and downloads, owner export v4, operation/account
+  fences, explicit conflict reconciliation, nested projection allowlists, cycle
+  prevention, and immediate HTTP 409 business conflicts.
+- All 65 hosted SQL contracts passed on the data-free 177-migration acceptance
+  branch. Real isolated Auth/API/Storage acceptance and all 21 focused Home tests
+  passed on iOS 26.3. Connected Simulator journeys passed all recipe families,
+  guided pour-over, cold-brew relaunch, linked-component preparation, and unrated
+  private saving; the linked drink journey also passed at the largest Dynamic Type
+  size. The full-static gate passed 12 required checks with one optional parser skip.
+- Deleted the synthetic acceptance branch after verification, stopping its hourly
+  charge. Production was not migrated, the feature flag remains off, and no
+  physical-device or TestFlight acceptance is claimed. See
+  [implementation and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## 2026-09-14 — Persistent zoom-adaptive Map pins
 

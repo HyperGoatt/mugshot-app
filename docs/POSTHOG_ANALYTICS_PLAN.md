@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-09-15
 ---
 
 # Mugshot PostHog analytics plan
@@ -15,6 +15,16 @@ last_verified: 2026-09-13
 - Never send captions, journal or raw-note content, cafe/place identifiers, names, email addresses, search text, coordinates, photo data, social identifiers, auth tokens, or raw error messages.
 
 ## Event taxonomy
+
+Home/Recipes adds `home_log_opened`, `home_reflection_viewed`, `home_log_saved`,
+`home_log_left_unfinished`, `home_save_failed`, `home_recipe_saved`, `home_sync_failed`,
+`home_make_repeated`, `home_recipe_reference_saved` and `home_recipe_adapted`.
+Their only event-specific properties are `has_recipe` and bounded `duration_seconds`
+(0–86,400). Duration measures the current open logging surface, not total brew time.
+Leaving unfinished is a resumable draft signal, not a confirmed permanent abandonment.
+Use these to assess the two-surface funnel, repeat adoption and save/sync reliability.
+Existing publication events measure optional posting failures. Never include recipe
+or attempt IDs, names, source URLs, measurements, instructions, or private feedback.
 
 All custom event names use lower-case `object_verb` spelling. Common properties are `analytics_version`, `platform`, `app_version`, `app_build`, `build_configuration`, and `is_authenticated`.
 

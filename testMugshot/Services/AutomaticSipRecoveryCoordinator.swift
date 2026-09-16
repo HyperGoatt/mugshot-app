@@ -92,12 +92,17 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     private var suppressAutomaticRetry = false
     private var recoveryTask: Task<Void, Never>?
     private var activeRunID: UUID?
+    private var homeRecoveryTask: Task<Void, Never>?
+    private var homeRecoveryID: UUID?
+    private var homeWorkspaceObservation: AnyCancellable?
+    private let recoversHomeWorkspace: Bool
 
     init(
         dependencies: AutomaticSipRecoveryDependencies = .live,
         observesNetwork: Bool = true
     ) {
         self.dependencies = dependencies
+        self.recoversHomeWorkspace = observesNetwork
         self.networkObserver = observesNetwork ? SipRecoveryNetworkObserver() : nil
         networkObserver?.start { [weak self] isAvailable in
             Task { @MainActor [weak self] in
@@ -106,7 +111,32 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         }
     }
 
+    private func scheduleHomeRecovery() {
+        guard recoversHomeWorkspace, isAppActive, isNetworkAvailable,
+              UserDefaults.standard.bool(forKey: RoadmapFeatureFlags.homeRecipes),
+              let accountID = activeAccountID, homeRecoveryTask == nil else { return }
+        let store = HomeRecipeWorkspaceStore.shared
+        guard store.scope == .user(accountID) else { return }
+        let recoveryID = UUID()
+        homeRecoveryID = recoveryID
+        homeRecoveryTask = Task { [weak self] in
+            await store.synchronize()
+            guard let self, self.activeAccountID == accountID, self.homeRecoveryID == recoveryID else { return }
+            self.homeRecoveryTask = nil
+            self.homeRecoveryID = nil
+        }
+    }
+
     func activate(accountID: UUID?) {
+        if recoversHomeWorkspace {
+            HomeRecipeWorkspaceStore.shared.activate(.forUserID(accountID))
+            if homeWorkspaceObservation == nil {
+                homeWorkspaceObservation = HomeRecipeWorkspaceStore.shared.$workspace
+                    .map(\.pendingOperationID).removeDuplicates()
+                    .debounce(for: .milliseconds(750), scheduler: RunLoop.main)
+                    .sink { [weak self] _ in self?.scheduleHomeRecovery() }
+            }
+        }
         guard activeAccountID != accountID else {
             refreshState()
             scheduleIfEligible()
@@ -114,6 +144,9 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         }
 
         activeAccountID = accountID
+        homeRecoveryTask?.cancel()
+        homeRecoveryTask = nil
+        homeRecoveryID = nil
         issues = []
         suppressAutomaticRetry = false
         if recoveryTask != nil {
@@ -175,6 +208,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     private func scheduleIfEligible() {
+        scheduleHomeRecovery()
         guard recoveryTask == nil,
               !suppressAutomaticRetry,
               isAppActive,
@@ -440,6 +474,7 @@ enum PendingVisitPublicationReconciliation {
         record.cafeSessionPublicationCompletedAt = nil
         record.v3ReflectionCompletedAt = nil
         record.recipePublicationCompletedAt = nil
+        record.homeRecipeAttachmentsCompletedAt = nil
         record.visitTagsCompletedAt = nil
     }
 }

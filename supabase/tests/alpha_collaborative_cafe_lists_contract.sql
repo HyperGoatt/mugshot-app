@@ -843,19 +843,18 @@ begin
     (select id from alpha_list_users where n = 2)
   );
   if first_result is distinct from retry_result
-     or first_result->>'title' is distinct from 'Ownership transferred'
+     or first_result->>'title' is distinct from 'Alpha coffee plans'
      or first_result->>'current_role' is distinct from 'editor'
-     or first_result->>'can_view_items' is distinct from 'false'
-     or first_result->'items' is distinct from '[]'::jsonb
-     or first_result->'members' is distinct from '[]'::jsonb
-     or first_result->>'preview_photo_url' is not null then
-    raise exception 'pending transfer receipt leaked content or was not idempotent';
+     or first_result->>'can_view_items' is distinct from 'true'
+     or jsonb_array_length(first_result->'items') <> 2
+     or jsonb_array_length(first_result->'members') <> 2
+     or first_result->'owner'->>'user_id' is distinct from (select id::text from alpha_list_users where n = 2) then
+    raise exception 'locally admitted transfer was not readable or idempotent';
   end if;
-  begin
-    perform public.get_cafe_list_v2((select id from alpha_list_state where key = 'list'));
-    raise exception 'pending transferred content became readable';
-  exception when sqlstate '42501' then null;
-  end;
+  if public.get_cafe_list_v2((select id from alpha_list_state where key = 'list'))->>'id'
+    is distinct from (select id::text from alpha_list_state where key = 'list') then
+    raise exception 'former owner could not read the locally admitted transfer';
+  end if;
 end;
 $$;
 

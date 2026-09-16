@@ -18,6 +18,8 @@ struct PeopleHubView: View {
     @State private var recommendations: [TrustedRecommendation] = []
     @State private var sharedRecipes: [SharedRecipeRecord] = []
     @State private var selectedSharedRecipe: SharedRecipeRecord?
+    @State private var sharedHomePublication: SipDraft?
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -70,7 +72,14 @@ struct PeopleHubView: View {
                 })
             }
             .sheet(item: $selectedSharedRecipe) { recipe in
-                SharedRecipeDetailView(recipe: recipe)
+                if homeRecipesEnabled {
+                    HomeSharedRecipeScreen(versionID: recipe.recipeVersionID, ownerID: authModel.authenticatedUser?.id) { draft in
+                        sharedHomePublication = draft
+                    }
+                    .sheet(item: $sharedHomePublication) { draft in
+                        LogVisitView(dataManager: dataManager, initialDraft: draft)
+                    }
+                } else { SharedRecipeDetailView(recipe: recipe) }
             }
         }
     }

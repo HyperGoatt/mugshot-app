@@ -30,13 +30,19 @@ if [ ! -d "${REPO_ROOT}/qa/pglite/node_modules/pg" ]; then
 fi
 
 branch_json="$(npx --yes "supabase@${SUPABASE_CLI_VERSION}" branches get "${QA_BRANCH_ID}" --output json)"
-qa_database_url="$(jq -r '.POSTGRES_URL_NON_POOLING // empty' <<<"${branch_json}")"
+qa_database_url="$(jq -r '.POSTGRES_URL // .POSTGRES_URL_NON_POOLING // empty' <<<"${branch_json}" | node -e '
+let input="";process.stdin.on("data",value=>input+=value);process.stdin.on("end",()=>{
+ if(!input.trim())process.exit(1);
+ const url=new URL(input.trim());
+ if(url.hostname.endsWith(".pooler.supabase.com"))url.port="5432";
+ process.stdout.write(url.href);
+});')"
 
 if [ -z "${qa_database_url}" ]; then
   printf 'The selected QA branch has no direct database URL.\n' >&2
   exit 1
 fi
-if [[ "${qa_database_url}" == *"db.${PRODUCTION_REF}.supabase.co"* ]]; then
+if [[ "${qa_database_url}" == *"db.${PRODUCTION_REF}.supabase.co"* || "${qa_database_url}" == *"postgres.${PRODUCTION_REF}:"* ]]; then
   printf 'Refusing to seed or test the MugShot production project.\n' >&2
   exit 1
 fi

@@ -1,8 +1,32 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-15
 ---
+
+## Native Home workspace — 2026-09-15
+
+The default-off Home/Recipes implementation owns atomic account-scoped recipes,
+attempts, drafts, preparation sessions, batch progress, preferences, conflict
+state, and immutable version references. The additive owner-bound workspace RPC
+mirrors recipe identities and versions without fabricating visits. Targets and
+actuals remain separate, and unknown values stay unknown.
+
+Private attempt photos use generated owner-prefixed paths in the existing private
+Home bucket with durable upload receipts and authenticated downloads. Versioned
+linked-component progress and optional metric layouts persist in the workspace.
+Conflicts pause remote synchronization without blocking local saves; explicit
+reconciliation preserves historical versions, attempts, and in-progress sessions.
+Shared recipe content uses nested per-type allowlists and never recursively
+publishes linked instructions.
+
+All 65 SQL contracts and real Auth/Data API/private Storage round-trips passed
+against an isolated database containing all 177 migrations. Conflicts return HTTP
+409 immediately. Home unrated posts use the existing zero-score wire sentinel
+without creating a user rating or rated reflection; private feedback is excluded.
+The native hosted journey and all 21 Home model/store tests pass. The disposable
+branch was deleted after acceptance. Production remains unchanged and the native
+flag remains off. See [data ownership and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

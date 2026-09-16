@@ -87,6 +87,13 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     /// Written only after the ordinary-tag RPC and the outbox save both
     /// succeed. Nil remains retryable for older finalized records.
     var visitTagsCompletedAt: Date? = nil
+    var homeRecipeAttachments: [HomeRecipePostAttachment]? = nil
+    var homeRecipeAttachmentsCompletedAt: Date? = nil
+    var homeAttemptID: UUID? = nil
+
+    var needsHomeRecipeAttachmentsCompletion: Bool {
+        isRemoteFinalized && !(homeRecipeAttachments ?? []).isEmpty && homeRecipeAttachmentsCompletedAt == nil
+    }
 
     var isRemoteFinalized: Bool { remoteFinalizedAt != nil }
 
@@ -128,6 +135,7 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
             && !needsV3ReflectionCompletion
             && !needsRecipePublicationCompletion
             && !needsVisitTagsCompletion
+            && !needsHomeRecipeAttachmentsCompletion
     }
 
     /// Compatibility name for call sites compiled against the first identity
@@ -370,6 +378,8 @@ final class PendingVisitSubmissionStore {
         sensorySnapshot: SipSensorySnapshot? = nil,
         v3Reflection: V3VisitReflection? = nil,
         recipePublication: SipRecipePublicationContract? = nil,
+        homeRecipeAttachments: [HomeRecipePostAttachment]? = nil,
+        homeAttemptID: UUID? = nil,
         taggedCompanions: [SipCompanion]? = nil,
         cafeSession: PendingCafeSessionLink? = nil,
         images: [UIImage],
@@ -437,7 +447,9 @@ final class PendingVisitSubmissionStore {
             createdAt: Date(),
             phase: .prepared,
             uploadedPhotoURLs: nil,
-            cafeSession: cafeSession
+            cafeSession: cafeSession,
+            homeRecipeAttachments: homeRecipeAttachments,
+            homeAttemptID: homeAttemptID
         )
         do {
             try saveWithoutLock(record)
@@ -807,6 +819,8 @@ final class PendingVisitSubmissionStore {
                 ?? record.recipePublicationCompletedAt
             merged.visitTagsCompletedAt = merged.visitTagsCompletedAt
                 ?? record.visitTagsCompletedAt
+            merged.homeRecipeAttachmentsCompletedAt = merged.homeRecipeAttachmentsCompletedAt
+                ?? record.homeRecipeAttachmentsCompletedAt
         }
         return merged
     }

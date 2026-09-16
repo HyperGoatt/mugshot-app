@@ -1762,8 +1762,13 @@ struct SupabaseVisitInsert: Encodable, Equatable {
     ) throws -> SupabaseVisitInsert {
         let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(caption)
         let cleanRatings = clean(ratings: ratings, ratingTemplate: ratingTemplate)
+        // Zero is the existing wire representation of an unrated entry, never
+        // an authored score. Keep other logging contexts' validation unchanged.
+        let isUnratedHome = entryContext == .home && explicitOverallScore == 0 && cleanRatings.isEmpty
         let overallScore: Double
-        if let explicitOverallScore {
+        if isUnratedHome {
+            overallScore = 0
+        } else if let explicitOverallScore {
             guard explicitOverallScore >= 0.5,
                   explicitOverallScore <= 5,
                   explicitOverallScore.isFinite else {
@@ -1776,7 +1781,7 @@ struct SupabaseVisitInsert: Encodable, Equatable {
             overallScore = ratingTemplate.calculateOverallScore(ratings: cleanRatings)
         }
 
-        guard overallScore > 0 else {
+        guard overallScore > 0 || isUnratedHome else {
             throw VisitServiceError.missingRating
         }
 

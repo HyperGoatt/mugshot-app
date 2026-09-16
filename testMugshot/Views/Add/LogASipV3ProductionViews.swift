@@ -49,6 +49,7 @@ struct LogASipV3ProductionView: View {
     @State private var sipCoachIndex = 0
     @State private var contextCoachIndex = 0
     @State private var trackedHomeCompletionVisitID: UUID?
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
 
     init(
         draft: Binding<SipDraft>,
@@ -120,7 +121,20 @@ struct LogASipV3ProductionView: View {
         self.startAnotherTitle = startAnotherTitle
     }
 
+    @ViewBuilder
     var body: some View {
+        if usesHomeRecipeWorkspace, completion == nil {
+            HomeRecipeExperienceView(ownerID: draft.ownerUserID,
+                initialAttempt: HomeAttemptRecord(id: draft.id, name: draft.drinkName)) { publication in
+                draft = publication
+                photoImages = SipDraftStore.shared.load(id: publication.id, in: .forUserID(publication.ownerUserID))?.images ?? []
+                step = .publish
+            }
+            .id(draft.ownerUserID)
+        } else { composerBody }
+    }
+
+    private var composerBody: some View {
         NavigationStack {
             ZStack {
                 Color.creamWhite.ignoresSafeArea()
@@ -172,7 +186,9 @@ struct LogASipV3ProductionView: View {
             .foregroundStyle(Color.espressoBrown)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                toolbarContent
+                if draft.launchContext.homeAttemptID != nil, completion == nil {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close", action: onCancel) }
+                } else { toolbarContent }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done", action: dismissKeyboard)
@@ -227,11 +243,29 @@ struct LogASipV3ProductionView: View {
 
     @ViewBuilder
     private var currentSurface: some View {
-        if isHomeFlow {
+        if draft.launchContext.homeAttemptID != nil, draft.context == .home {
+            HomeAttemptPostSurface(draft: $draft, photoImages: photoImages,
+                isSaving: isSaving, statusMessage: statusMessage, onPublish: onPublish)
+                .disabled(isRecoveryLocked)
+        } else if isHomeFlow {
             homeSurface
         } else {
             standardSurface
         }
+    }
+
+    private var usesHomeRecipeWorkspace: Bool {
+        homeRecipesEnabled && isHomeFlow && draft.homeWorkbenchPhase == .workbench
+            && !draft.brewDetails.hasStructuredData && photoImages.isEmpty
+            && draft.overallScore == 0 && draft.privateNotes.isEmpty
+            && draft.socialCaption.isEmpty && draft.contextNotes.isEmpty
+            && draft.localPhotoNames.isEmpty && draft.drinkName.isEmpty
+            && draft.homeMakeAgain == nil && draft.homeComparisonSource == nil
+            && draft.homeCoffeeBagID == nil && draft.sensorySnapshot == nil
+            && draft.sipReorderIntention == nil && draft.contextScore == nil
+            && draft.orderNotes.isEmpty && draft.tags.isEmpty
+            && !draft.ratingCriteria.contains(where: { $0.score > 0 })
+            && !draft.contextRatingCriteria.contains(where: { $0.score > 0 })
     }
 
     @ViewBuilder
