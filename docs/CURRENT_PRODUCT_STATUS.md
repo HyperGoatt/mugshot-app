@@ -6,30 +6,60 @@ last_verified: 2026-09-16
 
 ## Battery and thermal remediation release hold — 2026-09-16
 
-The confirmed location lifecycle defect is remediated in current source.
-Continuous best-accuracy updates now belong only to the visible Map while its scene
-is active. Permission transitions and cafe search use one-shot requests, manager
-teardown stops standard updates, and inactive scenes stop Map updates. Opt-in nearby
-reminders retain region behavior while skipping empty and unchanged configurations;
-significant-change monitoring requires Always authorization and at least one
-eligible saved cafe. Visit and Home recovery tasks cancel on inactivity and resume
-from durable state after activation; automatic Home synchronization has one
-foreground lifecycle owner.
+The confirmed build-7 location lifecycle defect is remediated in current source.
+Continuous best-accuracy updates now belong only to the visible Map while its
+scene is active. Permission transitions and cafe search use one-shot requests,
+manager teardown stops standard updates, and inactive scenes stop Map updates.
+Opt-in nearby reminders retain region behavior while skipping empty and unchanged
+configurations; significant-change monitoring requires Always authorization and
+at least one eligible saved cafe. Visit and Home recovery tasks cancel on
+inactivity and resume from durable state after activation.
 
-Local Tier 4 evidence is green: generic Debug app/test compilation and hermetic
-backend contracts passed; 15 focused location/reminder/recovery tests and one
-permitted-location repeated-tab UI test passed on an iOS 27 Simulator. A settled
-30.777-second Feed Time Profiler capture recorded five 1 ms running samples,
-approximately 0.016% of one core. Simulator evidence cannot establish physical
-battery or thermal impact.
+Physical instrumentation also caught a new source-only regression introduced by
+battery-remediation commit `038aad5`: successful Home recovery called itself
+again with no pending work. On the signed development build, that produced 119
+Home/Supabase synchronization starts in about 15 seconds, all with zero pending
+operations and zero photo transfers. The recursive completion call is removed.
+Home recovery now runs once for account/foreground/network eligibility and once
+for each real non-nil pending operation. TestFlight 0.5.3 (7) predates this
+recursive call; the loop is not evidence for the original build-7 incident.
 
-The signed development candidate built and installed as `co.mugshot.app.dev` on
-Joe's iPhone 16 Pro without replacing `co.mugshot.app`. iOS denied launch because
-the phone was locked, so physical foreground/background/lock, movement, thermal,
-wakeup, charging, and extended discharge acceptance remain open. TestFlight 0.5.3
-(7) still contains the defect and further distribution remains held. No Supabase
-environment, production data, TestFlight build, or App Store state changed. See the
-[original battery, thermal, and runtime audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
+Current source also contains a privacy-safe physical profiling layer. Debug builds
+emit transition-only signposts and bounded counters for lifecycle, thermal and
+power state, network availability, location ownership and delivery, nearby-reminder
+wakes, recovery, Home synchronization, and visit-photo transfers. MetricKit stores
+at most 20 protected payloads locally in the Debug app container. Coordinates,
+content, identifiers, filenames, URLs, and error descriptions are excluded; Release
+recorders are no-ops and no diagnostics are uploaded.
+The physical Debug product and executable are named `MugshotDiagnostics` so
+Instruments can distinguish them from the simultaneously installed production
+app; bundle identities and Release packaging are unchanged.
+
+Tier 4 evidence is green for the implemented foreground fix. Generic Debug
+app/test compilation and hermetic backend contracts passed; 17 distinct focused
+location/reminder/recovery/diagnostic tests and one permitted-location repeated-tab
+UI test passed on an iOS 27 Simulator. The new regression test requires exactly
+one Home recovery pass per trigger. The optimized Release build also passed and
+its binary contains none of the diagnostic event or MetricKit storage strings.
+
+The signed instrumented development candidate built and installed as
+`co.mugshot.app.dev` on Joe's iPhone 16 Pro without replacing `co.mugshot.app`.
+Physical Power Profiler, Time Profiler, and Logging captures launch the intended
+development process and are symbolicated. Before the Home-loop fix, settled
+seconds 6–20 contained 1,250 one-millisecond running samples, about 8.9% of one
+core, and roughly 115–125 KiB of continuing network traffic every five to six
+seconds. After the fix, the same interval contained 3 samples, about 0.02%, and
+zero network bytes. Logging recorded one Home synchronization rather than 119.
+Both short Power Profiler captures remained nominal thermally. The location-energy
+interval was also shorter after the fix, but the warmed location cache makes that
+difference uncontrolled and it is not attributed to the Home change.
+
+Background/lock, movement, reminder-on/off, media retention, interrupted upload,
+and matched extended-discharge acceptance remain open. TestFlight 0.5.3 (7) still
+contains the original location defect, so further distribution remains held. No
+Supabase environment, production data, TestFlight build, or App Store state
+changed. See the [original audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md)
+and [instrumented validation](audits/BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md).
 
 ## Native Home and Recipes — 2026-09-16
 

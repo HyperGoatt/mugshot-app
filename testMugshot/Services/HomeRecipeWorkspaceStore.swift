@@ -297,7 +297,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         let capturedScope = scope
         let captured = workspace
         var needsAnotherPass = false
+        var diagnosticOutcome = BatteryDiagnostics.WorkOutcome.interrupted
+        var diagnostics = BatteryDiagnostics.HomeSyncSession(
+            referencedPhotoCount: captured.referencedPhotoNames.count,
+            hasPendingOperation: captured.pendingOperationID != nil
+        )
         defer {
+            diagnostics.finish(diagnosticOutcome)
             if syncTaskID == taskID {
                 isSyncing = false
                 if needsAnotherPass, !Task.isCancelled {
@@ -314,9 +320,11 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 let source = directory(capturedScope).appendingPathComponent(name)
                 guard FileManager.default.fileExists(atPath: source.path) else { continue }
                 guard scope == capturedScope, syncTaskID == taskID else { return }
-                try await remoteTransport.uploadPhoto(Data(contentsOf: source), name: name, ownerID: owner)
+                let bytes = try Data(contentsOf: source)
+                try await remoteTransport.uploadPhoto(bytes, name: name, ownerID: owner)
                 try Task.checkCancellation()
                 guard scope == capturedScope, syncTaskID == taskID else { return }
+                diagnostics.recordedUpload(byteCount: bytes.count)
                 uploaded.insert(name)
                 try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             }
@@ -328,6 +336,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                     remoteConflict = remote
                     hasRemoteConflict = true
                     errorMessage = HomeRecipeWorkspaceError.conflict.localizedDescription
+                    diagnosticOutcome = .failed
                     return
                 }
                 var latest = workspace
@@ -351,15 +360,22 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                     throw HomeRecipeWorkspaceError.invalid("A synced photo could not be opened. Your journal entry is saved.")
                 }
                 try bytes.write(to: destination, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                diagnostics.recordedDownload(byteCount: bytes.count)
                 uploaded.insert(name)
                 try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
                 objectWillChange.send()
             }
             errorMessage = nil
+            diagnosticOutcome = .completed
         } catch is CancellationError {
+            diagnosticOutcome = .cancelled
             return
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                diagnosticOutcome = .cancelled
+                return
+            }
+            diagnosticOutcome = .failed
             guard scope == capturedScope, syncTaskID == taskID else { return }
             errorMessage = "Saved on this device. Sync needs attention: \(error.localizedDescription)"
             MugshotAnalytics.shared.capture(.homeRecipe(.syncFailed, hasRecipe: !captured.recipes.isEmpty, durationSeconds: 0))

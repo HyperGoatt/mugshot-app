@@ -14,6 +14,7 @@ struct testMugshotApp: App {
     @StateObject private var dataManager: DataManager
     
     init() {
+        BatteryDiagnostics.start()
         PerformanceMonitor.mark("App init")
         let manager = DataManager.shared
         _ = NearbyCafeReminderCoordinator.shared

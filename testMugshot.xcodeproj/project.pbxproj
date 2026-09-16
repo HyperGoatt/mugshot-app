@@ -599,6 +599,7 @@
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = R389G6U968;
 				ENABLE_PREVIEWS = YES;
+				"EXECUTABLE_NAME[sdk=iphoneos*]" = MugshotDiagnostics;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Config/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -609,6 +610,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = co.mugshot.app;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = co.mugshot.app.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"PRODUCT_NAME[sdk=iphoneos*]" = MugshotDiagnostics;
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Mugshot Debug Push Development";
 				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]" = "$(inherited) MUGSHOT_PUSH_SANDBOX";
 				SWIFT_EMIT_LOC_STRINGS = YES;

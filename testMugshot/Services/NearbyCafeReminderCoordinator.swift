@@ -119,6 +119,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
         if isEnabled, !existingRegions.isEmpty, manager.authorizationStatus == .authorizedAlways {
             manager.startMonitoringSignificantLocationChanges()
             isMonitoringSignificantChanges = true
+            BatteryDiagnostics.nearbyMonitoringStarted(regionCount: existingRegions.count)
         } else if !isEnabled || manager.authorizationStatus != .authorizedAlways {
             stopMonitoring()
         }
@@ -191,6 +192,10 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
             desired: desiredRegions
         )
         if needsRefresh {
+            BatteryDiagnostics.nearbyPlanChanged(
+                previousCount: existingRegions.count,
+                desiredCount: desiredRegions.count
+            )
             stopMonitoring()
         }
         let registeredRegions = needsRefresh ? [] : existingRegions
@@ -211,17 +216,25 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
         if !isMonitoringSignificantChanges {
             manager.startMonitoringSignificantLocationChanges()
             isMonitoringSignificantChanges = true
+            BatteryDiagnostics.nearbyMonitoringStarted(regionCount: desiredRegions.count)
         }
         monitoredCafeCount = desiredRegions.count
     }
 
     private func stopMonitoring() {
+        let stoppedRegionCount = manager.monitoredRegions.filter {
+            $0.identifier.hasPrefix("mugshot-nearby-")
+        }.count
+        let stoppedActiveMonitoring = isMonitoringSignificantChanges
         for region in manager.monitoredRegions where region.identifier.hasPrefix("mugshot-nearby-") {
             manager.stopMonitoring(for: region)
         }
         manager.stopMonitoringSignificantLocationChanges()
         isMonitoringSignificantChanges = false
         monitoredCafeCount = 0
+        if stoppedActiveMonitoring || stoppedRegionCount > 0 {
+            BatteryDiagnostics.nearbyMonitoringStopped(regionCount: stoppedRegionCount)
+        }
     }
 
     private func deliverIfAllowed(cafeID: UUID) {
@@ -245,6 +258,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
             content: content,
             trigger: nil
         ))
+        BatteryDiagnostics.nearbyNotificationDelivered()
 
         defaults.set(now, forKey: lastDailyKey)
         var updated = lastByCafe
@@ -271,6 +285,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
 extension NearbyCafeReminderCoordinator: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        BatteryDiagnostics.locationAuthorizationChanged(manager.authorizationStatus)
         guard isEnabled else { return }
         if manager.authorizationStatus == .authorizedWhenInUse, pendingAlwaysRequest {
             pendingAlwaysRequest = false
@@ -291,13 +306,20 @@ extension NearbyCafeReminderCoordinator: CLLocationManagerDelegate {
               let cafeID = UUID(uuidString: String(region.identifier.dropFirst("mugshot-nearby-".count))) else {
             return
         }
+        BatteryDiagnostics.nearbyWake(kind: "region_entry", regionCount: monitoredCafeCount)
         deliverIfAllowed(cafeID: cafeID)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard isEnabled else { return }
+        BatteryDiagnostics.nearbyWake(
+            kind: "significant_change",
+            regionCount: monitoredCafeCount
+        )
         configure(cafes: latestCafes)
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        BatteryDiagnostics.locationFailed(code: (error as? CLError)?.code.rawValue ?? -1)
+    }
 }

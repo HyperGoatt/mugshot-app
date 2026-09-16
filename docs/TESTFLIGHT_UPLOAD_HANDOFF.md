@@ -20,9 +20,16 @@ assigned, including 12 external testers. No App Store release was submitted.
 lifecycle defect documented in the
 [battery and thermal audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
 Current source contains a locally verified remediation, but physical battery,
-thermal, background, locked, and movement acceptance remains open. Do not upload
-or assign another build until that gate passes and the owner explicitly requests
-the TestFlight handoff.
+background, locked, movement, and extended-discharge acceptance remains open.
+Short physical Power Profiler and Logging captures verified the location-lifecycle
+instrumentation and caught a source-only Home synchronization loop introduced
+after build 7. That loop is fixed: settled sampled CPU fell from about 8.9% of one
+core to about 0.02%, continuing post-launch network traffic stopped, and only one
+Home synchronization ran. The privacy-safe instrumented Debug candidate remains
+installed on the connected iPhone; it does not change Release analytics or
+backend contracts. Do not upload or assign another build until the remaining
+physical acceptance passes and the owner explicitly requests the TestFlight
+handoff.
 
 Build 7 contains the current merged product, moderation, sharing,
 regression-repair, reaction, and explicit-profile-identity work. Test results
