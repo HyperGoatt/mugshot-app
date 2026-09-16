@@ -4,6 +4,22 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## 2026-09-16 — Battery, thermal, and runtime release audit
+
+- Audited both installed 0.5.3 (7) identities, current source, historical device
+  diagnostics, runtime CPU, memory ownership, background behavior, permission-backed
+  services, media, networking, recovery, SwiftUI animation, analytics, widgets,
+  extensions, and pinned SDK behavior.
+- Confirmed a release-blocking location lifecycle defect shared by TestFlight build
+  7 and current source: multiple best-accuracy location managers can start without
+  complete screen/scene ownership or cancellation. Historical physical snapshots
+  correlate sustained Mugshot CPU with much larger `locationd` CPU, while the active
+  dev installation had nearby reminders enabled.
+- Held further distribution pending a focused location fix and physical
+  background/locked A/B validation. No app code, backend, production data,
+  TestFlight build, or App Store state changed. See the
+  [dated audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
+
 ## 2026-09-16 — Home and Recipes production activation
 
 - Waited for the fresh scheduled physical backup to finish, captured a read-only

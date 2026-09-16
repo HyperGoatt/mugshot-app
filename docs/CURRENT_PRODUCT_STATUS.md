@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## Battery and thermal release hold — 2026-09-16
+
+Further distribution is held pending remediation and physical validation of a
+confirmed location lifecycle defect in TestFlight 0.5.3 (7) and current source.
+Multiple best-accuracy location managers can start continuous updates without a
+complete active-screen/scene owner or stop path. Historical physical snapshots
+show sustained Mugshot CPU during intervals of much larger `locationd` CPU, and
+the active development installation had nearby reminders enabled. This supports
+Mugshot as a likely major contributor to the reported drain, but physical energy,
+thermal, wakeup, and iOS Battery attribution could not be captured, so sole
+causality and battery percentage remain unproved.
+
+The installed development process was force-quit after preserving evidence. No
+app code, backend, production data, TestFlight build, or App Store state changed.
+Release requires explicit location ownership/cancellation plus clean physical
+foreground, background, locked, movement, media, recovery, and matched three-hour
+control measurements. See the
+[battery, thermal, and runtime audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
+
 ## Native Home and Recipes — 2026-09-16
 
 The complete native Home/Recipes plan is implemented, production-configured, and
