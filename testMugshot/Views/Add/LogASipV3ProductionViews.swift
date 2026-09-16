@@ -49,7 +49,7 @@ struct LogASipV3ProductionView: View {
     @State private var sipCoachIndex = 0
     @State private var contextCoachIndex = 0
     @State private var trackedHomeCompletionVisitID: UUID?
-    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
 
     init(
         draft: Binding<SipDraft>,

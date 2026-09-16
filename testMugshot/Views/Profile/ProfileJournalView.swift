@@ -9,7 +9,7 @@ struct JournalTabView: View {
     @StateObject private var passportRouter = JournalPassportRouter.shared
 
     @State private var selectedFilter: JournalFilter = .all
-    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
     @State private var showsEarlierHomeEntries = false
     @State private var earlierRecipeVersion: UUID?
     @State private var activeProfileSheet: ProfileSheet?

@@ -113,7 +113,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
 
     private func scheduleHomeRecovery() {
         guard recoversHomeWorkspace, isAppActive, isNetworkAvailable,
-              UserDefaults.standard.bool(forKey: RoadmapFeatureFlags.homeRecipes),
+              RoadmapFeatureFlags.isHomeRecipesEnabled(),
               let accountID = activeAccountID, homeRecoveryTask == nil else { return }
         let store = HomeRecipeWorkspaceStore.shared
         guard store.scope == .user(accountID) else { return }

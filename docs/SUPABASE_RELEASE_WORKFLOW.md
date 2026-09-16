@@ -1,13 +1,13 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
-Home/Recipes amendment (2026-09-15): additive migrations
+Home/Recipes amendment (2026-09-16): additive migrations
 `20260915212702_home_recipe_workspace.sql` through
-`20260916020417_home_recipe_http_conflicts.sql` are implementation-complete but
-not production-deployed. They introduce owner-bound workspace synchronization,
+`20260916020417_home_recipe_http_conflicts.sql` are production-deployed. They
+introduce owner-bound workspace synchronization,
 private version content, nested projection allowlists, attribution preservation,
 owner export v4, private attempt-media paths, and immediate HTTP 409 conflicts.
 They do not backfill ambiguous legacy measurements, make a bucket public, or widen
@@ -16,10 +16,13 @@ Storage access.
 The owner-approved data-free `home-recipes-acceptance` branch aligned all 177
 repository migrations with schedules disabled. All 65 SQL contracts, the real
 Home Auth/API/Storage harness, and native hosted transport passed. The synthetic
-branch was then deleted and its absence verified. Production was not modified and
-the native flag was not enabled. Follow the normal preservation/deployment sequence
-before production activation. See the
-[current evidence and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
+branch was then deleted and its absence verified. A fresh production physical
+backup completed before deployment. The pinned dry run contained only the two
+reviewed migrations; production advanced from 175 to 177 migrations with content
+fingerprints, counts, Storage inventory, and bucket visibility unchanged. New
+private tables began empty with RLS enabled, and the native flag now defaults on
+with an explicit stored-off rollback. See the
+[current evidence and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server
