@@ -9,20 +9,20 @@ last_verified: 2026-09-16
 Use this format for every Mugshot TestFlight archive, upload, or testing-group
 handoff.
 
-TestFlight 0.5.3 (7) is the current beta. The exact `main` source at `bead2de`
-passed its iPhone 16 Pro Simulator gate, signed connected-iPhone build, install,
-and launch gate, and Release archive gate. Xcode uploaded the archive on
-2026-09-14; App Store Connect completed processing and records the build as
-`Testing` with a 90-day testing window. Mugshot Team and Alpha Friends are
-assigned, including 12 external testers. No App Store release was submitted.
+TestFlight 0.5.3 (8) is the current beta. The exact `main` source at `e07cb5f`
+passed its focused iOS 27 Simulator journeys, signed connected-iPhone build,
+install, and launch gate, Release archive, and local App Store Connect export.
+Xcode Organizer uploaded the archive on 2026-09-16 at 4:32 PM EDT. App Store
+Connect completed processing and records build
+`db5a2bb5-697c-40e6-9617-d8ba48825167` as `Testing` with a 90-day testing
+window. Mugshot Team and Alpha Friends are assigned, the battery-focused testing
+notes are published, and automatic tester notifications are enabled. Hands-on
+TestFlight acceptance remains pending. No App Store release was submitted.
 
-Replacement candidate 0.5.3 (8) is implemented in source and explicitly promoted
-by the owner for an urgent TestFlight upload. It packages both battery fixes,
-regular-weight captions, the **Your ratings** Map legend, and the temporary
-central Add > Log a Sip > Home under-construction placeholder. Simulator,
-and connected-iPhone build/install/launch gates passed. Archive, upload,
-processing, group assignment, and TestFlight acceptance are recorded only as
-each gate completes.
+Build 8 packages both battery fixes, regular-weight captions, the **Your
+ratings** Map legend, and the temporary central Add > Log a Sip > Home
+under-construction placeholder. It does not change Supabase schema, environment,
+or production data.
 
 **Battery release hold:** Build 7 contains the confirmed continuous-location
 lifecycle defect documented in the
@@ -45,19 +45,20 @@ and Map-to-lock arm passed, the owner explicitly requested build 8 as the urgent
 replacement TestFlight patch. Those remaining experiments stay documented as
 follow-up evidence rather than a block on this owner-authorized beta replacement.
 
-Build 7 contains the current merged product, moderation, sharing,
+Build 8 also contains the merged product, moderation, sharing,
 regression-repair, reaction, and explicit-profile-identity work. Test results
 and unresolved acceptance items remain tracked in the
 [feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md).
 
 ## Build status
 
-- Version/build: 0.5.3 (7)
+- Version/build: 0.5.3 (8)
 - App Store Connect status: Testing; upload and processing complete
-- Testing groups: Mugshot Team and Alpha Friends assigned; 12 external testers
-- Build record: `590450f6-54b2-4927-9ff9-57e7362f085f`
+- Testing groups: Mugshot Team and Alpha Friends assigned
+- Tester notification: Automatically notify testers enabled
+- Build record: `db5a2bb5-697c-40e6-9617-d8ba48825167`
 
-## What to Test — build 0.5.3 (8), ready to paste
+## What to Test — build 0.5.3 (8), published
 
 > Battery and heat patch: leave Mugshot open while charging, then use Map and
 > lock the phone for 30 minutes. Confirm charging progresses, battery remains
@@ -68,7 +69,7 @@ and unresolved acceptance items remain tracked in the
 > logging and publishing still work. Existing Home/Recipes content in Journal
 > must remain available and unchanged.
 
-## What to Test — published
+## Historical build-7 What to Test — published
 
 > Welcome to Mugshot
 

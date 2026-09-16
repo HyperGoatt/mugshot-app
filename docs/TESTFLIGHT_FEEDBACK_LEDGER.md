@@ -1,8 +1,12 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-16
 ---
+
+TestFlight 0.5.3 (8) was uploaded, processed, and placed in `Testing` for
+Mugshot Team and Alpha Friends on 2026-09-16. Distribution does not resolve any
+report: hands-on acceptance from build 8 remains pending for every affected row.
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

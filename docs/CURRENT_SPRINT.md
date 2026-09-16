@@ -8,9 +8,11 @@ Current release amendment (2026-09-16): the owner authorized an urgent 0.5.3 (8)
 TestFlight replacement for battery-affected build 7. Build 8 packages both
 battery remediations, regular-weight captions, the **Your ratings** Map legend,
 and the temporary central Add > Home placeholder. The focused Simulator and
-signed connected-iPhone build/install/launch gates passed. Archive, upload,
-processing, and group assignment remain in progress; no App Store release is
-authorized.
+signed connected-iPhone build/install/launch gates passed. The Release archive,
+export, upload, and processing gates passed; App Store Connect records build 8
+as `Testing` for Mugshot Team and Alpha Friends with automatic tester
+notifications enabled. Hands-on TestFlight acceptance remains pending. No App
+Store release was submitted.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server
@@ -33,7 +35,8 @@ functions deployed. Original-table fingerprints and bucket visibility passed
 preservation checks. The dev candidate is installed on the owner's iPhone and
 the recorded phone checks passed. Technical-backlog recovery completed with 69
 approvals and one explained missing-photo service item; see [the current repair status](REPAIR_SHARING_STATUS.md) for exact outcomes.
-All disposable QA branches are deleted. TestFlight distribution remains held.
+All disposable QA branches are deleted. That repair checkpoint held TestFlight
+distribution; the current build-8 distribution state is recorded above.
 The owner-approved historical Friends restoration is deployed; Amanda's previously
 excluded Matcha now appears in the anonymous profile response. Opt-outs, hides
 and Private exclusion remain enforced.
@@ -70,8 +73,8 @@ ownership, or the core sip journey.
 | Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
 | Physical sandbox acceptance | Delivery/read path partially accepted; matrix in progress | Two normal second-account likes each produced a first-attempt sandbox send. The signed iPhone showed the unread items and routed them correctly; after the direct-store fix, mark-one-read cleared the authoritative count, Activity marker, and Feed bell immediately without relaunch. Foreground presentation, a visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out remain. |
-| Battery replacement candidate | 0.5.3 (8) locally verified; distribution gates in progress | Both battery fixes, caption/Map copy adjustments, and central Add > Home placeholder are in source. Focused Simulator checks and the signed connected-iPhone build/install/launch gate passed. The owner authorized the urgent TestFlight upload after the fixed development build charged from 37% to 53% in ten minutes and held at 53% through a 30-minute unplugged Map-to-lock arm. |
-| TestFlight production acceptance | 0.5.3 (7) uploaded, processed, and testing | Exact `bead2de` iPhone 16 Pro Simulator, connected-iPhone build/install/launch, and Release archive gates passed. App Store Connect completed processing, published `Welcome to Mugshot`, and assigned Mugshot Team plus Alpha Friends with 12 external testers. No App Store release was submitted; hands-on beta acceptance remains pending |
+| Battery replacement build | 0.5.3 (8) uploaded, processed, and testing | Both battery fixes, caption/Map copy adjustments, and central Add > Home placeholder are in build 8. Focused Simulator, signed connected-iPhone build/install/launch, Release archive, export, upload, and processing gates passed. The owner authorized the urgent replacement after the fixed development build charged from 37% to 53% in ten minutes and held at 53% through a 30-minute unplugged Map-to-lock arm. |
+| TestFlight production acceptance | 0.5.3 (8) distributed; hands-on acceptance pending | App Store Connect build `db5a2bb5-697c-40e6-9617-d8ba48825167` is `Testing` for Mugshot Team and Alpha Friends. Battery-focused testing notes are published and automatic tester notifications are enabled. No App Store release was submitted. |
 | Revised 44-report remediation | Implemented, merged, and distributed; feature acceptance pending | The five workstreams are on `main`; 425 unit tests, eight focused UI journeys, the 43-screenshot plus one-text review, later focused regressions, and consolidated Simulator acceptance passed. Build 0.5.3 (6) is now available to Alpha Friends. No report will be resolved until its behavior is manually accepted in this replacement build |
 | Simulator-QA follow-up | Included in TestFlight 0.5.3 (6) | Feed reselect/top behavior plus scope pills with equal eight-point upper/lower resting gaps that ignore refresh pull, hold for 60 upward points, and slide continuously beneath the header over their measured height; Journal toolbar flag and Taste Passport holding screen; all-step composer close; explicit multi-draft recovery; 12–18 preparation-specific stationary criteria; persistent importance; compact Publish controls; private-Storage cafe photos; and non-destructive multi-ID cafe stitching are in the processed build. Local focused coverage and Simulator acceptance passed; replacement-build tester acceptance remains pending |
 | Editorial Atlas profile | Included in TestFlight 0.5.3 (6); profile contract production-configured | The approved foam-white statistics dock and four tabs remain, the banner is back at 112 points, Favorite Spots is a compact text rail, and Add Favorite Spot chooses the reason before the cafe. The default-on Friends-on-profile setting publishes Friends plus Everyone profile content while keeping Private absent; turning it off restores Everyone-only profile content. Share Profile renders fixed Story/Post snapshots, sorts the current profile-published Mugshots newest-first, resolves durable private-Storage media before rendering, and hands iOS the artwork, `Add me on Mugshot` copy, and canonical active link. Focused Swift tests, live Simulator share render, and profile/share comparison pass. Migration `20260826143102` is live; replacement-build tester acceptance remains pending |
@@ -109,7 +112,7 @@ separate from those TestFlight packages.
 | --- | --- | --- |
 | Simulator | In-app Activity and nearby local authorization remain available; remote push reports signed-device unavailability | Build/install/launch and Activity surface passed; 34 focused lifecycle/Activity/analytics tests passed; authenticated live-session network acceptance remains part of later product regression testing |
 | Signed physical Debug | `co.mugshot.app.dev`, development entitlement, sandbox environment; build/install/launch, permission, v3 badge registration, opt-out/re-register, terminated cold launch, two first-attempt sandbox sends, unread Activity presentation, in-app routing, mark-one-read authority, and immediate Activity/Feed badge clearing passed | Verify foreground alert, visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out |
-| TestFlight | 0.5.3 (7), `co.mugshot.app`, production entitlement/environment, v3 badge registration; uploaded, processed, and `Testing` for Mugshot Team plus Alpha Friends with 12 external testers | Build-7 hands-on acceptance and remaining production notification matrix |
+| TestFlight | 0.5.3 (8), `co.mugshot.app`, production entitlement/environment; uploaded, processed, and `Testing` for Mugshot Team plus Alpha Friends | Build-8 battery and product hands-on acceptance; remaining production notification matrix |
 
 Severity definitions:
 
