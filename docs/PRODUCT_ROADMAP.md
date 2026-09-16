@@ -1,18 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
 # Product roadmap
 
-## Implementation complete; production rollout held: native Home and Recipes
+## Production-configured; owner acceptance next: native Home and Recipes
 
 The complete find/create → save → make/log → reflect → improve → share loop is
-implemented and locally/isolated-backend accepted. The default-off flag remains
-the release boundary. Next steps are production migration through the preservation
-workflow, capability verification, flag activation, and owner-promoted physical
-and TestFlight gates—not additional product scope.
+implemented, accepted locally and in isolated backend QA, deployed to production,
+and enabled by default with a data-preserving rollback override. A signed Debug
+candidate is installed and launched on the owner's iPhone. Next steps are owner hands-on
+acceptance and a separately authorized TestFlight gate—not additional product scope.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning

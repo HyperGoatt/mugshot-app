@@ -1,21 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
-## Native Home and Recipes — implementation complete, flag off
+## Native Home and Recipes — production-configured, flag on
 
 Independent recipes, private attempts, quick logging, flexible preparation,
 linked components, discovery/adaptation, improvement history, and optional
 sharing are implemented through the complete planned loop. All 65 hosted SQL
-contracts, real isolated Auth/API/Storage transport, 21 Home model/store tests,
-the connected Simulator journeys, and the largest Dynamic Type route pass.
+contracts, real isolated Auth/API/Storage transport, the connected Simulator
+journeys, and the largest Dynamic Type route pass.
 
-This evidence is local/isolated QA, not production configuration. The disposable
-177-migration branch was deleted after acceptance. Production migration, flag
-activation, physical-device acceptance, and TestFlight acceptance remain separate
-release gates. [Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
+The disposable 177-migration branch was deleted after acceptance. Production now
+matches migration 177 with preservation evidence unchanged, the native flag
+defaults on with an explicit stored-off rollback, all 22 focused Home tests pass,
+and the signed candidate is installed and launched on the owner's iPhone. Owner hands-on and
+TestFlight acceptance remain separate gates.
+[Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Explicit profile identity setup — 2026-09-14
 
@@ -98,6 +100,7 @@ production and TestFlight retain their separately recorded deployment states.
 | Profile and public identity | Latest source physically launched; profile contract production-configured | Compact 112-point banner, foam-white tappable stats dock, compact sparse-profile metadata with no Taste overlap card, fully visible reason-first Favorite Spot categories plus custom descriptor entry, stable Cafes scrolling, Mugshots/cafes/existing-map/tagged tabs, no redundant profile-map ratings legend, tagged hide/remove controls, default-on Friends plus Everyone profile publication, owner opt-out to Everyone-only, strict Private exclusion, sealed mutations, owner export, and fixed Story/Post profile snapshots carrying marketing copy plus the canonical active link. Snapshot media is newest-first and resolves durable private-Storage references before rendering. Profile setup now requires an explicitly chosen username for exact generated-placeholder accounts, rejects unchanged placeholders from older clients, and offers an optional Favorite Spots step. Production migrations 172–173, focused contracts, full-static, and signed connected-iPhone build/install/launch pass | Owner interaction with the reopened setup path; replacement TestFlight acceptance remains separate |
 | Guided sip composer | QA follow-up locally verified | Cafe, Home, Elsewhere, fresh central Add, explicit one/multi-draft recovery, all-step close, photos, publish recovery, edit/delete; focused domain tests and full-static pass | Manual Simulator persistence acceptance; preserve zero-loss and privacy contracts |
 | Home Workbench | Implemented, production-configured | Recipe templates, planned/actual brews, bag media, reuse, journal projection; live migrations and protected-data fingerprints verified | Feedback-driven product acceptance |
+| Native Home and Recipes | Production-configured; enabled candidate launched | Unified Coffee/Component/Drink/Blank recipes, two-surface logging, guided preparation, resumable batches, linked immutable versions, repeat/comparison, adaptation, private sync/media, and explicit sharing. Production is at migration 177; pre/post content and Storage evidence matched; 22 activation-focused tests pass; the signed Debug app is installed, launched, and running on Joe's iPhone | Owner hands-on acceptance; TestFlight remains a separate explicit gate |
 | Feed and visit detail | Seventh QA follow-up locally verified | Compact cards, profile routing, one-level comments, reactions, tags, reselect-to-top, and a scope bar isolated from refresh/lazy content with matching eight-point upper/lower resting gaps that holds for 60 upward points and slides continuously beneath the header. Stable scope geometry and structured comment mentions remain; the Debug Simulator build/launch, focused motion/gap test, live capture, and same-input spacing comparison pass | Owner feel acceptance, production reaction migration, replacement TestFlight |
 | Journal and reflection | Second QA follow-up locally verified | Compact Journal hub and draft routes; unavailable Passport entry and holding screen removed locally; 12–18 preparation-specific criteria, stationary suggestion rail, persistent importance, and compact Publish controls; full focused matrix and full-static pass | Manual composer retest, connected-iPhone runtime, replacement-build acceptance |
 | Map and cafe discovery | QA follow-up locally verified | MapKit search, saved state, cafe detail/discovery, conservative read-time stitching across equivalent provider IDs, combined visit/media projection, viewer-visible Mugshots, and remote resolution for HTTP plus private-Storage references; focused identity/snapshot/classifier tests and replacement build/install/launch pass | Tiny Nook and Cafe Details runtime acceptance; no production row mutation |

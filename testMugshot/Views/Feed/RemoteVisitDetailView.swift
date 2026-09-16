@@ -125,7 +125,7 @@ struct RemoteVisitDetailView: View {
     @State private var selectedTaggedProfile: PeopleProfileRoute?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @AppStorage(RoadmapFeatureFlags.phase4LightweightFriends) private var phase4LightweightFriends = true
-    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
     @State private var homeRecipeRoute: HomeLinkedRecipeSheet?
     @State private var homePublicationDraft: SipDraft?
     @State private var showsHomeRecipeAttachments = false

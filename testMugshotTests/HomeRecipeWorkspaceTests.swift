@@ -5,6 +5,18 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func productionHomeRecipesDefaultOnAndHonorRollbackOverride() throws {
+        let suiteName = "HomeRecipeFeatureFlagTests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
+        defaults.set(false, forKey: RoadmapFeatureFlags.homeRecipes)
+        #expect(!RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
+        defaults.set(true, forKey: RoadmapFeatureFlags.homeRecipes)
+        #expect(RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
+    }
+
     @Test func unratedHomePublicationDoesNotInventARequiredScore() throws {
         func payload(_ context: JournalEntryContext, _ score: Double) throws -> SupabaseVisitInsert {
             try SupabaseVisitInsert.make(userId: UUID(), remoteCafe: nil, entryContext: context,

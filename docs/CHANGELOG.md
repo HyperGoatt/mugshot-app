@@ -1,8 +1,28 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
+
+## 2026-09-16 — Home and Recipes production activation
+
+- Waited for the fresh scheduled physical backup to finish, captured a read-only
+  preservation baseline, and used the pinned Supabase CLI dry run to prove that
+  production was exactly two migrations behind the repository.
+- Deployed `20260915212702_home_recipe_workspace.sql` and
+  `20260916020417_home_recipe_http_conflicts.sql`. Production now matches all 177
+  repository migrations. Auth-user, visit, recipe, and Storage counts; visit and
+  recipe fingerprints; and bucket visibility values were unchanged.
+- Verified the new owner workspace and private recipe/attachment tables began
+  empty with RLS enabled; anonymous RPC execution is denied, authenticated owner
+  execution is granted, and concurrency conflicts return HTTP 409.
+- Enabled `MugshotRoadmap.homeRecipes.v1` by default while preserving an explicit
+  stored `false` as a rollback override that does not delete saved data. All 22
+  focused Home tests passed, including the activation/rollback contract.
+- Built, installed, and launched the signed production-connected Debug candidate
+  on Joe's iPhone 16 Pro; the app process remained running and its foreground
+  screen was captured. Hands-on acceptance remains separate; no archive,
+  TestFlight upload, testing-group change, or App Store action occurred.
 
 ## 2026-09-15 — Native Home and Recipes implementation complete (flag off)
 

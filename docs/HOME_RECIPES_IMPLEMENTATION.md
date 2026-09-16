@@ -1,23 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
 # Native Home and Recipes implementation
 
 ## Release state
 
-The approved Home and Recipes plan is implemented in native source and locally
-accepted behind `MugshotRoadmap.homeRecipes.v1`, which still defaults off. The
-browser gallery remains design evidence rather than production navigation.
+The approved Home and Recipes plan is implemented in native source and
+production-configured. Production is aligned to migration
+`20260916020417_home_recipe_http_conflicts.sql`, and
+`MugshotRoadmap.homeRecipes.v1` now defaults on while retaining an explicit
+stored `false` as a data-preserving rollback switch. The browser gallery remains
+design evidence rather than production navigation.
 
 Implementation acceptance is complete for the repository candidate: deterministic
 contracts, all hosted SQL contracts, real isolated Auth/API/Storage transport,
 the focused native model/store suite, the connected Simulator journeys, and the
 largest Dynamic Type journey pass. The disposable acceptance branch was deleted
-after verification. Production was not migrated, the flag was not enabled, and
-no physical-device or TestFlight acceptance is claimed.
+after verification. The signed production-connected Debug candidate is installed
+and launched on the owner's iPhone for hands-on acceptance. No TestFlight
+acceptance is claimed.
 
 ## Product behavior
 
@@ -121,8 +125,8 @@ legacy drafts remain in their lossless composer until a safe adapter exists.
 
 Tier 4 acceptance used synthetic local data and a disposable, data-free Supabase
 branch containing all 177 repository migrations through
-`20260916020417_home_recipe_http_conflicts.sql`. Production reference
-`quskamnfwglctqewwfln` was never targeted.
+`20260916020417_home_recipe_http_conflicts.sql`. Production was targeted only
+after that acceptance and a fresh restorable physical backup.
 
 - All 65 files in `supabase/tests` passed together. The seven formerly stale
   provider-queue/moderation expectations now follow the current local-text and
@@ -145,6 +149,16 @@ branch containing all 177 repository migrations through
   accessibility labels, values, and stable identifiers.
 - The repository full-static gate passes 12 required checks with zero failures;
   optional `pglast` parsing is skipped when that package is unavailable.
+- Production dry-run named only the two reviewed Home migrations. Deployment
+  advanced live history from 175 to 177 migrations. Auth-user, visit, recipe
+  identity/version, and Storage-object counts; whole-row fingerprints for visits
+  and recipe records; and every bucket visibility value matched before and after.
+  The new tables began empty with RLS enabled, anonymous RPC execution denied,
+  authenticated RPC execution granted, and business conflicts mapped to HTTP 409.
+- The default-on/explicit-off rollback behavior and all focused Home tests pass
+  together (22 tests). The signed Debug candidate built, installed, launched, and
+  remained running on Joe's iPhone 16 Pro without changing the App Store marketing
+  version or build number.
 
 The acceptance branch `home-recipes-acceptance`
 (`rfjbunvhidcyyzyzcyvh`) contained only synthetic `.invalid` users and disabled
@@ -156,10 +170,7 @@ No implementation item from the approved Home and Recipes plan remains open in
 this source candidate. The following are release operations, not missing product
 scope:
 
-1. Deploy the reviewed additive migrations through the normal production
-   preservation workflow and verify migration/history parity.
-2. Enable the native flag only after the production capability is present; the
-   rollback path must keep saved data readable while the flag is off.
-3. Run physical-device acceptance only when the owner promotes the candidate.
-4. Archive, upload, or assign a TestFlight build only after an explicit TestFlight
+1. Complete owner hands-on acceptance on the launched production-connected
+   Debug candidate. Source, production schema, and the default-on flag are ready.
+2. Archive, upload, or assign a TestFlight build only after an explicit TestFlight
    request and the required Simulator and connected-iPhone gates.

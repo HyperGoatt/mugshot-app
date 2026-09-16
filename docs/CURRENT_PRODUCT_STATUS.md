@@ -1,15 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
-## Native Home and Recipes — 2026-09-15
+## Native Home and Recipes — 2026-09-16
 
-The complete native Home/Recipes plan is implemented and locally accepted behind
-a default-off flag. Existing production Home and recipe behavior remains the
-default because the additive backend has not been deployed to production and the
-flag has not been enabled.
+The complete native Home/Recipes plan is implemented, production-configured, and
+enabled by default. Production is aligned at all 177 migrations through
+`20260916020417_home_recipe_http_conflicts.sql`. The explicit stored-off flag
+remains a rollback switch and does not remove saved recipe or journal data.
 
 The source includes template-first progressive recipe creation, two-surface quick
 logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,
@@ -20,7 +20,10 @@ recovery, private media synchronization, owner export, and conflict review.
 All 65 SQL contracts passed against an isolated 177-migration database. Real
 Auth/API/Storage transport plus all 21 Home model/store tests passed on iOS 26.3.
 The complete connected journeys and largest Dynamic Type route pass. The synthetic
-branch was deleted after acceptance; production is untouched. Physical-device and
+branch was deleted after acceptance. The live cutover preserved every recorded
+content fingerprint, row count, Storage object count, and bucket visibility value.
+All 22 focused Home tests pass with the activation behavior, and the signed Debug
+candidate is installed, launched, and running on Joe's iPhone. Hands-on and
 TestFlight acceptance remain owner-promoted gates. See
 [implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md).
 

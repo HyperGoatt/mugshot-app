@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
 # Repository map
@@ -10,11 +10,11 @@ last_verified: 2026-09-15
 
 `Models/HomeRecipeWorkspace.swift`, `Services/HomeRecipeWorkspaceStore.swift`,
 `Services/Supabase/HomeRecipeWorkspaceService.swift`, and the `Views/Add/Home*`
-recipe screens contain the default-off, implementation-complete native flow.
+recipe screens contain the default-on, production-configured native flow.
 Focused coverage lives in `testMugshotTests/HomeRecipeWorkspaceTests.swift`,
 `testMugshotTests/HomeRecipeHostedIntegrationTests.swift`,
 `testMugshotUITests/HomeRecipesJourneyUITests.swift`, and the `qa/pglite/home-*`
-harnesses. [Ownership, acceptance, and rollout boundary](HOME_RECIPES_IMPLEMENTATION.md).
+harnesses. [Ownership, acceptance, and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Repository and targets
 

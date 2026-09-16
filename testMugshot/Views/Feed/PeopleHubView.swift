@@ -19,7 +19,7 @@ struct PeopleHubView: View {
     @State private var sharedRecipes: [SharedRecipeRecord] = []
     @State private var selectedSharedRecipe: SharedRecipeRecord?
     @State private var sharedHomePublication: SipDraft?
-    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
+    @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
 
     var body: some View {
         NavigationStack {
