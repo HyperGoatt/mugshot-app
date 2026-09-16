@@ -54,12 +54,21 @@ Both short Power Profiler captures remained nominal thermally. The location-ener
 interval was also shorter after the fix, but the warmed location cache makes that
 difference uncontrolled and it is not attributed to the Home change.
 
-Background/lock, movement, reminder-on/off, media retention, interrupted upload,
-and matched extended-discharge acceptance remain open. TestFlight 0.5.3 (7) still
-contains the original location defect, so further distribution remains held. No
-Supabase environment, production data, TestFlight build, or App Store state
-changed. See the [original audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md)
-and [instrumented validation](audits/BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md).
+Owner physical acceptance then passed the first charging and Map-to-lock battery
+check on the fixed candidate. With Mugshot open, the displayed level rose from
+37% to 53% during ten minutes plugged in. It remained at 53% across a 30-minute
+unplugged interval consisting of two minutes on Map followed by a locked phone.
+The original failure-to-charge symptom did not recur. This is one physical arm,
+not a matched control; displayed percentages are coarse and device temperature
+was not reported.
+
+A matched force-quit control, movement, reminder-on/off, media retention,
+interrupted upload, explicit thermal observation, and repeated extended-discharge
+acceptance remain open. TestFlight 0.5.3 (7) still contains the original location
+defect, so further distribution remains held. No Supabase environment, production
+data, TestFlight build, or App Store state changed. See the
+[original audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md) and
+[instrumented validation](audits/BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md).
 
 ## Native Home and Recipes — 2026-09-16
 

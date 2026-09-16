@@ -32,6 +32,21 @@ The original audit's location finding remains the leading build-7 explanation.
 The short captures also cannot establish a battery-discharge percentage or prove
 background, locked, movement, or multi-hour behavior.
 
+## Owner physical acceptance addendum — 2026-09-16
+
+Joe exercised the installed fixed development candidate on the same iPhone. With
+Mugshot open and the phone plugged in, the displayed battery level rose from 37%
+at 2:30 p.m. ET to 53% at 2:40 p.m. ET. He then unplugged the phone, left Mugshot
+open on Map for two minutes, locked the phone, and observed 53% again at 3:10 p.m.
+ET. This passes the prepared charging check and the first 30-minute Map-to-lock
+battery-level arm: the original symptom of failing to gain charge did not recur,
+and the phone showed no displayed percentage loss during the unplugged interval.
+
+This observation is physical battery evidence for the fixed candidate, but iOS
+battery percentage is coarse, there was no matched force-quit control, and device
+temperature was not reported. It does not establish movement-dependent nearby
+reminder behavior or multi-hour discharge. Those remain separate experiments.
+
 ## Build identity and conditions
 
 | Item | Evidence |
@@ -94,8 +109,8 @@ percentages or Instruments energy scores.
 | Foreground idle after launch | Completed, short | Pre-fix loop reproduced and fixed run returned CPU/network to idle | Repeat 10-minute screen-specific captures for release acceptance |
 | Home/Supabase recovery | Completed for no-pending launch path | 119-to-1 before/after result; zero media bytes | Exercise real pending edit, conflict, offline, reconnect, and background cancellation with isolated content |
 | Location | Partially completed | One-shot and nearby ownership events emitted; all standard managers released | Movement and reminder-enabled/disabled physical comparison |
-| Thermal | Partially completed | Both short captures stayed nominal | Longer unplugged and locked intervals from matched starting conditions |
-| Background and lock | Not completed in this checkpoint | Lifecycle instrumentation is installed | 30-minute ordinary, Map, camera, and upload arms |
+| Thermal | Partially completed | Both short captures stayed nominal; owner did not report temperature during the later battery check | Longer unplugged and locked intervals with an explicit temperature observation from matched starting conditions |
+| Background and lock | Partially completed on device | Fixed candidate rose 37% to 53% during 10 minutes plugged in and then remained at a displayed 53% across two minutes on Map plus the remainder of a 30-minute unplugged/locked interval | Matched force-quit control plus ordinary, camera, upload, movement, and reminder-on/off arms |
 | Media/upload/memory | Not completed in this checkpoint | Upload byte/outcome instrumentation is installed | Ten-cycle media retention and interrupted upload matrix |
 | Extended discharge | Not completed | No battery percentage is inferred from traces | Counterbalanced repeated three-hour control and Mugshot arms |
 
@@ -113,8 +128,10 @@ percentages or Instruments energy scores.
 ## Release decision
 
 The Home synchronization defect is fixed and its foreground idle effect is
-physically verified. Keep the release hold because build 7 still contains the
-original location defect and the fixed candidate has not completed the physical
-background/lock, movement, media, upload, or extended-discharge matrix. The next
-highest-value experiment is a 30-minute locked comparison after ordinary use and
-after Map/reminder use, followed by a repeated three-hour matched discharge test.
+physically verified. The fixed candidate also passed the first owner-observed
+charging and 30-minute Map-to-lock battery-level arm. Keep the release hold
+because build 7 still contains the original location defect and the fixed
+candidate has not completed a matched force-quit control, movement/reminder,
+media, upload, thermal-observation, or extended-discharge matrix. The next
+highest-value experiment is the matched 30-minute force-quit control, followed by
+a repeated three-hour matched discharge test.
