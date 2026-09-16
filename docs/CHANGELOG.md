@@ -4,6 +4,49 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## 2026-09-16 — Physical battery diagnostics
+
+- Physical instrumentation immediately found a separate current-source Home
+  synchronization defect: battery-remediation commit `038aad5` restarted Home
+  recovery unconditionally after every successful pass. The signed development
+  build issued 119 Home/Supabase synchronization starts in about 15 seconds with
+  no pending operation or photo transfer. This recursion was introduced after
+  TestFlight 0.5.3 (7), so it does not explain the original build-7 incident.
+- Removed completion-triggered Home recovery rescheduling. Account activation,
+  foreground network availability, and a real non-nil pending operation now each
+  request one single-flight pass; the store retains its existing race-safe extra
+  pass only when a local edit actually arrives during synchronization.
+- Added privacy-safe Debug signposts and unified-log events for application
+  lifecycle, thermal and Low Power Mode transitions, network availability,
+  continuous and one-shot location ownership, nearby-reminder monitoring and
+  wakes, visit and Home recovery, Home synchronization, and visit-photo uploads.
+- Location delivery and media transfer measurements are accumulated in memory and
+  emitted only when work stops. Diagnostics record counts, durations, byte totals,
+  authorization states, and outcomes; they never record coordinates, cafe or
+  account identifiers, content, filenames, URLs, or error descriptions. Release
+  builds compile the recorders to no-ops.
+- Added a Debug MetricKit subscriber that retains at most 20 protected local JSON
+  payloads in the app container for delayed CPU, wakeup, hang, disk, network, and
+  diagnostic evidence. Nothing is uploaded or sent to analytics.
+- Gave only the physical-device Debug product and executable the distinct
+  `MugshotDiagnostics` name so Instruments can select it unambiguously while the
+  production and development bundle identities are installed together. Bundle
+  identifiers, extensions, Release packaging, and user data remain unchanged.
+- Before/after Power Profiler and Logging captures succeeded on Joe's iPhone 16
+  Pro running iOS 27.0. During comparable settled seconds 6–20, sampled CPU fell
+  from 1,250 ms, about 8.9% of one core, to 3 ms, about 0.02%; post-launch network
+  traffic fell from roughly 115–125 KiB every five to six seconds to zero; and
+  Home synchronization fell from continuous passes to one launch pass. Both
+  short captures stayed at nominal thermal state. These measurements prove the
+  loop and its removal, not a battery-percentage estimate or extended lock-state
+  acceptance.
+- The generic Debug app/test compile and 17 distinct focused battery/recovery
+  tests passed on iOS 27. The optimized Release build passed and contains none of
+  the diagnostic event or MetricKit storage strings. The fixed signed
+  `co.mugshot.app.dev` candidate is installed and launched on the physical phone.
+- No Supabase environment, schema, production data, TestFlight build, App Store
+  state, or production analytics configuration changed.
+
 ## 2026-09-16 — Battery-drain location lifecycle remediation
 
 - Restricted continuous best-accuracy location updates to the active Map owner.

@@ -92,6 +92,11 @@ final class VisitPhotoUploadService {
         guard paths.count == uploadImages.count else {
             throw VisitPhotoUploadError.invalidUploadPlan
         }
+        var diagnosticOutcome = BatteryDiagnostics.WorkOutcome.interrupted
+        var diagnostics = BatteryDiagnostics.PhotoUploadSession(
+            plannedPhotoCount: uploadImages.count
+        )
+        defer { diagnostics.finish(diagnosticOutcome) }
 
         do {
             for (image, path) in zip(uploadImages, paths) {
@@ -106,6 +111,7 @@ final class VisitPhotoUploadService {
                         upsert: replacingExisting
                     )
                 )
+                diagnostics.recordedUpload(byteCount: data.count)
 
                 objectPaths.append(path)
                 guard let reference = VisitPhotoStorageReference(
@@ -117,6 +123,7 @@ final class VisitPhotoUploadService {
                 attachmentReferences.append(reference.storedValue)
             }
         } catch {
+            diagnosticOutcome = Task.isCancelled ? .cancelled : .failed
             if !objectPaths.isEmpty {
                 _ = try? await storage.remove(paths: objectPaths)
             }
@@ -126,6 +133,7 @@ final class VisitPhotoUploadService {
         let safePosterIndex = attachmentReferences.indices.contains(posterPhotoIndex)
             ? posterPhotoIndex
             : 0
+        diagnosticOutcome = .completed
         return UploadedVisitPhotos(
             attachmentReferences: attachmentReferences,
             objectPaths: objectPaths,

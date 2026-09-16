@@ -75,6 +75,28 @@ struct AutomaticSipRecoveryDependencies {
     )
 }
 
+struct HomeWorkspaceRecoveryDependencies {
+    var activate: @MainActor (_ accountID: UUID?) -> Void
+    var hasActiveScope: @MainActor (_ accountID: UUID) -> Bool
+    var pendingOperationIDs: @MainActor () -> AnyPublisher<UUID?, Never>
+    var synchronize: @MainActor () async -> Void
+
+    @MainActor
+    static var live: Self {
+        let store = HomeRecipeWorkspaceStore.shared
+        return Self(
+            activate: { store.activate(.forUserID($0)) },
+            hasActiveScope: { store.scope == .user($0) },
+            pendingOperationIDs: {
+                store.$workspace
+                    .map(\.pendingOperationID)
+                    .eraseToAnyPublisher()
+            },
+            synchronize: { await store.synchronize() }
+        )
+    }
+}
+
 /// Account-scoped app-lifecycle driver for the frozen visit outbox. It never
 /// opens, replaces, or resumes a composer draft; every operation receives the
 /// exact durable record selected FIFO for the active authenticated account.
@@ -95,14 +117,16 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     private var homeRecoveryTask: Task<Void, Never>?
     private var homeRecoveryID: UUID?
     private var homeWorkspaceObservation: AnyCancellable?
-    private let recoversHomeWorkspace: Bool
+    private let homeWorkspaceRecovery: HomeWorkspaceRecoveryDependencies?
 
     init(
         dependencies: AutomaticSipRecoveryDependencies = .live,
-        observesNetwork: Bool = true
+        observesNetwork: Bool = true,
+        homeWorkspaceRecovery: HomeWorkspaceRecoveryDependencies? = nil
     ) {
         self.dependencies = dependencies
-        self.recoversHomeWorkspace = observesNetwork
+        self.homeWorkspaceRecovery = homeWorkspaceRecovery
+            ?? (observesNetwork ? .live : nil)
         self.networkObserver = observesNetwork ? SipRecoveryNetworkObserver() : nil
         networkObserver?.start { [weak self] isAvailable in
             Task { @MainActor [weak self] in
@@ -112,28 +136,32 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     private func scheduleHomeRecovery() {
-        guard recoversHomeWorkspace, isAppActive, isNetworkAvailable,
+        guard let homeWorkspaceRecovery,
+              isAppActive, isNetworkAvailable,
               RoadmapFeatureFlags.isHomeRecipesEnabled(),
               let accountID = activeAccountID, homeRecoveryTask == nil else { return }
-        let store = HomeRecipeWorkspaceStore.shared
-        guard store.scope == .user(accountID) else { return }
+        guard homeWorkspaceRecovery.hasActiveScope(accountID) else { return }
         let recoveryID = UUID()
         homeRecoveryID = recoveryID
+        BatteryDiagnostics.homeRecoveryStarted()
         homeRecoveryTask = Task { [weak self] in
-            await store.synchronize()
+            await homeWorkspaceRecovery.synchronize()
+            BatteryDiagnostics.homeRecoveryFinished(
+                Task.isCancelled ? .cancelled : .completed
+            )
             guard let self, self.activeAccountID == accountID, self.homeRecoveryID == recoveryID else { return }
             self.homeRecoveryTask = nil
             self.homeRecoveryID = nil
-            self.scheduleHomeRecovery()
         }
     }
 
     func activate(accountID: UUID?) {
-        if recoversHomeWorkspace {
-            HomeRecipeWorkspaceStore.shared.activate(.forUserID(accountID))
+        if let homeWorkspaceRecovery {
+            homeWorkspaceRecovery.activate(accountID)
             if homeWorkspaceObservation == nil {
-                homeWorkspaceObservation = HomeRecipeWorkspaceStore.shared.$workspace
-                    .map(\.pendingOperationID).removeDuplicates()
+                homeWorkspaceObservation = homeWorkspaceRecovery.pendingOperationIDs()
+                    .compactMap { $0 }
+                    .removeDuplicates()
                     .debounce(for: .milliseconds(750), scheduler: RunLoop.main)
                     .sink { [weak self] _ in self?.scheduleHomeRecovery() }
             }
@@ -145,12 +173,16 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         }
 
         activeAccountID = accountID
+        if homeRecoveryTask != nil {
+            BatteryDiagnostics.recoveryCancellationRequested(kind: "home_account_change")
+        }
         homeRecoveryTask?.cancel()
         homeRecoveryTask = nil
         homeRecoveryID = nil
         issues = []
         suppressAutomaticRetry = false
         if recoveryTask != nil {
+            BatteryDiagnostics.recoveryCancellationRequested(kind: "visit_account_change")
             recoveryTask?.cancel()
         }
         refreshState()
@@ -161,6 +193,12 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         let becameActive = isActive && !isAppActive
         isAppActive = isActive
         if !isActive {
+            if recoveryTask != nil {
+                BatteryDiagnostics.recoveryCancellationRequested(kind: "visit_inactive")
+            }
+            if homeRecoveryTask != nil {
+                BatteryDiagnostics.recoveryCancellationRequested(kind: "home_inactive")
+            }
             recoveryTask?.cancel()
             homeRecoveryTask?.cancel()
         }
@@ -170,8 +208,12 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     }
 
     func setNetworkAvailable(_ isAvailable: Bool) {
+        let availabilityChanged = isNetworkAvailable != isAvailable
         let reconnected = isAvailable && !isNetworkAvailable
         isNetworkAvailable = isAvailable
+        if availabilityChanged {
+            BatteryDiagnostics.networkAvailabilityChanged(isAvailable: isAvailable)
+        }
         if reconnected { suppressAutomaticRetry = false }
         refreshState()
         scheduleIfEligible()
@@ -234,6 +276,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         let runID = UUID()
         activeRunID = runID
         state = .recovering(records.count)
+        BatteryDiagnostics.visitRecoveryStarted(pendingCount: records.count)
         recoveryTask = Task { [weak self] in
             await self?.drain(accountID: accountID, runID: runID)
         }
@@ -316,6 +359,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
             if remainingRecords.isEmpty {
                 suppressAutomaticRetry = false
                 state = .idle
+                BatteryDiagnostics.visitRecoveryFinished(.completed, remainingCount: 0)
                 return
             }
 
@@ -329,7 +373,16 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                         ? "This MugShot is saved. Sharing will resume when the account and connection are ready."
                         : "This MugShot is saved. Sharing still needs to finish.")
             )
+            BatteryDiagnostics.visitRecoveryFinished(
+                .failed,
+                remainingCount: remainingRecords.count
+            )
         } catch is CancellationError {
+            let remainingCount = (try? dependencies.loadRecords(accountID).count) ?? 0
+            BatteryDiagnostics.visitRecoveryFinished(
+                .cancelled,
+                remainingCount: remainingCount
+            )
             finish(runID: runID, accountID: accountID, completed: false)
         } catch {
             guard activeRunID == runID else { return }
@@ -372,6 +425,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                         published: published
                     )
                 )
+            BatteryDiagnostics.visitRecoveryFinished(.failed, remainingCount: count)
         }
     }
 

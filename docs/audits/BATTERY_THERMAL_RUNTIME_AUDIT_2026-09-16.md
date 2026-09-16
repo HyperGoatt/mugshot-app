@@ -16,6 +16,15 @@ Current release authority: [Current product status](../CURRENT_PRODUCT_STATUS.md
 > remains affected, and physical battery/thermal acceptance remains open. See the
 > [current product status](../CURRENT_PRODUCT_STATUS.md) for release authority.
 
+> **Instrumentation supersession — 2026-09-16:** Current source now adds the
+> requested privacy-safe Debug signposts, bounded counters, thermal/power/lifecycle
+> observation, and protected local MetricKit retention. Physical Power Profiler,
+> Time Profiler, and Logging captures now succeed against the signed development
+> identity. They found and verified the removal of a separate Home synchronization
+> loop introduced after build 7. See the
+> [instrumented validation](BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md) and
+> [current product status](../CURRENT_PRODUCT_STATUS.md) for the live gate.
+
 ## Verdict
 
 Available evidence supports Mugshot as a likely major contributor to the reported

@@ -3,6 +3,19 @@ import Testing
 @testable import testMugshot
 
 struct BatteryLifecycleTests {
+    @Test func diagnosticLocationOwnerRegistryIsBalancedAndIdempotent() {
+        let first = LocationOwnerToken()
+        let second = LocationOwnerToken()
+        var registry = BatteryDiagnostics.LocationOwnershipRegistry()
+
+        #expect(registry.acquire(first) == (true, 1))
+        #expect(registry.acquire(first) == (false, 1))
+        #expect(registry.acquire(second) == (true, 2))
+        #expect(registry.release(first) == (true, 1))
+        #expect(registry.release(first) == (false, 1))
+        #expect(registry.release(second) == (true, 0))
+    }
+
     @Test func authorizedPermissionRequestUsesOneShotLocation() {
         let client = LocationClientFake(authorizationStatus: .authorizedWhenInUse)
         let manager = LocationManager(locationManager: client)
@@ -77,6 +90,8 @@ struct BatteryLifecycleTests {
         #expect(NearbyReminderPolicy.regionPlanNeedsRefresh(existing: desired, desired: changed))
     }
 }
+
+private final class LocationOwnerToken {}
 
 private final class LocationClientFake: MugshotLocationManaging {
     var delegate: (any CLLocationManagerDelegate)?

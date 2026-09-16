@@ -1,8 +1,47 @@
+import Combine
 import Foundation
 import Testing
 @testable import testMugshot
 
 struct AutomaticSipRecoveryCoordinatorTests {
+    @MainActor
+    @Test func homeWorkspaceRecoveryRunsOncePerTrigger() async {
+        let accountID = UUID()
+        let pendingOperationIDs = PassthroughSubject<UUID?, Never>()
+        var activeAccountID: UUID?
+        var synchronizationCount = 0
+        let homeWorkspaceRecovery = HomeWorkspaceRecoveryDependencies(
+            activate: { activeAccountID = $0 },
+            hasActiveScope: { activeAccountID == $0 },
+            pendingOperationIDs: { pendingOperationIDs.eraseToAnyPublisher() },
+            synchronize: { synchronizationCount += 1 }
+        )
+        let dependencies = AutomaticSipRecoveryDependencies(
+            loadRecords: { _ in [] },
+            reconcile: { $0 },
+            recover: { $0.record.id }
+        )
+        let coordinator = AutomaticSipRecoveryCoordinator(
+            dependencies: dependencies,
+            observesNetwork: false,
+            homeWorkspaceRecovery: homeWorkspaceRecovery
+        )
+
+        coordinator.activate(accountID: accountID)
+        coordinator.setAppActive(true)
+        coordinator.setNetworkAvailable(true)
+
+        #expect(await waitUntil { synchronizationCount == 1 })
+        try? await Task.sleep(for: .milliseconds(900))
+        #expect(synchronizationCount == 1)
+
+        pendingOperationIDs.send(UUID())
+
+        #expect(await waitUntil { synchronizationCount == 2 })
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(synchronizationCount == 2)
+    }
+
     @Test func authoritativeServerStateSelectsTheSafeResumeStage() throws {
         let fixture = try makeStore()
         defer { fixture.cleanup() }

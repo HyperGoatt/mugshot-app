@@ -28,6 +28,7 @@ extension CLLocationManager: MugshotLocationManaging {}
 
 class LocationManager: NSObject, ObservableObject {
     private let locationManager: any MugshotLocationManaging
+    private var continuousLocationUpdateCount = 0
     
     @Published var location: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -47,6 +48,10 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     deinit {
+        BatteryDiagnostics.continuousLocationStopped(
+            owner: self,
+            updateCount: continuousLocationUpdateCount
+        )
         locationManager.stopUpdatingLocation()
         locationManager.delegate = nil
     }
@@ -78,6 +83,8 @@ class LocationManager: NSObject, ObservableObject {
 
         guard !isUpdatingContinuously else { return }
         isUpdatingContinuously = true
+        continuousLocationUpdateCount = 0
+        BatteryDiagnostics.continuousLocationStarted(owner: self)
 
         // Request a one-time location update for immediate use
         locationManager.requestLocation()
@@ -88,14 +95,23 @@ class LocationManager: NSObject, ObservableObject {
     }
     
     func stopUpdatingLocation() {
+        let wasUpdatingContinuously = isUpdatingContinuously
         isUpdatingContinuously = false
         locationManager.stopUpdatingLocation()
+        if wasUpdatingContinuously {
+            BatteryDiagnostics.continuousLocationStopped(
+                owner: self,
+                updateCount: continuousLocationUpdateCount
+            )
+            continuousLocationUpdateCount = 0
+        }
     }
     
     func requestCurrentLocation() {
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
             return
         }
+        BatteryDiagnostics.oneShotLocationRequested()
         locationManager.requestLocation()
     }
     
@@ -111,6 +127,9 @@ extension LocationManager: CLLocationManagerDelegate {
         // Only update if location is reasonably recent (within last 30 seconds)
         let locationAge = -location.timestamp.timeIntervalSinceNow
         if locationAge < 30 {
+            if isUpdatingContinuously {
+                continuousLocationUpdateCount &+= locations.count
+            }
             self.location = location
             locationError = nil
         }
@@ -118,6 +137,7 @@ extension LocationManager: CLLocationManagerDelegate {
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         if let clError = error as? CLError {
+            BatteryDiagnostics.locationFailed(code: clError.code.rawValue)
             switch clError.code {
             case .denied:
                 locationError = "Location is off. You can still search for a cafe."
@@ -128,6 +148,7 @@ extension LocationManager: CLLocationManagerDelegate {
                 locationError = "We couldn’t find your location. You can still search for a cafe."
             }
         } else {
+            BatteryDiagnostics.locationFailed(code: -1)
             locationError = "We couldn’t find your location. You can still search for a cafe."
         }
     }
@@ -138,6 +159,7 @@ extension LocationManager: CLLocationManagerDelegate {
 
     func handleAuthorizationChange(_ newStatus: CLAuthorizationStatus) {
         authorizationStatus = newStatus
+        BatteryDiagnostics.locationAuthorizationChanged(newStatus)
         
         switch newStatus {
         case .authorizedWhenInUse, .authorizedAlways:
