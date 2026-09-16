@@ -124,6 +124,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
             guard let self, self.activeAccountID == accountID, self.homeRecoveryID == recoveryID else { return }
             self.homeRecoveryTask = nil
             self.homeRecoveryID = nil
+            self.scheduleHomeRecovery()
         }
     }
 
@@ -159,6 +160,10 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     func setAppActive(_ isActive: Bool) {
         let becameActive = isActive && !isAppActive
         isAppActive = isActive
+        if !isActive {
+            recoveryTask?.cancel()
+            homeRecoveryTask?.cancel()
+        }
         if becameActive { suppressAutomaticRetry = false }
         refreshState()
         scheduleIfEligible()
@@ -194,12 +199,12 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
             state = .idle
             return
         }
-        if recoveryTask != nil {
+        if !isAppActive {
+            state = .pending(count)
+        } else if recoveryTask != nil {
             state = .recovering(count)
         } else if !isNetworkAvailable {
             state = .waitingForNetwork(count)
-        } else if !isAppActive {
-            state = .pending(count)
         } else if case .failed = state, suppressAutomaticRetry {
             return
         } else {

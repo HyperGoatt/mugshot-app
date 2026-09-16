@@ -336,6 +336,74 @@ struct AutomaticSipRecoveryCoordinatorTests {
     }
 
     @MainActor
+    @Test func backgroundingCancelsRecoveryAndForegroundResumesOnce() async throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        let accountID = UUID()
+        let record = try prepare(
+            fixture.store,
+            accountID: accountID,
+            caption: "Resume after background"
+        )
+        var reconcileAttempts = 0
+        var cancellationObserved = false
+        var recoveredIDs: [UUID] = []
+        let dependencies = AutomaticSipRecoveryDependencies(
+            loadRecords: { try fixture.store.loadAll(userId: $0) },
+            reconcile: { pending in
+                reconcileAttempts += 1
+                if reconcileAttempts == 1 {
+                    do {
+                        try await Task.sleep(for: .seconds(10))
+                    } catch is CancellationError {
+                        cancellationObserved = true
+                        throw CancellationError()
+                    }
+                }
+                return pending
+            },
+            recover: { candidate in
+                recoveredIDs.append(candidate.record.id)
+                let latest = try #require(
+                    fixture.store.load(
+                        visitId: candidate.record.id,
+                        userId: candidate.record.userId
+                    )
+                )
+                fixture.store.remove(latest)
+                return candidate.record.id
+            }
+        )
+        let coordinator = AutomaticSipRecoveryCoordinator(
+            dependencies: dependencies,
+            observesNetwork: false
+        )
+
+        coordinator.activate(accountID: accountID)
+        coordinator.setNetworkAvailable(true)
+        coordinator.setAppActive(true)
+        let started = await waitUntil { reconcileAttempts == 1 }
+        #expect(started)
+
+        coordinator.setAppActive(false)
+        let cancelled = await waitUntil {
+            cancellationObserved && coordinator.state == .pending(1)
+        }
+
+        #expect(cancelled)
+        #expect(recoveredIDs.isEmpty)
+        #expect(try fixture.store.loadAll(userId: accountID).map(\.id) == [record.id])
+
+        coordinator.setAppActive(true)
+        let completed = await waitUntil { coordinator.state == .idle }
+
+        #expect(completed)
+        #expect(reconcileAttempts == 2)
+        #expect(recoveredIDs == [record.id])
+        #expect(try fixture.store.loadAll(userId: accountID).isEmpty)
+    }
+
+    @MainActor
     @Test func activeAccountNeverDrainsAnotherAccountsOutbox() async throws {
         let fixture = try makeStore()
         defer { fixture.cleanup() }

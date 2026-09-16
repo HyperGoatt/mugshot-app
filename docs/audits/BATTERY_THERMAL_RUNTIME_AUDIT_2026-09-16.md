@@ -8,6 +8,14 @@ last_verified: 2026-09-16
 
 Current release authority: [Current product status](../CURRENT_PRODUCT_STATUS.md).
 
+> **Implementation supersession — 2026-09-16:** Current source now restricts
+> continuous standard location updates to the active Map, makes permission and
+> cafe-search requests one-shot, bounds nearby-reminder reconfiguration, and
+> cancels recovery work on inactivity. Local compile, focused tests, a tab-lifecycle
+> Simulator test, and a short settled CPU capture passed. TestFlight 0.5.3 (7)
+> remains affected, and physical battery/thermal acceptance remains open. See the
+> [current product status](../CURRENT_PRODUCT_STATUS.md) for release authority.
+
 ## Verdict
 
 Available evidence supports Mugshot as a likely major contributor to the reported

@@ -570,7 +570,7 @@ struct LegacyLogVisitView: View {
     private func initializeCafeSearchLocationIfAvailable() {
         let status = cafeLocationManager.authorizationStatus
         guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
-        cafeLocationManager.startUpdatingLocation()
+        cafeLocationManager.requestCurrentLocation()
         if let location = cafeLocationManager.location {
             updateCafeSearchRegion(for: location)
         }

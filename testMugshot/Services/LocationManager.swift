@@ -12,15 +12,46 @@ import Foundation
 import CoreLocation
 import Combine
 
+protocol MugshotLocationManaging: AnyObject {
+    var delegate: (any CLLocationManagerDelegate)? { get set }
+    var desiredAccuracy: CLLocationAccuracy { get set }
+    var distanceFilter: CLLocationDistance { get set }
+    var authorizationStatus: CLAuthorizationStatus { get }
+
+    func requestWhenInUseAuthorization()
+    func requestLocation()
+    func startUpdatingLocation()
+    func stopUpdatingLocation()
+}
+
+extension CLLocationManager: MugshotLocationManaging {}
+
 class LocationManager: NSObject, ObservableObject {
-    private let locationManager = CLLocationManager()
+    private let locationManager: any MugshotLocationManaging
     
     @Published var location: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var locationError: String?
+    @Published private(set) var isUpdatingContinuously = false
     
     override init() {
+        locationManager = CLLocationManager()
         super.init()
+        configureLocationManager()
+    }
+
+    init(locationManager: any MugshotLocationManaging) {
+        self.locationManager = locationManager
+        super.init()
+        configureLocationManager()
+    }
+
+    deinit {
+        locationManager.stopUpdatingLocation()
+        locationManager.delegate = nil
+    }
+
+    private func configureLocationManager() {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 10 // Update every 10 meters
@@ -30,9 +61,10 @@ class LocationManager: NSObject, ObservableObject {
     func requestLocationPermission() {
         // Only request if status is not determined
         guard authorizationStatus == .notDetermined else {
-            // If already authorized, start updating
+            // Existing permission only needs one fresh fix. Continuous updates
+            // are owned explicitly by the visible Map lifecycle.
             if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-                startUpdatingLocation()
+                requestCurrentLocation()
             }
             return
         }
@@ -43,15 +75,20 @@ class LocationManager: NSObject, ObservableObject {
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
             return
         }
-        
+
+        guard !isUpdatingContinuously else { return }
+        isUpdatingContinuously = true
+
         // Request a one-time location update for immediate use
         locationManager.requestLocation()
-        
-        // Also start continuous updates for "my location" button
+
+        // Map is the only owner of this continuous mode and stops it whenever
+        // the tab or scene becomes inactive.
         locationManager.startUpdatingLocation()
     }
     
     func stopUpdatingLocation() {
+        isUpdatingContinuously = false
         locationManager.stopUpdatingLocation()
     }
     
@@ -96,13 +133,18 @@ extension LocationManager: CLLocationManagerDelegate {
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let newStatus = manager.authorizationStatus
+        handleAuthorizationChange(manager.authorizationStatus)
+    }
+
+    func handleAuthorizationChange(_ newStatus: CLAuthorizationStatus) {
         authorizationStatus = newStatus
         
         switch newStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            // Start updating location when permission is granted
-            startUpdatingLocation()
+            // Permission changes may be observed by several retained views.
+            // A one-shot request is bounded; a continuous session must be
+            // acquired by the active Map owner.
+            requestCurrentLocation()
             locationError = nil
         case .denied, .restricted:
             locationError = "Location is off. You can still search for a cafe."

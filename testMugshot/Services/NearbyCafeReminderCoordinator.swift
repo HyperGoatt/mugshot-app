@@ -7,6 +7,51 @@ struct NearbyReminderPolicy {
     static let monitoredCafeLimit = 20
     static let repeatCooldown: TimeInterval = 30 * 24 * 60 * 60
 
+    struct Region: Hashable {
+        let identifier: String
+        let latitude: CLLocationDegrees
+        let longitude: CLLocationDegrees
+        let radius: CLLocationDistance
+
+        init(cafe: Cafe) {
+            identifier = "mugshot-nearby-\(cafe.id.uuidString.lowercased())"
+            latitude = cafe.location?.latitude ?? 0
+            longitude = cafe.location?.longitude ?? 0
+            radius = 250
+        }
+
+        init?(monitoredRegion: CLRegion) {
+            guard monitoredRegion.identifier.hasPrefix("mugshot-nearby-"),
+                  let circularRegion = monitoredRegion as? CLCircularRegion else { return nil }
+            identifier = circularRegion.identifier
+            latitude = circularRegion.center.latitude
+            longitude = circularRegion.center.longitude
+            radius = circularRegion.radius
+        }
+    }
+
+    static func regions(cafes: [Cafe], currentLocation: CLLocation?) -> [Region] {
+        cafes
+            .filter { $0.wantToTry && $0.location != nil }
+            .sorted { lhs, rhs in
+                guard let currentLocation,
+                      let lhsLocation = lhs.location,
+                      let rhsLocation = rhs.location else {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return CLLocation(latitude: lhsLocation.latitude, longitude: lhsLocation.longitude)
+                    .distance(from: currentLocation)
+                    < CLLocation(latitude: rhsLocation.latitude, longitude: rhsLocation.longitude)
+                    .distance(from: currentLocation)
+            }
+            .prefix(monitoredCafeLimit)
+            .map(Region.init(cafe:))
+    }
+
+    static func regionPlanNeedsRefresh(existing: [Region], desired: [Region]) -> Bool {
+        Set(existing) != Set(desired)
+    }
+
     static func canDeliver(
         cafeID: UUID,
         now: Date,
@@ -60,6 +105,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     private let lastCafeKey = "MugshotNearbyReminders.lastByCafe.v1"
     private var pendingAlwaysRequest = false
     private var latestCafes: [Cafe] = []
+    private var isMonitoringSignificantChanges = false
 
     override init() {
         authorizationStatus = manager.authorizationStatus
@@ -68,8 +114,13 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 500
-        if isEnabled {
+        let existingRegions = manager.monitoredRegions.compactMap(NearbyReminderPolicy.Region.init(monitoredRegion:))
+        monitoredCafeCount = existingRegions.count
+        if isEnabled, !existingRegions.isEmpty, manager.authorizationStatus == .authorizedAlways {
             manager.startMonitoringSignificantLocationChanges()
+            isMonitoringSignificantChanges = true
+        } else if !isEnabled || manager.authorizationStatus != .authorizedAlways {
+            stopMonitoring()
         }
     }
 
@@ -115,41 +166,53 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
 
     func refresh(cafes: [Cafe]) {
         latestCafes = cafes
-        guard isEnabled, manager.authorizationStatus == .authorizedAlways else { return }
+        guard isEnabled, manager.authorizationStatus == .authorizedAlways else {
+            stopMonitoring()
+            return
+        }
         configure(cafes: cafes)
     }
 
     private func configure(cafes: [Cafe]) {
-        stopMonitoring()
-        let current = manager.location
-        let eligible = cafes
-            .filter { $0.wantToTry && $0.location != nil }
-            .sorted { lhs, rhs in
-                guard let current,
-                      let lhsLocation = lhs.location,
-                      let rhsLocation = rhs.location else {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return CLLocation(latitude: lhsLocation.latitude, longitude: lhsLocation.longitude)
-                    .distance(from: current)
-                    < CLLocation(latitude: rhsLocation.latitude, longitude: rhsLocation.longitude)
-                    .distance(from: current)
-            }
-            .prefix(NearbyReminderPolicy.monitoredCafeLimit)
+        let desiredRegions = NearbyReminderPolicy.regions(
+            cafes: cafes,
+            currentLocation: manager.location
+        )
+        guard !desiredRegions.isEmpty else {
+            stopMonitoring()
+            return
+        }
 
-        for cafe in eligible {
-            guard let coordinate = cafe.location else { continue }
+        let existingRegions = manager.monitoredRegions.compactMap(
+            NearbyReminderPolicy.Region.init(monitoredRegion:)
+        )
+        let needsRefresh = NearbyReminderPolicy.regionPlanNeedsRefresh(
+            existing: existingRegions,
+            desired: desiredRegions
+        )
+        if needsRefresh {
+            stopMonitoring()
+        }
+        let registeredRegions = needsRefresh ? [] : existingRegions
+
+        for desiredRegion in desiredRegions where !registeredRegions.contains(desiredRegion) {
             let region = CLCircularRegion(
-                center: coordinate,
-                radius: 250,
-                identifier: "mugshot-nearby-\(cafe.id.uuidString.lowercased())"
+                center: CLLocationCoordinate2D(
+                    latitude: desiredRegion.latitude,
+                    longitude: desiredRegion.longitude
+                ),
+                radius: desiredRegion.radius,
+                identifier: desiredRegion.identifier
             )
             region.notifyOnEntry = true
             region.notifyOnExit = false
             manager.startMonitoring(for: region)
         }
-        manager.startMonitoringSignificantLocationChanges()
-        monitoredCafeCount = eligible.count
+        if !isMonitoringSignificantChanges {
+            manager.startMonitoringSignificantLocationChanges()
+            isMonitoringSignificantChanges = true
+        }
+        monitoredCafeCount = desiredRegions.count
     }
 
     private func stopMonitoring() {
@@ -157,6 +220,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
             manager.stopMonitoring(for: region)
         }
         manager.stopMonitoringSignificantLocationChanges()
+        isMonitoringSignificantChanges = false
         monitoredCafeCount = 0
     }
 
@@ -214,6 +278,8 @@ extension NearbyCafeReminderCoordinator: CLLocationManagerDelegate {
         } else if manager.authorizationStatus == .authorizedAlways {
             pendingAlwaysRequest = false
             configure(cafes: latestCafes)
+        } else if manager.authorizationStatus == .authorizedWhenInUse {
+            stopMonitoring()
         } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
             setEnabled(false, cafes: latestCafes)
         }
