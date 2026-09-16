@@ -19,17 +19,22 @@ assigned, including 12 external testers. No App Store release was submitted.
 **Battery release hold:** Build 7 contains the confirmed continuous-location
 lifecycle defect documented in the
 [battery and thermal audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
-Current source contains a locally verified remediation, but physical battery,
-background, locked, movement, and extended-discharge acceptance remains open.
+Current source contains a locally verified remediation. The fixed development
+candidate passed its first owner-observed charging and Map-to-lock battery arm:
+it rose from 37% to 53% during ten plugged-in minutes with Mugshot open, then
+remained at 53% during a 30-minute unplugged interval with two minutes on Map
+followed by lock. This single arm has no matched control, uses coarse displayed
+battery percentages, and did not include a temperature report.
 Short physical Power Profiler and Logging captures verified the location-lifecycle
 instrumentation and caught a source-only Home synchronization loop introduced
 after build 7. That loop is fixed: settled sampled CPU fell from about 8.9% of one
 core to about 0.02%, continuing post-launch network traffic stopped, and only one
 Home synchronization ran. The privacy-safe instrumented Debug candidate remains
 installed on the connected iPhone; it does not change Release analytics or
-backend contracts. Do not upload or assign another build until the remaining
-physical acceptance passes and the owner explicitly requests the TestFlight
-handoff.
+backend contracts. Matched force-quit, movement/reminder, media/upload, thermal,
+and extended-discharge acceptance remain open. Do not upload or assign another
+build until the remaining physical acceptance passes and the owner explicitly
+requests the TestFlight handoff.
 
 Build 7 contains the current merged product, moderation, sharing,
 regression-repair, reaction, and explicit-profile-identity work. Test results

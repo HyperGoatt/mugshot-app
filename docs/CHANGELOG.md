@@ -44,6 +44,12 @@ last_verified: 2026-09-16
   tests passed on iOS 27. The optimized Release build passed and contains none of
   the diagnostic event or MetricKit storage strings. The fixed signed
   `co.mugshot.app.dev` candidate is installed and launched on the physical phone.
+- Owner physical acceptance passed the first charging and Map-to-lock battery
+  arm on that candidate. The displayed battery rose from 37% to 53% while plugged
+  in with Mugshot open for ten minutes, then remained at 53% during a 30-minute
+  unplugged interval with two minutes on Map followed by lock. This proves the
+  reported failure-to-charge symptom did not recur in that arm; it is not yet a
+  matched force-quit, temperature, movement, or extended-discharge comparison.
 - No Supabase environment, schema, production data, TestFlight build, App Store
   state, or production analytics configuration changed.
 
