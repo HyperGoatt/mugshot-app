@@ -16,6 +16,16 @@ integrated acceptance remain required. See [data ownership and gaps](HOME_RECIPE
 Version-specific component progress and optional metric layouts persist in the
 same document. Conflicts pause remote sync without blocking local saves. Shared
 recipe content uses nested per-type allowlists; synthetic UI tests skip workspace sync.
+The owner-approved isolated backend now passes real Auth/Data API/private Storage
+round-trips and publication privacy checks against all 177 migrations. Conflicts
+return HTTP 409 immediately rather than triggering PostgREST serialization retries.
+Home unrated posts use the existing zero-score wire sentinel and omit rated legacy
+reflections; private Home feedback is not included in the post. The production
+endpoint and default-off flag are unchanged. The broader SQL gate remains 58/65,
+not a completed release gate.
+The native hosted transport test passes real recipe/attempt/media round-trips,
+typed decoding, concurrent-edit recovery and unrated publication; account-switch
+isolation and all 20 Home model/store tests passed in the same Simulator run.
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

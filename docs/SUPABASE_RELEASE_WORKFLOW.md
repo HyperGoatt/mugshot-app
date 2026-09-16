@@ -5,9 +5,9 @@ last_verified: 2026-09-15
 ---
 
 Home/Recipes amendment (2026-09-15): migration
-`20260915212702_home_recipe_workspace.sql` is local, additive work in progress,
-not deployed. It introduces owner-bound workspace synchronization and private
-version content. Do not enable the native flag or deploy until the outstanding
+`20260915212702_home_recipe_workspace.sql` is additive work in progress,
+deployed only to isolated QA, not production. It introduces owner-bound workspace
+synchronization and private version content. Do not enable the native flag or deploy until the outstanding
 [release requirements](HOME_RECIPES_IMPLEMENTATION.md) are accepted. No legacy
 measurement backfill is performed.
 The unreleased migration now also applies nested projection allowlists and
@@ -16,6 +16,14 @@ contracts passed the local PGlite harness, not a production migration run.
 The same unreleased migration adds owner export v4 while preserving v3 collections.
 Attempt media uses owner-prefixed `home-attempts` objects in the existing private
 Home bucket; no bucket is made public and no storage policy is widened.
+
+Owner-approved `home-recipes-acceptance` now holds all 177 repository migrations,
+including forward fix `20260916020417_home_recipe_http_conflicts.sql`. The isolated
+branch has all schedules disabled and no production data or credentials. Real
+Home Auth/API/Storage acceptance passes; the broad SQL gate is 58/65, with seven
+older moderation/push contract failures still requiring reconciliation. See the
+[current evidence and branch lifecycle](HOME_RECIPES_IMPLEMENTATION.md#isolated-backend-integration--september-15-continuation).
+No production deployment or native flag activation was performed.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

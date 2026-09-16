@@ -257,7 +257,9 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
             .aspectRatio(aspectRatio, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
-            .accessibilityLabel("\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5")
+            .accessibilityLabel(score > 0
+                ? "\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5"
+                : "\(drinkName) at \(displayLocationName), Unrated")
     }
 
     private var displayLocationName: String {
@@ -336,12 +338,16 @@ struct MugshotPostArtworkOverlay: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text(score.formatted(.number.precision(.fractionLength(1))))
-                    .font(.system(size: 38, weight: .regular, design: .serif))
-                    .monospacedDigit()
-                Text("OUT OF 5")
-                    .font(.system(size: 9, weight: .black))
-                    .tracking(1.3)
+                if score > 0 {
+                    Text(score.formatted(.number.precision(.fractionLength(1))))
+                        .font(.system(size: 38, weight: .regular, design: .serif))
+                        .monospacedDigit()
+                    Text("OUT OF 5")
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(1.3)
+                } else {
+                    Text("Unrated").font(.subheadline)
+                }
             }
             .fixedSize()
             .accessibilityHidden(true)

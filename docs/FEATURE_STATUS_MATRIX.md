@@ -16,6 +16,12 @@ source; 16 focused native tests and a bounded field-editor smoke check passed.
 Private-photo transport, recovery coordination, export v4 and explicit conflict
 review are now in source, alongside direct Journal Home navigation. A hermetic test
 also exercises Home projections with the actual recipient/screening policy functions.
+Isolated hosted Home Auth/API/Storage checks now pass against the complete
+177-migration schema, including owner isolation, media round-trips and explicit
+attachment privacy. This is QA-configured, not production-configured. Seven older
+contracts fail in the broad 65-contract run; full integrated release remains held.
+Native hosted sync/media/conflict/publication acceptance and 20 focused Home tests
+pass on iOS 26.3; this does not replace the complete release journey matrix.
 
 ## Explicit profile identity setup — 2026-09-14
 

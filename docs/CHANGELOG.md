@@ -6,6 +6,20 @@ last_verified: 2026-09-15
 
 ## 2026-09-15 — Native Home and Recipes foundation (flag off)
 
+Created the owner-approved isolated Home acceptance database and aligned 177
+migrations without changing production. Added real Auth/Data API/private Storage
+and opt-in native transport harnesses. Real HTTP acceptance passes recipe/attempt
+round-trips, conflicts, idempotence, explicit attachment consent and audience/block
+privacy. A forward migration returns business conflicts as HTTP 409 instead of a
+retriable serialization error. Unrated Home posts now use the existing zero-score
+wire sentinel without a rated reflection or fabricated numeric badge. Cafe and
+Elsewhere validation is unchanged. The broad hosted SQL gate is 58/65: seven older
+moderation/push contracts remain unresolved, so this is not release acceptance.
+The hosted native transport journey and 20 Home model/store tests passed together
+on iOS 26.3 (21 total), including real private-photo synchronization, conflict
+reconciliation, account isolation and unrated/photo-free publication.
+See [backend evidence](HOME_RECIPES_IMPLEMENTATION.md#isolated-backend-integration--september-15-continuation).
+
 The current continuation adds direct Journal Home navigation with account-scoped
 collection scroll state and an explicit Earlier entries route; authenticated private
 photo upload/download with durable retry receipts; centralized foreground/network

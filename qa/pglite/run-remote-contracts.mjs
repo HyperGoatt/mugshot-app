@@ -16,10 +16,12 @@ if (!databaseURL) {
 
 const parsedURL = new URL(databaseURL);
 const projectRefMatch = parsedURL.hostname.match(/^db\.([a-z]+)\.supabase\.co$/);
-const projectRef = projectRefMatch?.[1];
+const poolerRef = parsedURL.hostname.endsWith('.pooler.supabase.com') && parsedURL.port === '5432'
+  ? parsedURL.username.match(/^postgres\.([a-z]+)$/)?.[1] : undefined;
+const projectRef = projectRefMatch?.[1] ?? poolerRef;
 
 if (!projectRef) {
-  throw new Error("Remote contracts require a direct Supabase branch database URL");
+  throw new Error("Remote contracts require an identified Supabase branch direct or session-pooler URL");
 }
 if (projectRef === productionRef) {
   throw new Error("Remote contracts refuse to seed or test the production project");

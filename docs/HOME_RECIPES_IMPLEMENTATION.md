@@ -198,7 +198,55 @@ and all 19 Home model/store tests passed again (zero failures or skips).
 Documentation validation and whitespace checks passed. No hardware or TestFlight
 acceptance is implied by these local results.
 
-The complete backend migration/transport gate needs an isolated database. Read-only
-inspection found only the production Supabase branch, no configured QA database,
-and no local container/Postgres runtime. Permission to create a potentially billable,
-data-free development branch was requested. Production remains untouched.
+### Isolated backend integration — September 15 continuation
+
+With owner approval, the data-free `home-recipes-acceptance` Supabase branch was
+created (`rfjbunvhidcyyzyzcyvh`, branch ID
+`c4ff1c10-7437-48f7-8490-15ba253d268f`). It remains available for acceptance at
+$0.01344/hour (about $0.32/day); delete it after acceptance. Production was not
+modified. All 177 repository migrations are aligned through
+`20260916020417_home_recipe_http_conflicts.sql`. Historical scheduler prerequisites
+use random dummy secrets, and every scheduled job is disabled. No production
+users, data, or operational secrets were copied.
+
+The real Auth/Data API/Storage harness passes six-template persistence, separate
+targets/actuals, owner isolation, immutable versions, retry idempotence, private
+photo byte round-trips and cross-account denial. Publication checks pass explicit
+attachment consent, Friends access, stranger/block denial, nonrecursive component
+privacy and owner export. The forward migration changes business conflicts from
+SQLSTATE `40001` (retried by PostgREST) to `PT409` (an immediate HTTP 409).
+
+Native publishing now accepts an unrated Home attempt using the existing wire
+sentinel `overall_score = 0` with empty ratings; this is not a user rating.
+It omits the legacy rated reflection and renders an Unrated post badge. Cafe and
+Elsewhere score validation remains unchanged. The opt-in hosted Swift test uses
+synthetic QA credentials in process environment only; ordinary tests skip it.
+
+The hosted native acceptance passed on iOS 26.3: a real Auth sign-in, recipe and
+attempt sync, private JPEG upload/download into a second local store, typed recipe
+projection decoding, immediate conflict detection and reconciliation, account
+isolation, and unrated/photo-free publication through `VisitService`. The same
+run passed all 20 focused Home model/store tests (21 total, no failures or skips).
+The unsigned test build uses an isolated in-memory Auth session because Keychain
+is unavailable; production authentication storage is unchanged. A stalled initial
+Simulator launch was recovered; it is not counted as evidence. The final generic
+Debug compile, script syntax checks, documentation checker and whitespace check
+also passed. Full-static previously passed 12 checks with one optional parser skip.
+
+The full hosted SQL regression run passed 58 of 65 contracts. Seven remain red:
+`alpha_activity_delivery_hardening_security`,
+`alpha_collaborative_cafe_lists_contract`, `sprint1_canonical_post_screening`,
+`sprint1_existing_revision_visibility`, `sprint1_legacy_projection_screening`,
+`sprint1_profile_live_projection`, and `sprint1_screening_queue_contract`.
+Inspection identifies obsolete provider-pending/queue assumptions and a function
+body assertion that does not follow the new push wrapper. They have not been
+silently skipped or declared accepted. Reconcile these against current moderation
+policy before a clean integrated release gate; do not restore retired provider work.
+
+The security advisor reports no ERROR-level finding. It reports 44 private-table
+no-policy notices and executable-security-definer warnings (29 anonymous, 202
+authenticated), including intended owner-bound Home RPCs. These are not a blanket
+security approval. See Supabase guidance for [deny-by-default RLS tables](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
+[anonymous definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable),
+and [authenticated definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+The complete release flag remains off; no hardware or TestFlight gate was run.

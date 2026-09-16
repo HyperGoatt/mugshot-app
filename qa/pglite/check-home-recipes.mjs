@@ -37,6 +37,7 @@ grant usage on schema public,auth to authenticated;
 `);
 const migration = await readFile(new URL('../../supabase/migrations/20260915212702_home_recipe_workspace.sql', import.meta.url), 'utf8');
 await db.exec(migration);
+await db.exec(await readFile(new URL('../../supabase/migrations/20260916020417_home_recipe_http_conflicts.sql', import.meta.url), 'utf8'));
 const projected = (await db.query('select private.home_recipe_public_content_v1($1) content', [{
   name: 'Safe recipe', privateNote: 'private', targets: { dose: 18, privateNote: 'private' },
   ingredients: [{ name: 'Syrup', recipe: { recipeID: randomUUID(), versionID: randomUUID(), instructions: 'private' }, privatePhotoPath: 'private' }],
@@ -68,7 +69,7 @@ const operation = randomUUID();
 const first = await save(0, document, operation);
 assert.equal(first.revision, 1);
 assert.equal((await save(0, document, operation)).revision, 1, 'same operation must not duplicate writes');
-await assert.rejects(save(0, document), /HOME_WORKSPACE_CONFLICT/);
+await assert.rejects(save(0, document), error => error.code === 'PT409' && /HOME_WORKSPACE_CONFLICT/.test(error.message));
 const edit = structuredClone(document);
 edit.recipes[0].versions[0].content.targets.dose = 20;
 await assert.rejects(save(1, edit), /Immutable recipe version conflict/);

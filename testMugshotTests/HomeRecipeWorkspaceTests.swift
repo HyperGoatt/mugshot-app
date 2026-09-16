@@ -5,6 +5,18 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func unratedHomePublicationDoesNotInventARequiredScore() throws {
+        func payload(_ context: JournalEntryContext, _ score: Double) throws -> SupabaseVisitInsert {
+            try SupabaseVisitInsert.make(userId: UUID(), remoteCafe: nil, entryContext: context,
+                drinkType: .coffee, customDrinkType: nil, drinkSubtype: "Home make", caption: "My make",
+                notes: nil, visibility: .friends, ratings: [:], overallScore: score,
+                ratingTemplate: RatingTemplate(categories: []))
+        }
+        #expect(try payload(.home, 0).overallScore == 0)
+        #expect(throws: (any Error).self) { try payload(.cafe, 0) }
+        #expect(throws: (any Error).self) { try payload(.elsewhere, 0) }
+        #expect(throws: (any Error).self) { try payload(.home, -1) }
+    }
     @Test func justThisTimeChangesStillRequireValidPreparation() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }

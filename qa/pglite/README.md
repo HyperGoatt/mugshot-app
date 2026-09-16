@@ -49,6 +49,35 @@ drift, refuses MugShot's production project reference, and seeds only synthetic
 Set `MUGSHOT_QA_SSL_CA_PATH` to a trusted CA bundle when strict certificate
 verification is required. Delete the paid branch after recording the result.
 
+### Home hosted integration
+
+Use only an explicitly approved, data-free branch. These tools refuse the known
+production reference and verify the branch identity. CLI credentials stay in
+process memory; never redirect branch configuration to a committed file.
+
+```bash
+node qa/pglite/prepare-home-branch.mjs <branch-id> <project-ref>
+node qa/pglite/check-home-remote.mjs <branch-id> <project-ref>
+node qa/pglite/run-home-native.mjs <branch-id> <project-ref> <prepared-xctestrun> <simulator-id>
+```
+
+Preparation replays missing migrations in one transaction, seeds only random
+operational placeholders for historical scheduler prerequisites, and disables
+every schedule before commit. It is not a production deployment tool. Session
+pooler port 5432 avoids the direct database endpoint's IPv6 dependency. The Home
+helpers use encrypted TLS without certificate verification, like the default
+legacy QA runner; use a trusted network and disposable credentials.
+
+The HTTP and native runners create synthetic `.invalid` Auth identities and test
+content in this disposable branch. They never email real users or copy production
+secrets. The native runner passes only public client configuration and synthetic
+user credentials through test-process environment; it never passes service-role
+or database credentials into the app. It runs the hosted Swift transport test and
+focused Home model/store tests. Default Swift runs skip hosted tests unless
+explicit QA configuration is present. The unsigned hosted test uses isolated
+in-memory Auth storage, not the app host's Keychain session. Keep the branch only while acceptance is
+active, then delete it to remove synthetic data and stop branch charges.
+
 
 ### Hosted QA fixture admission and schedules
 

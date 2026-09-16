@@ -3364,7 +3364,8 @@ struct LogVisitView: View {
                     overallScore: draft.resolvedOverallScore,
                     ratingTemplate: draft.ratingTemplateSnapshot,
                     sensorySnapshot: draft.captureMode == .addDetails ? draft.sensorySnapshot : nil,
-                    v3Reflection: V3VisitReflection.make(visitID: draft.id, from: draft),
+                    v3Reflection: draft.launchContext.homeAttemptID != nil && draft.resolvedOverallScore == 0
+                        ? nil : V3VisitReflection.make(visitID: draft.id, from: draft),
                     recipePublication: draft.includesRecipeBlueprint
                         ? draft.recipePublication
                         : nil,

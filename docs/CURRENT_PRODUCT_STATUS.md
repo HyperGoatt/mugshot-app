@@ -17,6 +17,11 @@ do not change the disabled release status.
 The latest continuation adds direct Journal Home navigation, collection scroll state,
 private media synchronization, coordinated recovery, owner export v4, and explicit
 conflict review. These are implemented, not yet production-configured or accepted.
+An owner-approved isolated database now has all 177 migrations. Real Home
+Auth/API/Storage and sharing-boundary checks pass; production is untouched.
+The real native transport journey plus 20 Home model/store tests also pass.
+The complete hosted SQL gate is 58/65 and remains a release blocker. Detailed
+evidence and the temporary branch lifecycle are in the implementation document.
 
 ## Zoom-adaptive Map pins — 2026-09-14
 
