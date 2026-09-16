@@ -16,6 +16,14 @@ and launch gate, and Release archive gate. Xcode uploaded the archive on
 `Testing` with a 90-day testing window. Mugshot Team and Alpha Friends are
 assigned, including 12 external testers. No App Store release was submitted.
 
+Replacement candidate 0.5.3 (8) is implemented in source and explicitly promoted
+by the owner for an urgent TestFlight upload. It packages both battery fixes,
+regular-weight captions, the **Your ratings** Map legend, and the temporary
+central Add > Log a Sip > Home under-construction placeholder. Simulator,
+and connected-iPhone build/install/launch gates passed. Archive, upload,
+processing, group assignment, and TestFlight acceptance are recorded only as
+each gate completes.
+
 **Battery release hold:** Build 7 contains the confirmed continuous-location
 lifecycle defect documented in the
 [battery and thermal audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md).
@@ -32,9 +40,10 @@ core to about 0.02%, continuing post-launch network traffic stopped, and only on
 Home synchronization ran. The privacy-safe instrumented Debug candidate remains
 installed on the connected iPhone; it does not change Release analytics or
 backend contracts. Matched force-quit, movement/reminder, media/upload, thermal,
-and extended-discharge acceptance remain open. Do not upload or assign another
-build until the remaining physical acceptance passes and the owner explicitly
-requests the TestFlight handoff.
+and extended-discharge acceptance remain open. After the owner-observed charging
+and Map-to-lock arm passed, the owner explicitly requested build 8 as the urgent
+replacement TestFlight patch. Those remaining experiments stay documented as
+follow-up evidence rather than a block on this owner-authorized beta replacement.
 
 Build 7 contains the current merged product, moderation, sharing,
 regression-repair, reaction, and explicit-profile-identity work. Test results
@@ -47,6 +56,17 @@ and unresolved acceptance items remain tracked in the
 - App Store Connect status: Testing; upload and processing complete
 - Testing groups: Mugshot Team and Alpha Friends assigned; 12 external testers
 - Build record: `590450f6-54b2-4927-9ff9-57e7362f085f`
+
+## What to Test — build 0.5.3 (8), ready to paste
+
+> Battery and heat patch: leave Mugshot open while charging, then use Map and
+> lock the phone for 30 minutes. Confirm charging progresses, battery remains
+> stable while locked, and the phone does not become hot. Feed and detail
+> captions should use regular weight, and the personal Map legend should say
+> “Your ratings.” Add > Log a Sip > Home should show the temporary “Home is
+> under construction” message and return to cafe logging. Confirm ordinary cafe
+> logging and publishing still work. Existing Home/Recipes content in Journal
+> must remain available and unchanged.
 
 ## What to Test — published
 
