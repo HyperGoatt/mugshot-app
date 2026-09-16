@@ -4,7 +4,7 @@ status: current
 last_verified: 2026-09-16
 ---
 
-## TestFlight 0.5.3 (8) battery patch candidate — 2026-09-16
+## TestFlight 0.5.3 (8) battery patch — 2026-09-16
 
 Build 8 keeps marketing version 0.5.3 and packages both battery remediations for
 replacement TestFlight distribution. It also restores regular-weight Feed and
@@ -16,10 +16,13 @@ data and Journal collections are preserved.
 The source changes and build-number increment are implemented. Focused Simulator
 checks passed for the Home placeholder, its return-to-cafe action, the personal
 Map legend, and caption presentation policy. The signed build-8 Debug candidate
-also built, installed, and launched on Joe's connected iPhone. Archive, upload,
-processing, testing-group assignment, and TestFlight acceptance remain separate
-gates. No Supabase environment, schema, production data, or App Store release is
-changed by this candidate.
+also built, installed, and launched on Joe's connected iPhone. The Release
+archive and local App Store Connect export passed. Xcode Organizer uploaded the
+build at 4:32 PM EDT, App Store Connect completed processing, and build record
+`db5a2bb5-697c-40e6-9617-d8ba48825167` is `Testing` for Mugshot Team and Alpha
+Friends. The battery-focused testing notes were published with automatic tester
+notifications enabled. Hands-on TestFlight acceptance remains pending. No
+Supabase environment, schema, production data, or App Store release changed.
 
 ## Battery and thermal remediation release hold — 2026-09-16
 
@@ -82,8 +85,8 @@ was not reported.
 A matched force-quit control, movement, reminder-on/off, media retention,
 interrupted upload, explicit thermal observation, and repeated extended-discharge
 acceptance remain open. TestFlight 0.5.3 (7) still contains the original location
-defect; build 8 is the replacement candidate. No Supabase environment, production
-data, or App Store state changed. See the
+defect; build 8 is the distributed replacement. TestFlight distribution changed,
+but no Supabase environment, production data, or App Store release changed. See the
 [original audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md) and
 [instrumented validation](audits/BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md).
 

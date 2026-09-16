@@ -4,7 +4,7 @@ status: current
 last_verified: 2026-09-16
 ---
 
-## 2026-09-16 — TestFlight 0.5.3 (8) battery patch candidate
+## 2026-09-16 — TestFlight 0.5.3 (8) battery patch
 
 - Prepared build 8 on marketing version 0.5.3 to replace affected TestFlight
   build 7. The candidate contains the continuous-location lifecycle remediation,
@@ -23,6 +23,13 @@ last_verified: 2026-09-16
 - Passed the focused Simulator Home-placeholder and Map-copy journeys, all seven
   caption presentation-policy tests, the repository full-static gate, and the
   signed connected-iPhone build/install/launch gate.
+- Archived and exported the signed production build, then uploaded it through
+  Xcode Organizer at 4:32 PM EDT. App Store Connect completed processing for
+  build record `db5a2bb5-697c-40e6-9617-d8ba48825167` and records build 8 as
+  `Testing` for Mugshot Team and Alpha Friends.
+- Published the battery-focused **What to Test** notes with **Automatically
+  notify testers** enabled. TestFlight hands-on acceptance remains pending; no
+  App Store release was submitted.
 
 ## 2026-09-16 — Physical battery diagnostics
 
