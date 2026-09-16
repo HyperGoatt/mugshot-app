@@ -76,6 +76,7 @@ struct HomeRecipeEditorView: View {
                 ForEach($draft.content.steps) { $step in
                     VStack(alignment: .leading, spacing: 8) {
                         TextField("Instruction", text: $step.instruction, axis: .vertical)
+                        Toggle("Show when making", isOn: Binding(get: { step.isHidden != true }, set: { step.isHidden = !$0 }))
                         HomeNumberField(title: "Start at (seconds)", value: $step.startSeconds)
                         HomeNumberField(title: "Wait (seconds)", value: $step.waitSeconds)
                         if draft.content.method == .pourOver {

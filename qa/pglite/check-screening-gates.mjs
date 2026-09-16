@@ -267,6 +267,56 @@ try {
  await db.query("update public.visits set visibility='private' where id=$1",[visit])
  assert.equal(await mediaRead(friend,'visit-photos-private',mediaPath),false,'Private media stays owner-only')
  assert.equal(await mediaRead(owner,'profile-media',`${owner}/old.jpg`),true,'owner can clean up old media')
+ // Exercise the new Home projection against the actual screening/recipient
+ // functions loaded above, not the simplified Home fixture's access helper.
+ await db.exec(`create table auth.users(id uuid primary key);
+ insert into auth.users select id from public.users;
+ alter table public.recipe_identities add column updated_at timestamptz default now();`)
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260915212702_home_recipe_workspace.sql',import.meta.url),'utf8'))
+ const homeVersion='90000000-0000-4000-8000-000000000011'
+ const childVersion='90000000-0000-4000-8000-000000000012'
+ await db.query(`insert into public.recipe_versions(id,recipe_identity_id,version_number,visibility,brew_details)
+ values($1,$3,11,'private','{}'),($2,$3,12,'private','{}')`,[homeVersion,childVersion,recipe])
+ await db.query('insert into private.home_recipe_contents values($1,$2),($3,$4)',[
+   homeVersion,{name:'Home latte',ingredients:[{name:'Private syrup',recipe:{recipeID:recipe,versionID:childVersion}}],privateNote:'NEVER PROJECT'},
+   childVersion,{name:'Private syrup',notes:'PRIVATE COMPONENT INSTRUCTIONS'}])
+ const homeRead=async(actor,id)=>{
+   await db.query("select set_config('test.actor',$1,false)",[actor??''])
+   return (await db.query('select public.get_home_recipe_content_v1($1) result',[id])).rows[0].result
+ }
+ assert.equal((await homeRead(owner,homeVersion)).name,'Home latte')
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/)
+ await assert.rejects(homeRead(null,homeVersion),/Recipe access denied/)
+ await db.query("update public.recipe_versions set visibility='friends',brew_details=$2 where id=$1",[
+   homeVersion,{homeRecipe:{name:'Home latte',ingredients:[{name:'Syrup',recipe:{recipeID:recipe,versionID:childVersion}}]}}])
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/,'pending screening blocks Home too')
+ await approve()
+ const homeProjection=await homeRead(friend,homeVersion)
+ assert.equal(homeProjection.name,'Home latte')
+ assert(!JSON.stringify(homeProjection).includes('NEVER PROJECT'))
+ assert(!JSON.stringify(homeProjection).includes('PRIVATE COMPONENT INSTRUCTIONS'))
+ await assert.rejects(homeRead(friend,childVersion),/Recipe access denied/,'parent never grants child access')
+ await db.exec("select set_config('test.blocked','true',false)")
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/)
+ await db.exec("select set_config('test.blocked','false',false);select set_config('test.hidden','true',false)")
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/)
+ await db.exec("select set_config('test.hidden','false',false)")
+ await db.query("update public.recipe_versions set visibility='private' where id=$1",[homeVersion])
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/,'withdrawal revokes Home projection')
+ await db.query('delete from public.recipe_versions where id=$1',[homeVersion])
+ await assert.rejects(homeRead(friend,homeVersion),/Recipe access denied/,'deleted references do not leak cached server content')
+ await db.exec(await fs.readFile(new URL('../../supabase/migrations/20260914145946_local_text_and_reactive_moderation.sql',import.meta.url),'utf8'))
+ await db.query("update public.recipe_versions set visibility='friends',brew_details=$2 where id=$1",[
+   childVersion,{homeRecipe:{name:'Shared syrup',steps:[{instruction:'Dissolve sugar in water'}]}}])
+ assert.equal((await homeRead(friend,childVersion)).name,'Private syrup','current local-text policy permits valid shared instructions without a provider wait')
+ await db.exec("insert into private.moderation_text_rules values('synthetic_rule','en','synthetic prohibited text',true,1)")
+ await assert.rejects(db.query('update public.recipe_versions set brew_details=$2 where id=$1',[
+   childVersion,{homeRecipe:{name:'Shared syrup',steps:[{instruction:'synthetic prohibited text'}]}}]),/shared_text_not_allowed/)
+ await db.exec("select set_config('test.blocked','true',false)")
+ await assert.rejects(homeRead(friend,childVersion),/Recipe access denied/,'local moderation never bypasses a block')
+ await db.exec("select set_config('test.blocked','false',false)")
+ console.log('PASS current reactive/local-text moderation with Home instructions and blocked access')
+ console.log('PASS Home projection with actual screening/recipient policies: private, friend, anonymous, block, suspension, withdrawal, deletion and independent linked privacy')
  console.log('PASS protected Storage buckets, actual RLS, screening, exact reference/bucket membership, Friends/Private audiences, blocks and owner recovery')
  console.log('PASS primary and collection screening: revision triggers, owner access, public/legacy projections, private fields, media edits, consent, blocks and withdrawal')
 } catch(error) { console.error(error.message); process.exitCode=1; } finally {await db.close()}

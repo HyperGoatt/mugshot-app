@@ -14,17 +14,31 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     @Published private(set) var isSyncing = false
     @Published private(set) var hasRemoteConflict = false
     private let root: URL
+    private let transport: (any HomeRecipeWorkspaceTransport)?
     private var loaded = false
     private var canWrite = false
     private var remoteConflict: HomeRecipeWorkspace?
     private var syncTaskID: UUID?
 
-    init(root: URL? = nil) {
+    init(root: URL? = nil, transport: (any HomeRecipeWorkspaceTransport)? = nil) {
+        self.transport = transport
         self.root = root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MugshotHomeRecipes", isDirectory: true)
     }
     private func directory(_ scope: LocalAccountScope) -> URL { root.appendingPathComponent(scope.storageComponent, isDirectory: true) }
     private func file(_ scope: LocalAccountScope) -> URL { directory(scope).appendingPathComponent("workspace-v1.json") }
+
+    /// Read an explicit owner's durable state without activating that account.
+    func exportSnapshot(ownerID: UUID) throws -> HomeRecipeWorkspace {
+        let source = file(.user(ownerID))
+        guard FileManager.default.fileExists(atPath: source.path) else { return HomeRecipeWorkspace() }
+        return try JSONDecoder().decode(HomeRecipeWorkspace.self, from: Data(contentsOf: source))
+    }
+
+    func exportPhoto(name: String, ownerID: UUID) throws -> Data {
+        _ = try HomeRecipeMediaService.path(owner: ownerID, name: name)
+        return try Data(contentsOf: directory(.user(ownerID)).appendingPathComponent(name))
+    }
 
     func activate(_ newScope: LocalAccountScope) {
         guard !loaded || scope != newScope else { return }
@@ -65,6 +79,15 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         account.sessions += guest.sessions.filter { item in !account.sessions.contains { $0.id == item.id } }
         account.recipeDrafts += guest.recipeDrafts.filter { item in !account.recipeDrafts.contains { $0.id == item.id } }
         account.attemptDrafts += guest.attemptDrafts.filter { item in !account.attemptDrafts.contains { $0.id == item.id } }
+        account.retainedVersions = (account.retainedVersions ?? []) + (guest.retainedVersions ?? []).filter { item in
+            !(account.retainedVersions ?? []).contains { $0.reference == item.reference }
+        }
+        account.preparationConflicts = (account.preparationConflicts ?? []) + (guest.preparationConflicts ?? []).filter { item in
+            !(account.preparationConflicts ?? []).contains { $0.id == item.id }
+        }
+        account.attemptConflicts = (account.attemptConflicts ?? []) + (guest.attemptConflicts ?? []).filter { item in
+            !(account.attemptConflicts ?? []).contains { $0.id == item.id }
+        }
         let knownReferences = Set((account.savedReferences ?? []).map(\.id))
         account.savedReferences = (account.savedReferences ?? []) + (guest.savedReferences ?? []).filter { !knownReferences.contains($0.id) }
         try FileManager.default.createDirectory(at: directory(target), withIntermediateDirectories: true)
@@ -108,7 +131,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 throw HomeRecipeWorkspaceError.invalid("A recipe cannot link back to itself.")
             }
             for reference in draft.content.ingredients.compactMap(\.recipe) {
-                guard state.version(reference) != nil else { throw HomeRecipeWorkspaceError.unavailableReference }
+                guard state.recipes.contains(where: { $0.id == reference.recipeID && $0.versions.contains { $0.id == reference.versionID } }) else {
+                    throw HomeRecipeWorkspaceError.unavailableReference
+                }
             }
             if let index = state.recipes.firstIndex(where: { $0.id == id }) {
                 guard state.recipes[index].current?.id == draft.baseVersionID else { throw HomeRecipeWorkspaceError.conflict }
@@ -120,6 +145,10 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 state.recipes.append(HomeRecipeRecord(id: id, versions: [HomeRecipeVersion(content: draft.content)]))
             }
             state.recipeDrafts.removeAll { $0.id == draft.id }
+        }
+        MugshotAnalytics.shared.capture(.homeRecipe(.recipeSaved, hasRecipe: true, durationSeconds: 0))
+        if draft.recipeID == nil, draft.content.sourceVersionID != nil {
+            MugshotAnalytics.shared.capture(.homeRecipe(.adapted, hasRecipe: true, durationSeconds: 0))
         }
         return id
     }
@@ -148,6 +177,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
               attempt.rating.map({ $0.isFinite && (0.5...5).contains($0) }) ?? true else {
             throw HomeRecipeWorkspaceError.invalid("Check your measurements and rating.")
         }
+        if let message = attempt.preparation?.validationMessage {
+            throw HomeRecipeWorkspaceError.invalid(message)
+        }
         try mutate { state in
             // An interrupted save can safely be retried with the same ID.
             guard !state.attempts.contains(where: { $0.id == attempt.id }) else { return }
@@ -162,7 +194,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                         throw HomeRecipeWorkspaceError.invalid("A recipe cannot link back to itself.")
                     }
                     for linked in preparation.ingredients.compactMap(\.recipe) {
-                        guard state.version(linked) != nil else { throw HomeRecipeWorkspaceError.unavailableReference }
+                        guard state.recipes.contains(where: { $0.id == linked.recipeID && $0.versions.contains { $0.id == linked.versionID } }) else {
+                            throw HomeRecipeWorkspaceError.unavailableReference
+                        }
                     }
                     state.recipes[index].versions.append(HomeRecipeVersion(number: (state.recipes[index].current?.number ?? 0) + 1, content: preparation))
                 }
@@ -245,9 +279,14 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func synchronize() async {
-        guard !MugshotLaunchEnvironment.isUITesting,
-              !isSyncing, canWrite, !hasRemoteConflict, let owner = scope.userID,
-              let client = try? SupabaseClientProvider.shared.client() else { return }
+        guard !isSyncing, canWrite, !hasRemoteConflict, let owner = scope.userID else { return }
+        let remoteTransport: any HomeRecipeWorkspaceTransport
+        if let transport { remoteTransport = transport }
+        else {
+            guard !MugshotLaunchEnvironment.isUITesting,
+                  let client = try? SupabaseClientProvider.shared.client() else { return }
+            remoteTransport = HomeRecipeWorkspaceService(client: client)
+        }
         isSyncing = true
         let taskID = UUID()
         syncTaskID = taskID
@@ -261,8 +300,20 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             }
         }
         do {
-            let remote = try await HomeRecipeWorkspaceService(client: client).synchronize(captured, ownerID: owner)
-            guard scope == capturedScope else { return }
+            let receiptURL = directory(capturedScope).appendingPathComponent("uploaded-photos-v1.json")
+            var uploaded = (try? JSONDecoder().decode(Set<String>.self, from: Data(contentsOf: receiptURL))) ?? []
+            for name in captured.referencedPhotoNames.subtracting(uploaded) {
+                _ = try HomeRecipeMediaService.path(owner: owner, name: name)
+                let source = directory(capturedScope).appendingPathComponent(name)
+                guard FileManager.default.fileExists(atPath: source.path) else { continue }
+                guard scope == capturedScope, syncTaskID == taskID else { return }
+                try await remoteTransport.uploadPhoto(Data(contentsOf: source), name: name, ownerID: owner)
+                guard scope == capturedScope, syncTaskID == taskID else { return }
+                uploaded.insert(name)
+                try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            }
+            let remote = try await remoteTransport.synchronize(captured, ownerID: owner)
+            guard scope == capturedScope, syncTaskID == taskID else { return }
             if workspace.pendingOperationID != captured.pendingOperationID {
                 if captured.pendingOperationID == nil, remote.remoteRevision != captured.remoteRevision {
                     remoteConflict = remote
@@ -279,13 +330,29 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 try write(remote, scope: capturedScope)
                 workspace = remote
             }
+            for name in workspace.referencedPhotoNames {
+                _ = try HomeRecipeMediaService.path(owner: owner, name: name)
+                let destination = directory(capturedScope).appendingPathComponent(name)
+                guard !FileManager.default.fileExists(atPath: destination.path) else { continue }
+                guard scope == capturedScope, syncTaskID == taskID else { return }
+                let bytes = try await remoteTransport.downloadPhoto(name: name, ownerID: owner)
+                guard scope == capturedScope, syncTaskID == taskID else { return }
+                guard bytes.count <= 10_485_760, UIImage(data: bytes) != nil else {
+                    throw HomeRecipeWorkspaceError.invalid("A synced photo could not be opened. Your journal entry is saved.")
+                }
+                try bytes.write(to: destination, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                uploaded.insert(name)
+                try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                objectWillChange.send()
+            }
             errorMessage = nil
         } catch {
-            guard scope == capturedScope else { return }
+            guard scope == capturedScope, syncTaskID == taskID else { return }
             errorMessage = "Saved on this device. Sync needs attention: \(error.localizedDescription)"
+            MugshotAnalytics.shared.capture(.homeRecipe(.syncFailed, hasRecipe: !captured.recipes.isEmpty, durationSeconds: 0))
             if String(describing: error).contains("HOME_WORKSPACE_CONFLICT") {
                 hasRemoteConflict = true
-                let latest = try? await HomeRecipeWorkspaceService(client: client).fetch(ownerID: owner)
+                let latest = try? await remoteTransport.fetch(ownerID: owner)
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 remoteConflict = latest
             }
@@ -297,21 +364,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         guard let remoteConflict else { throw HomeRecipeWorkspaceError.conflict }
         let backup = directory(scope).appendingPathComponent("conflict-\(UUID()).json")
         try JSONEncoder().encode(workspace).write(to: backup, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        var merged = remoteConflict
-        for recipe in workspace.recipes where recipe.current != remoteConflict.recipes.first(where: { $0.id == recipe.id })?.current {
-            if let content = recipe.current?.content {
-                merged.recipeDrafts.append(HomeRecipeEditorDraft(recipeID: recipe.id,
-                    baseVersionID: remoteConflict.recipes.first(where: { $0.id == recipe.id })?.current?.id, content: content))
-            }
-        }
-        let known = Set(merged.attempts.map(\.id))
-        merged.attempts += workspace.attempts.filter { !known.contains($0.id) }
-        merged.recipeDrafts += workspace.recipeDrafts.filter { draft in !merged.recipeDrafts.contains { $0.id == draft.id } }
-        merged.attemptDrafts += workspace.attemptDrafts.filter { draft in !merged.attemptDrafts.contains { $0.id == draft.id } }
-        merged.sessions += workspace.sessions.filter { session in !merged.sessions.contains { $0.id == session.id } }
-        let knownReferences = Set((merged.savedReferences ?? []).map(\.id))
-        merged.savedReferences = (merged.savedReferences ?? []) + (workspace.savedReferences ?? []).filter { !knownReferences.contains($0.id) }
-        merged.pendingOperationID = UUID()
+        let merged = remoteConflict.reconciling(local: workspace)
         try write(merged, scope: scope)
         workspace = merged
         hasRemoteConflict = false

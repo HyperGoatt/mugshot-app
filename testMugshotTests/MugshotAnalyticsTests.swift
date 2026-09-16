@@ -30,6 +30,13 @@ private final class MugshotAnalyticsTransportSpy: MugshotAnalyticsTransport {
 
 @Suite(.serialized)
 struct MugshotAnalyticsTests {
+    @Test func homeRecipeFunnelAcceptsOnlyStructuralValuesAndBoundedDuration() {
+        let payload = MugshotAnalyticsEvent.homeRecipe(.logSaved, hasRecipe: true, durationSeconds: 100_000).payload
+        #expect(payload.event == "home_log_saved")
+        #expect(payload.properties == ["has_recipe": .boolean(true), "duration_seconds": .integer(86_400)])
+        #expect(MugshotAnalyticsEvent.homeRecipe(.saveFailed, hasRecipe: false, durationSeconds: -1)
+            .payload.properties["duration_seconds"] == .integer(0))
+    }
     @Test func deletionSuspendsTelemetryUntilNextProcessAndPurgesBeforeRestart() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -14,6 +14,9 @@ but continuity, migration and integrated acceptance remain required before enabl
 The continuation adds configurable preparation fields, linked-component progress,
 recorded-attempt comparisons and stronger nested publication projections; these
 do not change the disabled release status.
+The latest continuation adds direct Journal Home navigation, collection scroll state,
+private media synchronization, coordinated recovery, owner export v4, and explicit
+conflict review. These are implemented, not yet production-configured or accepted.
 
 ## Zoom-adaptive Map pins — 2026-09-14
 

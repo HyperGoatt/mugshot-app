@@ -9,8 +9,10 @@ last_verified: 2026-09-15
 The default-off Home/Recipes implementation adds atomic account-scoped local
 records and draft/session persistence, plus an additive owner-bound workspace
 RPC that mirrors immutable recipe versions without creating visits. Targets and
-actuals are separate. Private photo synchronization and complete multi-device
-reconciliation remain release blockers. See [data ownership and gaps](HOME_RECIPES_IMPLEMENTATION.md).
+actuals are separate. Private photo synchronization now uses the existing owner-only
+Home bucket and durable upload receipts. Explicit reconciliation retains conflicting
+historical versions and progress, rather than silently replacing them. Transport and
+integrated acceptance remain required. See [data ownership and gaps](HOME_RECIPES_IMPLEMENTATION.md).
 Version-specific component progress and optional metric layouts persist in the
 same document. Conflicts pause remote sync without blocking local saves. Shared
 recipe content uses nested per-type allowlists; synthetic UI tests skip workspace sync.

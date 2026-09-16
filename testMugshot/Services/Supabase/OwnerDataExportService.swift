@@ -37,9 +37,13 @@ private final class SupabaseOwnerDataExportRemoteTransport: OwnerDataExportRemot
 
     func fetchV2Export() async throws -> Data {
         do {
-            return try await client.rpc("build_owner_data_export_v3").execute().data
+            return try await client.rpc("build_owner_data_export_v4").execute().data
         } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
-            return try await client.rpc("build_owner_data_export_v2").execute().data
+            do {
+                return try await client.rpc("build_owner_data_export_v3").execute().data
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return try await client.rpc("build_owner_data_export_v2").execute().data
+            }
         }
     }
 
@@ -248,6 +252,18 @@ final class OwnerDataExportService {
         object["local_home_workbench_cache"] = try Self.homeLibraryExportObject(
             from: localHomeLibrary
         )
+        var localHomeWorkspace: HomeRecipeWorkspace?
+        do {
+            localHomeWorkspace = try await MainActor.run {
+                try HomeRecipeWorkspaceStore.shared.exportSnapshot(ownerID: ownerID)
+            }
+            try requireActiveOwner(ownerID)
+            object["local_home_recipes_and_attempts"] = try Self.jsonObject(from: localHomeWorkspace)
+        } catch {
+            try requireActiveOwner(ownerID)
+            completeness = .partial
+            omittedCollections.append("local Home recipes and attempts could not be read; original data preserved")
+        }
         object["local_data_read_status"] = [
             "pending_submission_outbox": [
                 "status": pendingOutboxReadComplete
@@ -474,6 +490,33 @@ final class OwnerDataExportService {
                 "file": "Home-Coffee-Bag-Photos/\(filename)"
             ])
         }
+
+        var homeAttemptMediaManifest: [[String: String]] = []
+        let homeAttemptDirectory = directory.appendingPathComponent("Home-Attempt-Photos", isDirectory: true)
+        for name in (localHomeWorkspace?.referencedPhotoNames ?? []).sorted() {
+            do {
+                let data = try await MainActor.run {
+                    try HomeRecipeWorkspaceStore.shared.exportPhoto(name: name, ownerID: ownerID)
+                }
+                try requireActiveOwner(ownerID)
+                guard Int64(data.count) <= Self.maximumMediaFileBytes,
+                      totalPackagedBytes + Int64(data.count) <= Self.maximumPackagedMediaBytes else {
+                    throw OwnerDataExportError.unsafeMediaReference
+                }
+                try fileManager.createDirectory(at: homeAttemptDirectory, withIntermediateDirectories: true)
+                let destination = homeAttemptDirectory.appendingPathComponent(name)
+                try data.write(to: destination, options: .atomic)
+                mediaURLs.append(destination)
+                totalPackagedBytes += Int64(data.count)
+                packaged += 1
+                homeAttemptMediaManifest.append(["photo_reference": name, "file": "Home-Attempt-Photos/\(name)"])
+            } catch {
+                try requireActiveOwner(ownerID)
+                unavailable += 1
+                homeAttemptMediaManifest.append(["photo_reference": name, "status": "unavailable_or_size_limit"])
+            }
+        }
+        object["local_home_attempt_media_manifest"] = homeAttemptMediaManifest
 
         let mediaDirectory = directory.appendingPathComponent("Media", isDirectory: true)
         let rawReferenceCount = (object["media_references"] as? [Any])?.count ?? 0

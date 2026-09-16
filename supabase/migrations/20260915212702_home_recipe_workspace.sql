@@ -60,7 +60,7 @@ begin
       if jsonb_typeof(item)<>'object' then continue; end if;
       projected := private.home_recipe_scalars_v1(item,case key
         when 'ingredients' then array['id','name','amount','unit']
-        when 'steps' then array['id','instruction','startSeconds','waitSeconds','waterGrams','waterMode']
+        when 'steps' then array['id','instruction','startSeconds','waitSeconds','waterGrams','waterMode','isHidden']
         when 'fields' then array['id','label','kind','value','unit','isVisible']
         when 'metricConfiguration' then array['metric','label','isVisible']
         when 'equipment' then array['role','displayName','brand','model'] end);
@@ -299,3 +299,18 @@ end;
 $$;
 revoke all on function public.set_home_post_recipes_v1(uuid,uuid,jsonb),public.get_home_post_recipes_v1(uuid) from public,anon;
 grant execute on function public.set_home_post_recipes_v1(uuid,uuid,jsonb),public.get_home_post_recipes_v1(uuid) to authenticated;
+
+-- Preserve all prior export collections. The workspace includes private notes
+-- only in this authenticated owner export, never in outward recipe projections.
+create or replace function public.build_owner_data_export_v4()
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare actor uuid := auth.uid(); result jsonb;
+begin
+  if actor is null then raise exception 'authentication required' using errcode='28000'; end if;
+  result := public.build_owner_data_export_v3();
+  return result || jsonb_build_object('home_recipes_and_attempts',
+    coalesce((select document from public.home_recipe_workspaces where user_id=actor),'{}'::jsonb));
+end;
+$$;
+revoke all on function public.build_owner_data_export_v4() from public,anon,authenticated;
+grant execute on function public.build_owner_data_export_v4() to authenticated;

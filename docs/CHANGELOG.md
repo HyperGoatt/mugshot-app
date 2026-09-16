@@ -6,6 +6,18 @@ last_verified: 2026-09-15
 
 ## 2026-09-15 — Native Home and Recipes foundation (flag off)
 
+The current continuation adds direct Journal Home navigation with account-scoped
+collection scroll state and an explicit Earlier entries route; authenticated private
+photo upload/download with durable retry receipts; centralized foreground/network
+recovery; owner workspace/media export; and historical-version, result and preparation
+conflict preservation. Accessible no-copy recipes can be followed without persisting
+their instructions. Repeats retain external recipe references. New funnel events use
+only controlled booleans and bounded durations. The hermetic Home projection matrix
+now runs through actual recipient/screening functions as well as the isolated RPC
+fixture. These are source changes pending consolidated acceptance, not deployment.
+The iOS 26.3 acceptance pass also identified and fixed adjusted-target display and
+Just this time validation; conflicting attempt-draft recovery is now idempotent.
+
 Continuation adds recorded-attempt comparisons and account-scoped filter
 restoration, keeps private logging available during remote conflicts, validates
 attempt-driven recipe links, and preserves newer batch progress during reminder

@@ -13,6 +13,9 @@ measurement backfill is performed.
 The unreleased migration now also applies nested projection allowlists and
 prevents appending a version that drops established source attribution. These
 contracts passed the local PGlite harness, not a production migration run.
+The same unreleased migration adds owner export v4 while preserving v3 collections.
+Attempt media uses owner-prefixed `home-attempts` objects in the existing private
+Home bucket; no bucket is made public and no storage policy is widened.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

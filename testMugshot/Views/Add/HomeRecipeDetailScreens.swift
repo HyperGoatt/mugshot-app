@@ -139,9 +139,9 @@ struct HomeRecipeInformation: View {
                 }
             }
         }
-        if !content.steps.isEmpty {
+        if !content.visibleSteps.isEmpty {
             Section("Instructions") {
-                ForEach(Array(content.steps.enumerated()), id: \.element.id) { index, step in
+                ForEach(Array(content.visibleSteps.enumerated()), id: \.element.id) { index, step in
                     VStack(alignment: .leading) {
                         Text("\(index + 1). \(step.instruction)")
                         if let water = step.waterGrams { Text("\(step.waterMode.title): \(HomeRecipeContent.number(water)) g").font(.caption) }
@@ -207,7 +207,14 @@ struct HomeAttemptDetailScreen: View {
                     Text(attempt.name).font(.title2).fontDesign(.serif)
                     Text(attempt.createdAt, style: .date).font(.caption)
                     ForEach(attempt.photoNames, id: \.self) { name in
-                        if let image = store.photo(name) { Image(uiImage: image).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 16)) }
+                        if let image = store.photo(name) {
+                            Image(uiImage: image).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 16))
+                                .accessibilityLabel("Photo of this make")
+                        } else {
+                            Label("Photo unavailable on this device", systemImage: "photo.badge.exclamationmark")
+                                .foregroundStyle(.secondary)
+                            Button("Retry photo sync") { Task { await store.synchronize() } }
+                        }
                     }
                     Text(attempt.rating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
                     if !attempt.reaction.isEmpty { Text(attempt.reaction) }
@@ -216,10 +223,10 @@ struct HomeAttemptDetailScreen: View {
                 }
                 Section("Recorded measurements") {
                     if attempt.preparation == nil || attempt.preparation?.template == .coffee {
-                        measurement("Coffee", value: attempt.actuals.dose, target: attempt.targets?.targets.dose, unit: "g")
-                        measurement("Yield or water", value: attempt.actuals.output, target: attempt.targets?.targets.resolvedOutput, unit: "g")
+                        measurement("Coffee", value: attempt.actuals.dose, target: attempt.plannedTargets?.dose, unit: "g")
+                        measurement("Yield or water", value: attempt.actuals.output, target: attempt.plannedTargets?.resolvedOutput, unit: "g")
                     }
-                    measurement("Time", value: attempt.actuals.seconds, target: attempt.targets?.targets.seconds, unit: "sec")
+                    measurement("Time", value: attempt.actuals.seconds, target: attempt.plannedTargets?.seconds, unit: "sec")
                     if !attempt.actuals.dilution.isEmpty { LabeledContent("Serving dilution", value: attempt.actuals.dilution) }
                     if let amount = attempt.actuals.batchMilliliters { LabeledContent("Batch made", value: "\(HomeRecipeContent.number(amount)) ml") }
                     if let amount = attempt.actuals.servingMilliliters { LabeledContent("Serving amount", value: "\(HomeRecipeContent.number(amount)) ml") }
@@ -337,11 +344,14 @@ struct HomePreparationScreen: View {
     @State private var scale: Double = 1
     @State private var scalingBasis = "Multiplier"
     @State private var scalingError: String?
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var authorizedContent: HomeRecipeContent?
+    @State private var sourceError: String?
     private var session: HomePreparationSession? { store.workspace.sessions.first { $0.id == sessionID } }
 
     var body: some View {
         List {
-            if let session, let content = session.attempt.preparation {
+            if let session, let content = session.attempt.preparation ?? authorizedContent {
                 Section {
                     HomeRecipeRow(content: content)
                     TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -367,7 +377,7 @@ struct HomePreparationScreen: View {
                             }
                         }
                     }
-                    if session.stepIndex == 0 {
+                    if session.stepIndex == 0, session.attempt.preparation != nil {
                         Picker("Scale by", selection: $scalingBasis) {
                             Text("Multiplier").tag("Multiplier")
                             Text("Servings").tag("Servings")
@@ -417,17 +427,17 @@ struct HomePreparationScreen: View {
                         }
                     }
                 }
-                if content.steps.indices.contains(session.stepIndex) {
-                    let step = content.steps[session.stepIndex]
-                    Section("Step \(session.stepIndex + 1) of \(content.steps.count)") {
+                if content.visibleSteps.indices.contains(session.stepIndex) {
+                    let step = content.visibleSteps[session.stepIndex]
+                    Section("Step \(session.stepIndex + 1) of \(content.visibleSteps.count)") {
                         Text(step.instruction).font(.title3)
                         if let start = step.startSeconds { Text("At \(HomeRecipeContent.number(start)) seconds") }
                         if let water = content.cumulativeWater(through: session.stepIndex) {
                             LabeledContent("Cumulative water", value: "\(HomeRecipeContent.number(water)) g")
                         }
                         if let wait = step.waitSeconds { Text("Wait \(HomeRecipeContent.number(wait)) seconds") }
-                        if content.steps.indices.contains(session.stepIndex + 1) {
-                            Text("Next: \(content.steps[session.stepIndex + 1].instruction)").font(.caption).foregroundStyle(.secondary)
+                        if content.visibleSteps.indices.contains(session.stepIndex + 1) {
+                            Text("Next: \(content.visibleSteps[session.stepIndex + 1].instruction)").font(.caption).foregroundStyle(.secondary)
                             Button("Next step") { change { $0.stepIndex += 1 } }
                         }
                         if session.stepIndex > 0 { Button("Previous step") { change { $0.stepIndex -= 1 } } }
@@ -438,12 +448,36 @@ struct HomePreparationScreen: View {
                         .buttonStyle(.borderedProminent).tint(.mugshotSage)
                     Button("I’ve already made it") { finish(session, measured: false) }
                 }
+            } else if let session {
+                Section {
+                    Text(sourceError ?? "Opening the original recipe…")
+                    Button("Log without instructions") { onFinish(session.attempt) }
+                }
             }
+            if let error = store.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
         }.navigationTitle("Make").navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden).background(Color.creamWhite)
             .sheet(item: $linked) { item in HomeLinkedRecipeDetail(store: store, reference: item.reference) }
             .sheet(item: $preparingLinked) { item in
                 HomeLinkedPreparationScreen(store: store, parentSessionID: sessionID, reference: item.reference)
+            }
+            .task(id: scenePhase) {
+                // No-copy instructions remain in memory only and are authorized
+                // again after backgrounding; durable progress contains no source text.
+                guard session?.attempt.preparation == nil else { return }
+                authorizedContent = nil
+                guard scenePhase == .active, let reference = session?.attempt.recipe else { return }
+                let scope = store.scope
+                do {
+                    let client = try SupabaseClientProvider.shared.client()
+                    let content = try await HomeRecipeWorkspaceService(client: client).content(versionID: reference.versionID)
+                    guard store.scope == scope, !Task.isCancelled else { return }
+                    authorizedContent = content
+                    sourceError = content == nil ? "Preparation details are unavailable. You can still log your result." : nil
+                } catch {
+                    guard store.scope == scope, !Task.isCancelled else { return }
+                    sourceError = "The original recipe is private, removed, or offline. Your progress is saved."
+                }
             }
     }
     private func change(_ update: (inout HomePreparationSession) -> Void) {
@@ -454,7 +488,7 @@ struct HomePreparationScreen: View {
     private func finish(_ session: HomePreparationSession, measured: Bool) {
         var attempt = session.attempt
         if measured, let start = session.timerStartedAt { attempt.actuals.seconds = max(0, Date.now.timeIntervalSince(start)) }
-        if attempt.preparation?.method == .coldBrew { attempt.batchID = session.id }
+        if (attempt.preparation ?? authorizedContent)?.method == .coldBrew { attempt.batchID = session.id }
         onFinish(attempt)
     }
 }
@@ -487,13 +521,13 @@ private struct HomeLinkedPreparationScreen: View {
                         Button(progress.startedAt == nil ? "Start timer" : "Restart timer") { update { $0.startedAt = .now; $0.completedAt = nil } }
                     }
                     HomeRecipeInformation(content: content, onLinked: nil)
-                    if content.steps.indices.contains(progress.stepIndex) {
+                    if content.visibleSteps.indices.contains(progress.stepIndex) {
                         Section("Current step") {
-                            Text(content.steps[progress.stepIndex].instruction).font(.headline)
+                            Text(content.visibleSteps[progress.stepIndex].instruction).font(.headline)
                             if let water = content.cumulativeWater(through: progress.stepIndex) {
                                 LabeledContent("Cumulative water", value: "\(HomeRecipeContent.number(water)) g")
                             }
-                            if progress.stepIndex + 1 < content.steps.count {
+                            if progress.stepIndex + 1 < content.visibleSteps.count {
                                 Button("Next step") { update { $0.stepIndex += 1 } }
                             }
                             if progress.stepIndex > 0 { Button("Previous step") { update { $0.stepIndex -= 1 } } }

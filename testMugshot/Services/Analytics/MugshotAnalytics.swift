@@ -337,7 +337,22 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
     }
 }
 
+enum MugshotHomeRecipeAnalyticsAction: String {
+    case logOpened = "home_log_opened"
+    case reflectionViewed = "home_reflection_viewed"
+    case logSaved = "home_log_saved"
+    case logLeftUnfinished = "home_log_left_unfinished"
+    case saveFailed = "home_save_failed"
+    case recipeSaved = "home_recipe_saved"
+    case syncFailed = "home_sync_failed"
+    case repeated = "home_make_repeated"
+    case referenceSaved = "home_recipe_reference_saved"
+    case adapted = "home_recipe_adapted"
+}
+
 enum MugshotAnalyticsEvent: Equatable {
+    /// Deliberately accepts no free text, IDs, source URLs or preparation data.
+    case homeRecipe(MugshotHomeRecipeAnalyticsAction, hasRecipe: Bool, durationSeconds: Int)
     case screenViewed(MugshotAnalyticsScreen, source: MugshotAnalyticsScreenSource)
     case onboardingStarted
     case onboardingStepCompleted(step: Int, totalSteps: Int)
@@ -453,6 +468,9 @@ enum MugshotAnalyticsEvent: Equatable {
 
     var payload: MugshotAnalyticsPayload {
         switch self {
+        case .homeRecipe(let action, let hasRecipe, let duration):
+            return payload(action.rawValue, ["has_recipe": .boolean(hasRecipe),
+                "duration_seconds": .integer(min(86_400, max(0, duration)))])
         case .screenViewed(let screen, let source):
             return payload(
                 "screen_viewed",

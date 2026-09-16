@@ -10,7 +10,8 @@ struct JournalTabView: View {
 
     @State private var selectedFilter: JournalFilter = .all
     @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = false
-    @State private var showsHomeRecipes = false
+    @State private var showsEarlierHomeEntries = false
+    @State private var earlierRecipeVersion: UUID?
     @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
@@ -102,6 +103,57 @@ struct JournalTabView: View {
     }
 
     var body: some View {
+        if homeRecipesEnabled, selectedFilter == .home || selectedFilter == .recipes {
+            HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id,
+                initialCollection: selectedFilter == .recipes ? "Recipes" : nil,
+                onBackToJournal: { selectedFilter = .all },
+                onEarlierEntries: { showsEarlierHomeEntries = true }, onShare: onComposeDraft)
+                .id(authModel.authenticatedUser?.id)
+                .sheet(isPresented: $showsEarlierHomeEntries) { earlierHomeEntries }
+        } else {
+            journalBody
+        }
+    }
+
+    private var earlierHomeEntries: some View {
+        NavigationStack {
+            List {
+                let entries = remoteVisits.filter { [.home, .recipe].contains($0.visit.journalContext) }
+                ForEach(entries) { summary in
+                    Section {
+                        NavigationLink(summary.visit.drinkDisplayName) {
+                            RemoteVisitDetailView(visitId: summary.id, initialSummary: summary,
+                                currentUserId: authModel.authenticatedUser?.id, dataManager: dataManager)
+                        }
+                        if let versionID = summary.visit.recipeVersionID {
+                            Button("Open original recipe") { earlierRecipeVersion = versionID }
+                        }
+                    }
+                }
+                if authModel.authenticatedUser == nil {
+                    ForEach(dataManager.appData.visits.filter { [.home, .recipe].contains($0.context) }) { visit in
+                        NavigationLink(visit.customDrinkType ?? visit.drinkType.rawValue) {
+                            VisitDetailView(visit: visit, dataManager: dataManager)
+                        }
+                    }
+                }
+                if entries.isEmpty, authModel.authenticatedUser != nil {
+                    Text("No earlier Home entries.").foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Earlier Home entries").navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { showsEarlierHomeEntries = false } }
+            .scrollContentBackground(.hidden).background(Color.creamWhite)
+            .sheet(isPresented: Binding(get: { earlierRecipeVersion != nil }, set: { if !$0 { earlierRecipeVersion = nil } })) {
+                if let earlierRecipeVersion {
+                    HomeSharedRecipeScreen(versionID: earlierRecipeVersion,
+                        ownerID: authModel.authenticatedUser?.id, onShare: onComposeDraft)
+                }
+            }
+        }
+    }
+
+    private var journalBody: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -141,13 +193,6 @@ struct JournalTabView: View {
                 }
             }
             .background(Color.creamWhite)
-            .navigationDestination(isPresented: $showsHomeRecipes) {
-                HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id) { draft in
-                    showsHomeRecipes = false
-                    onComposeDraft(draft)
-                }
-                .id(authModel.authenticatedUser?.id)
-            }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
                 switch sheet {
@@ -547,26 +592,6 @@ struct JournalTabView: View {
 
             JournalFilterBar(selection: $selectedFilter)
                 .padding(.horizontal, 16)
-
-            if homeRecipesEnabled, selectedFilter == .home || selectedFilter == .recipes {
-                Button {
-                    showsHomeRecipes = true
-                } label: {
-                    HStack {
-                        Image(systemName: "house")
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("My makes and recipes").font(.headline)
-                            Text("Your usuals, active batches, and recipe library").font(.caption)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                    }
-                    .padding(16)
-                    .background(Color.mugshotSage.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-            }
 
             if phase2CanonicalJournal, !journalTags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {

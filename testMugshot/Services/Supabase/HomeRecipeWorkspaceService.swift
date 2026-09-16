@@ -1,8 +1,23 @@
 import Foundation
 import Supabase
 
-struct HomeRecipeWorkspaceService {
+@MainActor
+protocol HomeRecipeWorkspaceTransport {
+    func fetch(ownerID: UUID) async throws -> HomeRecipeWorkspace
+    func synchronize(_ workspace: HomeRecipeWorkspace, ownerID: UUID) async throws -> HomeRecipeWorkspace
+    func uploadPhoto(_ data: Data, name: String, ownerID: UUID) async throws
+    func downloadPhoto(name: String, ownerID: UUID) async throws -> Data
+}
+
+struct HomeRecipeWorkspaceService: HomeRecipeWorkspaceTransport {
     let client: SupabaseClient
+
+    func uploadPhoto(_ data: Data, name: String, ownerID: UUID) async throws {
+        try await HomeRecipeMediaService(client: client).upload(data, name: name, owner: ownerID)
+    }
+    func downloadPhoto(name: String, ownerID: UUID) async throws -> Data {
+        try await HomeRecipeMediaService(client: client).download(name: name, owner: ownerID)
+    }
 
     func attachRecipes(_ attachments: [HomeRecipePostAttachment], visitID: UUID, ownerID: UUID) async throws {
         try await client.rpc("set_home_post_recipes_v1", params: HomeRecipeAttachmentRequest(

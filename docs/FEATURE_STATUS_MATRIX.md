@@ -13,6 +13,9 @@ their integrated acceptance plus continuity and migration work remain.
 Field configuration, component preparation and comparison surfaces are now in
 source; 16 focused native tests and a bounded field-editor smoke check passed.
 [Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
+Private-photo transport, recovery coordination, export v4 and explicit conflict
+review are now in source, alongside direct Journal Home navigation. A hermetic test
+also exercises Home projections with the actual recipient/screening policy functions.
 
 ## Explicit profile identity setup — 2026-09-14
 

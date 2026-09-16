@@ -24,7 +24,7 @@ struct HomeSharedRecipeScreen: View {
                         HomeRecipeRow(content: content)
                         Text("Version \(projection.versionNumber) · \(projection.owner?.personLabel ?? "Mugshot recipe")")
                             .font(.caption).foregroundStyle(.secondary)
-                        if content.isActionable, canKeepInstructions {
+                        if content.isActionable {
                             Button("Make this") { start(content, guided: true) }
                                 .buttonStyle(.borderedProminent).tint(.mugshotSage)
                         }
@@ -35,7 +35,7 @@ struct HomeSharedRecipeScreen: View {
                         }
                         Button(isSaved ? "Saved in your library" : "Save to my library") { saveReference(projection) }
                             .disabled(isSaved || ownerID == nil)
-                        if projection.canSaveAndAdapt {
+                        if canKeepInstructions {
                             Button("Adapt my own recipe") {
                                 var copy = content
                                 copy.sourceVersionID = projection.recipeVersionID
@@ -64,6 +64,12 @@ struct HomeSharedRecipeScreen: View {
             .scrollContentBackground(.hidden).background(Color.creamWhite)
             .toolbar { Button("Done") { dismiss() } }
             .task(id: versionID) { await load() }
+            .onChange(of: store.scope) { _, scope in
+                if scope.userID != ownerID {
+                    projection = nil; content = nil; editor = nil; launch = nil; linked = nil
+                    dismiss()
+                }
+            }
             .sheet(item: $editor) { draft in
                 NavigationStack {
                     HomeRecipeEditorView(store: store, draft: draft) { id in savedRecipeID = id }
@@ -118,6 +124,7 @@ struct HomeSharedRecipeScreen: View {
                 references.append(HomeSavedRecipeReference(recipeID: recipe.recipeIdentityID, versionID: versionID, name: recipe.recipeName))
                 workspace.savedReferences = references
             }
+            MugshotAnalytics.shared.capture(.homeRecipe(.referenceSaved, hasRecipe: true, durationSeconds: 0))
         } catch { self.error = error.localizedDescription }
     }
     private func start(_ content: HomeRecipeContent, guided: Bool, owned: HomeRecipeRecord? = nil) {
@@ -132,7 +139,7 @@ struct HomeSharedRecipeScreen: View {
             attempt.recipe = projection.map { HomeRecipeReference(recipeID: $0.recipeIdentityID, versionID: $0.recipeVersionID) }
         }
         do {
-            if guided, owned != nil || canKeepInstructions {
+            if guided {
                 let session = HomePreparationSession(attempt: attempt)
                 try store.saveSession(session)
                 launch = HomeSharedMakeLaunch(sessionID: session.id)

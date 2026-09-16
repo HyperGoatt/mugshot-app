@@ -95,6 +95,7 @@ struct HomePreparationStep: Identifiable, Codable, Equatable, Sendable {
     var waitSeconds: Double?
     var waterGrams: Double?
     var waterMode: HomeWaterTargetMode = .cumulative
+    var isHidden: Bool?
 }
 
 enum HomeCustomFieldKind: String, Codable, CaseIterable, Sendable {
@@ -188,9 +189,10 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     }
 
     var isActionable: Bool {
-        !ingredients.isEmpty || steps.contains { !$0.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        !ingredients.isEmpty || visibleSteps.contains { !$0.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             || targets.dose != nil || targets.steepSeconds != nil
     }
+    var visibleSteps: [HomePreparationStep] { steps.filter { $0.isHidden != true } }
     var validationMessage: String? {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if sourceVersionID != nil, sourceReuseAllowed == false { return "This source does not permit an editable copy. You can still log a make from the original." }
@@ -228,9 +230,9 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
                 "\(ingredients.count) ingredients"].joined(separator: " · ")
     }
     func cumulativeWater(through index: Int) -> Double? {
-        guard steps.indices.contains(index) else { return nil }
+        guard visibleSteps.indices.contains(index) else { return nil }
         var total: Double?
-        for step in steps.prefix(index + 1) {
+        for step in visibleSteps.prefix(index + 1) {
             guard let water = step.waterGrams else { continue }
             total = step.waterMode == .cumulative ? water : (total ?? 0) + water
         }
@@ -298,6 +300,9 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var savedAt: Date?
     var publicationDraftID: UUID?
 
+    /// The setup chosen for this make, never a substitute for recorded actuals.
+    var plannedTargets: HomeRecipeTargets? { (preparation ?? targets)?.targets }
+
     static func fresh(from recipe: HomeRecipeRecord?, setup: HomeRecipeContent? = nil) -> Self {
         let version = recipe?.current
         return Self(name: setup?.name ?? version?.content.name ?? "",
@@ -358,9 +363,15 @@ struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
     var remoteRevision = 0
     var pendingOperationID: UUID?
     var savedReferences: [HomeSavedRecipeReference]?
+    /// Conflicting local versions remain readable as historical evidence. They
+    /// are not silently renumbered or offered as publishable canonical versions.
+    var retainedVersions: [HomeRetainedRecipeVersion]?
+    var preparationConflicts: [HomePreparationSession]?
+    var attemptConflicts: [HomeAttemptRecord]?
 
     func version(_ reference: HomeRecipeReference) -> HomeRecipeVersion? {
         recipes.first { $0.id == reference.recipeID }?.versions.first { $0.id == reference.versionID }
+            ?? retainedVersions?.first { $0.reference == reference }?.version
     }
     var usuals: [HomeRecipeRecord] {
         recipes.filter { !$0.isArchived && ($0.isPinned || $0.lastUsedAt != nil) }.sorted {
@@ -377,6 +388,118 @@ struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
                 .compactMap(\.recipe).contains { visit($0.recipeID, seen: next) } ?? false
         }
         return content.ingredients.compactMap(\.recipe).contains { visit($0.recipeID, seen: []) }
+    }
+}
+
+struct HomeRetainedRecipeVersion: Codable, Equatable, Sendable {
+    var reference: HomeRecipeReference
+    var version: HomeRecipeVersion
+}
+
+extension HomeRecipeWorkspace {
+    /// Remote canonical versions win only after explicit reconciliation. Local
+    /// variants, independent makes and unfinished work remain recoverable.
+    func reconciling(local: HomeRecipeWorkspace) -> HomeRecipeWorkspace {
+        var merged = self
+        var retained = retainedVersions ?? []
+        for saved in local.retainedVersions ?? [] where !retained.contains(where: { $0.reference == saved.reference }) {
+            retained.append(saved)
+        }
+        for recipe in local.recipes {
+            guard let remote = recipes.first(where: { $0.id == recipe.id }) else {
+                merged.recipes.append(recipe)
+                continue
+            }
+            for version in recipe.versions where !remote.versions.contains(where: { $0.id == version.id }) {
+                let reference = HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
+                if !retained.contains(where: { $0.reference == reference }) {
+                    retained.append(HomeRetainedRecipeVersion(reference: reference, version: version))
+                }
+            }
+            if let current = recipe.current, current.id != remote.current?.id,
+               !remote.versions.contains(where: { $0.id == current.id }) {
+                if !merged.recipeDrafts.contains(where: { $0.id == current.id }) {
+                    merged.recipeDrafts.append(HomeRecipeEditorDraft(id: current.id, recipeID: recipe.id,
+                        baseVersionID: remote.current?.id, content: current.content))
+                }
+            }
+        }
+        // A new local recipe may depend on a version displaced by the remote
+        // edit. Keep the whole recipe as history and a draft, not an invalid
+        // canonical graph that would permanently block synchronization.
+        var removedDependency = true
+        while removedDependency {
+            removedDependency = false
+            for recipe in merged.recipes where !recipes.contains(where: { $0.id == recipe.id }) {
+                let unavailable = recipe.versions.contains { version in
+                    version.content.ingredients.compactMap(\.recipe).contains { reference in
+                        !merged.recipes.contains { $0.id == reference.recipeID && $0.versions.contains { $0.id == reference.versionID } }
+                    }
+                }
+                guard unavailable else { continue }
+                for version in recipe.versions {
+                    let reference = HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
+                    if !retained.contains(where: { $0.reference == reference }) {
+                        retained.append(HomeRetainedRecipeVersion(reference: reference, version: version))
+                    }
+                }
+                if let current = recipe.current, !merged.recipeDrafts.contains(where: { $0.id == current.id }) {
+                    merged.recipeDrafts.append(HomeRecipeEditorDraft(id: current.id, content: current.content))
+                }
+                merged.recipes.removeAll { $0.id == recipe.id }
+                removedDependency = true
+            }
+        }
+        merged.retainedVersions = retained
+        merged.attempts += local.attempts.filter { item in !merged.attempts.contains { $0.id == item.id } }
+        var attemptConflicts = merged.attemptConflicts ?? []
+        for attempt in (local.attemptConflicts ?? []) + local.attempts {
+            if let remote = merged.attempts.first(where: { $0.id == attempt.id }), remote != attempt,
+               !attemptConflicts.contains(where: { $0.id == attempt.id }) {
+                attemptConflicts.append(attempt)
+            }
+        }
+        merged.attemptConflicts = attemptConflicts
+        for draft in local.recipeDrafts {
+            if let remote = merged.recipeDrafts.first(where: { $0.id == draft.id }) {
+                if remote != draft, !merged.recipeDrafts.contains(where: { $0.content == draft.content && $0.recipeID == draft.recipeID && $0.baseVersionID == draft.baseVersionID }) {
+                    var recovered = draft
+                    recovered.id = UUID()
+                    merged.recipeDrafts.append(recovered)
+                }
+            } else { merged.recipeDrafts.append(draft) }
+        }
+        for draft in local.attemptDrafts {
+            if let remote = merged.attemptDrafts.first(where: { $0.id == draft.id })
+                ?? merged.attempts.first(where: { $0.id == draft.id }) {
+                if remote != draft {
+                    var recovered = draft
+                    recovered.id = UUID()
+                    recovered.publicationDraftID = nil
+                    let alreadyRecovered = merged.attemptDrafts.contains { candidate in
+                        var normalized = candidate
+                        normalized.id = recovered.id
+                        normalized.publicationDraftID = nil
+                        return normalized == recovered
+                    }
+                    if !alreadyRecovered { merged.attemptDrafts.append(recovered) }
+                }
+            } else { merged.attemptDrafts.append(draft) }
+        }
+        var progressConflicts = merged.preparationConflicts ?? []
+        for session in (local.preparationConflicts ?? []) + local.sessions {
+            if let remote = merged.sessions.first(where: { $0.id == session.id }), remote != session,
+               !progressConflicts.contains(where: { $0.id == session.id }) {
+                progressConflicts.append(session)
+            }
+        }
+        merged.preparationConflicts = progressConflicts
+        merged.sessions += local.sessions.filter { item in !merged.sessions.contains { $0.id == item.id } }
+        merged.savedReferences = (savedReferences ?? []) + (local.savedReferences ?? []).filter { item in
+            !(savedReferences ?? []).contains { $0.id == item.id }
+        }
+        merged.pendingOperationID = UUID()
+        return merged
     }
 }
 

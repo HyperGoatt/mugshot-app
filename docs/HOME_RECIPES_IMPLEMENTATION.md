@@ -24,6 +24,8 @@ not been run and the distinction below is intentional.
 - Built-in preparation fields can be renamed, reordered and hidden per recipe;
   stable metric identifiers retain calculation meaning and hidden values. The
   optional configuration decodes older workspaces without a backfill.
+- Instructions can be hidden without deletion; guidance and cumulative pouring
+  targets use only visible steps. Older steps default visible.
 - Ratio/yield calculation, mixed incremental/cumulative pour steps, quantity
   scaling without changing temperature, pressure, grind, or time.
 - Separate Home attempts with frozen targets, optional actuals, optional rating,
@@ -62,9 +64,24 @@ not been run and the distinction below is intentional.
 
 `HomeRecipeWorkspaceStore` owns the new local workspace under
 `Application Support/MugshotHomeRecipes/<account scope>/workspace-v1.json`.
-Photo files are account-scoped, use generated basenames, and remain local in
-this first increment. They are passed to the existing publication media path
-only when the owner chooses Share.
+Photo files are account-scoped and use generated basenames. Private synchronization
+uses the existing owner-only `home-coffee-bag-photos` bucket under
+`<owner>/home-attempts/<generated basename>`, with durable per-account upload
+receipts, idempotent uploads and authenticated downloads. Foreground/network
+recovery coordinates workspace sync. Publishing still uses the separate existing
+publication media path only after Share. Owner exports include the local workspace,
+local attempt photos and, through additive export v4, the remote workspace. The
+existing owner media export/deletion allowlist already includes this private bucket.
+
+Explicit conflict reconciliation retains displaced immutable versions for historical
+attempt lookup. New recipes depending on displaced versions become editable drafts
+instead of an invalid canonical graph. Divergent drafts remain separate; conflicting
+saved results and preparation progress require explicit choices in Home. Account and
+operation fences prevent an old async task from applying results after switching.
+Recovering the same conflicting attempt draft is idempotent, including when another
+device already saved its attempt. Saved result targets reflect the preparation
+chosen for that make; the original recipe snapshot and optional actuals stay separate.
+Positive-amount validation also applies to changes saved Just this time.
 
 `home_recipe_workspaces` is an owner-readable, RPC-write-only synchronization
 document. The RPC atomically mirrors owned recipe identities and immutable
@@ -85,8 +102,9 @@ or photos retain the old composer until a lossless migration adapter is ready.
 
 The following are not complete and must not be inferred from the foundation:
 
-1. Unified inline Journal Home navigation and per-tab scroll restoration,
-   and legacy recipe adoption into the new collection.
+1. Runtime acceptance of inline Journal Home navigation, account-scoped collection
+   scroll restoration and Earlier Home entries. Legacy owner recipes open the unified
+   detail and can be explicitly adapted without interpreting ambiguous measurements.
 2. Full runtime acceptance of method-specific actuals, field customization and
    linked component preparation.
 3. Full acceptance of Discovery/Feed/Saved routes, shared references, adaptations
@@ -95,10 +113,11 @@ The following are not complete and must not be inferred from the foundation:
 4. Full source-rights, audience, blocked-user and moderation integration tests
    against the complete migration stack. The new attachment harness uses
    controlled legacy helper fixtures, not live production authorization.
-5. Remote private-photo continuity, coordinated sync/recovery scheduling, and
-   complete concurrent-edit reconciliation for historical version references.
+5. Runtime transport acceptance of private-photo continuity and recovery; the source
+   paths and explicit historical conflict reconciliation are now implemented.
 6. Runtime acceptance of method-relevant attempt comparisons, complete
-   accessibility review, and privacy-safe funnel instrumentation.
+   accessibility review. Structural funnel instrumentation is implemented; validate
+   the event payload contract without collecting content.
 7. Representative legacy migration fixtures, full social authorization matrix,
    consolidated Simulator journeys, and backward-compatible deployment review.
 
@@ -153,3 +172,33 @@ to the editor. This is not full journey acceptance. Synthetic launch mode was
 found attempting workspace sync to the configured backend; its unavailable RPC
 rejected the request, and an explicit UI-test guard now disables workspace sync
 for synthetic runs. No remote mutation or migration was performed.
+
+The latest continuity increment passed full-static (12 passed, zero failed, one
+optional parser skip), plus 71 focused tests covering Home, the publication outbox,
+recovery, account lifecycle and analytics. The expanded Home-only suite subsequently
+passed 16 tests, including hidden-step behavior. Mock transport coverage verifies
+photo retry receipts, downloads on a second local store, and account switching;
+this is not acceptance against live Storage.
+
+A bounded iOS 26.3 check verified direct Journal Home navigation, independent
+espresso recipe save (18 g, 1:2, 28 seconds), skipped guidance, a 37.5 g actual yield
+with unrecorded dose/time, unrated photo-free private saving, repeat clearing,
+private-note persistence, and a share preview excluding that note. It caught an
+adjusted-target display issue, now covered by a focused regression test. Attachment
+consent was cancelled without publishing; remote publication remains unaccepted.
+
+The consolidated local template test then passed on iOS 26.3: espresso, pour-over,
+cold brew, component, complete drink and custom recipes each saved to recipe detail
+and completed the two-surface log without photos or ratings. The combined run passed
+19 tests (18 Home model/store tests and one six-template UI journey), zero failures
+or skips. Screenshots are retained in its xcresult bundle. This test covers the
+common create/log loop, not detailed guidance, live discovery or remote posting.
+After the final Just this time validation fix, the generic Debug app/test compile
+and all 19 Home model/store tests passed again (zero failures or skips).
+Documentation validation and whitespace checks passed. No hardware or TestFlight
+acceptance is implied by these local results.
+
+The complete backend migration/transport gate needs an isolated database. Read-only
+inspection found only the production Supabase branch, no configured QA database,
+and no local container/Postgres runtime. Permission to create a potentially billable,
+data-free development branch was requested. Production remains untouched.
