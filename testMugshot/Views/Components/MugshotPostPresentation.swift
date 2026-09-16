@@ -441,13 +441,9 @@ struct MugshotExpandableCaption: View {
     @State private var availableWidth: CGFloat = 0
 
     private var measurementFont: UIFont {
-        let base = usesDetailTypography
+        usesDetailTypography
             ? UIFont.preferredFont(forTextStyle: .body)
             : UIFont.systemFont(ofSize: 15)
-        guard let descriptor = base.fontDescriptor.withSymbolicTraits(.traitBold) else {
-            return UIFont.systemFont(ofSize: base.pointSize, weight: .bold)
-        }
-        return UIFont(descriptor: descriptor, size: base.pointSize)
     }
 
     private var truncatedCaption: String? {
@@ -479,7 +475,7 @@ struct MugshotExpandableCaption: View {
                     .accessibilityLabel(caption)
             }
         }
-        .font(usesDetailTypography ? .system(.body, weight: .bold) : .system(size: 15, weight: .bold))
+        .font(usesDetailTypography ? .body : .system(size: 15))
         .foregroundStyle(Color.espressoBrown.opacity(0.78))
         .fixedSize(horizontal: false, vertical: true)
         .background {

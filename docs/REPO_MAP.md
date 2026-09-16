@@ -41,7 +41,7 @@ through the committed package resolution.
 | Domain | Primary responsibility |
 | --- | --- |
 | Auth/Profile | Identity, callbacks, session/account isolation and public profile projections |
-| Composer/Visits | Cafe, Home and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery |
+| Composer/Visits | Cafe and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery; central Add > Home is temporarily gated by the build-8 placeholder while the Home implementation remains in source |
 | Home Workbench | Coffee library, recipes, brew plans/actuals, reuse and owner journal projection |
 | Feed/Social | Viewer-scoped feed/detail, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
 | Map/Saved | Search, cafe identity, saved state, discovery and collaborative lists |

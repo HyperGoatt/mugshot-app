@@ -6,13 +6,14 @@ last_verified: 2026-09-16
 
 # Product roadmap
 
-## Production-configured; owner acceptance next: native Home and Recipes
+## Production-configured; central Home logging temporarily gated
 
 The complete find/create → save → make/log → reflect → improve → share loop is
 implemented, accepted locally and in isolated backend QA, deployed to production,
-and enabled by default with a data-preserving rollback override. A signed Debug
-candidate is installed and launched on the owner's iPhone. Next steps are owner hands-on
-acceptance and a separately authorized TestFlight gate—not additional product scope.
+and data-preserving. Build 0.5.3 (8) temporarily replaces central Add > Log a Sip
+> Home with an under-construction placeholder while that experience is repaired.
+Existing Home data and Journal collections remain intact. Reopening the central
+entry requires a focused repair and owner acceptance pass.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning

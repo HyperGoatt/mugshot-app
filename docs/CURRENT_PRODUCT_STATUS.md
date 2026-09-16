@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## TestFlight 0.5.3 (8) battery patch candidate — 2026-09-16
+
+Build 8 keeps marketing version 0.5.3 and packages both battery remediations for
+replacement TestFlight distribution. It also restores regular-weight Feed and
+detail captions, restores the personal Map legend title to **Your ratings**, and
+temporarily routes central Add > Log a Sip > Home to a **Home is under
+construction** placeholder with a return to cafe logging. Existing Home/Recipes
+data and Journal collections are preserved.
+
+The source changes and build-number increment are implemented. Focused Simulator
+checks passed for the Home placeholder, its return-to-cafe action, the personal
+Map legend, and caption presentation policy. The signed build-8 Debug candidate
+also built, installed, and launched on Joe's connected iPhone. Archive, upload,
+processing, testing-group assignment, and TestFlight acceptance remain separate
+gates. No Supabase environment, schema, production data, or App Store release is
+changed by this candidate.
+
 ## Battery and thermal remediation release hold — 2026-09-16
 
 The confirmed build-7 location lifecycle defect is remediated in current source.
@@ -65,17 +82,22 @@ was not reported.
 A matched force-quit control, movement, reminder-on/off, media retention,
 interrupted upload, explicit thermal observation, and repeated extended-discharge
 acceptance remain open. TestFlight 0.5.3 (7) still contains the original location
-defect, so further distribution remains held. No Supabase environment, production
-data, TestFlight build, or App Store state changed. See the
+defect; build 8 is the replacement candidate. No Supabase environment, production
+data, or App Store state changed. See the
 [original audit](audits/BATTERY_THERMAL_RUNTIME_AUDIT_2026-09-16.md) and
 [instrumented validation](audits/BATTERY_DIAGNOSTICS_VALIDATION_2026-09-16.md).
 
 ## Native Home and Recipes — 2026-09-16
 
-The complete native Home/Recipes plan is implemented, production-configured, and
-enabled by default. Production is aligned at all 177 migrations through
+The complete native Home/Recipes plan remains implemented and
+production-configured. Production is aligned at all 177 migrations through
 `20260916020417_home_recipe_http_conflicts.sql`. The explicit stored-off flag
 remains a rollback switch and does not remove saved recipe or journal data.
+
+For build 8, the central Add > Log a Sip > Home entry is temporarily gated by an
+under-construction placeholder while the experience is repaired. The Journal
+collections and stored Home/Recipes data remain available; the placeholder does
+not delete, migrate, or rewrite Home content.
 
 The source includes template-first progressive recipe creation, two-surface quick
 logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,
@@ -153,7 +175,7 @@ The 14-report follow-up is implemented on
 uses Apple's standard still-photo camera, completed-Mugshot personal Map
 averages, individual Profile cafe pins, bounded per-record publication recovery,
 normalized Instagram destinations, canonical cafe actions, Feed photo paging,
-bold published captions, structured Sip/Cafe/Setting journal headings and the
+published caption presentation, structured Sip/Cafe/Setting journal headings and the
 approved Feed copy.
 
 On this day and Weekly reflection reminders are opt-in and require a new explicit

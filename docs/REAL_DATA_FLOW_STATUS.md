@@ -30,6 +30,10 @@ pre/post content fingerprints, counts, Storage inventory, and bucket visibility
 were unchanged. The native flag defaults on and preserves an explicit stored-off
 rollback. See [data ownership and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
 
+Build 0.5.3 (8) adds a UI-only under-construction gate at central Add > Log a Sip
+> Home. It does not disable the workspace, migrate data, issue a Supabase write,
+or change stored recipes, attempts, drafts, media, or conflict state.
+
 ## 2026-09-14 — Physical-device performance regression follow-up
 
 Owner testing of `62991fa` reported text-input freezes, carousel loss after post

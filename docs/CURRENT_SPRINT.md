@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-16
 ---
+
+Current release amendment (2026-09-16): the owner authorized an urgent 0.5.3 (8)
+TestFlight replacement for battery-affected build 7. Build 8 packages both
+battery remediations, regular-weight captions, the **Your ratings** Map legend,
+and the temporary central Add > Home placeholder. The focused Simulator and
+signed connected-iPhone build/install/launch gates passed. Archive, upload,
+processing, and group assignment remain in progress; no App Store release is
+authorized.
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server
@@ -62,6 +70,7 @@ ownership, or the core sip journey.
 | Production schedule cutover | Completed | PR #48; 69 stale attempts cancelled with Activity preserved, five existing devices defaulted badge support off, protected-data fingerprints unchanged, scheduled protocol-v3 HTTP 200 with zero claims |
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
 | Physical sandbox acceptance | Delivery/read path partially accepted; matrix in progress | Two normal second-account likes each produced a first-attempt sandbox send. The signed iPhone showed the unread items and routed them correctly; after the direct-store fix, mark-one-read cleared the authoritative count, Activity marker, and Feed bell immediately without relaunch. Foreground presentation, a visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out remain. |
+| Battery replacement candidate | 0.5.3 (8) locally verified; distribution gates in progress | Both battery fixes, caption/Map copy adjustments, and central Add > Home placeholder are in source. Focused Simulator checks and the signed connected-iPhone build/install/launch gate passed. The owner authorized the urgent TestFlight upload after the fixed development build charged from 37% to 53% in ten minutes and held at 53% through a 30-minute unplugged Map-to-lock arm. |
 | TestFlight production acceptance | 0.5.3 (7) uploaded, processed, and testing | Exact `bead2de` iPhone 16 Pro Simulator, connected-iPhone build/install/launch, and Release archive gates passed. App Store Connect completed processing, published `Welcome to Mugshot`, and assigned Mugshot Team plus Alpha Friends with 12 external testers. No App Store release was submitted; hands-on beta acceptance remains pending |
 | Revised 44-report remediation | Implemented, merged, and distributed; feature acceptance pending | The five workstreams are on `main`; 425 unit tests, eight focused UI journeys, the 43-screenshot plus one-text review, later focused regressions, and consolidated Simulator acceptance passed. Build 0.5.3 (6) is now available to Alpha Friends. No report will be resolved until its behavior is manually accepted in this replacement build |
 | Simulator-QA follow-up | Included in TestFlight 0.5.3 (6) | Feed reselect/top behavior plus scope pills with equal eight-point upper/lower resting gaps that ignore refresh pull, hold for 60 upward points, and slide continuously beneath the header over their measured height; Journal toolbar flag and Taste Passport holding screen; all-step composer close; explicit multi-draft recovery; 12–18 preparation-specific stationary criteria; persistent importance; compact Publish controls; private-Storage cafe photos; and non-destructive multi-ID cafe stitching are in the processed build. Local focused coverage and Simulator acceptance passed; replacement-build tester acceptance remains pending |

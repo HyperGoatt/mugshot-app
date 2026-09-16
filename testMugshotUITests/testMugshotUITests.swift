@@ -75,6 +75,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testSignedOutShellKeepsDiscoveryOpenAndRequestsAuthAfterGuestDraft() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
@@ -248,7 +250,7 @@ final class testMugshotUITests: XCTestCase {
         let app = launch(reset: true)
         app.buttons["mugshot.tab.map"].tap()
 
-        XCTAssertTrue(app.staticTexts["Your Mugshot averages"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Your ratings"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["Cafe average when available · Sip average otherwise"].exists)
         XCTAssertEqual(app.staticTexts["High"].value as? String, "4.0 or higher")
         XCTAssertEqual(app.staticTexts["Mid"].value as? String, "3.0 to 3.9")
@@ -258,6 +260,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testV3HomeSipCompletesUnderTwoMinutes() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = launch(reset: true)
         let startedAt = Date()
         openV3HomeDraftToPublish(
@@ -286,6 +290,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testEveryoneAudienceAndExplicitDraftRestoration() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = launch(reset: true)
         openV3HomeDraftToPublish(
             in: app,
@@ -330,6 +336,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testHomeReflectionFriendsSaveReopensWithScores() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = launch(reset: true)
         let drinkName = "Friends Chemex"
         openV3HomeDraftToPublish(
@@ -354,6 +362,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testFeedSipUsesImmersivePourPushAndOwnerSurfaces() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = launch(reset: true)
         let drinkName = "Immersive cortado"
         openV3HomeDraftToPublish(
@@ -462,6 +472,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testPhotoDraftSurvivesFailedSaveRelaunchAndRetry() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let failureArguments = ["--ui-testing-seed-photo", "--ui-testing-fail-first-save"]
         let app = launch(reset: true, extraArguments: failureArguments)
         let drinkName = "Recovered photo cappuccino"
@@ -505,6 +517,8 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testAuthenticationInterruptionKeepsPrivateDraftUntilRelaunch() throws {
+        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+
         let app = launch(reset: true, extraArguments: ["--ui-testing-interrupt-auth-once"])
         let drinkName = "Interrupted auth mocha"
 

@@ -15,6 +15,13 @@ production-configured. Production is aligned to migration
 stored `false` as a data-preserving rollback switch. The browser gallery remains
 design evidence rather than production navigation.
 
+Build 0.5.3 (8) temporarily places a **Home is under construction** placeholder
+at central Add > Log a Sip > Home while the Home logging experience is repaired.
+The implementation, production schema, existing account-scoped data, Journal
+Home/Recipes collections, and non-central saved-attempt flows remain intact. The
+placeholder performs no migration or deletion and offers a direct return to cafe
+logging.
+
 Implementation acceptance is complete for the repository candidate: deterministic
 contracts, all hosted SQL contracts, real isolated Auth/API/Storage transport,
 the focused native model/store suite, the connected Simulator journeys, and the
@@ -30,10 +37,10 @@ acceptance is claimed.
 - Journal > Home retains independent My makes and Recipes collection state,
   surfaces active batches and interrupted drafts first, and provides usuals,
   recent makes, Earlier entries, intentional empty states, and the full library.
-- Add > Home and Recipe > Log a make attach a recipe without forcing guidance.
-  The first surface captures the creation and optional preparation/photo data;
-  the second captures optional rating, reaction, private note, make-again intent,
-  and next-time note. A photo-free, unrated entry is valid.
+- Central Add > Log a Sip > Home is temporarily gated by the under-construction
+  placeholder in build 8. The implemented Home and Recipe logging flows remain in
+  source and their stored data is unchanged; reopening the central entry requires
+  a later focused repair and acceptance pass.
 - Saving always opens the real private attempt. Make again, Save as recipe, Share,
   favorite-result, batch-serving, history, comparison, and next-time-note actions
   operate on that saved attempt rather than a transient example.
@@ -166,11 +173,11 @@ schedules. It was deleted after the final hosted runs, stopping its hourly charg
 
 ## Remaining rollout gates
 
-No implementation item from the approved Home and Recipes plan remains open in
-this source candidate. The following are release operations, not missing product
-scope:
+The approved implementation remains present, but the central Add entry is
+temporarily unavailable behind the build-8 placeholder. Reopening it requires a
+focused repair and acceptance pass. The remaining release operations are:
 
-1. Complete owner hands-on acceptance on the launched production-connected
-   Debug candidate. Source, production schema, and the default-on flag are ready.
-2. Archive, upload, or assign a TestFlight build only after an explicit TestFlight
-   request and the required Simulator and connected-iPhone gates.
+1. Verify the build-8 placeholder and return-to-cafe path while confirming the
+   existing Journal collections remain readable and unchanged.
+2. The owner explicitly requested the replacement TestFlight upload. Complete
+   the required Simulator and connected-iPhone gates before archiving and upload.

@@ -4,6 +4,26 @@ status: current
 last_verified: 2026-09-16
 ---
 
+## 2026-09-16 — TestFlight 0.5.3 (8) battery patch candidate
+
+- Prepared build 8 on marketing version 0.5.3 to replace affected TestFlight
+  build 7. The candidate contains the continuous-location lifecycle remediation,
+  the Home/Supabase recovery-loop fix, and Release-safe no-op diagnostics.
+- Restored regular-weight published captions in Feed and post detail, including
+  matching regular font metrics for the two-line truncation calculation.
+- Replaced the central Add > Log a Sip > Home entry with a temporary **Home is
+  under construction** placeholder and a direct return to cafe logging. Existing
+  Home/Recipes data, Journal browsing, and non-central saved-attempt flows remain
+  intact.
+- Restored the personal Map legend title from **Your Mugshot averages** to
+  **Your ratings**.
+- Incremented every app, test, widget, and share-extension build setting from 7
+  to 8 without changing marketing version 0.5.3. No Supabase environment, schema,
+  production data, analytics configuration, or App Store release changed.
+- Passed the focused Simulator Home-placeholder and Map-copy journeys, all seven
+  caption presentation-policy tests, the repository full-static gate, and the
+  signed connected-iPhone build/install/launch gate.
+
 ## 2026-09-16 — Physical battery diagnostics
 
 - Physical instrumentation immediately found a separate current-source Home

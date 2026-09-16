@@ -2895,7 +2895,7 @@ struct RatingsLegend: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your Mugshot averages"))
+            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your ratings"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.roastBrown)
 
