@@ -23,8 +23,8 @@ The complete connected journeys and largest Dynamic Type route pass. The synthet
 branch was deleted after acceptance. The live cutover preserved every recorded
 content fingerprint, row count, Storage object count, and bucket visibility value.
 All 22 focused Home tests pass with the activation behavior, and the signed Debug
-candidate is installed on Joe's iPhone. Hands-on and TestFlight acceptance remain
-owner-promoted gates. See
+candidate is installed, launched, and running on Joe's iPhone. Hands-on and
+TestFlight acceptance remain owner-promoted gates. See
 [implementation and acceptance status](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Zoom-adaptive Map pins — 2026-09-14

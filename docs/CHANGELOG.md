@@ -19,9 +19,10 @@ last_verified: 2026-09-16
 - Enabled `MugshotRoadmap.homeRecipes.v1` by default while preserving an explicit
   stored `false` as a rollback override that does not delete saved data. All 22
   focused Home tests passed, including the activation/rollback contract.
-- Built and installed the signed production-connected Debug candidate on Joe's
-  iPhone 16 Pro. Hands-on acceptance remains separate; no archive, TestFlight
-  upload, testing-group change, or App Store action occurred.
+- Built, installed, and launched the signed production-connected Debug candidate
+  on Joe's iPhone 16 Pro; the app process remained running and its foreground
+  screen was captured. Hands-on acceptance remains separate; no archive,
+  TestFlight upload, testing-group change, or App Store action occurred.
 
 ## 2026-09-15 — Native Home and Recipes implementation complete (flag off)
 

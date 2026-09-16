@@ -11,7 +11,7 @@ last_verified: 2026-09-16
 The complete find/create → save → make/log → reflect → improve → share loop is
 implemented, accepted locally and in isolated backend QA, deployed to production,
 and enabled by default with a data-preserving rollback override. A signed Debug
-candidate is installed on the owner's iPhone. Next steps are owner hands-on
+candidate is installed and launched on the owner's iPhone. Next steps are owner hands-on
 acceptance and a separately authorized TestFlight gate—not additional product scope.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 

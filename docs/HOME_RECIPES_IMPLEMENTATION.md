@@ -20,7 +20,8 @@ contracts, all hosted SQL contracts, real isolated Auth/API/Storage transport,
 the focused native model/store suite, the connected Simulator journeys, and the
 largest Dynamic Type journey pass. The disposable acceptance branch was deleted
 after verification. The signed production-connected Debug candidate is installed
-on the owner's iPhone for hands-on acceptance. No TestFlight acceptance is claimed.
+and launched on the owner's iPhone for hands-on acceptance. No TestFlight
+acceptance is claimed.
 
 ## Product behavior
 
@@ -155,8 +156,9 @@ after that acceptance and a fresh restorable physical backup.
   The new tables began empty with RLS enabled, anonymous RPC execution denied,
   authenticated RPC execution granted, and business conflicts mapped to HTTP 409.
 - The default-on/explicit-off rollback behavior and all focused Home tests pass
-  together (22 tests). The signed Debug candidate built and installed on Joe's
-  iPhone 16 Pro without changing the App Store marketing version or build number.
+  together (22 tests). The signed Debug candidate built, installed, launched, and
+  remained running on Joe's iPhone 16 Pro without changing the App Store marketing
+  version or build number.
 
 The acceptance branch `home-recipes-acceptance`
 (`rfjbunvhidcyyzyzcyvh`) contained only synthetic `.invalid` users and disabled
@@ -168,7 +170,7 @@ No implementation item from the approved Home and Recipes plan remains open in
 this source candidate. The following are release operations, not missing product
 scope:
 
-1. Complete owner hands-on acceptance on the installed production-connected
+1. Complete owner hands-on acceptance on the launched production-connected
    Debug candidate. Source, production schema, and the default-on flag are ready.
 2. Archive, upload, or assign a TestFlight build only after an explicit TestFlight
    request and the required Simulator and connected-iPhone gates.
