@@ -75,7 +75,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testSignedOutShellKeepsDiscoveryOpenAndRequestsAuthAfterGuestDraft() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = XCUIApplication()
         app.launchArguments = [
@@ -260,7 +260,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testV3HomeSipCompletesUnderTwoMinutes() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = launch(reset: true)
         let startedAt = Date()
@@ -290,7 +290,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testEveryoneAudienceAndExplicitDraftRestoration() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = launch(reset: true)
         openV3HomeDraftToPublish(
@@ -336,7 +336,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testHomeReflectionFriendsSaveReopensWithScores() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = launch(reset: true)
         let drinkName = "Friends Chemex"
@@ -362,7 +362,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testFeedSipUsesImmersivePourPushAndOwnerSurfaces() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = launch(reset: true)
         let drinkName = "Immersive cortado"
@@ -472,7 +472,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testPhotoDraftSurvivesFailedSaveRelaunchAndRetry() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let failureArguments = ["--ui-testing-seed-photo", "--ui-testing-fail-first-save"]
         let app = launch(reset: true, extraArguments: failureArguments)
@@ -517,7 +517,7 @@ final class testMugshotUITests: XCTestCase {
 
     @MainActor
     func testAuthenticationInterruptionKeepsPrivateDraftUntilRelaunch() throws {
-        try XCTSkipIf(true, "Central Add > Home is intentionally unavailable in build 8 while Home is under construction.")
+        try XCTSkipIf(true, "Superseded by the unified Home quick-log journeys in HomeRecipesJourneyUITests.")
 
         let app = launch(reset: true, extraArguments: ["--ui-testing-interrupt-auth-once"])
         let drinkName = "Interrupted auth mocha"

@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+## Central Home entry enabled for owner QA — 2026-09-17
+
+Current source removes the temporary Home placeholder gate. Central Add > Log a
+Sip > Home now opens the unified Home quick log, and Journal > Home retains the
+full My makes / Recipes workspace. The change does not migrate or rewrite Home
+data and does not alter the production backend. TestFlight 0.5.3 (8) remains the
+previous distributed artifact with the placeholder; a replacement has not been
+uploaded or assigned. The signed `co.mugshot.app.dev` candidate compiled,
+installed, and launched on Joe's iPhone; hands-on Home acceptance is in progress.
 
 ## TestFlight 0.5.3 (8) battery patch — 2026-09-16
 
@@ -97,10 +107,10 @@ production-configured. Production is aligned at all 177 migrations through
 `20260916020417_home_recipe_http_conflicts.sql`. The explicit stored-off flag
 remains a rollback switch and does not remove saved recipe or journal data.
 
-For build 8, the central Add > Log a Sip > Home entry is temporarily gated by an
-under-construction placeholder while the experience is repaired. The Journal
-collections and stored Home/Recipes data remain available; the placeholder does
-not delete, migrate, or rewrite Home content.
+Build 8 historically gates central Add > Log a Sip > Home with an
+under-construction placeholder. Current source supersedes that client behavior
+with the unified quick log. The Journal collections and stored Home/Recipes data
+remain available; neither behavior deletes, migrates, or rewrites Home content.
 
 The source includes template-first progressive recipe creation, two-surface quick
 logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,

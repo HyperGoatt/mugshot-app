@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
 ## Native Home workspace — 2026-09-16
@@ -30,9 +30,11 @@ pre/post content fingerprints, counts, Storage inventory, and bucket visibility
 were unchanged. The native flag defaults on and preserves an explicit stored-off
 rollback. See [data ownership and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
 
-Build 0.5.3 (8) adds a UI-only under-construction gate at central Add > Log a Sip
-> Home. It does not disable the workspace, migrate data, issue a Supabase write,
-or change stored recipes, attempts, drafts, media, or conflict state.
+Build 0.5.3 (8) historically adds a UI-only under-construction gate at central
+Add > Log a Sip > Home. Current source removes that client gate and opens the
+unified quick log without changing workspace ownership, issuing a Supabase
+write merely for navigation, or changing stored recipes, attempts, drafts,
+media, or conflict state.
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 

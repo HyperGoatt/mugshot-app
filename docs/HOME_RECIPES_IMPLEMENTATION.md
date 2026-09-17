@@ -15,20 +15,19 @@ production-configured. Production is aligned to migration
 stored `false` as a data-preserving rollback switch. The browser gallery remains
 design evidence rather than production navigation.
 
-Build 0.5.3 (8) temporarily places a **Home is under construction** placeholder
-at central Add > Log a Sip > Home. The static-audit repair is implemented on the
-current source branch, but the placeholder remains the released behavior until
-the repaired candidate completes its consolidated runtime and device gates.
-The implementation, production schema, existing account-scoped data, Journal
-Home/Recipes collections, and non-central saved-attempt flows remain intact. The
-placeholder performs no migration or deletion and offers a direct return to cafe
-logging.
+Current source removes the temporary gate and routes central Add > Log a Sip >
+Home into the unified two-surface quick log. Journal > Home continues to provide
+the full My makes / Recipes workspace. The implementation, production schema,
+existing account-scoped data, Journal collections, and saved-attempt flows remain
+intact. The already-distributed TestFlight 0.5.3 (8) still contains its historical
+under-construction placeholder; it is not evidence for the enabled candidate.
 
 The 2026-09-15 implementation acceptance remains historical evidence for the
 original candidate. The 2026-09-17 repair changes cross-screen navigation,
-persistence, preparation, media, shortcuts, and publication recovery, so its
-runtime acceptance is intentionally pending. No new production deployment,
-physical acceptance, TestFlight acceptance, or App Store release is claimed.
+persistence, preparation, media, shortcuts, and publication recovery. The
+enabled signed development candidate compiled, installed, and launched on Joe's
+iPhone; owner hands-on QA is the active acceptance step. No replacement
+TestFlight upload or App Store release is claimed.
 
 ## 2026-09-17 repair architecture
 
@@ -64,10 +63,10 @@ physical acceptance, TestFlight acceptance, or App Store release is claimed.
 - Journal > Home retains independent My makes and Recipes collection state,
   surfaces active batches and interrupted drafts first, and provides usuals,
   recent makes, Earlier entries, intentional empty states, and the full library.
-- Central Add > Log a Sip > Home is temporarily gated by the under-construction
-  placeholder in build 8. The implemented Home and Recipe logging flows remain in
-  source and their stored data is unchanged; reopening the central entry requires
-  a later focused repair and acceptance pass.
+- Central Add > Log a Sip > Home opens the unified quick log without requiring a
+  recipe, rating, photo, measurement, or guided preparation. Selecting a recipe
+  attaches it without forcing guidance. Journal > Home remains the complete
+  library and history route.
 - Saving always opens the real private attempt. Make again, Save as recipe, Share,
   favorite-result, batch-serving, history, comparison, and next-time-note actions
   operate on that saved attempt rather than a transient example.

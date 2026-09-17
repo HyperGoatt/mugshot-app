@@ -1,6 +1,6 @@
 import XCTest
 
-final class LogASipV3HomePlaceholderUITests: XCTestCase {
+final class LogASipV3CentralHomeUITests: XCTestCase {
     private enum Identifier {
         static let homeContext = "logASipV3.context.home"
         static let addPhotos = "logASipV3.photos.add"
@@ -31,7 +31,7 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
     }
 
     @MainActor
-    func testHomeShowsUnderConstructionPlaceholderAndReturnsToCafeLogging() throws {
+    func testCentralAddHomeOpensUnifiedQuickLog() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reset"]
         app.launch()
@@ -43,19 +43,11 @@ final class LogASipV3HomePlaceholderUITests: XCTestCase {
         XCTAssertTrue(homeContext.waitForExistence(timeout: 3))
         homeContext.tap()
 
-        XCTAssertTrue(app.staticTexts["Home is under construction"].waitForExistence(timeout: 3))
-        XCTAssertTrue(
-            app.staticTexts[
-                "We’re rebuilding the Home logging experience. For now, you can still log a sip at a cafe."
-            ].exists
-        )
-        attachScreenshot(named: "01-home-under-construction", app: app)
-
-        let cafeButton = element("logASipV3.home.underConstruction.cafe", in: app)
-        XCTAssertTrue(cafeButton.exists)
-        cafeButton.tap()
-        XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
-        XCTAssertTrue(element(Identifier.addPhotos, in: app).exists)
+        XCTAssertTrue(app.navigationBars["What did you make?"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["home.log.name"].exists)
+        XCTAssertTrue(app.buttons["How was it?"].exists)
+        XCTAssertFalse(app.staticTexts["Home is under construction"].exists)
+        attachScreenshot(named: "01-central-add-home-quick-log", app: app)
     }
 
     @MainActor

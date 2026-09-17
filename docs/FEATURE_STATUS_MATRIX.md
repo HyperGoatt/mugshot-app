@@ -1,10 +1,10 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
-## Native Home and Recipes — production-configured; central Add entry gated
+## Native Home and Recipes — production-configured; central Add enabled in source
 
 Independent recipes, private attempts, quick logging, flexible preparation,
 linked components, discovery/adaptation, improvement history, and optional
@@ -19,9 +19,10 @@ and the signed candidate is installed and launched on the owner's iPhone. Owner 
 TestFlight acceptance remain separate gates.
 [Exact implementation status](HOME_RECIPES_IMPLEMENTATION.md).
 
-Build 0.5.3 (8) temporarily routes central Add > Log a Sip > Home to an
-under-construction placeholder with a return to cafe logging. Existing Home data,
-Journal collections, and non-central saved-attempt flows remain intact.
+Current source routes central Add > Log a Sip > Home into the unified quick log.
+Existing Home data and Journal collections remain intact. TestFlight 0.5.3 (8)
+still contains its historical placeholder; replacement distribution is not
+implied by the enabled development candidate.
 
 ## Explicit profile identity setup — 2026-09-14
 
@@ -102,9 +103,9 @@ production and TestFlight retain their separately recorded deployment states.
 | --- | --- | --- | --- |
 | Auth and session restore | Implemented, locally verified | Supabase Auth, callback queue, account-checked session restoration | Signed-build provider regression pass when auth configuration changes |
 | Profile and public identity | Latest source physically launched; profile contract production-configured | Compact 112-point banner, foam-white tappable stats dock, compact sparse-profile metadata with no Taste overlap card, fully visible reason-first Favorite Spot categories plus custom descriptor entry, stable Cafes scrolling, Mugshots/cafes/existing-map/tagged tabs, no redundant profile-map ratings legend, tagged hide/remove controls, default-on Friends plus Everyone profile publication, owner opt-out to Everyone-only, strict Private exclusion, sealed mutations, owner export, and fixed Story/Post profile snapshots carrying marketing copy plus the canonical active link. Snapshot media is newest-first and resolves durable private-Storage references before rendering. Profile setup now requires an explicitly chosen username for exact generated-placeholder accounts, rejects unchanged placeholders from older clients, and offers an optional Favorite Spots step. Production migrations 172–173, focused contracts, full-static, and signed connected-iPhone build/install/launch pass | Owner interaction with the reopened setup path; replacement TestFlight acceptance remains separate |
-| Guided sip composer | Build 8 distributed; hands-on acceptance pending | Cafe and Elsewhere logging, fresh central Add, explicit one/multi-draft recovery, all-step close, photos, publish recovery, edit/delete; central Add > Home presents the temporary under-construction placeholder and returns to cafe logging. The focused Simulator path and signed connected-iPhone build/install/launch passed | TestFlight acceptance; later Home repair before reopening the central entry |
+| Guided sip composer | Enabled Home candidate launched on signed device; build 8 remains distributed | Cafe and Elsewhere retain the guided composer. Central Add > Home now opens the unified quick log, while Journal > Home exposes My makes / Recipes. The signed development candidate compiled, installed, and launched on Joe's iPhone; build 8 retains the historical placeholder | Owner hands-on acceptance of enabled Home; separately authorized replacement TestFlight |
 | Home Workbench | Implemented, production-configured | Recipe templates, planned/actual brews, bag media, reuse, journal projection; live migrations and protected-data fingerprints verified | Feedback-driven product acceptance |
-| Native Home and Recipes | Production-configured; central Add entry temporarily gated | Unified Coffee/Component/Drink/Blank recipes, guided preparation, resumable batches, linked immutable versions, repeat/comparison, adaptation, private sync/media, and explicit sharing remain implemented. Production is at migration 177 and preservation evidence matched. Build 8 adds no-mutation placeholder gating for central Add > Home while retaining Journal collections and stored content | Repair and reaccept central Home logging before reopening; build-8 TestFlight acceptance remains separate |
+| Native Home and Recipes | Production-configured; enabled candidate launched on signed device | Unified Coffee/Component/Drink/Blank recipes, guided preparation, resumable batches, linked immutable versions, repeat/comparison, adaptation, private sync/media, and explicit sharing remain implemented. Production is at migration 177 and preservation evidence matched. Central Add now enters the real quick log; the signed development candidate compiled, installed, and launched on Joe's iPhone. The distributed build 8 placeholder is unchanged | Owner hands-on acceptance; replacement TestFlight remains a separate explicit gate |
 | Feed and visit detail | Seventh QA follow-up locally verified | Compact cards, profile routing, one-level comments, reactions, tags, reselect-to-top, and a scope bar isolated from refresh/lazy content with matching eight-point upper/lower resting gaps that holds for 60 upward points and slides continuously beneath the header. Stable scope geometry and structured comment mentions remain; the Debug Simulator build/launch, focused motion/gap test, live capture, and same-input spacing comparison pass | Owner feel acceptance, production reaction migration, replacement TestFlight |
 | Journal and reflection | Second QA follow-up locally verified | Compact Journal hub and draft routes; unavailable Passport entry and holding screen removed locally; 12–18 preparation-specific criteria, stationary suggestion rail, persistent importance, and compact Publish controls; full focused matrix and full-static pass | Manual composer retest, connected-iPhone runtime, replacement-build acceptance |
 | Map and cafe discovery | QA follow-up locally verified | MapKit search, saved state, cafe detail/discovery, conservative read-time stitching across equivalent provider IDs, combined visit/media projection, viewer-visible Mugshots, and remote resolution for HTTP plus private-Storage references; focused identity/snapshot/classifier tests and replacement build/install/launch pass | Tiny Nook and Cafe Details runtime acceptance; no production row mutation |

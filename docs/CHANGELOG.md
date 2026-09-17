@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-09-17
 ---
 
+## 2026-09-17 — Central Home entry reopened for device QA
+
+- Removed the temporary source gate that routed central Add > Log a Sip > Home
+  to the build-8 under-construction placeholder. The Home choice now opens the
+  unified two-surface Home quick log, while Journal > Home continues to open the
+  full My makes / Recipes workspace.
+- Replaced the placeholder UI assertion with central-entry coverage for the real
+  quick-log destination and relabeled the retired V3 Home-composer checks as
+  superseded by the unified Home journey suite.
+- This source change does not alter the already-distributed TestFlight 0.5.3 (8),
+  deploy a backend migration, or change production data. Signed-device QA of the
+  enabled development candidate compiled, installed, and launched as
+  `co.mugshot.app.dev` on Joe's iPhone; hands-on acceptance is the current gate
+  before any separately authorized TestFlight replacement.
+
 ## 2026-09-17 — Home and Recipes continuity repair
 
 - Repaired Home navigation so Journal, app-shortcut, recipe, preparation,
@@ -34,8 +49,8 @@ last_verified: 2026-09-17
   protected failed publication keeps its retry action available.
 - The changes are additive inside the existing versioned workspace JSON; no
   Supabase schema, migration, RLS, production data, environment, or deployment
-  changed. Central Add > Home remains on the build-8 hold pending consolidated
-  runtime and physical-device acceptance.
+  changed. The later 2026-09-17 amendment above reopens central Add > Home in
+  current source for owner device QA.
 
 ## 2026-09-16 — TestFlight 0.5.3 (8) battery patch
 

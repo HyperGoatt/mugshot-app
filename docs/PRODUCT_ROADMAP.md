@@ -6,18 +6,18 @@ last_verified: 2026-09-17
 
 # Product roadmap
 
-## Home repair implemented; central logging held for acceptance
+## Home repair implemented; central logging reopened in source
 
 The complete find/create → save → make/log → reflect → improve → share loop is
 implemented, accepted locally and in isolated backend QA, deployed to production,
-and data-preserving. Build 0.5.3 (8) temporarily replaces central Add > Log a Sip
-> Home with an under-construction placeholder. The continuity repair is now
-implemented in source: Home owns its drafts and preparation lifecycle, brewing
-fields are internally consistent, native shortcuts resolve native recipes, and
-posting remains attached to the saved private attempt. Existing Home data and
-Journal collections remain intact. Reopening the central entry still requires
-the consolidated runtime and owner acceptance pass; implementation alone does
-not remove the build-8 hold.
+and data-preserving. Current source routes central Add > Log a Sip > Home into
+the unified two-surface quick log; Journal > Home retains the full My makes /
+Recipes workspace. Home owns its drafts and preparation lifecycle, brewing fields
+are internally consistent, native shortcuts resolve native recipes, and posting
+remains attached to the saved private attempt. Existing Home data and Journal
+collections remain intact. The already-distributed TestFlight 0.5.3 (8) still
+contains its historical placeholder; owner device acceptance and a separately
+authorized replacement upload remain distinct gates.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning

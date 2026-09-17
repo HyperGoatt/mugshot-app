@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
 # Repository map
@@ -41,7 +41,7 @@ through the committed package resolution.
 | Domain | Primary responsibility |
 | --- | --- |
 | Auth/Profile | Identity, callbacks, session/account isolation and public profile projections |
-| Composer/Visits | Cafe and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery; central Add > Home is temporarily gated by the build-8 placeholder while the Home implementation remains in source |
+| Composer/Visits | Cafe and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery; central Add > Home hands off to the unified Home quick log |
 | Home Workbench | Coffee library, recipes, brew plans/actuals, reuse and owner journal projection |
 | Feed/Social | Viewer-scoped feed/detail, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
 | Map/Saved | Search, cafe identity, saved state, discovery and collaborative lists |
