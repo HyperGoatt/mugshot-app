@@ -291,9 +291,14 @@ requests independently of contact matching. Start with 30 request creations/day,
 20 invite creations/day and 10 failed code resolutions/15 minutes/account or
 anonymous abuse bucket; tune in beta with aggregated evidence.
 
-Invite tokens use at least 128 random bits; recovery codes use 12 unambiguous
-base32 characters, grouped for readability. Store only digests; never sequential
-codes. Public resolver responses reveal no target for blocked/unavailable accounts
+Invite tokens use at least 128 bits of cryptographic pseudorandom output; recovery
+codes use 12 unambiguous base32 characters, grouped for readability. Derive both
+with distinct HMAC domains from a server-generated random seed and a versioned
+server secret. Store the seed, key version, owner-bound request nonce, and lookup
+digests, not the bearer tokens; this lets an authorized creation retry reproduce
+the same response. Retain the signing key through invite expiry and resolve code
+collisions before committing creation. Never use sequential codes.
+Public resolver responses reveal no target for blocked/unavailable accounts
 when authenticated; anonymous landing content is limited to existing public
 identity and cannot prove block status. Disable caching of invitation pages,
 use noindex and no-referrer, and exclude tokens/codes from logs and analytics.
