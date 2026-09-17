@@ -125,7 +125,9 @@ struct LogASipV3ProductionView: View {
     var body: some View {
         if !showsHomeUnderConstruction, usesHomeRecipeWorkspace, completion == nil {
             HomeRecipeExperienceView(ownerID: draft.ownerUserID,
-                initialAttempt: HomeAttemptRecord(id: draft.id, name: draft.drinkName)) { publication in
+                initialAttempt: HomeAttemptRecord(id: draft.id, name: draft.drinkName),
+                initialRecipeID: draft.launchContext.sourceRecipeIdentityID,
+                onExit: onCancel) { publication in
                 draft = publication
                 photoImages = SipDraftStore.shared.load(id: publication.id, in: .forUserID(publication.ownerUserID))?.images ?? []
                 step = .publish
@@ -247,8 +249,8 @@ struct LogASipV3ProductionView: View {
             LogASipV3HomeUnderConstructionSurface(onLogCafeSip: returnToCafeLogging)
         } else if draft.launchContext.homeAttemptID != nil, draft.context == .home {
             HomeAttemptPostSurface(draft: $draft, photoImages: photoImages,
-                isSaving: isSaving, statusMessage: statusMessage, onPublish: onPublish)
-                .disabled(isRecoveryLocked)
+                isSaving: isSaving, isRecoveryLocked: isRecoveryLocked,
+                statusMessage: statusMessage, onPublish: onPublish)
         } else if isHomeFlow {
             homeSurface
         } else {

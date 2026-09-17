@@ -57,8 +57,7 @@ struct HomeRecipeDetailScreen: View {
                 Section("Versions") {
                     ForEach(recipe.versions.reversed()) { item in
                         DisclosureGroup("Version \(item.number) · \(item.createdAt.formatted(date: .abbreviated, time: .omitted))") {
-                            Text(item.content.summary)
-                            Text(item.content.notes)
+                            HomeRecipeVersionSummary(content: item.content)
                         }
                     }
                 }
@@ -80,6 +79,33 @@ struct HomeRecipeDetailScreen: View {
                 if let index = state.recipes.firstIndex(where: { $0.id == recipeID }) { update(&state.recipes[index]) }
             }
         } catch { store.errorMessage = error.localizedDescription }
+    }
+}
+
+private struct HomeRecipeVersionSummary: View {
+    let content: HomeRecipeContent
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(content.template.title).font(.caption).foregroundStyle(.secondary)
+            if !content.summary.isEmpty { Text(content.summary) }
+            ForEach(content.ingredients) { ingredient in
+                HStack {
+                    Text(ingredient.name)
+                    Spacer()
+                    Text([ingredient.amount.map(HomeRecipeContent.number) ?? "", ingredient.unit]
+                        .filter { !$0.isEmpty }.joined(separator: " "))
+                        .foregroundStyle(.secondary)
+                }.font(.caption)
+            }
+            ForEach(Array(content.visibleSteps.enumerated()), id: \.element.id) { index, step in
+                Text("\(index + 1). \(step.instruction)").font(.caption)
+            }
+            ForEach(content.fields.filter(\.isVisible)) { field in
+                LabeledContent(field.label, value: [field.value, field.unit].filter { !$0.isEmpty }.joined(separator: " "))
+                    .font(.caption)
+            }
+            if !content.notes.isEmpty { Text(content.notes).font(.caption) }
+        }
     }
 }
 
@@ -228,7 +254,10 @@ struct HomeAttemptDetailScreen: View {
                         measurement("Coffee", value: attempt.actuals.dose, target: attempt.plannedTargets?.dose, unit: "g")
                         measurement("Yield or water", value: attempt.actuals.output, target: attempt.plannedTargets?.resolvedOutput, unit: "g")
                     }
-                    measurement("Time", value: attempt.actuals.seconds, target: attempt.plannedTargets?.seconds, unit: "sec")
+                    measurement("Time", value: attempt.actuals.seconds,
+                        target: attempt.plannedTargets?.seconds ?? attempt.plannedTargets?.steepSeconds, unit: "sec")
+                    measurement("Temperature", value: attempt.actuals.temperature, target: attempt.plannedTargets?.temperature, unit: "°C")
+                    LabeledContent("Grind", value: attempt.actuals.grind.isEmpty ? "Not recorded" : attempt.actuals.grind)
                     if !attempt.actuals.dilution.isEmpty { LabeledContent("Serving dilution", value: attempt.actuals.dilution) }
                     if let amount = attempt.actuals.batchMilliliters { LabeledContent("Batch made", value: "\(HomeRecipeContent.number(amount)) ml") }
                     if let amount = attempt.actuals.servingMilliliters { LabeledContent("Serving amount", value: "\(HomeRecipeContent.number(amount)) ml") }
@@ -257,7 +286,16 @@ struct HomeAttemptDetailScreen: View {
                         .buttonStyle(.borderedProminent).tint(.mugshotSage)
                     Button("Use this attempt’s setup") { onRepeat(recipe, attempt.recipeCandidate) }
                     Button("Save as recipe") { onSaveRecipe(attempt.recipeCandidate) }
-                    Button("Share this make", systemImage: "square.and.arrow.up") { onShare(attempt) }
+                    if attempt.publicationStatus == .published {
+                        Label("Published", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(Color.mugshotSage)
+                    } else {
+                        Button("Share this make", systemImage: "square.and.arrow.up") { onShare(attempt) }
+                    }
+                    if attempt.publicationStatus == .failed {
+                        Label("Your post draft is saved and ready to retry.", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if let recipe {
                         Button(recipe.favoriteAttemptID == attemptID ? "Unpin favorite result" : "Pin favorite result") {
                             do {
@@ -341,6 +379,8 @@ struct HomePreparationScreen: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let sessionID: UUID
     let onFinish: (HomeAttemptRecord) -> Void
+    var onDiscard: () -> Void = {}
+    var onKeep: () -> Void = {}
     @State private var linked: HomeLinkedRecipeSheet?
     @State private var preparingLinked: HomeLinkedRecipeSheet?
     @State private var scale: Double = 1
@@ -349,6 +389,7 @@ struct HomePreparationScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var authorizedContent: HomeRecipeContent?
     @State private var sourceError: String?
+    @State private var confirmsDiscard = false
     private var session: HomePreparationSession? { store.workspace.sessions.first { $0.id == sessionID } }
 
     var body: some View {
@@ -404,6 +445,43 @@ struct HomePreparationScreen: View {
                         if let scalingError { Text(scalingError).font(.footnote).foregroundStyle(.red) }
                     }
                 }
+                if content.template == .coffee {
+                    Section("Targets") {
+                        if let dose = content.targets.dose {
+                            LabeledContent("Coffee", value: "\(HomeRecipeContent.number(dose)) g")
+                        }
+                        if let output = content.targets.resolvedOutput {
+                            LabeledContent(content.method == .espresso ? "Yield" : "Water",
+                                value: "\(HomeRecipeContent.number(output)) g")
+                        }
+                        if let ratio = content.targets.resolvedRatio {
+                            LabeledContent("Ratio", value: "1:\(HomeRecipeContent.number(ratio))")
+                        }
+                        if let seconds = content.targets.seconds {
+                            LabeledContent("Target time", value: HomeRecipeContent.durationSummary(seconds))
+                        }
+                        if let steep = content.targets.steepSeconds {
+                            LabeledContent("Steep", value: HomeRecipeContent.durationSummary(steep))
+                        }
+                        if !content.targets.grind.isEmpty { LabeledContent("Grind", value: content.targets.grind) }
+                        if let temperature = content.targets.temperature {
+                            LabeledContent("Temperature", value: "\(HomeRecipeContent.number(temperature)) °C")
+                        }
+                        if !content.targets.dilution.isEmpty {
+                            LabeledContent("Serving dilution", value: content.targets.dilution)
+                        }
+                    }
+                }
+                let visibleFields = content.fields.filter(\.isVisible)
+                if !visibleFields.isEmpty {
+                    Section("Recipe details") {
+                        ForEach(visibleFields) { field in
+                            LabeledContent(field.label.isEmpty ? "Detail" : field.label,
+                                value: field.value.isEmpty ? "Not set" : [field.value, field.unit].filter { !$0.isEmpty }.joined(separator: " "))
+                        }
+                    }
+                }
+                if !content.notes.isEmpty { Section("Preparation notes") { Text(content.notes) } }
                 if !content.ingredients.isEmpty {
                     Section("Ingredients") {
                         ForEach(content.ingredients) { item in
@@ -459,11 +537,23 @@ struct HomePreparationScreen: View {
             } else if let session {
                 Section {
                     Text(sourceError ?? "Opening the original recipe…")
-                    Button("Log without instructions") { onFinish(session.attempt) }
+                    Button("Log without instructions") { finish(session, measured: false) }
                 }
             }
             if let error = store.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
         }.navigationTitle("Make").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { confirmsDiscard = true }
+                }
+            }
+            .confirmationDialog("Discard this preparation?", isPresented: $confirmsDiscard) {
+                Button("Keep for later", action: onKeep)
+                Button("Discard preparation", role: .destructive, action: onDiscard)
+                Button("Continue making", role: .cancel) { }
+            } message: {
+                Text("Discard removes this unfinished session. The saved recipe is unchanged.")
+            }
             .scrollContentBackground(.hidden).background(Color.creamWhite)
             .sheet(item: $linked) { item in HomeLinkedRecipeDetail(store: store, reference: item.reference) }
             .sheet(item: $preparingLinked) { item in
@@ -494,10 +584,15 @@ struct HomePreparationScreen: View {
         do { try store.saveSession(value) } catch { store.errorMessage = error.localizedDescription }
     }
     private func finish(_ session: HomePreparationSession, measured: Bool) {
-        var attempt = session.attempt
-        if measured, let start = session.timerStartedAt { attempt.actuals.seconds = max(0, Date.now.timeIntervalSince(start)) }
-        if (attempt.preparation ?? authorizedContent)?.method == .coldBrew { attempt.batchID = session.id }
-        onFinish(attempt)
+        do {
+            let method = (session.attempt.preparation ?? authorizedContent)?.method
+            // A cold-brew finish records the durable end timestamp, but elapsed
+            // time remains an optional actual instead of being silently asserted.
+            let recordsTimerActual = measured && method != .coldBrew
+            let attempt = try store.finishPreparation(sessionID: session.id,
+                measuredTimer: recordsTimerActual, content: authorizedContent)
+            onFinish(attempt)
+        } catch { store.errorMessage = error.localizedDescription }
     }
 }
 

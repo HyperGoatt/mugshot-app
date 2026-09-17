@@ -968,8 +968,26 @@ struct MainTabView: View {
                 guidedStep: .context
             )
         case .repeatRecentSip, .brewSavedRecipe:
-            guard let ownerID,
-                  let client = try? SupabaseClientProvider.shared.client() else { break }
+            guard let ownerID else { break }
+            if route.destination == .brewSavedRecipe {
+                let homeStore = HomeRecipeWorkspaceStore.shared
+                homeStore.activate(.user(ownerID))
+                let nativeRecipe = homeStore.workspace.usuals.first
+                    ?? homeStore.workspace.recipes.first(where: { !$0.isArchived && $0.current != nil })
+                if let nativeRecipe {
+                    draft = SipDraft(
+                        ownerUserID: ownerID,
+                        launchContext: SipComposerLaunchContext(source: .appShortcut,
+                            sourceRecipeIdentityID: nativeRecipe.id, returnTab: tabCoordinator.selectedTab),
+                        context: .home,
+                        locationName: JournalEntryContext.home.locationFallback,
+                        visibility: .private,
+                        composerExperience: .guided,
+                        guidedStep: .context
+                    )
+                }
+            }
+            guard draft == nil, let client = try? SupabaseClientProvider.shared.client() else { break }
             do {
                 let entries = try await JournalService(client: client).fetchEntries(userID: ownerID)
                 if route.destination == .repeatRecentSip, let recent = entries.first?.summary {

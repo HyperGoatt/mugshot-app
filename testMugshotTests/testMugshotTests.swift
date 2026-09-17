@@ -2028,6 +2028,8 @@ struct testMugshotTests {
         )
 
         #expect(!untouchedDraft.hasDraftWorthyUserContent)
+        #expect(!SipDraft(context: .home).hasDraftWorthyUserContent)
+        #expect(!SipDraft(context: .recipe).hasDraftWorthyUserContent)
 
         let preselectedCafeDraft = SipDraft(
             launchContext: SipComposerLaunchContext(source: .cafeDetail),

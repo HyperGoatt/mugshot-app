@@ -49,6 +49,13 @@ struct HomeRecipeTargets: Codable, Equatable, Sendable {
         guard let dose, dose > 0, let output, output > 0 else { return nil }
         return output / dose
     }
+
+    mutating func setCalculation(_ newValue: HomeRecipeCalculation) {
+        guard calculation != newValue else { return }
+        if newValue == .output { output = resolvedOutput }
+        if newValue == .ratio { ratio = resolvedRatio }
+        calculation = newValue
+    }
     var isValid: Bool {
         [dose, ratio, output, seconds, preinfusion, pressure, steepSeconds]
             .compactMap { $0 }.allSatisfy { $0.isFinite && $0 > 0 }
@@ -120,7 +127,7 @@ struct HomeCustomField: Identifiable, Codable, Equatable, Sendable {
     var isVisible = true
 }
 
-enum HomeRecipeMetric: String, Codable, CaseIterable, Identifiable, Sendable {
+enum HomeRecipeMetric: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case dose, output, seconds, temperature, grind, preinfusion, pressure, steepSeconds, dilution
     var id: String { rawValue }
     var label: String {
@@ -229,24 +236,55 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
         if targets == Self.defaultTargets(for: oldMethod) || !isActionable {
             targets = Self.defaultTargets(for: newMethod)
         }
-        if steps.isEmpty || steps == Self.defaultSteps(for: oldMethod) {
+        if steps.isEmpty || Self.matchesDefaultSteps(steps, for: oldMethod) {
             steps = Self.defaultSteps(for: newMethod)
         }
         method = newMethod
     }
 
+    private static func matchesDefaultSteps(_ steps: [HomePreparationStep], for method: HomeBrewMethod) -> Bool {
+        let defaults = defaultSteps(for: method)
+        guard steps.count == defaults.count else { return false }
+        return zip(steps, defaults).allSatisfy { value, expected in
+            value.instruction == expected.instruction && value.startSeconds == expected.startSeconds
+                && value.waitSeconds == expected.waitSeconds && value.waterGrams == expected.waterGrams
+                && value.waterMode == expected.waterMode && value.isHidden == expected.isHidden
+        }
+    }
+
+    var defaultMetrics: [HomeRecipeMetric] {
+        switch method {
+        case .espresso: [.dose, .output, .seconds, .grind, .temperature, .preinfusion, .pressure]
+        case .pourOver, .aeroPress, .mokaPot, .batch: [.dose, .output, .seconds, .grind, .temperature]
+        case .frenchPress, .immersion: [.dose, .output, .steepSeconds, .grind, .temperature]
+        case .coldBrew: [.dose, .output, .steepSeconds, .grind, .dilution]
+        case .pod: [.output, .seconds]
+        case .other: []
+        }
+    }
+
     var configuredMetrics: [HomeRecipeMetricConfiguration] {
-        metricConfiguration ?? HomeRecipeMetric.allCases.map {
+        metricConfiguration ?? defaultMetrics.map {
             HomeRecipeMetricConfiguration(metric: $0, label: $0.label,
                 isVisible: !hiddenFields.contains($0.rawValue))
         }
     }
 
     var isActionable: Bool {
-        !ingredients.isEmpty || visibleSteps.contains { !$0.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            || targets.dose != nil || targets.steepSeconds != nil
+        ingredients.contains {
+            !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || $0.recipe != nil
+        } || visibleSteps.contains {
+            !$0.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } || fields.contains {
+            $0.isVisible && (!$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } || targets.dose != nil || targets.output != nil || targets.ratio != nil
+            || targets.seconds != nil || targets.steepSeconds != nil
     }
     var visibleSteps: [HomePreparationStep] { steps.filter { $0.isHidden != true } }
+    var hasMeaningfulDraftContent: Bool {
+        self != Self.starting(template)
+    }
     var validationMessage: String? {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if sourceVersionID != nil, sourceReuseAllowed == false { return "This source does not permit an editable copy. You can still log a make from the original." }
@@ -256,6 +294,16 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
         guard steps.allSatisfy({ step in
             [step.startSeconds, step.waitSeconds, step.waterGrams].compactMap { $0 }.allSatisfy { $0.isFinite && $0 >= 0 }
         }) else { return "Step amounts and timing cannot be negative." }
+        var cumulativeWater = 0.0
+        for step in visibleSteps {
+            guard let water = step.waterGrams else { continue }
+            if step.waterMode == .cumulative {
+                guard water >= cumulativeWater else {
+                    return "A ‘pour to this total’ step cannot be lower than the water already added."
+                }
+                cumulativeWater = water
+            } else { cumulativeWater += water }
+        }
         guard fields.allSatisfy({ field in
             if field.value.isEmpty { return true }
             switch field.kind {
@@ -277,7 +325,7 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
             return [targets.dose.map { "\(Self.number($0)) g coffee" },
                     targets.resolvedOutput.map { "\(Self.number($0)) g \(method == .espresso ? "yield" : "water")" },
                     targets.seconds.map { "\(Self.number($0)) sec" },
-                    targets.steepSeconds.map { "\(Self.number($0 / 3600)) hr" }]
+                    targets.steepSeconds.map(Self.durationSummary)]
                 .compactMap { $0 }.joined(separator: " · ")
         }
         return [yieldDescription.isEmpty ? "\(Self.number(servings)) serving(s)" : yieldDescription,
@@ -303,6 +351,11 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
         return copy
     }
     static func number(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(0...2))) }
+    static func durationSummary(_ seconds: Double) -> String {
+        if seconds >= 3600 { return "\(number(seconds / 3600)) hr" }
+        if seconds >= 60 { return "\(number(seconds / 60)) min" }
+        return "\(number(seconds)) sec"
+    }
 }
 
 struct HomeRecipeVersion: Identifiable, Codable, Equatable, Sendable {
@@ -353,9 +406,16 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var photoNames: [String] = []
     var savedAt: Date?
     var publicationDraftID: UUID?
+    var publicationStatus: HomePublicationStatus?
 
     /// The setup chosen for this make, never a substitute for recorded actuals.
     var plannedTargets: HomeRecipeTargets? { (preparation ?? targets)?.targets }
+    var hasMeaningfulDraftContent: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || recipe != nil
+            || preparation != nil || actuals != HomeAttemptActuals() || rating != nil
+            || !reaction.isEmpty || !privateNote.isEmpty || !nextTimeNote.isEmpty
+            || makeAgain != nil || !photoNames.isEmpty || batchSourceAttemptID != nil
+    }
 
     static func fresh(from recipe: HomeRecipeRecord?, setup: HomeRecipeContent? = nil) -> Self {
         let version = recipe?.current
@@ -375,6 +435,14 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+enum HomePublicationStatus: String, Codable, Equatable, Sendable {
+    case draft, posting, published, failed
+}
+
+enum HomePreparationPhase: String, Codable, Equatable, Sendable {
+    case ready, preparing, awaitingReflection, saved, discarded
+}
+
 struct HomePreparationSession: Identifiable, Codable, Equatable, Sendable {
     var id = UUID()
     var attempt: HomeAttemptRecord
@@ -386,10 +454,22 @@ struct HomePreparationSession: Identifiable, Codable, Equatable, Sendable {
     /// have different preparation. Optional for decoding earlier workspaces.
     var linkedPreparations: [HomeLinkedPreparationProgress]?
     var reminderEnabled = false
+    var phase: HomePreparationPhase?
+    var preparationCompletedAt: Date?
+    var readyAtOverride: Date?
     var finishedAt: Date?
     var timerStartedAt: Date?
-    var readyAt: Date? { attempt.preparation?.targets.steepSeconds.map { startedAt.addingTimeInterval($0) } }
-    func elapsed(at date: Date) -> TimeInterval { max(0, (finishedAt ?? date).timeIntervalSince(startedAt)) }
+    var currentPhase: HomePreparationPhase {
+        if let phase { return phase }
+        if finishedAt != nil { return .saved }
+        return .preparing
+    }
+    var readyAt: Date? {
+        readyAtOverride ?? attempt.preparation?.targets.steepSeconds.map { startedAt.addingTimeInterval($0) }
+    }
+    func elapsed(at date: Date) -> TimeInterval {
+        max(0, (preparationCompletedAt ?? finishedAt ?? date).timeIntervalSince(startedAt))
+    }
 }
 
 struct HomeLinkedPreparationProgress: Identifiable, Codable, Equatable, Sendable {
@@ -434,14 +514,14 @@ struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
         }
     }
     func wouldCreateCycle(recipeID: UUID, content: HomeRecipeContent) -> Bool {
-        func visit(_ id: UUID, seen: Set<UUID>) -> Bool {
-            if id == recipeID { return true }
-            if seen.contains(id) { return false }
-            let next = seen.union([id])
-            return recipes.first { $0.id == id }?.current?.content.ingredients
-                .compactMap(\.recipe).contains { visit($0.recipeID, seen: next) } ?? false
+        func visit(_ reference: HomeRecipeReference, seen: Set<HomeRecipeReference>) -> Bool {
+            if reference.recipeID == recipeID { return true }
+            if seen.contains(reference) { return false }
+            let next = seen.union([reference])
+            return version(reference)?.content.ingredients.compactMap(\.recipe)
+                .contains { visit($0, seen: next) } ?? false
         }
-        return content.ingredients.compactMap(\.recipe).contains { visit($0.recipeID, seen: []) }
+        return content.ingredients.compactMap(\.recipe).contains { visit($0, seen: []) }
     }
 }
 

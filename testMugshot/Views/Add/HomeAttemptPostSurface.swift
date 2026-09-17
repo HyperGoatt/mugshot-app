@@ -6,6 +6,7 @@ struct HomeAttemptPostSurface: View {
     @Binding var draft: SipDraft
     let photoImages: [UIImage]
     let isSaving: Bool
+    let isRecoveryLocked: Bool
     let statusMessage: String?
     let onPublish: () -> Void
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
@@ -33,6 +34,7 @@ struct HomeAttemptPostSurface: View {
                     Text("Everyone").tag(VisitVisibility.everyone)
                 }
             }
+            .disabled(isRecoveryLocked)
             Section("Post preview") {
                 Text(draft.drinkName).font(.headline)
                 if !draft.socialCaption.isEmpty { Text(draft.socialCaption) }
@@ -62,12 +64,13 @@ struct HomeAttemptPostSurface: View {
                 Text("Only selected versions are attached. Linked recipes stay independently private.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            .disabled(isRecoveryLocked)
             if let statusMessage { Text(statusMessage).font(.callout) }
             if let error = SipCaptionPolicy.validationError(for: draft.socialCaption) {
                 Text(error.localizedDescription).foregroundStyle(.red)
             }
             Section {
-                Button(isSaving ? "Posting…" : "Post", action: onPublish)
+                Button(isSaving ? "Posting…" : isRecoveryLocked ? "Retry post" : "Post", action: onPublish)
                     .buttonStyle(.borderedProminent).tint(.mugshotSage)
                     .disabled(isSaving || SipCaptionPolicy.validationError(for: draft.socialCaption) != nil)
             }

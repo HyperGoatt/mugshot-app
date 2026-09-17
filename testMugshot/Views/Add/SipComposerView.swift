@@ -3286,6 +3286,10 @@ struct LogVisitView: View {
     private func saveRemote(authenticatedUser: AuthenticatedUser) async {
         isSaving = true
         errorMessage = nil
+        if let homeAttemptID = draft.launchContext.homeAttemptID,
+           HomeRecipeWorkspaceStore.shared.scope == .user(authenticatedUser.id) {
+            try? HomeRecipeWorkspaceStore.shared.setPublicationStatus(.posting, for: homeAttemptID)
+        }
         var saveOperation = SipRemoteSaveOperation.preparing
         var canonicalPublicationCommitted = false
         SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
@@ -3677,6 +3681,10 @@ struct LogVisitView: View {
                 remoteVisit: finalizedVisit,
                 knownRemoteMemoryCount: ownerSipCount
             )
+            if let homeAttemptID = draft.launchContext.homeAttemptID,
+               HomeRecipeWorkspaceStore.shared.scope == .user(authenticatedUser.id) {
+                try? HomeRecipeWorkspaceStore.shared.setPublicationStatus(.published, for: homeAttemptID)
+            }
             completionStatusMessage = postPublicationSetup.warning
             if submission.isPostPublicationSetupComplete {
                 pendingStore.remove(submission)
@@ -3686,6 +3694,12 @@ struct LogVisitView: View {
             uploadRecoveryMessage = nil
         } catch {
             isSaving = false
+            if let homeAttemptID = draft.launchContext.homeAttemptID,
+               HomeRecipeWorkspaceStore.shared.scope == .user(authenticatedUser.id) {
+                let status: HomePublicationStatus = canonicalPublicationCommitted
+                    || pendingSubmission?.isRemotePublicationProtected == true ? .posting : .failed
+                try? HomeRecipeWorkspaceStore.shared.setPublicationStatus(status, for: homeAttemptID)
+            }
             SipSaveDiagnostics.record(.failed, draftID: draft.id, visitID: pendingSubmission?.id)
             let analyticsRecoveryState: MugshotSipRecoveryState
             if canonicalPublicationCommitted
