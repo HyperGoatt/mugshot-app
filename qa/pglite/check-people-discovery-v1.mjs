@@ -65,7 +65,30 @@ create table public.visits (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id),
   visibility text not null default 'everyone',
-  upload_state text not null default 'complete'
+  upload_state text not null default 'complete',
+  created_at timestamptz not null default now()
+);
+create table public.likes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id),
+  visit_id uuid not null references public.visits(id),
+  created_at timestamptz not null default now(),
+  unique(user_id, visit_id)
+);
+create table public.comments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id),
+  visit_id uuid not null references public.visits(id),
+  text text not null,
+  created_at timestamptz not null default now(),
+  removed_at timestamptz
+);
+create table public.visit_reactions (
+  visit_id uuid not null references public.visits(id),
+  user_id uuid not null references public.users(id),
+  reaction text not null,
+  created_at timestamptz not null default now(),
+  primary key(visit_id, user_id)
 );
 create table public.visit_companions (
   visit_id uuid not null references public.visits(id),
@@ -151,13 +174,20 @@ const migration = await fs.readFile(
   'utf8'
 )
 await db.exec(migration)
+const migrationV2 = await fs.readFile(
+  repoPath + 'supabase/migrations/20260917214432_people_suggestions_v2.sql',
+  'utf8'
+)
+await db.exec(migrationV2)
 
 const actor = '91000000-0000-4000-8000-000000000001'
 const candidate = '91000000-0000-4000-8000-000000000002'
+const interactionCandidate = '91000000-0000-4000-8000-000000000003'
 await db.exec(`
-insert into auth.users(id) values ('${actor}'), ('${candidate}');
+insert into auth.users(id) values ('${actor}'), ('${candidate}'), ('${interactionCandidate}');
 insert into public.users(id, display_name, username) values
-  ('${actor}', 'Alex', 'alex'), ('${candidate}', 'Bea', 'bea');
+  ('${actor}', 'Alex', 'alex'), ('${candidate}', 'Bea', 'bea'),
+  ('${interactionCandidate}', 'Cam', 'cam');
 select set_config('request.jwt.claims', '{"sub":"${actor}"}', false);
 `)
 
@@ -177,6 +207,8 @@ await db.exec(`update private.discovery_capabilities set enabled = true`)
 let preference = (await db.query('select * from public.get_discovery_preferences_v1()')).rows[0]
 assert.equal(preference.version, 0)
 assert.equal(preference.email_discoverable, false)
+assert.equal(preference.suggestions_enabled, true)
+assert.equal(preference.mutual_explanations_enabled, true)
 preference = (await db.query(
   'select * from public.set_discovery_preferences_v1(true,true,true,1,$1)',
   [preference.version]
@@ -190,14 +222,31 @@ select * from public.set_discovery_preferences_v1(false,true,true,1,null);
 insert into public.cafe_list_members(list_id,user_id) values
   ('93000000-0000-4000-8000-000000000001','${actor}'),
   ('93000000-0000-4000-8000-000000000001','${candidate}');
+insert into public.visits(id,user_id) values
+  ('94000000-0000-4000-8000-000000000001','${actor}');
+insert into public.likes(user_id,visit_id) values
+  ('${interactionCandidate}','94000000-0000-4000-8000-000000000001');
 select set_config('request.jwt.claims', '{"sub":"${actor}"}', false);
 `)
-const suggestion = (await db.query('select * from public.get_people_suggestions_v1(10)')).rows[0]
-assert.equal(suggestion.id, candidate)
-assert.equal(suggestion.reason, 'shared_list')
+const suggestions = (await db.query('select * from public.get_people_suggestions_v1(10)')).rows
+assert.equal(suggestions[0].id, interactionCandidate)
+assert.equal(suggestions[0].reason, 'interacted_with_you')
+assert.equal(suggestions[0].ranking_version, 'people_v2')
+assert.equal(suggestions[1].id, candidate)
+assert.equal(suggestions[1].reason, 'shared_list')
 const hub = (await db.query('select public.get_people_hub_v1(20) as payload')).rows[0].payload
-assert.equal(hub.suggestions[0].username, 'bea')
+assert.equal(hub.suggestions[0].username, 'cam')
 assert.deepEqual(hub.partial_errors, {})
+
+await db.exec(`
+  select set_config('request.jwt.claims', '{"sub":"${interactionCandidate}"}', false);
+  select * from public.set_discovery_preferences_v1(false,false,true,1,null);
+  select set_config('request.jwt.claims', '{"sub":"${actor}"}', false);
+`)
+assert.equal(
+  (await db.query('select count(*)::int count from public.get_people_suggestions_v1(10) where id=$1', [interactionCandidate])).rows[0].count,
+  0
+)
 
 const digestValue = 'a'.repeat(64)
 await db.query(

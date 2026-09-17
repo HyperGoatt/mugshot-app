@@ -30,9 +30,11 @@ pre/post content fingerprints, counts, Storage inventory, and bucket visibility
 were unchanged. The native flag defaults on and preserves an explicit stored-off
 rollback. See [data ownership and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
 
-Build 0.5.3 (8) adds a UI-only under-construction gate at central Add > Log a Sip
-> Home. It does not disable the workspace, migrate data, issue a Supabase write,
-or change stored recipes, attempts, drafts, media, or conflict state.
+Build 0.5.3 (8) historically adds a UI-only under-construction gate at central
+Add > Log a Sip > Home. Current source removes that client gate and opens the
+unified quick log without changing workspace ownership, issuing a Supabase
+write merely for navigation, or changing stored recipes, attempts, drafts,
+media, or conflict state.
 
 ## 2026-09-14 — Physical-device performance regression follow-up
 
@@ -208,7 +210,7 @@ must not overrule an authoritative remote result.
 | Cafe identity and detail visit cards | `public.cafes` provider rows plus viewer-scoped Supabase visit queries and RLS | Conservative read-time stitch projection and local visit fallback only when no visible remote visit is returned | Query all equivalent cafe IDs, then render only self, friend, and Everyone visits the backend permits; never mutate cafe rows or synthesize remote visibility from local history |
 | Likes, comments, mentions, reactions and tags | `likes.reaction_kind`, caller-bound reaction/comment/tag RPCs, and historical `visit_reactions` compatibility rows | Optimistic UI only | Reconcile to server result; a missing additive reaction RPC falls back only to binary Like; stale account responses are discarded |
 | Friends, blocks, reports and enforcement | Supabase caller-bound RPCs | Presentation cache | Privacy and block checks fail closed |
-| People discovery | Production-configured private preferences, keyed identifier index, invite/suppression/attribution state, caller-bound versioned RPCs, and authenticated matching Edge Function | Device-local selected contact names/item mapping and transient result presentation only | Never upload the full address book; discard selected identifiers/results on exit/background/account change; opt-out deletes lookup material; blocks and visibility fail closed; no client fallback can infer hidden matches; each server capability and the Edge kill switch remain independently reversible |
+| People discovery | Production-configured invite/suppression/attribution state, caller-bound RPCs, and `people_v2` suggestion ranking | One selected contact name/phone retained only while preparing the native Messages invitation | Never upload a contact phone number or address book; Messages owns final send; suggestion signals use only viewer-visible shared Mugshots, mutual edges, recent visible interactions, and shared cafe lists; explicit opt-outs, blocks, and visibility fail closed |
 | Saved cafes and cafe lists | `user_cafe_states` and cafe-list RPCs | Guest saved state and merge queue | Preserve explicit user intent until merged or dismissed |
 | Activity and unread count | `activity_events` through caller-bound RPCs | Current page, pending route and app-icon presentation | Push failure never removes Activity history; successful refresh/read actions apply the authoritative unread badge |
 | Push preferences and device ownership | Versioned preference/device RPCs plus `get_backend_capabilities_v1`; v3 badge capability defaults false | Installation ID, last token hint, uncertainty flag | Register v3 only for the exact authenticated account and typed build environment; malformed capability data disables remote registration |

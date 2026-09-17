@@ -123,7 +123,7 @@ struct LogASipV3ProductionView: View {
 
     @ViewBuilder
     var body: some View {
-        if !showsHomeUnderConstruction, usesHomeRecipeWorkspace, completion == nil {
+        if usesHomeRecipeWorkspace, completion == nil {
             HomeRecipeExperienceView(ownerID: draft.ownerUserID,
                 initialAttempt: HomeAttemptRecord(id: draft.id, name: draft.drinkName),
                 initialRecipeID: draft.launchContext.sourceRecipeIdentityID,
@@ -245,9 +245,7 @@ struct LogASipV3ProductionView: View {
 
     @ViewBuilder
     private var currentSurface: some View {
-        if showsHomeUnderConstruction {
-            LogASipV3HomeUnderConstructionSurface(onLogCafeSip: returnToCafeLogging)
-        } else if draft.launchContext.homeAttemptID != nil, draft.context == .home {
+        if draft.launchContext.homeAttemptID != nil, draft.context == .home {
             HomeAttemptPostSurface(draft: $draft, photoImages: photoImages,
                 isSaving: isSaving, isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage, onPublish: onPublish)
@@ -256,12 +254,6 @@ struct LogASipV3ProductionView: View {
         } else {
             standardSurface
         }
-    }
-
-    private var showsHomeUnderConstruction: Bool {
-        isHomeFlow
-            && draft.launchContext.source == .centralAdd
-            && draft.launchContext.homeAttemptID == nil
     }
 
     private var usesHomeRecipeWorkspace: Bool {
@@ -456,7 +448,7 @@ struct LogASipV3ProductionView: View {
             }
         }
 
-        if completion == nil, !showsHomeUnderConstruction {
+        if completion == nil {
             ToolbarItem(placement: .topBarTrailing) {
                 Text(isHomeFlow ? "\(draft.homeWorkbenchPhase.progressStep) of 6" : "\(stepNumber) of 4")
                     .font(.system(size: 12, weight: .bold))
@@ -529,14 +521,6 @@ struct LogASipV3ProductionView: View {
     private func move(to destination: SipV3ComposerStep) {
         withAnimation(reduceMotion ? nil : DesignSystem.Motion.slow) {
             step = destination
-        }
-        MugshotHaptic.softImpact.play()
-    }
-
-    private func returnToCafeLogging() {
-        withAnimation(reduceMotion ? nil : DesignSystem.Motion.slow) {
-            draft.selectV3Context(.cafe)
-            step = .setup
         }
         MugshotHaptic.softImpact.play()
     }
@@ -677,54 +661,6 @@ private struct WantToTryAchievementBanner: View {
             outfit: .cafeScout,
             pose: .leaningRight
         )
-    }
-}
-
-private struct LogASipV3HomeUnderConstructionSurface: View {
-    let onLogCafeSip: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 32)
-
-            VStack(spacing: 18) {
-                Image(systemName: "hammer.fill")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .frame(width: 76, height: 76)
-                    .background(Color.mugshotMint.opacity(0.34), in: Circle())
-                    .accessibilityHidden(true)
-
-                VStack(spacing: 8) {
-                    Text("Home is under construction")
-                        .font(.system(.title2, design: .serif, weight: .bold))
-                        .foregroundStyle(Color.espressoBrown)
-                        .multilineTextAlignment(.center)
-
-                    Text("We’re rebuilding the Home logging experience. For now, you can still log a sip at a cafe.")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.horizontal, 28)
-
-            Spacer(minLength: 32)
-
-            Button(action: onLogCafeSip) {
-                Text("Log a cafe sip")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.mugshotSage)
-            .padding(.horizontal, DesignSystem.Space.md)
-            .padding(.bottom, DesignSystem.Space.lg)
-            .accessibilityIdentifier("logASipV3.home.underConstruction.cafe")
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.creamWhite)
     }
 }
 

@@ -1,12 +1,15 @@
 import Contacts
 import ContactsUI
 import CoreImage.CIFilterBuiltins
+import MessageUI
 import SwiftUI
 
 struct PeopleDiscoveryHubView: View {
     @ObservedObject var dataManager: DataManager
     var initialInviteSecret: String? = nil
     var source: PeopleDiscoverySource = .peopleHub
+    private let isDesignPreview: Bool
+    private let previewProfileURL: URL?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authModel: AppAuthModel
@@ -23,18 +26,46 @@ struct PeopleDiscoveryHubView: View {
     @State private var pendingIDs: Set<UUID> = []
     @State private var errorMessage: String?
     @State private var activeSheet: PeopleDiscoverySheet?
-    @State private var selectedContacts: [SelectedContactForDiscovery] = []
-    @State private var contactResults: [ContactDiscoveryResult] = []
+    @State private var selectedContact: SelectedContactInvitation?
     @State private var dismissedSuggestion: PeopleSuggestion?
-    @State private var inviteCode = ""
     @State private var hasHandledInitialInvite = false
+
+    init(
+        dataManager: DataManager,
+        initialInviteSecret: String? = nil,
+        source: PeopleDiscoverySource = .peopleHub,
+        previewPayload: PeopleHubPayload? = nil,
+        previewProfileURL: URL? = nil
+    ) {
+        self.dataManager = dataManager
+        self.initialInviteSecret = initialInviteSecret
+        self.source = source
+        self.isDesignPreview = previewPayload != nil
+        self.previewProfileURL = previewProfileURL
+        if let previewPayload {
+            _capabilities = State(initialValue: PeopleDiscoveryCapabilities(
+                contactMatching: false,
+                invitations: true,
+                suggestions: true,
+                firstWeekPrompt: false
+            ))
+            _incoming = State(initialValue: previewPayload.requests)
+            _outgoing = State(initialValue: previewPayload.sent)
+            _friends = State(initialValue: previewPayload.friends)
+            _suggestions = State(initialValue: previewPayload.suggestions)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !incoming.isEmpty {
+                        friendRequestSection
+                    }
+
                     actionGrid
-                    if capabilities.invitations { inviteCodeEntry }
 
                     if let errorMessage {
                         MugshotStatusCard(
@@ -58,7 +89,6 @@ struct PeopleDiscoveryHubView: View {
                     }
 
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        connectionSection("Requests", rows: incoming)
                         suggestionSection
                         connectionSection("Friends", rows: friends)
                         connectionSection("Sent", rows: outgoing)
@@ -77,6 +107,11 @@ struct PeopleDiscoveryHubView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Name, @username, or profile link")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Find your people")
+                        .font(.system(size: 21, weight: .semibold, design: .serif))
+                        .foregroundStyle(Color.espressoBrown)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
@@ -86,7 +121,9 @@ struct PeopleDiscoveryHubView: View {
                     ProgressView("Finding your coffee people…")
                 }
             }
-            .task(id: authModel.authenticatedUser?.id) { await load() }
+            .task(id: authModel.authenticatedUser?.id) {
+                if !isDesignPreview { await load() }
+            }
             .task(id: query) { await search() }
             .task(id: initialInviteSecret) { await handleInitialInvite() }
             .refreshable { await load() }
@@ -104,26 +141,18 @@ struct PeopleDiscoveryHubView: View {
                     activeSheet = .contactPicker
                 }
             case .contactPicker:
-                SelectedContactPicker { contacts in
-                    selectedContacts = contacts
-                    if !contacts.isEmpty {
+                SelectedContactPicker { contact in
+                    selectedContact = contact
+                    if contact != nil {
                         MugshotAnalytics.shared.capture(.peopleContactsSelectionCompleted(
-                            selectedCount: contacts.count,
-                            usableCount: contacts.filter { !$0.emails.isEmpty }.count
+                            selectedCount: 1,
+                            usableCount: 1
                         ))
                     }
-                    activeSheet = contacts.isEmpty ? nil : .contactsReview
+                    activeSheet = contact == nil ? nil : .contactInvite
                 }
-            case .contactsReview:
-                ContactDiscoveryReviewView(
-                    contacts: selectedContacts,
-                    results: contactResults,
-                    isWorking: isLoading,
-                    errorMessage: errorMessage,
-                    onMatch: { await matchSelectedContacts() },
-                    onAdd: { match in await sendRequest(to: match.id, source: .contacts) },
-                    onInvite: { activeSheet = .invite }
-                )
+            case .contactInvite:
+                ContactInviteComposerView(contact: selectedContact, service: try? peopleService())
             case .qr:
                 ProfileQRCodeView(
                     displayName: authModel.profile?.displayName ?? "Mugshot friend",
@@ -147,27 +176,32 @@ struct PeopleDiscoveryHubView: View {
     }
 
     private var profileURL: URL? {
+        if let previewProfileURL { return previewProfileURL }
         guard let username = authModel.profile?.username else { return nil }
         return MugshotShareConfiguration.load().profileURL(username: username)
     }
 
     private var actionGrid: some View {
         HStack(spacing: 10) {
-            if capabilities.contactMatching {
-                discoveryAction("Contacts", systemImage: "person.crop.circle.badge.plus") {
+            if capabilities.invitations {
+                discoveryAction(
+                    "Invite contacts",
+                    subtitle: "Send a private invite",
+                    systemImage: "person.crop.circle.badge.plus"
+                ) {
                     beginContactDiscovery()
                 }
             }
             if let profileURL {
                 ShareLink(item: profileURL, message: Text("Add me on Mugshot — @\(authModel.profile?.username ?? "")")) {
-                    actionLabel("Share profile", systemImage: "square.and.arrow.up")
+                    actionLabel("Share profile", subtitle: nil, systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.plain)
                 .simultaneousGesture(TapGesture().onEnded {
                     MugshotAnalytics.shared.capture(.peopleProfileShareOpened(format: "link", source: source))
                 })
             } else {
-                actionLabel("Share profile", systemImage: "square.and.arrow.up").opacity(0.45)
+                actionLabel("Share profile", subtitle: nil, systemImage: "square.and.arrow.up").opacity(0.45)
             }
             if profileURL != nil {
                 discoveryAction("My QR", systemImage: "qrcode") {
@@ -175,31 +209,40 @@ struct PeopleDiscoveryHubView: View {
                     activeSheet = .qr
                 }
             } else {
-                actionLabel("My QR", systemImage: "qrcode").opacity(0.45)
+                actionLabel("My QR", subtitle: nil, systemImage: "qrcode").opacity(0.45)
             }
         }
     }
 
     private func discoveryAction(
         _ title: String,
+        subtitle: String? = nil,
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) { actionLabel(title, systemImage: systemImage) }
+        Button(action: action) { actionLabel(title, subtitle: subtitle, systemImage: systemImage) }
             .buttonStyle(.plain)
     }
 
-    private func actionLabel(_ title: String, systemImage: String) -> some View {
-        VStack(spacing: 7) {
+    private func actionLabel(_ title: String, subtitle: String?, systemImage: String) -> some View {
+        VStack(spacing: 5) {
             Image(systemName: systemImage)
                 .font(.system(size: 19, weight: .semibold))
             Text(title)
-                .font(.system(size: 11, weight: .bold))
-                .lineLimit(1)
+                .font(.system(size: 12, weight: .bold))
+                .lineLimit(2)
                 .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
         }
         .foregroundStyle(Color.espressoBrown)
-        .frame(maxWidth: .infinity, minHeight: 70)
+        .frame(maxWidth: .infinity, minHeight: 88)
         .background(Color.foamWhite)
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control))
         .overlay(
@@ -208,43 +251,55 @@ struct PeopleDiscoveryHubView: View {
         )
     }
 
-    private var inviteCodeEntry: some View {
-        HStack(spacing: 9) {
-            TextField("Have an invite code?", text: $inviteCode)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .font(.system(size: 14, weight: .semibold))
-                .accessibilityLabel("Friend invite code")
-            Button("Open") { Task { await resolveInvite(inviteCode, source: .inviteCode) } }
-                .font(.system(size: 13, weight: .bold))
-                .disabled(inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .padding(12)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control))
-    }
-
     @ViewBuilder
     private var suggestionSection: some View {
         if !suggestions.isEmpty {
-            MugshotSectionTitle(title: "Suggested", subtitle: "People connected by activity you can already see.")
-            ForEach(suggestions) { suggestion in
+            MugshotSectionTitle(
+                title: "Suggested for you",
+                subtitle: "People you may know from Mugshot."
+            )
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(suggestions) { suggestion in
+                        PeopleSuggestionCard(
+                            suggestion: suggestion,
+                            isWorking: pendingIDs.contains(suggestion.id),
+                            addAction: { Task { await sendRequest(to: suggestion.id, source: .suggestion) } },
+                            openProfile: {
+                                MugshotAnalytics.shared.capture(.peopleSuggestionOpened(
+                                    reason: suggestion.reason,
+                                    rankingVersion: suggestion.rankingVersion
+                                ))
+                                selectedProfile = PeopleProfileRoute(suggestion)
+                            },
+                            dismissAction: { Task { await dismissSuggestion(suggestion) } }
+                        )
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .contentMargins(.horizontal, 1, for: .scrollContent)
+        }
+    }
+
+    private var friendRequestSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MugshotSectionTitle(
+                title: "Friend requests",
+                subtitle: "People who want to connect with you."
+            )
+            ForEach(incoming) { person in
                 PeopleDiscoveryRow(
-                    displayName: suggestion.displayName,
-                    username: suggestion.username,
-                    avatarURL: suggestion.avatarURL,
-                    subtitle: suggestion.reasonText,
-                    state: suggestion.friendshipState,
-                    isWorking: pendingIDs.contains(suggestion.id),
-                    primaryAction: { Task { await sendRequest(to: suggestion.id, source: .suggestion) } },
-                    openProfile: {
-                        MugshotAnalytics.shared.capture(.peopleSuggestionOpened(
-                            reason: suggestion.reason,
-                            rankingVersion: suggestion.rankingVersion
-                        ))
-                        selectedProfile = PeopleProfileRoute(suggestion)
-                    },
-                    dismissAction: { Task { await dismissSuggestion(suggestion) } }
+                    displayName: person.displayName,
+                    username: person.username,
+                    avatarURL: person.avatarURL,
+                    subtitle: "Wants to connect with you",
+                    state: .incoming,
+                    isWorking: pendingIDs.contains(person.userID),
+                    primaryAction: { Task { await respond(person, accept: true) } },
+                    secondaryAction: { Task { await respond(person, accept: false) } },
+                    openProfile: { selectedProfile = PeopleProfileRoute(person) }
                 )
             }
         }
@@ -253,24 +308,15 @@ struct PeopleDiscoveryHubView: View {
     @ViewBuilder
     private var searchSection: some View {
         if searchResults.isEmpty && !isLoading {
-            if capabilities.contactMatching {
-                MugsyEmptyStateView(
-                    placement: .friendsEmpty,
-                    title: "No match yet",
-                    message: "Try their name or @username.",
-                    primaryAction: MugsyEmptyStateAction("Choose from Contacts", systemImage: "person.crop.circle.badge.plus", accessibilityHint: "Opens the selected contact picker") {
-                        beginContactDiscovery()
-                    },
-                    secondaryAction: capabilities.invitations ? MugsyEmptyStateAction("Invite a friend", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
-                        activeSheet = .invite
-                    } : nil
-                )
-            } else if capabilities.invitations {
+            if capabilities.invitations {
                 MugsyEmptyStateView(
                     placement: .friendsEmpty,
                     title: "No match yet",
                     message: "Try their name or @username, or send a private invitation.",
-                    primaryAction: MugsyEmptyStateAction("Invite a friend", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
+                    primaryAction: MugsyEmptyStateAction("Invite a contact", systemImage: "person.crop.circle.badge.plus", accessibilityHint: "Opens a private contact invitation") {
+                        beginContactDiscovery()
+                    },
+                    secondaryAction: MugsyEmptyStateAction("Share profile", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
                         activeSheet = .invite
                     }
                 )
@@ -338,24 +384,15 @@ struct PeopleDiscoveryHubView: View {
 
     @ViewBuilder
     private var discoveryEmptyState: some View {
-        if capabilities.contactMatching {
+        if capabilities.invitations {
             MugsyEmptyStateView(
                 placement: .friendsEmpty,
                 title: "Your coffee people are out there",
-                message: "Choose someone you know or share your profile to start your circle.",
-                primaryAction: MugsyEmptyStateAction("Choose from Contacts", systemImage: "person.crop.circle.badge.plus", accessibilityHint: "Opens the selected contact picker") {
+                message: "Invite someone you know or share your profile to start your circle.",
+                primaryAction: MugsyEmptyStateAction("Invite a contact", systemImage: "person.crop.circle.badge.plus", accessibilityHint: "Opens a private contact invitation") {
                     beginContactDiscovery()
                 },
-                secondaryAction: capabilities.invitations ? MugsyEmptyStateAction("Invite a friend", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
-                    activeSheet = .invite
-                } : nil
-            )
-        } else if capabilities.invitations {
-            MugsyEmptyStateView(
-                placement: .friendsEmpty,
-                title: "Your coffee people are out there",
-                message: "Share your profile or invite a friend to start your circle.",
-                primaryAction: MugsyEmptyStateAction("Invite a friend", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
+                secondaryAction: MugsyEmptyStateAction("Share profile", systemImage: "square.and.arrow.up", accessibilityHint: "Creates a private friend invitation") {
                     activeSheet = .invite
                 }
             )
@@ -519,26 +556,6 @@ struct PeopleDiscoveryHubView: View {
     }
 
     @MainActor
-    private func matchSelectedContacts() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            contactResults = try await peopleService().match(selectedContacts)
-            errorMessage = nil
-            MugshotAnalytics.shared.capture(.peopleContactsMatchCompleted(
-                selectedCount: selectedContacts.count,
-                matchedCount: contactResults.filter { !$0.matches.isEmpty }.count,
-                outcome: "success"
-            ))
-        } catch {
-            errorMessage = "Mugshot couldn’t check those contacts. Nothing was saved; please try again."
-            MugshotAnalytics.shared.capture(.peopleContactsMatchCompleted(
-                selectedCount: selectedContacts.count, matchedCount: 0, outcome: "failed"
-            ))
-        }
-    }
-
-    @MainActor
     private func handleInitialInvite() async {
         guard !hasHandledInitialInvite, let initialInviteSecret else { return }
         hasHandledInitialInvite = true
@@ -561,7 +578,6 @@ struct PeopleDiscoveryHubView: View {
                 username: resolved.username,
                 state: resolved.friendshipState
             )
-            inviteCode = ""
             MugshotAnalytics.shared.capture(.peopleInviteResolved(outcome: "success", source: source))
         } catch {
             errorMessage = "Mugshot couldn’t open that invitation. Please try again."
@@ -588,14 +604,13 @@ struct PeopleDiscoveryHubView: View {
     }
 
     private func beginContactDiscovery() {
-        MugshotAnalytics.shared.capture(.peopleContactsStarted(mode: "selected"))
+        MugshotAnalytics.shared.capture(.peopleContactsStarted(mode: "invite"))
         activeSheet = .contactsEducation
     }
 
     private func clearTransientContacts() {
-        selectedContacts.removeAll()
-        contactResults.removeAll()
-        if activeSheet == .contactsReview || activeSheet == .contactPicker {
+        selectedContact = nil
+        if activeSheet == .contactInvite || activeSheet == .contactPicker {
             activeSheet = nil
         }
     }
@@ -612,7 +627,7 @@ struct PeopleDiscoveryHubView: View {
 }
 
 private enum PeopleDiscoverySheet: String, Identifiable {
-    case contactsEducation, contactPicker, contactsReview, qr, invite
+    case contactsEducation, contactPicker, contactInvite, qr, invite
     var id: String { rawValue }
 }
 
@@ -637,7 +652,10 @@ private struct PeopleDiscoveryRow: View {
                         Text(displayName).font(.system(size: 15, weight: .bold))
                         Text("@\(username)").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                         if let subtitle, !subtitle.isEmpty {
-                            Text(subtitle).font(.system(size: 11)).foregroundStyle(Color.tertiaryText)
+                            Text(subtitle)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.tertiaryText)
+                                .lineLimit(1)
                         }
                     }
                 }
@@ -670,21 +688,96 @@ private struct PeopleDiscoveryRow: View {
     }
 }
 
+private struct PeopleSuggestionCard: View {
+    let suggestion: PeopleSuggestion
+    let isWorking: Bool
+    let addAction: () -> Void
+    let openProfile: () -> Void
+    let dismissAction: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Spacer()
+                Button(action: dismissAction) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.secondaryText)
+                .accessibilityLabel("Hide suggestion for \(suggestion.displayName)")
+            }
+            .frame(height: 14)
+
+            Button(action: openProfile) {
+                VStack(spacing: 5) {
+                    MugshotAvatar(name: suggestion.displayName, size: 62, imageURL: suggestion.avatarURL)
+                    Text(suggestion.displayName)
+                        .font(.system(size: 16, weight: .bold, design: .serif))
+                        .foregroundStyle(Color.espressoBrown)
+                        .lineLimit(1)
+                    Text("@\(suggestion.username)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: addAction) {
+                Group {
+                    if isWorking { ProgressView().tint(.white) }
+                    else { Text("Add") }
+                }
+                .font(.system(size: 12, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 30)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(Color.mugshotSage)
+            .clipShape(Capsule())
+            .disabled(isWorking)
+
+            HStack(alignment: .top, spacing: 5) {
+                Image(systemName: suggestion.reasonSystemImage)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                Text(suggestion.reasonText)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 25, alignment: .topLeading)
+        }
+        .padding(8)
+        .frame(width: 118, height: 208)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.mugshotLine, lineWidth: 1)
+        }
+        .shadow(color: Color.espressoBrown.opacity(0.06), radius: 10, y: 5)
+    }
+}
+
 private struct ContactDiscoveryEducationView: View {
     @Environment(\.dismiss) private var dismiss
     let continueAction: () -> Void
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
+                Image(systemName: "message.badge.filled.fill")
                     .font(.system(size: 42)).foregroundStyle(Color.mugshotSage)
-                Text("Choose people you know")
+                Text("Invite one contact")
                     .font(.system(size: 28, weight: .bold, design: .serif))
                     .foregroundStyle(Color.espressoBrown)
-                Text("Mugshot checks the email addresses you select for accounts that allow contact discovery. Selected addresses are sent securely for this check and are not saved as an address book. Nothing is sent to your contacts.")
+                Text("Choose one person and Mugshot will prepare a private friend invitation in Messages. Their contact information stays on this iPhone and is never uploaded to Mugshot. Nothing is sent until you tap Send.")
                     .font(.system(size: 15)).foregroundStyle(Color.secondaryText)
                 Spacer()
-                Button("Choose Contacts") {
+                Button("Choose a contact") {
                     dismiss()
                     DispatchQueue.main.async { continueAction() }
                 }
@@ -701,86 +794,145 @@ private struct ContactDiscoveryEducationView: View {
 }
 
 private struct SelectedContactPicker: UIViewControllerRepresentable {
-    let completion: ([SelectedContactForDiscovery]) -> Void
+    let completion: (SelectedContactInvitation?) -> Void
     func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
     func makeUIViewController(context: Context) -> CNContactPickerViewController {
         let controller = CNContactPickerViewController()
         controller.delegate = context.coordinator
-        controller.displayedPropertyKeys = [CNContactEmailAddressesKey]
+        controller.displayedPropertyKeys = [CNContactPhoneNumbersKey]
+        controller.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0")
         return controller
     }
     func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
 
     final class Coordinator: NSObject, CNContactPickerDelegate {
-        let completion: ([SelectedContactForDiscovery]) -> Void
-        init(completion: @escaping ([SelectedContactForDiscovery]) -> Void) { self.completion = completion }
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
-            completion(contacts.prefix(50).map { contact in
-                SelectedContactForDiscovery(
-                    id: "contact_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
-                    displayName: CNContactFormatter.string(from: contact, style: .fullName) ?? "Selected contact",
-                    emails: Array(Set(contact.emailAddresses.map { String($0.value) })).prefix(10).map { $0 }
-                )
-            })
+        let completion: (SelectedContactInvitation?) -> Void
+        init(completion: @escaping (SelectedContactInvitation?) -> Void) { self.completion = completion }
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            guard let phoneNumber = contact.phoneNumbers.first?.value.stringValue else {
+                completion(nil)
+                return
+            }
+            completion(SelectedContactInvitation(
+                id: "contact_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))",
+                displayName: CNContactFormatter.string(from: contact, style: .fullName) ?? "Selected contact",
+                phoneNumber: phoneNumber
+            ))
         }
-        func contactPickerDidCancel(_ picker: CNContactPickerViewController) { completion([]) }
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) { completion(nil) }
     }
 }
 
-private struct ContactDiscoveryReviewView: View {
-    let contacts: [SelectedContactForDiscovery]
-    let results: [ContactDiscoveryResult]
-    let isWorking: Bool
-    let errorMessage: String?
-    let onMatch: () async -> Void
-    let onAdd: (ContactDiscoveryMatch) async -> Void
-    let onInvite: () -> Void
+private struct ContactInviteComposerView: View {
+    let contact: SelectedContactInvitation?
+    let service: PeopleDiscoveryService?
     @Environment(\.dismiss) private var dismiss
+    @State private var inviteURL: URL?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var isShowingMessage = false
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Text("We use selected email addresses only to look for discoverable Mugshot accounts.")
-                }
-                if results.isEmpty {
-                    Section("Selected") {
-                        ForEach(contacts) { contact in
-                            LabeledContent(contact.displayName, value: contact.emails.isEmpty ? "Invite only" : "Ready")
-                        }
-                    }
-                    Button("Find selected friends") { Task { await onMatch() } }
-                        .disabled(isWorking || contacts.allSatisfy(\.emails.isEmpty))
+            VStack(spacing: 18) {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 42))
+                    .foregroundStyle(Color.mugshotSage)
+                Text("Invite \(contact?.displayName ?? "your friend")")
+                    .font(.system(size: 27, weight: .bold, design: .serif))
+                    .multilineTextAlignment(.center)
+                Text("Their phone number stays on this iPhone. Mugshot only creates the invitation link; Messages sends it after you tap Send.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.secondaryText)
+                    .multilineTextAlignment(.center)
+                if isLoading {
+                    ProgressView("Creating invitation…")
+                } else if inviteURL != nil, MFMessageComposeViewController.canSendText() {
+                    Button("Open Messages") { isShowingMessage = true }
+                        .buttonStyle(PrimaryButtonStyle())
                 } else {
-                    Section("Matches") {
-                        ForEach(results.flatMap(\.matches)) { match in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(match.displayName).fontWeight(.semibold)
-                                    Text("@\(match.username)").font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Button(match.friendshipState == .none ? "Add" : "\(match.friendshipState.rawValue.capitalized)") {
-                                    Task { await onAdd(match) }
-                                }.disabled(match.friendshipState != .none)
-                            }
-                        }
-                    }
-                    Section("No discoverable match") {
-                        ForEach(results.filter(\.matches.isEmpty)) { result in
-                            HStack {
-                                Text(result.contact.displayName)
-                                Spacer()
-                                Button("Invite", action: onInvite)
-                            }
-                        }
-                        Text("They may use another email or have contact discovery turned off.")
-                            .font(.caption).foregroundStyle(.secondary)
+                    MugshotStatusCard(
+                        title: "Invitation unavailable",
+                        message: errorMessage ?? "Messages is not available on this device.",
+                        systemImage: "message.badge.filled.fill"
+                    )
+                    if errorMessage != nil {
+                        Button("Retry") { Task { await load() } }
                     }
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                Spacer()
             }
-            .navigationTitle("Selected Contacts")
+            .padding(24)
+            .background(Color.creamWhite)
+            .navigationTitle("Private invitation")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .task { await load() }
+            .sheet(isPresented: $isShowingMessage) {
+                if let contact, let inviteURL {
+                    PeopleMessageComposeView(
+                        recipient: contact.phoneNumber,
+                        body: "Join me on Mugshot so we can share our coffee finds: \(inviteURL.absoluteString)"
+                    ) { outcome in
+                        MugshotAnalytics.shared.capture(.peopleInviteHandoffCompleted(outcome: outcome))
+                        isShowingMessage = false
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            guard let service else { throw PeopleDiscoveryError.invalidResponse }
+            let invite = try await service.createInvite()
+            guard let url = service.inviteURL(invite) else { throw PeopleDiscoveryError.invalidResponse }
+            inviteURL = url
+            isLoading = false
+            MugshotAnalytics.shared.capture(.peopleInviteCreated(outcome: "success"))
+        } catch {
+            isLoading = false
+            errorMessage = "Mugshot couldn’t create an invitation yet."
+            MugshotAnalytics.shared.capture(.peopleInviteCreated(outcome: "failed"))
+        }
+    }
+}
+
+private struct PeopleMessageComposeView: UIViewControllerRepresentable {
+    let recipient: String
+    let body: String
+    let completion: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let controller = MFMessageComposeViewController()
+        controller.messageComposeDelegate = context.coordinator
+        controller.recipients = [recipient]
+        controller.body = body
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        let completion: (String) -> Void
+        init(completion: @escaping (String) -> Void) { self.completion = completion }
+
+        func messageComposeViewController(
+            _ controller: MFMessageComposeViewController,
+            didFinishWith result: MessageComposeResult
+        ) {
+            let outcome: String
+            switch result {
+            case .sent: outcome = "completed"
+            case .cancelled: outcome = "canceled"
+            case .failed: outcome = "failed"
+            @unknown default: outcome = "failed"
+            }
+            controller.dismiss(animated: true) { self.completion(outcome) }
         }
     }
 }
@@ -840,7 +992,7 @@ private struct FriendInviteShareView: View {
                 else if let invite, let url {
                     Image(systemName: "cup.and.saucer.fill").font(.system(size: 44)).foregroundStyle(Color.mugshotSage)
                     Text("Invite a coffee friend").font(.system(size: 27, weight: .bold, design: .serif))
-                    Text("They can reopen this link after installing Mugshot or enter the code in Find your people.")
+                    Text("They can reopen this private link after installing Mugshot.")
                         .multilineTextAlignment(.center).foregroundStyle(Color.secondaryText)
                     Text(invite.code).font(.system(size: 23, weight: .bold, design: .monospaced)).textSelection(.enabled)
                     Button {
@@ -908,3 +1060,85 @@ extension PeopleProfileRoute {
                   username: suggestion.username, state: suggestion.friendshipState)
     }
 }
+
+#if DEBUG
+struct PeopleDiscoveryHubPreviewHost: View {
+    @ObservedObject var dataManager: DataManager
+
+    private let payload = PeopleHubPayload(
+        requests: [
+            SocialConnection(
+                relationshipID: UUID(uuidString: "A1000000-0000-4000-8000-000000000001")!,
+                userID: UUID(uuidString: "A1000000-0000-4000-8000-000000000002")!,
+                displayName: "Maya Chen",
+                username: "mayach",
+                avatarURL: nil,
+                createdAt: "2026-09-17T12:00:00Z",
+                kind: "incoming"
+            )
+        ],
+        sent: [],
+        friends: [
+            SocialConnection(
+                relationshipID: UUID(uuidString: "A2000000-0000-4000-8000-000000000001")!,
+                userID: UUID(uuidString: "A2000000-0000-4000-8000-000000000002")!,
+                displayName: "Grace",
+                username: "lghammond0",
+                avatarURL: nil,
+                createdAt: "2026-09-10T12:00:00Z",
+                kind: "friends"
+            ),
+            SocialConnection(
+                relationshipID: UUID(uuidString: "A2000000-0000-4000-8000-000000000003")!,
+                userID: UUID(uuidString: "A2000000-0000-4000-8000-000000000004")!,
+                displayName: "Papa",
+                username: "jrosso4",
+                avatarURL: nil,
+                createdAt: "2026-09-09T12:00:00Z",
+                kind: "friends"
+            )
+        ],
+        suggestions: [
+            PeopleSuggestion(
+                id: UUID(uuidString: "A3000000-0000-4000-8000-000000000001")!,
+                displayName: "Elena Park",
+                username: "elenapours",
+                avatarURL: nil,
+                friendshipState: .none,
+                mutualFriendCount: 3,
+                reason: "mutual_friends",
+                rankingVersion: "people_v2"
+            ),
+            PeopleSuggestion(
+                id: UUID(uuidString: "A3000000-0000-4000-8000-000000000002")!,
+                displayName: "Jon Bell",
+                username: "jonbrews",
+                avatarURL: nil,
+                friendshipState: .none,
+                mutualFriendCount: 0,
+                reason: "interacted_with_you",
+                rankingVersion: "people_v2"
+            ),
+            PeopleSuggestion(
+                id: UUID(uuidString: "A3000000-0000-4000-8000-000000000003")!,
+                displayName: "Nia Cole",
+                username: "niacoffee",
+                avatarURL: nil,
+                friendshipState: .none,
+                mutualFriendCount: 0,
+                reason: "shared_list",
+                rankingVersion: "people_v2"
+            )
+        ],
+        partialErrors: [:]
+    )
+
+    var body: some View {
+        PeopleDiscoveryHubView(
+            dataManager: dataManager,
+            previewPayload: payload,
+            previewProfileURL: URL(string: "https://mugshot.app/@joer")
+        )
+    }
+}
+#endif

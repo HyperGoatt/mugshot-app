@@ -61,6 +61,26 @@ begin
        ilike '%friendship%' then
     raise exception 'People discovery projection exposes forbidden private detail';
   end if;
+
+  if pg_get_functiondef('public.get_people_suggestions_v1(integer)'::regprocedure)
+       not ilike '%people_v2%'
+     or pg_get_functiondef('public.get_people_suggestions_v1(integer)'::regprocedure)
+       not ilike '%interacted_with_you%'
+     or pg_get_functiondef('public.get_people_suggestions_v1(integer)'::regprocedure)
+       not ilike '%you_interacted%' then
+    raise exception 'People suggestions v2 ranking signals are missing';
+  end if;
+
+  if (select column_default <> 'true'
+      from information_schema.columns
+      where table_schema = 'private' and table_name = 'discovery_preferences'
+        and column_name = 'suggestions_enabled')
+     or (select column_default <> 'true'
+      from information_schema.columns
+      where table_schema = 'private' and table_name = 'discovery_preferences'
+        and column_name = 'mutual_explanations_enabled') then
+    raise exception 'People suggestion defaults are not enabled';
+  end if;
 end;
 $$;
 

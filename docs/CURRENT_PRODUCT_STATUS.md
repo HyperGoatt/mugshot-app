@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+## Central Home entry enabled for owner QA — 2026-09-17
+
+Current source removes the temporary Home placeholder gate. Central Add > Log a
+Sip > Home now opens the unified Home quick log, and Journal > Home retains the
+full My makes / Recipes workspace. The change does not migrate or rewrite Home
+data and does not alter the production backend. TestFlight 0.5.3 (8) remains the
+previous distributed artifact with the placeholder; a replacement has not been
+uploaded or assigned. The signed `co.mugshot.app.dev` candidate compiled,
+installed, and launched on Joe's iPhone; hands-on Home acceptance is in progress.
 
 ## TestFlight 0.5.3 (8) battery patch — 2026-09-16
 
@@ -100,10 +110,10 @@ is now aligned at all 179 repository migrations through
 stored-off flag remains a rollback switch and does not remove saved recipe or
 journal data.
 
-For build 8, the central Add > Log a Sip > Home entry is temporarily gated by an
-under-construction placeholder while the experience is repaired. The Journal
-collections and stored Home/Recipes data remain available; the placeholder does
-not delete, migrate, or rewrite Home content.
+Build 8 historically gates central Add > Log a Sip > Home with an
+under-construction placeholder. Current source supersedes that client behavior
+with the unified quick log. The Journal collections and stored Home/Recipes data
+remain available; neither behavior deletes, migrates, or rewrites Home content.
 
 The source includes template-first progressive recipe creation, two-surface quick
 logging, espresso/pour-over/cold-brew guidance, flexible components and drinks,
@@ -373,17 +383,17 @@ fingerprint evidence closed on 2026-08-24.
 - Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
   friend requests, blocking, reporting, moderation state, collaborative cafe
   lists, public share links, and privacy-aware projections.
-- Current source replaces the legacy People sheet with a Feed/Profile-accessible
-  People hub: name/handle/profile-link search, requests, friends, sent state,
-  selected-contact matching, profile link and QR sharing, invitation link/code
-  recovery, shared-context and mutual-friend suggestions, search recovery, and a
-  once-per-account first-week prompt. Contact selection is explicit and transient;
-  full address-book sync is not enabled. Production is aligned at the two People
-  migrations; both Edge Functions and their secrets/routes are live, and all four
-  independently reversible capabilities are enabled. Hosted SQL and real Auth/Edge
-  acceptance passed before activation, the disposable branch is deleted, and the
-  signed development app was relaunched on Joe's iPhone. Hands-on People-flow and
-  replacement-TestFlight acceptance remain separate.
+- Current source presents the Option 1 People hub: incoming requests first,
+  private contact invite/share/QR actions, horizontal explainable suggestions,
+  then friends and sent requests. Contacts now chooses one phone recipient for a
+  native Messages invitation; the number remains device-local and is not used for
+  account matching. `people_v2` adds mutual, shared-context, and recent visible
+  interaction signals with default-on missing preferences and explicit opt-outs.
+  The client is implemented and passed Simulator visual QA. The additive
+  `people_v2` migration is production-configured and verified with unchanged
+  protected row counts. The exact source is installed and launched as
+  `co.mugshot.app.dev` on Joe's connected iPhone; hands-on interaction and
+  TestFlight acceptance remain separate.
 - The shared owner/friend profile uses the approved Editorial Atlas layout: a
   compact 112-point photographic banner with a foam-white tappable
   Friends/Sips/Cafes dock, streamlined identity/actions, up to three compact

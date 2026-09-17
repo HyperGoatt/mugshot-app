@@ -8,14 +8,12 @@ last_verified: 2026-09-17
 
 ## Status and scope
 
-Approved scope: Contacts plus all six proposed discovery improvements, requested
-2026-09-17. Phases A–D are implemented in current source. Phase E remains an
-optional later enhancement and full address-book access is not enabled. The
-two additive migrations, Edge Functions, secrets/routes, and all four reversible
-capabilities are production-configured. Hosted SQL and real Auth/Edge acceptance
-passed, and the signed development app was relaunched on the connected iPhone.
-Hands-on People-flow interaction and replacement TestFlight acceptance remain
-open.
+Approved scope: algorithm-first People discovery plus private contact invitations,
+profile links/QR, invitation recovery, first-week prompting, and useful search
+dead ends. The Option 1 redesign and `people_v2` migration are implemented and
+locally verified in current source. The additive `people_v2` migration is
+production-configured and verified; the redesigned client has passed Simulator
+visual QA but has not changed TestFlight.
 
 Documentation impact: product behavior, architecture/data ownership, Supabase
 contracts, privacy/safety, and analytics. The implementation uses Tier 3 local
@@ -29,7 +27,7 @@ experience and existing request/accept relationship model.
 
 | Required capability | Concrete delivery |
 | --- | --- |
-| Contacts | Selected-contact discovery; optional expanded access after match-quality validation |
+| Contacts | One-person native Messages invitation; the phone number remains device-local |
 | 1. Profile links and QR | Visible Share my profile / My QR actions and system Camera-compatible QR |
 | 2. Mutual-friend suggestions | Explainable, dismissible, privacy-filtered suggestions |
 | 3. Contextual suggestions | Viewer-authorized shared posts, lists, and explicit invitation destinations |
@@ -41,8 +39,9 @@ experience and existing request/accept relationship model.
 
 The legacy `PeopleHubView.swift` remains available for source compatibility, while
 Feed and Profile now present `PeopleDiscoveryHubView.swift`. The new hub composes
-requests, sent requests, friends, contextual/mutual suggestions, selected-contact
-matching, profile link/QR sharing, invite creation/code resolution, and actionable
+requests, sent requests, friends, contextual/mutual/interaction suggestions,
+private contact invitations, profile link/QR sharing, invite creation/link
+resolution, and actionable
 search dead ends. `PeopleDiscoveryService.swift` owns versioned RPC and Edge
 contracts; `FriendInviteRouter.swift` preserves a bounded pending route through
 installation/authentication handoff. The existing friendship graph, block rules,
@@ -67,11 +66,11 @@ Friends Feed empty state makes this the primary action. Keep the toolbar shortcu
 ### P1 — People hub
 
 Title: Find your people. Persistent search field: Name, @username, or profile link.
-Top actions: Choose from Contacts, Share my profile, My QR. Below these, show
-Requests with count and inline Accept / Decline, followed by Suggested / Friends
-segments. Sent requests are reachable beside Requests. Move blocked management
-to the existing Settings screen. Shared coffee recommendations retain a separate
-destination; they should not occupy the friend-discovery section.
+When present, Friend requests is the first section and offers inline Accept and
+Decline. Then show Invite contacts (“Send a private invite”), Share profile, and
+My QR. Suggested for you is a horizontal card rail with a visible next-card peek,
+one explanation, Add, profile navigation, and dismiss. Friends and Sent remain
+vertical lists below. There is no normal invite-code field in the hub.
 
 Suggested contains at most ten initial cards and a paginated Show more action.
 Each card has avatar, display name, username, one permitted explanation, Add
@@ -99,29 +98,16 @@ No results: “No match yet. Try their name or @username.” Actions: Choose fro
 Contacts and Invite a friend. Network failure uses Retry and retains the query;
 it must not claim nobody matched. Clearing search restores the hub scroll state.
 
-### P3 — Contacts education, selection, results
+### P3 — Private contact invitation
 
-Show the disclosure below before the first selection/upload. The primary path
-uses `CNContactPickerViewController`; selected properties are available without
-requesting full Contacts access. Cancellation causes no upload or error.
-Request only email addresses for the initial matching release. Keep contact
-names/photos on device. Phone numbers may be selected locally for an individual
-invite, but phone-based account matching remains capability-gated until verified
-phone discovery is implemented.
-
-After selection, show review text and “Find selected friends” before transmission.
-Deduplicate normalized addresses locally and cap one operation at 50 contacts /
-200 addresses. A selected contact with no usable address offers Invite instead.
-Results separate “Matches” from “No discoverable match.” A contact may use a
-different address, Hide My Email, or have discovery disabled; never label them
-definitively “Not on Mugshot.” Each match shows the Mugshot identity and Add
-friend. Multiple accounts or ambiguous matches require choosing a profile.
-Never auto-request everyone. Each unmatched selection has an individual Invite
-action that opens a recipient/message preview in the system composer/share UI.
-
-Contacts result identity is the Mugshot profile identity. A locally saved nickname
-may appear as “Saved in your Contacts as …” only on this device. No uploaded names,
-photos, notes, street addresses, birthday fields, or nonselected contact records.
+Show the disclosure below before opening `CNContactPickerViewController`. Enable
+only contacts with a phone number and allow exactly one selection. The chosen
+name and number remain transient on device; neither is sent to Supabase,
+analytics, or the suggestion algorithm. Mugshot creates only a revocable invite
+link, then pre-fills the native Messages composer with that one recipient. The
+user must tap Send. Cancellation causes no upload, message, or error. This is
+not phone-number account matching, SMS authentication, or background contact
+sync, and it incurs no Mugshot SMS-provider cost.
 
 ### P4 — Share profile and My QR
 
@@ -146,9 +132,9 @@ During TestFlight use the configured beta enrollment destination; do not promise
 App Store availability or bypass external tester eligibility.
 
 Normal Universal Links do not guarantee post-install attribution. The supported
-recovery is reopening the original invitation after install or entering the code
-in People > Have an invite? No fingerprinting, automatic clipboard reads, or
-third-party deferred-link SDK is required. Preserve an opened pending route through
+recovery is reopening the original invitation after install. No fingerprinting,
+automatic clipboard reads, or third-party deferred-link SDK is required. Preserve
+an opened pending route through
 sign-in/profile setup and app relaunch for up to seven days or token expiry,
 whichever comes first. Bind it to the initiating account when known; clear it on
 sign-out/account change. A new account can explicitly reopen the original link.
@@ -179,12 +165,11 @@ resolves through its own permissions.
 
 ### P7 — Friends and discoverability settings
 
-Real controls replace informational labels: Let people find me by email (default
-off), verified discovery email management, Appear in suggestions (default off
-for migrated accounts), and Allow mutual-friend explanations (default off).
-New accounts receive clear opt-in choices without blocking setup. Reading Contacts
-and being discoverable are independent choices. Account settings never request
-access to the device address book merely to make the account discoverable.
+Real controls replace informational labels: Let people find me by email remains
+an optional legacy capability, while People suggestions and Show mutual-friend
+reasons default on when no preference row exists. Explicit opt-outs remain
+authoritative. Contact invitations and account discoverability are independent;
+settings never request address-book access.
 
 ## Shared state contract
 
@@ -235,7 +220,12 @@ trim whitespace and normalize case consistently with Mugshot Auth. Do not strip
 plus aliases or provider-specific dots. Future phone matching uses validated
 international E.164 numbers with explicit country resolution.
 
-### Contacts Edge Function
+### Legacy email matching contract
+
+The following contract remains documented for deployed-client compatibility,
+but the current People hub does not call it. The visible Contacts action is the
+device-local invitation flow in P3. Keep the capability disabled unless a later
+product decision explicitly restores email matching.
 
 `POST /functions/v1/match-selected-contacts-v1` requires a valid authenticated
 session and explicit consent_version. Body: random per-operation item keys and
@@ -313,30 +303,30 @@ the migration and both Edge Functions before enabling each capability explicitly
 
 ### Suggestion ranking
 
-Contacts matches live in the transient Contacts flow. Persistent suggestions rank
-eligible shared-context candidates first, then mutual-friend candidates; break
-ties by permitted mutual count and stable account ID. Show one reason: “Shared a
-Mugshot with you,” “On a cafe list with you,” or “2 mutual friends.” A tagged
+Persistent suggestions rank eligible shared-Mugshot candidates, then mutual
+friends, people who recently interacted with the viewer’s visible Mugshots,
+people whose visible Mugshots the viewer recently interacted with, and shared
+cafe-list members. Break ties by permitted mutual count, recency, and stable
+account ID. Show one coarse reason. A tagged
 account is not sufficient evidence unless the viewer can read the shared object.
 Recheck membership, visibility and consent on each page; do not retain reasons
 after access loss. Never reveal list titles or post content in reasons.
 
-Count only confirmed reciprocal mutual edges where the intermediate friend also
-allows mutual explanations and is visible to the viewer. Do not expose named
-intermediates initially. If no safe reason remains, omit the suggestion. Initial
-ranking is deterministic, version `people_v1`, with no popularity, private taste,
-address-book reverse inference or location ranking.
+Count only confirmed reciprocal mutual edges visible to the viewer. If the viewer
+turns mutual explanations off, use “Someone you may know” and return no mutual
+count. Do not expose named intermediates. Ranking is deterministic, version
+`people_v2`, with no popularity, private taste, address-book reverse inference,
+phone lookup, or location ranking.
 
 ## Ready-to-use privacy and product copy
 
 | Surface | Copy |
 | --- | --- |
-| Contacts education | Choose people you know. Mugshot checks the email addresses you select for accounts that allow contact discovery. Selected addresses are sent securely for this check and are not saved as an address book. Nothing is sent to your contacts. |
-| Selection review | Check these selected contacts? We use their email addresses only to look for discoverable Mugshot accounts. |
+| Contacts education | Choose one person and Mugshot will prepare a private friend invitation in Messages. Their contact information stays on this iPhone and is never uploaded to Mugshot. Nothing is sent until you tap Send. |
+| Invitation review | Their phone number stays on this iPhone. Mugshot only creates the invitation link; Messages sends it after you tap Send. |
 | Email discovery toggle | Let people who have my verified email find my Mugshot profile. Your email will not appear on your profile. |
 | Suggestions toggle | Allow Mugshot to suggest your profile to people with mutual friends or shared activity they can already see. Turning this off does not hide your username or shared profile link. |
 | Mutual explanation toggle | Allow your friendships to contribute to mutual-friend counts shown to people who can see your profile. Your name will not be included in the explanation. |
-| No contact match | No discoverable match. They may use another email or have contact discovery turned off. You can still invite them. |
 | Invitation preview | Join me on Mugshot so we can share our coffee finds: [invitation link] |
 | First-week card | Find your coffee people. See what your friends are sipping and share your next find. |
 | Invite destination | [Name] invited you to connect on Mugshot. Send a friend request to connect. |
@@ -344,12 +334,8 @@ address-book reverse inference or location ranking.
 | Discovery off | Contact discovery is off. Your discovery email match has been removed. |
 | Optional expanded access purpose string | Mugshot uses the contacts you allow to help you find friends by verified email. You choose who to invite. |
 
-Expanded Contacts is a later, separately gated enhancement to the same flow:
-explain limited/full access, honor revocation, offer management, and avoid
-background continuous uploads. Do not claim phone matching until delivered.
-Implement and verify the actual retention behavior before shipping this copy.
-Update privacy policy, App Privacy disclosures and relevant manifest declarations
-with the implementation; hashed identifiers still constitute contact information.
+Full contact sync and phone-number account matching are out of scope. Do not add
+either without a separately approved privacy, abuse, verification, and cost plan.
 
 ## Analytics contract
 
@@ -371,9 +357,8 @@ The established signed-in analytics distinct ID remains the only account identit
 | --- | --- | --- |
 | `people_hub_opened` | Visible once per navigation | segment |
 | `people_search_completed` | Latest settled query response only | result_bucket, outcome, duration_seconds |
-| `people_contacts_started` | Education shown | mode=selected/limited/full |
+| `people_contacts_started` | Education shown | mode=invite |
 | `people_contacts_selection_completed` | Confirmed picker selection | selected_bucket, usable_bucket |
-| `people_contacts_match_completed` | Match response/error | matched_bucket, selected_bucket, outcome, error_code |
 | `people_suggestion_opened` | Explicit candidate tap | reason, ranking_version |
 | `people_suggestion_dismissed` | Dismiss/undo | reason, action, ranking_version |
 | `people_friend_request_completed` | Server acknowledges mutation | action=send/accept/decline/cancel, outcome, error_code |
@@ -417,14 +402,13 @@ without a baseline; alpha results remain directional at small sample sizes.
 | --- | --- | --- |
 | A — Hub and search | Extract reusable person row/state model; visible entry points; P1/P2; inline request actions; pagination; first-week state contract | Empty and populated fixtures, query-race tests, request-state tests, accessibility checklist |
 | B — Sharing and invite completion | P4/P5, canonical QR, minimal link share, invite contracts/landing, pending-route persistence and recovery code | Installed/signed-out/new-install recovery matrix; token expiry/revocation and blocks enforced |
-| C — Contacts | P3/P7, verified-email opt-in, private matching index, Edge Function, cleanup, privacy disclosures | Cross-account/abuse tests, zero sensitive payload logging, unmatched/relay/cancel/offline scenarios |
-| D — Suggestions and activation | Mutual/context ranking with consent filters, suppression, P6 prompt, durable server attribution state, typed client analytics | Visibility-loss tests, prompt deduplication, attribution and event-schema tests |
-| E — Expanded Contacts | Optional limited/full access and optional separately verified identifiers, only after selected-contact match-rate review | Permission/revocation matrix and same privacy guarantees; separate enablement decision |
+| C — Private contact invitation | P3/P7, one-contact picker, local phone handling, native Messages handoff, privacy copy | Cancellation, no-upload proof, recipient isolation, unavailable-Messages state |
+| D — Suggestions and activation | `people_v2` mutual/context/interaction ranking with opt-outs, suppression, P6 prompt, durable attribution, typed analytics | Visibility-loss, default/opt-out, prompt deduplication, attribution and event-schema tests |
+| E — Phone matching | Out of scope; requires a separately approved verification, privacy, abuse, reassignment, and cost plan | Separate product decision |
 
-All six non-contact solutions are in A–D. E is an optional enhancement; it does
-not gate the complete selected-contact release. Implement each phase behind
-independent server capabilities and client flags. Never show a Contacts action
-that uploads to an unavailable matching service. Deploy additive backend contracts
+All six non-contact solutions and private contact invitations are in A–D. E is
+not planned. Implement each phase behind independent server capabilities and
+client flags. Never label the invitation picker as account matching. Deploy additive backend contracts
 through the repository release workflow before enabling dependent clients. Keep
 old search/friendship/profile clients compatible. Rollback disables each new
 entry point and endpoint; do not drop existing friendships or invalidate current

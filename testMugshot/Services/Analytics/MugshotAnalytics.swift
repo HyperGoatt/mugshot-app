@@ -768,23 +768,29 @@ enum MugshotAnalyticsEvent: Equatable {
             return payload(
                 "people_suggestion_opened",
                 [
-                    "reason": .string(Self.allowlisted(reason, allowed: ["shared_mugshot", "shared_list", "mutual_friends"])),
-                    "ranking_version": .string(rankingVersion == "people_v1" ? rankingVersion : "other")
+                    "reason": .string(Self.allowlisted(reason, allowed: [
+                        "shared_mugshot", "shared_list", "mutual_friends",
+                        "interacted_with_you", "you_interacted", "people_you_may_know"
+                    ])),
+                    "ranking_version": .string(["people_v1", "people_v2"].contains(rankingVersion) ? rankingVersion : "other")
                 ]
             )
         case .peopleSuggestionDismissed(let reason, let action, let rankingVersion):
             return payload(
                 "people_suggestion_dismissed",
                 [
-                    "reason": .string(Self.allowlisted(reason, allowed: ["shared_mugshot", "shared_list", "mutual_friends"])),
+                    "reason": .string(Self.allowlisted(reason, allowed: [
+                        "shared_mugshot", "shared_list", "mutual_friends",
+                        "interacted_with_you", "you_interacted", "people_you_may_know"
+                    ])),
                     "action": .string(Self.allowlisted(action, allowed: ["dismiss", "undo"])),
-                    "ranking_version": .string(rankingVersion == "people_v1" ? rankingVersion : "other")
+                    "ranking_version": .string(["people_v1", "people_v2"].contains(rankingVersion) ? rankingVersion : "other")
                 ]
             )
         case .peopleContactsStarted(let mode):
             return payload(
                 "people_contacts_started",
-                ["mode": .string(Self.allowlisted(mode, allowed: ["selected", "limited", "full"]))]
+                ["mode": .string(Self.allowlisted(mode, allowed: ["invite", "selected", "limited", "full"]))]
             )
         case .peopleContactsSelectionCompleted(let selectedCount, let usableCount):
             return payload(

@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+Current source amendment (2026-09-17): the repaired native Home experience is
+reopened at central Add > Log a Sip > Home for owner device QA. The entry now
+opens the unified quick log; Journal > Home remains the complete library. This
+does not change the already-distributed TestFlight 0.5.3 (8), production schema,
+or production data. Replacement TestFlight distribution remains a separate
+explicit release gate.
 
 Current release amendment (2026-09-16): the owner authorized an urgent 0.5.3 (8)
 TestFlight replacement for battery-affected build 7. Build 8 packages both
@@ -74,6 +81,7 @@ ownership, or the core sip journey.
 | iOS sandbox and lifecycle hardening | Completed and merged | PR #50; full-static 12/0/1, 34 focused Simulator-hosted tests, and Simulator build/install/launch plus Activity-surface inspection passed |
 | Physical sandbox acceptance | Delivery/read path partially accepted; matrix in progress | Two normal second-account likes each produced a first-attempt sandbox send. The signed iPhone showed the unread items and routed them correctly; after the direct-store fix, mark-one-read cleared the authoritative count, Activity marker, and Feed bell immediately without relaunch. Foreground presentation, a visually observed background alert/app-icon badge, terminated notification tap, category suppression, and sign-out remain. |
 | Battery replacement build | 0.5.3 (8) uploaded, processed, and testing | Both battery fixes, caption/Map copy adjustments, and central Add > Home placeholder are in build 8. Focused Simulator, signed connected-iPhone build/install/launch, Release archive, export, upload, and processing gates passed. The owner authorized the urgent replacement after the fixed development build charged from 37% to 53% in ten minutes and held at 53% through a 30-minute unplugged Map-to-lock arm. |
+| Enabled Home repair candidate | Signed development build launched; owner QA active | Central Add > Home opens the unified quick log and Journal > Home retains My makes / Recipes. The candidate compiled, installed, and launched as `co.mugshot.app.dev` on Joe's iPhone. No backend or production data changed | Complete hands-on device QA before any separately authorized TestFlight replacement |
 | TestFlight production acceptance | 0.5.3 (8) distributed; hands-on acceptance pending | App Store Connect build `db5a2bb5-697c-40e6-9617-d8ba48825167` is `Testing` for Mugshot Team and Alpha Friends. Battery-focused testing notes are published and automatic tester notifications are enabled. No App Store release was submitted. |
 | Revised 44-report remediation | Implemented, merged, and distributed; feature acceptance pending | The five workstreams are on `main`; 425 unit tests, eight focused UI journeys, the 43-screenshot plus one-text review, later focused regressions, and consolidated Simulator acceptance passed. Build 0.5.3 (6) is now available to Alpha Friends. No report will be resolved until its behavior is manually accepted in this replacement build |
 | Simulator-QA follow-up | Included in TestFlight 0.5.3 (6) | Feed reselect/top behavior plus scope pills with equal eight-point upper/lower resting gaps that ignore refresh pull, hold for 60 upward points, and slide continuously beneath the header over their measured height; Journal toolbar flag and Taste Passport holding screen; all-step composer close; explicit multi-draft recovery; 12–18 preparation-specific stationary criteria; persistent importance; compact Publish controls; private-Storage cafe photos; and non-destructive multi-ID cafe stitching are in the processed build. Local focused coverage and Simulator acceptance passed; replacement-build tester acceptance remains pending |

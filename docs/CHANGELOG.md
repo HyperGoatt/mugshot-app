@@ -4,6 +4,44 @@ status: current
 last_verified: 2026-09-17
 ---
 
+## 2026-09-17 — Algorithm-first People hub redesign
+
+- Rebuilt Find your people around the selected Option 1 hierarchy: incoming
+  requests first, three compact invite/share/QR actions, horizontal explainable
+  suggestions, then the complete friends and sent-request lists. Removed the
+  normal invite-code field while preserving invitation-link routing.
+- Changed Contacts from email account matching to a one-person private
+  invitation. The selected phone number stays on the iPhone, is never uploaded
+  to Mugshot, and is passed only to the native Messages composer; nothing sends
+  until the user taps Send.
+- Added `people_v2` suggestions from visible shared Mugshots, mutual friends,
+  recent visible likes/comments/reactions in either direction, and shared cafe
+  lists. Missing preference rows now default suggestions and mutual explanations
+  on, while an explicit opt-out still removes the actor or candidate.
+- Added focused reason/analytics tests and a hermetic PostgreSQL contract for
+  default-on suggestions, interaction ranking, candidate opt-out, and the
+  unchanged caller-bound privacy boundary. The additive migration was applied to
+  production after a one-migration dry run and pre-change fingerprint; existing
+  user, request, and friend-edge counts were unchanged, and the live function
+  returned `people_v2` suggestions. The exact source built, installed, and
+  launched as `co.mugshot.app.dev` on Joe's connected iPhone; hands-on People
+  interaction remains separate. TestFlight is unchanged.
+
+## 2026-09-17 — Central Home entry reopened for device QA
+
+- Removed the temporary source gate that routed central Add > Log a Sip > Home
+  to the build-8 under-construction placeholder. The Home choice now opens the
+  unified two-surface Home quick log, while Journal > Home continues to open the
+  full My makes / Recipes workspace.
+- Replaced the placeholder UI assertion with central-entry coverage for the real
+  quick-log destination and relabeled the retired V3 Home-composer checks as
+  superseded by the unified Home journey suite.
+- This source change does not alter the already-distributed TestFlight 0.5.3 (8),
+  deploy a backend migration, or change production data. Signed-device QA of the
+  enabled development candidate compiled, installed, and launched as
+  `co.mugshot.app.dev` on Joe's iPhone; hands-on acceptance is the current gate
+  before any separately authorized TestFlight replacement.
+
 ## 2026-09-17 — People discovery implementation
 
 - Replaced the Feed/Profile People entry points with a concrete People hub that
@@ -96,8 +134,8 @@ last_verified: 2026-09-17
   protected failed publication keeps its retry action available.
 - The changes are additive inside the existing versioned workspace JSON; no
   Supabase schema, migration, RLS, production data, environment, or deployment
-  changed. Central Add > Home remains on the build-8 hold pending consolidated
-  runtime and physical-device acceptance.
+  changed. The later 2026-09-17 amendment above reopens central Add > Home in
+  current source for owner device QA.
 
 ## 2026-09-16 — TestFlight 0.5.3 (8) battery patch
 
