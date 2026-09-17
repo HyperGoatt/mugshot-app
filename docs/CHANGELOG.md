@@ -30,6 +30,14 @@ last_verified: 2026-09-17
 - Hardened the contact-matching Edge kill switch so a missing or malformed
   `PEOPLE_DISCOVERY_ENABLED` value fails closed; only the exact value `true`
   permits identifier enrollment or matching.
+- Corrected the hosted People contract's private-table loop to avoid a
+  PL/pgSQL `table_name` ambiguity exposed by the disposable Supabase branch.
+- Added covering indexes for the People suppression-candidate and
+  request-attribution invitation foreign keys identified by the hosted
+  performance advisor.
+- Added a disposable-branch hosted People harness covering real Auth and Edge
+  transport, enrollment/matching, opt-out deletion, block filtering,
+  invitation resolution/revocation/expiry, no-store responses, and rollback.
 - Locally verified with the 13-check full-static gate, the focused People route
   and analytics tests on iOS 27 Simulator, and a fixture runtime review of the
   hub, Contacts education, and native selected-contact picker. No migration or

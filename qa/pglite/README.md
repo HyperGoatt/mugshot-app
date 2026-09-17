@@ -78,6 +78,21 @@ explicit QA configuration is present. The unsigned hosted test uses isolated
 in-memory Auth storage, not the app host's Keychain session. Keep the branch only while acceptance is
 active, then delete it to remove synthetic data and stop branch charges.
 
+### People discovery hosted integration
+
+After aligning an explicitly approved data-free branch, configuring its random
+People HMAC secret, and deploying both People Edge Functions, run:
+
+```bash
+node qa/pglite/check-people-discovery-remote.mjs <branch-id> <project-ref>
+```
+
+The harness creates only random `.invalid` Auth users on the disposable branch.
+It verifies contact enrollment and matching, opt-out deletion, block filtering,
+invite landing and authenticated resolution, revocation, expiry, no-store
+headers, and capability rollback. It restores every People capability to off;
+delete the branch afterward to remove fixtures and stop charges.
+
 
 ### Hosted QA fixture admission and schedules
 

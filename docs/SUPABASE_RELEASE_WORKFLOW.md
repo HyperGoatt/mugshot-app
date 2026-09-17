@@ -5,7 +5,8 @@ last_verified: 2026-09-17
 ---
 
 People discovery amendment (2026-09-17): migration
-`20260917185300_people_discovery_v1.sql` and Edge Functions
+`20260917185300_people_discovery_v1.sql`, follow-up index migration
+`20260917204208_people_discovery_foreign_key_indexes.sql`, and Edge Functions
 `match-selected-contacts-v1` / `friend-invite` are implemented in source but are
 not deployed. Rehearse them on a disposable QA branch before client enablement.
 Configure a new random 32-byte-or-stronger `PEOPLE_DISCOVERY_HMAC_KEY_V1`, set
@@ -22,6 +23,10 @@ before client promotion. Disable `private.discovery_capabilities` individually o
 the Edge kill switch false for rollback; never drop private tables or invalidate
 existing friendships. Do not reuse the lookup HMAC key as an invitation key—the
 database creates and retains its own versioned invitation key material.
+The hosted contract verifies every private-table grant with an unambiguous
+`candidate_table` loop before production rollout.
+`qa/pglite/check-people-discovery-remote.mjs` then exercises real disposable
+Auth and Edge transport and restores all four capability rows to disabled.
 
 Home/Recipes amendment (2026-09-16): additive migrations
 `20260915212702_home_recipe_workspace.sql` through
