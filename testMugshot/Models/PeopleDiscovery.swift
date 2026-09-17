@@ -44,7 +44,20 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
         case "shared_mugshot": "Shared a Mugshot with you"
         case "shared_list": "On a cafe list with you"
         case "mutual_friends": "\(mutualFriendCount) mutual friend\(mutualFriendCount == 1 ? "" : "s")"
+        case "interacted_with_you": "Recently interacted with your Mugshots"
+        case "you_interacted": "You recently interacted with their Mugshots"
         default: "Someone you may know"
+        }
+    }
+
+    var reasonSystemImage: String {
+        switch reason {
+        case "shared_mugshot": "cup.and.saucer.fill"
+        case "shared_list": "list.bullet"
+        case "mutual_friends": "person.2.fill"
+        case "interacted_with_you": "bubble.left.and.bubble.right.fill"
+        case "you_interacted": "heart.fill"
+        default: "sparkles"
         }
     }
 }
@@ -117,6 +130,12 @@ struct SelectedContactForDiscovery: Identifiable, Equatable {
     let id: String
     let displayName: String
     let emails: [String]
+}
+
+struct SelectedContactInvitation: Identifiable, Equatable {
+    let id: String
+    let displayName: String
+    let phoneNumber: String
 }
 
 struct ContactDiscoveryMatch: Identifiable, Decodable, Equatable {

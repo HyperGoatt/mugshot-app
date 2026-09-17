@@ -142,12 +142,12 @@ struct FriendsDiscoverabilitySettingsView: View {
             } header: {
                 Text("Discovery")
             } footer: {
-                Text("Contact discovery is off by default. When you turn it on, Mugshot stores a protected lookup value for your sign-in email—not your readable email address.")
+                Text("Email discoverability is optional and separate from contact invitations. Contact invitations keep the chosen phone number on your iPhone.")
             }
 
             Section("How suggestions work") {
-                Text("Suggestions use visible shared Mugshots, shared cafe lists, and mutual friendships. They never reveal Private sips, private lists, contact names, or another person’s address book.")
-                Text("Choosing contacts checks only the people you select. Mugshot does not upload or retain your full address book, and never messages contacts without you using the share sheet.")
+                Text("Suggestions use visible shared Mugshots, mutual friendships, recent visible interactions, and shared cafe lists. They never reveal Private sips, private lists, contact names, phone numbers, or another person’s address book.")
+                Text("Inviting a contact prepares one message on your iPhone. Mugshot never uploads their phone number, and nothing is sent until you tap Send in Messages.")
             }
 
             if isLoading || isSaving {

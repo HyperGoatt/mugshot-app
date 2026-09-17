@@ -46,6 +46,8 @@ struct MugshotRootView: View {
                 EditSipPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowPeopleRecapDesignQA {
                 JournalPeopleRecapPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowPeopleHubDesignQA {
+                PeopleDiscoveryHubPreviewHost(dataManager: dataManager)
             } else if MugshotLaunchEnvironment.shouldShowSipDetailDesignQA {
                 SipDetailPreviewHost(presentation: .previewOwner)
             } else if MugshotLaunchEnvironment.isUITesting {

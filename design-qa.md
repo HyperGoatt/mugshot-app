@@ -1,3 +1,39 @@
+# People hub Option 1 design QA
+
+## Evidence
+
+- Source visual truth: `/Users/joe.rosso/.codex/generated_images/01a0b07f-07eb-74e1-88ba-49f392654d0c/exec-27d49dff-8f90-40a7-90da-0c9fdbdd9da0.png`
+- Final Simulator implementation: `/Users/joe.rosso/.codex/visualizations/2026/09/17/01a0b07f-07eb-74e1-88ba-49f392654d0c/people-hub-option-1/implementation-final.jpg`
+- Final same-input comparison: `/Users/joe.rosso/.codex/visualizations/2026/09/17/01a0b07f-07eb-74e1-88ba-49f392654d0c/people-hub-option-1/comparison-final.png`
+- Viewport: Mugshot iPhone 17 Pro, iOS 27 Simulator, 368 x 800 points-equivalent pixels.
+- Density normalization: the 853 x 1844 source was scaled to 368 x 800 and placed beside the native 368 x 800 Simulator capture. The source and implementation have matching aspect ratios.
+- State: populated People preview with one incoming request, three suggestions spanning mutual/interaction/list reasons, two friends, and all three discovery actions.
+- Interaction evidence: the accessibility snapshot exposed separate Accept, Decline, Invite contacts, Share profile, My QR, Add, dismiss, profile, search, and Done targets; the horizontal suggestion rail accepted a left swipe.
+
+## Findings
+
+- No open P0, P1, or P2 findings.
+- Fonts and typography: the final implementation uses Mugshot's serif hierarchy for the title, section headings, names, and compact system text for controls and reasons. The scale and weight now match the source closely while retaining native Dynamic Type behavior.
+- Spacing and layout rhythm: requests remain first, the three action tiles share one row, the compact horizontal rail shows three candidates/peek behavior, and Friends remains visible above the bottom search field as in the source.
+- Colors and visual tokens: cream, foam white, espresso, sage, mint avatars, hairline borders, and restrained shadows map to the existing Mugshot design system and the source palette.
+- Image quality and asset fidelity: the production avatar component preserves remote imagery when present and provides intentional initial fallbacks for the deterministic fixture. No source logo or non-standard decorative asset was replaced.
+- Copy and content: “Invite contacts” is correctly qualified by “Send a private invite”; requests, suggestion rationale, Add, Friends, and search copy match the approved direction. The implementation intentionally uses real reason types instead of illustrative placeholder claims.
+
+## Comparison history
+
+- First pass P2: 178 x 270 suggestion cards showed only two candidates and pushed Friends below the fold; the incoming-request subtitle also wrapped to three lines. Fixed by reducing cards to 118 x 208, tightening avatar/type/control spacing, using a one-line row subtitle, and adding the serif principal title.
+- Post-fix evidence: `comparison-final.png` shows three compact suggestion cards, visible Friends content, stable request actions, and the same above-the-fold hierarchy as the source. No actionable P0/P1/P2 mismatch remains.
+
+## Follow-up polish
+
+- P3: live remote avatars will add the photographic warmth shown in the mock; initial fallbacks are expected for accounts without profile photos.
+
+## Final result
+
+final result: passed
+
+---
+
 # Phase 2 Profile and Journal design QA
 
 ## Reference and implementation

@@ -63,8 +63,8 @@ final class PeopleDiscoveryService {
         ).execute().value
         return rows.first ?? PeopleDiscoveryPreferences(
             emailDiscoverable: false,
-            suggestionsEnabled: false,
-            mutualExplanationsEnabled: false,
+            suggestionsEnabled: true,
+            mutualExplanationsEnabled: true,
             consentVersion: nil,
             version: 0,
             hasDiscoveryEmail: false

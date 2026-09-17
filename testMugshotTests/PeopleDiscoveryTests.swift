@@ -50,8 +50,8 @@ struct PeopleDiscoveryTests {
                 source: .inviteCode
             ).payload,
             MugshotAnalyticsEvent.peopleSuggestionOpened(
-                reason: "mutual_friends",
-                rankingVersion: "people_v1"
+                reason: "interacted_with_you",
+                rankingVersion: "people_v2"
             ).payload,
             MugshotAnalyticsEvent.peopleInviteHandoffCompleted(outcome: "completed").payload,
             MugshotAnalyticsEvent.peopleDiscoveryPreferenceChanged(
@@ -74,9 +74,31 @@ struct PeopleDiscoveryTests {
         #expect(payloads[1].properties["duration_seconds"] == .integer(3_600))
         #expect(payloads[2].properties["selected_bucket"] == .string("21_plus"))
         #expect(payloads[2].properties["matched_bucket"] == .string("2_5"))
+        #expect(payloads[4].properties["reason"] == .string("interacted_with_you"))
+        #expect(payloads[4].properties["ranking_version"] == .string("people_v2"))
         #expect(payloads.allSatisfy { payload in
             ["query", "email", "phone", "user_id", "invite_id", "invite_code", "token"]
                 .allSatisfy { !payload.properties.keys.contains($0) }
         })
+    }
+
+    @Test func suggestionReasonsExplainVisibleSignals() throws {
+        func suggestion(reason: String, mutualCount: Int = 0) -> PeopleSuggestion {
+            PeopleSuggestion(
+                id: UUID(),
+                displayName: "Coffee Friend",
+                username: "coffee_friend",
+                avatarURL: nil,
+                friendshipState: .none,
+                mutualFriendCount: mutualCount,
+                reason: reason,
+                rankingVersion: "people_v2"
+            )
+        }
+
+        #expect(suggestion(reason: "interacted_with_you").reasonText == "Recently interacted with your Mugshots")
+        #expect(suggestion(reason: "you_interacted").reasonText == "You recently interacted with their Mugshots")
+        #expect(suggestion(reason: "mutual_friends", mutualCount: 2).reasonText == "2 mutual friends")
+        #expect(suggestion(reason: "people_you_may_know").reasonText == "Someone you may know")
     }
 }

@@ -383,17 +383,17 @@ fingerprint evidence closed on 2026-08-24.
 - Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
   friend requests, blocking, reporting, moderation state, collaborative cafe
   lists, public share links, and privacy-aware projections.
-- Current source replaces the legacy People sheet with a Feed/Profile-accessible
-  People hub: name/handle/profile-link search, requests, friends, sent state,
-  selected-contact matching, profile link and QR sharing, invitation link/code
-  recovery, shared-context and mutual-friend suggestions, search recovery, and a
-  once-per-account first-week prompt. Contact selection is explicit and transient;
-  full address-book sync is not enabled. Production is aligned at the two People
-  migrations; both Edge Functions and their secrets/routes are live, and all four
-  independently reversible capabilities are enabled. Hosted SQL and real Auth/Edge
-  acceptance passed before activation, the disposable branch is deleted, and the
-  signed development app was relaunched on Joe's iPhone. Hands-on People-flow and
-  replacement-TestFlight acceptance remain separate.
+- Current source presents the Option 1 People hub: incoming requests first,
+  private contact invite/share/QR actions, horizontal explainable suggestions,
+  then friends and sent requests. Contacts now chooses one phone recipient for a
+  native Messages invitation; the number remains device-local and is not used for
+  account matching. `people_v2` adds mutual, shared-context, and recent visible
+  interaction signals with default-on missing preferences and explicit opt-outs.
+  The client is implemented and passed Simulator visual QA. The additive
+  `people_v2` migration is production-configured and verified with unchanged
+  protected row counts. The exact source is installed and launched as
+  `co.mugshot.app.dev` on Joe's connected iPhone; hands-on interaction and
+  TestFlight acceptance remain separate.
 - The shared owner/friend profile uses the approved Editorial Atlas layout: a
   compact 112-point photographic banner with a foam-white tappable
   Friends/Sips/Cafes dock, streamlined identity/actions, up to three compact

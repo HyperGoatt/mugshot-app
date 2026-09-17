@@ -4,6 +4,29 @@ status: current
 last_verified: 2026-09-17
 ---
 
+## 2026-09-17 — Algorithm-first People hub redesign
+
+- Rebuilt Find your people around the selected Option 1 hierarchy: incoming
+  requests first, three compact invite/share/QR actions, horizontal explainable
+  suggestions, then the complete friends and sent-request lists. Removed the
+  normal invite-code field while preserving invitation-link routing.
+- Changed Contacts from email account matching to a one-person private
+  invitation. The selected phone number stays on the iPhone, is never uploaded
+  to Mugshot, and is passed only to the native Messages composer; nothing sends
+  until the user taps Send.
+- Added `people_v2` suggestions from visible shared Mugshots, mutual friends,
+  recent visible likes/comments/reactions in either direction, and shared cafe
+  lists. Missing preference rows now default suggestions and mutual explanations
+  on, while an explicit opt-out still removes the actor or candidate.
+- Added focused reason/analytics tests and a hermetic PostgreSQL contract for
+  default-on suggestions, interaction ranking, candidate opt-out, and the
+  unchanged caller-bound privacy boundary. The additive migration was applied to
+  production after a one-migration dry run and pre-change fingerprint; existing
+  user, request, and friend-edge counts were unchanged, and the live function
+  returned `people_v2` suggestions. The exact source built, installed, and
+  launched as `co.mugshot.app.dev` on Joe's connected iPhone; hands-on People
+  interaction remains separate. TestFlight is unchanged.
+
 ## 2026-09-17 — Central Home entry reopened for device QA
 
 - Removed the temporary source gate that routed central Add > Log a Sip > Home

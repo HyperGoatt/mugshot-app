@@ -46,19 +46,18 @@ Passport, friends, collaborative lists, safety, public sharing, ownership,
 widgets, and share extension are implemented foundations. Work in these areas is
 feedback-driven hardening rather than an assumption that the surface is absent.
 
-## People discovery production-configured; client acceptance pending
+## People discovery Option 1 redesign; device acceptance pending
 
-- Contacts and all six friend-discovery improvements are implemented and their
-  backend is production-configured through the
-  [People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md):
-  visible People hub and search recovery, profile links/QR, invitation completion,
-  selected-contact matching, mutual/context suggestions, and first-week prompts.
-- Full address-book access remains the optional later Phase E and is not enabled.
-  The disposable-QA SQL and real Auth/Edge gates passed, secrets and public routes
-  are configured, production is aligned at 179 migrations, both functions are
-  active, and all four reversible capabilities are enabled. The remaining gates
-  are hands-on People-flow acceptance on the connected iPhone and a separately
-  authorized replacement TestFlight build.
+- The selected Option 1 People hub is implemented: requests first, private
+  one-contact Messages invitations, share/QR, a horizontal reasoned suggestion
+  rail, and friends/sent lists. `people_v2` combines mutual, shared-context, and
+  recent visible interaction signals without contact or phone-number matching.
+- The client, visual comparison, and hermetic backend contract are locally
+  verified. The additive `people_v2` migration is production-configured and its
+  live output/defaults plus protected row-count preservation are verified.
+  The exact source is installed and launched on the connected iPhone. Remaining
+  gates are hands-on interaction acceptance and a separately authorized
+  replacement TestFlight.
 
 ## Next after notification acceptance
 
