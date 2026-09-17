@@ -4,6 +4,16 @@ status: current
 last_verified: 2026-09-17
 ---
 
+## 2026-09-17 — People discovery implementation plan
+
+- Specified Contacts plus all six approved discovery improvements: profile links
+  and QR, mutual suggestions, shared-context suggestions, install/auth invitation
+  recovery, first-week prompting, and useful search dead ends.
+- Defined seven screens, relationship/error states, proposed versioned backend
+  contracts, verified-email opt-in, retention and privacy copy, analytics events,
+  release phases and acceptance criteria. Linked the roadmap and analytics plan.
+- Planning only: no application, backend, production, or distribution change.
+
 ## 2026-09-17 — Home and Recipes continuity repair
 
 - Repaired Home navigation so Journal, app-shortcut, recipe, preparation,
