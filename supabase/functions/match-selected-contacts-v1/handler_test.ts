@@ -1,4 +1,16 @@
-import { keyedDigest, normalizeEmail, validateItems } from "./handler.ts";
+import {
+  isExplicitlyEnabled,
+  keyedDigest,
+  normalizeEmail,
+  validateItems,
+} from "./handler.ts";
+
+Deno.test("contact matching requires an explicit enabled value", () => {
+  assertEquals(isExplicitlyEnabled("true"), true);
+  assertEquals(isExplicitlyEnabled(undefined), false);
+  assertEquals(isExplicitlyEnabled("false"), false);
+  assertEquals(isExplicitlyEnabled("TRUE"), false);
+});
 
 function assertEquals(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

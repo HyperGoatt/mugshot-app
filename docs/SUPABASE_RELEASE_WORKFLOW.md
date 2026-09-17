@@ -11,7 +11,9 @@ not deployed. Rehearse them on a disposable QA branch before client enablement.
 Configure a new random 32-byte-or-stronger `PEOPLE_DISCOVERY_HMAC_KEY_V1`, set
 `PEOPLE_DISCOVERY_ENABLED=true`, and provide first-party
 `MUGSHOT_MARKETING_URL` / `MUGSHOT_APP_STORE_URL` values only through Edge
-secrets. The migration creates all four new capabilities disabled. Deploy the
+secrets. Contact matching fails closed unless the kill switch is exactly
+`true`; missing, differently cased, or malformed values stay disabled. The
+migration creates all four new capabilities disabled. Deploy the
 migration before either function, verify the capability RPC remains off, deploy
 and validate both functions, and only then explicitly enable the individually
 accepted capabilities in `private.discovery_capabilities`. Exercise
