@@ -11,8 +11,11 @@ last_verified: 2026-09-17
 Approved scope: Contacts plus all six proposed discovery improvements, requested
 2026-09-17. Phases A–D are implemented in current source. Phase E remains an
 optional later enhancement and full address-book access is not enabled. The
-additive migration and Edge Functions are not production configured, physically
-accepted, or TestFlight accepted.
+two additive migrations, Edge Functions, secrets/routes, and all four reversible
+capabilities are production-configured. Hosted SQL and real Auth/Edge acceptance
+passed, and the signed development app was relaunched on the connected iPhone.
+Hands-on People-flow interaction and replacement TestFlight acceptance remain
+open.
 
 Documentation impact: product behavior, architecture/data ownership, Supabase
 contracts, privacy/safety, and analytics. The implementation uses Tier 3 local

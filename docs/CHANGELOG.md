@@ -40,9 +40,21 @@ last_verified: 2026-09-17
   invitation resolution/revocation/expiry, no-store responses, and rollback.
 - Locally verified with the 13-check full-static gate, the focused People route
   and analytics tests on iOS 27 Simulator, and a fixture runtime review of the
-  hub, Contacts education, and native selected-contact picker. No migration or
-  Edge Function was deployed, no production secret/route was configured, and no
-  TestFlight build changed.
+  hub, Contacts education, and native selected-contact picker.
+- Verified the backend with 12 local checks, all 66 hosted SQL contracts, and a
+  disposable-branch real Auth/Edge run covering matching, opt-out, blocks,
+  invitations, expiry, revocation, no-store responses, and rollback. The paid
+  branch was deleted after acceptance and only the production branch remains.
+- Production advanced from 177 to the repository-aligned 179-migration head,
+  with today's completed physical backup and unchanged protected user, visit,
+  friend, request, Auth, Storage-object, and bucket fingerprints. Both People
+  Edge Functions are active at version 3 with their import maps, the dedicated
+  HMAC and route secrets are configured, and all four reversible capabilities
+  are enabled.
+- Relaunched the signed development app on Joe's connected iPhone and verified
+  the authenticated Feed renders against the production-configured backend.
+  Physical interaction with the new People journeys and replacement TestFlight
+  acceptance remain separate; no TestFlight build changed.
 
 ## 2026-09-17 — People discovery implementation plan
 
