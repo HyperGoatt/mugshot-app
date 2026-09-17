@@ -455,6 +455,112 @@ struct HomeRecipeWorkspaceTests {
         #expect(reopened.workspace.attempts.isEmpty)
         #expect(reopened.workspace.sessions.first?.linkedPreparations?.first?.reference.versionID == reference.versionID)
     }
+
+    @Test func switchingCalculationPreservesResolvedEspressoTargets() {
+        var targets = HomeRecipeTargets(dose: 18, ratio: 2, calculation: .ratio)
+        targets.setCalculation(.output)
+        #expect(targets.output == 36)
+        targets.output = 40
+        targets.setCalculation(.ratio)
+        #expect(abs((targets.ratio ?? 0) - (40.0 / 18.0)) < 0.0001)
+    }
+
+    @Test func methodDefaultsAndActionabilityCoverPodsAndImmersion() {
+        var pour = HomeRecipeContent(name: "Pour", template: .coffee, method: .pourOver)
+        pour.targets = HomeRecipeContent.defaultTargets(for: .pourOver)
+        pour.steps = HomeRecipeContent.defaultSteps(for: .pourOver)
+        pour.changeMethod(from: .pourOver, to: .frenchPress)
+        #expect(pour.steps.isEmpty)
+        #expect(pour.targets.steepSeconds == 240)
+        #expect(pour.targets.seconds == nil)
+
+        var pod = HomeRecipeContent(name: "Pod", template: .coffee, method: .pod)
+        pod.targets = HomeRecipeContent.defaultTargets(for: .pod)
+        #expect(pod.isActionable)
+        #expect(pod.defaultMetrics == [.output, .seconds])
+        #expect(HomeRecipeContent.durationSummary(240) == "4 min")
+
+        var invalidPour = HomeRecipeContent(name: "Broken pour", template: .coffee, method: .pourOver)
+        invalidPour.steps = [
+            HomePreparationStep(instruction: "First", waterGrams: 180),
+            HomePreparationStep(instruction: "Second", waterGrams: 120)
+        ]
+        #expect(invalidPour.validationMessage?.contains("cannot be lower") == true)
+    }
+
+    @Test func preparationCompletesIntoReflectionWithoutInventingColdBrewActuals() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        var cold = HomeRecipeContent(name: "Cold batch", template: .coffee, method: .coldBrew)
+        cold.targets = HomeRecipeContent.defaultTargets(for: .coldBrew)
+        let attempt = HomeAttemptRecord(name: cold.name, targets: cold, preparation: cold)
+        let session = HomePreparationSession(attempt: attempt, phase: .preparing)
+        try store.saveSession(session)
+
+        let completed = try store.finishPreparation(sessionID: session.id, measuredTimer: false)
+        #expect(completed.actuals.seconds == nil)
+        #expect(completed.batchID == session.id)
+        #expect(store.workspace.sessions.first?.currentPhase == .awaitingReflection)
+        #expect(store.workspace.sessions.first?.preparationCompletedAt != nil)
+        #expect(store.workspace.attemptDrafts.first?.id == attempt.id)
+
+        try store.saveAttempt(completed)
+        #expect(store.workspace.sessions.first?.currentPhase == .saved)
+        #expect(store.workspace.attemptDrafts.isEmpty)
+        #expect(store.workspace.attempts.count == 1)
+    }
+
+    @Test func protectedPreparationReadyTimeSurvivesWithoutCopyingInstructions() throws {
+        let ready = Date(timeIntervalSince1970: 1_800_000_000)
+        let session = HomePreparationSession(
+            attempt: HomeAttemptRecord(name: "Protected cold brew"),
+            phase: .preparing,
+            readyAtOverride: ready
+        )
+        let decoded = try JSONDecoder().decode(HomePreparationSession.self,
+            from: JSONEncoder().encode(session))
+        #expect(decoded.attempt.preparation == nil)
+        #expect(decoded.readyAt == ready)
+        #expect(decoded.currentPhase == .preparing)
+    }
+
+    @Test func discardRemovesOnlyTheTargetDraftAndItsUnreferencedPhoto() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.brown.setFill(); context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        var first = HomeAttemptRecord(name: "Discard me")
+        let photo = try store.savePhoto(try #require(image.jpegData(compressionQuality: 0.8)), attemptID: first.id)
+        first.photoNames = [photo]
+        let second = HomeAttemptRecord(name: "Keep me")
+        try store.saveAttemptDraft(first)
+        try store.saveAttemptDraft(second)
+        try store.saveSession(HomePreparationSession(attempt: first, phase: .preparing))
+
+        try store.discardAttemptDraft(id: first.id)
+        #expect(store.workspace.attemptDrafts == [second])
+        #expect(store.workspace.sessions.isEmpty)
+        #expect(store.photo(photo) == nil)
+    }
+
+    @Test func publicationStateStaysAttachedToTheSavedAttempt() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeRecipeTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let attempt = HomeAttemptRecord(name: "Shared latte")
+        try store.saveAttempt(attempt)
+        let draftID = UUID()
+        try store.setPublicationDraft(draftID, for: attempt.id)
+        try store.setPublicationStatus(.failed, for: attempt.id)
+        #expect(store.workspace.attempts.first?.publicationDraftID == draftID)
+        #expect(store.workspace.attempts.first?.publicationStatus == .failed)
+    }
 }
 
 @MainActor

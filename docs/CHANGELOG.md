@@ -1,8 +1,41 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+## 2026-09-17 — Home and Recipes continuity repair
+
+- Repaired Home navigation so Journal, app-shortcut, recipe, preparation,
+  reflection, saved-attempt, and sharing routes use the native Home workspace
+  with explicit exit behavior. A pristine Home/Recipe selection no longer
+  manufactures a generic Sip draft alongside the Home draft.
+- Added a durable preparation lifecycle from preparing through reflection and
+  saved state. Finishing a session now atomically preserves its attempt draft,
+  stops its reminder, prevents stale preparation from overwriting reflection,
+  and leaves cold-brew elapsed time unknown unless the user records it.
+- Added keep/discard handling for unfinished makes, unreferenced-photo cleanup,
+  archived-recipe restoration, meaningful-draft filtering, debounced editor and
+  quick-log persistence, off-main photo processing, and recoverable conflict
+  fetching when the first remote conflict read fails.
+- Corrected ratio/yield switching, pod actionability, pour-over default-step
+  replacement, immersion/French press steep fields, human-readable durations,
+  method-relevant field customization, and complete target/custom-field guidance.
+- Preserved external saved-recipe identity during quick logging, connected the
+  Brew Saved Recipe shortcut to native recipes, recorded complete actuals and
+  version details, and required confirmation before replacing entered setup.
+- Added unposted private Home makes to the combined Journal without duplicating
+  known published entries, retained protected shared-recipe batch readiness
+  without copying instructions, and included Home recipes/makes in the existing
+  explicit guest-to-account merge.
+- Removed invented photo fallback media from Home posts. Publication drafts now
+  remain linked to their private attempt with draft/posting/published/failed
+  state, missing local photos block sharing or synchronization explicitly, and a
+  protected failed publication keeps its retry action available.
+- The changes are additive inside the existing versioned workspace JSON; no
+  Supabase schema, migration, RLS, production data, environment, or deployment
+  changed. Central Add > Home remains on the build-8 hold pending consolidated
+  runtime and physical-device acceptance.
 
 ## 2026-09-16 — TestFlight 0.5.3 (8) battery patch
 

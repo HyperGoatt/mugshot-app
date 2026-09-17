@@ -13,6 +13,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var isSyncing = false
     @Published private(set) var hasRemoteConflict = false
+    var canResolveRemoteConflict: Bool { remoteConflict != nil }
     private let root: URL
     private let transport: (any HomeRecipeWorkspaceTransport)?
     private var loaded = false
@@ -118,6 +119,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         // Reconciliation reads the latest local workspace, including these saves.
         var next = workspace
         try change(&next)
+        guard next != workspace else { return }
         next.pendingOperationID = UUID()
         try write(next, scope: scope)
         workspace = next
@@ -174,6 +176,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         let values = [attempt.actuals.dose, attempt.actuals.output, attempt.actuals.seconds,
                       attempt.actuals.batchMilliliters, attempt.actuals.servingMilliliters]
         guard values.compactMap({ $0 }).allSatisfy({ $0.isFinite && $0 > 0 }),
+              attempt.actuals.temperature.map({ $0.isFinite && $0 > -273.15 }) ?? true,
               attempt.rating.map({ $0.isFinite && (0.5...5).contains($0) }) ?? true else {
             throw HomeRecipeWorkspaceError.invalid("Check your measurements and rating.")
         }
@@ -182,7 +185,15 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         }
         try mutate { state in
             // An interrupted save can safely be retried with the same ID.
-            guard !state.attempts.contains(where: { $0.id == attempt.id }) else { return }
+            if state.attempts.contains(where: { $0.id == attempt.id }) {
+                state.attemptDrafts.removeAll { $0.id == attempt.id }
+                for index in state.sessions.indices where state.sessions[index].attempt.id == attempt.id {
+                    state.sessions[index].phase = .saved
+                    state.sessions[index].finishedAt = state.sessions[index].finishedAt ?? .now
+                    state.sessions[index].reminderEnabled = false
+                }
+                return
+            }
             var saved = attempt
             saved.savedAt = .now
             if let reference = attempt.recipe, let index = state.recipes.firstIndex(where: { $0.id == reference.recipeID }) {
@@ -206,6 +217,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             state.attempts.append(saved)
             state.attemptDrafts.removeAll { $0.id == attempt.id }
             for index in state.sessions.indices where state.sessions[index].attempt.id == attempt.id {
+                state.sessions[index].phase = .saved
                 state.sessions[index].finishedAt = .now
                 state.sessions[index].reminderEnabled = false
             }
@@ -220,6 +232,71 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         try mutate { state in
             state.sessions.removeAll { $0.id == session.id }
             state.sessions.append(session)
+        }
+    }
+
+    func finishPreparation(sessionID: UUID, measuredTimer: Bool, content: HomeRecipeContent? = nil) throws -> HomeAttemptRecord {
+        guard var session = workspace.sessions.first(where: { $0.id == sessionID }) else {
+            throw HomeRecipeWorkspaceError.invalid("That preparation session is no longer available.")
+        }
+        let completedAt = Date.now
+        var attempt = session.attempt
+        if attempt.preparation == nil { attempt.preparation = content }
+        if measuredTimer, let start = session.timerStartedAt {
+            attempt.actuals.seconds = max(0, completedAt.timeIntervalSince(start))
+        }
+        if (attempt.preparation ?? content)?.method == .coldBrew { attempt.batchID = session.id }
+        session.attempt = attempt
+        session.phase = .awaitingReflection
+        session.preparationCompletedAt = completedAt
+        session.reminderEnabled = false
+        try mutate { state in
+            state.sessions.removeAll { $0.id == session.id }
+            state.sessions.append(session)
+            state.attemptDrafts.removeAll { $0.id == attempt.id }
+            state.attemptDrafts.append(attempt)
+        }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["home-preparation-\(scope.storageComponent)-\(session.id)"]
+        )
+        return attempt
+    }
+
+    func discardAttemptDraft(id: UUID) throws {
+        let names = workspace.attemptDrafts.first(where: { $0.id == id })?.photoNames
+            ?? workspace.sessions.first(where: { $0.attempt.id == id })?.attempt.photoNames ?? []
+        let reminderIDs = workspace.sessions.filter { $0.attempt.id == id }.map {
+            "home-preparation-\(scope.storageComponent)-\($0.id)"
+        }
+        try mutate { state in
+            state.attemptDrafts.removeAll { $0.id == id }
+            state.sessions.removeAll { $0.attempt.id == id && $0.currentPhase != .saved }
+        }
+        for name in names where !workspace.referencedPhotoNames.contains(name) {
+            let url = directory(scope).appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: url.path) { try? FileManager.default.removeItem(at: url) }
+        }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reminderIDs)
+    }
+
+    func discardRecipeDraft(id: UUID) throws {
+        try mutate { $0.recipeDrafts.removeAll { $0.id == id } }
+    }
+
+    func setPublicationDraft(_ draftID: UUID, for attemptID: UUID) throws {
+        try mutate { state in
+            guard let index = state.attempts.firstIndex(where: { $0.id == attemptID }) else {
+                throw HomeRecipeWorkspaceError.invalid("Save this make before sharing it.")
+            }
+            state.attempts[index].publicationDraftID = draftID
+            state.attempts[index].publicationStatus = .draft
+        }
+    }
+
+    func setPublicationStatus(_ status: HomePublicationStatus, for attemptID: UUID) throws {
+        try mutate { state in
+            guard let index = state.attempts.firstIndex(where: { $0.id == attemptID }) else { return }
+            state.attempts[index].publicationStatus = status
         }
     }
 
@@ -263,6 +340,21 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         try FileManager.default.createDirectory(at: directory(scope), withIntermediateDirectories: true)
         try jpeg.write(to: directory(scope).appendingPathComponent(name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         return name
+    }
+
+    func savePhotoAsync(_ data: Data, attemptID: UUID) async throws -> String {
+        let targetDirectory = directory(scope)
+        let name = "\(attemptID)-\(UUID()).jpg"
+        return try await Task.detached(priority: .userInitiated) {
+            guard let image = UIImage(data: data),
+                  let jpeg = image.resizedForVisitUpload(maxDimension: 1600).jpegData(compressionQuality: 0.84) else {
+                throw HomeRecipeWorkspaceError.invalid("That photo could not be opened.")
+            }
+            try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+            try jpeg.write(to: targetDirectory.appendingPathComponent(name),
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            return name
+        }.value
     }
 
     private static func validateAttribution(_ content: HomeRecipeContent, previous: HomeRecipeContent?) throws {
@@ -318,7 +410,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             for name in captured.referencedPhotoNames.subtracting(uploaded) {
                 _ = try HomeRecipeMediaService.path(owner: owner, name: name)
                 let source = directory(capturedScope).appendingPathComponent(name)
-                guard FileManager.default.fileExists(atPath: source.path) else { continue }
+                guard FileManager.default.fileExists(atPath: source.path) else {
+                    throw HomeRecipeWorkspaceError.invalid("A photo for this journal entry is missing on this device. The entry is safe; reconnect the original device or remove the missing photo before syncing.")
+                }
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 let bytes = try Data(contentsOf: source)
                 try await remoteTransport.uploadPhoto(bytes, name: name, ownerID: owner)
@@ -385,6 +479,23 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 guard scope == capturedScope, syncTaskID == taskID else { return }
                 remoteConflict = latest
             }
+        }
+    }
+
+    func refreshRemoteConflict() async {
+        guard hasRemoteConflict, remoteConflict == nil, let owner = scope.userID else { return }
+        let capturedScope = scope
+        do {
+            let remoteTransport: any HomeRecipeWorkspaceTransport
+            if let transport { remoteTransport = transport }
+            else { remoteTransport = HomeRecipeWorkspaceService(client: try SupabaseClientProvider.shared.client()) }
+            let latest = try await remoteTransport.fetch(ownerID: owner)
+            guard scope == capturedScope, !Task.isCancelled else { return }
+            remoteConflict = latest
+            errorMessage = HomeRecipeWorkspaceError.conflict.localizedDescription
+        } catch {
+            guard scope == capturedScope, !Task.isCancelled else { return }
+            errorMessage = "Your local edits are safe. The latest library could not be loaded yet: \(error.localizedDescription)"
         }
     }
 

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
 # Native Home and Recipes implementation
@@ -16,19 +16,46 @@ stored `false` as a data-preserving rollback switch. The browser gallery remains
 design evidence rather than production navigation.
 
 Build 0.5.3 (8) temporarily places a **Home is under construction** placeholder
-at central Add > Log a Sip > Home while the Home logging experience is repaired.
+at central Add > Log a Sip > Home. The static-audit repair is implemented on the
+current source branch, but the placeholder remains the released behavior until
+the repaired candidate completes its consolidated runtime and device gates.
 The implementation, production schema, existing account-scoped data, Journal
 Home/Recipes collections, and non-central saved-attempt flows remain intact. The
 placeholder performs no migration or deletion and offers a direct return to cafe
 logging.
 
-Implementation acceptance is complete for the repository candidate: deterministic
-contracts, all hosted SQL contracts, real isolated Auth/API/Storage transport,
-the focused native model/store suite, the connected Simulator journeys, and the
-largest Dynamic Type journey pass. The disposable acceptance branch was deleted
-after verification. The signed production-connected Debug candidate is installed
-and launched on the owner's iPhone for hands-on acceptance. No TestFlight
-acceptance is claimed.
+The 2026-09-15 implementation acceptance remains historical evidence for the
+original candidate. The 2026-09-17 repair changes cross-screen navigation,
+persistence, preparation, media, shortcuts, and publication recovery, so its
+runtime acceptance is intentionally pending. No new production deployment,
+physical acceptance, TestFlight acceptance, or App Store release is claimed.
+
+## 2026-09-17 repair architecture
+
+- `HomeRecipeExperienceView` is the Home coordinator. It accepts explicit
+  initial recipe, preparation, and attempt identities plus an explicit host exit
+  callback. The generic Sip composer becomes an adapter only after a private
+  Home attempt enters sharing.
+- Attempt drafts support keep/discard behavior. Discard removes the selected
+  unfinished make, its unfinished sessions, reminders, and only media that no
+  remaining record references. Empty template and attempt envelopes are hidden
+  or removed rather than presented as resumable work.
+- Preparation sessions decode older records conservatively and add optional
+  `phase` and `preparationCompletedAt` fields. Preparing, awaiting reflection,
+  and saved are distinct; optional fields preserve wire compatibility with
+  existing account workspaces.
+- Attempts add optional publication status alongside the existing publication
+  draft identifier. Publication state is private workspace metadata and does not
+  widen the public post projection.
+- Frequent editor changes are debounced while navigation/save boundaries flush
+  synchronously. Image decoding and resizing move off the main actor. The
+  account-scoped atomic workspace remains the durable source of truth.
+- Missing referenced media is an explicit retryable synchronization/share error.
+  Remote conflict recovery can refetch the canonical workspace when the first
+  conflict fetch fails instead of trapping the account behind an unusable action.
+- These additions live in the existing workspace JSON payload and require no
+  Supabase migration. Production remains aligned through
+  `20260916020417_home_recipe_http_conflicts.sql`.
 
 ## Product behavior
 
@@ -130,6 +157,28 @@ legacy drafts remain in their lossless composer until a safe adapter exists.
 
 ## Verification record
 
+### 2026-09-17 repair evidence
+
+- `scripts/verify-no-simulator.sh full-static` passed all 12 required checks
+  with zero failures. The optional local `pglast` parser was unavailable and
+  skipped; repository migration timestamp validation still passed.
+- The generic Debug app, app-unit target, and UI-test target compiled without
+  booting or launching Simulator. The 28 focused Home workspace tests include
+  new fixtures for calculation switching, method defaults, preparation phases,
+  protected-source readiness, draft/media discard, and publication linkage.
+- Cached Deno tests and every hermetic PostgreSQL behavior/security contract
+  passed, including Home owner isolation, immutable versions, CAS conflicts,
+  linked privacy/cycles, source rights, projection policy, and protected Storage.
+- Documentation validation and diff integrity passed. No migration or remote
+  deployment was required or performed.
+- Per the owner’s no-Simulator instruction, executable iOS tests and connected
+  journeys were compiled but not run. Navigation dismissal, camera/system UI,
+  background timer recovery, Dynamic Type, VoiceOver, and publication retry
+  remain queued for the consolidated runtime gate; no physical or TestFlight
+  acceptance is claimed.
+
+### Earlier implementation evidence
+
 Tier 4 acceptance used synthetic local data and a disposable, data-free Supabase
 branch containing all 177 repository migrations through
 `20260916020417_home_recipe_http_conflicts.sql`. Production was targeted only
@@ -173,11 +222,17 @@ schedules. It was deleted after the final hosted runs, stopping its hourly charg
 
 ## Remaining rollout gates
 
-The approved implementation remains present, but the central Add entry is
-temporarily unavailable behind the build-8 placeholder. Reopening it requires a
-focused repair and acceptance pass. The remaining release operations are:
+The repaired implementation is present, but the central Add entry remains
+temporarily unavailable behind the build-8 placeholder. The remaining gates are:
 
-1. Verify the build-8 placeholder and return-to-cafe path while confirming the
-   existing Journal collections remain readable and unchanged.
-2. The owner explicitly requested the replacement TestFlight upload. Complete
-   the required Simulator and connected-iPhone gates before archiving and upload.
+1. Complete the repository Tier 3 deterministic gate, including focused model,
+   retry, authorization, and hermetic Home backend contracts.
+2. In one separately authorized runtime session, accept quick logging, guided
+   preparation, relaunch, account switching, media, publication retry, keyboard,
+   Dynamic Type, and accessibility behavior. This document does not claim that
+   runtime gate from compile-only evidence.
+3. Promote the same candidate to a connected iPhone only after the owner requests
+   hardware acceptance. Reopen central Add > Home only after that pass; preserve
+   the explicit feature rollback switch and all saved data.
+4. Treat any later TestFlight archive/upload as a new explicit release gate with
+   its own build number, candidate evidence, and What to Test handoff.

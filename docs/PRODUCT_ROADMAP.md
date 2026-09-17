@@ -1,19 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
 # Product roadmap
 
-## Production-configured; central Home logging temporarily gated
+## Home repair implemented; central logging held for acceptance
 
 The complete find/create → save → make/log → reflect → improve → share loop is
 implemented, accepted locally and in isolated backend QA, deployed to production,
 and data-preserving. Build 0.5.3 (8) temporarily replaces central Add > Log a Sip
-> Home with an under-construction placeholder while that experience is repaired.
-Existing Home data and Journal collections remain intact. Reopening the central
-entry requires a focused repair and owner acceptance pass.
+> Home with an under-construction placeholder. The continuity repair is now
+implemented in source: Home owns its drafts and preparation lifecycle, brewing
+fields are internally consistent, native shortcuts resolve native recipes, and
+posting remains attached to the saved private attempt. Existing Home data and
+Journal collections remain intact. Reopening the central entry still requires
+the consolidated runtime and owner acceptance pass; implementation alone does
+not remove the build-8 hold.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning

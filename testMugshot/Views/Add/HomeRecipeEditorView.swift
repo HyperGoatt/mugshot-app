@@ -4,6 +4,7 @@ struct HomeRecipeEditorView: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     @State var draft: HomeRecipeEditorDraft
     let onSaved: (UUID) -> Void
+    private let originalScope: LocalAccountScope
     @Environment(\.dismiss) private var dismiss
     @State private var advanced: Bool
     @State private var sourceExpanded: Bool
@@ -14,9 +15,14 @@ struct HomeRecipeEditorView: View {
     @State private var showCoffeeLibrary: Bool
     @State private var linkedPicker: HomeRecipeLinkPickerPresentation?
     @State private var error: String?
+    @State private var autosaveTask: Task<Void, Never>?
+    @State private var didSave = false
+    @State private var tagsText: String
+    @State private var choicesText: [UUID: String]
 
     init(store: HomeRecipeWorkspaceStore, draft: HomeRecipeEditorDraft, onSaved: @escaping (UUID) -> Void) {
         self.store = store
+        originalScope = store.scope
         _draft = State(initialValue: draft)
         self.onSaved = onSaved
         let content = draft.content
@@ -28,6 +34,10 @@ struct HomeRecipeEditorView: View {
         _showOrganization = State(initialValue: !content.yieldDescription.isEmpty || !content.tags.isEmpty || !content.notes.isEmpty)
         _showCustomFields = State(initialValue: !content.fields.isEmpty)
         _showCoffeeLibrary = State(initialValue: content.coffee != nil || !content.equipment.isEmpty)
+        _tagsText = State(initialValue: content.tags.joined(separator: ", "))
+        _choicesText = State(initialValue: Dictionary(uniqueKeysWithValues: content.fields.map {
+            ($0.id, $0.choices.joined(separator: ", "))
+        }))
     }
 
     var body: some View {
@@ -36,7 +46,10 @@ struct HomeRecipeEditorView: View {
                 TextField("Recipe name", text: $draft.content.name)
                     .accessibilityIdentifier("home.recipe.name")
                     .font(.title3.weight(.semibold))
-                Picker("Recipe type", selection: $draft.content.template) {
+                Picker("Recipe type", selection: Binding(
+                    get: { draft.content.template },
+                    set: { changeTemplate(to: $0) }
+                )) {
                     ForEach(HomeRecipeTemplate.allCases) { Text($0.title).tag($0) }
                 }
                 DisclosureGroup("Inspiration & credit", isExpanded: $sourceExpanded) {
@@ -131,9 +144,11 @@ struct HomeRecipeEditorView: View {
                 Section("Yield and organization") {
                 TextField("Servings", value: $draft.content.servings, format: .number).keyboardType(.decimalPad)
                 TextField("Yield, e.g. one bottle", text: $draft.content.yieldDescription)
-                TextField("Tags, separated by commas", text: Binding(get: { draft.content.tags.joined(separator: ", ") }, set: {
-                    draft.content.tags = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                }))
+                TextField("Tags, separated by commas", text: $tagsText)
+                    .onChange(of: tagsText) { _, value in
+                        draft.content.tags = value.split(separator: ",", omittingEmptySubsequences: true)
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                    }
                 TextField("Preparation notes", text: $draft.content.notes, axis: .vertical)
             }
             }
@@ -146,9 +161,15 @@ struct HomeRecipeEditorView: View {
                             ForEach(HomeCustomFieldKind.allCases, id: \.self) { Text($0.title).tag($0) }
                         }
                         if field.kind == .choice {
-                            TextField("Choices, separated by commas", text: Binding(get: { field.choices.joined(separator: ", ") }, set: {
-                                field.choices = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                            }))
+                            TextField("Choices, separated by commas", text: Binding(
+                                get: { choicesText[field.id] ?? field.choices.joined(separator: ", ") },
+                                set: { value in
+                                    choicesText[field.id] = value
+                                    field.choices = value.split(separator: ",", omittingEmptySubsequences: true)
+                                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                                    if !field.value.isEmpty, !field.choices.contains(field.value) { field.value = "" }
+                                }
+                            ))
                             Picker("Value", selection: $field.value) {
                                 Text("Not set").tag("")
                                 ForEach(field.choices, id: \.self) { Text($0).tag($0) }
@@ -199,7 +220,20 @@ struct HomeRecipeEditorView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .onChange(of: draft) { _, value in
-            do { try store.saveDraft(value) } catch { self.error = error.localizedDescription }
+            autosaveTask?.cancel()
+            autosaveTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled, store.scope == originalScope else { return }
+                do { try store.saveDraft(value) } catch { self.error = error.localizedDescription }
+            }
+        }
+        .onDisappear {
+            autosaveTask?.cancel()
+            guard !didSave, store.scope == originalScope else { return }
+            do {
+                if draft.content.hasMeaningfulDraftContent { try store.saveDraft(draft) }
+                else { try store.discardRecipeDraft(id: draft.id) }
+            } catch { self.error = error.localizedDescription }
         }
         .sheet(item: $linkedPicker) { _ in
             HomeRecipeLinkPicker(store: store, excluding: draft.recipeID) { record, version in
@@ -212,8 +246,24 @@ struct HomeRecipeEditorView: View {
         (draft.content.template == .coffee && !showCoffeeLibrary) || !showIngredients || !showSteps
             || !showOrganization || !showCustomFields
     }
+    private func changeTemplate(to template: HomeRecipeTemplate) {
+        guard draft.content.template != template else { return }
+        draft.content.template = template
+        if template == .coffee, draft.content.method == .other, !draft.content.isActionable {
+            draft.content.method = .espresso
+            draft.content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
+        }
+        if template == .component || template == .drink {
+            showIngredients = true
+            showSteps = true
+        }
+    }
     private func save() {
-        do { let id = try store.saveRecipe(draft); onSaved(id); dismiss() }
+        guard store.scope == originalScope else {
+            error = "Your account changed. This recipe was not moved to another account."
+            return
+        }
+        do { let id = try store.saveRecipe(draft); didSave = true; onSaved(id); dismiss() }
         catch { self.error = error.localizedDescription }
     }
 }
@@ -375,7 +425,13 @@ struct HomeRecipeCreationFlow: View {
 private struct HomeRecipeFieldConfigurationScreen: View {
     @Binding var content: HomeRecipeContent
     private var fields: Binding<[HomeRecipeMetricConfiguration]> {
-        Binding(get: { content.configuredMetrics }, set: { content.metricConfiguration = $0 })
+        Binding(get: {
+            let configured = content.configuredMetrics
+            let known = Set(configured.map(\.metric))
+            return configured + HomeRecipeMetric.allCases.filter { !known.contains($0) }.map {
+                HomeRecipeMetricConfiguration(metric: $0, label: $0.label, isVisible: false)
+            }
+        }, set: { content.metricConfiguration = $0 })
     }
     var body: some View {
         List {
@@ -406,7 +462,10 @@ private struct HomeRecipeFieldConfigurationScreen: View {
 struct HomeConfiguredTargetsEditor: View {
     @Binding var content: HomeRecipeContent
     var body: some View {
-        Picker("Calculate", selection: $content.targets.calculation) {
+        Picker("Calculate", selection: Binding(
+            get: { content.targets.calculation },
+            set: { content.targets.setCalculation($0) }
+        )) {
             ForEach(HomeRecipeCalculation.allCases, id: \.self) { Text($0.title).tag($0) }
         }
         if content.targets.calculation == .ratio {
@@ -456,7 +515,10 @@ struct HomeTargetsEditor: View {
             HomeNumberField(title: "Target time (seconds)", value: $targets.seconds)
         } else {
         HomeNumberField(title: "Coffee dose (g)", value: $targets.dose)
-        Picker("Calculate", selection: $targets.calculation) {
+        Picker("Calculate", selection: Binding(
+            get: { targets.calculation },
+            set: { targets.setCalculation($0) }
+        )) {
             ForEach(HomeRecipeCalculation.allCases, id: \.self) { Text($0.title).tag($0) }
         }
         if targets.calculation == .ratio {
@@ -469,8 +531,13 @@ struct HomeTargetsEditor: View {
         if method == .coldBrew {
             HomeNumberField(title: "Steep duration (hours)", value: Binding(get: { targets.steepSeconds.map { $0 / 3600 } }, set: { targets.steepSeconds = $0.map { $0 * 3600 } }))
             TextField("Serving dilution (optional)", text: $targets.dilution)
+        } else if method == .frenchPress || method == .immersion {
+            HomeNumberField(title: "Steep time (minutes)", value: Binding(
+                get: { targets.steepSeconds.map { $0 / 60 } },
+                set: { targets.steepSeconds = $0.map { $0 * 60 } }
+            ))
         } else {
-            HomeNumberField(title: method == .frenchPress || method == .immersion ? "Steep time (seconds)" : "Target time (seconds)", value: $targets.seconds)
+            HomeNumberField(title: "Target time (seconds)", value: $targets.seconds)
         }
         }
         DisclosureGroup("More details", isExpanded: $advanced) {
@@ -480,7 +547,7 @@ struct HomeTargetsEditor: View {
             if method == .espresso {
                 HomeNumberField(title: "Preinfusion (seconds)", value: $targets.preinfusion)
                 HomeNumberField(title: "Pressure (bar)", value: $targets.pressure)
-            } else if method != .coldBrew {
+            } else if method != .coldBrew && method != .frenchPress && method != .immersion {
                 HomeNumberField(title: "Steep (seconds)", value: $targets.steepSeconds)
             }
         }

@@ -140,7 +140,8 @@ struct HomeSharedRecipeScreen: View {
         }
         do {
             if guided {
-                let session = HomePreparationSession(attempt: attempt)
+                let readyAt = content.targets.steepSeconds.map { Date.now.addingTimeInterval($0) }
+                let session = HomePreparationSession(attempt: attempt, phase: .preparing, readyAtOverride: readyAt)
                 try store.saveSession(session)
                 launch = HomeSharedMakeLaunch(sessionID: session.id)
             } else {

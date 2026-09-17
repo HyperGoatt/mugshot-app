@@ -736,8 +736,15 @@ final class AppAuthModel: ObservableObject {
 
     func mergeGuestSaved(dataManager: DataManager) async -> Bool {
         guard let userId = authenticatedUser?.id,
-              let authService,
-              !pendingGuestSavedCafes.isEmpty else { return true }
+              let authService else { return true }
+        do {
+            _ = try HomeLibraryStore.shared.adoptGuestLibrary(for: userId)
+            try HomeRecipeWorkspaceStore.shared.adoptGuestWorkspace(for: userId)
+        } catch {
+            guestSavedMergeError = "Your guest Home recipes and makes are still safe on this device. Try merging again."
+            return false
+        }
+        guard !pendingGuestSavedCafes.isEmpty else { return true }
         let mutationID = UUID()
         let cafesToMerge = pendingGuestSavedCafes
         guestMergeMutationID = mutationID

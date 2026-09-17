@@ -7,6 +7,7 @@ struct JournalTabView: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @StateObject private var passportRouter = JournalPassportRouter.shared
+    @StateObject private var homeStore = HomeRecipeWorkspaceStore.shared
 
     @State private var selectedFilter: JournalFilter = .all
     @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
@@ -16,6 +17,7 @@ struct JournalTabView: View {
     @State private var showJournalArchive = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
+    @State private var selectedHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var journalEntries: [JournalEntryProjection] = []
     @Environment(\.isMugshotTabActive) private var tabIsActive
@@ -100,6 +102,13 @@ struct JournalTabView: View {
 
     private var recentVisits: [RemoteVisitSummary] {
         Array(filteredVisits.prefix(4))
+    }
+
+    private var recentPrivateHomeAttempts: [HomeAttemptRecord] {
+        guard selectedFilter == .all else { return [] }
+        return Array(homeStore.workspace.attempts
+            .filter { $0.publicationStatus != .published && ($0.publicationStatus != nil || $0.publicationDraftID == nil) }
+            .sorted { $0.createdAt > $1.createdAt }.prefix(3))
     }
 
     var body: some View {
@@ -233,6 +242,14 @@ struct JournalTabView: View {
                 }
             }
             .navigationDestination(
+                isPresented: Binding(get: { selectedHomeAttempt != nil }, set: { if !$0 { selectedHomeAttempt = nil } })
+            ) {
+                if let selectedHomeAttempt {
+                    HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id,
+                        initialAttempt: selectedHomeAttempt, onShare: onComposeDraft)
+                }
+            }
+            .navigationDestination(
                 isPresented: Binding(
                     get: { selectedLocalVisit != nil },
                     set: { if !$0 { selectedLocalVisit = nil } }
@@ -272,6 +289,7 @@ struct JournalTabView: View {
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(tabIsActive)") {
                 guard tabIsActive else { return }
+                homeStore.activate(localAccountScope)
                 localDrafts = SipDraftStore.shared
                     .allDrafts(in: localAccountScope)
                     .sorted { $0.updatedAt > $1.updatedAt }
@@ -625,11 +643,32 @@ struct JournalTabView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-            } else if isLoading && remoteVisits.isEmpty {
+            } else if isLoading && remoteVisits.isEmpty && recentPrivateHomeAttempts.isEmpty {
                 MugshotLoadingState(layout: .journal, count: 3)
                     .padding(.horizontal, 16)
-            } else if !recentVisits.isEmpty {
+            } else if !recentVisits.isEmpty || !recentPrivateHomeAttempts.isEmpty {
                 VStack(spacing: 12) {
+                    ForEach(recentPrivateHomeAttempts) { attempt in
+                        Button { selectedHomeAttempt = attempt } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: attempt.preparation?.template.symbol ?? "mug")
+                                    .foregroundStyle(Color.mugshotSage)
+                                    .frame(width: 38, height: 38)
+                                    .background(Color.mugshotMint.opacity(0.55), in: Circle())
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(attempt.name).font(.system(size: 15, weight: .semibold))
+                                    Text("Home · \(attempt.rating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(attempt.createdAt, style: .date).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .foregroundStyle(Color.espressoBrown)
+                            .padding(14)
+                            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ForEach(recentVisits) { visit in
                         RemoteJournalRow(
                             visit: visit,
