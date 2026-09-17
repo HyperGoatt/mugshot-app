@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-17
 ---
 
 # Mugshot PostHog analytics plan
@@ -15,6 +15,13 @@ last_verified: 2026-09-15
 - Never send captions, journal or raw-note content, cafe/place identifiers, names, email addresses, search text, coordinates, photo data, social identifiers, auth tokens, or raw error messages.
 
 ## Event taxonomy
+
+Planned People discovery events and the first-reciprocal-friend metric are defined
+in [People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md).
+They are not instrumented by the planning change. Implementation must preserve
+this document's typed property allowlist, identity and consent rules. Invitation
+handoff is not proof of delivery; server-confirmed friendship attribution and
+consent-limited cohort coverage must remain distinct.
 
 Home/Recipes adds `home_log_opened`, `home_reflection_viewed`, `home_log_saved`,
 `home_log_left_unfinished`, `home_save_failed`, `home_recipe_saved`, `home_sync_failed`,

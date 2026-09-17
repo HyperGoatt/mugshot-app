@@ -48,6 +48,12 @@ feedback-driven hardening rather than an assumption that the surface is absent.
 
 ## Next after notification acceptance
 
+- Deliver Contacts and all six friend-discovery improvements through the
+  [People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md):
+  visible People hub and search recovery, profile links/QR, invitation completion,
+  selected-contact matching, mutual/context suggestions, and first-week prompts.
+  Scope is approved; contracts and rollout defaults are planned, not implemented.
+
 - Improve search and cafe identity when TestFlight evidence identifies concrete
   duplication or discovery failures.
 - Refine Home recipe reuse and comparison from real repeated-brew behavior.
