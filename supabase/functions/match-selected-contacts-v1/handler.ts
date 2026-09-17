@@ -1,5 +1,9 @@
 export type ContactInput = { item_key: string; emails: string[] };
 
+export function isExplicitlyEnabled(value: string | undefined): boolean {
+  return value === "true";
+}
+
 export function normalizeEmail(value: string): string | null {
   const normalized = value.trim().toLocaleLowerCase("en-US");
   if (normalized.length < 3 || normalized.length > 254) return null;

@@ -27,6 +27,9 @@ last_verified: 2026-09-17
 - Added a hermetic PostgreSQL execution contract for capability-off rollout,
   preference opt-in, protected identifier enrollment, search, invitation
   creation/resolution, attributed request acceptance, and caller privileges.
+- Hardened the contact-matching Edge kill switch so a missing or malformed
+  `PEOPLE_DISCOVERY_ENABLED` value fails closed; only the exact value `true`
+  permits identifier enrollment or matching.
 - Locally verified with the 13-check full-static gate, the focused People route
   and analytics tests on iOS 27 Simulator, and a fixture runtime review of the
   hub, Contacts education, and native selected-contact picker. No migration or

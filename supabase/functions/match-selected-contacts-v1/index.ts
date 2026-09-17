@@ -1,7 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { getPublicSupabaseKey } from "../_shared/public-key.ts";
 import { getSecretSupabaseKey } from "../_shared/secret-key.ts";
-import { keyedDigest, privateHeaders, validateItems } from "./handler.ts";
+import {
+  isExplicitlyEnabled,
+  keyedDigest,
+  privateHeaders,
+  validateItems,
+} from "./handler.ts";
 
 function response(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -19,7 +24,9 @@ Deno.serve(async (request) => {
   const publicKey = getPublicSupabaseKey();
   const secretKey = getSecretSupabaseKey();
   const hmacSecret = Deno.env.get("PEOPLE_DISCOVERY_HMAC_KEY_V1");
-  const isEnabled = Deno.env.get("PEOPLE_DISCOVERY_ENABLED") !== "false";
+  const isEnabled = isExplicitlyEnabled(
+    Deno.env.get("PEOPLE_DISCOVERY_ENABLED"),
+  );
   if (
     !authorization || !supabaseURL || !publicKey || !secretKey || !hmacSecret ||
     !isEnabled
