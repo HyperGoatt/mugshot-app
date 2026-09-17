@@ -39,7 +39,8 @@ begin
     ('session_balanced_map_pin_scores', array['20260717185855']),
     ('post_publish_share_hub', array['20260723154204']),
     ('harden_legacy_notification_inserts', array['20260809022000']),
-    ('fix_alpha_qa_contracts', array['20260809022500'])
+    ('fix_alpha_qa_contracts', array['20260809022500']),
+    ('people_discovery_v1', array['20260917185300'])
   ) required(name, versions)
   where not exists (
     select 1

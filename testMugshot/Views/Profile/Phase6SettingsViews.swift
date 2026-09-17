@@ -128,21 +128,95 @@ struct PrivacyVisibilitySettingsView: View {
 }
 
 struct FriendsDiscoverabilitySettingsView: View {
+    @State private var preferences: PeopleDiscoveryPreferences?
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
     var body: some View {
         Form {
-            Section("Discovery") {
-                LabeledContent("People search", value: "Friends network")
-                LabeledContent("Trusted recommendations", value: "Enabled")
-                LabeledContent("Taste compatibility", value: "Friends only")
-            }
             Section {
-                Text("Mugshot’s lightweight friends layer never exposes Private sips or private TasteSignal evidence. Block and friendship controls remain available where you manage each person.")
+                Toggle("Let contacts find me by email", isOn: preferenceBinding(\.emailDiscoverable, name: "email"))
+                Toggle("People suggestions", isOn: preferenceBinding(\.suggestionsEnabled, name: "suggestions"))
+                Toggle("Show mutual-friend reasons", isOn: preferenceBinding(\.mutualExplanationsEnabled, name: "mutual_explanations"))
+            } header: {
+                Text("Discovery")
+            } footer: {
+                Text("Contact discovery is off by default. When you turn it on, Mugshot stores a protected lookup value for your sign-in email—not your readable email address.")
+            }
+
+            Section("How suggestions work") {
+                Text("Suggestions use visible shared Mugshots, shared cafe lists, and mutual friendships. They never reveal Private sips, private lists, contact names, or another person’s address book.")
+                Text("Choosing contacts checks only the people you select. Mugshot does not upload or retain your full address book, and never messages contacts without you using the share sheet.")
+            }
+
+            if isLoading || isSaving {
+                Section { ProgressView(isLoading ? "Loading settings…" : "Saving…") }
+            }
+            if let errorMessage {
+                Section { Text(errorMessage).foregroundStyle(.red) }
             }
         }
         .tint(.mugshotSage)
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Friends and Discoverability")
+        .task { await load() }
+        .disabled(isLoading || isSaving)
+    }
+
+    private func preferenceBinding(
+        _ keyPath: WritableKeyPath<PeopleDiscoveryPreferences, Bool>,
+        name: String
+    ) -> Binding<Bool> {
+        Binding(
+            get: { preferences?[keyPath: keyPath] ?? false },
+            set: { value in
+                guard var updated = preferences else { return }
+                updated[keyPath: keyPath] = value
+                preferences = updated
+                Task { await save(updated, preference: name, enabled: value) }
+            }
+        )
+    }
+
+    @MainActor
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            preferences = try await service().preferences()
+            errorMessage = nil
+        } catch {
+            errorMessage = "Mugshot couldn’t load your discovery settings. Please try again."
+        }
+    }
+
+    @MainActor
+    private func save(
+        _ updated: PeopleDiscoveryPreferences,
+        preference: String,
+        enabled: Bool
+    ) async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            preferences = try await service().savePreferences(updated)
+            errorMessage = nil
+            MugshotAnalytics.shared.capture(.peopleDiscoveryPreferenceChanged(
+                preference: preference, enabled: enabled, outcome: "success"
+            ))
+        } catch {
+            MugshotAnalytics.shared.capture(.peopleDiscoveryPreferenceChanged(
+                preference: preference, enabled: enabled, outcome: "failed"
+            ))
+            errorMessage = "That setting wasn’t saved. Your previous preference is still in effect."
+            await load()
+        }
+    }
+
+    private func service() throws -> PeopleDiscoveryService {
+        PeopleDiscoveryService(client: try SupabaseClientProvider.shared.client())
     }
 }
 

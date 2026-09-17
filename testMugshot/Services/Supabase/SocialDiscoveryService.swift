@@ -176,10 +176,18 @@ final class SocialDiscoveryService {
     }
 
     func respond(to requestID: UUID, accept: Bool) async throws {
-        try await client.rpc(
-            "respond_friend_request",
-            params: FriendResponseParameters(pRequestID: requestID, pAccept: accept)
-        ).execute()
+        let parameters = FriendResponseParameters(pRequestID: requestID, pAccept: accept)
+        do {
+            try await client.rpc(
+                "respond_friend_request_v2",
+                params: parameters
+            ).execute()
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            try await client.rpc(
+                "respond_friend_request",
+                params: parameters
+            ).execute()
+        }
     }
 
     func cancel(requestID: UUID) async throws {

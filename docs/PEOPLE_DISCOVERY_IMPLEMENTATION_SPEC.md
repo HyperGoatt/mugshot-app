@@ -9,15 +9,16 @@ last_verified: 2026-09-17
 ## Status and scope
 
 Approved scope: Contacts plus all six proposed discovery improvements, requested
-2026-09-17. This is an implementation plan, not implementation or deployment
-evidence. Detailed defaults below are proposed engineering/product decisions.
-No new feature is locally verified, production configured, physically accepted,
-or TestFlight accepted by this document.
+2026-09-17. Phases A–D are implemented in current source. Phase E remains an
+optional later enhancement and full address-book access is not enabled. The
+additive migration and Edge Functions are not production configured, physically
+accepted, or TestFlight accepted.
 
-Documentation impact: planned product behavior, architecture/data ownership,
-Supabase contracts, privacy/safety, and analytics. This change is documentation
-only, verification Tier 0. Future implementation is Tier 3 with Tier 4 backend
-and consolidated acceptance gates under [Verification policy](VERIFICATION_POLICY.md).
+Documentation impact: product behavior, architecture/data ownership, Supabase
+contracts, privacy/safety, and analytics. The implementation uses Tier 3 local
+verification plus Tier 4 backend and consolidated runtime gates under
+[Verification policy](VERIFICATION_POLICY.md). Local results and rollout state
+are recorded in current living status documents rather than inferred here.
 
 Goal: help a tester find a known person and form a reciprocal friendship without
 having to remember their Mugshot username. Preserve the independent journal
@@ -35,16 +36,16 @@ experience and existing request/accept relationship model.
 
 ## Existing foundation and gaps
 
-Source review: `PeopleHubView.swift` lists requests, sent requests, friends and
-blocked people, and searches nonempty names. Its default empty state can contain
-no useful action. Search rows open profiles before a request can be sent.
-`SocialDiscoveryService.swift` provides request/respond/cancel/remove operations.
-The `search_users` migration supports fuzzy name matching and mutual counts;
-the client currently requests the first 20 results without subsequent pages.
-`ProfileShareHubView.swift` already packages recipient-visible profile artwork
-and canonical links. Reuse that implementation and the existing route coordinator.
-`FriendsDiscoverabilitySettingsView` currently displays informational labels;
-it does not implement the preferences described here.
+The legacy `PeopleHubView.swift` remains available for source compatibility, while
+Feed and Profile now present `PeopleDiscoveryHubView.swift`. The new hub composes
+requests, sent requests, friends, contextual/mutual suggestions, selected-contact
+matching, profile link/QR sharing, invite creation/code resolution, and actionable
+search dead ends. `PeopleDiscoveryService.swift` owns versioned RPC and Edge
+contracts; `FriendInviteRouter.swift` preserves a bounded pending route through
+installation/authentication handoff. The existing friendship graph, block rules,
+profile projection and `SocialDiscoveryService` response path remain authoritative.
+`FriendsDiscoverabilitySettingsView` now saves the three versioned preferences
+described here and rolls failed optimistic changes back to the server result.
 
 These observations are source evidence, not a new runtime audit. Discovery uses
 the current publication contract: some explicitly published Friends content can
@@ -261,18 +262,18 @@ rollout, monitor abuse, and keep a server kill switch.
 
 | Contract | Inputs | Output and invariants |
 | --- | --- | --- |
-| `get_people_hub_v1` | per-section cursor, page_size <= 20 | Independent request/friend/suggestion sections; typed partial errors; opaque cursors |
-| `search_people_v2` | query <= 100 chars, cursor, limit <= 20 | PersonSummary page; normalized handle/name search; safe deterministic ranking |
-| `get_people_suggestions_v1` | cursor, limit <= 20 | PersonSummary + one coarse reason + expiring reason_context; no raw private evidence |
-| `dismiss_people_suggestion_v1` | candidate_id, operation dismiss/undo | actor-owned 90-day suppression; idempotent |
+| `get_people_hub_v1` | page_size <= 20 | Independent initial request/friend/suggestion arrays plus typed per-section partial errors |
+| `search_people_v2` | query <= 100 chars, rank/score/username/id cursor, limit <= 20 | PersonSummary page; normalized handle/name search; deterministic keyset pagination |
+| `get_people_suggestions_v1` | limit <= 20 | PersonSummary + one coarse reason and ranking version; no raw private evidence |
+| `dismiss_people_suggestion_v1` | candidate_id, undo boolean | actor-owned 90-day suppression; idempotent |
 | `set_discovery_preferences_v1` | booleans, consent_version, expected_version | authoritative versioned preference result; opt-out deletes matching digest atomically |
-| `enroll_discovery_email_v1` | consent_version | derives verified current Auth email server-side; returns status only |
+| `match-selected-contacts-v1` `enroll_email` action | consent_version | derives verified current Auth email server-side; returns status only |
 | `create_friend_invite_v1` | request_nonce | invite URL, code, expires_at; same nonce returns same invitation |
 | `revoke_friend_invite_v1` | invite_id | owner-only, idempotent |
-| Public invitation resolver | token or code | minimal currently permitted inviter identity and install/open actions; no friend graph or hidden content |
+| Public invitation resolver | token | minimal currently permitted inviter identity and install/open actions; no friend graph or hidden content |
 | `resolve_friend_invite_v1` | token or code | authenticated authoritative destination and relationship state |
-| `consume_people_prompt_v1` | shown/dismissed, expected eligibility version | atomic once-per-account claim; does not mark consumption on failed rendering |
-| Friendship adapter v2 | target/request ID, source enum, request_nonce | authoritative relation state + relation_id; wraps existing authorization and notifications |
+| `consume_people_prompt_v1` | shown/dismissed/opened | atomic once-per-account claim; does not mark consumption on failed rendering |
+| Friendship adapter v2 | target/request ID, source enum, request_nonce, optional validated invite_id | authoritative request row; wraps existing authorization and notifications |
 
 PersonSummary: id, display_name, username, avatar reference via current permitted
 media mechanism, friendship_state, permitted mutual_count, reason enum, next
@@ -304,6 +305,8 @@ identity and cannot prove block status. Disable caching of invitation pages,
 use noindex and no-referrer, and exclude tokens/codes from logs and analytics.
 Expire after 14 days. Each recipient can use an invitation to start their own
 request; owner revocation stops future resolution but does not remove friendships.
+The four new backend capabilities are created disabled. QA must deploy and verify
+the migration and both Edge Functions before enabling each capability explicitly.
 
 ### Suggestion ranking
 
@@ -386,11 +389,13 @@ invitation to a confirmed friendship; keep the join internal and publish aggrega
 rates, not invitation IDs. A generic profile share has no reliable recipient
 conversion denominator. Do not invent one from share-sheet callbacks.
 
-Server friendship events use a transactional outbox or equivalent durable
-deduplication keyed internally by transition/account; never emit duplicate success
-events from client retries. First-friend events are one per account, including
-both parties if applicable. Respect analytics consent at delivery; declined
-collection does not block friendship or overwrite operational state.
+The server stores request attribution and first-friend state transactionally with
+the authoritative acceptance, keyed by request and account. This durable state is
+the deduplicated source for aggregate conversion and future server-delivered
+`people_friendship_created` / `people_first_friend_reached` events; clients do not
+guess either event from retries. Respect analytics consent whenever that state is
+delivered to analytics. Declined collection does not block friendship or overwrite
+the operational state.
 
 Primary metric: accounts created in a cohort that gain their first reciprocal
 friend within seven days / all new eligible accounts in that cohort. Exclude
@@ -410,7 +415,7 @@ without a baseline; alpha results remain directional at small sample sizes.
 | A — Hub and search | Extract reusable person row/state model; visible entry points; P1/P2; inline request actions; pagination; first-week state contract | Empty and populated fixtures, query-race tests, request-state tests, accessibility checklist |
 | B — Sharing and invite completion | P4/P5, canonical QR, minimal link share, invite contracts/landing, pending-route persistence and recovery code | Installed/signed-out/new-install recovery matrix; token expiry/revocation and blocks enforced |
 | C — Contacts | P3/P7, verified-email opt-in, private matching index, Edge Function, cleanup, privacy disclosures | Cross-account/abuse tests, zero sensitive payload logging, unmatched/relay/cancel/offline scenarios |
-| D — Suggestions and activation | Mutual/context ranking with consent filters, suppression, P6 prompt, analytics server outbox | Visibility-loss tests, prompt deduplication, attribution and event-schema tests |
+| D — Suggestions and activation | Mutual/context ranking with consent filters, suppression, P6 prompt, durable server attribution state, typed client analytics | Visibility-loss tests, prompt deduplication, attribution and event-schema tests |
 | E — Expanded Contacts | Optional limited/full access and optional separately verified identifiers, only after selected-contact match-rate review | Permission/revocation matrix and same privacy guarantees; separate enablement decision |
 
 All six non-contact solutions are in A–D. E is an optional enhancement; it does
@@ -450,11 +455,13 @@ offline retry, QR scan destination, and the actual beta install recovery journey
 Record hardware-only claims separately and follow owner promotion requirements.
 No TestFlight archive/upload/assignment is authorized by this plan.
 
-Done means A–D are implemented, their backend contracts pass isolated authorization
-tests, the prepared runtime matrix passes at its declared level, all six alternate
-discovery paths are reachable, operational deletion/opt-out works, and measured
-analytics payloads contain only allowed fields. Record source/local/production/
-physical/TestFlight states separately in the living status documents at delivery.
+Source delivery is complete when A–D are implemented, backend contracts pass
+isolated authorization tests, the available local runtime matrix passes at its
+declared level, all six alternate discovery paths are wired, operational
+deletion/opt-out is enforced, and measured analytics payloads contain only allowed
+fields. Production rollout additionally requires disposable-QA cross-account
+acceptance and the broader backend-dependent runtime matrix above. Record source,
+local, production, physical and TestFlight states separately in living status.
 
 ## Sources and platform constraints
 

@@ -46,13 +46,19 @@ Passport, friends, collaborative lists, safety, public sharing, ownership,
 widgets, and share extension are implemented foundations. Work in these areas is
 feedback-driven hardening rather than an assumption that the surface is absent.
 
-## Next after notification acceptance
+## People discovery implemented in source; rollout pending
 
-- Deliver Contacts and all six friend-discovery improvements through the
+- Contacts and all six friend-discovery improvements are implemented in source
+  through the
   [People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md):
   visible People hub and search recovery, profile links/QR, invitation completion,
   selected-contact matching, mutual/context suggestions, and first-week prompts.
-  Scope is approved; contracts and rollout defaults are planned, not implemented.
+- Full address-book access remains the optional later Phase E and is not enabled.
+  The next gate is disposable-QA migration/Edge deployment, secret and public
+  route configuration, cross-account runtime acceptance, then production and a
+  replacement TestFlight build. Source implementation is not a deployment claim.
+
+## Next after notification acceptance
 
 - Improve search and cafe identity when TestFlight evidence identifies concrete
   duplication or discovery failures.

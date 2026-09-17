@@ -168,6 +168,8 @@ struct FeedTabView: View {
     @State private var feedSearchQuery = ""
     @State private var isFeedSearchPresented = false
     @State private var isPeopleHubPresented = false
+    @State private var peopleHubSource: PeopleDiscoverySource = .feed
+    @State private var showsPeopleFirstWeekPrompt = false
     @State private var refreshPullProgress: CGFloat = 0
     @State private var isRefreshingFeed = false
     @State private var didArmRefresh = false
@@ -216,6 +218,7 @@ struct FeedTabView: View {
                             onActivityRequested?()
                         }
                         MugshotIconButton(systemName: "person.2.fill", size: 36) {
+                            peopleHubSource = .feed
                             isPeopleHubPresented = true
                         }
                         .accessibilityLabel("People, requests, and friends")
@@ -268,6 +271,9 @@ struct FeedTabView: View {
 
                             if selectedScope == .ranked && !hasDismissedYourMixEducation {
                                 feedScopeEducation
+                            }
+                            if showsPeopleFirstWeekPrompt {
+                                peopleFirstWeekPrompt
                             }
                             feedContent
                         }
@@ -380,7 +386,10 @@ struct FeedTabView: View {
             }
         }
         .sheet(isPresented: $isPeopleHubPresented) {
-            PeopleHubView(dataManager: dataManager)
+            PeopleDiscoveryHubView(
+                dataManager: dataManager,
+                source: peopleHubSource
+            )
         }
         .sheet(item: $selectedCafeRoute) { route in
             if let cafe = route.cafe {
@@ -399,6 +408,7 @@ struct FeedTabView: View {
         .task(id: "\(feedTaskID)|\(tabIsActive)") {
             guard tabIsActive else { return }
             await loadRemoteFeedIfNeeded()
+            await refreshPeoplePromptEligibility()
         }
     }
 
@@ -450,6 +460,70 @@ struct FeedTabView: View {
         .background(Color.mugshotMint.opacity(0.24))
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var peopleFirstWeekPrompt: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "person.2.badge.plus")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.mugshotSage)
+                .frame(width: 34, height: 34)
+                .background(Color.foamWhite, in: Circle())
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Coffee is better with friends")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.espressoBrown)
+                Text("Choose a contact, share your profile, or search by @username.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.secondaryText)
+                Button("Find your people") {
+                    peopleHubSource = .firstWeek
+                    isPeopleHubPresented = true
+                    consumePeoplePrompt("opened")
+                }
+                .font(.system(size: 12, weight: .bold))
+            }
+            Spacer(minLength: 4)
+            Button {
+                consumePeoplePrompt("dismissed")
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss find friends prompt")
+        }
+        .padding(14)
+        .background(Color.mugshotMint.opacity(0.24))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+    }
+
+    @MainActor
+    private func refreshPeoplePromptEligibility() async {
+        guard authModel.authenticatedUser != nil,
+              let client = try? SupabaseClientProvider.shared.client(),
+              let eligible = try? await PeopleDiscoveryService(client: client).firstWeekPromptEligible(),
+              eligible else {
+            showsPeopleFirstWeekPrompt = false
+            return
+        }
+        guard !showsPeopleFirstWeekPrompt else { return }
+        showsPeopleFirstWeekPrompt = true
+        MugshotAnalytics.shared.capture(.peopleFirstWeekPrompt(action: "viewed"))
+        try? await PeopleDiscoveryService(
+            client: SupabaseClientProvider.shared.client()
+        ).consumeFirstWeekPrompt(outcome: "shown")
+    }
+
+    private func consumePeoplePrompt(_ outcome: String) {
+        showsPeopleFirstWeekPrompt = false
+        MugshotAnalytics.shared.capture(.peopleFirstWeekPrompt(action: outcome))
+        Task {
+            guard let client = try? SupabaseClientProvider.shared.client() else { return }
+            try? await PeopleDiscoveryService(client: client).consumeFirstWeekPrompt(outcome: outcome)
+        }
     }
     
     private var visits: [Visit] {
@@ -702,6 +776,7 @@ struct FeedTabView: View {
             systemImage: "person.2.fill",
             accessibilityHint: "Opens people search and friend requests"
         ) {
+            peopleHubSource = .friendsEmpty
             isPeopleHubPresented = true
         }
     }
