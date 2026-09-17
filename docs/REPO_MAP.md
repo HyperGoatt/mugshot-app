@@ -43,7 +43,7 @@ through the committed package resolution.
 | Auth/Profile | Identity, callbacks, session/account isolation and public profile projections |
 | Composer/Visits | Cafe and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery; central Add > Home is temporarily gated by the build-8 placeholder while the Home implementation remains in source |
 | Home Workbench | Coffee library, recipes, brew plans/actuals, reuse and owner journal projection |
-| Feed/Social | Viewer-scoped feed/detail, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
+| Feed/Social | Viewer-scoped feed/detail, the People discovery hub, selected-contact matching, profile/invite sharing, suggestions, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
 | Map/Saved | Search, cafe identity, saved state, discovery and collaborative lists |
 | Journal/Taste | Canonical history, reflections, Taste Passport and sensory projections |
 | Safety/Ownership | Visibility, blocks, reports, enforcement, export, deletion and public links |
@@ -64,7 +64,8 @@ See [Real data flow status](REAL_DATA_FLOW_STATUS.md) for the authority matrix.
 
 - `supabase/migrations/` is the forward-only schema source of truth.
 - `supabase/functions/` contains pinned Deno Edge Functions for analysis,
-  account deletion, Activity delivery, and public sharing.
+  account deletion, Activity delivery, public sharing, selected-contact matching,
+  and minimal noindex invitation landing pages.
 - `supabase/tests/` contains SQL security and behavior contracts.
 - `qa/pglite/` provides hermetic migration and lifecycle checks without a live
   Supabase connection.

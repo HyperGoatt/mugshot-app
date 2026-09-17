@@ -4,6 +4,35 @@ status: current
 last_verified: 2026-09-17
 ---
 
+## 2026-09-17 — People discovery implementation
+
+- Replaced the Feed/Profile People entry points with a concrete People hub that
+  combines improved name, handle, and profile-link search; incoming requests;
+  friends; sent requests; privacy-filtered suggestions; and actionable empty,
+  loading, retry, offline, and relationship states.
+- Added selected-contact discovery through the iOS contact picker with explicit
+  education and review, transient email matching, per-request item keys, a
+  32-KB/50-contact/200-address boundary, HMAC lookup, opt-in verified-email
+  enrollment, abuse budgets, no-store responses, and no full address-book upload.
+- Added canonical profile links, native sharing, QR presentation, durable
+  invitation links and codes, install/auth recovery, a first-week activation
+  prompt, and live Friends and Discoverability preferences.
+- Added additive private Supabase contracts for preferences, protected discovery
+  identifiers, suppression, versioned invite keys, invitation lifecycle,
+  relationship attribution, prompt state, and bounded action/contact budgets.
+  Added the `match-selected-contacts-v1` and public invitation Edge Functions.
+- Added typed, coarse People analytics with count buckets and no search text,
+  contact identifiers, invitation secrets, or social IDs; updated the privacy
+  manifest and ready-to-use in-product copy.
+- Added a hermetic PostgreSQL execution contract for capability-off rollout,
+  preference opt-in, protected identifier enrollment, search, invitation
+  creation/resolution, attributed request acceptance, and caller privileges.
+- Locally verified with the 13-check full-static gate, the focused People route
+  and analytics tests on iOS 27 Simulator, and a fixture runtime review of the
+  hub, Contacts education, and native selected-contact picker. No migration or
+  Edge Function was deployed, no production secret/route was configured, and no
+  TestFlight build changed.
+
 ## 2026-09-17 — People discovery implementation plan
 
 - Specified Contacts plus all six approved discovery improvements: profile links

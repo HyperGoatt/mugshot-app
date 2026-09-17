@@ -449,6 +449,24 @@ enum MugshotAnalyticsEvent: Equatable {
     )
     case activityOpened(source: ActivityOpenSource)
     case activityRouteResult(ActivityRouteResult, source: ActivityOpenSource)
+    case peopleHubOpened(source: PeopleDiscoverySource)
+    case peopleProfileShareOpened(format: String, source: PeopleDiscoverySource)
+    case peopleSearchCompleted(resultCount: Int, outcome: String, durationSeconds: Int)
+    case peopleFriendRequestCompleted(
+        action: String,
+        outcome: String,
+        source: PeopleDiscoverySource
+    )
+    case peopleSuggestionOpened(reason: String, rankingVersion: String)
+    case peopleSuggestionDismissed(reason: String, action: String, rankingVersion: String)
+    case peopleContactsStarted(mode: String)
+    case peopleContactsSelectionCompleted(selectedCount: Int, usableCount: Int)
+    case peopleContactsMatchCompleted(selectedCount: Int, matchedCount: Int, outcome: String)
+    case peopleInviteResolved(outcome: String, source: PeopleDiscoverySource)
+    case peopleInviteCreated(outcome: String)
+    case peopleInviteHandoffCompleted(outcome: String)
+    case peopleFirstWeekPrompt(action: String)
+    case peopleDiscoveryPreferenceChanged(preference: String, enabled: Bool, outcome: String)
     case discovery(
         action: MugshotDiscoveryAnalyticsAction,
         source: DiscoveryAttributionSource,
@@ -715,6 +733,111 @@ enum MugshotAnalyticsEvent: Equatable {
                     "source": .string(source.rawValue)
                 ]
             )
+        case .peopleHubOpened(let source):
+            return payload(
+                "people_hub_opened",
+                ["source": .string(source.rawValue)]
+            )
+        case .peopleProfileShareOpened(let format, let source):
+            return payload(
+                "people_profile_share_opened",
+                [
+                    "format": .string(Self.allowlisted(format, allowed: ["link", "qr"])),
+                    "source": .string(source.rawValue)
+                ]
+            )
+        case .peopleSearchCompleted(let resultCount, let outcome, let durationSeconds):
+            return payload(
+                "people_search_completed",
+                [
+                    "result_bucket": .string(Self.countBucket(resultCount)),
+                    "outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed"])),
+                    "duration_seconds": .integer(Self.boundedPeopleDuration(durationSeconds))
+                ]
+            )
+        case .peopleFriendRequestCompleted(let action, let outcome, let source):
+            return payload(
+                "people_friend_request_completed",
+                [
+                    "action": .string(Self.allowlisted(action, allowed: ["send", "accept", "decline", "cancel"])),
+                    "outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed"])),
+                    "source": .string(source.rawValue)
+                ]
+            )
+        case .peopleSuggestionOpened(let reason, let rankingVersion):
+            return payload(
+                "people_suggestion_opened",
+                [
+                    "reason": .string(Self.allowlisted(reason, allowed: ["shared_mugshot", "shared_list", "mutual_friends"])),
+                    "ranking_version": .string(rankingVersion == "people_v1" ? rankingVersion : "other")
+                ]
+            )
+        case .peopleSuggestionDismissed(let reason, let action, let rankingVersion):
+            return payload(
+                "people_suggestion_dismissed",
+                [
+                    "reason": .string(Self.allowlisted(reason, allowed: ["shared_mugshot", "shared_list", "mutual_friends"])),
+                    "action": .string(Self.allowlisted(action, allowed: ["dismiss", "undo"])),
+                    "ranking_version": .string(rankingVersion == "people_v1" ? rankingVersion : "other")
+                ]
+            )
+        case .peopleContactsStarted(let mode):
+            return payload(
+                "people_contacts_started",
+                ["mode": .string(Self.allowlisted(mode, allowed: ["selected", "limited", "full"]))]
+            )
+        case .peopleContactsSelectionCompleted(let selectedCount, let usableCount):
+            return payload(
+                "people_contacts_selection_completed",
+                [
+                    "selected_bucket": .string(Self.countBucket(selectedCount)),
+                    "usable_bucket": .string(Self.countBucket(usableCount))
+                ]
+            )
+        case .peopleContactsMatchCompleted(let selectedCount, let matchedCount, let outcome):
+            return payload(
+                "people_contacts_match_completed",
+                [
+                    "selected_bucket": .string(Self.countBucket(selectedCount)),
+                    "matched_bucket": .string(Self.countBucket(matchedCount)),
+                    "outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed"]))
+                ]
+            )
+        case .peopleInviteResolved(let outcome, let source):
+            return payload(
+                "people_invite_resolved",
+                [
+                    "outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed", "expired", "revoked"])),
+                    "source": .string(source.rawValue)
+                ]
+            )
+        case .peopleInviteCreated(let outcome):
+            return payload(
+                "people_invite_created",
+                ["outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed"]))]
+            )
+        case .peopleInviteHandoffCompleted(let outcome):
+            return payload(
+                "people_invite_handoff_completed",
+                ["outcome": .string(Self.allowlisted(outcome, allowed: ["completed", "canceled", "failed"]))]
+            )
+        case .peopleFirstWeekPrompt(let action):
+            return payload(
+                "people_first_week_prompt",
+                ["action": .string(Self.allowlisted(action, allowed: ["viewed", "opened", "dismissed"]))]
+            )
+        case .peopleDiscoveryPreferenceChanged(let preference, let enabled, let outcome):
+            return payload(
+                "people_discovery_preference_changed",
+                [
+                    "preference": .string(Self.allowlisted(
+                        preference,
+                        allowed: ["email", "suggestions", "mutual_explanations"]
+                    )),
+                    "enabled": .boolean(enabled),
+                    "outcome": .string(Self.allowlisted(outcome, allowed: ["success", "failed"]))
+                ]
+            )
         case .discovery(let action, let source, let surface, let rankingVersion, let cafeID):
             var properties: [String: MugshotAnalyticsPropertyValue] = [
                 "source": .string(source.rawValue),
@@ -765,6 +888,24 @@ enum MugshotAnalyticsEvent: Equatable {
             event,
             authenticationProperties(flow: flow, method: method)
         )
+    }
+
+    private static func countBucket(_ count: Int) -> String {
+        switch max(0, count) {
+        case 0: "0"
+        case 1: "1"
+        case 2...5: "2_5"
+        case 6...20: "6_20"
+        default: "21_plus"
+        }
+    }
+
+    private static func allowlisted(_ value: String, allowed: Set<String>) -> String {
+        allowed.contains(value) ? value : "other"
+    }
+
+    private static func boundedPeopleDuration(_ durationSeconds: Int) -> Int {
+        min(max(durationSeconds, 0), 3_600)
     }
 
     private func authenticationProperties(

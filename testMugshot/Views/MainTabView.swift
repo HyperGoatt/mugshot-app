@@ -19,6 +19,7 @@ struct MainTabView: View {
     @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
     @StateObject private var reflectionReminderRouter = ReflectionReminderRouter.shared
     @StateObject private var nearbyReminderRouter = NearbyCafeReminderRouter.shared
+    @StateObject private var friendInviteRouter = FriendInviteRouter.shared
     @StateObject private var enforcementStore = EnforcementNoticeStore()
     @StateObject private var automaticSipRecovery = AutomaticSipRecoveryCoordinator()
     @StateObject private var placeImportCoordinator = PendingPlaceImportCoordinator()
@@ -47,6 +48,7 @@ struct MainTabView: View {
     @State private var sharedMugshotRoute: MugshotSharedLinkRoute?
     @State private var sharedProfileRoute: MugshotProfileSharedLinkRoute?
     @State private var publicCafeListRoute: PublicCafeListLinkRoute?
+    @State private var friendInviteRoute: FriendInviteRoute?
     @State private var nearbyReminderCafe: Cafe?
     @State private var selectedReflectionReminderRoute: PendingReflectionReminderRoute?
     @State private var isBottomNavHidden = false
@@ -502,6 +504,14 @@ struct MainTabView: View {
             .environmentObject(authModel)
             .presentationDetents([.large])
         }
+        .sheet(item: $friendInviteRoute, onDismiss: consumePresentedFriendInvite) { route in
+            PeopleDiscoveryHubView(
+                dataManager: dataManager,
+                initialInviteSecret: route.secret,
+                source: .inviteLink
+            )
+            .environmentObject(authModel)
+        }
         .sheet(item: $nearbyReminderCafe) { cafe in
             CafeDetailView(
                 cafe: cafe,
@@ -537,6 +547,8 @@ struct MainTabView: View {
                 // The always-mounted root queues auth callbacks until session
                 // restoration finishes and consumes each one-time URL once.
                 return
+            } else if friendInviteRouter.enqueue(url: url) {
+                presentPendingFriendInvite()
             } else if let route = MugshotSharedLinkRoute.resolve(url) {
                 sharedMugshotRoute = route
             } else if let route = MugshotProfileSharedLinkRoute.resolve(url) {
@@ -580,6 +592,7 @@ struct MainTabView: View {
                   authModel.authenticatedUser?.id == userId else { return }
             handlePendingActivityRoute()
             handlePendingReflectionReminder()
+            presentPendingFriendInvite()
 
             guard let userId,
                   let client = try? SupabaseClientProvider.shared.client() else { return }
@@ -597,6 +610,21 @@ struct MainTabView: View {
                   authModel.authenticatedUser?.id == userId else { return }
             await DrinkAnalysisService(client: client).retryPendingAnalyses(userId: userId)
         }
+    }
+
+    @MainActor
+    private func presentPendingFriendInvite() {
+        guard authModel.authenticatedUser != nil,
+              friendInviteRoute == nil,
+              let route = friendInviteRouter.pendingRoute else { return }
+        friendInviteRoute = route
+    }
+
+    @MainActor
+    private func consumePresentedFriendInvite() {
+        guard let route = friendInviteRoute ?? friendInviteRouter.pendingRoute else { return }
+        friendInviteRouter.consume(route)
+        friendInviteRoute = nil
     }
 
     @ViewBuilder

@@ -370,6 +370,14 @@ fingerprint evidence closed on 2026-08-24.
 - Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
   friend requests, blocking, reporting, moderation state, collaborative cafe
   lists, public share links, and privacy-aware projections.
+- Current source replaces the legacy People sheet with a Feed/Profile-accessible
+  People hub: name/handle/profile-link search, requests, friends, sent state,
+  selected-contact matching, profile link and QR sharing, invitation link/code
+  recovery, shared-context and mutual-friend suggestions, search recovery, and a
+  once-per-account first-week prompt. Contact selection is explicit and transient;
+  full address-book sync is not enabled. The backend migration and Edge Functions
+  are implemented locally but are not production configured or client-enabled in
+  a distributed build.
 - The shared owner/friend profile uses the approved Editorial Atlas layout: a
   compact 112-point photographic banner with a foam-white tappable
   Friends/Sips/Cafes dock, streamlined identity/actions, up to three compact

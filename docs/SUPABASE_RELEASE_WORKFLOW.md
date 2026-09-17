@@ -1,8 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+People discovery amendment (2026-09-17): migration
+`20260917185300_people_discovery_v1.sql` and Edge Functions
+`match-selected-contacts-v1` / `friend-invite` are implemented in source but are
+not deployed. Rehearse them on a disposable QA branch before client enablement.
+Configure a new random 32-byte-or-stronger `PEOPLE_DISCOVERY_HMAC_KEY_V1`, set
+`PEOPLE_DISCOVERY_ENABLED=true`, and provide first-party
+`MUGSHOT_MARKETING_URL` / `MUGSHOT_APP_STORE_URL` values only through Edge
+secrets. The migration creates all four new capabilities disabled. Deploy the
+migration before either function, verify the capability RPC remains off, deploy
+and validate both functions, and only then explicitly enable the individually
+accepted capabilities in `private.discovery_capabilities`. Exercise
+opted-in/opted-out/blocked/cross-account matching and invite expiry/revocation
+before client promotion. Disable `private.discovery_capabilities` individually or set
+the Edge kill switch false for rollback; never drop private tables or invalidate
+existing friendships. Do not reuse the lookup HMAC key as an invitation key—the
+database creates and retains its own versioned invitation key material.
 
 Home/Recipes amendment (2026-09-16): additive migrations
 `20260915212702_home_recipe_workspace.sql` through
