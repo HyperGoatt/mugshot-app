@@ -103,9 +103,12 @@ but no Supabase environment, production data, or App Store release changed. See 
 ## Native Home and Recipes — 2026-09-16
 
 The complete native Home/Recipes plan remains implemented and
-production-configured. Production is aligned at all 177 migrations through
-`20260916020417_home_recipe_http_conflicts.sql`. The explicit stored-off flag
-remains a rollback switch and does not remove saved recipe or journal data.
+production-configured. Its contract remains deployed through
+`20260916020417_home_recipe_http_conflicts.sql`; the shared production database
+is now aligned at all 179 repository migrations through
+`20260917204208_people_discovery_foreign_key_indexes.sql`. The explicit
+stored-off flag remains a rollback switch and does not remove saved recipe or
+journal data.
 
 Build 8 historically gates central Add > Log a Sip > Home with an
 under-construction placeholder. Current source supersedes that client behavior
@@ -380,6 +383,17 @@ fingerprint evidence closed on 2026-08-24.
 - Remote Feed, Journal, profiles, likes, comments, mentions, reactions, tags,
   friend requests, blocking, reporting, moderation state, collaborative cafe
   lists, public share links, and privacy-aware projections.
+- Current source replaces the legacy People sheet with a Feed/Profile-accessible
+  People hub: name/handle/profile-link search, requests, friends, sent state,
+  selected-contact matching, profile link and QR sharing, invitation link/code
+  recovery, shared-context and mutual-friend suggestions, search recovery, and a
+  once-per-account first-week prompt. Contact selection is explicit and transient;
+  full address-book sync is not enabled. Production is aligned at the two People
+  migrations; both Edge Functions and their secrets/routes are live, and all four
+  independently reversible capabilities are enabled. Hosted SQL and real Auth/Edge
+  acceptance passed before activation, the disposable branch is deleted, and the
+  signed development app was relaunched on Joe's iPhone. Hands-on People-flow and
+  replacement-TestFlight acceptance remain separate.
 - The shared owner/friend profile uses the approved Editorial Atlas layout: a
   compact 112-point photographic banner with a foam-white tappable
   Friends/Sips/Cafes dock, streamlined identity/actions, up to three compact

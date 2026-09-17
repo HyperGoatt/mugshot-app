@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-15
+last_verified: 2026-09-17
 ---
 
 # Mugshot PostHog analytics plan
@@ -15,6 +15,16 @@ last_verified: 2026-09-15
 - Never send captions, journal or raw-note content, cafe/place identifiers, names, email addresses, search text, coordinates, photo data, social identifiers, auth tokens, or raw error messages.
 
 ## Event taxonomy
+
+People discovery events and the first-reciprocal-friend metric are defined in
+[People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md).
+The source now instruments hub/share/search/request/suggestion/contact/invite and
+first-week-prompt events with typed sources, allowlisted outcomes, bounded duration,
+and count buckets. It never sends search text, names, addresses, item keys, account
+IDs, invite IDs, codes, or tokens. Authoritative request acceptance stores the
+first-friend time and bounded source in private server state; invitation handoff
+alone is not conversion. Production event delivery and cohort coverage remain a
+rollout verification gate, not an implementation claim.
 
 Home/Recipes adds `home_log_opened`, `home_reflection_viewed`, `home_log_saved`,
 `home_log_left_unfinished`, `home_save_failed`, `home_recipe_saved`, `home_sync_failed`,
@@ -38,6 +48,7 @@ All custom event names use lower-case `object_verb` spelling. Common properties 
 | Engagement | `cafe_state_changed`, `sip_liked`, `comment_added` | `surface`, `state`, `action` |
 | Sharing | `share_hub_viewed`, `share_format_selected`, `share_template_selected`, `share_photo_layout_selected`, `share_destination_tapped`, `share_handoff_opened`, `share_handoff_failed`, `system_share_completed`, `share_hub_dismissed` | `format`, `destination`, `template`, `photo_layout`, `visibility`, `has_public_link`; no shared content or identifiers |
 | Notifications | `notification_education_viewed`, `notification_permission_result`, `notification_registration_result`, `notification_preference_changed`, `activity_opened`, `activity_route_result` | coarse permission/result/category/source/environment values only; never tokens, account/social/content IDs, notification text, or deep links |
+| People discovery | `people_hub_opened`, `people_profile_share_opened`, `people_search_completed`, `people_friend_request_completed`, `people_suggestion_dismissed`, `people_contacts_started`, `people_contacts_selection_completed`, `people_contacts_match_completed`, `people_invite_created`, `people_invite_resolved`, `people_first_week_prompt` | allowlisted source/action/outcome/reason/mode, ranking version, bounded duration and coarse count buckets only; never queries, contacts, item keys, social IDs, codes, tokens, or raw errors |
 
 Anonymous installs use the SDK-generated random distinct ID. After authentication, Mugshot calls `identify` with the Supabase UUID so PostHog links the pre-authentication journey to the account. Sign-out calls `reset` so subsequent activity on a shared device receives a new anonymous identity. No account profile fields are attached.
 

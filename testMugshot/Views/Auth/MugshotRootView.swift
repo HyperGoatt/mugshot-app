@@ -9,6 +9,7 @@ import SwiftUI
 struct MugshotRootView: View {
     @ObservedObject var dataManager: DataManager
     @StateObject private var authModel = AppAuthModel()
+    @StateObject private var friendInviteRouter = FriendInviteRouter.shared
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
     @AppStorage(MugshotFirstLaunchPolicy.completedKey) private var completedFirstLaunchEducation = false
     @State private var firstLaunchLandingTab: MugshotTab?
@@ -77,6 +78,7 @@ struct MugshotRootView: View {
             await processPendingAuthCallbacks()
         }
         .onOpenURL { url in
+            _ = friendInviteRouter.enqueue(url: url)
             guard authCallbackQueue.enqueue(url) else { return }
             Task {
                 await processPendingAuthCallbacks()

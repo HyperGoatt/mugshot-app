@@ -14,6 +14,7 @@ struct LocalOwnerProfileView: View {
     @State private var selectedTab: ProfileContentTab = .recent
     @State private var showEditProfile = false
     @State private var showSettings = false
+    @State private var showPeopleDiscovery = false
     @State private var remoteProfileVisits: [RemoteVisitSummary] = []
     @State private var isLoadingRemoteProfileStats = false
     @State private var remoteProfileStatsError: String?
@@ -101,6 +102,10 @@ struct LocalOwnerProfileView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     MugshotScreenHeader("Profile") {
+                        MugshotIconButton(systemName: "person.2.fill", size: 36) {
+                            showPeopleDiscovery = true
+                        }
+                        .accessibilityLabel("Find friends")
                         MugshotIconButton(systemName: "gearshape", size: 36) {
                             showSettings = true
                         }
@@ -152,6 +157,10 @@ struct LocalOwnerProfileView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView(dataManager: dataManager)
+                    .environmentObject(authModel)
+            }
+            .sheet(isPresented: $showPeopleDiscovery) {
+                PeopleDiscoveryHubView(dataManager: dataManager, source: .profile)
                     .environmentObject(authModel)
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)") {

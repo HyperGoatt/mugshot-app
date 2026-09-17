@@ -1,8 +1,42 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
+
+People discovery amendment (2026-09-17): migration
+`20260917185300_people_discovery_v1.sql`, follow-up index migration
+`20260917204208_people_discovery_foreign_key_indexes.sql`, and Edge Functions
+`match-selected-contacts-v1` / `friend-invite` are production-configured. The
+repository and production histories are aligned at 179 migrations, and the
+pinned dry run reports no pending migration. A new random
+32-byte-or-stronger `PEOPLE_DISCOVERY_HMAC_KEY_V1` is configured together with
+the first-party route values; `PEOPLE_DISCOVERY_ENABLED` is exactly `true`.
+Both functions are active at version 3 with import maps, and the four database
+capabilities are enabled after gated acceptance. Keep
+`PEOPLE_DISCOVERY_HMAC_KEY_V1` private, set
+`PEOPLE_DISCOVERY_ENABLED=true`, and provide first-party
+`MUGSHOT_MARKETING_URL` / `MUGSHOT_APP_STORE_URL` values only through Edge
+secrets. Contact matching fails closed unless the kill switch is exactly
+`true`; missing, differently cased, or malformed values stay disabled. The
+migration created all four new capabilities disabled. The completed rollout
+deployed the migrations before either function, verified the capability RPC
+remained off, validated both functions, and only then enabled the individually
+accepted capabilities in `private.discovery_capabilities`. Future changes must
+exercise opted-in/opted-out/blocked/cross-account matching and invite
+expiry/revocation before client promotion. Disable
+`private.discovery_capabilities` individually or set
+the Edge kill switch false for rollback; never drop private tables or invalidate
+existing friendships. Do not reuse the lookup HMAC key as an invitation key—the
+database creates and retains its own versioned invitation key material.
+The hosted contract verifies every private-table grant with an unambiguous
+`candidate_table` loop before production rollout.
+`qa/pglite/check-people-discovery-remote.mjs` then exercises real disposable
+Auth and Edge transport and restores all four capability rows to disabled.
+The 2026-09-17 rollout passed 66/66 hosted SQL contracts and the complete hosted
+harness; today's physical backup completed before deployment, protected
+fingerprints and bucket visibility remained unchanged, and the paid QA branch
+was deleted after acceptance.
 
 Home/Recipes amendment (2026-09-16): additive migrations
 `20260915212702_home_recipe_workspace.sql` through

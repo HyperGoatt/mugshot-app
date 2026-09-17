@@ -30,3 +30,9 @@ verify_jwt = true
 
 [functions.verify-cafe]
 verify_jwt = true
+
+[functions.match-selected-contacts-v1]
+verify_jwt = true
+
+[functions.friend-invite]
+verify_jwt = false

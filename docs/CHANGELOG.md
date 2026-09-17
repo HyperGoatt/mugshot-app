@@ -19,6 +19,68 @@ last_verified: 2026-09-17
   `co.mugshot.app.dev` on Joe's iPhone; hands-on acceptance is the current gate
   before any separately authorized TestFlight replacement.
 
+## 2026-09-17 — People discovery implementation
+
+- Replaced the Feed/Profile People entry points with a concrete People hub that
+  combines improved name, handle, and profile-link search; incoming requests;
+  friends; sent requests; privacy-filtered suggestions; and actionable empty,
+  loading, retry, offline, and relationship states.
+- Added selected-contact discovery through the iOS contact picker with explicit
+  education and review, transient email matching, per-request item keys, a
+  32-KB/50-contact/200-address boundary, HMAC lookup, opt-in verified-email
+  enrollment, abuse budgets, no-store responses, and no full address-book upload.
+- Added canonical profile links, native sharing, QR presentation, durable
+  invitation links and codes, install/auth recovery, a first-week activation
+  prompt, and live Friends and Discoverability preferences.
+- Added additive private Supabase contracts for preferences, protected discovery
+  identifiers, suppression, versioned invite keys, invitation lifecycle,
+  relationship attribution, prompt state, and bounded action/contact budgets.
+  Added the `match-selected-contacts-v1` and public invitation Edge Functions.
+- Added typed, coarse People analytics with count buckets and no search text,
+  contact identifiers, invitation secrets, or social IDs; updated the privacy
+  manifest and ready-to-use in-product copy.
+- Added a hermetic PostgreSQL execution contract for capability-off rollout,
+  preference opt-in, protected identifier enrollment, search, invitation
+  creation/resolution, attributed request acceptance, and caller privileges.
+- Hardened the contact-matching Edge kill switch so a missing or malformed
+  `PEOPLE_DISCOVERY_ENABLED` value fails closed; only the exact value `true`
+  permits identifier enrollment or matching.
+- Corrected the hosted People contract's private-table loop to avoid a
+  PL/pgSQL `table_name` ambiguity exposed by the disposable Supabase branch.
+- Added covering indexes for the People suppression-candidate and
+  request-attribution invitation foreign keys identified by the hosted
+  performance advisor.
+- Added a disposable-branch hosted People harness covering real Auth and Edge
+  transport, enrollment/matching, opt-out deletion, block filtering,
+  invitation resolution/revocation/expiry, no-store responses, and rollback.
+- Locally verified with the 13-check full-static gate, the focused People route
+  and analytics tests on iOS 27 Simulator, and a fixture runtime review of the
+  hub, Contacts education, and native selected-contact picker.
+- Verified the backend with 12 local checks, all 66 hosted SQL contracts, and a
+  disposable-branch real Auth/Edge run covering matching, opt-out, blocks,
+  invitations, expiry, revocation, no-store responses, and rollback. The paid
+  branch was deleted after acceptance and only the production branch remains.
+- Production advanced from 177 to the repository-aligned 179-migration head,
+  with today's completed physical backup and unchanged protected user, visit,
+  friend, request, Auth, Storage-object, and bucket fingerprints. Both People
+  Edge Functions are active at version 3 with their import maps, the dedicated
+  HMAC and route secrets are configured, and all four reversible capabilities
+  are enabled.
+- Relaunched the signed development app on Joe's connected iPhone and verified
+  the authenticated Feed renders against the production-configured backend.
+  Physical interaction with the new People journeys and replacement TestFlight
+  acceptance remain separate; no TestFlight build changed.
+
+## 2026-09-17 — People discovery implementation plan
+
+- Specified Contacts plus all six approved discovery improvements: profile links
+  and QR, mutual suggestions, shared-context suggestions, install/auth invitation
+  recovery, first-week prompting, and useful search dead ends.
+- Defined seven screens, relationship/error states, proposed versioned backend
+  contracts, verified-email opt-in, retention and privacy copy, analytics events,
+  release phases and acceptance criteria. Linked the roadmap and analytics plan.
+- Planning only: no application, backend, production, or distribution change.
+
 ## 2026-09-17 — Home and Recipes continuity repair
 
 - Repaired Home navigation so Journal, app-shortcut, recipe, preparation,

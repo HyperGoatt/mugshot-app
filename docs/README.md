@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-16
+last_verified: 2026-09-17
 ---
 
 # Mugshot documentation
@@ -21,6 +21,7 @@ with it.
 | [Real data flow status](REAL_DATA_FLOW_STATUS.md) | Remote authority, local fallback, and ownership boundaries |
 | [Repository map](REPO_MAP.md) | App, target, service, test, and backend architecture |
 | [Product roadmap](PRODUCT_ROADMAP.md) | Current sequencing and deferred product work |
+| [People discovery implementation spec](PEOPLE_DISCOVERY_IMPLEMENTATION_SPEC.md) | Implemented-in-source Contacts and six friend-discovery improvements, screens, states, contracts, privacy, rollout gates and measurement |
 | [Notification system](NOTIFICATION_SYSTEM.md) | Activity, APNs, device lifecycle, privacy, operations, and acceptance |
 | [Current sprint](CURRENT_SPRINT.md) | Active notification work and TestFlight feedback ledger |
 | [TestFlight feedback ledger](TESTFLIGHT_FEEDBACK_LEDGER.md) | Organizer-backed disposition and acceptance state for all 58 reports |

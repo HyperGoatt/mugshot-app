@@ -45,6 +45,17 @@ struct MugshotShareConfiguration: Equatable {
             .appendingPathComponent(slug, isDirectory: false)
     }
 
+    func profileURL(username: String) -> URL? {
+        let normalized = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            .drop(while: { $0 == "@" })
+            .lowercased()
+        guard MugshotProfileSharedLinkRoute.isValidUsername(normalized),
+              let publicBaseURL else { return nil }
+        return publicBaseURL
+            .appendingPathComponent("profile", isDirectory: true)
+            .appendingPathComponent(normalized, isDirectory: false)
+    }
+
     private static func usableValue(_ values: String?...) -> String? {
         values
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
