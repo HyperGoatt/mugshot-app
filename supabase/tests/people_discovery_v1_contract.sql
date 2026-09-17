@@ -1,20 +1,21 @@
 do $$
-declare table_name text; function_name text;
+declare candidate_table text; function_name text;
 begin
-  foreach table_name in array array[
+  foreach candidate_table in array array[
     'discovery_preferences','discovery_identifiers','discovery_keys','discovery_capabilities',
     'discovery_suppressions','friend_invites','friend_discovery_state',
     'friend_request_attributions','contact_match_budgets','discovery_action_budgets'
   ] loop
-    if to_regclass('private.' || table_name) is null then
-      raise exception 'missing private People discovery table: %', table_name;
+    if to_regclass('private.' || candidate_table) is null then
+      raise exception 'missing private People discovery table: %', candidate_table;
     end if;
     if exists (
       select 1 from information_schema.role_table_grants
-      where table_schema = 'private' and information_schema.role_table_grants.table_name = table_name
+      where table_schema = 'private'
+        and information_schema.role_table_grants.table_name = candidate_table
         and grantee in ('anon','authenticated')
     ) then
-      raise exception 'People discovery private table is client accessible: %', table_name;
+      raise exception 'People discovery private table is client accessible: %', candidate_table;
     end if;
   end loop;
 
