@@ -24,13 +24,31 @@ struct SipComposerLaunchContext: Codable, Equatable {
     var sourceVisitID: UUID?
     var sourceRecipeIdentityID: UUID?
     var sourceRecipeVersion: String?
+    var homeRecipeVersionID: UUID? = nil
+    var homePreparationSessionID: UUID? = nil
     var returnTab: MugshotTab?
     /// Identifies an already-saved private Home attempt. Older launches decode
     /// without it and retain their existing capture/validation behavior.
     var homeAttemptID: UUID?
     var homeRecipeAttachments: [HomeRecipePostAttachment]?
+    var homeRecipeAttachmentMode: HomeRecipeAttachmentMode? = nil
 
     static let centralAdd = SipComposerLaunchContext(source: .centralAdd)
+}
+
+enum HomeRecipeAttachmentMode: String, Codable, CaseIterable, Identifiable {
+    case fullDetails = "full_details"
+    case nameOnly = "name_only"
+    case doNotAttach = "do_not_attach"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .fullDetails: return "Full details"
+        case .nameOnly: return "Name only"
+        case .doNotAttach: return "Do not attach"
+        }
+    }
 }
 
 enum SipPhotoDeletionPolicy {
@@ -71,22 +89,25 @@ enum SipV3ComposerStep: String, Codable, CaseIterable, Identifiable {
 /// Cafe and Elsewhere continue to use `SipV3ComposerStep` unchanged.
 enum HomeWorkbenchPhase: String, Codable, CaseIterable, Identifiable, Sendable {
     case workbench
+    case quickCapture = "quick_capture"
     case brew
     case actuals
     case capture
     case sip
     case recipe
+    case saved
     case publish
 
     var id: String { rawValue }
 
     var progressStep: Int {
         switch self {
-        case .workbench: return 1
-        case .brew, .actuals: return 2
-        case .capture: return 3
-        case .sip, .recipe: return 4
-        case .publish: return 5
+        case .workbench, .quickCapture: return 1
+        case .brew, .actuals: return 1
+        case .capture: return 2
+        case .sip: return 3
+        case .recipe, .saved: return 4
+        case .publish: return 4
         }
     }
 }
@@ -95,6 +116,12 @@ enum HomeRecipeDecision: String, Codable, CaseIterable, Identifiable, Sendable {
     case keepExisting = "keep_existing"
     case createNewVersion = "create_new_version"
 
+    var id: String { rawValue }
+}
+
+enum HomeSipPath: String, Codable, CaseIterable, Identifiable, Sendable {
+    case guided
+    case quick
     var id: String { rawValue }
 }
 
@@ -369,6 +396,9 @@ struct SipDraft: Identifiable, Codable, Equatable {
     private var v3HomeWorkbenchPhase: HomeWorkbenchPhase?
     /// The recipe choice is separate from the attempt and from post audience.
     private var v3HomeRecipeDecision: HomeRecipeDecision?
+    private var v3HomeSipPath: HomeSipPath?
+    private var v3HomeNextTimeNote: String?
+    private var v3HomeAttemptActuals: HomeAttemptActuals?
 
     var contextNotes: String {
         get { v3ContextNotes ?? "" }
@@ -419,12 +449,35 @@ struct SipDraft: Identifiable, Codable, Equatable {
         set { v3HomeRecipeDecision = newValue }
     }
 
+    var homeSipPath: HomeSipPath {
+        get { v3HomeSipPath ?? .guided }
+        set { v3HomeSipPath = newValue }
+    }
+
+    var homeNextTimeNote: String {
+        get { v3HomeNextTimeNote ?? "" }
+        set { v3HomeNextTimeNote = newValue }
+    }
+
+    var homeAttemptActuals: HomeAttemptActuals {
+        get { v3HomeAttemptActuals ?? HomeAttemptActuals() }
+        set { v3HomeAttemptActuals = newValue }
+    }
+
+    /// The user's explicit star baseline before criteria-derived display math.
+    /// Home persistence keeps this separately so removing criteria restores it.
+    var manualOverallScoreForPersistence: Double? { v3ManualOverallScore }
+
     var includesRecipeBlueprint: Bool {
         context == .recipe || brewDetails.recipeName?.remoteTrimmedNonEmpty != nil
     }
 
     var recipePublicationRequirement: SipRecipePublicationRequirement {
-        includesRecipeBlueprint ? recipePublication.requirement : .ready
+        if launchContext.homeAttemptID != nil,
+           launchContext.homeRecipeAttachmentMode != .fullDetails {
+            return .ready
+        }
+        return includesRecipeBlueprint ? recipePublication.requirement : .ready
     }
 
     init(
@@ -541,6 +594,9 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.v3HomeComparisonSource = homeComparisonSource
         self.v3HomeWorkbenchPhase = homeWorkbenchPhase
         self.v3HomeRecipeDecision = homeRecipeDecision
+        self.v3HomeSipPath = nil
+        self.v3HomeNextTimeNote = nil
+        self.v3HomeAttemptActuals = nil
     }
 
     var ratingsDictionary: [String: Double] {

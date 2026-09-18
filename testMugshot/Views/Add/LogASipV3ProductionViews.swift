@@ -40,6 +40,7 @@ struct LogASipV3ProductionView: View {
     let onViewPublishedMugshot: () -> Void
     let onViewPassport: () -> Void
     let onUndoWantToTryRemoval: () -> Void
+    let onPrivateHomeSaved: () -> Void
     let onFinish: () -> Void
     let onStartAnother: (() -> Void)?
     let startAnotherTitle: String
@@ -49,7 +50,11 @@ struct LogASipV3ProductionView: View {
     @State private var sipCoachIndex = 0
     @State private var contextCoachIndex = 0
     @State private var trackedHomeCompletionVisitID: UUID?
+    @State private var homeSaveError: String?
+    @State private var isSavingHomeAttempt = false
+    @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
     @AppStorage(RoadmapFeatureFlags.homeRecipes) private var homeRecipesEnabled = RoadmapFeatureFlags.homeRecipesEnabledByDefault
+    @AppStorage(RoadmapFeatureFlags.homeSipV3Route) private var homeSipV3RouteEnabled = RoadmapFeatureFlags.homeSipV3RouteEnabledByDefault
 
     init(
         draft: Binding<SipDraft>,
@@ -82,6 +87,7 @@ struct LogASipV3ProductionView: View {
         onViewPublishedMugshot: @escaping () -> Void = {},
         onViewPassport: @escaping () -> Void = {},
         onUndoWantToTryRemoval: @escaping () -> Void = {},
+        onPrivateHomeSaved: @escaping () -> Void = {},
         onFinish: @escaping () -> Void = {},
         onStartAnother: (() -> Void)? = nil,
         startAnotherTitle: String = "Pour another one"
@@ -116,6 +122,7 @@ struct LogASipV3ProductionView: View {
         self.onViewPublishedMugshot = onViewPublishedMugshot
         self.onViewPassport = onViewPassport
         self.onUndoWantToTryRemoval = onUndoWantToTryRemoval
+        self.onPrivateHomeSaved = onPrivateHomeSaved
         self.onFinish = onFinish
         self.onStartAnother = onStartAnother
         self.startAnotherTitle = startAnotherTitle
@@ -123,17 +130,24 @@ struct LogASipV3ProductionView: View {
 
     @ViewBuilder
     var body: some View {
-        if usesHomeRecipeWorkspace, completion == nil {
-            HomeRecipeExperienceView(ownerID: draft.ownerUserID,
+        if usesLegacyHomeRoute, completion == nil {
+            HomeRecipeExperienceView(
+                ownerID: draft.ownerUserID,
                 initialAttempt: HomeAttemptRecord(id: draft.id, name: draft.drinkName),
                 initialRecipeID: draft.launchContext.sourceRecipeIdentityID,
-                onExit: onCancel) { publication in
+                onExit: onCancel
+            ) { publication in
                 draft = publication
-                photoImages = SipDraftStore.shared.load(id: publication.id, in: .forUserID(publication.ownerUserID))?.images ?? []
+                photoImages = SipDraftStore.shared.load(
+                    id: publication.id,
+                    in: .forUserID(publication.ownerUserID)
+                )?.images ?? []
                 step = .publish
             }
             .id(draft.ownerUserID)
-        } else { composerBody }
+        } else {
+            composerBody
+        }
     }
 
     private var composerBody: some View {
@@ -189,7 +203,31 @@ struct LogASipV3ProductionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if draft.launchContext.homeAttemptID != nil, completion == nil {
-                    ToolbarItem(placement: .cancellationAction) { Button("Close", action: onCancel) }
+                    ToolbarItemGroup(placement: .topBarLeading) {
+                        Button(
+                            "Close",
+                            action: draft.homeWorkbenchPhase == .saved || draft.homeWorkbenchPhase == .recipe
+                                ? onPrivateHomeSaved
+                                : onCancel
+                        )
+                        if draft.homeWorkbenchPhase == .publish {
+                            Button(action: moveBack) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .frame(width: 38, height: 44)
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Back to saved sip")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Text(homeProgressLabel)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color.mugshotSage)
+                            .accessibilityLabel(homeProgressAccessibilityLabel)
+                            .accessibilityIdentifier("logASipV3.home.progress")
+                    }
                 } else { toolbarContent }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -212,6 +250,9 @@ struct LogASipV3ProductionView: View {
                     max(draft.posterPhotoIndex, 0),
                     max(count - 1, 0)
                 )
+            }
+            .task(id: draft.ownerUserID) {
+                homeStore.activate(.forUserID(draft.ownerUserID))
             }
         }
         .onChange(of: completion?.visitID) { _, visitID in
@@ -245,29 +286,11 @@ struct LogASipV3ProductionView: View {
 
     @ViewBuilder
     private var currentSurface: some View {
-        if draft.launchContext.homeAttemptID != nil, draft.context == .home {
-            HomeAttemptPostSurface(draft: $draft, photoImages: photoImages,
-                isSaving: isSaving, isRecoveryLocked: isRecoveryLocked,
-                statusMessage: statusMessage, onPublish: onPublish)
-        } else if isHomeFlow {
+        if isHomeFlow {
             homeSurface
         } else {
             standardSurface
         }
-    }
-
-    private var usesHomeRecipeWorkspace: Bool {
-        homeRecipesEnabled && isHomeFlow && draft.homeWorkbenchPhase == .workbench
-            && !draft.brewDetails.hasStructuredData && photoImages.isEmpty
-            && draft.overallScore == 0 && draft.privateNotes.isEmpty
-            && draft.socialCaption.isEmpty && draft.contextNotes.isEmpty
-            && draft.localPhotoNames.isEmpty && draft.drinkName.isEmpty
-            && draft.homeMakeAgain == nil && draft.homeComparisonSource == nil
-            && draft.homeCoffeeBagID == nil && draft.sensorySnapshot == nil
-            && draft.sipReorderIntention == nil && draft.contextScore == nil
-            && draft.orderNotes.isEmpty && draft.tags.isEmpty
-            && !draft.ratingCriteria.contains(where: { $0.score > 0 })
-            && !draft.contextRatingCriteria.contains(where: { $0.score > 0 })
     }
 
     @ViewBuilder
@@ -332,30 +355,74 @@ struct LogASipV3ProductionView: View {
     private var homeSurface: some View {
         switch draft.homeWorkbenchPhase {
         case .workbench:
-            LogASipV3SetupSurface(
+            VStack(spacing: 0) {
+                MugshotScreenHeader("Log a Sip") {
+                    Label("Drafts save automatically", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tertiaryText)
+                }
+                .padding(.horizontal, DesignSystem.Space.md)
+                .padding(.top, 8)
+
+                MugshotSegmentedControl(
+                    options: [JournalEntryContext.cafe, .home, .elsewhere],
+                    selection: Binding(
+                        get: { draft.context == .recipe ? .home : draft.context },
+                        set: { draft.selectV3Context($0) }
+                    ),
+                    title: { $0.rawValue },
+                    icon: { $0.systemImage },
+                    accessibilityIdentifier: { "logASipV3.context.\($0.rawValue.lowercased())" }
+                )
+                .padding(.horizontal, DesignSystem.Space.md)
+                .padding(.vertical, 10)
+
+                HomeSipV3SetupView(
+                    draft: $draft,
+                    isRecoveryLocked: isRecoveryLocked,
+                    onStartMaking: startHomePreparation,
+                    onSkipGuidance: {
+                        draft.homeSipPath = .guided
+                        MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
+                        moveHome(to: .capture)
+                    },
+                    onQuickLog: {
+                        draft.homeSipPath = .quick
+                        draft.homeAttemptActuals = HomeAttemptActuals()
+                        MugshotAnalytics.shared.capture(.homeWorkbench(action: .quickChosen))
+                        moveHome(to: .quickCapture)
+                    },
+                    onResumeSession: resumeHomeSession
+                )
+            }
+        case .quickCapture:
+            LogASipV3HomeCaptureSurface(
                 draft: $draft,
                 photoImages: $photoImages,
-                resumeDraftCount: resumeDraftCount,
                 isRecoveryLocked: isRecoveryLocked,
-                onResumeDraft: onResumeDraft,
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
-                onChooseCafe: onChooseCafe,
-                onContinue: { moveHome(to: .brew) }
+                onContinue: { moveHome(to: .sip) }
             )
         case .brew:
             LogASipV3HomeBrewSurface(
-                draft: draft,
+                draft: $draft,
+                content: homeContentFromDraft(),
+                session: activeHomeSession,
                 isRecoveryLocked: isRecoveryLocked,
-                onContinue: { moveHome(to: .actuals) }
+                onSessionChange: persistHomeSession,
+                onSkipGuidance: {
+                    MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
+                },
+                onSaveDraft: onCancel,
+                onContinue: completeHomePreparation
             )
         case .actuals:
             LogASipV3HomeActualsSurface(
                 draft: $draft,
                 isRecoveryLocked: isRecoveryLocked,
                 onContinue: {
-                    rememberCurrentHomeSetup()
                     moveHome(to: .capture)
                 }
             )
@@ -382,26 +449,28 @@ struct LogASipV3ProductionView: View {
                 onAddCriterion: { presentedSheet = .addCriterion(.sip) },
                 onUseLastSetup: onUseLastSipSetup,
                 onContinue: {
-                    draft.prepareHomeRecipeDecision()
-                    moveHome(to: .recipe)
+                    saveHomeAttempt()
                 }
             )
         case .recipe:
-            LogASipV3HomeRecipeDecisionSurface(
+            LogASipV3HomeSavedSurface(
                 draft: $draft,
                 coverImage: selectedCoverImage,
-                isRecoveryLocked: isRecoveryLocked,
-                onContinue: {
-                    draft.applyHomeRecipeDecision()
-                    rememberCurrentHomeSetup()
-                    moveHome(to: .publish)
-                },
-                onSkip: {
-                    draft.homeRecipeDecision = .keepExisting
-                    draft.applyHomeRecipeDecision()
-                    rememberCurrentHomeSetup()
-                    moveHome(to: .publish)
-                }
+                store: homeStore,
+                saveError: homeSaveError,
+                onShare: beginHomeShare,
+                onDone: onPrivateHomeSaved,
+                onMakeAgain: startHomeRepeat
+            )
+        case .saved:
+            LogASipV3HomeSavedSurface(
+                draft: $draft,
+                coverImage: selectedCoverImage,
+                store: homeStore,
+                saveError: homeSaveError,
+                onShare: beginHomeShare,
+                onDone: onPrivateHomeSaved,
+                onMakeAgain: startHomeRepeat
             )
         case .publish:
             LogASipV3PublishSurface(
@@ -450,15 +519,16 @@ struct LogASipV3ProductionView: View {
 
         if completion == nil {
             ToolbarItem(placement: .topBarTrailing) {
-                Text(isHomeFlow ? "\(draft.homeWorkbenchPhase.progressStep) of 6" : "\(stepNumber) of 4")
+                Text(isHomeFlow ? homeProgressLabel : "\(stepNumber) of 4")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
                     .fixedSize(horizontal: true, vertical: true)
                     .accessibilityLabel(
                         isHomeFlow
-                            ? "Step \(draft.homeWorkbenchPhase.progressStep) of 6"
+                            ? homeProgressAccessibilityLabel
                             : "Step \(stepNumber) of 4"
                     )
+                    .accessibilityIdentifier(isHomeFlow ? "logASipV3.home.progress" : "logASipV3.progress")
             }
         }
     }
@@ -467,13 +537,49 @@ struct LogASipV3ProductionView: View {
         draft.context == .home || draft.context == .recipe
     }
 
+    private var usesLegacyHomeRoute: Bool {
+        homeRecipesEnabled && !homeSipV3RouteEnabled && isHomeFlow
+            && draft.homeWorkbenchPhase == .workbench
+            && !draft.brewDetails.hasStructuredData && photoImages.isEmpty
+            && draft.overallScore == 0 && draft.privateNotes.isEmpty
+            && draft.socialCaption.isEmpty && draft.contextNotes.isEmpty
+            && draft.localPhotoNames.isEmpty && draft.drinkName.isEmpty
+            && draft.homeMakeAgain == nil && draft.homeComparisonSource == nil
+            && draft.homeCoffeeBagID == nil && draft.sensorySnapshot == nil
+            && draft.sipReorderIntention == nil && draft.contextScore == nil
+            && draft.orderNotes.isEmpty && draft.tags.isEmpty
+            && !draft.ratingCriteria.contains(where: { $0.score > 0 })
+            && !draft.contextRatingCriteria.contains(where: { $0.score > 0 })
+    }
+
     private var surfaceID: String {
         isHomeFlow ? "home-\(draft.homeWorkbenchPhase.rawValue)" : step.rawValue
     }
 
     private var canMoveBack: Bool {
         guard isHomeFlow else { return step != .setup }
-        return draft.homeWorkbenchPhase != .workbench
+        return ![.workbench, .recipe, .saved].contains(draft.homeWorkbenchPhase)
+    }
+
+    private var homeProgressLabel: String {
+        switch draft.homeWorkbenchPhase {
+        case .brew, .actuals: return "Make"
+        case .quickCapture: return "1 of 2"
+        case .sip where draft.homeSipPath == .quick: return "2 of 2"
+        case .workbench: return "1 of 4"
+        case .capture: return "2 of 4"
+        case .sip: return "3 of 4"
+        case .recipe, .saved: return "4 of 4"
+        case .publish: return "Share"
+        }
+    }
+
+    private var homeProgressAccessibilityLabel: String {
+        switch homeProgressLabel {
+        case "Make": return "Making"
+        case "Share": return "Optional sharing"
+        default: return "Step \(homeProgressLabel)"
+        }
     }
 
     @ViewBuilder
@@ -541,9 +647,9 @@ struct LogASipV3ProductionView: View {
     private func moveHome(to destination: HomeWorkbenchPhase) {
         let outerStep: SipV3ComposerStep
         switch destination {
-        case .workbench, .brew, .actuals, .capture: outerStep = .setup
+        case .workbench, .quickCapture, .brew, .actuals, .capture: outerStep = .setup
         case .sip: outerStep = .sip
-        case .recipe: outerStep = .context
+        case .recipe, .saved: outerStep = .context
         case .publish: outerStep = .publish
         }
         withAnimation(reduceMotion ? nil : DesignSystem.Motion.slow) {
@@ -556,12 +662,14 @@ struct LogASipV3ProductionView: View {
     private func moveBackHome() {
         switch draft.homeWorkbenchPhase {
         case .workbench: break
+        case .quickCapture: moveHome(to: .workbench)
         case .brew: moveHome(to: .workbench)
         case .actuals: moveHome(to: .brew)
-        case .capture: moveHome(to: .actuals)
-        case .sip: moveHome(to: .capture)
-        case .recipe: moveHome(to: .sip)
-        case .publish: moveHome(to: .recipe)
+        case .capture:
+            moveHome(to: draft.launchContext.homePreparationSessionID == nil ? .workbench : .brew)
+        case .sip: moveHome(to: draft.homeSipPath == .quick ? .quickCapture : .capture)
+        case .recipe, .saved: moveHome(to: .sip)
+        case .publish: moveHome(to: .saved)
         }
     }
 
@@ -571,6 +679,293 @@ struct LogASipV3ProductionView: View {
             draft.currentHomeBrewSnapshot,
             in: .forUserID(draft.ownerUserID)
         )
+    }
+
+    private var selectedHomeRecipeVersion: (recipe: HomeRecipeRecord, version: HomeRecipeVersion)? {
+        guard let recipeID = draft.launchContext.sourceRecipeIdentityID,
+              let versionID = draft.launchContext.homeRecipeVersionID,
+              let recipe = homeStore.workspace.recipes.first(where: { $0.id == recipeID }),
+              let version = recipe.versions.first(where: { $0.id == versionID }) else { return nil }
+        return (recipe, version)
+    }
+
+    private func homeContentFromDraft() -> HomeRecipeContent {
+        if let selectedHomeRecipeVersion {
+            let baseline = selectedHomeRecipeVersion.version.content.asBrewDetails(
+                recipeID: selectedHomeRecipeVersion.recipe.id,
+                versionNumber: selectedHomeRecipeVersion.version.number
+            )
+            if baseline == draft.brewDetails { return selectedHomeRecipeVersion.version.content }
+        }
+        let method = HomeBrewMethod(storedValue: draft.brewMethod)
+        var content = selectedHomeRecipeVersion?.version.content ?? HomeRecipeContent()
+        if selectedHomeRecipeVersion == nil { content.template = .preparation }
+        content.name = draft.drinkName.remoteTrimmedNonEmpty ?? method.title
+        if selectedHomeRecipeVersion == nil {
+            content.method = method
+            content.customMethodName = method == .other ? draft.brewMethod : ""
+        }
+        content.targets.dose = draft.brewDetails.doseGrams
+        content.targets.output = draft.brewDetails.yieldGrams
+            ?? draft.brewDetails.homeMethodDetails?.waterGrams
+        content.targets.calculation = .output
+        content.targets.seconds = draft.brewDetails.brewTimeSeconds.map(Double.init)
+        content.targets.temperature = draft.brewDetails.waterTemperatureCelsius
+        content.targets.grind = draft.brewDetails.grindSetting ?? ""
+        content.targets.preinfusion = draft.brewDetails.homeMethodDetails?.preinfusionSeconds.map(Double.init)
+        content.targets.pressure = draft.brewDetails.homeMethodDetails?.pressureBars
+        content.targets.steepSeconds = draft.brewDetails.homeMethodDetails?.steepSeconds.map(Double.init)
+            ?? draft.brewDetails.homeMethodDetails?.coldBrewSteepHours.map { $0 * 3_600 }
+        content.steps = (draft.brewDetails.steps ?? []).map {
+            HomePreparationStep(instruction: $0.instruction, waitSeconds: $0.durationSeconds.map(Double.init))
+        }
+        content.coffee = draft.brewDetails.coffeeBag
+        content.equipment = draft.brewDetails.equipmentSnapshots ?? []
+        return content
+    }
+
+    private func saveHomeAttempt() {
+        guard !isSavingHomeAttempt,
+              let name = draft.drinkName.remoteTrimmedNonEmpty else { return }
+        isSavingHomeAttempt = true
+        homeSaveError = nil
+        let currentDraft = draft
+        let images = photoImages
+        let originalScope = homeStore.scope
+        Task { @MainActor in
+            do {
+                guard homeStore.scope == originalScope,
+                      originalScope == .forUserID(currentDraft.ownerUserID) else {
+                    throw HomeRecipeWorkspaceError.invalid("Your account changed. This sip was not moved to another account.")
+                }
+                var photoNames: [String] = []
+                for image in images {
+                    guard let data = image.jpegData(compressionQuality: 0.9) else { continue }
+                    photoNames.append(try await homeStore.savePhotoAsync(data, attemptID: currentDraft.id))
+                    guard homeStore.scope == originalScope else {
+                        throw HomeRecipeWorkspaceError.invalid("Your account changed. This sip was not moved to another account.")
+                    }
+                }
+
+                guard homeStore.scope == originalScope else {
+                    throw HomeRecipeWorkspaceError.invalid("Your account changed. This sip was not moved to another account.")
+                }
+                let selected = selectedHomeRecipeVersion
+                let content = homeContentFromDraft()
+                var attempt = HomeAttemptRecord(id: currentDraft.id, name: name)
+                attempt.recipe = selected.map {
+                    HomeRecipeReference(recipeID: $0.recipe.id, versionID: $0.version.id)
+                }
+                attempt.targets = selected?.version.content
+                attempt.preparation = content
+                attempt.actuals = currentDraft.homeAttemptActuals
+                attempt.rating = currentDraft.resolvedOverallScore > 0 ? currentDraft.resolvedOverallScore : nil
+                attempt.manualRating = currentDraft.manualOverallScoreForPersistence
+                attempt.ratingCriteria = currentDraft.ratingCriteria
+                attempt.sensorySnapshot = currentDraft.sensorySnapshot
+                attempt.privateNote = currentDraft.privateNotes
+                attempt.nextTimeNote = currentDraft.homeNextTimeNote
+                attempt.makeAgain = currentDraft.homeMakeAgain
+                attempt.photoNames = photoNames
+                try homeStore.saveAttempt(attempt)
+                draft.launchContext.homeAttemptID = attempt.id
+                draft.localPhotoNames = photoNames
+                rememberCurrentHomeSetup()
+                MugshotAnalytics.shared.capture(.homeWorkbench(
+                    action: attempt.rating == nil ? .privateResultSavedUnrated : .privateResultSavedRated
+                ))
+                moveHome(to: .saved)
+                Task { await homeStore.synchronize() }
+            } catch {
+                homeSaveError = error.localizedDescription
+            }
+            isSavingHomeAttempt = false
+        }
+    }
+
+    private func beginHomeShare() {
+        guard let attemptID = draft.launchContext.homeAttemptID,
+              let attempt = homeStore.workspace.attempts.first(where: { $0.id == attemptID }) else { return }
+        do {
+            if let publicationDraftID = attempt.publicationDraftID,
+               let existing = SipDraftStore.shared.load(id: publicationDraftID, in: homeStore.scope),
+               existing.draft.launchContext.homeAttemptID == attemptID {
+                SipDraftStore.shared.remove(draft, in: homeStore.scope)
+                draft = existing.draft
+                photoImages = existing.images
+                MugshotAnalytics.shared.capture(.homeWorkbench(action: .shareOpened))
+                moveHome(to: .publish)
+                return
+            }
+
+            let publicationDraftID = attempt.publicationDraftID ?? UUID()
+            var publicDetails = (attempt.preparation ?? attempt.targets)?.asBrewDetails(
+                recipeID: attempt.recipe?.recipeID,
+                versionNumber: attempt.recipe.flatMap { homeStore.workspace.version($0)?.number }
+            ) ?? .empty
+            if let value = attempt.actuals.dose { publicDetails.doseGrams = value }
+            if let value = attempt.actuals.output {
+                if attempt.preparation?.method.usesYield == true { publicDetails.yieldGrams = value }
+                else {
+                    var methodDetails = publicDetails.homeMethodDetails ?? .empty
+                    methodDetails.waterGrams = value
+                    publicDetails.homeMethodDetails = methodDetails
+                }
+            }
+            if let value = attempt.actuals.seconds { publicDetails.brewTimeSeconds = Int(value.rounded()) }
+            if let value = attempt.actuals.temperature { publicDetails.waterTemperatureCelsius = value }
+            if !attempt.actuals.grind.isEmpty { publicDetails.grindSetting = attempt.actuals.grind }
+
+            var launch = SipComposerLaunchContext(source: .centralAdd)
+            launch.homeAttemptID = attemptID
+            launch.sourceRecipeIdentityID = attempt.recipe?.recipeID
+            launch.homeRecipeVersionID = attempt.recipe?.versionID
+            launch.sourceRecipeVersion = attempt.recipe.flatMap { homeStore.workspace.version($0) }.map { "v\($0.number)" }
+            launch.homeRecipeAttachmentMode = attempt.recipe == nil ? .doNotAttach : .nameOnly
+            var publication = SipDraft(
+                id: publicationDraftID,
+                ownerUserID: draft.ownerUserID,
+                launchContext: launch,
+                context: .home,
+                locationName: "Home",
+                drinkType: draft.drinkType,
+                customDrinkType: draft.customDrinkType,
+                drinkName: attempt.name,
+                overallScore: attempt.resolvedRating ?? 0,
+                socialCaption: "",
+                privateNotes: "",
+                visibility: .friends,
+                ratingCriteria: attempt.ratingCriteria,
+                recipePublication: draft.recipePublication,
+                brewMethod: attempt.preparation?.methodDisplayName ?? draft.brewMethod,
+                equipment: attempt.preparation?.equipment.map(\.displayName).joined(separator: " · ") ?? draft.equipment,
+                brewDetails: publicDetails,
+                sensorySnapshot: attempt.sensorySnapshot,
+                photoFallback: draft.photoFallback,
+                homeMakeAgain: attempt.makeAgain,
+                homeWorkbenchPhase: .publish
+            )
+            publication.homeSipPath = draft.homeSipPath
+            let saved = try SipDraftStore.shared.save(publication, images: photoImages, in: homeStore.scope)
+            try homeStore.setPublicationDraft(publicationDraftID, for: attemptID)
+            SipDraftStore.shared.remove(draft, in: homeStore.scope)
+            draft = saved
+            MugshotAnalytics.shared.capture(.homeWorkbench(action: .shareOpened))
+            moveHome(to: .publish)
+        } catch {
+            homeSaveError = error.localizedDescription
+        }
+    }
+
+    private func resumeHomeSession(_ sessionID: UUID) {
+        guard let session = homeStore.workspace.sessions.first(where: { $0.id == sessionID }) else { return }
+        restoreHomeDraft(from: session.attempt, id: session.attempt.id)
+        draft.launchContext.homePreparationSessionID = session.id
+        MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationResumed))
+        moveHome(to: session.currentPhase == .awaitingReflection ? .capture : .brew)
+    }
+
+    private func startHomeRepeat() {
+        guard let attemptID = draft.launchContext.homeAttemptID,
+              let attempt = homeStore.workspace.attempts.first(where: { $0.id == attemptID }) else { return }
+        restoreHomeDraft(from: attempt, id: UUID())
+        draft.launchContext.homeAttemptID = nil
+        draft.homeAttemptActuals = HomeAttemptActuals()
+        draft.homeMakeAgain = nil
+        draft.homeNextTimeNote = ""
+        draft.privateNotes = ""
+        draft.ratingCriteria = []
+        draft.setManualOverallScore(0)
+        draft.sensorySnapshot = nil
+        draft.socialCaption = ""
+        photoImages = []
+        MugshotAnalytics.shared.capture(.homeWorkbench(action: .repeatStarted))
+        moveHome(to: .workbench)
+    }
+
+    private var activeHomeSession: HomePreparationSession? {
+        guard let id = draft.launchContext.homePreparationSessionID else { return nil }
+        return homeStore.workspace.sessions.first { $0.id == id }
+    }
+
+    private func startHomePreparation() {
+        let content = homeContentFromDraft()
+        let selected = selectedHomeRecipeVersion
+        var attempt = HomeAttemptRecord(id: draft.id, name: draft.drinkName.remoteTrimmedNonEmpty ?? content.name)
+        attempt.recipe = selected.map { HomeRecipeReference(recipeID: $0.recipe.id, versionID: $0.version.id) }
+        attempt.targets = selected?.version.content
+        attempt.preparation = content
+        var session = HomePreparationSession(attempt: attempt, phase: .preparing)
+        if content.method == .coldBrew || content.method == .coldBrewTea {
+            session.timerStartedAt = session.startedAt
+        }
+        do {
+            try homeStore.saveAttemptDraft(attempt)
+            try homeStore.saveSession(session)
+            draft.launchContext.homePreparationSessionID = session.id
+            draft.homeSipPath = .guided
+            MugshotAnalytics.shared.capture(.homeWorkbench(action: .guidedChosen))
+            MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationStarted))
+            moveHome(to: .brew)
+        } catch {
+            homeSaveError = error.localizedDescription
+        }
+    }
+
+    private func persistHomeSession(_ session: HomePreparationSession) {
+        do {
+            try homeStore.saveSession(session)
+        } catch {
+            homeSaveError = error.localizedDescription
+        }
+    }
+
+    private func completeHomePreparation() {
+        if let id = draft.launchContext.homePreparationSessionID {
+            do {
+                _ = try homeStore.finishPreparation(
+                    sessionID: id,
+                    measuredTimer: false,
+                    content: homeContentFromDraft()
+                )
+            } catch {
+                homeSaveError = error.localizedDescription
+                return
+            }
+        }
+        MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationCompleted))
+        moveHome(to: .capture)
+    }
+
+    private func restoreHomeDraft(from attempt: HomeAttemptRecord, id: UUID) {
+        let content = attempt.preparation ?? attempt.targets ?? HomeRecipeContent()
+        var launch = SipComposerLaunchContext(source: .brewAgain)
+        launch.sourceRecipeIdentityID = attempt.recipe?.recipeID
+        launch.homeRecipeVersionID = attempt.recipe?.versionID
+        if let reference = attempt.recipe,
+           let version = homeStore.workspace.version(reference) {
+            launch.sourceRecipeVersion = "v\(version.number)"
+        }
+        draft = SipDraft(
+            id: id,
+            ownerUserID: draft.ownerUserID,
+            launchContext: launch,
+            context: .home,
+            locationName: "Home",
+            drinkType: content.method.drinkType,
+            customDrinkType: content.method.drinkType == .other ? content.methodDisplayName : "",
+            drinkName: attempt.name,
+            brewMethod: content.methodDisplayName,
+            equipment: content.equipment.map(\.displayName).joined(separator: " · "),
+            brewDetails: content.asBrewDetails(
+                recipeID: attempt.recipe?.recipeID,
+                versionNumber: attempt.recipe.flatMap { homeStore.workspace.version($0)?.number }
+            ),
+            homeWorkbenchPhase: .workbench
+        )
+        draft.homeSipPath = .guided
+        draft.homeComparisonSource = draft.currentHomeBrewSnapshot
+        draft.homeAttemptActuals = attempt.actuals
     }
 
     private func dismissKeyboard() {
@@ -933,10 +1328,343 @@ private struct LogASipV3SetupSurface: View {
 
 // MARK: - Home brew and capture
 
+private struct LogASipV3HomeSavedSurface: View {
+    @Binding var draft: SipDraft
+    let coverImage: UIImage?
+    @ObservedObject var store: HomeRecipeWorkspaceStore
+    let saveError: String?
+    let onShare: () -> Void
+    let onDone: () -> Void
+    let onMakeAgain: () -> Void
+
+    @State private var showsHistory = false
+    @State private var showsRecipeChoice = false
+    @State private var showsSaveAsRecipeConfirmation = false
+    @State private var localMessage: String?
+
+    private var attempt: HomeAttemptRecord? {
+        guard let id = draft.launchContext.homeAttemptID else { return nil }
+        return store.workspace.attempts.first { $0.id == id }
+    }
+
+    private var method: HomeBrewMethod {
+        attempt?.preparation?.method ?? HomeBrewMethod(storedValue: draft.brewMethod)
+    }
+
+    private var relatedAttempts: [HomeAttemptRecord] {
+        guard let attempt else { return [] }
+        return store.workspace.attempts.filter { candidate in
+            guard candidate.id != attempt.id else { return false }
+            if let recipeID = attempt.recipe?.recipeID {
+                return candidate.recipe?.recipeID == recipeID
+            }
+            return candidate.preparation?.method == attempt.preparation?.method
+                && candidate.name.caseInsensitiveCompare(attempt.name) == .orderedSame
+        }
+    }
+
+    private var hasRecipeChange: Bool {
+        guard let attempt, attempt.recipe != nil,
+              let preparation = attempt.preparation,
+              let targets = attempt.targets else { return false }
+        guard preparation == targets else { return true }
+        let actuals = attempt.actuals
+        return differs(actuals.dose, targets.targets.dose)
+            || differs(actuals.output, targets.targets.resolvedOutput)
+            || differs(actuals.seconds, targets.targets.seconds ?? targets.targets.steepSeconds)
+            || differs(actuals.temperature, targets.targets.temperature)
+            || (!actuals.grind.isEmpty && actuals.grind != targets.targets.grind)
+            || !actuals.customFields.isEmpty
+    }
+
+    private func differs(_ actual: Double?, _ target: Double?) -> Bool {
+        guard let actual else { return false }
+        guard let target else { return true }
+        return abs(actual - target) > 0.001
+    }
+
+    var body: some View {
+        LogASipV3ScrollableSurface(
+            actionTitle: "Done",
+            actionSubtitle: "This private sip is safe in your journal.",
+            actionIcon: "checkmark",
+            contentEnabled: true,
+            action: onDone
+        ) {
+            MugshotScreenHeader(
+                "Saved privately",
+                subtitle: store.isSyncing ? "Saved here · Syncing" : "Your Home sip is in the journal."
+            )
+
+            if let attempt {
+                VStack(alignment: .leading, spacing: 16) {
+                    savedHero(attempt)
+
+                    if let summary = preparationSummary(attempt) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("TODAY'S SETUP")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.mugshotSage)
+                            Text(summary)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.espressoBrown)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.sandBeige.opacity(0.35))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                    }
+
+                    if !attempt.ratingCriteria.filter(\.isRelevant).isEmpty {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(attempt.ratingCriteria.filter(\.isRelevant)) { criterion in
+                                    Text(criterion.score > 0
+                                         ? "\(criterion.name) · \(HomeRecipeContent.number(criterion.score))"
+                                         : criterion.name)
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 10).padding(.vertical, 7)
+                                        .background(Color.mugshotMint.opacity(0.22), in: Capsule())
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                    }
+
+                    if let makeAgain = attempt.makeAgain {
+                        LabeledContent("Make again", value: makeAgain.title)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+
+                    if let message = localMessage ?? saveError ?? store.errorMessage {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: 10) {
+                        Button(action: onMakeAgain) {
+                            Label("Make again", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+
+                        Button(action: onShare) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+
+                        if attempt.recipe == nil {
+                            Button("Save as recipe", systemImage: "book.pages") {
+                                showsSaveAsRecipeConfirmation = true
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.mugshotSage)
+                            .font(.system(size: 14, weight: .bold))
+                        } else if hasRecipeChange {
+                            Button("Save today's setup?", systemImage: "point.3.connected.trianglepath.dotted") {
+                                MugshotAnalytics.shared.capture(.homeWorkbench(action: .recipeUpdateOffered))
+                                showsRecipeChoice = true
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.mugshotSage)
+                            .font(.system(size: 14, weight: .bold))
+                        }
+
+                        Button(relatedAttempts.isEmpty ? "History" : "Compare attempts") {
+                            showsHistory = true
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.mugshotSage)
+                        .font(.system(size: 14, weight: .bold))
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
+        }
+        .confirmationDialog("Save today's setup?", isPresented: $showsRecipeChoice) {
+            Button("Just this time", role: .cancel) {}
+            Button("Create Recipe vNext") {
+                if let attempt { updateRecipe(from: attempt) }
+            }
+        } message: {
+            Text("Your sip is already saved. Updating creates a new immutable recipe version.")
+        }
+        .confirmationDialog("Save as a recipe?", isPresented: $showsSaveAsRecipeConfirmation) {
+            Button("Save preparation only") {
+                if let attempt { saveAsRecipe(attempt) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Mugshot will save the method, preparation values, ingredients, and steps. Rating, private reflection, photos, and next-time notes stay with this journal entry.")
+        }
+        .sheet(isPresented: $showsHistory) {
+            NavigationStack {
+                List {
+                    if let attempt {
+                        savedAttemptRow(attempt, label: "This make")
+                    }
+                    ForEach(relatedAttempts.sorted { $0.createdAt > $1.createdAt }) { item in
+                        savedAttemptRow(item, label: nil)
+                    }
+                }
+                .scrollContentBackground(.hidden)
+                .background(Color.creamWhite)
+                .navigationTitle(relatedAttempts.isEmpty ? "History" : "Compare attempts")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showsHistory = false }
+                    }
+                }
+            }
+        }
+    }
+
+    private func savedHero(_ attempt: HomeAttemptRecord) -> some View {
+        HStack(spacing: 16) {
+            Group {
+                if let coverImage {
+                    Image(uiImage: coverImage).resizable().scaledToFill()
+                } else {
+                    HomeMethodIconView(method: method, size: 38)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.mugshotMint.opacity(0.2))
+                }
+            }
+            .frame(width: 84, height: 84)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(attempt.name)
+                    .font(.system(size: 23, weight: .semibold, design: .serif))
+                    .lineLimit(2)
+                Text(method.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+                Text(attempt.resolvedRating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.mugshotSage)
+            }
+            Spacer()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func preparationSummary(_ attempt: HomeAttemptRecord) -> String? {
+        let actuals = attempt.actuals
+        var parts: [String] = []
+        if let dose = actuals.dose { parts.append("\(HomeRecipeContent.number(dose)) g \(method.inputLabel.lowercased())") }
+        if let output = actuals.output { parts.append("\(HomeRecipeContent.number(output)) \(method.outputUnit) \(method.outputLabel.lowercased())") }
+        if let seconds = actuals.seconds { parts.append(HomeRecipeContent.durationSummary(seconds)) }
+        if parts.isEmpty { return attempt.preparation?.summary.remoteTrimmedNonEmpty }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func savedAttemptRow(_ attempt: HomeAttemptRecord, label: String?) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let label { Text(label.uppercased()).font(.caption2.weight(.bold)).foregroundStyle(Color.mugshotSage) }
+            HStack {
+                Text(attempt.createdAt, format: .dateTime.month(.abbreviated).day().year())
+                Spacer()
+                Text(attempt.resolvedRating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
+            }
+            .font(.headline)
+            if let summary = preparationSummary(attempt) {
+                Text(summary).font(.caption).foregroundStyle(.secondary)
+            }
+            if !attempt.nextTimeNote.isEmpty {
+                Text("Next time: \(attempt.nextTimeNote)").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func saveAsRecipe(_ attempt: HomeAttemptRecord) {
+        do {
+            var content = attempt.recipeCandidate
+            content.template = .preparation
+            content.name = attempt.name
+            let recipeID = try store.saveRecipe(HomeRecipeEditorDraft(content: content))
+            localMessage = "Saved to Recipes."
+            if let version = store.workspace.recipes.first(where: { $0.id == recipeID })?.current {
+                draft.launchContext.sourceRecipeIdentityID = recipeID
+                draft.launchContext.homeRecipeVersionID = version.id
+                draft.launchContext.sourceRecipeVersion = "v\(version.number)"
+            }
+            Task { await store.synchronize() }
+        } catch {
+            localMessage = error.localizedDescription
+        }
+    }
+
+    private func updateRecipe(from attempt: HomeAttemptRecord) {
+        guard let reference = attempt.recipe,
+              let recipe = store.workspace.recipes.first(where: { $0.id == reference.recipeID }) else { return }
+        do {
+            var content = attempt.recipeCandidate
+            content.name = recipe.current?.content.name ?? attempt.name
+            let draft = HomeRecipeEditorDraft(
+                recipeID: recipe.id,
+                baseVersionID: reference.versionID,
+                content: content
+            )
+            _ = try store.saveRecipe(draft)
+            MugshotAnalytics.shared.capture(.homeWorkbench(action: .recipeUpdateAccepted))
+            localMessage = "Created the next recipe version."
+            Task { await store.synchronize() }
+        } catch {
+            localMessage = error.localizedDescription
+        }
+    }
+}
+
 private struct LogASipV3HomeBrewSurface: View {
-    let draft: SipDraft
+    @Binding var draft: SipDraft
+    let content: HomeRecipeContent
+    let session: HomePreparationSession?
     let isRecoveryLocked: Bool
+    let onSessionChange: (HomePreparationSession) -> Void
+    let onSkipGuidance: () -> Void
+    let onSaveDraft: () -> Void
     let onContinue: () -> Void
+    @State private var showsChanges = false
+    @State private var timerStartedAt: Date?
+    @State private var stepIndex: Int
+    @State private var completedIngredientIDs: Set<UUID>
+    @State private var reminderError: String?
+    @State private var pendingLinkedIngredient: HomeRecipeIngredient?
+    @State private var linkedRecipeDetail: HomeLinkedRecipeSheet?
+    @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
+
+    init(
+        draft: Binding<SipDraft>,
+        content: HomeRecipeContent,
+        session: HomePreparationSession?,
+        isRecoveryLocked: Bool,
+        onSessionChange: @escaping (HomePreparationSession) -> Void,
+        onSkipGuidance: @escaping () -> Void,
+        onSaveDraft: @escaping () -> Void,
+        onContinue: @escaping () -> Void
+    ) {
+        _draft = draft
+        self.content = content
+        self.session = session
+        self.isRecoveryLocked = isRecoveryLocked
+        self.onSessionChange = onSessionChange
+        self.onSkipGuidance = onSkipGuidance
+        self.onSaveDraft = onSaveDraft
+        self.onContinue = onContinue
+        _timerStartedAt = State(initialValue: session?.timerStartedAt)
+        _stepIndex = State(initialValue: session?.stepIndex ?? 0)
+        _completedIngredientIDs = State(initialValue: session?.completedIngredientIDs ?? [])
+    }
 
     private var method: HomeBrewMethod {
         HomeBrewMethod(storedValue: draft.brewMethod)
@@ -944,21 +1672,19 @@ private struct LogASipV3HomeBrewSurface: View {
 
     var body: some View {
         LogASipV3ScrollableSurface(
-            actionTitle: "Brew finished",
-            actionSubtitle: "You’ll record what actually happened next.",
+            actionTitle: "Finished making",
+            actionSubtitle: "Actual measurements stay optional.",
             actionIcon: "cup.and.heat.waves.fill",
             contentEnabled: !isRecoveryLocked,
-            action: onContinue
+            action: finishMaking
         ) {
             MugshotScreenHeader(
-                "Brew this version",
-                subtitle: "Follow the setup as written."
+                "Make",
+                subtitle: "Use as much or as little guidance as you want."
             )
 
             HStack(spacing: 14) {
-                Image(systemName: method.systemImage)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
+                HomeMethodIconView(method: method, size: 30)
                     .frame(width: 58, height: 58)
                     .background(Color.mugshotMint.opacity(0.24), in: Circle())
                 VStack(alignment: .leading, spacing: 4) {
@@ -980,19 +1706,317 @@ private struct LogASipV3HomeBrewSurface: View {
             LogASipV3HomeRecipeGlance(draft: draft)
                 .padding(.horizontal, DesignSystem.Space.md)
 
-            Label(
-                "Follow it as written. Mugshot will ask for actuals after the brew.",
-                systemImage: "leaf.fill"
-            )
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.secondaryText)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.sandBeige.opacity(0.38))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-            .padding(.horizontal, DesignSystem.Space.md)
+            if !content.ingredients.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Ingredients").font(.headline)
+                    ForEach(content.ingredients) { ingredient in
+                        Button {
+                            if ingredient.recipe != nil {
+                                pendingLinkedIngredient = ingredient
+                            } else if completedIngredientIDs.contains(ingredient.id) {
+                                completedIngredientIDs.remove(ingredient.id)
+                            } else {
+                                completedIngredientIDs.insert(ingredient.id)
+                            }
+                            if ingredient.recipe == nil { persistProgress() }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: completedIngredientIDs.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(Color.mugshotSage)
+                                Text(ingredientText(ingredient))
+                                    .foregroundStyle(Color.espressoBrown)
+                                Spacer()
+                                if ingredient.recipe != nil {
+                                    Text("Linked recipe").font(.caption2.weight(.bold)).foregroundStyle(Color.secondaryText)
+                                }
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(14)
+                .background(Color.foamWhite)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
+
+            if !content.visibleSteps.isEmpty {
+                let safeIndex = min(max(stepIndex, 0), content.visibleSteps.count - 1)
+                let current = content.visibleSteps[safeIndex]
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("STEP \(safeIndex + 1) OF \(content.visibleSteps.count)")
+                            .font(.caption2.weight(.bold)).foregroundStyle(Color.mugshotSage)
+                        Spacer()
+                        if let water = content.cumulativeWater(through: safeIndex) {
+                            Text("\(HomeRecipeContent.number(water)) g total")
+                                .font(.caption.weight(.bold)).foregroundStyle(Color.secondaryText)
+                        }
+                    }
+                    Text(current.instruction.remoteTrimmedNonEmpty ?? "Continue this preparation")
+                        .font(.system(size: 21, weight: .semibold, design: .serif))
+                    HStack(spacing: 8) {
+                        if let start = current.startSeconds {
+                            Label("At \(HomeRecipeContent.durationSummary(start))", systemImage: "clock")
+                        }
+                        if let wait = current.waitSeconds {
+                            Label("Wait \(HomeRecipeContent.durationSummary(wait))", systemImage: "timer")
+                        }
+                        if let water = current.waterGrams {
+                            Label("\(current.waterMode == .incremental ? "Add" : "Pour to") \(HomeRecipeContent.number(water)) g", systemImage: "drop")
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+
+                    HStack {
+                        Button("Previous") { stepIndex = max(0, safeIndex - 1); persistProgress() }
+                            .disabled(safeIndex == 0)
+                        Spacer()
+                        Button(safeIndex == content.visibleSteps.count - 1 ? "Step complete" : "Next") {
+                            stepIndex = min(content.visibleSteps.count - 1, safeIndex + 1)
+                            persistProgress()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.mugshotSage)
+                }
+                .padding(16)
+                .background(Color.mugshotMint.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotSage.opacity(0.45)))
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
+
+            if supportsTimer {
+                VStack(spacing: 8) {
+                    if let timerStartedAt {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            Text(elapsedText(from: timerStartedAt, to: context.date))
+                                .font(.system(size: 34, weight: .semibold, design: .monospaced))
+                        }
+                    } else {
+                        Text("00:00").font(.system(size: 34, weight: .semibold, design: .monospaced))
+                    }
+                    Button(timerStartedAt == nil ? "Start optional timer" : "Timer running") {
+                        if timerStartedAt == nil { timerStartedAt = .now }
+                        persistProgress()
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+
+                    if isLongPreparation, let readyAt = workingSession?.readyAt {
+                        Text(readyAt > .now ? "Ready around \(readyAt.formatted(date: .abbreviated, time: .shortened))" : "Ready to finish")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Color.secondaryText)
+                        Button(workingSession?.reminderEnabled == true ? "Reminder on" : "Remind me when ready") {
+                            toggleReminder()
+                        }
+                        .buttonStyle(.plain).foregroundStyle(Color.mugshotSage)
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
+
+            if let note = store.workspace.recipes.first(where: { $0.id == draft.launchContext.sourceRecipeIdentityID })?.nextTimeNote.remoteTrimmedNonEmpty {
+                Label("Next time: \(note)", systemImage: "arrow.uturn.forward.circle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.sandBeige.opacity(0.38))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                    .padding(.horizontal, DesignSystem.Space.md)
+            }
+
+            VStack(spacing: 4) {
+                Button("I already made this") { finishMaking() }
+                Button("Skip guidance") { onSkipGuidance(); finishMaking() }
+                Button("Save draft and exit") { persistProgress(); onSaveDraft() }
+            }
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(Color.mugshotSage)
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+
+            if let reminderError {
+                Text(reminderError).font(.caption).foregroundStyle(Color.secondaryText)
+                    .padding(.horizontal, DesignSystem.Space.md)
+            }
         }
+        .sheet(isPresented: $showsChanges) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Text("Record only what is useful. Blank means unknown; recipe targets are never treated as measured results.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Section("Actuals") {
+                        HomeNumberField(title: "Actual \(method.inputLabel.lowercased()) (g)", value: Binding(
+                            get: { draft.homeAttemptActuals.dose },
+                            set: { draft.homeAttemptActuals.dose = $0 }
+                        ))
+                        HomeNumberField(title: "Actual \(method.outputLabel.lowercased()) (\(method.outputUnit))", value: Binding(
+                            get: { draft.homeAttemptActuals.output },
+                            set: { draft.homeAttemptActuals.output = $0 }
+                        ))
+                        HomeNumberField(title: "Time (seconds)", value: Binding(
+                            get: { draft.homeAttemptActuals.seconds },
+                            set: { draft.homeAttemptActuals.seconds = $0 }
+                        ))
+                        if method.defaultShowsTemperature {
+                            HomeNumberField(title: "Temperature (°C)", value: Binding(
+                                get: { draft.homeAttemptActuals.temperature },
+                                set: { draft.homeAttemptActuals.temperature = $0 }
+                            ))
+                        }
+                    }
+                    if !content.fields.filter(\.isVisible).isEmpty {
+                        Section("Custom actuals") {
+                            ForEach(content.fields.filter(\.isVisible)) { field in
+                                if field.kind == .choice {
+                                    Picker(field.label, selection: customActualBinding(for: field)) {
+                                        Text("Not recorded").tag("")
+                                        ForEach(field.choices, id: \.self) { Text($0).tag($0) }
+                                    }
+                                } else {
+                                    TextField(field.label, text: customActualBinding(for: field))
+                                        .keyboardType(field.kind == .number || field.kind == .duration ? .decimalPad : .default)
+                                }
+                            }
+                        }
+                    }
+                    Section {
+                        Button("Save changes & continue") {
+                            MugshotAnalytics.shared.capture(.homeWorkbench(action: .changesUsed))
+                            showsChanges = false
+                            onContinue()
+                        }
+                            .buttonStyle(.borderedProminent).tint(.mugshotSage)
+                        Button("Skip changes") {
+                            draft.homeAttemptActuals = HomeAttemptActuals()
+                            MugshotAnalytics.shared.capture(.homeWorkbench(action: .changesSkipped))
+                            showsChanges = false
+                            onContinue()
+                        }
+                    }
+                }
+                .scrollContentBackground(.hidden).background(Color.creamWhite)
+                .navigationTitle("Anything different?")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            pendingLinkedIngredient?.name.remoteTrimmedNonEmpty ?? "Linked component",
+            isPresented: Binding(
+                get: { pendingLinkedIngredient != nil },
+                set: { if !$0 { pendingLinkedIngredient = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Already prepared") {
+                if let ingredient = pendingLinkedIngredient {
+                    completedIngredientIDs.insert(ingredient.id)
+                    persistProgress()
+                }
+                pendingLinkedIngredient = nil
+            }
+            Button("Open linked recipe") {
+                if let reference = pendingLinkedIngredient?.recipe {
+                    linkedRecipeDetail = HomeLinkedRecipeSheet(reference: reference)
+                }
+                pendingLinkedIngredient = nil
+            }
+            Button("Cancel", role: .cancel) { pendingLinkedIngredient = nil }
+        } message: {
+            Text("Is this component ready, or do you need its preparation details first?")
+        }
+        .sheet(item: $linkedRecipeDetail) { item in
+            HomeLinkedRecipeDetail(store: store, reference: item.reference)
+        }
+    }
+
+    private var workingSession: HomePreparationSession? {
+        guard let id = draft.launchContext.homePreparationSessionID else { return session }
+        return store.workspace.sessions.first { $0.id == id } ?? session
+    }
+
+    private var supportsTimer: Bool {
+        method != .pod && method != .instant && method != .tonicSoda && method != .completeDrink
+    }
+
+    private var isLongPreparation: Bool {
+        method == .coldBrew || method == .coldBrewTea
+    }
+
+    private func finishMaking() {
+        if let timerStartedAt {
+            draft.homeAttemptActuals.seconds = max(1, Date().timeIntervalSince(timerStartedAt))
+        }
+        persistProgress()
+        showsChanges = true
+    }
+
+    private func persistProgress() {
+        guard var updated = workingSession else { return }
+        updated.stepIndex = stepIndex
+        updated.completedIngredientIDs = completedIngredientIDs
+        updated.timerStartedAt = timerStartedAt
+        onSessionChange(updated)
+    }
+
+    private func toggleReminder() {
+        guard let current = workingSession else { return }
+        Task { @MainActor in
+            do {
+                try await store.setReminder(for: current, enabled: !current.reminderEnabled)
+                reminderError = nil
+            } catch {
+                reminderError = error.localizedDescription
+            }
+        }
+    }
+
+    private func ingredientText(_ ingredient: HomeRecipeIngredient) -> String {
+        let amount = ingredient.amount.map { "\(HomeRecipeContent.number($0)) \(ingredient.unit) " } ?? ""
+        return amount + (ingredient.name.remoteTrimmedNonEmpty ?? "Linked recipe")
+    }
+
+    private func elapsedText(from start: Date, to end: Date) -> String {
+        let total = max(0, Int(end.timeIntervalSince(start)))
+        let hours = total / 3_600
+        let minutes = (total % 3_600) / 60
+        let seconds = total % 60
+        return hours > 0
+            ? String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func customActualBinding(for definition: HomeCustomField) -> Binding<String> {
+        Binding(
+            get: {
+                draft.homeAttemptActuals.customFields.first(where: {
+                    ($0.stableKey ?? $0.id.uuidString) == (definition.stableKey ?? definition.id.uuidString)
+                })?.value ?? ""
+            },
+            set: { value in
+                var actuals = draft.homeAttemptActuals
+                let key = definition.stableKey ?? definition.id.uuidString
+                actuals.customFields.removeAll {
+                    ($0.stableKey ?? $0.id.uuidString) == key
+                }
+                if !value.isEmpty {
+                    var field = definition
+                    field.value = value
+                    actuals.customFields.append(field)
+                }
+                draft.homeAttemptActuals = actuals
+            }
+        )
     }
 }
 
@@ -1027,14 +2051,23 @@ private struct LogASipV3HomeCaptureSurface: View {
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
     let onContinue: () -> Void
+    @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
+    @State private var showsRecipePicker = false
+    @State private var showsRememberedDetails = false
 
     private var hasVisual: Bool {
         !photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto
     }
 
     private var canContinue: Bool {
-        hasVisual
-            && draft.drinkName.remoteTrimmedNonEmpty != nil
+        draft.drinkName.remoteTrimmedNonEmpty != nil
+    }
+
+    private var selectedRecipeContent: HomeRecipeContent? {
+        guard let recipeID = draft.launchContext.sourceRecipeIdentityID,
+              let versionID = draft.launchContext.homeRecipeVersionID else { return nil }
+        return homeStore.workspace.recipes.first(where: { $0.id == recipeID })?
+            .versions.first(where: { $0.id == versionID })?.content
     }
 
     private var placeholderBinding: Binding<Bool> {
@@ -1048,15 +2081,15 @@ private struct LogASipV3HomeCaptureSurface: View {
         LogASipV3ScrollableSurface(
             actionTitle: "Continue to sip",
             actionSubtitle: canContinue
-                ? "Your finished cup is ready for reflection."
-                : "Add a photo or placeholder, then name the drink.",
+                ? "Your finished sip is ready for reflection."
+                : "Name the sip to continue. Photos stay optional.",
             actionIcon: "arrow.right",
             actionEnabled: canContinue,
             contentEnabled: !isRecoveryLocked,
             action: onContinue
         ) {
-            MugshotScreenHeader("Log a Sip") {
-                Label("Brew complete", systemImage: "checkmark.circle.fill")
+            MugshotScreenHeader(draft.homeSipPath == .quick ? "Quick log" : "Capture your sip") {
+                Label(draft.homeSipPath == .quick ? "Already made" : "Make complete", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.mugshotSage)
             }
@@ -1076,8 +2109,8 @@ private struct LogASipV3HomeCaptureSurface: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 LogASipV3SectionHeader(
-                    title: "Photos",
-                    subtitle: "Tap any photo to make it your cover."
+                title: "Photos",
+                    subtitle: "Optional · tap any photo to make it your cover."
                 )
                 LogASipV3PhotoStrip(
                     images: photoImages,
@@ -1120,22 +2153,118 @@ private struct LogASipV3HomeCaptureSurface: View {
 
             LogASipV3LabeledField(
                 title: "Drink name",
-                placeholder: "What did you make?",
+                placeholder: "Name this sip",
                 text: $draft.drinkName,
                 systemImage: "cup.and.saucer.fill",
                 accessibilityIdentifier: "logASipV3.drinkName"
             )
             .padding(.horizontal, DesignSystem.Space.md)
 
+            if draft.homeSipPath == .quick {
+                Button {
+                    showsRecipePicker = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "book.pages")
+                            .foregroundStyle(Color.mugshotSage)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(draft.launchContext.sourceRecipeIdentityID == nil ? "Attach a recipe" : "Change attached recipe")
+                                .font(.system(size: 14, weight: .bold))
+                            Text(draft.brewDetails.recipeDisplayName ?? "Optional · never starts guidance")
+                                .font(.caption).foregroundStyle(Color.secondaryText)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(Color.mugshotSage)
+                    }
+                    .padding(14)
+                    .background(Color.foamWhite)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
+
+            DisclosureGroup(
+                draft.homeSipPath == .quick ? "Add what I remember" : "Add or edit changes",
+                isExpanded: $showsRememberedDetails
+            ) {
+                VStack(spacing: 10) {
+                    let method = HomeBrewMethod(storedValue: draft.brewMethod)
+                    HomeNumberField(title: method.inputLabel, value: Binding(
+                        get: { draft.homeAttemptActuals.dose },
+                        set: { draft.homeAttemptActuals.dose = $0 }
+                    ))
+                    HomeNumberField(title: method.outputLabel, value: Binding(
+                        get: { draft.homeAttemptActuals.output },
+                        set: { draft.homeAttemptActuals.output = $0 }
+                    ))
+                    HomeNumberField(title: "Time (seconds)", value: Binding(
+                        get: { draft.homeAttemptActuals.seconds },
+                        set: { draft.homeAttemptActuals.seconds = $0 }
+                    ))
+                    ForEach(selectedRecipeContent?.fields.filter(\.isVisible) ?? []) { field in
+                        TextField(field.label, text: quickCustomActualBinding(for: field))
+                            .keyboardType(field.kind == .number || field.kind == .duration ? .decimalPad : .default)
+                    }
+                }
+                .padding(.top, 10)
+            }
+            .font(.system(size: 14, weight: .bold))
+            .tint(Color.mugshotSage)
+            .padding(14)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
+            .padding(.horizontal, DesignSystem.Space.md)
+
             LogASipV3HomePublishSummary(draft: draft)
                 .padding(.horizontal, DesignSystem.Space.md)
         }
         .onAppear {
-            if draft.drinkName.remoteTrimmedNonEmpty == nil {
+            if draft.homeSipPath == .guided, draft.drinkName.remoteTrimmedNonEmpty == nil {
                 draft.drinkName = draft.brewDetails.coffeeBag?.name
                     ?? "Home \(HomeBrewMethod(storedValue: draft.brewMethod).title)"
             }
         }
+        .sheet(isPresented: $showsRecipePicker) {
+            HomeSipRecipePicker(store: homeStore) { recipe, version in
+                draft.launchContext.sourceRecipeIdentityID = recipe.id
+                draft.launchContext.homeRecipeVersionID = version.id
+                draft.launchContext.sourceRecipeVersion = "v\(version.number)"
+                draft.drinkName = version.content.name
+                draft.brewMethod = version.content.methodDisplayName
+                draft.drinkType = version.content.method.drinkType
+                draft.customDrinkType = version.content.method.drinkType == .other ? version.content.methodDisplayName : ""
+                draft.brewDetails = version.content.asBrewDetails(
+                    recipeID: recipe.id,
+                    versionNumber: version.number
+                )
+                showsRecipePicker = false
+            }
+        }
+    }
+
+
+    private func quickCustomActualBinding(for definition: HomeCustomField) -> Binding<String> {
+        Binding(
+            get: {
+                draft.homeAttemptActuals.customFields.first(where: {
+                    ($0.stableKey ?? $0.id.uuidString) == (definition.stableKey ?? definition.id.uuidString)
+                })?.value ?? ""
+            },
+            set: { value in
+                var actuals = draft.homeAttemptActuals
+                let key = definition.stableKey ?? definition.id.uuidString
+                actuals.customFields.removeAll { ($0.stableKey ?? $0.id.uuidString) == key }
+                if !value.isEmpty {
+                    var field = definition
+                    field.value = value
+                    actuals.customFields.append(field)
+                }
+                draft.homeAttemptActuals = actuals
+            }
+        )
     }
 }
 
@@ -1389,14 +2518,16 @@ private struct LogASipV3SipSurface: View {
 
     var body: some View {
         LogASipV3ScrollableSurface(
-            actionTitle: isHomeFlow ? "Continue to recipe" : continueTitle,
-            actionSubtitle: draft.overallScore > 0
+            actionTitle: isHomeFlow ? "Save private sip" : continueTitle,
+            actionSubtitle: isHomeFlow
+                ? "Rating, criteria, and make-again intent are optional."
+                : draft.overallScore > 0
                 ? (draft.isOverallScoreDerivedFromCriteria
                     ? "Updated from your rated criteria."
                     : "Your overall score is ready.")
                 : "Choose one honest overall sip score.",
             actionIcon: "arrow.right",
-            actionEnabled: draft.overallScore > 0 && (!isHomeFlow || draft.homeMakeAgain != nil),
+            actionEnabled: isHomeFlow || draft.overallScore > 0,
             contentEnabled: !isRecoveryLocked,
             action: onContinue
         ) {
@@ -1414,6 +2545,13 @@ private struct LogASipV3SipSurface: View {
             .padding(.horizontal, DesignSystem.Space.md)
 
             if isHomeFlow {
+                LogASipV3MugsyCoach(
+                    prompts: LogASipV3CoachPrompt.sip,
+                    index: $coachIndex,
+                    onExploreFlavors: onExploreFlavors
+                )
+                .padding(.horizontal, DesignSystem.Space.md)
+
                 LogASipV3ScoreBlock(
                     title: "Sip score",
                     subtitle: "How it worked for you",
@@ -1439,6 +2577,18 @@ private struct LogASipV3SipSurface: View {
                         subtitle: "A decision, not another rating"
                     )
                     LogASipV3MakeAgainControl(selection: $draft.homeMakeAgain)
+
+                    if draft.homeMakeAgain == .withATweak {
+                        TextField("What would you change next time?", text: $draft.homeNextTimeNote, axis: .vertical)
+                            .lineLimit(2...5)
+                            .padding(14)
+                            .background(Color.foamWhite)
+                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
+                        Label("Private · shown the next time you make this", systemImage: "lock.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tertiaryText)
+                    }
                 }
                 .padding(.horizontal, DesignSystem.Space.md)
             } else {
@@ -1667,6 +2817,7 @@ private struct LogASipV3PublishSurface: View {
     @State private var presentedEditSheet: LogASipV3PublishEditSheet?
     @State private var customCriterionTarget: LogASipV3CriterionTarget?
     @State private var customCriterionName = ""
+    @State private var recipeConsent: HomeLinkedRecipeSheet?
 
     private var isHome: Bool { draft.context == .home || draft.context == .recipe }
     private var hasRequiredContextScore: Bool {
@@ -1680,6 +2831,23 @@ private struct LogASipV3PublishSurface: View {
             && hasRequiredContextScore
             && (!photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto)
             && draft.recipePublicationRequirement == .ready
+            && recipeAttachmentReady
+    }
+
+    private var selectedRecipeReference: HomeRecipeReference? {
+        guard let recipeID = draft.launchContext.sourceRecipeIdentityID,
+              let versionID = draft.launchContext.homeRecipeVersionID else { return nil }
+        return HomeRecipeReference(recipeID: recipeID, versionID: versionID)
+    }
+
+    private var recipeAttachmentMode: HomeRecipeAttachmentMode {
+        draft.launchContext.homeRecipeAttachmentMode ?? .nameOnly
+    }
+
+    private var recipeAttachmentReady: Bool {
+        guard isHome, recipeAttachmentMode == .fullDetails,
+              let versionID = selectedRecipeReference?.versionID else { return true }
+        return (draft.launchContext.homeRecipeAttachments ?? []).contains { $0.versionID == versionID }
     }
 
     private var contextScoreForBlend: Double? {
@@ -1807,6 +2975,17 @@ private struct LogASipV3PublishSurface: View {
             if isHome, draft.brewDetails.hasStructuredData {
                 LogASipV3HomePublishSummary(draft: draft)
                     .padding(.horizontal, DesignSystem.Space.md)
+
+                if selectedRecipeReference != nil {
+                    LogASipV3HomeRecipeAttachmentControls(
+                        mode: Binding(
+                            get: { recipeAttachmentMode },
+                            set: { selectRecipeAttachmentMode($0) }
+                        ),
+                        isConfirmed: recipeAttachmentReady
+                    )
+                    .padding(.horizontal, DesignSystem.Space.md)
+                }
             }
 
             VStack(spacing: 0) {
@@ -1815,7 +2994,7 @@ private struct LogASipV3PublishSurface: View {
                     detail: "Who can see the finished Mugshot",
                     systemImage: "person.2.fill",
                     selection: $draft.visibility,
-                    enabledOptions: VisitVisibility.allCases
+                    enabledOptions: isHome ? [.friends, .everyone] : VisitVisibility.allCases
                 )
 
                 if draft.visibility == .friends {
@@ -1874,10 +3053,27 @@ private struct LogASipV3PublishSurface: View {
         .onChange(of: photoImages.count) { _, count in
             previewIndex = min(max(previewIndex, 0), max(count - 1, 0))
         }
+        .onChange(of: draft.visibility) { _, _ in
+            draft.launchContext.homeRecipeAttachments = []
+            if recipeAttachmentMode == .fullDetails {
+                draft.launchContext.homeRecipeAttachmentMode = .nameOnly
+            }
+        }
         .sheet(item: $presentedEditSheet) { sheet in
             publishEditSheet(sheet)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $recipeConsent) { selected in
+            HomeRecipeSharingConsent(
+                reference: selected.reference,
+                audience: draft.visibility,
+                ownerID: draft.ownerUserID
+            ) { attachment in
+                draft.launchContext.homeRecipeAttachments = [attachment]
+                draft.launchContext.homeRecipeAttachmentMode = .fullDetails
+                recipeConsent = nil
+            }
         }
         .alert("Add criterion", isPresented: customCriterionAlertPresented) {
             TextField("Criterion name", text: $customCriterionName)
@@ -1891,6 +3087,18 @@ private struct LogASipV3PublishSurface: View {
 
     private var captionCharacterCount: Int {
         SipCaptionPolicy.characterCount(draft.socialCaption)
+    }
+
+    private func selectRecipeAttachmentMode(_ mode: HomeRecipeAttachmentMode) {
+        draft.launchContext.homeRecipeAttachmentMode = mode
+        switch mode {
+        case .fullDetails:
+            guard let selectedRecipeReference else { return }
+            draft.launchContext.homeRecipeAttachments = []
+            recipeConsent = HomeLinkedRecipeSheet(reference: selectedRecipeReference)
+        case .nameOnly, .doNotAttach:
+            draft.launchContext.homeRecipeAttachments = []
+        }
     }
 
     private var selectedPreviewImage: UIImage? {
@@ -2148,9 +3356,7 @@ private struct LogASipV3HomePublishSummary: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: method.systemImage)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Color.mugshotSage)
+            HomeMethodIconView(method: method, size: 20)
                 .frame(width: 38, height: 38)
                 .background(Color.mugshotMint.opacity(0.24), in: Circle())
 
@@ -2183,6 +3389,54 @@ private struct LogASipV3HomePublishSummary: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("logASipV3.home.publishSummary")
+    }
+}
+
+private struct LogASipV3HomeRecipeAttachmentControls: View {
+    @Binding var mode: HomeRecipeAttachmentMode
+    let isConfirmed: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recipe attachment").font(.system(size: 13, weight: .bold))
+                    Text("Choose exactly what this post shares.")
+                        .font(.caption).foregroundStyle(Color.secondaryText)
+                }
+                Spacer()
+                Picker("Recipe attachment", selection: $mode) {
+                    ForEach(HomeRecipeAttachmentMode.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Color.mugshotSage)
+            }
+
+            if mode == .fullDetails {
+                Label(
+                    isConfirmed ? "Exact version approved" : "Confirm the proposed recipe audience to continue",
+                    systemImage: isConfirmed ? "checkmark.shield.fill" : "lock.trianglebadge.exclamationmark"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isConfirmed ? Color.mugshotSage : Color.secondaryText)
+            } else if mode == .nameOnly {
+                Text("The recipe name may appear, but its instructions and linked components stay private.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            } else {
+                Text("The post keeps the sip and method summary without identifying the recipe.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
+
+            Text("Linked component instructions are never shared automatically.")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.tertiaryText)
+        }
+        .padding(14)
+        .background(Color.foamWhite)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine))
     }
 }
 
@@ -4345,7 +5599,7 @@ struct LogASipV3CriterionSuggestion: Identifiable {
 
         let isHome = draft.context == .home || draft.context == .recipe
 
-        if isHome && draft.drinkType == .coffee {
+        if isHome {
             switch HomeBrewMethod(storedValue: draft.brewMethod) {
             case .espresso:
                 priority = [
@@ -4371,19 +5625,20 @@ struct LogASipV3CriterionSuggestion: Identifiable {
                     "balance", "intensity", "flavor", "complexity", "extraction",
                     "temperature", "finish", "aftertaste", "consistency"
                 ]
-            case .mokaPot:
+            case .mokaPot, .siphon, .turkishIbrik, .vietnamesePhin, .percolator,
+                 .cowboyBoiled, .instant:
                 priority = [
                     "intensity", "strength", "extraction", "bitterness", "body", "balance",
                     "sweetness", "coffee-presence", "aroma", "roast-character", "consistency",
                     "temperature", "finish", "aftertaste", "value"
                 ]
-            case .coldBrew:
+            case .coldBrew, .coldBrewTea:
                 priority = [
                     "refreshment", "concentration", "strength", "sweetness", "clarity", "body",
                     "texture", "bitterness", "acidity", "dilution", "ice-balance", "balance",
                     "temperature", "finish", "aftertaste", "consistency"
                 ]
-            case .batch:
+            case .batch, .flashBrew:
                 priority = [
                     "freshness", "aroma", "flavor", "sweetness", "brightness", "acidity",
                     "bitterness", "body", "balance", "clarity", "roast-character",
@@ -4394,6 +5649,30 @@ struct LogASipV3CriterionSuggestion: Identifiable {
                     "consistency", "coffee-presence", "strength", "aroma", "flavor", "body",
                     "balance", "sweetness", "bitterness", "roast-character", "temperature",
                     "finish", "aftertaste", "value"
+                ]
+            case .traditionalMatcha, .shakenMatcha, .matchaLatte:
+                priority = [
+                    "umami", "whisk-texture", "sweetness", "bitterness", "astringency",
+                    "vegetal-character", "aroma", "creaminess", "balance", "temperature",
+                    "presentation", "finish", "aftertaste", "consistency"
+                ]
+            case .whiskedHojicha, .steepedHojicha, .hojichaLatte:
+                priority = [
+                    "roast-depth", "roast-character", "aroma", "sweetness", "bitterness",
+                    "tea-presence", "body", "creaminess", "balance", "temperature",
+                    "finish", "aftertaste", "comfort", "consistency"
+                ]
+            case .westernTea, .gongfuTea, .icedTea, .chaiConcentrate, .teaLatte:
+                priority = [
+                    "tea-presence", "infusion-strength", "aroma", "astringency", "sweetness",
+                    "bitterness", "floral-character", "clarity", "body", "balance",
+                    "temperature", "finish", "aftertaste", "complexity"
+                ]
+            case .milkFoam, .syrupSauce, .tonicSoda, .blendedFrozen, .completeDrink:
+                priority = [
+                    "ingredient-integration", "flavor-accuracy", "flavor-balance", "texture",
+                    "sweetness", "creaminess", "body", "balance", "presentation", "temperature",
+                    "finish", "aftertaste", "novelty", "consistency"
                 ]
             case .other:
                 priority = Self.generalPriority

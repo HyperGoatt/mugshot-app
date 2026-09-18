@@ -904,16 +904,22 @@ private struct HomeMethodDetailsEditor: View {
                 HomeIntegerField(title: "Bloom time", accessibilityIdentifier: "logASipV3.home.bloomTime", placeholder: "45", unit: "sec", value: integerBinding(\.bloomSeconds), previous: previous(\.bloomSeconds))
                 HomeTextValueField(title: "Pour pattern", accessibilityIdentifier: "logASipV3.home.pourPattern", placeholder: "Three gentle pours", text: textBinding(\.pourPattern), previous: previous(\.pourPattern))
                 HomeRecipeStepsEditor(steps: stepsBinding, title: "Pour stages")
-            case .aeroPress, .frenchPress, .immersion:
+            case .aeroPress, .frenchPress, .immersion, .westernTea, .gongfuTea,
+                 .steepedHojicha, .coldBrewTea, .chaiConcentrate:
                 HomeIntegerField(title: "Steep", accessibilityIdentifier: "logASipV3.home.steepTime", placeholder: "120", unit: "sec", value: integerBinding(\.steepSeconds), previous: previous(\.steepSeconds))
                 HomeIntegerField(title: "Press", accessibilityIdentifier: "logASipV3.home.pressTime", placeholder: "30", unit: "sec", value: integerBinding(\.pressSeconds), previous: previous(\.pressSeconds))
                 HomeTextValueField(title: "Agitation", accessibilityIdentifier: "logASipV3.home.agitation", placeholder: "Stir, swirl, or leave still", text: textBinding(\.agitationNotes), previous: previous(\.agitationNotes))
-            case .mokaPot:
+            case .mokaPot, .siphon, .turkishIbrik, .vietnamesePhin, .percolator, .cowboyBoiled:
                 HomeTextValueField(title: "Heat", accessibilityIdentifier: "logASipV3.home.heat", placeholder: "Low, lid open", text: textBinding(\.heatNotes), previous: previous(\.heatNotes))
             case .coldBrew:
                 HomeMeasurementField(title: "Steep", accessibilityIdentifier: "logASipV3.home.coldBrewSteep", placeholder: "12", unit: "hr", value: doubleBinding(\.coldBrewSteepHours), previous: previous(\.coldBrewSteepHours))
                 HomeTextValueField(title: "Serving note", accessibilityIdentifier: "logASipV3.home.servingNote", placeholder: "Dilution, ice, milk…", text: textBinding(\.customNotes), previous: previous(\.customNotes))
-            case .batch, .pod, .other:
+            case .traditionalMatcha, .shakenMatcha, .matchaLatte, .whiskedHojicha,
+                 .hojichaLatte, .teaLatte, .milkFoam:
+                HomeTextValueField(title: "Agitation", accessibilityIdentifier: "logASipV3.home.agitation", placeholder: "Whisk, shake, froth, or stir", text: textBinding(\.agitationNotes), previous: previous(\.agitationNotes))
+                HomeTextValueField(title: "Useful detail", accessibilityIdentifier: "logASipV3.home.customDetail", placeholder: "Anything future you needs", text: textBinding(\.customNotes), previous: previous(\.customNotes))
+            case .flashBrew, .batch, .instant, .pod, .icedTea, .syrupSauce,
+                 .tonicSoda, .blendedFrozen, .completeDrink, .other:
                 HomeTextValueField(title: "Useful detail", accessibilityIdentifier: "logASipV3.home.customDetail", placeholder: "Anything future you needs", text: textBinding(\.customNotes), previous: previous(\.customNotes))
             }
         }

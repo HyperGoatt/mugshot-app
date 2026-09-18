@@ -303,10 +303,11 @@ struct HomeRecipeExperienceView: View {
             ForEach(store.workspace.attempts.sorted { $0.createdAt > $1.createdAt }) { attempt in
                 Button { path.append(.attempt(attempt.id)) } label: {
                     HStack {
-                        Image(systemName: attempt.preparation?.template.symbol ?? "mug")
+                        HomeMethodIconView(method: attempt.preparation?.method ?? .other, size: 24)
+                            .frame(width: 30)
                         VStack(alignment: .leading) {
                             Text(attempt.name).font(.headline)
-                            Text(attempt.rating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
+                            Text(attempt.resolvedRating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -348,7 +349,8 @@ struct HomeRecipeExperienceView: View {
         }
         Section("Your recipes") {
             let visible = store.workspace.recipes.filter {
-                !$0.isArchived && (filter == nil || $0.current?.content.template == filter)
+                !$0.isArchived
+                    && (filter == nil || $0.current.map { recipeMatchesFilter($0.content, filter: filter) } == true)
                     && (query.isEmpty || $0.current?.content.searchText.contains(query.lowercased()) == true)
                     && (selectedTag.isEmpty || $0.current?.content.tags.contains(where: { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) == true)
             }.sorted { lhs, rhs in
@@ -399,6 +401,24 @@ struct HomeRecipeExperienceView: View {
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
+    private func recipeMatchesFilter(_ content: HomeRecipeContent, filter: HomeRecipeTemplate?) -> Bool {
+        guard let filter else { return true }
+        switch filter {
+        case .coffee:
+            return content.template == .coffee
+                || (content.template == .preparation && content.method.family == .coffee)
+        case .component:
+            return content.template == .component
+                || (content.template == .preparation && content.method.family == .component)
+        case .drink:
+            return content.template == .drink || content.method == .completeDrink
+        case .preparation:
+            return content.template == .preparation
+        case .custom:
+            return content.template == .custom
+        }
+    }
+
     private func tagButton(_ title: String, value: String) -> some View {
         Button(title) { selectedTag = value }
             .font(.caption.weight(.semibold))
@@ -437,7 +457,7 @@ struct HomeRecipeExperienceView: View {
             draft.brewDetails.doseGrams = attempt.actuals.dose
             draft.brewDetails.yieldGrams = attempt.actuals.output
             draft.brewDetails.brewTimeSeconds = attempt.actuals.seconds.map { Int($0) }
-            draft.brewMethod = attempt.preparation?.method.title ?? ""
+            draft.brewMethod = attempt.preparation?.methodDisplayName ?? ""
             let images = attempt.photoNames.compactMap { store.photo($0) }
             guard images.count == attempt.photoNames.count else {
                 throw HomeRecipeWorkspaceError.invalid("One of this make’s photos is unavailable. Your journal entry is safe; restore or remove the photo before sharing.")
@@ -741,9 +761,15 @@ struct HomeActualsEditor: View {
     var method: HomeBrewMethod?
     var template: HomeRecipeTemplate?
     var body: some View {
-        if template == nil || template == .coffee {
-            if method != .pod { HomeNumberField(title: "Actual coffee (g)", value: $actuals.dose) }
-            HomeNumberField(title: method == .espresso || method == .pod ? "Actual beverage (g)" : "Actual water (g)", value: $actuals.output)
+        if template == nil || template == .coffee || template == .preparation {
+            let resolvedMethod = method ?? .other
+            if method != .pod {
+                HomeNumberField(title: "Actual \(resolvedMethod.inputLabel.lowercased()) (g)", value: $actuals.dose)
+            }
+            HomeNumberField(
+                title: "Actual \(resolvedMethod.outputLabel.lowercased()) (\(resolvedMethod.outputUnit))",
+                value: $actuals.output
+            )
             HomeNumberField(title: "Temperature (°C)", value: $actuals.temperature)
             if method != .pod { TextField("Grinder setting", text: $actuals.grind) }
         } else {

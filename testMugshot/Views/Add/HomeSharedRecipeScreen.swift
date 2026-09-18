@@ -106,10 +106,20 @@ struct HomeSharedRecipeScreen: View {
             }
             let native = try await HomeRecipeWorkspaceService(client: client).content(versionID: versionID)
             guard store.scope == .user(ownerID) else { return }
+            let projectedMethod = value.brewMethod?.remoteTrimmedNonEmpty
+            let matchedMethod = HomeBrewMethod.allCases.first {
+                $0.rawValue == projectedMethod || $0.title == projectedMethod
+            }
             var resolved = native ?? HomeRecipeContent(name: value.recipeName, template: .coffee,
-                method: HomeBrewMethod.allCases.first { $0.rawValue == value.brewMethod || $0.title == value.brewMethod } ?? .other,
+                method: matchedMethod ?? .other,
                 steps: (value.brewDetails.steps ?? []).map { HomePreparationStep(instruction: $0.instruction, waitSeconds: $0.durationSeconds.map(Double.init)) },
                 legacyDetails: value.brewDetails)
+            if native == nil, matchedMethod == nil, let projectedMethod {
+                // Public projections can contain methods introduced by a newer
+                // client. Keep the exact identifier editable instead of
+                // collapsing it into a lossy generic "Other" value.
+                resolved.customMethodName = projectedMethod
+            }
             resolved.sourceVersionID = value.recipeVersionID
             resolved.sourceReuseAllowed = value.canSaveAndAdapt || value.owner?.id == ownerID
             resolved.creatorCredit = value.owner?.personLabel ?? resolved.creatorCredit

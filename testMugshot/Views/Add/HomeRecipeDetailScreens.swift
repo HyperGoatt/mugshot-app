@@ -48,7 +48,7 @@ struct HomeRecipeDetailScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(attempt.name)
                                 Text(attempt.createdAt, style: .date).font(.caption)
-                                if let rating = attempt.rating { Text("\(HomeRecipeContent.number(rating)) / 5").font(.caption) }
+                                if let rating = attempt.resolvedRating { Text("\(HomeRecipeContent.number(rating)) / 5").font(.caption) }
                                 if recipe.favoriteAttemptID == attempt.id { Label("Favorite result", systemImage: "star.fill").font(.caption) }
                             }
                         }
@@ -138,9 +138,9 @@ struct HomeRecipeInformation: View {
     let content: HomeRecipeContent
     var onLinked: ((HomeRecipeReference) -> Void)?
     var body: some View {
-        if content.template == .coffee {
+        if content.template == .coffee || content.template == .preparation {
             Section("Preparation targets") {
-                Text(content.method.title)
+                Text(content.methodDisplayName)
                 if content.metricConfiguration != nil {
                     HomeConfiguredTargetSummary(content: content)
                 } else {
@@ -244,7 +244,7 @@ struct HomeAttemptDetailScreen: View {
                             Button("Retry photo sync") { Task { await store.synchronize() } }
                         }
                     }
-                    Text(attempt.rating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
+                    Text(attempt.resolvedRating.map { "\(HomeRecipeContent.number($0)) / 5" } ?? "Unrated")
                     if !attempt.reaction.isEmpty { Text(attempt.reaction) }
                     if !attempt.privateNote.isEmpty { Text(attempt.privateNote) }
                     if let makeAgain = attempt.makeAgain { LabeledContent("Make again", value: makeAgain.title) }
@@ -270,7 +270,7 @@ struct HomeAttemptDetailScreen: View {
                         Section("Compare results") {
                             Menu("Compare with another make") {
                                 ForEach(others) { other in
-                                    Button("\(other.createdAt.formatted(date: .abbreviated, time: .shortened)) · \(other.rating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")") {
+                                    Button("\(other.createdAt.formatted(date: .abbreviated, time: .shortened)) · \(other.resolvedRating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")") {
                                         comparison = other
                                     }
                                 }

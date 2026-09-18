@@ -11,10 +11,76 @@ struct HomeRecipeWorkspaceTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         #expect(RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
+
+        #expect(RoadmapFeatureFlags.isHomeSipV3RouteEnabled(in: defaults))
+        defaults.set(false, forKey: RoadmapFeatureFlags.homeSipV3Route)
+        #expect(!RoadmapFeatureFlags.isHomeSipV3RouteEnabled(in: defaults))
+        defaults.set(true, forKey: RoadmapFeatureFlags.homeSipV3Route)
+        #expect(RoadmapFeatureFlags.isHomeSipV3RouteEnabled(in: defaults))
         defaults.set(false, forKey: RoadmapFeatureFlags.homeRecipes)
         #expect(!RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
         defaults.set(true, forKey: RoadmapFeatureFlags.homeRecipes)
         #expect(RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
+    }
+
+    @Test func preparationMethodsAndCustomFieldsRoundTripWithoutInventingActuals() throws {
+        #expect(HomeBrewMethod.allCases.count >= 30)
+        #expect(Set(HomeBrewMethod.allCases.map(\.rawValue)).count == HomeBrewMethod.allCases.count)
+        #expect(HomeBrewMethod.traditionalMatcha.family == .matcha)
+        #expect(HomeBrewMethod.steepedHojicha.family == .hojicha)
+        #expect(HomeBrewMethod.gongfuTea.family == .tea)
+        #expect(HomeBrewMethod.syrupSauce.family == .component)
+
+        var content = HomeRecipeContent.starting(.preparation)
+        content.name = "My steam wand ritual"
+        content.method = .other
+        content.customMethodName = "Steam wand ritual"
+        content.fields = [HomeCustomField(label: "Texture", kind: .choice, value: "Glossy", choices: ["Glossy", "Dry"], stableKey: "texture")]
+        let decoded = try JSONDecoder().decode(HomeRecipeContent.self, from: JSONEncoder().encode(content))
+        #expect(decoded.customMethodName == "Steam wand ritual")
+        #expect(decoded.fields.first?.stableKey == "texture")
+
+        let attempt = HomeAttemptRecord(name: content.name, targets: decoded, preparation: decoded)
+        #expect(attempt.actuals == HomeAttemptActuals())
+        #expect(attempt.rating == nil)
+    }
+
+    @Test func legacyWorkspacePayloadsDecodeAndUnknownMethodIdentifiersRoundTrip() throws {
+        var content = HomeRecipeContent(name: "Future brewer", template: .preparation, method: .espresso)
+        content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
+        var contentJSON = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(content)) as? [String: Any])
+        contentJSON.removeValue(forKey: "customMethodName")
+        contentJSON["method"] = "future_wave_brewer"
+
+        let decodedContent = try JSONDecoder().decode(
+            HomeRecipeContent.self,
+            from: JSONSerialization.data(withJSONObject: contentJSON)
+        )
+        #expect(decodedContent.method == .other)
+        #expect(decodedContent.methodDisplayName == "future_wave_brewer")
+        let reencodedContent = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(decodedContent)) as? [String: Any]
+        )
+        #expect(reencodedContent["method"] as? String == "future_wave_brewer")
+
+        var attemptJSON = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(HomeAttemptRecord(name: "Legacy make"))) as? [String: Any]
+        )
+        attemptJSON.removeValue(forKey: "manualRating")
+        attemptJSON.removeValue(forKey: "ratingCriteria")
+        attemptJSON.removeValue(forKey: "sensorySnapshot")
+        if var actuals = attemptJSON["actuals"] as? [String: Any] {
+            actuals.removeValue(forKey: "customFields")
+            attemptJSON["actuals"] = actuals
+        }
+        let decodedAttempt = try JSONDecoder().decode(
+            HomeAttemptRecord.self,
+            from: JSONSerialization.data(withJSONObject: attemptJSON)
+        )
+        #expect(decodedAttempt.name == "Legacy make")
+        #expect(decodedAttempt.manualRating == nil)
+        #expect(decodedAttempt.ratingCriteria.isEmpty)
+        #expect(decodedAttempt.actuals.customFields.isEmpty)
     }
 
     @Test func unratedHomePublicationDoesNotInventARequiredScore() throws {

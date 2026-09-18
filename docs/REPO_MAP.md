@@ -1,16 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
 
 # Repository map
 
 ## Native Home/Recipes implementation
 
-`Models/HomeRecipeWorkspace.swift`, `Services/HomeRecipeWorkspaceStore.swift`,
-`Services/Supabase/HomeRecipeWorkspaceService.swift`, and the `Views/Add/Home*`
-recipe screens contain the default-on, production-configured native flow.
+`Models/HomeRecipeWorkspace.swift`, `Models/HomeWorkbenchModels.swift`,
+`Models/SipDraft.swift`, `Services/HomeRecipeWorkspaceStore.swift`,
+`Services/Supabase/HomeRecipeWorkspaceService.swift`,
+`Views/Add/HomeSipV3SetupView.swift`, `LogASipV3ProductionViews.swift`, and the
+remaining `Views/Add/Home*` recipe screens contain the default-on,
+production-configured native flow.
 Focused coverage lives in `testMugshotTests/HomeRecipeWorkspaceTests.swift`,
 `testMugshotTests/HomeRecipeHostedIntegrationTests.swift`,
 `testMugshotUITests/HomeRecipesJourneyUITests.swift`, and the `qa/pglite/home-*`
@@ -41,8 +44,8 @@ through the committed package resolution.
 | Domain | Primary responsibility |
 | --- | --- |
 | Auth/Profile | Identity, callbacks, session/account isolation and public profile projections |
-| Composer/Visits | Cafe and Elsewhere capture, drafts, uploads, publication, edit/delete and recovery; central Add > Home hands off to the unified Home quick log |
-| Home Workbench | Coffee library, recipes, brew plans/actuals, reuse and owner journal projection |
+| Composer/Visits | Cafe, Home, and Elsewhere capture; Home setup/guidance/reflection/private save; drafts, uploads, publication, edit/delete, and recovery |
+| Home and Recipes | Preparation library across coffee/matcha/tea/components/drinks, recipes, frozen targets, optional actuals, reusable sessions, history, and owner journal projection |
 | Feed/Social | Viewer-scoped feed/detail, the People discovery hub, selected-contact matching, profile/invite sharing, suggestions, friends, expressive reactions over legacy-compatible likes, threaded comments, mentions, historical coffee reactions, and tags |
 | Map/Saved | Search, cafe identity, saved state, discovery and collaborative lists |
 | Journal/Taste | Canonical history, reflections, Taste Passport and sensory projections |

@@ -50,7 +50,7 @@ struct HomeRecipeEditorView: View {
                     get: { draft.content.template },
                     set: { changeTemplate(to: $0) }
                 )) {
-                    ForEach(HomeRecipeTemplate.allCases) { Text($0.title).tag($0) }
+                    ForEach(HomeRecipeTemplate.allCases.filter { $0 != .coffee }) { Text($0.title).tag($0) }
                 }
                 DisclosureGroup("Inspiration & credit", isExpanded: $sourceExpanded) {
                     TextField("Instagram, TikTok, or website link", text: $draft.content.sourceURL)
@@ -58,8 +58,8 @@ struct HomeRecipeEditorView: View {
                     TextField("Creator credit (optional)", text: $draft.content.creatorCredit)
                 }
             }
-            if draft.content.template == .coffee {
-                Section("Coffee preparation") {
+            if draft.content.template == .coffee || draft.content.template == .preparation {
+                Section("Preparation") {
                     Picker("Method", selection: Binding(get: { draft.content.method }, set: { method in
                         let previous = draft.content.method
                         draft.content.changeMethod(from: previous, to: method)
@@ -68,6 +68,12 @@ struct HomeRecipeEditorView: View {
                         ForEach(HomeBrewMethod.allCases) { Text($0.title).tag($0) }
                     }
                     .accessibilityIdentifier("home.recipe.method")
+                    if draft.content.method == .other {
+                        TextField("Custom method name", text: $draft.content.customMethodName)
+                            .accessibilityIdentifier("home.recipe.customMethodName")
+                        Text("Add any text, number, duration, or choice fields below. Mugshot keeps this method name exactly as written.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if draft.content.metricConfiguration != nil {
                         HomeConfiguredTargetsEditor(content: $draft.content)
                     } else if draft.content.method != .other {
@@ -190,7 +196,9 @@ struct HomeRecipeEditorView: View {
             }
             if optionalSectionsRemain {
                 Section("Add to this recipe") {
-                    if draft.content.template == .coffee, !showCoffeeLibrary {
+                    if (draft.content.template == .coffee || draft.content.template == .preparation),
+                       draft.content.method.family == .coffee,
+                       !showCoffeeLibrary {
                         Button("Beans and equipment", systemImage: "shippingbox") { showCoffeeLibrary = true }
                     }
                     if !showIngredients { Button("Ingredients", systemImage: "list.bullet") { showIngredients = true } }
@@ -243,13 +251,17 @@ struct HomeRecipeEditorView: View {
         }
     }
     private var optionalSectionsRemain: Bool {
-        (draft.content.template == .coffee && !showCoffeeLibrary) || !showIngredients || !showSteps
+        ((draft.content.template == .coffee || draft.content.template == .preparation)
+            && draft.content.method.family == .coffee && !showCoffeeLibrary)
+            || !showIngredients || !showSteps
             || !showOrganization || !showCustomFields
     }
     private func changeTemplate(to template: HomeRecipeTemplate) {
         guard draft.content.template != template else { return }
         draft.content.template = template
-        if template == .coffee, draft.content.method == .other, !draft.content.isActionable {
+        if (template == .coffee || template == .preparation),
+           draft.content.method == .other,
+           !draft.content.isActionable {
             draft.content.method = .espresso
             draft.content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
         }
@@ -284,8 +296,24 @@ private struct HomeRecipeLinkPicker: View {
     private var recipes: [HomeRecipeRecord] {
         store.workspace.recipes.filter { record in
             guard !record.isArchived, record.id != excluding, let content = record.current?.content else { return false }
-            return (filter == nil || content.template == filter)
+            return (filter == nil || matches(content, filter: filter))
                 && (query.isEmpty || content.searchText.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    private func matches(_ content: HomeRecipeContent, filter: HomeRecipeTemplate?) -> Bool {
+        guard let filter else { return true }
+        switch filter {
+        case .coffee:
+            return content.template == .coffee
+                || (content.template == .preparation && content.method.family == .coffee)
+        case .component:
+            return content.template == .component
+                || (content.template == .preparation && content.method.family == .component)
+        case .drink:
+            return content.template == .drink || content.method == .completeDrink
+        case .preparation: return content.template == .preparation
+        case .custom: return content.template == .custom
         }
     }
 
@@ -358,7 +386,7 @@ struct HomeRecipeTemplateChooser: View {
                 }
                 .padding(.bottom, DesignSystem.Space.xs)
 
-                ForEach(HomeRecipeTemplate.allCases) { template in
+                ForEach(HomeRecipeTemplate.allCases.filter { $0 != .coffee }) { template in
                     Button { onSelect(template) } label: {
                         HStack(alignment: .top, spacing: DesignSystem.Space.md) {
                             Image(systemName: template.symbol)
@@ -392,7 +420,8 @@ struct HomeRecipeTemplateChooser: View {
 
     private func description(for template: HomeRecipeTemplate) -> String {
         switch template {
-        case .coffee: "Espresso, pour-over, cold brew, French press, AeroPress, pods, and more."
+        case .preparation: "Coffee, matcha, hojicha, tea, components, and any other method."
+        case .coffee: "Legacy coffee preparation. Existing recipes remain unchanged."
         case .component: "Syrups, foams, sauces, concentrates, flavored milks, and toppings."
         case .drink: "Lattes, mochas, iced drinks, and complete creations with linked recipes."
         case .custom: "Start with only a name, then add exactly the fields you need."
@@ -525,7 +554,12 @@ struct HomeTargetsEditor: View {
             HomeNumberField(title: "Ratio · 1 to", value: $targets.ratio)
             LabeledContent(method == .espresso ? "Target yield" : "Total water", value: targets.resolvedOutput.map { "\(HomeRecipeContent.number($0)) g" } ?? "Not set")
         } else {
-            HomeNumberField(title: method == .espresso ? "Target yield (g)" : "Total water (g)", value: $targets.output)
+            HomeNumberField(
+                title: method == .espresso
+                    ? "Target yield (\(method.outputUnit))"
+                    : "\(method.outputLabel) (\(method.outputUnit))",
+                value: $targets.output
+            )
             LabeledContent("Ratio", value: targets.resolvedRatio.map { "1:\(HomeRecipeContent.number($0))" } ?? "Not set")
         }
         if method == .coldBrew {
@@ -558,7 +592,14 @@ struct HomeRecipeRow: View {
     let content: HomeRecipeContent
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: content.template.symbol).font(.title3).foregroundStyle(Color.mugshotSage).frame(width: 32)
+            if content.template == .coffee || content.template == .preparation {
+                HomeMethodIconView(method: content.method, size: 24)
+                    .frame(width: 32)
+                    .accessibilityLabel(content.methodDisplayName)
+            } else {
+                Image(systemName: content.template.symbol)
+                    .font(.title3).foregroundStyle(Color.mugshotSage).frame(width: 32)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(content.name).font(.headline).foregroundStyle(Color.espressoBrown)
                 Text(content.summary.isEmpty ? "Saved reference" : content.summary).font(.caption).foregroundStyle(.secondary)
