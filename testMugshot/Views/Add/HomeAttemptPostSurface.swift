@@ -90,7 +90,7 @@ struct HomeAttemptPostSurface: View {
     }
 }
 
-private struct HomeRecipeSharingConsent: View {
+struct HomeRecipeSharingConsent: View {
     let reference: HomeRecipeReference
     let audience: VisitVisibility
     let ownerID: UUID?

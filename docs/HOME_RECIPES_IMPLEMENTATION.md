@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
 
 # Native Home and Recipes implementation
@@ -15,19 +15,50 @@ production-configured. Production is aligned to migration
 stored `false` as a data-preserving rollback switch. The browser gallery remains
 design evidence rather than production navigation.
 
-Current source removes the temporary gate and routes central Add > Log a Sip >
-Home into the unified two-surface quick log. Journal > Home continues to provide
-the full My makes / Recipes workspace. The implementation, production schema,
-existing account-scoped data, Journal collections, and saved-attempt flows remain
-intact. The already-distributed TestFlight 0.5.3 (8) still contains its historical
-under-construction placeholder; it is not evidence for the enabled candidate.
+Current source implements [Home Sip V3](HOME_SIP_V3_AMENDMENT_2026-09-18.md).
+Central Add > Log a Sip > Home remains inside the production composer and opens
+setup-first; **Already made it? Quick log** is a visible secondary route. Journal
+> Home continues to provide the full My makes / Recipes workspace. Existing
+account-scoped data, immutable versions, historical attempts, attribution, and
+production schema remain intact. The already-distributed TestFlight 0.5.3 (8)
+still contains its historical under-construction placeholder and is not evidence
+for this source candidate.
 
-The 2026-09-15 implementation acceptance remains historical evidence for the
-original candidate. The 2026-09-17 repair changes cross-screen navigation,
-persistence, preparation, media, shortcuts, and publication recovery. The
-enabled signed development candidate compiled, installed, and launched on Joe's
-iPhone; owner hands-on QA is the active acceptance step. No replacement
-TestFlight upload or App Store release is claimed.
+The 2026-09-15 and 2026-09-17 acceptance records remain historical evidence for
+their candidates. Home Sip V3 changes central navigation, preparation breadth,
+reflection evidence, save/share sequencing, method identity, and publishing
+privacy. It is implemented in source, generic app/test compilation passes, and
+the focused Home runtime gate passes on iOS 27.0. The current Tier 4 acceptance
+state is recorded below. No replacement TestFlight upload or App Store release
+is claimed.
+
+## 2026-09-18 V3 architecture
+
+- `LogASipV3ProductionView` remains the visible coordinator for Cafe, Home, and
+  Elsewhere. `HomeRecipeExperienceView` remains the Journal library/history
+  destination and is no longer the default central Home handoff.
+- A Home coordinator state in the durable Sip draft owns guided/quick path,
+  setup, current phase, preparation session, private attempt, and the stable
+  publication-draft link. The numbered path is Setup 1/4, Capture 2/4,
+  Reflection 3/4, Saved 4/4; adaptive Make is unnumbered.
+- `HomeBrewMethod` is an additive string-backed method registry with safe unknown
+  decoding, preserved aliases, custom method names, method families, default
+  values, criteria suggestions, and original Canvas-drawn vector identities.
+- `HomeRecipeTemplate.preparation` serves coffee, matcha, hojicha, tea,
+  components, complete drinks, and custom work. Legacy `.coffee` records remain
+  readable and are not rewritten.
+- Home attempts preserve frozen targets, independently optional actuals,
+  custom-field values, manual/displayed score evidence, criteria, importance,
+  sensory selections, private note, make-again intent, and next-time note.
+- A private attempt and its media are account-scoped and durable before Saved or
+  Review is shown. Async save work is fenced to the originating account.
+- Sharing adapts that saved attempt into the standard production Review Mugshot
+  flow with a stable publication draft. General brew details exclude recipe
+  instructions; only an explicit exact-version Full details attachment can
+  expose them after rights/audience confirmation.
+- `MugshotRoadmap.homeSipV3Route.v1` is independent from the existing Home
+  Recipes flag. An explicit stored false restores the previous central route
+  without deleting V3 recipes, attempts, sessions, drafts, or media.
 
 ## 2026-09-17 repair architecture
 
@@ -63,10 +94,10 @@ TestFlight upload or App Store release is claimed.
 - Journal > Home retains independent My makes and Recipes collection state,
   surfaces active batches and interrupted drafts first, and provides usuals,
   recent makes, Earlier entries, intentional empty states, and the full library.
-- Central Add > Log a Sip > Home opens the unified quick log without requiring a
-  recipe, rating, photo, measurement, or guided preparation. Selecting a recipe
-  attaches it without forcing guidance. Journal > Home remains the complete
-  library and history route.
+- Central Add > Log a Sip > Home opens setup-first inside the existing composer.
+  A visible quick-log shortcut needs only Capture and Reflection. Neither route
+  requires a recipe, rating, photo, measurement, or guided preparation, and
+  selecting a recipe never forces guidance.
 - Saving always opens the real private attempt. Make again, Save as recipe, Share,
   favorite-result, batch-serving, history, comparison, and next-time-note actions
   operate on that saved attempt rather than a transient example.
@@ -77,7 +108,7 @@ TestFlight upload or App Store release is claimed.
 
 ### One flexible recipe system
 
-- Coffee preparation, Component, Complete drink, and Blank are starting templates,
+- Preparation, Component, Complete drink, and Blank are starting templates,
   not separate data models. Only the name is required.
 - New-recipe creation is template-first and progressively discloses inspiration,
   beans/equipment, ingredients, instructions, yield/tags/notes, and custom fields.
@@ -101,8 +132,11 @@ TestFlight upload or App Store release is claimed.
 - Cold brew separates brew ratio, steep duration, and serving dilution. A batch
   uses durable timestamps and optional reminders, resumes after relaunch, and can
   produce multiple serving logs without duplicating batch production.
-- AeroPress, French press, immersion, moka pot, batch, pods, and unknown methods
-  receive sensible editable starting fields. Quantities scale by multiplier,
+- AeroPress, French press, immersion, moka pot, batch, siphon, Turkish/ibrik,
+  Vietnamese phin, pods, flash brew, percolator, boiled coffee, instant, matcha,
+  hojicha, western/gongfu/cold/iced tea, chai, milk/foam, syrup/sauce, tonic,
+  blended/frozen, complete drinks, and unknown methods receive sensible editable
+  starting fields. Quantities scale by multiplier,
   servings, or coffee dose without silently changing time, temperature, grind,
   pressure, or steep duration, and without mass/volume conversion.
 - Components and drinks use ingredient checklists and ordered instructions. An
@@ -118,13 +152,14 @@ TestFlight upload or App Store release is claimed.
 - Protected no-copy instructions are authorized for viewing/making without being
   persisted into an offline attempt or adaptation. Archived versions remain
   resolvable by historical attempts.
-- A private attempt is saved before the post composer opens. The composer uses the
+- A private attempt is saved before Review Mugshot opens. Review uses the
   attempt's real media, supports Friends or Everyone, previews the post payload,
   and preserves its draft on failure.
 - Recipe attachments are explicit, version-specific, audience-checked, retry-safe,
   and non-recursive. A parent never publishes linked component instructions.
   Private notes, next-time notes, inventory, and private media paths are excluded.
-  Component-only, photo-free, and unrated posts remain valid.
+  Component-only and photo-free posts are supported. Unrated private results
+  remain complete but must satisfy the standard score requirement before posting.
 
 ## Architecture and data ownership
 
@@ -155,6 +190,27 @@ legacy values, or remove legacy `.recipe` reading paths. Existing structured
 legacy drafts remain in their lossless composer until a safe adapter exists.
 
 ## Verification record
+
+### 2026-09-18 Home Sip V3 evidence
+
+- The generic Debug app, unit-test target, and UI-test target build for the iOS
+  Simulator SDK. The focused Home workspace suite then passed 30 of 30 tests on
+  a clean iPhone 17 Pro Simulator running iOS 27.0.
+- Added focused coverage for the data-preserving V3 route flag, expanded method
+  catalog, custom method/field identity, additive round trips, and unknown actuals.
+- Added central-entry UI coverage that asserts Home opens setup-first inside the
+  composer rather than the retired **What did you make?** route. That journey
+  passed on iOS 27.0.
+- The two-surface Quick Log journey passed Capture 1 of 2, shared Reflection 2
+  of 2, and an unrated, photo-free private save on iOS 27.0. Direct Setup and
+  Quick Log rendering was also inspected on that runtime.
+- Xcode 26.2's XCTest keyboard bridge stalled while driving iOS 27 text input.
+  The UI test uses a DEBUG-only deterministic launch value to exercise the
+  production save journey without altering release behavior. This is recorded
+  as a test-tooling limitation, not an application fallback to iOS 26.3.
+- The repository full-static gate passed 13 required checks with zero failures,
+  including generic app/test/UI compilation, cached Deno tests, and the complete
+  hermetic Home authorization, conflict, privacy, and retry contract set.
 
 ### 2026-09-17 repair evidence
 
@@ -221,17 +277,14 @@ schedules. It was deleted after the final hosted runs, stopping its hourly charg
 
 ## Remaining rollout gates
 
-The repaired implementation is present, but the central Add entry remains
-temporarily unavailable behind the build-8 placeholder. The remaining gates are:
+Home Sip V3 is present in source and defaults on behind its independent,
+data-preserving route flag. The remaining gates are:
 
-1. Complete the repository Tier 3 deterministic gate, including focused model,
-   retry, authorization, and hermetic Home backend contracts.
-2. In one separately authorized runtime session, accept quick logging, guided
-   preparation, relaunch, account switching, media, publication retry, keyboard,
-   Dynamic Type, and accessibility behavior. This document does not claim that
-   runtime gate from compile-only evidence.
-3. Promote the same candidate to a connected iPhone only after the owner requests
-   hardware acceptance. Reopen central Add > Home only after that pass; preserve
-   the explicit feature rollback switch and all saved data.
-4. Treat any later TestFlight archive/upload as a new explicit release gate with
+1. Complete the remaining broad iOS 27 journeys for guided preparation, relaunch,
+   account switching, media, publication retry, Dynamic Type, VoiceOver, and
+   Reduce Motion. Focused workspace, central setup, and quick private-save
+   acceptance already pass on iOS 27.0.
+2. Promote the same candidate to a connected iPhone only after the owner requests
+   hardware acceptance. The current task does not claim physical acceptance.
+3. Treat any later TestFlight archive/upload as a new explicit release gate with
    its own build number, candidate evidence, and What to Test handoff.

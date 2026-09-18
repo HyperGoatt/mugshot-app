@@ -6,6 +6,10 @@ last_verified: 2026-09-15
 
 # Home and Recipes implementation audit and acceptance — 2026-09-15
 
+> Historical checkpoint. The central composer and method breadth in this record
+> are superseded by the [Home Sip V3 amendment](HOME_SIP_V3_AMENDMENT_2026-09-18.md).
+> Preserve the acceptance results below as evidence for the 2026-09-15 candidate.
+
 Current delivery source: [Home and Recipes implementation](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Scope and safety

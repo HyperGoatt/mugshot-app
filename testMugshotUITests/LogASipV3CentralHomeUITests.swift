@@ -3,6 +3,10 @@ import XCTest
 final class LogASipV3CentralHomeUITests: XCTestCase {
     private enum Identifier {
         static let homeContext = "logASipV3.context.home"
+        static let homeQuickLog = "logASipV3.home.quickLog"
+        static let homeChooseRecipe = "logASipV3.home.chooseRecipe"
+        static let homeChooseMethod = "logASipV3.home.chooseMethod"
+        static let homeProgress = "logASipV3.home.progress"
         static let addPhotos = "logASipV3.photos.add"
         static let missedPhoto = "logASipV3.photoFallback.missed"
         static let drinkName = "logASipV3.drinkName"
@@ -31,9 +35,9 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
     }
 
     @MainActor
-    func testCentralAddHomeOpensUnifiedQuickLog() throws {
+    func testCentralAddHomeOpensSetupFirstInsideComposer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-reset"]
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-reduce-motion"]
         app.launch()
 
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
@@ -43,11 +47,51 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(homeContext.waitForExistence(timeout: 3))
         homeContext.tap()
 
-        XCTAssertTrue(app.navigationBars["What did you make?"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.textFields["home.log.name"].exists)
-        XCTAssertTrue(app.buttons["How was it?"].exists)
+        XCTAssertTrue(app.staticTexts["Start your Home sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(element(Identifier.homeChooseRecipe, in: app).exists)
+        XCTAssertTrue(element(Identifier.homeChooseMethod, in: app).exists)
+        XCTAssertTrue(element(Identifier.homeQuickLog, in: app).exists)
+        XCTAssertFalse(app.navigationBars["What did you make?"].exists)
         XCTAssertFalse(app.staticTexts["Home is under construction"].exists)
-        attachScreenshot(named: "01-central-add-home-quick-log", app: app)
+        attachScreenshot(named: "01-central-add-home-setup-first", app: app)
+    }
+
+    @MainActor
+    func testHomeQuickLogSavesAnUnratedPrivateSipInTwoInputSurfaces() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-reset",
+            "--ui-testing-reduce-motion",
+            "--ui-testing-seed-home-quick-name"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
+        app.buttons["Add"].tap()
+        let homeContext = element(Identifier.homeContext, in: app)
+        XCTAssertTrue(homeContext.waitForExistence(timeout: 3))
+        homeContext.tap()
+
+        let quickLog = element(Identifier.homeQuickLog, in: app)
+        XCTAssertTrue(quickLog.waitForExistence(timeout: 3))
+        quickLog.tap()
+        XCTAssertTrue(app.staticTexts["Quick log"].waitForExistence(timeout: 3))
+        let quickProgress = element(Identifier.homeProgress, in: app)
+        XCTAssertTrue(quickProgress.waitForExistence(timeout: 3))
+        XCTAssertEqual(quickProgress.label, "Step 1 of 2")
+
+        XCTAssertEqual(element(Identifier.drinkName, in: app).value as? String, "Afternoon matcha")
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
+        XCTAssertEqual(element(Identifier.homeProgress, in: app).label, "Step 2 of 2")
+
+        // Rating, criteria, note, make-again intent, and photo are all optional.
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Saved privately"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Unrated"].exists)
+        XCTAssertEqual(element(Identifier.homeProgress, in: app).label, "Step 4 of 4")
+        attachScreenshot(named: "02-home-quick-log-unrated-private-save", app: app)
     }
 
     @MainActor

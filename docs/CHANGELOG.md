@@ -1,8 +1,41 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
+
+## 2026-09-18 — Home Sip V3 unified composer
+
+- Replaced central Add > Log a Sip > Home's separate Home destination with a
+  setup-first Home experience inside the existing full-screen composer. The
+  default path is Setup → optional Make → Capture → Reflection → Saved; the
+  visible Already made it shortcut remains a two-surface quick log.
+- Reused the production Sip score, criteria, importance, Mugsy, flavor, private
+  note, Review Mugshot, publishing recovery, and completion surfaces. Added
+  optional make-again intent and next-time notes without adding a maker or
+  technique score.
+- Added a full preparation registry spanning coffee, matcha, hojicha, tea,
+  components, complete drinks, and custom methods, with progressive defaults and
+  a consistent family of native Mugshot vector icons.
+- Added durable method-aware preparation, linked-component readiness, cold-brew
+  timing/reminders, optional actual-versus-target capture, resumable sessions,
+  private-save-first results, clean repeat behavior, comparison/history routes,
+  save-as-recipe, and optional immutable recipe updates after saving.
+- Standardized sharing on the existing Review Mugshot flow. Attachments are
+  explicit exact versions with Full details, Name only, or Do not attach;
+  audience consent is required before exposing private instructions and linked
+  component instructions never publish recursively.
+- Added additive reflection/custom-actual fields to the existing versioned Home
+  workspace, account-change save fences, enum-only funnel analytics, a separate
+  data-preserving Home Sip V3 route flag, focused model/UI coverage, and
+  version-controlled decision and 50-screen flow evidence.
+- Verified current-runtime compatibility on a clean iPhone 17 Pro Simulator
+  running iOS 27.0: all 30 focused Home workspace tests passed, central Home
+  opened setup-first inside Log a Sip, and Quick Log completed both input
+  surfaces through an unrated, photo-free private save. iOS 26.3 is not used as
+  a fallback for this candidate.
+- No destructive migration, speculative backfill, Supabase deployment,
+  production-data mutation, TestFlight upload, or App Store action occurred.
 
 ## 2026-09-17 — Algorithm-first People hub redesign
 

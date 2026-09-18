@@ -242,9 +242,33 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
     case frenchPress = "french_press"
     case immersion
     case mokaPot = "moka_pot"
+    case siphon
+    case turkishIbrik = "turkish_ibrik"
+    case vietnamesePhin = "vietnamese_phin"
     case coldBrew = "cold_brew"
+    case flashBrew = "flash_brew"
     case batch
+    case percolator
+    case cowboyBoiled = "cowboy_boiled"
+    case instant
     case pod
+    case traditionalMatcha = "traditional_matcha"
+    case shakenMatcha = "shaken_matcha"
+    case matchaLatte = "matcha_latte"
+    case whiskedHojicha = "whisked_hojicha"
+    case steepedHojicha = "steeped_hojicha"
+    case hojichaLatte = "hojicha_latte"
+    case westernTea = "western_tea"
+    case gongfuTea = "gongfu_tea"
+    case coldBrewTea = "cold_brew_tea"
+    case icedTea = "iced_tea"
+    case chaiConcentrate = "chai_concentrate"
+    case teaLatte = "tea_latte"
+    case milkFoam = "milk_foam"
+    case syrupSauce = "syrup_sauce"
+    case tonicSoda = "tonic_soda"
+    case blendedFrozen = "blended_frozen"
+    case completeDrink = "complete_drink"
     case other
 
     var id: String { rawValue }
@@ -257,10 +281,64 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
         case .frenchPress: return "French press"
         case .immersion: return "Immersion"
         case .mokaPot: return "Moka pot"
+        case .siphon: return "Siphon"
+        case .turkishIbrik: return "Turkish / ibrik"
+        case .vietnamesePhin: return "Vietnamese phin"
         case .coldBrew: return "Cold brew"
+        case .flashBrew: return "Flash brew"
         case .batch: return "Batch"
+        case .percolator: return "Percolator"
+        case .cowboyBoiled: return "Cowboy / boiled"
+        case .instant: return "Instant"
         case .pod: return "Pod"
+        case .traditionalMatcha: return "Traditional matcha"
+        case .shakenMatcha: return "Shaken matcha"
+        case .matchaLatte: return "Matcha latte"
+        case .whiskedHojicha: return "Whisked hojicha"
+        case .steepedHojicha: return "Steeped hojicha"
+        case .hojichaLatte: return "Hojicha latte"
+        case .westernTea: return "Western tea"
+        case .gongfuTea: return "Gongfu tea"
+        case .coldBrewTea: return "Cold-brew tea"
+        case .icedTea: return "Iced tea"
+        case .chaiConcentrate: return "Chai concentrate"
+        case .teaLatte: return "Tea latte"
+        case .milkFoam: return "Milk & foam"
+        case .syrupSauce: return "Syrup, sauce, or concentrate"
+        case .tonicSoda: return "Tonic or soda"
+        case .blendedFrozen: return "Blended or frozen"
+        case .completeDrink: return "Complete drink"
         case .other: return "Other"
+        }
+    }
+
+    var family: HomeSipFamily {
+        switch self {
+        case .espresso, .pourOver, .aeroPress, .frenchPress, .immersion, .mokaPot,
+             .siphon, .turkishIbrik, .vietnamesePhin, .coldBrew, .flashBrew,
+             .batch, .percolator, .cowboyBoiled, .instant, .pod:
+            return .coffee
+        case .traditionalMatcha, .shakenMatcha, .matchaLatte:
+            return .matcha
+        case .whiskedHojicha, .steepedHojicha, .hojichaLatte:
+            return .hojicha
+        case .westernTea, .gongfuTea, .coldBrewTea, .icedTea, .chaiConcentrate, .teaLatte:
+            return .tea
+        case .milkFoam, .syrupSauce, .tonicSoda, .blendedFrozen, .completeDrink:
+            return .component
+        case .other:
+            return .other
+        }
+    }
+
+    var drinkType: DrinkType {
+        switch self {
+        case .traditionalMatcha, .shakenMatcha, .matchaLatte: return .matcha
+        case .whiskedHojicha, .steepedHojicha, .hojichaLatte: return .hojicha
+        case .chaiConcentrate: return .chai
+        case .westernTea, .gongfuTea, .coldBrewTea, .icedTea, .teaLatte: return .tea
+        case .milkFoam, .syrupSauce, .tonicSoda, .blendedFrozen, .completeDrink, .other: return .other
+        default: return .coffee
         }
     }
 
@@ -270,14 +348,61 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
         case .pourOver: return "drop.triangle.fill"
         case .aeroPress, .frenchPress, .immersion: return "arrow.down.to.line.compact"
         case .mokaPot: return "flame.fill"
-        case .coldBrew: return "snowflake"
+        case .siphon: return "hourglass"
+        case .turkishIbrik, .percolator, .cowboyBoiled: return "flame.fill"
+        case .vietnamesePhin: return "drop.circle"
+        case .coldBrew, .coldBrewTea: return "snowflake"
+        case .flashBrew, .icedTea: return "snowflake.circle"
         case .batch: return "mug.fill"
+        case .instant: return "bolt.fill"
         case .pod: return "capsule.fill"
+        case .traditionalMatcha, .shakenMatcha, .matchaLatte: return "leaf.fill"
+        case .whiskedHojicha, .steepedHojicha, .hojichaLatte: return "leaf.circle.fill"
+        case .westernTea, .gongfuTea, .chaiConcentrate, .teaLatte: return "cup.and.heat.waves.fill"
+        case .milkFoam: return "cloud.fill"
+        case .syrupSauce: return "drop.fill"
+        case .tonicSoda: return "bubbles.and.sparkles.fill"
+        case .blendedFrozen: return "snowflake"
+        case .completeDrink: return "mug.fill"
         case .other: return "ellipsis"
         }
     }
 
     var usesYield: Bool { self == .espresso }
+
+    var inputLabel: String {
+        switch family {
+        case .matcha: return "Matcha"
+        case .hojicha: return self == .steepedHojicha ? "Tea" : "Hojicha"
+        case .tea: return "Tea"
+        case .component: return "Base"
+        case .coffee: return "Coffee"
+        case .other: return "Input"
+        }
+    }
+
+    var outputLabel: String {
+        switch self {
+        case .espresso: return "Yield"
+        case .milkFoam, .syrupSauce, .chaiConcentrate: return "Yield"
+        case .tonicSoda, .blendedFrozen, .completeDrink, .matchaLatte, .hojichaLatte, .teaLatte:
+            return "Drink"
+        default: return "Water"
+        }
+    }
+
+    var outputUnit: String {
+        family == .coffee ? "g" : "ml"
+    }
+
+    var defaultShowsTemperature: Bool {
+        switch self {
+        case .coldBrew, .coldBrewTea, .tonicSoda, .blendedFrozen, .completeDrink, .milkFoam, .other:
+            return false
+        default:
+            return true
+        }
+    }
 
     var detailFields: Set<HomeBrewDetailField> {
         switch self {
@@ -285,13 +410,18 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
             return [.preinfusion, .pressure, .pressureFlowNotes]
         case .pourOver:
             return [.bloom, .pourPattern, .pourStages]
-        case .aeroPress, .frenchPress, .immersion:
+        case .aeroPress, .frenchPress, .immersion, .westernTea, .gongfuTea,
+             .steepedHojicha, .coldBrewTea, .chaiConcentrate:
             return [.steep, .press, .agitation]
-        case .mokaPot:
+        case .mokaPot, .siphon, .turkishIbrik, .vietnamesePhin, .percolator, .cowboyBoiled:
             return [.heat]
         case .coldBrew:
             return [.coldBrewSteep, .customNotes]
-        case .batch, .pod, .other:
+        case .traditionalMatcha, .shakenMatcha, .matchaLatte, .whiskedHojicha,
+             .hojichaLatte, .teaLatte, .milkFoam:
+            return [.agitation, .customNotes]
+        case .flashBrew, .batch, .instant, .pod, .icedTea, .syrupSauce,
+             .tonicSoda, .blendedFrozen, .completeDrink, .other:
             return [.customNotes]
         }
     }
@@ -309,10 +439,49 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
         case "french press": self = .frenchPress
         case "immersion": self = .immersion
         case "moka pot", "moka": self = .mokaPot
+        case "siphon", "vacuum": self = .siphon
+        case "turkish", "ibrik", "cezve", "turkish ibrik": self = .turkishIbrik
+        case "phin", "vietnamese phin": self = .vietnamesePhin
         case "cold brew": self = .coldBrew
+        case "flash brew", "japanese iced": self = .flashBrew
         case "batch", "batch brew": self = .batch
+        case "percolator": self = .percolator
+        case "cowboy", "boiled": self = .cowboyBoiled
+        case "instant": self = .instant
         case "pod", "capsule": self = .pod
+        case "traditional matcha", "matcha": self = .traditionalMatcha
+        case "shaken matcha": self = .shakenMatcha
+        case "matcha latte": self = .matchaLatte
+        case "whisked hojicha": self = .whiskedHojicha
+        case "steeped hojicha", "hojicha": self = .steepedHojicha
+        case "hojicha latte": self = .hojichaLatte
+        case "western tea", "tea": self = .westernTea
+        case "gongfu", "gongfu tea": self = .gongfuTea
+        case "cold brew tea": self = .coldBrewTea
+        case "iced tea": self = .icedTea
+        case "chai", "chai concentrate": self = .chaiConcentrate
+        case "tea latte": self = .teaLatte
+        case "milk", "foam", "milk foam": self = .milkFoam
+        case "syrup", "sauce", "concentrate": self = .syrupSauce
+        case "tonic", "soda": self = .tonicSoda
+        case "blended", "frozen": self = .blendedFrozen
+        case "complete drink": self = .completeDrink
         default: self = .other
+        }
+    }
+}
+
+enum HomeSipFamily: String, Codable, CaseIterable, Identifiable, Sendable {
+    case coffee, matcha, hojicha, tea, component, other
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .coffee: return "Coffee"
+        case .matcha: return "Matcha"
+        case .hojicha: return "Hojicha"
+        case .tea: return "Tea"
+        case .component: return "Components"
+        case .other: return "Other"
         }
     }
 }

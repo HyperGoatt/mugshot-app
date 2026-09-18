@@ -561,6 +561,7 @@ struct LogVisitView: View {
             onViewPublishedMugshot: viewPublishedMugshot,
             onViewPassport: viewPassportAfterCompletion,
             onUndoWantToTryRemoval: undoWantToTryRemoval,
+            onPrivateHomeSaved: finishPrivateHomeSave,
             onFinish: {
                 if isFirstSipGuidanceEnabled {
                     onFirstSipGuidanceCompleted()
@@ -2003,6 +2004,10 @@ struct LogVisitView: View {
             }
             photoImages = [fixturePhoto]
         }
+        if MugshotLaunchEnvironment.shouldSeedUITestHomeQuickName,
+           draft.drinkName.remoteTrimmedNonEmpty == nil {
+            draft.drinkName = "Afternoon matcha"
+        }
 #endif
         if draft.uploadState == .failed, uploadRecoveryMessage == nil {
             uploadRecoveryMessage = "Your last save was interrupted. Retry continues the same sip and photos."
@@ -2944,6 +2949,12 @@ struct LogVisitView: View {
         dismiss()
     }
 
+    private func finishPrivateHomeSave() {
+        SipDraftStore.shared.remove(draft, in: .forUserID(draft.ownerUserID))
+        tabCoordinator.returnFromComposer()
+        dismiss()
+    }
+
     private func preparePublication() {
         guard !isSaving, !checkingPublicationPolicy else { return }
         guard let owner = authModel.authenticatedUser?.id else { saveSip(); return }
@@ -3371,6 +3382,8 @@ struct LogVisitView: View {
                     v3Reflection: draft.launchContext.homeAttemptID != nil && draft.resolvedOverallScore == 0
                         ? nil : V3VisitReflection.make(visitID: draft.id, from: draft),
                     recipePublication: draft.includesRecipeBlueprint
+                        && (draft.launchContext.homeAttemptID == nil
+                            || draft.launchContext.homeRecipeAttachmentMode == .fullDetails)
                         ? draft.recipePublication
                         : nil,
                     homeRecipeAttachments: draft.launchContext.homeRecipeAttachments,
@@ -4416,6 +4429,18 @@ struct LogVisitView: View {
         details.companions = draft.companions.isEmpty ? nil : draft.companions
         if draft.context == .recipe {
             if details.recipeIdentityID == nil { details.recipeIdentityID = UUID() }
+        }
+        if draft.launchContext.homeAttemptID != nil {
+            // Full instructions travel only through an explicit immutable
+            // recipe attachment. A post never recursively exposes linked work.
+            details.steps = nil
+            if draft.launchContext.homeRecipeAttachmentMode == .doNotAttach {
+                details.recipeName = nil
+                details.recipeVersion = nil
+                details.recipeIdentityID = nil
+                details.sourceRecipeIdentityID = nil
+                details.sourceRecipeVersion = nil
+            }
         }
         return details
     }

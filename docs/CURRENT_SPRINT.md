@@ -1,15 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
 
-Current source amendment (2026-09-17): the repaired native Home experience is
-reopened at central Add > Log a Sip > Home for owner device QA. The entry now
-opens the unified quick log; Journal > Home remains the complete library. This
-does not change the already-distributed TestFlight 0.5.3 (8), production schema,
-or production data. Replacement TestFlight distribution remains a separate
-explicit release gate.
+Current source amendment (2026-09-18): Home Sip V3 keeps central Add > Log a Sip
+> Home in the production composer and opens setup-first, with a visible two-
+surface quick log. The complete method registry, adaptive Make surface, shared
+Sip reflection, private-save-first result, and standard Review Mugshot adapter
+are implemented. Journal > Home remains the complete library. Generic app/test
+compilation passes. On iOS 27.0, all 30 focused Home workspace tests, the central
+setup-first route, and the two-surface unrated/photo-free Quick Log save pass.
+Broader guided/accessibility/recovery, physical-device, and TestFlight acceptance
+remain separate gates. iOS 26.3 is not a fallback. No production schema or data
+changed.
 
 Current release amendment (2026-09-16): the owner authorized an urgent 0.5.3 (8)
 TestFlight replacement for battery-affected build 7. Build 8 packages both

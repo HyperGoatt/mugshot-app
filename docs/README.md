@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
 
 # Mugshot documentation
@@ -40,6 +40,11 @@ with it.
 product-direction record. A decision record describes intent, not current
 implementation status. Amend it explicitly when product policy changes; use the
 living sources above for delivery state.
+
+[Home Sip V3 direction amendment](HOME_SIP_V3_AMENDMENT_2026-09-18.md) is the
+locked central Home composer, preparation breadth, private-save, and sharing
+decision. Its [50-screen flow manifest](design/home-sip-v3-2026-09-18/SCREEN_MANIFEST.md)
+is versioned design evidence rather than production navigation.
 
 ## Historical evidence
 

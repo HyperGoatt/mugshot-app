@@ -1,8 +1,39 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
+
+## Home Sip V3 implemented in source — 2026-09-18
+
+Central Add > Log a Sip > Home now stays inside the full-screen production
+composer and opens a setup-first path. Users can choose a usual, recipe, method,
+or free setup; follow optional adaptive guidance; capture the finished sip; use
+the same Sip reflection UI as Cafe; and save a private result before deciding
+whether to share. A visible Already made it shortcut preserves two-surface quick
+logging and can save without a rating or photo.
+
+The preparation catalog now spans coffee, matcha, hojicha, tea, components,
+complete drinks, and custom methods with native Mugshot vector identities.
+Targets and actuals stay separate, long preparations resume from timestamps,
+and selected recipes never force guidance. Saved attempts support clean repeat,
+next-time notes, comparison/history, save-as-recipe, and optional immutable
+recipe updates after the attempt is safe.
+
+Sharing uses the existing Review Mugshot and completion spine. It creates a
+stable publication draft from the saved attempt, requires the existing score,
+caption, media/Mugsy, and audience standard, and offers version-specific Full
+details, Name only, or Do not attach controls. Private notes, next-time notes,
+local paths, inventory, and nested component instructions stay private.
+
+The changes are additive to the existing versioned Home workspace and need no
+new Supabase migration. Generic app/test compilation and the focused iOS 27.0
+runtime gate pass: 30 of 30 Home workspace tests, setup-first central routing,
+and the full two-surface unrated/photo-free Quick Log save. Broader guided,
+accessibility, recovery, physical-device, and TestFlight acceptance remain
+separate evidence gates; TestFlight 0.5.3 (8) is unchanged. iOS 26.3 is not a
+fallback for this candidate.
+
 
 ## Central Home entry enabled for owner QA — 2026-09-17
 

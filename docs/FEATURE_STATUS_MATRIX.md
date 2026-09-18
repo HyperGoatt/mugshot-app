@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
+
+## Home Sip V3 — implemented in source
+
+The central Home choice now remains in the production Log a Sip composer with a
+setup-first guided route and a visible two-surface quick log. It reuses the Cafe
+Sip reflection, Review Mugshot, publication recovery, and completion spine while
+adding method-aware setup/guidance, actual-versus-target changes, private-save-
+first results, recipes, clean repeat, next-time notes, comparison, and history.
+
+The method registry covers the full coffee, matcha, hojicha, tea, component,
+complete-drink, and custom catalog with original Mugshot vector icons. The
+existing Home workspace/backend contract remains additive and account-scoped;
+no new production migration was required. Generic app/test compilation passes.
+On iOS 27.0, all 30 focused Home workspace tests, setup-first central routing,
+and the two-surface unrated/photo-free Quick Log save pass. Broader guided and
+accessibility coverage, owner physical-device acceptance, and TestFlight
+acceptance are tracked as separate gates; iOS 26.3 is not a fallback.
+[Exact V3 decision](HOME_SIP_V3_AMENDMENT_2026-09-18.md).
+
 
 ## Native Home and Recipes — production-configured; central Add enabled in source
 

@@ -1,8 +1,42 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
+
+## Home Sip V3 composer and publication data flow — 2026-09-18
+
+The central Home composer now coordinates setup, optional preparation, capture,
+shared reflection, local private save, and optional publication without handing
+navigation to the Journal library. It continues to use the account-scoped Home
+workspace as authority for recipes, immutable versions, attempts, sessions,
+drafts, media names, conflicts, and pending synchronization.
+
+Each attempt freezes the chosen recipe-version targets and stores actuals only
+when entered or measured. New reflection and custom-actual properties are
+optional additive fields in the existing versioned JSON document. Legacy Coffee
+templates and unknown method identifiers decode without destructive rewriting.
+Async media/private-save work verifies the originating account before committing.
+
+Share creates or reuses a separate stable Sip publication draft only after the
+attempt is local. Its projection includes publishable reflection and explicitly
+selected preparation evidence. Recipe instructions can enter the post only via
+an authorized exact-version Full details attachment; linked recipes do not
+recurse. Private note, next-time note, inventory, local file paths, and
+unselected content are excluded. Confirmed post success alone marks the Home
+attempt published; retry retains the operation identity.
+
+No schema, migration, bucket, RLS, Edge Function, schedule, or production data
+changed for V3. Existing workspace/publication contracts remain the backend
+transport and enforcement boundary.
+
+The focused data-flow runtime gate passes on iOS 27.0: all 30 Home workspace
+tests preserve targets/actuals, versions, conflicts, sessions, account isolation,
+media recovery, and publication state; central setup-first routing and an
+unrated/photo-free two-surface Quick Log private save also pass. This evidence
+uses the installed Xcode 26.2 toolchain against the iOS 27 runtime and does not
+substitute iOS 26.3 for a failing current-runtime path.
+
 
 ## Native Home workspace — 2026-09-16
 

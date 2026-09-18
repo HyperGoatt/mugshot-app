@@ -1,23 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-18
 ---
 
 # Product roadmap
 
-## Home repair implemented; central logging reopened in source
+## Home Sip V3 implemented; acceptance is the active gate
 
-The complete find/create → save → make/log → reflect → improve → share loop is
-implemented, accepted locally and in isolated backend QA, deployed to production,
-and data-preserving. Current source routes central Add > Log a Sip > Home into
-the unified two-surface quick log; Journal > Home retains the full My makes /
-Recipes workspace. Home owns its drafts and preparation lifecycle, brewing fields
-are internally consistent, native shortcuts resolve native recipes, and posting
-remains attached to the saved private attempt. Existing Home data and Journal
-collections remain intact. The already-distributed TestFlight 0.5.3 (8) still
-contains its historical placeholder; owner device acceptance and a separately
-authorized replacement upload remain distinct gates.
+The complete find/create → make or quick log → reflect → privately save → improve
+→ optionally share loop is implemented in current source. Central Add > Log a
+Sip > Home stays inside the production composer and opens setup-first; its visible
+quick shortcut contains only Capture and Reflection. Journal > Home retains the
+full My makes / Recipes workspace. The catalog now includes coffee, matcha,
+hojicha, tea, components, complete drinks, and custom preparations. Existing
+Home data, immutable versions, privacy, and Journal collections remain intact.
+
+The next product gate is one consolidated Tier 4 runtime acceptance pass followed
+by owner-promoted physical testing. The already-distributed TestFlight 0.5.3 (8)
+still contains its historical placeholder; replacement upload remains a separate
+explicit authorization and release gate.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).
 
 ## Now: real notifications and TestFlight learning

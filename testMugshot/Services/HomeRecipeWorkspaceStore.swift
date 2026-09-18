@@ -177,7 +177,17 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                       attempt.actuals.batchMilliliters, attempt.actuals.servingMilliliters]
         guard values.compactMap({ $0 }).allSatisfy({ $0.isFinite && $0 > 0 }),
               attempt.actuals.temperature.map({ $0.isFinite && $0 > -273.15 }) ?? true,
-              attempt.rating.map({ $0.isFinite && (0.5...5).contains($0) }) ?? true else {
+              attempt.rating.map({ $0.isFinite && (0.5...5).contains($0) }) ?? true,
+              attempt.actuals.customFields.allSatisfy({ field in
+                  guard !field.value.isEmpty else { return true }
+                  switch field.kind {
+                  case .text: return true
+                  case .choice: return field.choices.contains(field.value)
+                  case .number, .duration:
+                      guard let value = Double(field.value), value.isFinite else { return false }
+                      return field.kind != .duration || value >= 0
+                  }
+              }) else {
             throw HomeRecipeWorkspaceError.invalid("Check your measurements and rating.")
         }
         if let message = attempt.preparation?.validationMessage {

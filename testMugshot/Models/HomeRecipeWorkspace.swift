@@ -1,10 +1,13 @@
 import Foundation
 
 enum HomeRecipeTemplate: String, Codable, CaseIterable, Identifiable, Sendable {
-    case coffee, component, drink, custom
+    /// New preparation recipes use this template regardless of beverage family.
+    /// `coffee` remains decodable so existing immutable versions are untouched.
+    case preparation, coffee, component, drink, custom
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .preparation: return "Preparation"
         case .coffee: return "Coffee preparation"
         case .component: return "Ingredient or component"
         case .drink: return "Complete drink"
@@ -13,7 +16,7 @@ enum HomeRecipeTemplate: String, Codable, CaseIterable, Identifiable, Sendable {
     }
     var symbol: String {
         switch self {
-        case .coffee: return "cup.and.saucer"
+        case .preparation, .coffee: return "cup.and.saucer"
         case .component: return "drop"
         case .drink: return "mug"
         case .custom: return "square.and.pencil"
@@ -125,6 +128,8 @@ struct HomeCustomField: Identifiable, Codable, Equatable, Sendable {
     var unit = ""
     var choices: [String] = []
     var isVisible = true
+    /// Stable comparison key. The visible label can be renamed independently.
+    var stableKey: String?
 }
 
 enum HomeRecipeMetric: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
@@ -169,6 +174,8 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     var name = ""
     var template: HomeRecipeTemplate = .custom
     var method: HomeBrewMethod = .other
+    /// Preserves a user-defined method name when no built-in method applies.
+    var customMethodName = ""
     var targets = HomeRecipeTargets()
     var ingredients: [HomeRecipeIngredient] = []
     var steps: [HomePreparationStep] = []
@@ -191,7 +198,7 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     static func starting(_ template: HomeRecipeTemplate) -> Self {
         var content = Self()
         content.template = template
-        if template == .coffee {
+        if template == .coffee || template == .preparation {
             content.method = .espresso
             content.targets = defaultTargets(for: .espresso)
         }
@@ -212,12 +219,60 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
             return HomeRecipeTargets(dose: 20, ratio: 16, calculation: .ratio, steepSeconds: 180)
         case .mokaPot:
             return HomeRecipeTargets(dose: 18, ratio: 8, calculation: .ratio, seconds: 300)
+        case .siphon:
+            return HomeRecipeTargets(dose: 20, ratio: 15, calculation: .ratio, seconds: 150, temperature: 94)
+        case .turkishIbrik:
+            return HomeRecipeTargets(dose: 10, ratio: 10, calculation: .ratio, seconds: 180)
+        case .vietnamesePhin:
+            return HomeRecipeTargets(dose: 20, ratio: 5, calculation: .ratio, seconds: 300, temperature: 96)
         case .coldBrew:
             return HomeRecipeTargets(dose: 100, ratio: 8, calculation: .ratio, steepSeconds: 57_600)
+        case .flashBrew:
+            return HomeRecipeTargets(dose: 20, ratio: 15, calculation: .ratio, seconds: 180, temperature: 94)
         case .batch:
             return HomeRecipeTargets(dose: 60, ratio: 16.67, calculation: .ratio, seconds: 360)
+        case .percolator:
+            return HomeRecipeTargets(dose: 30, ratio: 16, calculation: .ratio, seconds: 480)
+        case .cowboyBoiled:
+            return HomeRecipeTargets(dose: 30, ratio: 16, calculation: .ratio, steepSeconds: 240)
+        case .instant:
+            return HomeRecipeTargets(dose: 2, output: 240, calculation: .output, seconds: 30)
         case .pod:
             return HomeRecipeTargets(output: 180, calculation: .output, seconds: 30)
+        case .traditionalMatcha:
+            return HomeRecipeTargets(dose: 2, output: 70, calculation: .output, seconds: 20, temperature: 80)
+        case .shakenMatcha:
+            return HomeRecipeTargets(dose: 3, output: 90, calculation: .output, seconds: 20, temperature: 80)
+        case .matchaLatte:
+            return HomeRecipeTargets(dose: 3, output: 240, calculation: .output, seconds: 30, temperature: 80)
+        case .whiskedHojicha:
+            return HomeRecipeTargets(dose: 3, output: 70, calculation: .output, seconds: 20, temperature: 85)
+        case .steepedHojicha:
+            return HomeRecipeTargets(dose: 5, output: 300, calculation: .output, temperature: 90, steepSeconds: 180)
+        case .hojichaLatte:
+            return HomeRecipeTargets(dose: 4, output: 240, calculation: .output, seconds: 30, temperature: 85)
+        case .westernTea:
+            return HomeRecipeTargets(dose: 5, output: 300, calculation: .output, temperature: 90, steepSeconds: 180)
+        case .gongfuTea:
+            return HomeRecipeTargets(dose: 7, output: 100, calculation: .output, temperature: 95, steepSeconds: 20)
+        case .coldBrewTea:
+            return HomeRecipeTargets(dose: 10, output: 750, calculation: .output, steepSeconds: 28_800)
+        case .icedTea:
+            return HomeRecipeTargets(dose: 8, output: 500, calculation: .output, temperature: 90, steepSeconds: 240)
+        case .chaiConcentrate:
+            return HomeRecipeTargets(dose: 12, output: 400, calculation: .output, seconds: 480, temperature: 96)
+        case .teaLatte:
+            return HomeRecipeTargets(dose: 6, output: 240, calculation: .output, temperature: 95, steepSeconds: 240)
+        case .milkFoam:
+            return HomeRecipeTargets(output: 120, calculation: .output, seconds: 20)
+        case .syrupSauce:
+            return HomeRecipeTargets(output: 350, calculation: .output, seconds: 600)
+        case .tonicSoda:
+            return HomeRecipeTargets(output: 240, calculation: .output)
+        case .blendedFrozen:
+            return HomeRecipeTargets(output: 350, calculation: .output, seconds: 30)
+        case .completeDrink:
+            return HomeRecipeTargets(output: 300, calculation: .output)
         case .other:
             return HomeRecipeTargets()
         }
@@ -255,10 +310,18 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     var defaultMetrics: [HomeRecipeMetric] {
         switch method {
         case .espresso: [.dose, .output, .seconds, .grind, .temperature, .preinfusion, .pressure]
-        case .pourOver, .aeroPress, .mokaPot, .batch: [.dose, .output, .seconds, .grind, .temperature]
-        case .frenchPress, .immersion: [.dose, .output, .steepSeconds, .grind, .temperature]
+        case .pourOver, .aeroPress, .mokaPot, .siphon, .turkishIbrik, .vietnamesePhin,
+             .flashBrew, .batch, .percolator: [.dose, .output, .seconds, .grind, .temperature]
+        case .frenchPress, .immersion, .cowboyBoiled: [.dose, .output, .steepSeconds, .grind, .temperature]
         case .coldBrew: [.dose, .output, .steepSeconds, .grind, .dilution]
+        case .instant: [.dose, .output, .seconds]
         case .pod: [.output, .seconds]
+        case .traditionalMatcha, .shakenMatcha, .matchaLatte, .whiskedHojicha,
+             .hojichaLatte, .milkFoam: [.dose, .output, .seconds, .temperature]
+        case .steepedHojicha, .westernTea, .gongfuTea, .coldBrewTea, .icedTea,
+             .teaLatte: [.dose, .output, .steepSeconds, .temperature]
+        case .chaiConcentrate, .syrupSauce: [.dose, .output, .seconds, .temperature]
+        case .tonicSoda, .blendedFrozen, .completeDrink: [.output, .seconds]
         case .other: []
         }
     }
@@ -317,13 +380,16 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
         return nil
     }
     var searchText: String {
-        ([name, method.title, creatorCredit, coffee?.displayName ?? ""] + tags + equipment.map(\.displayName))
+        ([name, methodDisplayName, creatorCredit, coffee?.displayName ?? ""] + tags + equipment.map(\.displayName))
             .joined(separator: " ").lowercased()
     }
+    var methodDisplayName: String {
+        method == .other ? (customMethodName.remoteTrimmedNonEmpty ?? method.title) : method.title
+    }
     var summary: String {
-        if template == .coffee {
-            return [targets.dose.map { "\(Self.number($0)) g coffee" },
-                    targets.resolvedOutput.map { "\(Self.number($0)) g \(method == .espresso ? "yield" : "water")" },
+        if template == .coffee || template == .preparation {
+            return [targets.dose.map { "\(Self.number($0)) g \(method.inputLabel.lowercased())" },
+                    targets.resolvedOutput.map { "\(Self.number($0)) \(method.outputUnit) \(method.outputLabel.lowercased())" },
                     targets.seconds.map { "\(Self.number($0)) sec" },
                     targets.steepSeconds.map(Self.durationSummary)]
                 .compactMap { $0 }.joined(separator: " · ")
@@ -358,6 +424,74 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     }
 }
 
+extension HomeRecipeContent {
+    private enum CodingKeys: String, CodingKey {
+        case name, template, method, customMethodName, targets, ingredients, steps,
+             fields, hiddenFields, servings, yieldDescription, sourceURL,
+             creatorCredit, sourceVersionID, tags, notes, coffee, equipment,
+             legacyDetails, sourceReuseAllowed, metricConfiguration
+    }
+
+    /// Additive workspace decoding. An identifier introduced by a newer client
+    /// remains editable and is written back verbatim instead of failing the
+    /// entire account workspace or collapsing permanently to `other`.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        name = try values.decodeIfPresent(String.self, forKey: .name) ?? ""
+        template = try values.decodeIfPresent(HomeRecipeTemplate.self, forKey: .template) ?? .custom
+        let storedMethod = try values.decodeIfPresent(String.self, forKey: .method) ?? HomeBrewMethod.other.rawValue
+        method = HomeBrewMethod(rawValue: storedMethod) ?? HomeBrewMethod(storedValue: storedMethod)
+        let decodedCustomName = try values.decodeIfPresent(String.self, forKey: .customMethodName) ?? ""
+        customMethodName = decodedCustomName.remoteTrimmedNonEmpty
+            ?? (method == .other && storedMethod != HomeBrewMethod.other.rawValue ? storedMethod : "")
+        targets = try values.decodeIfPresent(HomeRecipeTargets.self, forKey: .targets) ?? HomeRecipeTargets()
+        ingredients = try values.decodeIfPresent([HomeRecipeIngredient].self, forKey: .ingredients) ?? []
+        steps = try values.decodeIfPresent([HomePreparationStep].self, forKey: .steps) ?? []
+        fields = try values.decodeIfPresent([HomeCustomField].self, forKey: .fields) ?? []
+        hiddenFields = try values.decodeIfPresent(Set<String>.self, forKey: .hiddenFields) ?? []
+        servings = try values.decodeIfPresent(Double.self, forKey: .servings) ?? 1
+        yieldDescription = try values.decodeIfPresent(String.self, forKey: .yieldDescription) ?? ""
+        sourceURL = try values.decodeIfPresent(String.self, forKey: .sourceURL) ?? ""
+        creatorCredit = try values.decodeIfPresent(String.self, forKey: .creatorCredit) ?? ""
+        sourceVersionID = try values.decodeIfPresent(UUID.self, forKey: .sourceVersionID)
+        tags = try values.decodeIfPresent([String].self, forKey: .tags) ?? []
+        notes = try values.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        coffee = try values.decodeIfPresent(CoffeeBagSnapshot.self, forKey: .coffee)
+        equipment = try values.decodeIfPresent([EquipmentSnapshot].self, forKey: .equipment) ?? []
+        legacyDetails = try values.decodeIfPresent(BrewDetails.self, forKey: .legacyDetails)
+        sourceReuseAllowed = try values.decodeIfPresent(Bool.self, forKey: .sourceReuseAllowed)
+        metricConfiguration = try values.decodeIfPresent([HomeRecipeMetricConfiguration].self, forKey: .metricConfiguration)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(name, forKey: .name)
+        try values.encode(template, forKey: .template)
+        let storedMethod = method == .other
+            ? (customMethodName.remoteTrimmedNonEmpty ?? method.rawValue)
+            : method.rawValue
+        try values.encode(storedMethod, forKey: .method)
+        try values.encode(customMethodName, forKey: .customMethodName)
+        try values.encode(targets, forKey: .targets)
+        try values.encode(ingredients, forKey: .ingredients)
+        try values.encode(steps, forKey: .steps)
+        try values.encode(fields, forKey: .fields)
+        try values.encode(hiddenFields, forKey: .hiddenFields)
+        try values.encode(servings, forKey: .servings)
+        try values.encode(yieldDescription, forKey: .yieldDescription)
+        try values.encode(sourceURL, forKey: .sourceURL)
+        try values.encode(creatorCredit, forKey: .creatorCredit)
+        try values.encodeIfPresent(sourceVersionID, forKey: .sourceVersionID)
+        try values.encode(tags, forKey: .tags)
+        try values.encode(notes, forKey: .notes)
+        try values.encodeIfPresent(coffee, forKey: .coffee)
+        try values.encode(equipment, forKey: .equipment)
+        try values.encodeIfPresent(legacyDetails, forKey: .legacyDetails)
+        try values.encodeIfPresent(sourceReuseAllowed, forKey: .sourceReuseAllowed)
+        try values.encodeIfPresent(metricConfiguration, forKey: .metricConfiguration)
+    }
+}
+
 struct HomeRecipeVersion: Identifiable, Codable, Equatable, Sendable {
     var id = UUID()
     var number = 1
@@ -385,6 +519,28 @@ struct HomeAttemptActuals: Codable, Equatable, Sendable {
     var batchMilliliters: Double?
     var servingMilliliters: Double?
     var dilution = ""
+    /// Actual values for recipe-defined fields. Missing entries remain unknown.
+    var customFields: [HomeCustomField] = []
+}
+
+extension HomeAttemptActuals {
+    private enum CodingKeys: String, CodingKey {
+        case dose, output, seconds, temperature, grind, batchMilliliters,
+             servingMilliliters, dilution, customFields
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        dose = try values.decodeIfPresent(Double.self, forKey: .dose)
+        output = try values.decodeIfPresent(Double.self, forKey: .output)
+        seconds = try values.decodeIfPresent(Double.self, forKey: .seconds)
+        temperature = try values.decodeIfPresent(Double.self, forKey: .temperature)
+        grind = try values.decodeIfPresent(String.self, forKey: .grind) ?? ""
+        batchMilliliters = try values.decodeIfPresent(Double.self, forKey: .batchMilliliters)
+        servingMilliliters = try values.decodeIfPresent(Double.self, forKey: .servingMilliliters)
+        dilution = try values.decodeIfPresent(String.self, forKey: .dilution) ?? ""
+        customFields = try values.decodeIfPresent([HomeCustomField].self, forKey: .customFields) ?? []
+    }
 }
 
 /// Targets are frozen context; absent actuals are always unknown.
@@ -397,6 +553,9 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var preparation: HomeRecipeContent?
     var actuals = HomeAttemptActuals()
     var rating: Double?
+    var manualRating: Double?
+    var ratingCriteria: [SipRatingCriterionSnapshot] = []
+    var sensorySnapshot: SipSensorySnapshot?
     var reaction = ""
     var privateNote = ""
     var nextTimeNote = ""
@@ -408,11 +567,16 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var publicationDraftID: UUID?
     var publicationStatus: HomePublicationStatus?
 
+    var resolvedRating: Double? {
+        SipRatingCriterionSnapshot.weightedSuggestion(for: ratingCriteria) ?? rating ?? manualRating
+    }
+
     /// The setup chosen for this make, never a substitute for recorded actuals.
     var plannedTargets: HomeRecipeTargets? { (preparation ?? targets)?.targets }
     var hasMeaningfulDraftContent: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || recipe != nil
             || preparation != nil || actuals != HomeAttemptActuals() || rating != nil
+            || manualRating != nil || !ratingCriteria.isEmpty || sensorySnapshot != nil
             || !reaction.isEmpty || !privateNote.isEmpty || !nextTimeNote.isEmpty
             || makeAgain != nil || !photoNames.isEmpty || batchSourceAttemptID != nil
     }
@@ -432,6 +596,40 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
         if let temperature = actuals.temperature { content.targets.temperature = temperature }
         if !actuals.grind.isEmpty { content.targets.grind = actuals.grind }
         return content
+    }
+}
+
+extension HomeAttemptRecord {
+    private enum CodingKeys: String, CodingKey {
+        case id, createdAt, name, recipe, targets, preparation, actuals, rating,
+             manualRating, ratingCriteria, sensorySnapshot, reaction, privateNote,
+             nextTimeNote, makeAgain, batchID, batchSourceAttemptID, photoNames,
+             savedAt, publicationDraftID, publicationStatus
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        name = try values.decodeIfPresent(String.self, forKey: .name) ?? ""
+        recipe = try values.decodeIfPresent(HomeRecipeReference.self, forKey: .recipe)
+        targets = try values.decodeIfPresent(HomeRecipeContent.self, forKey: .targets)
+        preparation = try values.decodeIfPresent(HomeRecipeContent.self, forKey: .preparation)
+        actuals = try values.decodeIfPresent(HomeAttemptActuals.self, forKey: .actuals) ?? HomeAttemptActuals()
+        rating = try values.decodeIfPresent(Double.self, forKey: .rating)
+        manualRating = try values.decodeIfPresent(Double.self, forKey: .manualRating)
+        ratingCriteria = try values.decodeIfPresent([SipRatingCriterionSnapshot].self, forKey: .ratingCriteria) ?? []
+        sensorySnapshot = try values.decodeIfPresent(SipSensorySnapshot.self, forKey: .sensorySnapshot)
+        reaction = try values.decodeIfPresent(String.self, forKey: .reaction) ?? ""
+        privateNote = try values.decodeIfPresent(String.self, forKey: .privateNote) ?? ""
+        nextTimeNote = try values.decodeIfPresent(String.self, forKey: .nextTimeNote) ?? ""
+        makeAgain = try values.decodeIfPresent(HomeMakeAgain.self, forKey: .makeAgain)
+        batchID = try values.decodeIfPresent(UUID.self, forKey: .batchID)
+        batchSourceAttemptID = try values.decodeIfPresent(UUID.self, forKey: .batchSourceAttemptID)
+        photoNames = try values.decodeIfPresent([String].self, forKey: .photoNames) ?? []
+        savedAt = try values.decodeIfPresent(Date.self, forKey: .savedAt)
+        publicationDraftID = try values.decodeIfPresent(UUID.self, forKey: .publicationDraftID)
+        publicationStatus = try values.decodeIfPresent(HomePublicationStatus.self, forKey: .publicationStatus)
     }
 }
 
