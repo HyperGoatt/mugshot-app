@@ -20,9 +20,11 @@ admission receipt to a BEFORE INSERT trigger, defers its cafe foreign key until
 the row exists, and makes the existing authorization lookup observe that
 same-statement receipt. It neither exposes an unverified cafe to another account
 nor changes visit ownership, audience, upload, or cleanup rules. The exact
-`INSERT ... RETURNING` and cross-account privacy cases pass hermetically. This is
-local verification only; production remains at migration 179 pending disposable
-branch approval and deployment.
+`INSERT ... RETURNING` and cross-account privacy cases pass hermetically and in
+the complete hosted contract suite. Production is configured at migration 181.
+A rolled-back production check using the affected account context passed without
+leaving a row; protected content fingerprints, visit and Storage counts, and
+bucket visibility remained unchanged.
 
 ## Home Sip V3 composer and publication data flow — 2026-09-18
 

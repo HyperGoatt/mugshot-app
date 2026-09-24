@@ -4,15 +4,16 @@ status: current
 last_verified: 2026-09-24
 ---
 
-## Cafe publication recovery — implemented, production pending
+## Cafe publication recovery — production-configured
 
 The repository includes migration `20260924153000_repair_cafe_insert_returning.sql`
 for the production cafe `INSERT ... RETURNING` RLS failure that left a tester's
 Mugshot in protected local recovery. The exact submitter-return and
-cross-account-hidden cases pass in the hermetic PostgreSQL check. The repository
-head is 180 migrations; production remains at 179 until the required paid
-disposable QA branch and backend release gates are approved and completed.
-TestFlight 0.5.3 (8) is unchanged.
+cross-account-hidden cases pass hermetically and in the complete 66-contract
+hosted suite. Repository and production are aligned at 181 migrations. A
+rolled-back production check using the affected account's authorization context
+passed, the protected production data baseline was unchanged, and the paid QA
+branch was deleted. TestFlight 0.5.3 (8) is unchanged.
 
 ## Home Sip V3 — implemented in source
 

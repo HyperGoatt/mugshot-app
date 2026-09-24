@@ -4,7 +4,7 @@ status: current
 last_verified: 2026-09-24
 ---
 
-## 2026-09-24 — Cafe publication recovery repair prepared
+## 2026-09-24 — Cafe publication recovery repaired
 
 - Diagnosed a real TestFlight build-8 publication failure from PostHog and
   Supabase evidence. Fourteen protected retries failed at cafe creation, and
@@ -19,10 +19,14 @@ last_verified: 2026-09-24
 - Added regression coverage for the exact PostgREST `INSERT ... RETURNING`
   shape and for cross-account invisibility of an unverified cafe. The focused
   hermetic PostgreSQL check passes.
-- This is implemented and locally verified, not yet production-configured.
-  Production remains at 179 migrations until the required paid disposable QA
-  branch is explicitly approved and the release workflow passes. TestFlight
-  0.5.3 (8) is unchanged.
+- All 66 hosted SQL contracts passed on a disposable branch aligned at all 181
+  repository migrations. A completed production physical backup preceded the
+  release. Production advanced from 180 to 181 migrations with user, cafe,
+  admission, visit, Storage-object, and bucket-visibility evidence unchanged.
+- A rolled-back production check using the affected account's authorization
+  context completed the exact cafe `INSERT ... RETURNING` path and left no test
+  row. The paid QA branch was deleted after acceptance. TestFlight 0.5.3 (8) is
+  unchanged; the protected build-8 submission can now finish through Retry.
 
 ## 2026-09-18 — Home Sip V3 unified composer
 

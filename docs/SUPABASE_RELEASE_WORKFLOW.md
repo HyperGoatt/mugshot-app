@@ -9,11 +9,13 @@ Cafe publication recovery amendment (2026-09-24): repository migration
 ordering required by PostgREST cafe `INSERT ... RETURNING`. Production logs and
 PostHog identify this as the cause of repeated build-8 publication failures for
 an active tester; the failed transactions created no visit or Storage object.
-The focused hermetic contract passes and preserves cross-account catalog
-privacy. The repository now has 180 migrations while production remains at 179.
-The repair is not production-configured until a paid disposable branch is
-explicitly approved and the normal hosted contract, preservation, dry-run, and
-post-deploy gates pass.
+The focused hermetic contract and all 66 hosted SQL contracts pass while
+preserving cross-account catalog privacy. A completed physical backup preceded
+the release. The pinned dry run contained only this migration; production and
+the repository are aligned at 181 migrations. Protected fingerprints, visit and
+Storage counts, and bucket visibility were unchanged. A rolled-back production
+check using the affected account context passed and left no fixture. The paid QA
+branch was deleted after acceptance.
 
 People discovery amendment (2026-09-17): migration
 `20260917185300_people_discovery_v1.sql`, follow-up index migration
