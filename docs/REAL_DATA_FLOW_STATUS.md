@@ -1,8 +1,30 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-24
 ---
+
+## Cafe-backed publication recovery repair — 2026-09-24
+
+A cafe-context publication first resolves or creates its canonical cafe, then
+creates the stable visit row, uploads media, and finalizes the visit. Production
+evidence exposed a break at the first boundary: the cafe INSERT policy allowed a
+live account to submit, but PostgREST's requested representation also evaluated
+the cafe SELECT policy before the original AFTER INSERT admission receipt was
+observable. The transaction rolled back, leaving no cafe, visit, or Storage
+object. The account-scoped frozen submission correctly remained local and
+retryable, which drove the recovery banner.
+
+Migration `20260924153000_repair_cafe_insert_returning.sql` moves the private
+admission receipt to a BEFORE INSERT trigger, defers its cafe foreign key until
+the row exists, and makes the existing authorization lookup observe that
+same-statement receipt. It neither exposes an unverified cafe to another account
+nor changes visit ownership, audience, upload, or cleanup rules. The exact
+`INSERT ... RETURNING` and cross-account privacy cases pass hermetically and in
+the complete hosted contract suite. Production is configured at migration 181.
+A rolled-back production check using the affected account context passed without
+leaving a row; protected content fingerprints, visit and Storage counts, and
+bucket visibility remained unchanged.
 
 ## Home Sip V3 composer and publication data flow — 2026-09-18
 

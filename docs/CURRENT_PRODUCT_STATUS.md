@@ -1,8 +1,30 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-24
 ---
+
+## Cafe publication recovery repair production-configured — 2026-09-24
+
+Production telemetry identified a server-contract defect behind a tester's
+repeated **MugShot still needs to finish** state. The account is active, but all
+14 publication attempts stopped while creating its cafe. Supabase recorded the
+same cafe row-level-security failure and contains no visit or uploaded object for
+the account. The unfinished Mugshot therefore remains protected only by the
+account-scoped local draft/outbox; there is no completed remote post to clean up.
+
+The forward repair is implemented in migration
+`20260924153000_repair_cafe_insert_returning.sql`. It makes cafe admission
+visible to the same `INSERT ... RETURNING` statement without widening catalog
+reads or changing account eligibility. A focused hermetic regression proves the
+submitter receives the inserted cafe while another authenticated account cannot
+read that unverified row. All 66 hosted SQL contracts passed on the disposable
+181-migration branch. Production advanced from 180 to 181 migrations after a
+completed physical backup; protected row fingerprints, visit and Storage counts,
+and bucket visibility were unchanged. A rolled-back check using the affected
+account's authorization context passed and left no fixture. The paid branch was
+deleted. Build 8 and TestFlight are unchanged; its protected local submission
+can now finish through Retry.
 
 ## Home Sip V3 implemented in source — 2026-09-18
 
