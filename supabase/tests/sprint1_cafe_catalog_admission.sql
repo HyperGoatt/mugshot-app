@@ -1,7 +1,16 @@
 begin;
 set local request.jwt.claim.sub='00000000-0000-4000-8000-000000000101';
 set local role authenticated;
-insert into public.cafes(id,name,address,latitude,longitude) values('00000000-0000-4000-8000-000000009901','Private synthetic cafe','Private synthetic address',1,2);
+do $$
+declare returned_id uuid;
+begin
+ insert into public.cafes(id,name,address,latitude,longitude)
+ values('00000000-0000-4000-8000-000000009901','Private synthetic cafe','Private synthetic address',1,2)
+ returning id into returned_id;
+ if returned_id is distinct from '00000000-0000-4000-8000-000000009901' then
+  raise exception 'insert returning lost submitted cafe';
+ end if;
+end $$;
 do $$ begin
  if not exists(select 1 from public.cafes where id='00000000-0000-4000-8000-000000009901') then raise exception 'submitter lost cafe';end if;
  if has_function_privilege('authenticated','public.accept_verified_cafe_v1(uuid,text,text,jsonb)','execute')
@@ -20,7 +29,9 @@ do $$ begin
  if public.enrich_discovery_candidates_v1('[{"name":"Private synthetic cafe","latitude":1,"longitude":2}]')->0->>'cafe_id' is not null then raise exception 'enrichment exposed hidden cafe identity';end if;
 end $$;
 -- Identically named manual cafes remain independently saveable without leaking.
-insert into public.cafes(id,name,address,latitude,longitude) values('00000000-0000-4000-8000-000000009902','Private synthetic cafe','Private synthetic address',1,2);
+insert into public.cafes(id,name,address,latitude,longitude)
+values('00000000-0000-4000-8000-000000009902','Private synthetic cafe','Private synthetic address',1,2)
+returning id;
 reset role;
 set local request.jwt.claim.sub='';
 set local role anon;

@@ -1,8 +1,28 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-24
 ---
+
+## 2026-09-24 — Cafe publication recovery repair prepared
+
+- Diagnosed a real TestFlight build-8 publication failure from PostHog and
+  Supabase evidence. Fourteen protected retries failed at cafe creation, and
+  the database logged row-level-security rejection for `public.cafes`; no visit
+  row or Storage object was created, so the local frozen submission remains the
+  only authority for the unfinished Mugshot.
+- Added forward migration `20260924153000_repair_cafe_insert_returning.sql`.
+  It creates the private cafe-admission receipt before the cafe row is returned,
+  defers only that receipt's foreign-key check until statement completion, and
+  makes the existing authorization helper observe the same-statement receipt.
+  Catalog visibility and live-account insert rules are unchanged.
+- Added regression coverage for the exact PostgREST `INSERT ... RETURNING`
+  shape and for cross-account invisibility of an unverified cafe. The focused
+  hermetic PostgreSQL check passes.
+- This is implemented and locally verified, not yet production-configured.
+  Production remains at 179 migrations until the required paid disposable QA
+  branch is explicitly approved and the release workflow passes. TestFlight
+  0.5.3 (8) is unchanged.
 
 ## 2026-09-18 — Home Sip V3 unified composer
 

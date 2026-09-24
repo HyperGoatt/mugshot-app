@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-09-24
 ---
+
+Cafe publication recovery amendment (2026-09-24): repository migration
+`20260924153000_repair_cafe_insert_returning.sql` repairs the private admission
+ordering required by PostgREST cafe `INSERT ... RETURNING`. Production logs and
+PostHog identify this as the cause of repeated build-8 publication failures for
+an active tester; the failed transactions created no visit or Storage object.
+The focused hermetic contract passes and preserves cross-account catalog
+privacy. The repository now has 180 migrations while production remains at 179.
+The repair is not production-configured until a paid disposable branch is
+explicitly approved and the normal hosted contract, preservation, dry-run, and
+post-deploy gates pass.
 
 People discovery amendment (2026-09-17): migration
 `20260917185300_people_discovery_v1.sql`, follow-up index migration
