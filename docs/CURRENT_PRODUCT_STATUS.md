@@ -16,9 +16,11 @@ is configured at 182 migrations after a completed physical backup; the
 reviewed migration changed only the acknowledgement RPC. Protected content
 counts and fingerprints were unchanged. Read-only production checks found one
 later completed Friends cafe post for the affected account, with linked media
-and friend-authorized post/profile/media access. Its provenance as the
-protected Retry is not established by telemetry, so the **real-account backend
-gate remains open**. No new TestFlight build was uploaded.
+and friend-authorized post/profile/media access. On 2026-09-25 the owner said
+they believe this was the protected Retry. The backend trust gate is accepted
+with that provenance uncertainty recorded; telemetry did not capture the
+Retry, and an affected-device reopen remains outside this backend-only check.
+No new TestFlight build was uploaded.
 
 ## Launch quality audit underway — 2026-09-25
 

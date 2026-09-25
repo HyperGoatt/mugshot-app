@@ -20,8 +20,9 @@ last_verified: 2026-09-25
   and exact dry run. Production is at 182 migrations; protected content counts
   and whole-row fingerprints were unchanged. Read-only checks found one later
   completed Friends cafe post for the affected account, with linked media and
-  friend-authorized visibility. Telemetry does not show whether it came from
-  the protected Retry, so that final acceptance gate stays open.
+  friend-authorized visibility. On 2026-09-25 the owner reported that they
+  believe it came from the protected Retry. The backend gate was accepted with
+  that provenance uncertainty recorded; client-side reopen was not observed.
 
 ## 2026-09-25 — Launch quality audit and first repairs
 

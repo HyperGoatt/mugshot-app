@@ -17,8 +17,12 @@ data-less branches with all QA schedules disabled. A completed 2026-09-25
 listed only this migration; production advanced from 181 to 182 with
 Auth/profile/cafe/visit/Storage counts and whole-row fingerprints unchanged.
 The [launch audit](LAUNCH_QUALITY_AUDIT.md#backend-trust-acceptance--2026-09-25)
-holds the complete account and environment matrix. The previously affected
-real account's cafe Retry remains an open acceptance gate.
+holds the complete account and environment matrix. Read-only production
+evidence found one later completed cafe post with linked media and authorized
+friend access for the previously affected account. The owner believes it was
+the protected Retry; that account-specific evidence was accepted for the
+backend gate with telemetry provenance uncertainty recorded. Client-side
+reopen acceptance remains separate.
 
 Launch audit QA amendment (2026-09-25): a new data-less nano preview branch
 replayed through migration 113 (`20260809144548`) and reported
