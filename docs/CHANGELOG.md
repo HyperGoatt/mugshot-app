@@ -6,18 +6,51 @@ last_verified: 2026-09-25
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 
-- Repaired a completed deletion's final HTTP 503 acknowledgement with forward
-  migration `20260925200700_fix_account_deletion_ack_retention.sql`. Added a
-  focused hermetic regression and hosted repeated-acknowledgement coverage.
-- All 66 hosted SQL contracts and disposable Auth, Data API, Storage, People,
-  publication, export and deletion journeys passed on data-less QA branches.
-  Both paid branches were deleted.
-- Deployed the reviewed migration after a completed physical backup and exact
-  dry run. Production is at 182 migrations with protected content counts and
-  fingerprints unchanged. The affected publication account has one later
-  completed Friends post with linked media and correct friend access. The
-  owner believes it was the protected Retry; telemetry cannot prove that
-  provenance independently. The backend gate is accepted with this limit.
+- Ran 66/66 hosted SQL contracts plus disposable Auth, Data API, Storage,
+  People, publication, owner-export and account-deletion journeys on data-less
+  QA branches with zero active schedules. Generated-to-chosen username links,
+  block filtering, cafe `INSERT … RETURNING`, private media, owner isolation,
+  repeated writes and completed deletion passed.
+- Found a completed deletion whose final receipt returned HTTP 503 because two
+  timestamp calls violated the 30-day receipt-retention constraint. Added
+  forward migration `20260925200700_fix_account_deletion_ack_retention.sql`,
+  a focused hermetic regression and a hosted repeat-acknowledgement check.
+  Two complete QA deletion journeys passed after repair.
+- Deployed the single reviewed migration after a completed production backup
+  and exact dry run. Production is at 182 migrations; protected content counts
+  and whole-row fingerprints were unchanged. Read-only checks found one later
+  completed Friends cafe post for the affected account, with linked media and
+  friend-authorized visibility. On 2026-09-25 the owner reported that they
+  believe it came from the protected Retry. The backend gate was accepted with
+  that provenance uncertainty recorded; client-side reopen was not observed.
+
+## 2026-09-25 — Launch quality audit and first repairs
+
+- Started the [living launch audit](LAUNCH_QUALITY_AUDIT.md) with candidate
+  screenshots, numbered findings, full visible-feature matrix, backend trust
+  checks, App Review checklist, and staged release gates. Existing TestFlight
+  reports and the affected cafe-publication retry remain open for exact-build
+  acceptance.
+- Restored a visible guest Map route from first run and account entry. This
+  exposes the already-implemented guest Map/Saved shell and its account prompts.
+- Reworded the Google Maps Share extension receipt to say the place is queued
+  until Mugshot opens, instead of claiming a completed save.
+- Added a main-app completion or waiting receipt for queued place imports, with
+  a retry action, and fenced in-flight import results across account changes.
+  Cross-account and offline import acceptance remain open.
+- Matched the in-app share button's handoff description to whether a link was
+  actually available and to its Friends or public audience.
+- Added a visible retry action when People or People search fails; the
+  authenticated offline/retry journey still needs candidate acceptance.
+- Set the app, Share extension, widgets and test target device families to
+  iPhone only. No archive, TestFlight upload, assignment, or App Store action
+  occurred.
+- Repaired the deterministic reflection-reminder QA fixture so its weekly
+  reminder stays claimable when the suite runs on later dates.
+- A disposable data-less Supabase branch stopped at the known Vault-dependent
+  migration boundary (113/181); the guarded hosted runner reported 68 pending
+  migrations and did not execute. The branch was deleted and production was
+  untouched. Hosted transport acceptance remains open.
 
 ## 2026-09-24 — Cafe publication recovery repaired
 

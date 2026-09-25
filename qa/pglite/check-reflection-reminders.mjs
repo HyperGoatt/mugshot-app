@@ -243,6 +243,14 @@ try {
     'empty week created a reminder',
   )
 
+  // Claiming uses the database clock, while the scheduling case above is a
+  // fixed historical Sunday. Keep the delivery in its claim window so this
+  // contract remains valid after that date has passed.
+  await db.exec(`
+    update private.reflection_reminder_occurrences
+    set expires_at = now() + interval '4 hours'
+    where user_id='${ids.owner}' and reminder_kind='weekly_reflection'
+  `)
   claim = await asService('select * from public.claim_reflection_reminder_batch_v1(25)')
   const weeklyClaim = claim.rows.find(row => row.reminder_kind === 'weekly_reflection')
   assert.ok(weeklyClaim, 'weekly reminder was not claimable')

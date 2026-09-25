@@ -4,6 +4,17 @@ status: current
 last_verified: 2026-09-25
 ---
 
+## Launch-quality candidate — implemented, acceptance open
+
+The [launch audit](LAUNCH_QUALITY_AUDIT.md) now tracks all visible iPhone
+journeys and the no-open-P0–P2 release gate. First-run guest Map routing, a
+truthful queued-place Share receipt, main-app import status and account fence,
+actual in-app share handoff copy, People retry, and iPhone-only target settings
+are in source. They still require exact-candidate acceptance. A
+transient Home toolbar screenshot did not reproduce after settling; full Home
+acceptance remains open. The distributed TestFlight 0.5.3 (8) does not
+contain these audit-branch changes.
+
 ## Cafe publication recovery — production-configured
 
 The repository includes migration `20260924153000_repair_cafe_insert_returning.sql`

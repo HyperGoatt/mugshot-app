@@ -4,23 +4,40 @@ status: current
 last_verified: 2026-09-25
 ---
 
-## Backend trust gate accepted — 2026-09-25
+## Backend trust gate evidence — 2026-09-25
 
-Production and this repository are aligned at 182 migrations. The deletion
-acknowledgement repair (`20260925200700`) passed a focused hermetic check, all
-66 hosted SQL contracts, and a completed disposable QA deletion with repeated
-acknowledgement. Data-less QA also passed Auth, Data API, Storage, People,
-publication, export and access checks. Both paid QA branches were deleted. A
-completed physical backup and exact one-migration dry run preceded production
-deployment; protected user, cafe, visit and Storage counts and fingerprints
-were unchanged.
+The [launch audit](LAUNCH_QUALITY_AUDIT.md#backend-trust-acceptance--2026-09-25)
+records 66/66 hosted SQL contracts and disposable Auth, Data API, Storage,
+People, publication, owner-export and completed account-deletion journeys on
+data-less QA branches. A real deletion acknowledgement failure was repaired by
+forward migration `20260925200700_fix_account_deletion_ack_retention.sql` and
+verified with a fresh-session deletion and repeat acknowledgement. Production
+is configured at 182 migrations after a completed physical backup; the
+reviewed migration changed only the acknowledgement RPC. Protected content
+counts and fingerprints were unchanged. Read-only production checks found one
+later completed Friends cafe post for the affected account, with linked media
+and friend-authorized post/profile/media access. On 2026-09-25 the owner said
+they believe this was the protected Retry. The backend trust gate is accepted
+with that provenance uncertainty recorded; telemetry did not capture the
+Retry, and an affected-device reopen remains outside this backend-only check.
+No new TestFlight build was uploaded.
 
-Read-only production checks found one later completed Friends cafe post for
-the previously affected account, with linked media and friend-authorized
-post, profile and media access. The owner said they believe this was the
-protected Retry. The backend gate is accepted with that provenance uncertainty
-recorded: telemetry did not capture the Retry, and an affected-device reopen
-was not observed. iPhone and TestFlight launch gates remain separate.
+## Launch quality audit underway — 2026-09-25
+
+The [living launch audit](LAUNCH_QUALITY_AUDIT.md) records the exact-candidate
+matrix, numbered findings, evidence and release gates. Current source now offers
+a visible guest Map route from first-run/account entry, describes the Share
+extension's place import as queued until Mugshot opens, adds a People retry
+action, shows completed/waiting import status in the app, fences import results
+across account changes, describes the actual in-app share handoff, and declares
+iPhone-only targets. These changes are implemented on the
+audit branch; consolidated Simulator, minimum-iOS, physical,
+and replacement-TestFlight acceptance are still open. An initial Home toolbar
+screenshot did not reproduce after settling and three repeated context switches;
+the full Home journey gate remains open. Build 8 and production content are
+unchanged. The initial disposable backend QA branch stopped at the known
+operational-secret migration boundary and was deleted; the subsequent guarded
+replay and hosted acceptance are recorded above.
 
 ## Cafe publication recovery repair production-configured — 2026-09-24
 

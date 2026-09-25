@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-25
 ---
 
 # Mugshot documentation
@@ -15,6 +15,7 @@ with it.
 
 | Document | Authority |
 | --- | --- |
+| [Launch quality audit](LAUNCH_QUALITY_AUDIT.md) | Numbered issues, candidate journey matrix, evidence, and release gates |
 | [Current product status](CURRENT_PRODUCT_STATUS.md) | Shipped behavior, validation state, and release gates |
 | [Home and Recipes implementation](HOME_RECIPES_IMPLEMENTATION.md) | Native product, data ownership, production evidence, and rollout state |
 | [Feature status matrix](FEATURE_STATUS_MATRIX.md) | Feature-by-feature implementation and risk status |

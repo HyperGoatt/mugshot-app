@@ -131,6 +131,20 @@ struct MainTabView: View {
                     retry: automaticSipRecovery.retryNow,
                     review: { showsSipRecoveryReview = true }
                 )
+                if let notice = placeImportCoordinator.notice {
+                    PendingPlaceImportBanner(
+                        notice: notice,
+                        onRetry: {
+                            Task {
+                                await placeImportCoordinator.drain(
+                                    dataManager: dataManager,
+                                    accountID: authModel.authenticatedUser?.id
+                                )
+                            }
+                        },
+                        onDismiss: placeImportCoordinator.dismissNotice
+                    )
+                }
                 if let action = enforcementStore.primaryAction {
                     EnforcementStatusBanner(
                         action: action,
@@ -166,6 +180,7 @@ struct MainTabView: View {
 #endif
             UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(Color.mugshotSage)
             activateLocalStorage()
+            placeImportCoordinator.activate(accountID: authModel.authenticatedUser?.id)
             isGuidingFirstSip = MugshotFirstSipGuideStore.isActive(
                 accountID: authModel.authenticatedUser?.id
             )
@@ -208,6 +223,7 @@ struct MainTabView: View {
             synchronizeMapLocationUpdates()
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+            placeImportCoordinator.activate(accountID: userId)
             AccountBoundActivityUpdateSignal.shared.activate(
                 accountID: nil,
                 refresh: nil
@@ -1385,6 +1401,61 @@ private struct SessionUnavailableBanner: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sessionUnavailableBanner")
+    }
+}
+
+private struct PendingPlaceImportBanner: View {
+    let notice: PendingPlaceImportNotice
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+
+    private var isWaiting: Bool {
+        if case .waiting = notice { return true }
+        return false
+    }
+
+    private var message: String {
+        switch notice {
+        case .completed(let cafeName):
+            "Finished saving \(cafeName) in Mugshot."
+        case .waiting(let cafeName):
+            "Still importing \(cafeName). Check your connection and try again."
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isWaiting ? "arrow.clockwise.circle" : "checkmark.circle.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .accessibilityHidden(true)
+
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            if isWaiting {
+                Button("Retry", action: onRetry)
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(minHeight: 44)
+            }
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Dismiss import status")
+        }
+        .foregroundColor(.espressoBrown)
+        .padding(.leading, 16)
+        .padding(.trailing, 4)
+        .background(isWaiting ? Color.sandBeige : Color.mugshotMint.opacity(0.35))
+        .overlay(alignment: .bottom) {
+            Divider().overlay(Color.mugshotLine)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("placeImport.notice")
     }
 }
 

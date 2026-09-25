@@ -541,7 +541,11 @@ struct MugshotShareHubView: View {
                     Text(
                         content.visibility == .private
                             ? "Artwork only · your post stays Private"
-                            : "Artwork and its Mugshot link"
+                            : publicURL == nil
+                                ? "Artwork only · link unavailable"
+                                : content.visibility == .friends
+                                    ? "Artwork + link · friends can open"
+                                    : "Artwork + public Mugshot link"
                     )
                         .font(.system(size: 11, weight: .semibold))
                         .opacity(0.78)

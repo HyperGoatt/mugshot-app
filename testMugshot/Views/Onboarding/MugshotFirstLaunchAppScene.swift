@@ -8,6 +8,7 @@ struct MugshotFirstLaunchArtworkView: View {
     let onSkipToAccountSetup: () -> Void
     let onCreateAccount: () -> Void
     let onSignIn: () -> Void
+    let onExploreWithoutAccount: () -> Void
 
     private let artworkAspectRatio: CGFloat = 853.0 / 1844.0
 
@@ -89,7 +90,7 @@ struct MugshotFirstLaunchArtworkView: View {
             label: "Create account",
             identifier: "mugshot.firstLaunch.createAccount",
             frame: frame,
-            region: .init(x: 0.08, y: 0.81, width: 0.84, height: 0.075),
+            region: .init(x: 0.08, y: 0.81, width: 0.84, height: 0.06),
             action: onCreateAccount
         )
 
@@ -97,9 +98,17 @@ struct MugshotFirstLaunchArtworkView: View {
             label: "Sign in",
             identifier: "mugshot.firstLaunch.signIn",
             frame: frame,
-            region: .init(x: 0.08, y: 0.875, width: 0.84, height: 0.075),
+            region: .init(x: 0.08, y: 0.88, width: 0.84, height: 0.055),
             action: onSignIn
         )
+
+        Button("Explore Map without an account", action: onExploreWithoutAccount)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color.mugshotSage)
+            .frame(width: frame.width, height: max(44, frame.height * 0.065))
+            .background(Color(red: 245.0 / 255.0, green: 242.0 / 255.0, blue: 237.0 / 255.0))
+            .position(x: frame.midX, y: frame.minY + frame.height * 0.967)
+            .accessibilityIdentifier("mugshot.firstLaunch.exploreWithoutAccount")
     }
 
     private func normalizedButton(
@@ -162,7 +171,8 @@ private extension MugshotFirstLaunchStep {
         onContinue: {},
         onSkipToAccountSetup: {},
         onCreateAccount: {},
-        onSignIn: {}
+        onSignIn: {},
+        onExploreWithoutAccount: {}
     )
 }
 #endif

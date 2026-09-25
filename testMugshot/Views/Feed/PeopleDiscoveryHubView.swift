@@ -68,11 +68,26 @@ struct PeopleDiscoveryHubView: View {
                     actionGrid
 
                     if let errorMessage {
-                        MugshotStatusCard(
-                            title: "Couldn’t update people",
-                            message: errorMessage,
-                            systemImage: "wifi.exclamationmark"
-                        )
+                        VStack(alignment: .leading, spacing: 10) {
+                            MugshotStatusCard(
+                                title: "Couldn’t update people",
+                                message: errorMessage,
+                                systemImage: "wifi.exclamationmark"
+                            )
+                            Button("Try again") {
+                                Task {
+                                    if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        await load()
+                                    } else {
+                                        await search(immediate: true)
+                                    }
+                                }
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(minHeight: 44)
+                            .disabled(isLoading)
+                            .accessibilityIdentifier("people.retry")
+                        }
                     }
 
                     if let dismissedSuggestion {
