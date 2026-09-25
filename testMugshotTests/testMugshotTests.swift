@@ -3393,6 +3393,24 @@ struct testMugshotTests {
         #expect(await queue.imports().isEmpty)
     }
 
+    @Test func pendingPlaceImportRejectsLateResultsAcrossAccountChanges() throws {
+        let account = UUID()
+        var state = PendingPlaceImportRunState()
+        state.activate(accountID: account)
+        let original = try #require(state.scope)
+        state.activate(accountID: account)
+        #expect(state.accepts(original))
+
+        state.activate(accountID: nil)
+        #expect(!state.accepts(original))
+        let guest = try #require(state.scope)
+
+        state.activate(accountID: account)
+        #expect(!state.accepts(original))
+        #expect(!state.accepts(guest))
+        #expect(state.accepts(try #require(state.scope)))
+    }
+
     @Test func pendingPlaceImportOnlyOffersListRecoveryForAuthoritativeAccessLoss() {
         let accessLoss = PostgrestError(
             code: "42501",

@@ -15,6 +15,11 @@ last_verified: 2026-09-25
   exposes the already-implemented guest Map/Saved shell and its account prompts.
 - Reworded the Google Maps Share extension receipt to say the place is queued
   until Mugshot opens, instead of claiming a completed save.
+- Added a main-app completion or waiting receipt for queued place imports, with
+  a retry action, and fenced in-flight import results across account changes.
+  Cross-account and offline import acceptance remain open.
+- Matched the in-app share button's handoff description to whether a link was
+  actually available and to its Friends or public audience.
 - Added a visible retry action when People or People search fails; the
   authenticated offline/retry journey still needs candidate acceptance.
 - Set the app, Share extension, widgets and test target device families to
