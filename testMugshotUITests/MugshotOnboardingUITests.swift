@@ -28,6 +28,7 @@ final class MugshotOnboardingUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.createAccount"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.signIn"].exists)
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.exploreWithoutAccount"].exists)
         XCTAssertFalse(continueButton.exists)
         attachScreenshot(named: "First Launch 9 of 9")
     }
@@ -49,6 +50,7 @@ final class MugshotOnboardingUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.createAccount"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.signIn"].exists)
+        XCTAssertTrue(app.buttons["mugshot.firstLaunch.exploreWithoutAccount"].exists)
         XCTAssertFalse(app.buttons["mugshot.firstLaunch.continue"].exists)
     }
 

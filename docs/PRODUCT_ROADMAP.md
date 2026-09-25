@@ -1,10 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-25
 ---
 
 # Product roadmap
+
+## Launch quality is the active product gate
+
+Finish Home Sip V3, then freeze feature additions except repairs needed for an
+existing journey. Every visible iPhone feature stays in scope. The
+[launch quality audit](LAUNCH_QUALITY_AUDIT.md) is the current numbered issue
+ledger and exact-candidate acceptance matrix. No P0–P2 issue may remain at
+submission. The iPhone-only target and clearer queued-import receipt are
+implemented on the audit branch; complete package, hardware, backend, and
+replacement-TestFlight acceptance remain open.
 
 ## Home Sip V3 implemented; acceptance is the active gate
 

@@ -12,6 +12,7 @@ struct MugshotRootView: View {
     @StateObject private var friendInviteRouter = FriendInviteRouter.shared
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
     @AppStorage(MugshotFirstLaunchPolicy.completedKey) private var completedFirstLaunchEducation = false
+    @AppStorage("MugshotActivation.guestMode.v1.selected") private var hasChosenGuestMode = false
     @State private var firstLaunchLandingTab: MugshotTab?
     @State private var startsCreatingAccount = true
     @State private var profileSetupGate: ProfileSetupGate = .checking
@@ -118,23 +119,35 @@ struct MugshotRootView: View {
 
     @ViewBuilder
     private var authenticatedRoot: some View {
-        switch authModel.status {
-        case .checking:
-            AuthLoadingView()
-        case .configurationRequired(let message):
-            SupabaseConfigurationRequiredView(message: message)
-        case .working:
-            AuthLoadingView()
-        case .signedOut, .sessionUnavailable, .failed:
-            AuthEntryView(
-                dataManager: dataManager,
-                contextTitle: startsCreatingAccount ? "Create your Mugshot account" : "Welcome back",
-                contextMessage: "Sign in to keep your sips, friends, and profile together.",
-                showsCloseButton: false,
-                startsCreatingAccount: startsCreatingAccount
-            )
-        case .signedIn:
-            signedInRoot
+        if hasChosenGuestMode {
+            switch authModel.status {
+            case .checking:
+                AuthLoadingView()
+            case .configurationRequired(let message):
+                SupabaseConfigurationRequiredView(message: message)
+            case .signedIn:
+                signedInRoot
+            case .working, .signedOut, .sessionUnavailable, .failed:
+                MainTabView(dataManager: dataManager, initialTab: .map)
+            }
+        } else {
+            switch authModel.status {
+            case .checking, .working:
+                AuthLoadingView()
+            case .configurationRequired(let message):
+                SupabaseConfigurationRequiredView(message: message)
+            case .signedOut, .sessionUnavailable, .failed:
+                AuthEntryView(
+                    dataManager: dataManager,
+                    contextTitle: startsCreatingAccount ? "Create your Mugshot account" : "Welcome back",
+                    contextMessage: "Sign in to keep your sips, friends, and profile together.",
+                    showsCloseButton: false,
+                    startsCreatingAccount: startsCreatingAccount,
+                    onExploreWithoutAccount: { hasChosenGuestMode = true }
+                )
+            case .signedIn:
+                signedInRoot
+            }
         }
     }
 
@@ -148,6 +161,11 @@ struct MugshotRootView: View {
             onSignIn: { landingTab in
                 firstLaunchLandingTab = landingTab
                 startsCreatingAccount = false
+                completedFirstLaunchEducation = true
+            },
+            onExploreWithoutAccount: {
+                firstLaunchLandingTab = .map
+                hasChosenGuestMode = true
                 completedFirstLaunchEducation = true
             }
         )

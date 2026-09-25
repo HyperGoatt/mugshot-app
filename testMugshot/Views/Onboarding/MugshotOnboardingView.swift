@@ -1081,6 +1081,7 @@ enum MugshotFirstLaunchStep: Int, CaseIterable, Identifiable {
 struct MugshotFirstLaunchOnboardingView: View {
     let onCreateAccount: (MugshotTab) -> Void
     let onSignIn: (MugshotTab) -> Void
+    let onExploreWithoutAccount: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: MugshotFirstLaunchStep = .welcome
@@ -1091,7 +1092,8 @@ struct MugshotFirstLaunchOnboardingView: View {
             onContinue: advance,
             onSkipToAccountSetup: skipToAccountSetup,
             onCreateAccount: { onCreateAccount(landingTab) },
-            onSignIn: { onSignIn(landingTab) }
+            onSignIn: { onSignIn(landingTab) },
+            onExploreWithoutAccount: onExploreWithoutAccount
         )
         .id(step)
         .transition(reduceMotion ? .identity : .opacity)

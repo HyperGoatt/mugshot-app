@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+## Launch quality audit underway — 2026-09-25
+
+The [living launch audit](LAUNCH_QUALITY_AUDIT.md) records the exact-candidate
+matrix, numbered findings, evidence and release gates. Current source now offers
+a visible guest Map route from first-run/account entry, describes the Share
+extension's place import as queued until Mugshot opens, adds a People retry
+action, and declares iPhone-only targets. These changes are implemented on the
+audit branch; consolidated Simulator, minimum-iOS, physical, backend-journey
+and replacement-TestFlight acceptance are still open. A fixture screenshot
+also found missing visible Home
+composer navigation chrome; its repair and acceptance remain open. Build 8 and
+production data are unchanged. A disposable backend QA branch stopped at the
+known operational-secret migration boundary and was deleted; only hermetic
+backend contracts pass for this audit branch, and hosted transport acceptance
+remains open.
 
 ## Cafe publication recovery repair production-configured — 2026-09-24
 

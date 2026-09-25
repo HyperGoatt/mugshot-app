@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+Launch audit QA amendment (2026-09-25): a new data-less nano preview branch
+replayed through migration 113 (`20260809144548`) and reported
+`MIGRATIONS_FAILED` before the next secret-dependent account-deletion worker
+schedule migration. The guarded hosted runner found 68 local-only migrations
+and refused to run. This matches the previously documented fresh-branch
+operational-secret boundary; it is not evidence of production drift. No worker
+credential or production-facing scheduler was installed in QA. The branch was
+deleted and inventory again showed only `main`. Hermetic contracts passed, but
+hosted Auth/API/Storage acceptance for the launch candidate remains open in the
+[launch audit](LAUNCH_QUALITY_AUDIT.md).
 
 Cafe publication recovery amendment (2026-09-24): repository migration
 `20260924153000_repair_cafe_insert_returning.sql` repairs the private admission

@@ -12,6 +12,7 @@ struct AuthEntryView: View {
     var contextMessage: String? = nil
     var showsCloseButton = false
     var startsCreatingAccount = false
+    var onExploreWithoutAccount: (() -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
     
@@ -250,6 +251,14 @@ struct AuthEntryView: View {
                         MugshotTagChip(title: "Photo sips", icon: "camera.fill")
                         MugshotTagChip(title: "Private notes", icon: "lock.fill")
                         MugshotTagChip(title: "Cafe saves", icon: "bookmark.fill")
+                    }
+
+                    if let onExploreWithoutAccount {
+                        Button("Explore Map without an account", action: onExploreWithoutAccount)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.mugshotSage)
+                            .frame(minHeight: 44)
+                            .disabled(isBusy)
                     }
                     
                     Spacer(minLength: 40)

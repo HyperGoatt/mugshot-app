@@ -1,8 +1,31 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+## 2026-09-25 — Launch quality audit and first repairs
+
+- Started the [living launch audit](LAUNCH_QUALITY_AUDIT.md) with candidate
+  screenshots, numbered findings, full visible-feature matrix, backend trust
+  checks, App Review checklist, and staged release gates. Existing TestFlight
+  reports and the affected cafe-publication retry remain open for exact-build
+  acceptance.
+- Restored a visible guest Map route from first run and account entry. This
+  exposes the already-implemented guest Map/Saved shell and its account prompts.
+- Reworded the Google Maps Share extension receipt to say the place is queued
+  until Mugshot opens, instead of claiming a completed save.
+- Added a visible retry action when People or People search fails; the
+  authenticated offline/retry journey still needs candidate acceptance.
+- Set the app, Share extension, widgets and test target device families to
+  iPhone only. No archive, TestFlight upload, assignment, or App Store action
+  occurred.
+- Repaired the deterministic reflection-reminder QA fixture so its weekly
+  reminder stays claimable when the suite runs on later dates.
+- A disposable data-less Supabase branch stopped at the known Vault-dependent
+  migration boundary (113/181); the guarded hosted runner reported 68 pending
+  migrations and did not execute. The branch was deleted and production was
+  untouched. Hosted transport acceptance remains open.
 
 ## 2026-09-24 — Cafe publication recovery repaired
 
