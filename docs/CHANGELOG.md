@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+## 2026-09-25 — Backend trust gate and deletion receipt repair
+
+- Repaired a completed deletion's final HTTP 503 acknowledgement with forward
+  migration `20260925200700_fix_account_deletion_ack_retention.sql`. Added a
+  focused hermetic regression and hosted repeated-acknowledgement coverage.
+- All 66 hosted SQL contracts and disposable Auth, Data API, Storage, People,
+  publication, export and deletion journeys passed on data-less QA branches.
+  Both paid branches were deleted.
+- Deployed the reviewed migration after a completed physical backup and exact
+  dry run. Production is at 182 migrations with protected content counts and
+  fingerprints unchanged. The affected publication account has one later
+  completed Friends post with linked media and correct friend access. The
+  owner believes it was the protected Retry; telemetry cannot prove that
+  provenance independently. The backend gate is accepted with this limit.
 
 ## 2026-09-24 — Cafe publication recovery repaired
 

@@ -281,6 +281,11 @@ const acknowledgementMigration = await fs.readFile(
   'utf8'
 )
 await db.exec(acknowledgementMigration)
+const acknowledgementRetentionFix = await fs.readFile(
+  repoPath + 'supabase/migrations/20260925200700_fix_account_deletion_ack_retention.sql',
+  'utf8'
+)
+await db.exec(acknowledgementRetentionFix)
 
 const ids = {
   owner: '10000000-0000-4000-8000-000000000001',
@@ -674,6 +679,14 @@ if (
   acknowledgement.rows[0].payload.final_retention_days !== 30
 ) {
   throw new Error('valid local-cleanup acknowledgement was not retained')
+}
+const retention = await db.query(`
+  select receipt_expires_at >= local_cleanup_acknowledged_at + interval '30 days'
+    as valid_retention
+  from private.account_deletion_jobs where id='${job.job_id}'
+`)
+if (retention.rows[0]?.valid_retention !== true) {
+  throw new Error('acknowledgement retention started before local cleanup')
 }
 await db.exec(`
   update private.account_deletion_jobs

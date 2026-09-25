@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+Backend trust amendment (2026-09-25): forward migration
+`20260925200700_fix_account_deletion_ack_retention.sql` uses one timestamp for
+local-cleanup acknowledgement and its 30-day retention. Hosted deletion of a
+disposable QA account had removed Auth, profile, post and Storage content, but
+the final acknowledgement returned HTTP 503 because separate microsecond
+timestamps violated the check constraint. The focused hermetic check, complete
+hosted deletion journey with repeated acknowledgement, and 66/66 hosted SQL
+contracts passed at 182 migrations on data-less branches with zero active
+schedules. A completed 2026-09-25 11:43 UTC physical backup and exact dry run
+preceded production deployment. Auth/profile/cafe/visit/Storage counts and
+whole-row fingerprints were unchanged. Both paid QA branches were deleted.
+The affected publication account has one post with linked media and authorized
+friend access after the prior cafe repair. The owner believes it was the
+protected Retry; telemetry provenance remains unavailable. The backend gate is
+accepted with that limitation, separate from iPhone acceptance.
 
 Cafe publication recovery amendment (2026-09-24): repository migration
 `20260924153000_repair_cafe_insert_returning.sql` repairs the private admission

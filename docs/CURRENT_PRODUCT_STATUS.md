@@ -1,8 +1,26 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
+
+## Backend trust gate accepted — 2026-09-25
+
+Production and this repository are aligned at 182 migrations. The deletion
+acknowledgement repair (`20260925200700`) passed a focused hermetic check, all
+66 hosted SQL contracts, and a completed disposable QA deletion with repeated
+acknowledgement. Data-less QA also passed Auth, Data API, Storage, People,
+publication, export and access checks. Both paid QA branches were deleted. A
+completed physical backup and exact one-migration dry run preceded production
+deployment; protected user, cafe, visit and Storage counts and fingerprints
+were unchanged.
+
+Read-only production checks found one later completed Friends cafe post for
+the previously affected account, with linked media and friend-authorized
+post, profile and media access. The owner said they believe this was the
+protected Retry. The backend gate is accepted with that provenance uncertainty
+recorded: telemetry did not capture the Retry, and an affected-device reopen
+was not observed. iPhone and TestFlight launch gates remain separate.
 
 ## Cafe publication recovery repair production-configured — 2026-09-24
 
