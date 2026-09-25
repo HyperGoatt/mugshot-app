@@ -18,8 +18,10 @@ last_verified: 2026-09-25
   Two complete QA deletion journeys passed after repair.
 - Deployed the single reviewed migration after a completed production backup
   and exact dry run. Production is at 182 migrations; protected content counts
-  and whole-row fingerprints were unchanged. The affected tester's real cafe
-  Retry remains unobserved, so the final backend trust gate stays open.
+  and whole-row fingerprints were unchanged. Read-only checks found one later
+  completed Friends cafe post for the affected account, with linked media and
+  friend-authorized visibility. Telemetry does not show whether it came from
+  the protected Retry, so that final acceptance gate stays open.
 
 ## 2026-09-25 — Launch quality audit and first repairs
 

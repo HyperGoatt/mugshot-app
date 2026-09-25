@@ -14,9 +14,11 @@ forward migration `20260925200700_fix_account_deletion_ack_retention.sql` and
 verified with a fresh-session deletion and repeat acknowledgement. Production
 is configured at 182 migrations after a completed physical backup; the
 reviewed migration changed only the acknowledgement RPC. Protected content
-counts and fingerprints were unchanged. The affected tester's protected cafe
-publication Retry is still unobserved, so the **real-account backend gate
-remains open**. No new TestFlight build was uploaded.
+counts and fingerprints were unchanged. Read-only production checks found one
+later completed Friends cafe post for the affected account, with linked media
+and friend-authorized post/profile/media access. Its provenance as the
+protected Retry is not established by telemetry, so the **real-account backend
+gate remains open**. No new TestFlight build was uploaded.
 
 ## Launch quality audit underway — 2026-09-25
 
