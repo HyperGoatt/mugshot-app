@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
 
 ## Cafe-backed publication recovery repair — 2026-09-24
@@ -350,10 +350,12 @@ website field to replayable history and includes it in shared-profile screening.
 Actual QA profile projection and synthetic worker/reviewer acceptance pass;
 these changes remain pending production rollout.
 
-The QA deletion journey now includes actual uploaded bytes and fresh-session
-authorization. Initial manifest counts are fixed by migration `20260913195241`;
-identity removal, media removal and recovery without authentication pass.
-This does not yet establish production activation or Apple provider revocation.
+The 2026-09-25 data-less QA deletion journey included uploaded bytes,
+fresh-session authorization, direct worker invocation, identity/media removal,
+recovery without authentication, and repeated final acknowledgement. Migration
+`20260925200700` repairs the acknowledgement retention clock, and production
+is aligned at 182 migrations after preservation checks. Apple provider
+revocation and signed-client acceptance remain separate.
 
 
 Canonical shared-post text includes visible brew/equipment fields, context
