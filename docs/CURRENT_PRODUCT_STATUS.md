@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-09-25
 ---
 
+## Backend trust gate evidence — 2026-09-25
+
+The [launch audit](LAUNCH_QUALITY_AUDIT.md#backend-trust-acceptance--2026-09-25)
+records 66/66 hosted SQL contracts and disposable Auth, Data API, Storage,
+People, publication, owner-export and completed account-deletion journeys on
+data-less QA branches. A real deletion acknowledgement failure was repaired by
+forward migration `20260925200700_fix_account_deletion_ack_retention.sql` and
+verified with a fresh-session deletion and repeat acknowledgement. Production
+is configured at 182 migrations after a completed physical backup; the
+reviewed migration changed only the acknowledgement RPC. Protected content
+counts and fingerprints were unchanged. The affected tester's protected cafe
+publication Retry is still unobserved, so the **real-account backend gate
+remains open**. No new TestFlight build was uploaded.
+
 ## Launch quality audit underway — 2026-09-25
 
 The [living launch audit](LAUNCH_QUALITY_AUDIT.md) records the exact-candidate
@@ -13,14 +27,13 @@ extension's place import as queued until Mugshot opens, adds a People retry
 action, shows completed/waiting import status in the app, fences import results
 across account changes, describes the actual in-app share handoff, and declares
 iPhone-only targets. These changes are implemented on the
-audit branch; consolidated Simulator, minimum-iOS, physical, backend-journey
+audit branch; consolidated Simulator, minimum-iOS, physical,
 and replacement-TestFlight acceptance are still open. An initial Home toolbar
 screenshot did not reproduce after settling and three repeated context switches;
-the full Home journey gate remains open. Build 8 and production data are
-unchanged. A disposable backend QA branch stopped at the
-known operational-secret migration boundary and was deleted; only hermetic
-backend contracts pass for this audit branch, and hosted transport acceptance
-remains open.
+the full Home journey gate remains open. Build 8 and production content are
+unchanged. The initial disposable backend QA branch stopped at the known
+operational-secret migration boundary and was deleted; the subsequent guarded
+replay and hosted acceptance are recorded above.
 
 ## Cafe publication recovery repair production-configured — 2026-09-24
 

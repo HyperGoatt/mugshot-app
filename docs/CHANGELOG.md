@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-09-25
 ---
 
+## 2026-09-25 — Backend trust gate and deletion receipt repair
+
+- Ran 66/66 hosted SQL contracts plus disposable Auth, Data API, Storage,
+  People, publication, owner-export and account-deletion journeys on data-less
+  QA branches with zero active schedules. Generated-to-chosen username links,
+  block filtering, cafe `INSERT … RETURNING`, private media, owner isolation,
+  repeated writes and completed deletion passed.
+- Found a completed deletion whose final receipt returned HTTP 503 because two
+  timestamp calls violated the 30-day receipt-retention constraint. Added
+  forward migration `20260925200700_fix_account_deletion_ack_retention.sql`,
+  a focused hermetic regression and a hosted repeat-acknowledgement check.
+  Two complete QA deletion journeys passed after repair.
+- Deployed the single reviewed migration after a completed production backup
+  and exact dry run. Production is at 182 migrations; protected content counts
+  and whole-row fingerprints were unchanged. The affected tester's real cafe
+  Retry remains unobserved, so the final backend trust gate stays open.
+
 ## 2026-09-25 — Launch quality audit and first repairs
 
 - Started the [living launch audit](LAUNCH_QUALITY_AUDIT.md) with candidate

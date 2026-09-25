@@ -4,16 +4,31 @@ status: current
 last_verified: 2026-09-25
 ---
 
+Backend trust amendment (2026-09-25): forward migration
+`20260925200700_fix_account_deletion_ack_retention.sql` uses a single timestamp
+for local-cleanup acknowledgement and its 30-day retention expiry. A hosted
+deletion of a disposable QA account had completed Auth/profile/post/Storage
+removal but its final acknowledgement returned HTTP 503 because separate
+microsecond timestamps violated the table check constraint. The focused
+PGlite contract, two complete hosted deletion journeys with repeat
+acknowledgement, and the 66/66 hosted SQL suite passed at 182 migrations on
+data-less branches with all QA schedules disabled. A completed 2026-09-25
+11:43 UTC physical backup preceded production deployment. The exact dry run
+listed only this migration; production advanced from 181 to 182 with
+Auth/profile/cafe/visit/Storage counts and whole-row fingerprints unchanged.
+The [launch audit](LAUNCH_QUALITY_AUDIT.md#backend-trust-acceptance--2026-09-25)
+holds the complete account and environment matrix. The previously affected
+real account's cafe Retry remains an open acceptance gate.
+
 Launch audit QA amendment (2026-09-25): a new data-less nano preview branch
 replayed through migration 113 (`20260809144548`) and reported
 `MIGRATIONS_FAILED` before the next secret-dependent account-deletion worker
 schedule migration. The guarded hosted runner found 68 local-only migrations
 and refused to run. This matches the previously documented fresh-branch
 operational-secret boundary; it is not evidence of production drift. No worker
-credential or production-facing scheduler was installed in QA. The branch was
-deleted and inventory again showed only `main`. Hermetic contracts passed, but
-hosted Auth/API/Storage acceptance for the launch candidate remains open in the
-[launch audit](LAUNCH_QUALITY_AUDIT.md).
+credential or production-facing scheduler was installed in that QA attempt.
+The branch was deleted. The later guarded replay and hosted acceptance are
+recorded in the amendment above.
 
 Cafe publication recovery amendment (2026-09-24): repository migration
 `20260924153000_repair_cafe_insert_returning.sql` repairs the private admission
