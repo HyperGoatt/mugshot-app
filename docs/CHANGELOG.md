@@ -4,6 +4,26 @@ status: current
 last_verified: 2026-09-28
 ---
 
+## 2026-09-28 — Sunday reflection history and destination (source candidate)
+
+- Confirmed production sent two weekly reflection pushes on each of the last
+  two Sundays. The existing push route selected the unfiltered Journal tab and
+  the in-app Activity center read only social events, so the reminder had no
+  week-specific content or history entry.
+- Added an owner-bound delivered-reminder history RPC with an independent
+  delivery timestamp, including a backfill for existing successful sends.
+  Failed or cancelled deliveries remain absent; deleting a device does not
+  erase delivered history. Activity renders separate reminder rows without
+  changing the social unread badge. Weekly taps open the exact seven-day
+  completed-Mugshot window, and On this day retains its owned-memory route.
+- The focused hermetic owner/anon/delivery test, Debug app/test compile, and
+  focused native test suite pass. The old weekly scheduler fixture now extends
+  its historical claim window relative to the test clock and passes again.
+  The broader static gate still hit a shared Xcode cache error; the isolated
+  Debug compile succeeded. Migration and client changes are source-only:
+  no production rollout, physical push-tap acceptance, or TestFlight upload is
+  claimed for this candidate.
+
 ## 2026-09-28 — Shared profile with an unlocated cafe
 
 - Diagnosed a profile load failure after KatMet published a Mugshot. The v4

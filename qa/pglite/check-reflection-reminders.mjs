@@ -243,6 +243,13 @@ try {
     'empty week created a reminder',
   )
 
+  // Claiming uses the wall clock, not the simulated Sunday schedule. Keep this
+  // historical fixture claimable as the calendar advances.
+  await db.exec(`
+    update private.reflection_reminder_occurrences
+    set expires_at = now() + interval '4 hours'
+    where user_id='${ids.owner}' and reminder_kind='weekly_reflection'
+  `)
   claim = await asService('select * from public.claim_reflection_reminder_batch_v1(25)')
   const weeklyClaim = claim.rows.find(row => row.reminder_kind === 'weekly_reflection')
   assert.ok(weeklyClaim, 'weekly reminder was not claimable')

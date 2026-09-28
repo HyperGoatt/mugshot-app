@@ -859,13 +859,7 @@ struct MainTabView: View {
               let accountID = authModel.authenticatedUser?.id,
               let route = reflectionReminderRouter.pendingRoute,
               route.accountID == accountID else { return }
-        switch route.destination {
-        case .journal:
-            tabCoordinator.selectedTab = .journal
-            reflectionReminderRouter.consume(route, accountID: accountID)
-        case .memory:
-            selectedReflectionReminderRoute = route
-        }
+        selectedReflectionReminderRoute = route
     }
 
     private func completeReflectionReminderRoute(_ route: PendingReflectionReminderRoute) {

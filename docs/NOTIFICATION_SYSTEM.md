@@ -1,8 +1,26 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-28
 ---
+
+## Sunday reflection repair candidate — 2026-09-28
+
+The installed notification can currently reach only the generic Journal tab,
+and reminder occurrences do not appear in the in-app Activity center. Source
+now presents the exact preceding seven days of completed, owner-owned MugShots
+when a weekly reminder is tapped, with each item opening its own detail. A new
+caller-bound history RPC projects only successfully delivered reminders into a
+separate Activity section; these are not social events and do not affect unread
+badges. A delivery timestamp survives removal of device registrations and is
+backfilled from existing successful receipts. On this day remains an
+owner-bound memory route. The projection contains no caption, note, cafe name,
+photo, or other private visit copy. Migration
+`20260928205407_sunday_reflection_history.sql` and this native behavior are
+implemented and locally verified only; production, physical APNs tap, and
+TestFlight acceptance remain pending. The repaired historical weekly scheduler
+fixture and a read-only production check confirm that the last two scheduled
+weeks contain one and three completed MugShots, respectively.
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
 The client now exposes Save in the navigation bar and marks unsaved changes;

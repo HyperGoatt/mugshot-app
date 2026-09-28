@@ -195,6 +195,20 @@ struct TestFlightFeedbackFollowupTests {
         restored.activate(accountID: UUID())
         #expect(restored.pendingRoute == nil)
     }
+
+    @Test func deliveredWeeklyReminderHasHistoricalWeekDestination() throws {
+        let occurrenceID = UUID()
+        let payload = """
+        [{"occurrence_id":"\(occurrenceID.uuidString)","reminder_kind":"weekly_reflection","scheduled_at":"2026-09-27T22:00:00Z","delivered_at":"2026-09-27T22:00:04Z","timezone_name":"America/New_York","target_visit_id":null}]
+        """
+        let record = try #require(JSONDecoder().decode(
+            [ReflectionReminderRecord].self,
+            from: Data(payload.utf8)
+        ).first)
+        #expect(record.id == occurrenceID)
+        #expect(record.destination == .journal)
+        #expect(record.weekStart == record.scheduledDate?.addingTimeInterval(-7 * 24 * 60 * 60))
+    }
 }
 
 @MainActor
