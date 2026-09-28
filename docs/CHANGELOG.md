@@ -15,8 +15,12 @@ last_verified: 2026-09-28
   clients. The cafe, post, stats, and dedicated profile cafe list remain
   available. Updated the iOS model to accept missing coordinates and added
   focused backend and decoding regressions.
-- The change is implemented; hosted acceptance and production deployment are
-  tracked separately in the Supabase release workflow.
+- The focused hermetic database regression, native profile decoder test on the
+  iOS 27 Simulator, isolated generic Debug compile, SQL parse, and
+  documentation check pass. Two older profile-share copy assertions and the
+  existing weekly-reminder contract fail in broader suites. Hosted acceptance
+  and production deployment are tracked separately in the Supabase release
+  workflow.
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 

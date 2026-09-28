@@ -11,8 +11,11 @@ clients can decode a profile. It leaves the profile, published Mugshots, cafe
 collection, authorization gates, and stored cafe data intact. The iOS model
 also accepts optional coordinates. Production evidence showed the affected
 profile and sip endpoints returning HTTP 200 with an approved account and
-post; the top cafe had null coordinates. Focused local verification is in
-progress. This migration is not yet deployed; production remains at 182
+post; the top cafe had null coordinates. The focused hermetic contract and
+native decoder test pass, and an isolated generic Debug app/test compile
+succeeded. The broader static run hit the existing weekly-reminder assertion
+and a shared Xcode cache failure; the isolated compile resolved only the cache
+failure. This migration is not yet deployed; production remains at 182
 migrations until hosted acceptance and preservation checks pass.
 
 Backend trust amendment (2026-09-25): forward migration

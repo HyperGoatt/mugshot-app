@@ -10,7 +10,8 @@ The current iOS model accepts missing coordinates in a top cafe. Migration
 `20260928153756_tolerate_unlocated_profile_cafes.sql` omits only unlocated
 entries from the optional v4 top-cafe summary for existing clients. The
 affected user's profile, published post, and dedicated cafe list remain
-authorized. Hosted and production acceptance are pending.
+authorized. The focused database and native decoding checks pass. Hosted and
+production acceptance are pending.
 
 ## Cafe publication recovery — production-configured
 

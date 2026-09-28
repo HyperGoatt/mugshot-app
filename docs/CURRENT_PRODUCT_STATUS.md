@@ -442,7 +442,7 @@ The Home Workbench and notification backend migrations are live through
 fingerprint evidence closed on 2026-08-24.
 
 Shared-profile compatibility repair (2026-09-28): current source accepts a
-top cafe without map coordinates, and a pending v4 backend migration omits
+top cafe without map coordinates (focused native decoder test passed), and a pending v4 backend migration omits
 that optional summary entry for already installed clients. KatMet's approved
 profile and published Mugshot exist and the live profile/sip RPCs return HTTP
 200; the null-coordinate top cafe caused native response decoding to fail.
