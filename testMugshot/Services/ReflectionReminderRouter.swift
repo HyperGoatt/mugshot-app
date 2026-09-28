@@ -1,5 +1,82 @@
 import Combine
 import Foundation
+import Supabase
+
+enum ReflectionReminderKind: String, Decodable {
+    case onThisDay = "on_this_day"
+    case weekly = "weekly_reflection"
+}
+
+struct ReflectionReminderRecord: Decodable, Identifiable, Equatable {
+    let id: UUID
+    let kind: ReflectionReminderKind
+    let scheduledAt: String
+    let deliveredAt: String
+    let timezoneName: String
+    let targetVisitID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "occurrence_id"
+        case kind = "reminder_kind"
+        case scheduledAt = "scheduled_at"
+        case deliveredAt = "delivered_at"
+        case timezoneName = "timezone_name"
+        case targetVisitID = "target_visit_id"
+    }
+
+    var scheduledDate: Date? { Self.parseDate(scheduledAt) }
+    var deliveredDate: Date? { Self.parseDate(deliveredAt) }
+    var weekStart: Date? { scheduledDate?.addingTimeInterval(-7 * 24 * 60 * 60) }
+    var destination: ReflectionReminderDestination? {
+        switch kind {
+        case .weekly: .journal
+        case .onThisDay: targetVisitID.map(ReflectionReminderDestination.memory)
+        }
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+}
+
+final class ReflectionReminderService {
+    private let client: SupabaseClient
+
+    init(client: SupabaseClient) { self.client = client }
+
+    func delivered(
+        accountID: UUID,
+        limit: Int = 30,
+        occurrenceID: UUID? = nil
+    ) async throws -> [ReflectionReminderRecord] {
+        guard client.auth.currentUser?.id == accountID else {
+            throw ActivityServiceError.accountScopeChanged
+        }
+        let rows: [ReflectionReminderRecord] = try await client.rpc(
+            "list_reflection_reminders_v1",
+            params: ReflectionReminderListParameters(
+                pLimit: min(max(limit, 1), 50),
+                pOccurrenceID: occurrenceID
+            )
+        ).execute().value
+        guard client.auth.currentUser?.id == accountID else {
+            throw ActivityServiceError.accountScopeChanged
+        }
+        return rows
+    }
+}
+
+private struct ReflectionReminderListParameters: Encodable {
+    let pLimit: Int
+    let pOccurrenceID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case pLimit = "p_limit"
+        case pOccurrenceID = "p_occurrence_id"
+    }
+}
 
 enum ReflectionReminderDestination: Codable, Equatable {
     case memory(UUID)

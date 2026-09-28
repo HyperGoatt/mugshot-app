@@ -145,7 +145,13 @@ Reflection preferences and compatible-device state are caller-bound Supabase
 contracts. Private occurrence and delivery rows are server-owned. The database
 chooses eligible owner-bound targets from completed visits, while the client
 stores only a pending route for the active matching account. Reminder delivery
-is independent of social Activity history and badge state.
+remains independent of social Activity events and badge state. The 2026-09-28
+source candidate adds a caller-bound, delivered-only reminder history RPC with
+an occurrence-level delivery timestamp, then renders those reminders separately
+in the Activity center. Weekly taps resolve the same scheduled seven-day window
+against completed owner-owned visits. The new migration is locally verified but
+not deployed; current installed clients still route weekly taps to the generic
+Journal.
 
 Production migrations `20260914191634` and `20260914204700` own these contracts.
 The follow-up bounds each deterministic APNs collapse identifier to the

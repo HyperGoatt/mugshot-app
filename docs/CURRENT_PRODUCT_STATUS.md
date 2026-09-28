@@ -265,6 +265,14 @@ normalized Instagram destinations, canonical cafe actions, Feed photo paging,
 published caption presentation, structured Sip/Cafe/Setting journal headings and the
 approved Feed copy.
 
+Sunday reflection repair source candidate (2026-09-28): the shipped weekly
+push opens only the generic Journal and does not appear in Activity. The new
+source opens the scheduled seven-day completed-Mugshot view and displays
+successfully delivered reminders in a separate Activity section. The
+owner-bound history RPC and independent delivery timestamp are locally tested,
+not production deployed; installed users will not see this repair until a
+separately authorized app release. See [Notification system](NOTIFICATION_SYSTEM.md).
+
 On this day and Weekly reflection reminders are opt-in and require a new explicit
 save before delivery activation. The client reports its current IANA timezone and
 destination capability. The backend stores a private occurrence queue and

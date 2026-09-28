@@ -47,6 +47,9 @@ struct ActivityCenterView: View {
     @State private var path: [ActivityDeepLinkDestination] = []
     @State private var routeSource: ActivityOpenSource = .activityBell
     @State private var dismissedPushEducation = false
+    @State private var reminders: [ReflectionReminderRecord] = []
+    @State private var reminderError: String?
+    @State private var selectedReflectionRoute: PendingReflectionReminderRoute?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -72,6 +75,7 @@ struct ActivityCenterView: View {
         .task(id: accountID) {
             path = []
             await store.activate(accountID: accountID)
+            await loadReminders()
             dismissedPushEducation = UserDefaults.standard.bool(
                 forKey: pushEducationDismissalKey
             )
@@ -80,9 +84,18 @@ struct ActivityCenterView: View {
         }
         .onChange(of: accountID) { _, _ in
             path = []
+            reminders = []
+            selectedReflectionRoute = nil
         }
         .onChange(of: router.pendingRoute?.id) { _, _ in
             handlePendingRoute()
+        }
+        .sheet(item: $selectedReflectionRoute) { route in
+            ReflectionReminderRouteView(
+                route: route,
+                dataManager: dataManager,
+                onFinished: { selectedReflectionRoute = nil }
+            )
         }
         .alert("Activity needs another try", isPresented: Binding(
             get: { store.actionError != nil },
@@ -104,24 +117,28 @@ struct ActivityCenterView: View {
             }
             .accessibilityLabel("Loading activity")
         case .failed(let message):
-            VStack(spacing: 16) {
-                MugshotStatusCard(
-                    title: "Couldn’t load activity",
-                    message: message,
-                    systemImage: "wifi.exclamationmark"
-                )
-                Button("Try Again") { Task { await store.refresh() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.mugshotSage)
+            ScrollView {
+                VStack(spacing: 16) {
+                    reminderRows
+                    MugshotStatusCard(
+                        title: "Couldn’t load activity",
+                        message: message,
+                        systemImage: "wifi.exclamationmark"
+                    )
+                    Button("Try Again") { Task { await refreshContent() } }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.mugshotSage)
+                }
+                .padding(20)
             }
-            .padding(20)
         case .loaded:
-            if store.events.isEmpty {
+            if store.events.isEmpty && reminders.isEmpty {
                 ScrollView {
                     VStack(spacing: 14) {
                         if shouldShowPushEducation {
                             pushEducationCard
                         }
+                        reminderRows
                         MugsyEmptyStateView(
                             placement: .friendsEmpty,
                             title: "All quiet for now",
@@ -144,13 +161,14 @@ struct ActivityCenterView: View {
                     }
                     .padding(16)
                 }
-                .refreshable { await store.refresh() }
+                .refreshable { await refreshContent() }
             } else {
                 ScrollView {
                     LazyVStack(spacing: 10) {
                         if shouldShowPushEducation {
                             pushEducationCard
                         }
+                        reminderRows
                         ForEach(store.events) { event in
                             ActivityEventRow(event: event) {
                                 open(event)
@@ -172,8 +190,85 @@ struct ActivityCenterView: View {
                     .padding(16)
                     .padding(.bottom, 18)
                 }
-                .refreshable { await store.refresh() }
+                .refreshable { await refreshContent() }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var reminderRows: some View {
+        if let reminderError {
+            Button {
+                Task { await loadReminders() }
+            } label: {
+                Label("Couldn’t load reminders. Try again.", systemImage: "arrow.clockwise")
+                    .font(.footnote)
+            }
+            .accessibilityHint(reminderError)
+        }
+        if !reminders.isEmpty {
+            Text("Reminders")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        ForEach(reminders) { reminder in
+            Button {
+                guard let destination = reminder.destination else { return }
+                selectedReflectionRoute = PendingReflectionReminderRoute(
+                    accountID: accountID,
+                    occurrenceID: reminder.id,
+                    destination: destination
+                )
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: reminder.kind == .weekly ? "calendar" : "book.closed.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.mugshotSage)
+                        .frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(reminder.kind == .weekly ? "Your week in Mugshot" : "A MugShot to remember")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.espressoBrown)
+                        Text(reminder.kind == .weekly
+                             ? "Revisit the MugShots you saved that week."
+                             : "Revisit a sip you saved on this day.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.secondaryText)
+                    }
+                    Spacer(minLength: 8)
+                    if let date = reminder.deliveredDate {
+                        Text(date, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(Color.tertiaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: DesignSystem.Radius.card))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens this reflection")
+        }
+    }
+
+    private func refreshContent() async {
+        await store.refresh()
+        await loadReminders()
+    }
+
+    private func loadReminders() async {
+        do {
+            let records = try await ReflectionReminderService(
+                client: SupabaseClientProvider.shared.client()
+            ).delivered(accountID: accountID)
+            reminders = records
+            reminderError = nil
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            reminders = []
+            reminderError = nil
+        } catch {
+            reminderError = MugshotUserFacingError.message(for: error, context: .loading)
         }
     }
 

@@ -71,6 +71,48 @@ final class VisitService {
         )
     }
 
+    func fetchOwnedVisits(
+        userId: UUID,
+        from start: Date,
+        before end: Date
+    ) async throws -> [RemoteVisitSummary] {
+        guard client.auth.currentUser?.id == userId else {
+            throw ActivityServiceError.accountScopeChanged
+        }
+        let formatter = ISO8601DateFormatter()
+        let startValue = formatter.string(from: start)
+        let endValue = formatter.string(from: end)
+        var rows: [SupabaseVisitRow] = []
+        let pageSize = 100
+        repeat {
+            let offset = rows.count
+            let page: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+                try await client
+                    .from("visits")
+                    .select(columns)
+                    .eq("user_id", value: userId.uuidString)
+                    .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                    .gte("created_at", value: startValue)
+                    .lt("created_at", value: endValue)
+                    .order("created_at", ascending: false)
+                    .order("id", ascending: false)
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+            }
+            rows.append(contentsOf: page)
+            if page.count < pageSize { break }
+        } while true
+        guard client.auth.currentUser?.id == userId else {
+            throw ActivityServiceError.accountScopeChanged
+        }
+        let summaries = try await hydrate(rows: rows, includeAuthors: false, currentUserId: userId)
+        guard client.auth.currentUser?.id == userId else {
+            throw ActivityServiceError.accountScopeChanged
+        }
+        return summaries
+    }
+
     func fetchOwnerBrewDetails(
         visitIDs: [UUID]? = nil,
         limit: Int = 500

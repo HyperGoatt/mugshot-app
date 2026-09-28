@@ -4,6 +4,16 @@ status: current
 last_verified: 2026-09-28
 ---
 
+Sunday reflection history candidate (2026-09-28): migration
+`20260928205407_sunday_reflection_history.sql` backfills delivered timestamps,
+records future successful reminder deliveries independently of removable device
+rows, and exposes a caller-bound, delivered-only history RPC. The focused
+hermetic test covers backfill, success-only visibility, persistence after
+device-row removal, owner isolation, and anonymous denial. It remains pending
+isolated hosted QA, production backup/dry run, deployment, and read-only
+preservation checks. The native seven-day destination also needs a new app
+build; backend deployment alone cannot fix taps in installed clients.
+
 Shared profile compatibility amendment (2026-09-28): migration
 `20260928153756_tolerate_unlocated_profile_cafes.sql` filters cafes without
 coordinates from the optional v4 `top_cafes` summary so already installed iOS
