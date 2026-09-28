@@ -15,8 +15,14 @@ post; the top cafe had null coordinates. The focused hermetic contract and
 native decoder test pass, and an isolated generic Debug app/test compile
 succeeded. The broader static run hit the existing weekly-reminder assertion
 and a shared Xcode cache failure; the isolated compile resolved only the cache
-failure. This migration is not yet deployed; production remains at 182
-migrations until hosted acceptance and preservation checks pass.
+failure. The data-less QA branch passed 66/66 hosted SQL contracts at 183
+migrations with zero active schedules and was deleted after acceptance. A
+completed 2026-09-28 11:32 UTC physical backup and exact one-migration dry run
+preceded deployment. Production is at 183 migrations; an authenticated viewer
+read returns KatMet's profile and one public Mugshot while omitting the
+unlocated optional top-cafe summary. Auth, profile, cafe, visit, and Storage
+counts and ID fingerprints matched the predeploy baseline. No TestFlight build
+was uploaded or physically accepted.
 
 Backend trust amendment (2026-09-25): forward migration
 `20260925200700_fix_account_deletion_ack_retention.sql` uses one timestamp for

@@ -442,12 +442,14 @@ The Home Workbench and notification backend migrations are live through
 fingerprint evidence closed on 2026-08-24.
 
 Shared-profile compatibility repair (2026-09-28): current source accepts a
-top cafe without map coordinates (focused native decoder test passed), and a pending v4 backend migration omits
-that optional summary entry for already installed clients. KatMet's approved
-profile and published Mugshot exist and the live profile/sip RPCs return HTTP
-200; the null-coordinate top cafe caused native response decoding to fail.
-Hosted acceptance and production deployment remain separate from this source
-implementation.
+top cafe without map coordinates (focused native decoder test passed), and the
+production v4 backend migration omits that optional summary entry for already
+installed clients. KatMet's approved profile and published Mugshot exist; an
+authenticated live read now returns the profile, one public Mugshot, and one
+cafe in stats. The null-coordinate top cafe had caused native decoding to fail.
+The data-less QA branch passed 66/66 hosted SQL contracts and was deleted;
+production is at 183 migrations with protected content counts unchanged. The
+native model change remains source-only until a separately authorized release.
 
 ## What works now
 

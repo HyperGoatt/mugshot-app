@@ -18,9 +18,14 @@ last_verified: 2026-09-28
 - The focused hermetic database regression, native profile decoder test on the
   iOS 27 Simulator, isolated generic Debug compile, SQL parse, and
   documentation check pass. Two older profile-share copy assertions and the
-  existing weekly-reminder contract fail in broader suites. Hosted acceptance
-  and production deployment are tracked separately in the Supabase release
-  workflow.
+  existing weekly-reminder contract fail in broader suites. The data-less QA
+  branch passed 66/66 hosted SQL contracts with no active schedules and was
+  deleted. After a completed physical backup and an exact one-migration dry
+  run, the migration was deployed to production (183 migrations). KatMet's
+  authenticated profile now returns one public Mugshot and one cafe in stats,
+  with the unlocated optional top-cafe summary omitted. Auth, profile, cafe,
+  visit, and Storage counts and ID fingerprints matched the predeploy baseline.
+  No TestFlight build was uploaded or physically accepted.
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 
