@@ -1,8 +1,22 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
+
+## 2026-09-28 — Shared profile with an unlocated cafe
+
+- Diagnosed a profile load failure after KatMet published a Mugshot. The v4
+  profile and sip RPCs returned HTTP 200, and the account and post passed
+  screening. Her top cafe had null coordinates, which the shipped iOS model
+  could not decode, causing the whole profile screen to show an error.
+- Added a forward v4 projection compatibility migration that omits only
+  coordinate-free entries from the optional `top_cafes` summary for existing
+  clients. The cafe, post, stats, and dedicated profile cafe list remain
+  available. Updated the iOS model to accept missing coordinates and added
+  focused backend and decoding regressions.
+- The change is implemented; hosted acceptance and production deployment are
+  tracked separately in the Supabase release workflow.
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 

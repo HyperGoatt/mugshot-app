@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
+
+Shared profile compatibility amendment (2026-09-28): migration
+`20260928153756_tolerate_unlocated_profile_cafes.sql` filters cafes without
+coordinates from the optional v4 `top_cafes` summary so already installed iOS
+clients can decode a profile. It leaves the profile, published Mugshots, cafe
+collection, authorization gates, and stored cafe data intact. The iOS model
+also accepts optional coordinates. Production evidence showed the affected
+profile and sip endpoints returning HTTP 200 with an approved account and
+post; the top cafe had null coordinates. Focused local verification is in
+progress. This migration is not yet deployed; production remains at 182
+migrations until hosted acceptance and preservation checks pass.
 
 Backend trust amendment (2026-09-25): forward migration
 `20260925200700_fix_account_deletion_ack_retention.sql` uses one timestamp for

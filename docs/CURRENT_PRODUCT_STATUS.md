@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
 
 ## Backend trust gate accepted — 2026-09-25
@@ -440,6 +440,14 @@ already complete, waiving a redundant connected-iPhone rerun. The exact
 The Home Workbench and notification backend migrations are live through
 `20260824171405`. Local, disposable-QA, live drift, and protected-data
 fingerprint evidence closed on 2026-08-24.
+
+Shared-profile compatibility repair (2026-09-28): current source accepts a
+top cafe without map coordinates, and a pending v4 backend migration omits
+that optional summary entry for already installed clients. KatMet's approved
+profile and published Mugshot exist and the live profile/sip RPCs return HTTP
+200; the null-coordinate top cafe caused native response decoding to fail.
+Hosted acceptance and production deployment remain separate from this source
+implementation.
 
 ## What works now
 

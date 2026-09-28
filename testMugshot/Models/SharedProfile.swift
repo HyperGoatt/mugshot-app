@@ -315,8 +315,8 @@ struct SharedProfileTopCafe: Decodable, Equatable, Identifiable {
     let name: String
     let city: String?
     let address: String?
-    let latitude: Double
-    let longitude: Double
+    let latitude: Double?
+    let longitude: Double?
     let identityKey: String?
     let score: Double
     let basis: String

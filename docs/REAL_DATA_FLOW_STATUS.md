@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
 
 ## Cafe-backed publication recovery repair — 2026-09-24
@@ -290,6 +290,11 @@ apply an Everyone-only client filter to visible Mugshots; missing tagged and
 Favorite Spot mutations do not invent local remote truth. Existing v3 profile,
 highlight, and binary social contracts remain available to older clients, but
 the new UI neither reads nor renders Profile Highlight. The new profile contract
+accepts missing cafe coordinates in the native top-cafe model. Pending migration
+`20260928153756_tolerate_unlocated_profile_cafes.sql` omits unlocated entries
+from the optional v4 top-cafe summary for already installed clients, while the
+post and dedicated cafe collections retain those entries. The profile remains
+subject to the same screening, moderation, and viewer gates. The new profile contract
 now requires version-1 affirmative consent for Friends-on-profile publication
 in Sprint 1 source. V2 writes record consent, legacy V1 can only disable,
 and tagged Friends content also requires author consent. This migration is not
