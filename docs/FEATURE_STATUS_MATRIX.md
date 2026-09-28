@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
+
+## Shared profile compatibility — backend production-configured
+
+The current iOS model accepts missing coordinates in a top cafe. Migration
+`20260928153756_tolerate_unlocated_profile_cafes.sql` omits only unlocated
+entries from the optional v4 top-cafe summary for existing clients. The
+affected user's profile, published post, and dedicated cafe list remain
+authorized. The focused database and native decoding checks passed, the
+data-less QA branch passed 66/66 hosted SQL contracts, and the production
+authenticated profile read returns one public Mugshot and one cafe in stats.
+Production is at 183 migrations; the iOS model change is source-only, not
+TestFlight-accepted.
 
 ## Cafe publication recovery — production-configured
 

@@ -5,6 +5,26 @@ import UIKit
 @testable import testMugshot
 
 struct ProfileEditorialAtlasTests {
+    @Test func profileProjectionAcceptsCafeWithoutCoordinates() throws {
+        let payload = """
+        {
+          "profile": {"id":"10000000-0000-4000-8000-000000000001", "display_name":"Kat", "username":"katmet"},
+          "friendship_state":"none",
+          "stats":{"friends":2,"sips":1,"cafes":1},
+          "top_cafes":[{"id":"20000000-0000-4000-8000-000000000001", "name":"Cafe", "city":null,
+            "address":null,"latitude":null,"longitude":null,"identity_key":"cafe:example",
+            "score":4.5,"basis":"sip_average","evidence_count":1,"sip_count":1,"cover_photo_url":null}],
+          "favorite_spots":[],"taste_passport_visible":false,"viewer_projection":"signed_in",
+          "profile_contract_version":4
+        }
+        """
+        let projection = try JSONDecoder().decode(SharedProfileProjection.self, from: Data(payload.utf8))
+        #expect(projection.profile.username == "katmet")
+        #expect(projection.topCafes.count == 1)
+        #expect(projection.topCafes.first?.latitude == nil)
+        #expect(projection.topCafes.first?.longitude == nil)
+    }
+
     @Test func profileTabsKeepTheApprovedOrderAndAccessibilityIdentity() {
         #expect(SharedProfileTab.allCases == [.mugshots, .cafes, .map, .tagged])
         #expect(SharedProfileTab.mugshots.accessibilityTitle == "Public Mugshots")

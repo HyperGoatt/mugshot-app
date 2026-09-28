@@ -1,8 +1,31 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-28
 ---
+
+## 2026-09-28 — Shared profile with an unlocated cafe
+
+- Diagnosed a profile load failure after KatMet published a Mugshot. The v4
+  profile and sip RPCs returned HTTP 200, and the account and post passed
+  screening. Her top cafe had null coordinates, which the shipped iOS model
+  could not decode, causing the whole profile screen to show an error.
+- Added a forward v4 projection compatibility migration that omits only
+  coordinate-free entries from the optional `top_cafes` summary for existing
+  clients. The cafe, post, stats, and dedicated profile cafe list remain
+  available. Updated the iOS model to accept missing coordinates and added
+  focused backend and decoding regressions.
+- The focused hermetic database regression, native profile decoder test on the
+  iOS 27 Simulator, isolated generic Debug compile, SQL parse, and
+  documentation check pass. Two older profile-share copy assertions and the
+  existing weekly-reminder contract fail in broader suites. The data-less QA
+  branch passed 66/66 hosted SQL contracts with no active schedules and was
+  deleted. After a completed physical backup and an exact one-migration dry
+  run, the migration was deployed to production (183 migrations). KatMet's
+  authenticated profile now returns one public Mugshot and one cafe in stats,
+  with the unlocated optional top-cafe summary omitted. Auth, profile, cafe,
+  visit, and Storage counts and ID fingerprints matched the predeploy baseline.
+  No TestFlight build was uploaded or physically accepted.
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 
