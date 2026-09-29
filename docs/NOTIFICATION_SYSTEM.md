@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-09-29
 ---
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
@@ -9,6 +9,33 @@ The client now exposes Save in the navigation bar and marks unsaved changes;
 delivery still requires explicit saving. No reminder backend change is involved.
 
 # Mugshot notification system
+
+## One-time National Coffee Day alpha nudge — 2026-09-29
+
+The owner approved a one-time greeting to alpha installations with an active
+production APNs registration and `notification_preferences.push_enabled = true`.
+The exact alert was **Happy National Coffee Day ☕** / **Mugsy says today’s cup
+deserves a moment. Open Mugshot and publish a Sip.** No client build, Activity
+event, badge, or deep link was added. No notification-tap acceptance was run;
+the generic alert carries no route into the composer.
+
+A read-only production audience check found six eligible devices across six
+accounts. The isolated temporary Edge sender passed a Deno type check, two
+focused eligibility/date/copy tests, a server dry run of six, and an invalid
+device-token probe that returned APNs `BadDeviceToken` after authenticating the
+provider. It then submitted exactly one alert per eligible device. APNs returned
+HTTP 200 for all six requests, with no failed or uncertain attempts. APNs
+expiration was September 30 at 04:00 UTC (midnight Eastern); acceptance by APNs
+does not prove display, tap, or physical receipt.
+
+The temporary function and both temporary operator/admin secrets were deleted
+after sending, and their absence was checked. The source is retained outside
+the deployable functions directory at
+`supabase/one-off/national-coffee-day-2026/`; the token-free attempt receipt is
+kept in ignored local `.codex/national-coffee-day-2026-receipt.json`. There is no
+standing broadcast endpoint. The existing permission screen describes Activity
+pushes, so future engagement campaigns need a distinct opt-in and durable
+campaign delivery controls before a broader rollout.
 
 ## Reflection reminder extension — 2026-09-14
 
