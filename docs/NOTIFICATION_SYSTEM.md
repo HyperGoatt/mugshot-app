@@ -26,7 +26,11 @@ device-token probe that returned APNs `BadDeviceToken` after authenticating the
 provider. It then submitted exactly one alert per eligible device. APNs returned
 HTTP 200 for all six requests, with no failed or uncertain attempts. APNs
 expiration was September 30 at 04:00 UTC (midnight Eastern); acceptance by APNs
-does not prove display, tap, or physical receipt.
+alone does not prove display or tap. After the send, the owner supplied a
+lock-screen screenshot showing the exact alert on one production iPhone at
+11:53 EDT on September 29. That physically verifies display on this device
+only; display on the remaining five devices and notification-tap behavior are
+unverified. The personal lock-screen image is not committed to the repository.
 
 The temporary function and both temporary operator/admin secrets were deleted
 after sending, and their absence was checked. The source is retained outside
