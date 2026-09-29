@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-28
+last_verified: 2026-09-29
 ---
+
+## National Coffee Day alpha notification — 2026-09-29
+
+The owner-approved one-time greeting was submitted to all six active production
+iOS installations whose accounts had push enabled. APNs accepted all six alert
+requests (HTTP 200); device display and tap were not observed. The approved
+message asked people to open Mugshot and publish a Sip. The generic notification
+contains no composer route; tap behavior was not observed. It expires at midnight
+Eastern on September 29. The temporary server function and its two temporary secrets
+were deleted and verified absent after the send. No TestFlight build or database
+schema changed. See the [notification record](NOTIFICATION_SYSTEM.md#one-time-national-coffee-day-alpha-nudge--2026-09-29).
 
 ## Backend trust gate accepted — 2026-09-25
 

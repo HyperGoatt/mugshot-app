@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-29
 ---
 
 # Repository map
@@ -69,6 +69,8 @@ See [Real data flow status](REAL_DATA_FLOW_STATUS.md) for the authority matrix.
 - `supabase/functions/` contains pinned Deno Edge Functions for analysis,
   account deletion, Activity delivery, public sharing, selected-contact matching,
   and minimal noindex invitation landing pages.
+- `supabase/one-off/` preserves source for completed temporary operations; the
+  National Coffee Day sender is archived there and is not deployed.
 - `supabase/tests/` contains SQL security and behavior contracts.
 - `qa/pglite/` provides hermetic migration and lifecycle checks without a live
   Supabase connection.
