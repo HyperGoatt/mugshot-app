@@ -8,13 +8,13 @@ last_verified: 2026-09-29
 
 - Sent the approved Mugsy greeting once to each of six active production iOS
   devices with push enabled; APNs accepted all six requests. The alert expires
-  at midnight Eastern and carries no composer route; tap behavior was not
-  observed.
+  at midnight Eastern and carries no composer route. The owner's later
+  lock-screen screenshot confirms display on one production iPhone; display on
+  the other five devices and tap behavior were not observed.
 - Used a guarded, temporary Edge sender with exact copy, date and recipient
   checks. Its source is archived under `supabase/one-off/`; the live function
   and two temporary secrets were deleted after the send. No app build, migration,
-  Activity event, or durable campaign channel was introduced. Device receipt
-  remains unverified.
+  Activity event, or durable campaign channel was introduced.
 
 ## 2026-09-28 — Shared profile with an unlocated cafe
 
