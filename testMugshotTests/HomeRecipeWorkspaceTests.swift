@@ -24,6 +24,9 @@ struct HomeRecipeWorkspaceTests {
     }
 
     @Test func v4ColdBrewKeepsSteepSeparateFromShortBrewTime() throws {
+        #expect(!HomeBrewMethod.coldBrew.recordsTimerAsActual)
+        #expect(!HomeBrewMethod.coldBrewTea.recordsTimerAsActual)
+        #expect(HomeBrewMethod.espresso.recordsTimerAsActual)
         var content = HomeRecipeContent(name: "Cold brew", template: .preparation,
             method: .coldBrew, targets: HomeRecipeContent.defaultTargets(for: .coldBrew))
         var attempt = HomeAttemptRecord(name: content.name, targets: content, preparation: content)

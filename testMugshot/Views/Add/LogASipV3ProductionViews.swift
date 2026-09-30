@@ -2010,7 +2010,9 @@ private struct LogASipV3HomeBrewSurface: View {
             Button(timerStartedAt == nil ? "Start timer" : "Stop timer") {
                 if let timerStartedAt {
                     stoppedTimerSeconds = max(0, Date().timeIntervalSince(timerStartedAt))
-                    draft.homeAttemptActuals.seconds = stoppedTimerSeconds
+                    if method.recordsTimerAsActual {
+                        draft.homeAttemptActuals.seconds = stoppedTimerSeconds
+                    }
                     self.timerStartedAt = nil
                 } else {
                     stoppedTimerSeconds = nil
@@ -2064,7 +2066,7 @@ private struct LogASipV3HomeBrewSurface: View {
     }
 
     private func finishMaking() {
-        if let timerStartedAt {
+        if method.recordsTimerAsActual, let timerStartedAt {
             draft.homeAttemptActuals.seconds = max(1, Date().timeIntervalSince(timerStartedAt))
         }
         persistProgress()

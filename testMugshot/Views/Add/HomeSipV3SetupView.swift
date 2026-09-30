@@ -447,7 +447,9 @@ struct HomeSipV3SetupView: View {
                         .foregroundStyle(Color.mugshotSage)
                     Text(draft.drinkName.remoteTrimmedNonEmpty ?? method.title)
                         .font(.system(size: 22, weight: .semibold, design: .serif))
-                    Text(draft.brewDetails.extractionSummary ?? method.title)
+                    Text((usesV4 ? selectedContent?.summary : nil)
+                         ?? draft.brewDetails.extractionSummary
+                         ?? method.title)
                         .font(.caption)
                         .foregroundStyle(Color.secondaryText)
                 }

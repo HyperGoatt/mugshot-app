@@ -32,11 +32,14 @@ logs reference that batch, record serving amount/dilution independently, and
 do not present the original batch measurements as a second production.
 Method-only pour-over keeps its default bloom and pour steps in the Make view.
 Matcha, hojicha, and tea latte starters include editable water and milk amounts
-alongside their base targets, while long-brew setup shows steep duration rather
-than a blank short timer. These are starter defaults, not required ingredients
-or measurements on a saved attempt. Steep actuals are optionally recorded in
-hours, minutes, or seconds as appropriate; storage keeps seconds separately
-from a recipe's short brew-time target.
+alongside their base targets. Their setup summaries label the total as a drink,
+not as water. Long-brew setup shows steep duration rather than a blank short
+timer. These are starter defaults, not required ingredients or measurements on
+a saved attempt. Steep actuals are optionally recorded in hours, minutes, or
+seconds as appropriate; storage keeps seconds separately from a recipe's short
+brew-time target. Starting or stopping a long-brew timer does not silently turn
+elapsed session time into a measured steep result; Actuals remains unknown until
+the user explicitly confirms or enters it.
 
 V4 adds optional per-ingredient actuals and As-planned confirmations to the
 existing account-scoped workspace document. It adds a separate route flag
