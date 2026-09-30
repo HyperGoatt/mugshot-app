@@ -1,33 +1,48 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-29
 ---
 
 # Product roadmap
 
+## Home Sip V4 implementation and acceptance gate — 2026-09-29
+
+Joe's connected-iPhone critique became the accepted
+[Home Sip V4 plan and gallery](product-research/home-sip-v4/README.md). Its
+native source candidate now keeps Home beneath the Log a Sip shell, recognizes
+complete-drink components, records base and ingredient actuals together, and
+uses the Cafe Capture/Reflection/Review and canonical detail spine. A direct
+iOS 27 Simulator walkthrough passed for a private, unrated latte from setup to
+canonical detail; the full method, account, accessibility, and failure-state
+matrix has not passed. Next gates: finish deterministic and broader iOS 27
+Simulator acceptance; verify the additive
+public-preparation RPC on an isolated backend; then consider production
+migration activation and owner-promoted iPhone QA. Physical-device and
+TestFlight acceptance are not implied by source implementation. Do not expand
+Home with screenshot/video extraction, taste diagnosis, or inventory depletion.
+
 ## Launch quality is the active product gate
 
-Finish Home Sip V3, then freeze feature additions except repairs needed for an
-existing journey. Every visible iPhone feature stays in scope. The
+Review and implement the Home Sip V4 replacement before Home acceptance; then
+freeze feature additions except repairs needed for an existing journey. Every
+visible iPhone feature stays in scope. The
 [launch quality audit](LAUNCH_QUALITY_AUDIT.md) is the current numbered issue
 ledger and exact-candidate acceptance matrix. No P0–P2 issue may remain at
 submission. The iPhone-only target and clearer queued-import receipt are
 implemented on the audit branch; complete package, hardware, backend, and
 replacement-TestFlight acceptance remain open.
 
-## Home Sip V3 implemented; acceptance is the active gate
+## Home Sip V3 historical foundation; V4 is the active Home gate
 
-The complete find/create → make or quick log → reflect → privately save → improve
-→ optionally share loop is implemented in current source. Central Add > Log a
-Sip > Home stays inside the production composer and opens setup-first; its visible
-quick shortcut contains only Capture and Reflection. Journal > Home retains the
-full My makes / Recipes workspace. The catalog now includes coffee, matcha,
-hojicha, tea, components, complete drinks, and custom preparations. Existing
-Home data, immutable versions, privacy, and Journal collections remain intact.
+V3 established the find/create → make or quick log → reflect → privately save →
+improve → optionally share data foundation and broad coffee, matcha, hojicha,
+tea, component, drink, and custom catalog. Its separate Journal Home workbench
+has been superseded by V4's normal Journal filter and Recipe Book. Existing
+Home data, immutable versions, and privacy remain intact.
 
-The next product gate is one consolidated Tier 4 runtime acceptance pass followed
-by owner-promoted physical testing. The already-distributed TestFlight 0.5.3 (8)
+The next Home product gate is completion of V4 Tier 4 acceptance. The
+already-distributed TestFlight 0.5.3 (8)
 still contains its historical placeholder; replacement upload remains a separate
 explicit authorization and release gate.
 [Implementation evidence and rollout requirements](HOME_RECIPES_IMPLEMENTATION.md).

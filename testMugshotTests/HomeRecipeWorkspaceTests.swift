@@ -5,6 +5,162 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func v4IngredientActualsAndSelectedTweakKeepOnlyTheParentDrink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeV4Tests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let syrup = HomeRecipeIngredient(name: "Pumpkin syrup", amount: 20, unit: "g")
+        var drink = HomeRecipeContent(name: "Pumpkin latte", template: .drink, method: .completeDrink)
+        drink.ingredients = [syrup, HomeRecipeIngredient(name: "Milk", amount: 160, unit: "ml")]
+        let recipeID = try store.saveRecipe(HomeRecipeEditorDraft(content: drink))
+        let original = try #require(store.workspace.recipes.first { $0.id == recipeID }?.current)
+        var attempt = HomeAttemptRecord(name: drink.name,
+            recipe: HomeRecipeReference(recipeID: recipeID, versionID: original.id),
+            targets: drink, preparation: drink)
+        attempt.actuals.ingredients = [HomeIngredientActual(ingredientID: syrup.id, amount: 22, unit: "g")]
+        attempt.pendingKeptIngredientIDs = [syrup.id]
+        try store.saveAttempt(attempt)
+        let firstUpdateID = try store.applyKeptIngredientChanges(attemptID: attempt.id)
+        let updatedID = try #require(firstUpdateID)
+        #expect(store.workspace.recipes.first { $0.id == recipeID }?.versions.count == 2)
+        #expect(store.workspace.recipes.first { $0.id == recipeID }?.versions.first?.content.ingredients.first?.amount == 20)
+        #expect(store.workspace.recipes.first { $0.id == recipeID }?.current?.content.ingredients.first?.amount == 22)
+        let retriedID = try store.applyKeptIngredientChanges(attemptID: attempt.id)
+        #expect(retriedID == updatedID)
+        #expect(store.workspace.recipes.first { $0.id == recipeID }?.versions.count == 2)
+        #expect(store.workspace.attempts.first { $0.id == attempt.id }?.recipe?.versionID == original.id)
+    }
+
+    @Test func v4ConcurrentRecipeEditLeavesSelectedTweakRecoverable() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeV4Conflict-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let syrup = HomeRecipeIngredient(name: "Pumpkin syrup", amount: 20, unit: "g")
+        var drink = HomeRecipeContent(name: "Pumpkin latte", template: .drink, method: .completeDrink)
+        drink.ingredients = [syrup]
+        let recipeID = try store.saveRecipe(HomeRecipeEditorDraft(content: drink))
+        let original = try #require(store.workspace.recipes.first { $0.id == recipeID }?.current)
+        var attempt = HomeAttemptRecord(name: drink.name,
+            recipe: HomeRecipeReference(recipeID: recipeID, versionID: original.id),
+            targets: drink, preparation: drink)
+        attempt.actuals.ingredients = [HomeIngredientActual(ingredientID: syrup.id, amount: 22, unit: "g")]
+        attempt.pendingKeptIngredientIDs = [syrup.id]
+        try store.saveAttempt(attempt)
+        var concurrent = drink
+        concurrent.ingredients[0].amount = 21
+        _ = try store.saveRecipe(HomeRecipeEditorDraft(
+            recipeID: recipeID, baseVersionID: original.id, content: concurrent
+        ))
+        #expect(throws: (any Error).self) { try store.applyKeptIngredientChanges(attemptID: attempt.id) }
+        #expect(store.workspace.attempts.first { $0.id == attempt.id }?.pendingKeptIngredientIDs == [syrup.id])
+        #expect(store.workspace.recipes.first { $0.id == recipeID }?.versions.count == 2)
+    }
+
+    @Test func v4PublicSummaryOmitsUnknownPrivateAndLinkedDetails() throws {
+        var drink = HomeRecipeContent(name: "Pumpkin latte", template: .drink, method: .completeDrink)
+        drink.targets = HomeRecipeTargets(dose: 18, ratio: 2, seconds: 28)
+        drink.sourceText = "Private source caption"
+        drink.notes = "Private preparation notes"
+        drink.ingredients = [HomeRecipeIngredient(name: "Pumpkin syrup", amount: 20, unit: "g")]
+        var attempt = HomeAttemptRecord(name: drink.name, targets: drink, preparation: drink)
+        attempt.privateNote = "Never publish this"
+        attempt.nextTimeNote = "Less foam"
+        attempt.actuals.confirmedAsPlannedKeys.insert("dose")
+        attempt.actuals.dose = 18
+        attempt.actuals.ingredients = [HomeIngredientActual(ingredientID: drink.ingredients[0].id, amount: 22, unit: "g")]
+        let summary = try #require(HomePublicPreparationSummary.make(from: attempt))
+        #expect(summary.rows.first?.state == .asPlanned)
+        #expect(summary.rows.first?.title == "Coffee")
+        #expect(summary.rows.first { $0.title == "Yield" }?.unit == "g")
+        #expect(summary.rows.first { $0.title == "Pumpkin syrup" }?.actual == 22)
+        #expect(summary.rows.first { $0.title == "Time" }?.state == .unknown)
+        let text = String(decoding: try JSONEncoder().encode(summary), as: UTF8.self)
+        #expect(!text.contains("Never publish"))
+        #expect(!text.contains("Less foam"))
+        #expect(!text.contains("Private source"))
+    }
+
+    @Test func v4LinkedDrinkSummaryUsesTheBaseMethodWithoutLeakingInstructions() throws {
+        let reference = HomeRecipeReference(recipeID: UUID(), versionID: UUID())
+        var drink = HomeRecipeContent(name: "Matcha latte", template: .drink, method: .completeDrink)
+        drink.ingredients = [HomeRecipeIngredient(name: "Whisked matcha", amount: 1,
+            unit: "serving", recipe: reference)]
+        let attempt = HomeAttemptRecord(name: drink.name, targets: drink, preparation: drink)
+        var base = HomeRecipeContent(name: "Private matcha base", method: .traditionalMatcha)
+        base.targets = HomeRecipeTargets(dose: 3, output: 70, calculation: .output)
+        base.steps = [HomePreparationStep(instruction: "Private whisking instruction")]
+        let summary = try #require(HomePublicPreparationSummary.make(from: attempt,
+            resolveLinked: { $0 == reference ? base : nil }))
+        #expect(summary.rows.first?.title == "Matcha")
+        #expect(summary.rows.first { $0.title == "Water" }?.unit == "ml")
+        #expect(summary.rows.first { $0.title == "Water" }?.planned == 70)
+        let text = String(decoding: try JSONEncoder().encode(summary), as: UTF8.self)
+        #expect(!text.contains("Private whisking instruction"))
+        #expect(!text.contains("Private matcha base"))
+    }
+
+    @Test func v4DrinkDoseOverrideKeepsLinkedBaseTargetsAndRecalculates() {
+        let base = HomeRecipeTargets(dose: 18, ratio: 2, calculation: .ratio, seconds: 28)
+        var drink = HomeRecipeTargets()
+        drink.dose = 16.5
+        let merged = base.applying(drink)
+        #expect(merged.resolvedOutput == 33)
+        #expect(merged.seconds == 28)
+        drink.output = 28
+        let yieldDriven = base.applying(drink)
+        #expect(yieldDriven.calculation == .output)
+        #expect(yieldDriven.resolvedOutput == 28)
+        #expect(abs((yieldDriven.resolvedRatio ?? 0) - (28 / 16.5)) < 0.0001)
+    }
+
+    @Test func v4MugsyOnlyNamesRecordedDifferencesWithoutTasteClaims() {
+        let syrup = HomeRecipeIngredient(name: "Pumpkin syrup", amount: 20, unit: "g")
+        var actuals = HomeAttemptActuals()
+        actuals.output = 37.2
+        actuals.seconds = 27
+        actuals.ingredients = [HomeIngredientActual(ingredientID: syrup.id, amount: 22, unit: "g")]
+        let facts = actuals.factualDifferences(
+            from: HomeRecipeTargets(dose: 18, ratio: 2, calculation: .ratio, seconds: 28),
+            inputLabel: "Coffee", outputLabel: "Yield", outputUnit: "g", ingredients: [syrup]
+        )
+        #expect(facts.contains("Yield was 1.2 g above the plan"))
+        #expect(facts.contains("Time was 1 sec below the plan"))
+        #expect(facts.contains("Pumpkin syrup was 2 g above the plan"))
+        #expect(!facts.joined().localizedCaseInsensitiveContains("bitter"))
+    }
+
+    @Test func v4ColdBrewServingKeepsItsBatchLinkWithoutReplayingProduction() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeV4Serving-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        var preparation = HomeRecipeContent(name: "Overnight cold brew", method: .coldBrew)
+        preparation.targets = HomeRecipeTargets(dose: 100, output: 800,
+            calculation: .output, steepSeconds: 57_600)
+        var batch = HomeAttemptRecord(name: preparation.name,
+            targets: preparation, preparation: preparation)
+        batch.batchID = UUID()
+        try store.saveAttempt(batch)
+        var serving = HomeAttemptRecord(name: "Overnight cold brew · serving",
+            targets: preparation, preparation: preparation,
+            batchID: batch.batchID, batchSourceAttemptID: batch.id)
+        serving.actuals.servingMilliliters = 180
+        serving.actuals.dilution = "1:1 with water"
+        try store.saveAttempt(serving)
+        #expect(store.workspace.attempts.count == 2)
+        #expect(store.workspace.attempts.last?.batchSourceAttemptID == batch.id)
+        let summary = try #require(HomePublicPreparationSummary.make(from: serving))
+        #expect(summary.rows.count == 1)
+        #expect(summary.rows.first?.title == "Serving")
+        #expect(summary.rows.first?.actual == 180)
+        let text = String(decoding: try JSONEncoder().encode(summary), as: UTF8.self)
+        #expect(!text.contains("100"))
+        #expect(!text.contains("800"))
+        #expect(!text.contains("1:1"))
+    }
+
     @Test func productionHomeRecipesDefaultOnAndHonorRollbackOverride() throws {
         let suiteName = "HomeRecipeFeatureFlagTests-\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -13,6 +169,11 @@ struct HomeRecipeWorkspaceTests {
         #expect(RoadmapFeatureFlags.isHomeRecipesEnabled(in: defaults))
 
         #expect(RoadmapFeatureFlags.isHomeSipV3RouteEnabled(in: defaults))
+        #expect(RoadmapFeatureFlags.isHomeSipV4RouteEnabled(in: defaults))
+        defaults.set(false, forKey: RoadmapFeatureFlags.homeSipV4Route)
+        #expect(!RoadmapFeatureFlags.isHomeSipV4RouteEnabled(in: defaults))
+        defaults.set(true, forKey: RoadmapFeatureFlags.homeSipV4Route)
+        #expect(RoadmapFeatureFlags.isHomeSipV4RouteEnabled(in: defaults))
         defaults.set(false, forKey: RoadmapFeatureFlags.homeSipV3Route)
         #expect(!RoadmapFeatureFlags.isHomeSipV3RouteEnabled(in: defaults))
         defaults.set(true, forKey: RoadmapFeatureFlags.homeSipV3Route)

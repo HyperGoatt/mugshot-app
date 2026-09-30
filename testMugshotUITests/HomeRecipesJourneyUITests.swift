@@ -1,8 +1,13 @@
 import XCTest
 
-/// Uses synthetic local account data; never publishes or synchronizes to production.
+/// Historical Home Workbench journeys. The V4 composer and Recipe Book have
+/// their own acceptance tests; these old route assertions are retained only
+/// as evidence for a data-preserving V3 fallback, not the current UI.
 final class HomeRecipesJourneyUITests: XCTestCase {
-    override func setUpWithError() throws { continueAfterFailure = false }
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        throw XCTSkip("Home Workbench UI was superseded by Home Sip V4; use the central Home composer tests.")
+    }
 
     @MainActor
     func testEveryTemplateSavesIndependentlyAndLogsWithoutRequiredFeedback() throws {

@@ -176,6 +176,8 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         let values = [attempt.actuals.dose, attempt.actuals.output, attempt.actuals.seconds,
                       attempt.actuals.batchMilliliters, attempt.actuals.servingMilliliters]
         guard values.compactMap({ $0 }).allSatisfy({ $0.isFinite && $0 > 0 }),
+              attempt.actuals.ingredients.allSatisfy({ $0.amount.isFinite && $0.amount > 0 && !$0.unit.isEmpty }),
+              Set(attempt.actuals.ingredients.map(\.ingredientID)).count == attempt.actuals.ingredients.count,
               attempt.actuals.temperature.map({ $0.isFinite && $0 > -273.15 }) ?? true,
               attempt.rating.map({ $0.isFinite && (0.5...5).contains($0) }) ?? true,
               attempt.actuals.customFields.allSatisfy({ field in
@@ -236,6 +238,62 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             "home-preparation-\(scope.storageComponent)-\($0.id)"
         }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    /// Apply only explicitly selected ingredient changes after the attempt is durable.
+    /// The source attempt ID makes an interrupted retry unable to append a second version.
+    @discardableResult
+    func applyKeptIngredientChanges(attemptID: UUID) throws -> UUID? {
+        var resultingVersionID: UUID?
+        try mutate { state in
+            guard let attemptIndex = state.attempts.firstIndex(where: { $0.id == attemptID }) else {
+                throw HomeRecipeWorkspaceError.invalid("Save this sip before updating its recipe.")
+            }
+            let attempt = state.attempts[attemptIndex]
+            guard !attempt.pendingKeptIngredientIDs.isEmpty,
+                  let reference = attempt.recipe,
+                  let recipeIndex = state.recipes.firstIndex(where: { $0.id == reference.recipeID }) else {
+                resultingVersionID = attempt.keptRecipeVersionID
+                return
+            }
+            if let existing = state.recipes[recipeIndex].versions.first(where: { $0.sourceAttemptID == attemptID }) {
+                state.attempts[attemptIndex].keptRecipeVersionID = existing.id
+                state.attempts[attemptIndex].pendingKeptIngredientIDs = []
+                resultingVersionID = existing.id
+                return
+            }
+            guard state.recipes[recipeIndex].current?.id == reference.versionID else {
+                throw HomeRecipeWorkspaceError.conflict
+            }
+            guard var content = state.recipes[recipeIndex].current?.content else {
+                throw HomeRecipeWorkspaceError.unavailableReference
+            }
+            guard content.template == .drink else {
+                throw HomeRecipeWorkspaceError.invalid("Only a complete drink can keep ingredient changes for next time.")
+            }
+            var changed = false
+            for index in content.ingredients.indices {
+                let ingredient = content.ingredients[index]
+                guard attempt.pendingKeptIngredientIDs.contains(ingredient.id),
+                      let actual = attempt.actuals.ingredients.first(where: { $0.ingredientID == ingredient.id }),
+                      actual.unit.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        == ingredient.unit.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                      ingredient.amount != actual.amount else { continue }
+                content.ingredients[index].amount = actual.amount
+                changed = true
+            }
+            state.attempts[attemptIndex].pendingKeptIngredientIDs = []
+            guard changed else { return }
+            let version = HomeRecipeVersion(
+                number: (state.recipes[recipeIndex].current?.number ?? 0) + 1,
+                content: content,
+                sourceAttemptID: attemptID
+            )
+            state.recipes[recipeIndex].versions.append(version)
+            state.attempts[attemptIndex].keptRecipeVersionID = version.id
+            resultingVersionID = version.id
+        }
+        return resultingVersionID
     }
 
     func saveSession(_ session: HomePreparationSession) throws {

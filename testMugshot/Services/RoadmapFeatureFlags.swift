@@ -10,6 +10,9 @@ enum RoadmapFeatureFlags {
     /// prior Home library handoff without deleting V3 recipes or attempts.
     static let homeSipV3Route = "MugshotRoadmap.homeSipV3Route.v1"
     static let homeSipV3RouteEnabledByDefault = true
+    /// V4 can be disabled without deleting attempts, recipes, media, or drafts.
+    static let homeSipV4Route = "MugshotRoadmap.homeSipV4Route.v1"
+    static let homeSipV4RouteEnabledByDefault = true
     static let phase2CanonicalJournal = "MugshotRoadmap.phase2CanonicalJournal.v1"
     static let phase3ExplainableTasteGraph = "MugshotRoadmap.phase3ExplainableTasteGraph.v1"
     static let phase4LightweightFriends = "MugshotRoadmap.phase4LightweightFriends.v1"
@@ -30,5 +33,12 @@ enum RoadmapFeatureFlags {
             return homeSipV3RouteEnabledByDefault
         }
         return defaults.bool(forKey: homeSipV3Route)
+    }
+
+    static func isHomeSipV4RouteEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: homeSipV4Route) != nil else {
+            return homeSipV4RouteEnabledByDefault
+        }
+        return defaults.bool(forKey: homeSipV4Route)
     }
 }

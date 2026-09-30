@@ -228,6 +228,7 @@ enum SipDetailSection: String, CaseIterable, Equatable {
     case friendsNoticed
     case taste
     case contextEvidence
+    case homePreparation
     case privateNote
     case conversation
 }
@@ -268,6 +269,17 @@ struct SipDetailRecipeModel: Identifiable, Equatable {
         }
         return base + suffix
     }
+}
+
+struct SipDetailHomePreparationRow: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let summary: String
+    let detail: String?
+}
+
+struct SipDetailHomePreparationModel: Equatable {
+    let rows: [SipDetailHomePreparationRow]
 }
 
 struct SipDetailTaggedAccount: Identifiable, Equatable {
@@ -453,6 +465,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
     let isCafeSaved: Bool
     let replyingToUsername: String?
     let sharePayload: SipShareCardPayload
+    var homePreparation: SipDetailHomePreparationModel? = nil
 
     var journalNoteTitle: String {
         switch journalVisibility?.lowercased() {
@@ -472,6 +485,7 @@ struct SipDetailContentModel: Identifiable, Equatable {
         if !reactions.isEmpty { sections.append(.friendsNoticed) }
         if sipScore > 0 || !ratings.isEmpty || sensorySnapshot != nil { sections.append(.taste) }
         if !contextRatings.isEmpty { sections.append(.contextEvidence) }
+        if homePreparation != nil { sections.append(.homePreparation) }
         if capabilities.isOwner, privateNote != nil { sections.append(.privateNote) }
         if capabilities.canComment || !comments.isEmpty { sections.append(.conversation) }
         return sections
@@ -483,7 +497,203 @@ struct SipDetailPresentation: Equatable {
     let capabilities: SipDetailCapabilities
 }
 
+private struct SipHomePreparationSection: View {
+    let model: SipDetailHomePreparationModel
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text("How you made it")
+                .font(.system(size: 20, weight: .bold, design: .serif))
+            VStack(spacing: 0) {
+                ForEach(model.rows) { row in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(row.title).font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 4)
+                        Text(row.summary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.mugshotSage)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .padding(14)
+                    if isExpanded, let detail = row.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(Color.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 12)
+                    }
+                    if row.id != model.rows.last?.id { Divider() }
+                }
+            }
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: DesignSystem.Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine))
+            if model.rows.contains(where: { $0.detail != nil }) {
+                Button(isExpanded ? "Hide preparation" : "View full preparation") {
+                    isExpanded.toggle()
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.mugshotSage)
+                .frame(minHeight: 44)
+            }
+        }
+    }
+}
+
 enum SipDetailPresentationAdapter {
+    static func homeAttempt(
+        _ attempt: HomeAttemptRecord,
+        authorName: String,
+        username: String,
+        resolveLinked: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }
+    ) -> SipDetailPresentation {
+        let caption = attempt.reaction.remoteTrimmedNonEmpty
+        let photos = attempt.photoNames.map { SipDetailPhotoSource.local("home-attempt:\($0)") }
+        let score = attempt.resolvedRating ?? 0
+        let content = SipDetailContentModel(
+            id: attempt.id,
+            authorName: authorName,
+            authorUsername: "@\(username)",
+            authorAvatarURL: nil,
+            timestamp: SipDetailFormat.timestamp(attempt.savedAt ?? attempt.createdAt),
+            visibility: "Private",
+            drinkName: attempt.name,
+            locationName: "Home",
+            locationSubtitle: nil,
+            locationSystemImage: "house.fill",
+            score: score,
+            sipScore: score,
+            contextScore: nil,
+            caption: caption,
+            sharedRawNote: nil,
+            journalVisibility: nil,
+            privateNote: attempt.privateNote.remoteTrimmedNonEmpty,
+            recipe: nil,
+            taggedAccounts: [],
+            photos: photos,
+            usesMugsyPhotoFallback: photos.isEmpty,
+            ratings: attempt.ratingCriteria.filter { $0.score > 0 }
+                .sorted { $0.sortOrder < $1.sortOrder }
+                .map { SipDetailRatingItem(name: $0.name, score: $0.score) },
+            contextRatingLabel: nil,
+            contextRatings: [],
+            sensorySnapshot: attempt.sensorySnapshot,
+            reactions: [],
+            comments: [],
+            isLiked: false,
+            likeCount: 0,
+            isCafeSaved: false,
+            replyingToUsername: nil,
+            sharePayload: SipShareCardPayload(
+                visitID: attempt.id,
+                visibility: .private,
+                isOwner: true,
+                isRemote: false,
+                authorName: authorName,
+                authorUsername: username,
+                drinkName: attempt.name,
+                cafeName: "Home",
+                locationDetail: nil,
+                rating: score,
+                date: attempt.savedAt ?? attempt.createdAt,
+                publicCaption: nil,
+                remotePhotoURL: nil,
+                localPhotoPath: nil
+            ),
+            homePreparation: homePreparation(from: attempt, resolveLinked: resolveLinked)
+        )
+        return SipDetailPresentation(
+            content: content,
+            capabilities: SipDetailCapabilities(
+                isOwner: true,
+                dockActions: [.share, .more],
+                menuActions: [.repeatSip],
+                canComment: false
+            )
+        )
+    }
+
+    private static func homePreparation(
+        from attempt: HomeAttemptRecord,
+        resolveLinked: (HomeRecipeReference) -> HomeRecipeContent?
+    ) -> SipDetailHomePreparationModel? {
+        guard let preparation = attempt.preparation ?? attempt.targets else { return nil }
+        if attempt.batchSourceAttemptID != nil {
+            var servingRows = [SipDetailHomePreparationRow(
+                id: "batch-source", title: "Batch", summary: "From a saved batch", detail: nil
+            )]
+            if let amount = attempt.actuals.servingMilliliters {
+                servingRows.append(SipDetailHomePreparationRow(
+                    id: "serving", title: "Serving", summary: "\(HomeRecipeContent.number(amount)) ml used", detail: nil
+                ))
+            }
+            if let dilution = attempt.actuals.dilution.remoteTrimmedNonEmpty {
+                servingRows.append(SipDetailHomePreparationRow(
+                    id: "dilution", title: "Dilution", summary: dilution, detail: nil
+                ))
+            }
+            return SipDetailHomePreparationModel(rows: servingRows)
+        }
+        let linkedBase = preparation.template == .drink
+            ? preparation.ingredients.compactMap(\.recipe).compactMap(resolveLinked)
+                .first(where: { [.coffee, .matcha, .hojicha, .tea].contains($0.method.family) })
+            : nil
+        let baseTargets = linkedBase?.targets.applying(preparation.targets) ?? preparation.targets
+        let baseMethod = preparation.template == .drink
+            ? linkedBase?.method ?? (baseTargets.dose == nil ? preparation.method : .espresso)
+            : preparation.method
+        var rows: [SipDetailHomePreparationRow] = []
+        let actuals = attempt.actuals
+        if baseTargets.dose != nil || baseTargets.resolvedOutput != nil {
+            let output = actuals.output.map { "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) out" }
+                ?? "Actual not recorded"
+            let time = actuals.seconds.map { "\(HomeRecipeContent.number($0)) sec" }
+            let planned = [
+                baseTargets.dose.map { "\(HomeRecipeContent.number($0)) g in" },
+                baseTargets.resolvedOutput.map { "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) out" },
+                baseTargets.seconds.map { "\(HomeRecipeContent.number($0)) sec" }
+            ].compactMap { $0 }.joined(separator: " · ")
+            rows.append(SipDetailHomePreparationRow(
+                id: "base", title: baseMethod.title,
+                summary: [output, time].compactMap { $0 }.joined(separator: " · "),
+                detail: "Planned: \(planned)"
+            ))
+        }
+        rows += preparation.ingredients.map { ingredient in
+            let actual = actuals.ingredients.first { $0.ingredientID == ingredient.id }
+            return SipDetailHomePreparationRow(
+                id: ingredient.id.uuidString,
+                title: ingredient.name,
+                summary: actual.map {
+                    $0.wasConfirmedAsPlanned ? "As planned" : "\(HomeRecipeContent.number($0.amount)) \($0.unit) used"
+                } ?? "Actual not recorded",
+                detail: ingredient.amount.map { "Planned: \(HomeRecipeContent.number($0)) \(ingredient.unit)" }
+            )
+        }
+        return rows.isEmpty ? nil : SipDetailHomePreparationModel(rows: rows)
+    }
+
+    private static func homePreparation(from summary: HomePublicPreparationSummary?) -> SipDetailHomePreparationModel? {
+        guard let summary else { return nil }
+        var rows = summary.rows.enumerated().map { index, row in
+            SipDetailHomePreparationRow(
+                id: "public-\(index)",
+                title: row.title,
+                summary: row.state == .asPlanned ? "As planned" : row.actual.map {
+                    "\(HomeRecipeContent.number($0)) \(row.unit) used"
+                } ?? "Actual not recorded",
+                detail: row.planned.map { "Planned: \(HomeRecipeContent.number($0)) \(row.unit)" }
+            )
+        }
+        if let name = summary.recipeName?.remoteTrimmedNonEmpty {
+            rows.insert(SipDetailHomePreparationRow(
+                id: "public-recipe", title: "Recipe", summary: name, detail: nil
+            ), at: 0)
+        }
+        return rows.isEmpty ? nil : SipDetailHomePreparationModel(rows: rows)
+    }
+
     static func remote(
         detail: RemoteVisitDetail,
         currentUserID: UUID?,
@@ -622,7 +832,8 @@ enum SipDetailPresentationAdapter {
                 publicCaption: caption,
                 remotePhotoURL: detail.photoURLs.first,
                 localPhotoPath: nil
-            )
+            ),
+            homePreparation: homePreparation(from: detail.homePreparation)
         )
 
         let capabilities = isOwner
@@ -745,7 +956,9 @@ enum SipDetailPresentationAdapter {
                 publicCaption: caption,
                 remotePhotoURL: nil,
                 localPhotoPath: orderedPhotos.first
-            )
+            ),
+            homePreparation: visit.context == .home
+                ? homePreparation(from: visit.brewDetails.homePreparation) : nil
         )
 
         let capabilities = isOwner
@@ -969,6 +1182,7 @@ struct SipDetailScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isTasteExpanded = false
     @State private var isJournalExpanded = false
+    @State private var isHomePreparationExpanded = false
     @State private var isComposerPresented = false
     @State private var tasteReveal: CGFloat = 0
 
@@ -1107,6 +1321,16 @@ struct SipDetailScreen: View {
                     guard isExpanded else { return }
                     revealTaste()
                 }
+            }
+
+            if let preparation = presentation.content.homePreparation,
+               !preparation.rows.isEmpty {
+                SipHomePreparationSection(
+                    model: preparation,
+                    isExpanded: $isHomePreparationExpanded
+                )
+                .padding(.horizontal, 22)
+                .padding(.top, 20)
             }
 
             if let recipe = presentation.content.recipe {

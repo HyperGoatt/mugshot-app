@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-29
 ---
+
+## Home Sip V4 native source candidate — 2026-09-29
+
+Joe accepted the [V4 direction and 22-image gallery](product-research/home-sip-v4/README.md)
+after reviewing Home V3 on his connected iPhone. The current branch implements
+the native setup → optional Make → base-and-ingredient Actuals → existing
+Capture/Reflection/Review → canonical detail path, plus Recipe Book inspiration
+capture and the in-place Journal Home filter. Recipe Book and reusable shared
+recipes now enter the central composer, subject to source-copying rights.
+Selected next-time ingredient
+changes create a new parent drink recipe version only after local attempt save.
+The additive public preparation projection is in repository migration
+`20260929234900_home_v4_public_preparation.sql`, not in production. A direct
+iOS 27 Simulator walkthrough passed for an unrated, photo-free latte through
+private Review and canonical detail. Focused iOS 27 workspace and guided/quick
+composer tests pass, along with the no-Simulator static and hermetic backend
+contract gates. The full Tier 4 method, offline, accessibility, and social
+matrix remains open; the gallery is not runtime evidence. No V4 signed-device
+acceptance, TestFlight build, or production backend activation is claimed.
 
 ## Backend trust gate evidence — 2026-09-25
 

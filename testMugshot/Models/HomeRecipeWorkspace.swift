@@ -59,6 +59,29 @@ struct HomeRecipeTargets: Codable, Equatable, Sendable {
         if newValue == .ratio { ratio = resolvedRatio }
         calculation = newValue
     }
+    /// A drink may override a few values from its linked base without erasing
+    /// the remaining targets on that immutable espresso, matcha, or tea recipe.
+    func applying(_ overrides: Self) -> Self {
+        var result = self
+        result.dose = overrides.dose ?? dose
+        result.ratio = overrides.ratio ?? ratio
+        result.output = overrides.output ?? output
+        if overrides.ratio != nil && overrides.output != nil {
+            result.calculation = overrides.calculation
+        } else if overrides.ratio != nil {
+            result.calculation = .ratio
+        } else if overrides.output != nil {
+            result.calculation = .output
+        }
+        result.seconds = overrides.seconds ?? seconds
+        result.temperature = overrides.temperature ?? temperature
+        result.grind = overrides.grind.isEmpty ? grind : overrides.grind
+        result.preinfusion = overrides.preinfusion ?? preinfusion
+        result.pressure = overrides.pressure ?? pressure
+        result.steepSeconds = overrides.steepSeconds ?? steepSeconds
+        result.dilution = overrides.dilution.isEmpty ? dilution : overrides.dilution
+        return result
+    }
     var isValid: Bool {
         [dose, ratio, output, seconds, preinfusion, pressure, steepSeconds]
             .compactMap { $0 }.allSatisfy { $0.isFinite && $0 > 0 }
@@ -185,6 +208,8 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     var yieldDescription = ""
     var sourceURL = ""
     var creatorCredit = ""
+    /// Unstructured inspiration text is valid without forcing users to parse a caption.
+    var sourceText = ""
     var sourceVersionID: UUID?
     var tags: [String] = []
     var notes = ""
@@ -428,7 +453,7 @@ extension HomeRecipeContent {
     private enum CodingKeys: String, CodingKey {
         case name, template, method, customMethodName, targets, ingredients, steps,
              fields, hiddenFields, servings, yieldDescription, sourceURL,
-             creatorCredit, sourceVersionID, tags, notes, coffee, equipment,
+             creatorCredit, sourceText, sourceVersionID, tags, notes, coffee, equipment,
              legacyDetails, sourceReuseAllowed, metricConfiguration
     }
 
@@ -453,6 +478,7 @@ extension HomeRecipeContent {
         yieldDescription = try values.decodeIfPresent(String.self, forKey: .yieldDescription) ?? ""
         sourceURL = try values.decodeIfPresent(String.self, forKey: .sourceURL) ?? ""
         creatorCredit = try values.decodeIfPresent(String.self, forKey: .creatorCredit) ?? ""
+        sourceText = try values.decodeIfPresent(String.self, forKey: .sourceText) ?? ""
         sourceVersionID = try values.decodeIfPresent(UUID.self, forKey: .sourceVersionID)
         tags = try values.decodeIfPresent([String].self, forKey: .tags) ?? []
         notes = try values.decodeIfPresent(String.self, forKey: .notes) ?? ""
@@ -481,6 +507,7 @@ extension HomeRecipeContent {
         try values.encode(yieldDescription, forKey: .yieldDescription)
         try values.encode(sourceURL, forKey: .sourceURL)
         try values.encode(creatorCredit, forKey: .creatorCredit)
+        try values.encode(sourceText, forKey: .sourceText)
         try values.encodeIfPresent(sourceVersionID, forKey: .sourceVersionID)
         try values.encode(tags, forKey: .tags)
         try values.encode(notes, forKey: .notes)
@@ -497,6 +524,8 @@ struct HomeRecipeVersion: Identifiable, Codable, Equatable, Sendable {
     var number = 1
     var createdAt = Date()
     var content: HomeRecipeContent
+    /// Makes an opted-in post-attempt update idempotent across retries.
+    var sourceAttemptID: UUID?
 }
 
 struct HomeRecipeRecord: Identifiable, Codable, Equatable, Sendable {
@@ -521,12 +550,122 @@ struct HomeAttemptActuals: Codable, Equatable, Sendable {
     var dilution = ""
     /// Actual values for recipe-defined fields. Missing entries remain unknown.
     var customFields: [HomeCustomField] = []
+    /// A target becomes an actual only after this explicit confirmation.
+    var confirmedAsPlannedKeys: Set<String> = []
+    var ingredients: [HomeIngredientActual] = []
+
+    static func ingredientKey(_ id: UUID) -> String { "ingredient:\(id.uuidString.lowercased())" }
+}
+
+struct HomeIngredientActual: Identifiable, Codable, Equatable, Sendable {
+    var id: UUID { ingredientID }
+    var ingredientID: UUID
+    var amount: Double
+    var unit: String
+    var wasConfirmedAsPlanned = false
+}
+
+extension HomeAttemptActuals {
+    /// Only describes recorded differences; taste and likely causes are unknown here.
+    func factualDifferences(
+        from targets: HomeRecipeTargets,
+        inputLabel: String,
+        outputLabel: String,
+        outputUnit: String,
+        ingredients plannedIngredients: [HomeRecipeIngredient]
+    ) -> [String] {
+        func difference(_ title: String, actual: Double?, planned: Double?, unit: String,
+                        minimum: Double = 0.05) -> String? {
+            guard let actual, let planned else { return nil }
+            let delta = actual - planned
+            guard abs(delta) >= max(minimum, abs(planned) * 0.01) else { return nil }
+            let direction = delta > 0 ? "above" : "below"
+            return "\(title) was \(HomeRecipeContent.number(abs(delta))) \(unit) \(direction) the plan"
+        }
+        var facts = [
+            difference(inputLabel, actual: dose, planned: targets.dose, unit: "g"),
+            difference(outputLabel, actual: output, planned: targets.resolvedOutput, unit: outputUnit),
+            difference("Time", actual: seconds, planned: targets.seconds, unit: "sec", minimum: 1)
+        ].compactMap { $0 }
+        facts += plannedIngredients.compactMap { ingredient in
+            guard let actual = ingredients.first(where: { $0.ingredientID == ingredient.id }),
+                  actual.unit.caseInsensitiveCompare(ingredient.unit) == .orderedSame else { return nil }
+            return difference(ingredient.name, actual: actual.amount, planned: ingredient.amount,
+                unit: ingredient.unit)
+        }
+        return facts
+    }
+}
+
+enum HomePublicMeasurementState: String, Codable, Sendable {
+    case unknown, asPlanned, measured
+}
+
+struct HomePublicPreparationRow: Codable, Equatable, Sendable {
+    var title: String
+    var planned: Double?
+    var actual: Double?
+    var unit: String
+    var state: HomePublicMeasurementState
+}
+
+/// Deliberately excludes recipe instructions, source text, inventory, notes,
+/// component references, media paths, and arbitrary custom-field contents.
+struct HomePublicPreparationSummary: Codable, Equatable, Sendable {
+    var method: String
+    var rows: [HomePublicPreparationRow]
+    var recipeName: String?
+
+    static func make(
+        from attempt: HomeAttemptRecord,
+        resolveLinked: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }
+    ) -> Self? {
+        guard let preparation = attempt.preparation ?? attempt.targets else { return nil }
+        if attempt.batchSourceAttemptID != nil {
+            guard let amount = attempt.actuals.servingMilliliters else { return nil }
+            return Self(method: "\(preparation.methodDisplayName) serving",
+                rows: [HomePublicPreparationRow(title: "Serving", planned: nil,
+                    actual: amount, unit: "ml", state: .measured)],
+                recipeName: attempt.recipe == nil ? nil : preparation.name)
+        }
+        let actuals = attempt.actuals
+        let linkedBase = preparation.template == .drink
+            ? preparation.ingredients.compactMap(\.recipe).compactMap(resolveLinked)
+                .first(where: { [.coffee, .matcha, .hojicha, .tea].contains($0.method.family) })
+            : nil
+        let targets = linkedBase?.targets.applying(preparation.targets) ?? preparation.targets
+        let baseMethod = preparation.template == .drink
+            ? linkedBase?.method
+                ?? (targets.dose == nil ? preparation.method : .espresso)
+            : preparation.method
+        func row(_ title: String, planned: Double?, actual: Double?, unit: String, key: String) -> HomePublicPreparationRow? {
+            guard planned != nil || actual != nil else { return nil }
+            let state: HomePublicMeasurementState = actuals.confirmedAsPlannedKeys.contains(key)
+                ? .asPlanned : actual == nil ? .unknown : .measured
+            return HomePublicPreparationRow(title: title, planned: planned,
+                actual: actual, unit: unit, state: state)
+        }
+        var rows = [
+            row(baseMethod.inputLabel, planned: targets.dose, actual: actuals.dose, unit: "g", key: "dose"),
+            row(baseMethod.outputLabel, planned: targets.resolvedOutput, actual: actuals.output,
+                unit: baseMethod.outputUnit, key: "output"),
+            row("Time", planned: targets.seconds, actual: actuals.seconds, unit: "sec", key: "seconds")
+        ].compactMap { $0 }
+        rows += preparation.ingredients.compactMap { ingredient in
+            let actual = actuals.ingredients.first { $0.ingredientID == ingredient.id }
+            return row(ingredient.name, planned: ingredient.amount, actual: actual?.amount,
+                unit: ingredient.unit, key: HomeAttemptActuals.ingredientKey(ingredient.id))
+        }
+        guard !rows.isEmpty else { return nil }
+        return Self(method: preparation.methodDisplayName, rows: Array(rows.prefix(24)),
+            recipeName: attempt.recipe == nil ? nil : preparation.name)
+    }
 }
 
 extension HomeAttemptActuals {
     private enum CodingKeys: String, CodingKey {
         case dose, output, seconds, temperature, grind, batchMilliliters,
-             servingMilliliters, dilution, customFields
+             servingMilliliters, dilution, customFields, confirmedAsPlannedKeys, ingredients
     }
 
     init(from decoder: Decoder) throws {
@@ -540,6 +679,8 @@ extension HomeAttemptActuals {
         servingMilliliters = try values.decodeIfPresent(Double.self, forKey: .servingMilliliters)
         dilution = try values.decodeIfPresent(String.self, forKey: .dilution) ?? ""
         customFields = try values.decodeIfPresent([HomeCustomField].self, forKey: .customFields) ?? []
+        confirmedAsPlannedKeys = try values.decodeIfPresent(Set<String>.self, forKey: .confirmedAsPlannedKeys) ?? []
+        ingredients = try values.decodeIfPresent([HomeIngredientActual].self, forKey: .ingredients) ?? []
     }
 }
 
@@ -566,6 +707,9 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var savedAt: Date?
     var publicationDraftID: UUID?
     var publicationStatus: HomePublicationStatus?
+    /// A failed or interrupted opt-in remains recoverable after the attempt is safe.
+    var pendingKeptIngredientIDs: Set<UUID> = []
+    var keptRecipeVersionID: UUID?
 
     var resolvedRating: Double? {
         SipRatingCriterionSnapshot.weightedSuggestion(for: ratingCriteria) ?? rating ?? manualRating
@@ -604,7 +748,8 @@ extension HomeAttemptRecord {
         case id, createdAt, name, recipe, targets, preparation, actuals, rating,
              manualRating, ratingCriteria, sensorySnapshot, reaction, privateNote,
              nextTimeNote, makeAgain, batchID, batchSourceAttemptID, photoNames,
-             savedAt, publicationDraftID, publicationStatus
+             savedAt, publicationDraftID, publicationStatus, pendingKeptIngredientIDs,
+             keptRecipeVersionID
     }
 
     init(from decoder: Decoder) throws {
@@ -630,6 +775,8 @@ extension HomeAttemptRecord {
         savedAt = try values.decodeIfPresent(Date.self, forKey: .savedAt)
         publicationDraftID = try values.decodeIfPresent(UUID.self, forKey: .publicationDraftID)
         publicationStatus = try values.decodeIfPresent(HomePublicationStatus.self, forKey: .publicationStatus)
+        pendingKeptIngredientIDs = try values.decodeIfPresent(Set<UUID>.self, forKey: .pendingKeptIngredientIDs) ?? []
+        keptRecipeVersionID = try values.decodeIfPresent(UUID.self, forKey: .keptRecipeVersionID)
     }
 }
 

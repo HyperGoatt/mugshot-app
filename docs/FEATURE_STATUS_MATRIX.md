@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-29
 ---
+
+## Home Sip V4 — implemented in source, acceptance open
+
+The accepted [V4 gallery](product-research/home-sip-v4/README.md) guides the
+native Home route beneath Log a Sip, with complete-drink recognition, optional
+Make, unified actuals, existing Sip reflection and Review, canonical private
+detail, Journal Home filter, and Recipe Book. The additive public preparation
+RPC is source-only until isolated backend verification and deployment. One
+direct iOS 27 Simulator private-latte path and focused workspace, guided, and
+quick-log tests passed; the broader Tier 4 method/social/accessibility matrix,
+physical-device, and TestFlight acceptance remain separate gates;
+the distributed build 0.5.3 (8) is unchanged.
 
 ## Launch-quality candidate — implemented, acceptance open
 
