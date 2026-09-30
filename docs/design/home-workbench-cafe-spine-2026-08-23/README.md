@@ -1,5 +1,9 @@
 # Mugshot Home Workbench — Cafe Spine Revision
 
+> Historical concept. The accepted
+> [Home Sip V4 gallery](../../product-research/home-sip-v4/README.md) is the
+> current central Home direction; retain this dated work as design evidence.
+
 This eight-frame production mockup is the revised visual source of truth for the Home Log a Sip journey. It preserves Mugshot's current Cafe creation and publishing grammar while moving Home preparation ahead of capture and taste.
 
 ## Six product stages

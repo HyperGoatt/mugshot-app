@@ -2,6 +2,23 @@ import MapKit
 import SwiftUI
 
 struct JournalTabView: View {
+    private enum RecentSip: Identifiable {
+        case privateHome(HomeAttemptRecord)
+        case published(RemoteVisitSummary)
+
+        var id: String {
+            switch self {
+            case .privateHome(let attempt): "home-\(attempt.id)"
+            case .published(let visit): "visit-\(visit.id)"
+            }
+        }
+        var date: Date {
+            switch self {
+            case .privateHome(let attempt): attempt.createdAt
+            case .published(let visit): visit.visit.createdAtDate
+            }
+        }
+    }
     @ObservedObject var dataManager: DataManager
     let onComposeDraft: (SipDraft) -> Void
     @EnvironmentObject private var authModel: AppAuthModel
@@ -15,6 +32,7 @@ struct JournalTabView: View {
     @State private var earlierRecipeVersion: UUID?
     @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
+    @State private var showRecipeBook = false
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
     @State private var selectedHomeAttempt: HomeAttemptRecord?
@@ -38,7 +56,7 @@ struct JournalTabView: View {
         case all = "All"
         case cafe = "Cafe"
         case home = "Home"
-        case recipes = "Recipes"
+        case elsewhere = "Elsewhere"
 
         var id: String { rawValue }
     }
@@ -80,8 +98,8 @@ struct JournalTabView: View {
                 switch selectedFilter {
                 case .all: return true
                 case .cafe: return visit.visit.journalContext == .cafe
-                case .home: return visit.visit.journalContext == .home
-                case .recipes: return visit.visit.journalContext == .recipe
+                case .home: return [.home, .recipe].contains(visit.visit.journalContext)
+                case .elsewhere: return visit.visit.journalContext == .elsewhere
                 }
             }
             .sorted { $0.visit.createdAtDate > $1.visit.createdAtDate }
@@ -93,8 +111,8 @@ struct JournalTabView: View {
                 switch selectedFilter {
                 case .all: return true
                 case .cafe: return visit.context == .cafe
-                case .home: return visit.context == .home
-                case .recipes: return visit.context == .recipe
+                case .home: return [.home, .recipe].contains(visit.context)
+                case .elsewhere: return visit.context == .elsewhere
                 }
             }
             .sorted { $0.createdAt > $1.createdAt }
@@ -105,23 +123,29 @@ struct JournalTabView: View {
     }
 
     private var recentPrivateHomeAttempts: [HomeAttemptRecord] {
-        guard selectedFilter == .all else { return [] }
-        return Array(homeStore.workspace.attempts
-            .filter { $0.publicationStatus != .published && ($0.publicationStatus != nil || $0.publicationDraftID == nil) }
-            .sorted { $0.createdAt > $1.createdAt }.prefix(3))
+        guard selectedFilter == .all || selectedFilter == .home else { return [] }
+        return Array(privateHomeAttempts.prefix(3))
+    }
+
+    private var privateHomeAttempts: [HomeAttemptRecord] {
+        let publishedVisitIDs = Set(remoteVisits.map(\.id))
+        return homeStore.workspace.attempts
+            .filter { attempt in
+                attempt.publicationStatus != .published
+                    && (attempt.publicationStatus != nil || attempt.publicationDraftID == nil)
+                    && (attempt.publicationDraftID.map { !publishedVisitIDs.contains($0) } ?? true)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var recentSips: [RecentSip] {
+        let local = recentPrivateHomeAttempts.map(RecentSip.privateHome)
+        let published = filteredVisits.prefix(4).map(RecentSip.published)
+        return Array((local + published).sorted { $0.date > $1.date }.prefix(4))
     }
 
     var body: some View {
-        if homeRecipesEnabled, selectedFilter == .home || selectedFilter == .recipes {
-            HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id,
-                initialCollection: selectedFilter == .recipes ? "Recipes" : nil,
-                onBackToJournal: { selectedFilter = .all },
-                onEarlierEntries: { showsEarlierHomeEntries = true }, onShare: onComposeDraft)
-                .id(authModel.authenticatedUser?.id)
-                .sheet(isPresented: $showsEarlierHomeEntries) { earlierHomeEntries }
-        } else {
-            journalBody
-        }
+        journalBody
     }
 
     private var earlierHomeEntries: some View {
@@ -245,9 +269,22 @@ struct JournalTabView: View {
                 isPresented: Binding(get: { selectedHomeAttempt != nil }, set: { if !$0 { selectedHomeAttempt = nil } })
             ) {
                 if let selectedHomeAttempt {
-                    HomeRecipeExperienceView(ownerID: authModel.authenticatedUser?.id,
-                        initialAttempt: selectedHomeAttempt, onShare: onComposeDraft)
+                    HomeAttemptCanonicalDetailView(
+                        attemptID: selectedHomeAttempt.id,
+                        onShare: { shareHomeAttempt(selectedHomeAttempt) },
+                        onMakeAgain: { repeatHomeAttempt(selectedHomeAttempt) },
+                        onDone: { self.selectedHomeAttempt = nil },
+                        onHistory: { showRecipeBook = true },
+                        onLogServing: { logHomeServing(from: selectedHomeAttempt) }
+                    )
                 }
+            }
+            .navigationDestination(isPresented: $showRecipeBook) {
+                HomeRecipeExperienceView(
+                    ownerID: authModel.authenticatedUser?.id,
+                    initialCollection: "Recipes",
+                    onShare: onComposeDraft
+                )
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -281,9 +318,13 @@ struct JournalTabView: View {
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
                     entries: journalEntries,
+                    privateHomeAttempts: privateHomeAttempts,
                     currentUserID: authModel.authenticatedUser?.id,
                     dataManager: dataManager,
                     onComposeDraft: onComposeDraft,
+                    onShareHomeAttempt: shareHomeAttempt,
+                    onRepeatHomeAttempt: repeatHomeAttempt,
+                    onOpenRecipeBook: { showRecipeBook = true },
                     showsPhase2Tools: phase2CanonicalJournal
                 )
             }
@@ -405,6 +446,27 @@ struct JournalTabView: View {
             Text("Keep exploring")
                 .mugshotDisplay(size: 24)
                 .foregroundColor(.espressoBrown)
+
+            if homeRecipesEnabled {
+                Button { showRecipeBook = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "book.closed")
+                            .frame(width: 42, height: 42)
+                            .background(Color.mugshotMint.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Recipe Book").font(.headline)
+                            Text("Your drinks, components and preparations")
+                                .font(.caption).foregroundStyle(Color.secondaryText)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .foregroundStyle(Color.espressoBrown)
+                    .padding(14)
+                    .cardStyle()
+                }
+                .buttonStyle(.plain)
+            }
 
             if phase2CanonicalJournal, let memory = onThisSipEntries.first {
                 onThisSipCard(memory)
@@ -622,7 +684,7 @@ struct JournalTabView: View {
                 }
             }
 
-            if authModel.authenticatedUser == nil, !filteredLocalVisits.isEmpty {
+            if authModel.authenticatedUser == nil, !filteredLocalVisits.isEmpty, recentSips.isEmpty {
                 VStack(spacing: 12) {
                     ForEach(Array(filteredLocalVisits.prefix(3))) { visit in
                         VisitCard(
@@ -646,18 +708,27 @@ struct JournalTabView: View {
             } else if isLoading && remoteVisits.isEmpty && recentPrivateHomeAttempts.isEmpty {
                 MugshotLoadingState(layout: .journal, count: 3)
                     .padding(.horizontal, 16)
-            } else if !recentVisits.isEmpty || !recentPrivateHomeAttempts.isEmpty {
+            } else if !recentSips.isEmpty {
                 VStack(spacing: 12) {
-                    ForEach(recentPrivateHomeAttempts) { attempt in
+                    ForEach(recentSips) { item in
+                        switch item {
+                        case .privateHome(let attempt):
                         Button { selectedHomeAttempt = attempt } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: attempt.preparation?.template.symbol ?? "mug")
-                                    .foregroundStyle(Color.mugshotSage)
-                                    .frame(width: 38, height: 38)
-                                    .background(Color.mugshotMint.opacity(0.55), in: Circle())
+                                Group {
+                                    if let photo = attempt.photoNames.first.flatMap({ homeStore.photo($0) }) {
+                                        Image(uiImage: photo).resizable().scaledToFill()
+                                    } else {
+                                        HomeMethodIconView(method: attempt.preparation?.method ?? .other, size: 28)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .background(Color.mugshotMint.opacity(0.55))
+                                    }
+                                }
+                                .frame(width: 56, height: 56).clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(attempt.name).font(.system(size: 15, weight: .semibold))
-                                    Text("Home · \(attempt.rating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")")
+                                    Text("Home · \(attempt.resolvedRating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
@@ -668,13 +739,13 @@ struct JournalTabView: View {
                             .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
-                    }
-                    ForEach(recentVisits) { visit in
+                        case .published(let visit):
                         RemoteJournalRow(
                             visit: visit,
                             onOpen: { selectedRemoteVisit = visit },
                             onCafeTap: { selectedCafeRoute = visit.canonicalCafeRoute }
                         )
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -697,6 +768,109 @@ struct JournalTabView: View {
     private var profileLocationSuffix: String {
         guard let location = user?.location.remoteTrimmedNonEmpty else { return "" }
         return " · \(location)"
+    }
+
+    private func shareHomeAttempt(_ attempt: HomeAttemptRecord) {
+        do {
+            let images = attempt.photoNames.compactMap { homeStore.photo($0) }
+            guard images.count == attempt.photoNames.count else {
+                throw HomeRecipeWorkspaceError.invalid("A photo is unavailable. Your private sip is safe; restore it before sharing.")
+            }
+            let publicationID = attempt.publicationDraftID ?? UUID()
+            if let existing = SipDraftStore.shared.load(id: publicationID, in: homeStore.scope),
+               existing.draft.launchContext.homeAttemptID == attempt.id {
+                onComposeDraft(existing.draft)
+                return
+            }
+            var publishableDetails = (attempt.preparation ?? attempt.targets)?.asBrewDetails(
+                recipeID: attempt.recipe?.recipeID
+            ) ?? .empty
+            publishableDetails.homePreparation = HomePublicPreparationSummary.make(
+                from: attempt, resolveLinked: { homeStore.workspace.version($0)?.content }
+            )
+            publishableDetails.steps = nil
+            publishableDetails.orderNotes = nil
+            publishableDetails.waterNotes = nil
+            publishableDetails.homeMethodDetails?.customNotes = nil
+            var draft = SipDraft(
+                id: publicationID,
+                ownerUserID: authModel.authenticatedUser?.id,
+                context: .home,
+                locationName: "Home",
+                drinkName: attempt.name,
+                overallScore: attempt.resolvedRating ?? 0,
+                socialCaption: attempt.reaction,
+                visibility: .private,
+                ratingCriteria: attempt.ratingCriteria,
+                brewMethod: attempt.preparation?.methodDisplayName ?? "",
+                brewDetails: publishableDetails,
+                sensorySnapshot: attempt.sensorySnapshot,
+                homeWorkbenchPhase: .publish
+            )
+            draft.launchContext.homeAttemptID = attempt.id
+            draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
+            draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
+            draft.launchContext.homeRecipeAttachmentMode = .nameOnly
+            try homeStore.setPublicationDraft(publicationID, for: attempt.id)
+            let saved = try SipDraftStore.shared.save(draft, images: images, in: homeStore.scope)
+            onComposeDraft(saved)
+        } catch {
+            homeStore.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func repeatHomeAttempt(_ attempt: HomeAttemptRecord) {
+        let current = attempt.recipe.flatMap { reference in
+            homeStore.workspace.recipes.first { $0.id == reference.recipeID }?.current
+        }
+        let content = current?.content ?? attempt.preparation ?? attempt.targets ?? HomeRecipeContent()
+        var draft = SipDraft(
+            ownerUserID: authModel.authenticatedUser?.id,
+            context: .home,
+            drinkType: content.method.drinkType,
+            drinkName: content.name.remoteTrimmedNonEmpty ?? attempt.name,
+            brewMethod: content.methodDisplayName,
+            brewDetails: content.asBrewDetails(
+                recipeID: attempt.recipe?.recipeID,
+                versionNumber: current?.number,
+                resolveLinked: { homeStore.workspace.version($0)?.content }
+            ),
+            homeWorkbenchPhase: .workbench
+        )
+        draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
+        draft.launchContext.homeRecipeVersionID = current?.id
+        draft.homeSetupContent = content
+        if content.template == .drink, content.targets.dose != nil {
+            draft.brewDetails.yieldGrams = content.targets.resolvedOutput
+        }
+        draft.homeAttemptActuals = HomeAttemptActuals()
+        onComposeDraft(draft)
+    }
+
+    private func logHomeServing(from batch: HomeAttemptRecord) {
+        guard batch.batchID != nil, batch.batchSourceAttemptID == nil else { return }
+        let content = batch.preparation ?? batch.targets ?? HomeRecipeContent(
+            name: batch.name, template: .preparation, method: .coldBrew
+        )
+        var draft = SipDraft(
+            ownerUserID: authModel.authenticatedUser?.id,
+            context: .home,
+            locationName: "Home",
+            drinkType: content.method.drinkType,
+            drinkName: "\(batch.name) · serving",
+            brewMethod: content.methodDisplayName,
+            brewDetails: content.asBrewDetails(
+                recipeID: batch.recipe?.recipeID,
+                resolveLinked: { homeStore.workspace.version($0)?.content }
+            ),
+            homeWorkbenchPhase: .quickCapture
+        )
+        draft.homeSipPath = .quick
+        draft.homeSetupContent = content
+        draft.launchContext.sourceRecipeIdentityID = batch.recipe?.recipeID
+        draft.launchContext.homeRecipeVersionID = batch.recipe?.versionID
+        draft.launchContext.homeBatchSourceAttemptID = batch.id
+        onComposeDraft(draft)
     }
 
     private var profileSummaryLine: String {
@@ -983,15 +1157,20 @@ private struct ProfileTopCafeCard: View {
 
 private struct JournalArchiveView: View {
     let entries: [JournalEntryProjection]
+    let privateHomeAttempts: [HomeAttemptRecord]
     let currentUserID: UUID?
     @ObservedObject var dataManager: DataManager
     let onComposeDraft: (SipDraft) -> Void
+    let onShareHomeAttempt: (HomeAttemptRecord) -> Void
+    let onRepeatHomeAttempt: (HomeAttemptRecord) -> Void
+    let onOpenRecipeBook: () -> Void
     let showsPhase2Tools: Bool
     @Environment(\.dismiss) private var dismiss
 
     @State private var selection: JournalTabView.JournalFilter = .all
     @State private var query = ""
     @State private var selectedVisit: RemoteVisitSummary?
+    @State private var selectedPrivateHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var showsBookmarksOnly = false
     @State private var mode: JournalArchiveMode = .timeline
@@ -1001,15 +1180,23 @@ private struct JournalArchiveView: View {
 
     init(
         entries: [JournalEntryProjection],
+        privateHomeAttempts: [HomeAttemptRecord],
         currentUserID: UUID?,
         dataManager: DataManager,
         onComposeDraft: @escaping (SipDraft) -> Void,
+        onShareHomeAttempt: @escaping (HomeAttemptRecord) -> Void,
+        onRepeatHomeAttempt: @escaping (HomeAttemptRecord) -> Void,
+        onOpenRecipeBook: @escaping () -> Void,
         showsPhase2Tools: Bool
     ) {
         self.entries = entries
+        self.privateHomeAttempts = privateHomeAttempts
         self.currentUserID = currentUserID
         self.dataManager = dataManager
         self.onComposeDraft = onComposeDraft
+        self.onShareHomeAttempt = onShareHomeAttempt
+        self.onRepeatHomeAttempt = onRepeatHomeAttempt
+        self.onOpenRecipeBook = onOpenRecipeBook
         self.showsPhase2Tools = showsPhase2Tools
         _bookmarkedIDs = State(initialValue: Set(entries.filter(\.isBookmarked).map(\.id)))
     }
@@ -1020,8 +1207,8 @@ private struct JournalArchiveView: View {
                 switch selection {
                 case .all: return true
                 case .cafe: return entry.context == .cafe
-                case .home: return entry.context == .home
-                case .recipes: return entry.context == .recipe
+                case .home: return [.home, .recipe].contains(entry.context)
+                case .elsewhere: return entry.context == .elsewhere
                 }
             }
             .filter { entry in
@@ -1031,6 +1218,16 @@ private struct JournalArchiveView: View {
             .filter { !showsBookmarksOnly || bookmarkedIDs.contains($0.id) }
             .filter { $0.matches(query) }
             .sorted { $0.date > $1.date }
+    }
+
+    private var filteredPrivateHomeAttempts: [HomeAttemptRecord] {
+        guard selection == .all || selection == .home,
+              !showsBookmarksOnly,
+              selectedCoffeeBagID == nil else { return [] }
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return privateHomeAttempts.filter {
+            search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)
+        }
     }
 
     private var coffeeBagOptions: [JournalCoffeeBagOption] {
@@ -1062,7 +1259,7 @@ private struct JournalArchiveView: View {
                     JournalFilterBar(selection: $selection)
 
                     if !coffeeBagOptions.isEmpty,
-                       selection == .all || selection == .home || selection == .recipes {
+                       selection == .all || selection == .home {
                         JournalCoffeeBagFilterBar(
                             options: coffeeBagOptions,
                             selection: $selectedCoffeeBagID
@@ -1073,9 +1270,38 @@ private struct JournalArchiveView: View {
                         JournalArchiveModePicker(selection: $mode)
                     }
 
-                    if filteredEntries.isEmpty {
+                    if !filteredPrivateHomeAttempts.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Private Home sips")
+                                .font(.headline)
+                                .foregroundStyle(Color.espressoBrown)
+                            ForEach(filteredPrivateHomeAttempts) { attempt in
+                                Button { selectedPrivateHomeAttempt = attempt } label: {
+                                    HStack(spacing: 12) {
+                                        HomeMethodIconView(method: attempt.preparation?.method ?? .other, size: 28)
+                                            .frame(width: 48, height: 48)
+                                            .background(Color.mugshotMint.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(attempt.name).font(.subheadline.weight(.semibold))
+                                            Text(attempt.createdAt, style: .date)
+                                                .font(.caption).foregroundStyle(Color.secondaryText)
+                                        }
+                                        Spacer()
+                                        Text(attempt.resolvedRating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")
+                                            .font(.caption).foregroundStyle(Color.secondaryText)
+                                    }
+                                    .foregroundStyle(Color.espressoBrown)
+                                    .padding(12)
+                                    .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    if filteredEntries.isEmpty && filteredPrivateHomeAttempts.isEmpty {
                         JournalEmptyState(filter: selection.rawValue)
-                    } else {
+                    } else if !filteredEntries.isEmpty {
                         switch mode {
                         case .timeline:
                             ForEach(timelineGroups) { group in
@@ -1154,6 +1380,37 @@ private struct JournalArchiveView: View {
                             dismiss()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                 onComposeDraft(draft)
+                            }
+                        }
+                    )
+                }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedPrivateHomeAttempt != nil },
+                    set: { if !$0 { selectedPrivateHomeAttempt = nil } }
+                )
+            ) {
+                if let selectedPrivateHomeAttempt {
+                    HomeAttemptCanonicalDetailView(
+                        attemptID: selectedPrivateHomeAttempt.id,
+                        onShare: {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onShareHomeAttempt(selectedPrivateHomeAttempt)
+                            }
+                        },
+                        onMakeAgain: {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onRepeatHomeAttempt(selectedPrivateHomeAttempt)
+                            }
+                        },
+                        onDone: { self.selectedPrivateHomeAttempt = nil },
+                        onHistory: {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onOpenRecipeBook()
                             }
                         }
                     )

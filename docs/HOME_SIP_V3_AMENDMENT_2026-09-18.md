@@ -6,6 +6,10 @@ date: 2026-09-18
 
 # Home Sip V3 direction amendment
 
+> Historical direction for the V3 candidate. The accepted
+> [Home Sip V4 direction](product-research/home-sip-v4/README.md) supersedes its
+> central Home flow; the V3 data, privacy, and acceptance record remain intact.
+
 This amendment supersedes the central-entry and composer portions of the earlier
 Home Workbench direction. It does not replace the recipe library, immutable recipe
 versions, account-scoped workspace, attribution, privacy, or historical attempts.

@@ -502,6 +502,14 @@ struct LogVisitView: View {
                     reconcilePendingSubmission(for: userID)
                     return
                 }
+                // A fresh local composer can exist before Auth restores its
+                // account. Rebind only the still-empty draft; never move a
+                // partially made Home sip between account scopes.
+                if draft.ownerUserID != userID,
+                   !draft.hasDraftWorthyUserContent,
+                   photoImages.isEmpty {
+                    draft.ownerUserID = userID
+                }
                 activateLocalState(scope: .user(userID))
                 if draft.ownerUserID == nil { draft.ownerUserID = userID }
                 if draft.cafeSessionDraft != nil {
@@ -3142,8 +3150,7 @@ struct LogVisitView: View {
         if draft.captureMode == .addDetails && draft.sensorySnapshot == nil {
             return "Finish or switch from Tasting Lens before saving this sip."
         }
-        if (draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5)
-            && !(draft.context == .home && draft.launchContext.homeAttemptID != nil && draft.resolvedOverallScore == 0) {
+        if draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5 {
             return "Add your personal How was it? rating."
         }
         if draft.context == .cafe,
@@ -3382,8 +3389,7 @@ struct LogVisitView: View {
                     v3Reflection: draft.launchContext.homeAttemptID != nil && draft.resolvedOverallScore == 0
                         ? nil : V3VisitReflection.make(visitID: draft.id, from: draft),
                     recipePublication: draft.includesRecipeBlueprint
-                        && (draft.launchContext.homeAttemptID == nil
-                            || draft.launchContext.homeRecipeAttachmentMode == .fullDetails)
+                        && draft.launchContext.homeAttemptID == nil
                         ? draft.recipePublication
                         : nil,
                     homeRecipeAttachments: draft.launchContext.homeRecipeAttachments,
@@ -4433,14 +4439,17 @@ struct LogVisitView: View {
         if draft.launchContext.homeAttemptID != nil {
             // Full instructions travel only through an explicit immutable
             // recipe attachment. A post never recursively exposes linked work.
-            details.steps = nil
+            // Only the reviewed, typed projection enters the visit payload.
+            // The private Home workspace retains beans, equipment, source,
+            // notes, component links, and the full preparation separately.
+            var publishable = BrewDetails.empty
+            publishable.homePreparation = details.homePreparation
             if draft.launchContext.homeRecipeAttachmentMode == .doNotAttach {
-                details.recipeName = nil
-                details.recipeVersion = nil
-                details.recipeIdentityID = nil
-                details.sourceRecipeIdentityID = nil
-                details.sourceRecipeVersion = nil
+                publishable.homePreparation?.recipeName = nil
             }
+            publishable.tags = draft.tags.isEmpty ? nil : draft.tags
+            publishable.companions = draft.companions.isEmpty ? nil : draft.companions
+            details = publishable
         }
         return details
     }

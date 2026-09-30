@@ -1,8 +1,30 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-29
 ---
+
+## Home Sip V4 source data flow — 2026-09-29
+
+V4 keeps recipes, immutable versions, sessions, photos, and attempts in the
+account-scoped Home workspace. Each actual is either absent/unknown, explicitly
+confirmed As planned, or measured; ingredients use stable recipe-ingredient IDs.
+The chosen version and today's targets are frozen on the attempt. Review saves
+the private attempt locally first. Only explicitly selected changed parent
+drink amounts can then append one idempotent new version, guarded by the
+attempt ID and expected base version; component versions and prior attempts
+stay unchanged. Failed/conflicting updates remain pending for reconciliation.
+
+Social publication uses a separate stable draft and the existing protected
+retry path. A Home post omits legacy visit-derived recipe materialization; exact
+recipe versions are independently attached through existing rights checks.
+The visit carries only a typed Home preparation summary, projected through
+the new caller-visibility-gated `get_visit_home_preparation_v4` RPC. The server
+allowlists method, optional recipe name, and bounded measurement rows; it does
+not project source text, linked instructions, private notes, next-time notes,
+inventory, or media paths. Migration `20260929234900_home_v4_public_preparation.sql`
+is in source only and is **not production-configured**. Legacy workspaces decode
+the new fields optionally without reclassifying old measurements.
 
 ## Cafe-backed publication recovery repair — 2026-09-24
 

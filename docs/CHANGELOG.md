@@ -1,8 +1,72 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-09-30
 ---
+
+## 2026-09-30 — Home Sip V4 connected-iPhone QA candidate
+
+- Built and verified a signed Debug 0.5.3 (8) V4 development app, installed it
+  as `co.mugshot.app.dev` on Joe's iPhone (3), an iPhone 16 Pro running iOS 27.0,
+  and confirmed its foreground launch and running process.
+- This is device installation/launch evidence, not hands-on Home journey or
+  physical acceptance. The separate production app, distributed TestFlight
+  build, and production backend configuration were not changed.
+
+## 2026-09-29 — Home Sip V4 native source candidate
+
+- Implemented V4 Home setup and recognition beneath Log a Sip, optional Make,
+  one base-and-ingredient Actuals surface, existing Sip Capture/Reflection/Review,
+  and canonical private detail; Home filters Journal recent sips in place.
+- Added Recipe Book inspiration capture and explicit, idempotent parent-drink
+  ingredient updates after private save; component recipes remain independent.
+  Concurrent edits leave the selected change pending with a retry action on
+  the saved detail.
+- Routed Recipe Book and rights-permitted shared recipes into the central V4
+  composer; restricted shared instructions stay at their source. Tightened
+  late account restoration, optional ingredient actuals, and social score
+  validation.
+- Preserved cold-brew batch identity through private save and added distinct
+  serving logs with amount/dilution, without replaying batch production in
+  private detail or the public preparation summary.
+- Kept linked coffee, matcha, and tea base targets intact when a drink overrides
+  one value; preserved decimal time targets and limited Mugsy's Actuals comments
+  to recorded differences, never inferred taste.
+- Kept default pour-over bloom/pour steps when starting from a method, added
+  editable water and milk components to matcha, hojicha, and tea latte starters,
+  labeled their drink total correctly, and showed long-brew steep time and
+  non-coffee units accurately. A long-brew timer no longer auto-confirms an
+  elapsed steep measurement on an early finish. Steep actuals remain optional,
+  distinct from short brew-time targets, and round-trip into the allowlisted
+  preparation summary and Save as recipe. The final-source
+  iOS 27 visual pass confirmed the corrected matcha-latte label and Unknown
+  early-finish cold-brew steep state.
+- Added a separate data-preserving V4 route switch and an allowlisted, caller-
+  gated public Home preparation projection migration and hermetic contract.
+  The migration is source-only, not production-configured. A direct iOS 27
+  Simulator private-latte path and focused workspace/guided/quick tests passed;
+  the full Tier 4 matrix, owner iPhone,
+  and TestFlight acceptance remain open.
+
+## 2026-09-29 — Home Sip V4 product proposal and visual gallery
+
+- Documented the owner-led Home V3 iPhone critique and follow-up product
+  decisions as a proposed V4 experience, with a prioritized implementation and
+  acceptance plan. It is not an app, backend, or TestFlight change.
+- Created 22 ordered, iPhone-sized production-style images across 19
+  destinations, covering
+  Recipe Book, inspiration capture, linked latte components, Home setup, Make,
+  actuals, Sip reflection, opt-in next-time change, Review audiences, Journal,
+  and Quick Log. The images use local illustrative data and a generated latte
+  photograph; they are not native-device acceptance evidence.
+- Revised Reflection against three owner-supplied Cafe screenshots: its
+  suggested and rated criteria, pinning, importance, Mugsy, and journal field
+  remain intact, while With a tweak expands inline. Review and saved detail
+  now mirror the existing Mugshot structures, including tagging and a Home
+  preparation section in the canonical post detail.
+- Updated the living roadmap and product status to identify V4 design review as
+  the active Home product gate while preserving V3's implementation and release
+  status.
 
 ## 2026-09-25 — Backend trust gate and deletion receipt repair
 

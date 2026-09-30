@@ -28,6 +28,7 @@ struct HomeRecipeExperienceView: View {
     var onEarlierEntries: (() -> Void)?
     var initialCollection: String?
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(RoadmapFeatureFlags.homeSipV4Route) private var homeSipV4RouteEnabled = RoadmapFeatureFlags.homeSipV4RouteEnabledByDefault
     @StateObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var path: [HomeRecipeRoute] = []
     @SceneStorage private var tab: String
@@ -38,6 +39,7 @@ struct HomeRecipeExperienceView: View {
     @State private var editorSheet: HomeRecipeEditorSheet?
     @State private var openedInitial = false
     @State private var sharedRecipe: HomeLinkedRecipeSheet?
+    @State private var showsRecipeIdea = false
     @State private var transientAttempts: [UUID: HomeAttemptRecord] = [:]
 
     init(ownerID: UUID?, initialAttempt: HomeAttemptRecord? = nil, initialSessionID: UUID? = nil,
@@ -64,11 +66,13 @@ struct HomeRecipeExperienceView: View {
     var body: some View {
         NavigationStack(path: $path) {
             HomeCollectionList(storageKey: "home.recipes.\(LocalAccountScope.forUserID(ownerID).storageComponent).\(tab).scroll") {
-                Section {
-                    Picker("Home collection", selection: $tab) {
-                        Text("My makes").tag("My makes")
-                        Text("Recipes").tag("Recipes")
-                    }.pickerStyle(.segmented)
+                if initialCollection != "Recipes" {
+                    Section {
+                        Picker("Home collection", selection: $tab) {
+                            Text("My makes").tag("My makes")
+                            Text("Recipes").tag("Recipes")
+                        }.pickerStyle(.segmented)
+                    }
                 }
                 if tab == "My makes" { makes } else { recipes }
                 if let onEarlierEntries {
@@ -95,7 +99,7 @@ struct HomeRecipeExperienceView: View {
             }
             .id(tab)
             .scrollContentBackground(.hidden).background(Color.creamWhite)
-            .navigationTitle("Home")
+            .navigationTitle(initialCollection == "Recipes" ? "Recipe Book" : "Home")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(onBackToJournal == nil ? "Done" : "Journal") {
@@ -105,8 +109,8 @@ struct HomeRecipeExperienceView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button(tab == "Recipes" ? "New recipe" : "Log a make", systemImage: "plus") {
-                        if tab == "Recipes" { editorSheet = .create } else { startLog(nil) }
+                    Button(tab == "Recipes" ? "Save a recipe idea" : "Log a make", systemImage: "plus") {
+                        if tab == "Recipes" { showsRecipeIdea = true } else { startLog(nil) }
                     }
                 }
             }
@@ -117,7 +121,31 @@ struct HomeRecipeExperienceView: View {
                         onLog: { startLog($0) }, onMake: { startMaking($0) },
                         onAttempt: { path.append(.attempt($0)) })
                 case .attempt(let id):
-                    HomeAttemptDetailScreen(store: store, attemptID: id,
+                    if homeSipV4RouteEnabled {
+                        HomeAttemptCanonicalDetailView(
+                            attemptID: id,
+                            onShare: {
+                                if let attempt = store.workspace.attempts.first(where: { $0.id == id }) { share(attempt) }
+                            },
+                            onMakeAgain: {
+                                guard let attempt = store.workspace.attempts.first(where: { $0.id == id }) else { return }
+                                let recipe = attempt.recipe.flatMap { reference in
+                                    store.workspace.recipes.first { $0.id == reference.recipeID }
+                                }
+                                launchHomeComposer(recipe: recipe,
+                                    setup: recipe?.current?.content ?? attempt.preparation ?? attempt.targets,
+                                    guided: true)
+                            },
+                            onDone: { path.removeLast() },
+                            onHistory: { path.removeLast() },
+                            onLogServing: {
+                                if let batch = store.workspace.attempts.first(where: { $0.id == id }) {
+                                    launchHomeServing(from: batch)
+                                }
+                            }
+                        )
+                    } else {
+                        HomeAttemptDetailScreen(store: store, attemptID: id,
                         onRepeat: { recipe, setup in
                             MugshotAnalytics.shared.capture(.homeRecipe(.repeated, hasRecipe: recipe != nil, durationSeconds: 0))
                             if recipe != nil { startLog(recipe, setup: setup) }
@@ -135,6 +163,7 @@ struct HomeRecipeExperienceView: View {
                             perform { try store.saveAttemptDraft(serving); path.append(.log(serving.id)) }
                         },
                         onSaveRecipe: { editorSheet = .edit(HomeRecipeEditorDraft(content: $0)) }, onShare: share)
+                    }
                 case .preparation(let id):
                     HomePreparationScreen(store: store, sessionID: id) { attempt in
                         perform { try store.saveAttemptDraft(attempt); path.append(.log(attempt.id)) }
@@ -170,6 +199,12 @@ struct HomeRecipeExperienceView: View {
             }
             .sheet(item: $sharedRecipe) { selected in
                 HomeSharedRecipeScreen(versionID: selected.reference.versionID, ownerID: ownerID, onShare: onShare)
+            }
+            .sheet(isPresented: $showsRecipeIdea) {
+                HomeQuickRecipeSheet(store: store) { recipe, _ in
+                    showsRecipeIdea = false
+                    path.append(.recipe(recipe.id))
+                }
             }
         }
         .tint(.mugshotSage)
@@ -319,6 +354,11 @@ struct HomeRecipeExperienceView: View {
     }
 
     @ViewBuilder private var recipes: some View {
+        Section {
+            Button("Save a recipe idea", systemImage: "square.and.pencil") { showsRecipeIdea = true }
+            Text("Paste a caption now. Structure the ingredients and method when you’re ready.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
         if let references = store.workspace.savedReferences, !references.isEmpty {
             Section("Saved from others") {
                 ForEach(references.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }) { reference in
@@ -332,7 +372,7 @@ struct HomeRecipeExperienceView: View {
             TextField("Search recipes, tags, beans, or gear", text: $query)
             Picker("Filter", selection: Binding<HomeRecipeTemplate?>(get: { filter }, set: { filterValue = $0?.rawValue ?? "" })) {
                 Text("All").tag(nil as HomeRecipeTemplate?)
-                Text("Coffee").tag(HomeRecipeTemplate.coffee as HomeRecipeTemplate?)
+                Text("Preparations").tag(HomeRecipeTemplate.preparation as HomeRecipeTemplate?)
                 Text("Components").tag(HomeRecipeTemplate.component as HomeRecipeTemplate?)
                 Text("Drinks").tag(HomeRecipeTemplate.drink as HomeRecipeTemplate?)
             }.pickerStyle(.segmented)
@@ -413,7 +453,7 @@ struct HomeRecipeExperienceView: View {
         case .drink:
             return content.template == .drink || content.method == .completeDrink
         case .preparation:
-            return content.template == .preparation
+            return content.template == .preparation || content.template == .coffee
         case .custom:
             return content.template == .custom
         }
@@ -431,13 +471,73 @@ struct HomeRecipeExperienceView: View {
     }
 
     private func startLog(_ recipe: HomeRecipeRecord?, setup: HomeRecipeContent? = nil) {
+        if homeSipV4RouteEnabled {
+            launchHomeComposer(recipe: recipe, setup: setup, guided: false)
+            return
+        }
         let attempt = HomeAttemptRecord.fresh(from: recipe, setup: setup)
         transientAttempts[attempt.id] = attempt
         path.append(.log(attempt.id))
     }
     private func startMaking(_ recipe: HomeRecipeRecord) {
+        if homeSipV4RouteEnabled {
+            launchHomeComposer(recipe: recipe, setup: nil, guided: true)
+            return
+        }
         let session = HomePreparationSession(attempt: .fresh(from: recipe), phase: .preparing)
         perform { try store.saveSession(session); path.append(.preparation(session.id)) }
+    }
+    private func launchHomeComposer(recipe: HomeRecipeRecord?, setup: HomeRecipeContent?, guided: Bool) {
+        let version = recipe?.current
+        let content = setup ?? version?.content
+        var draft = SipDraft(
+            ownerUserID: ownerID,
+            context: .home,
+            locationName: "Home",
+            drinkType: content?.method.drinkType ?? .coffee,
+            customDrinkType: content?.method.drinkType == .other ? (content?.methodDisplayName ?? "") : "",
+            drinkName: content?.name ?? "",
+            brewMethod: content?.methodDisplayName ?? "",
+            brewDetails: content?.asBrewDetails(
+                recipeID: recipe?.id, versionNumber: version?.number,
+                resolveLinked: { store.workspace.version($0)?.content }
+            ) ?? .empty,
+            homeWorkbenchPhase: guided ? .workbench : .quickCapture
+        )
+        draft.homeSipPath = guided ? .guided : .quick
+        draft.launchContext.sourceRecipeIdentityID = recipe?.id
+        draft.launchContext.homeRecipeVersionID = version?.id
+        draft.launchContext.sourceRecipeVersion = version.map { "v\($0.number)" }
+        draft.homeSetupContent = content
+        onShare(draft)
+    }
+    private func launchHomeServing(from batch: HomeAttemptRecord) {
+        guard batch.batchID != nil, batch.batchSourceAttemptID == nil else { return }
+        let recipe = batch.recipe.flatMap { reference in
+            store.workspace.recipes.first { $0.id == reference.recipeID }
+        }
+        let content = batch.preparation ?? batch.targets ?? HomeRecipeContent(
+            name: batch.name, template: .preparation, method: .coldBrew
+        )
+        var draft = SipDraft(
+            ownerUserID: ownerID,
+            context: .home,
+            locationName: "Home",
+            drinkType: content.method.drinkType,
+            drinkName: "\(batch.name) · serving",
+            brewMethod: content.methodDisplayName,
+            brewDetails: content.asBrewDetails(
+                recipeID: recipe?.id, versionNumber: recipe?.current?.number,
+                resolveLinked: { store.workspace.version($0)?.content }
+            ),
+            homeWorkbenchPhase: .quickCapture
+        )
+        draft.homeSipPath = .quick
+        draft.homeSetupContent = content
+        draft.launchContext.sourceRecipeIdentityID = recipe?.id
+        draft.launchContext.homeRecipeVersionID = batch.recipe?.versionID
+        draft.launchContext.homeBatchSourceAttemptID = batch.id
+        onShare(draft)
     }
     private func share(_ attempt: HomeAttemptRecord) {
         perform {
@@ -447,17 +547,32 @@ struct HomeRecipeExperienceView: View {
                 return
             }
             let publicationID = attempt.publicationDraftID ?? UUID()
+            var publicDetails = (attempt.preparation ?? attempt.targets)?.asBrewDetails(
+                recipeID: attempt.recipe?.recipeID,
+                versionNumber: attempt.recipe.flatMap { store.workspace.version($0)?.number }
+            ) ?? .empty
+            publicDetails.homePreparation = HomePublicPreparationSummary.make(
+                from: attempt, resolveLinked: { store.workspace.version($0)?.content }
+            )
+            publicDetails.steps = nil
+            publicDetails.orderNotes = nil
+            publicDetails.waterNotes = nil
+            publicDetails.homeMethodDetails?.customNotes = nil
+            publicDetails.homeMethodDetails?.pressureFlowNotes = nil
+            publicDetails.homeMethodDetails?.agitationNotes = nil
+            publicDetails.homeMethodDetails?.heatNotes = nil
             var draft = SipDraft(id: publicationID, ownerUserID: ownerID,
-                context: .home, drinkName: attempt.name, overallScore: attempt.rating ?? 0,
-                visibility: .private, homeMakeAgain: attempt.makeAgain, homeWorkbenchPhase: .publish)
+                context: .home, locationName: "Home", drinkName: attempt.name,
+                overallScore: attempt.resolvedRating ?? 0,
+                visibility: .friends, ratingCriteria: attempt.ratingCriteria,
+                brewMethod: attempt.preparation?.methodDisplayName ?? "",
+                brewDetails: publicDetails, sensorySnapshot: attempt.sensorySnapshot,
+                photoFallback: attempt.photoNames.isEmpty ? .mugsyMissedPhoto : nil,
+                homeMakeAgain: attempt.makeAgain, homeWorkbenchPhase: .publish)
             draft.launchContext.homeAttemptID = attempt.id
-            draft.ratingCriteria = []
-            draft.visibility = .friends
-            // Only explicitly public-facing measurements enter the existing post path.
-            draft.brewDetails.doseGrams = attempt.actuals.dose
-            draft.brewDetails.yieldGrams = attempt.actuals.output
-            draft.brewDetails.brewTimeSeconds = attempt.actuals.seconds.map { Int($0) }
-            draft.brewMethod = attempt.preparation?.methodDisplayName ?? ""
+            draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
+            draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
+            draft.launchContext.homeRecipeAttachmentMode = attempt.recipe == nil ? .doNotAttach : .nameOnly
             let images = attempt.photoNames.compactMap { store.photo($0) }
             guard images.count == attempt.photoNames.count else {
                 throw HomeRecipeWorkspaceError.invalid("One of this make’s photos is unavailable. Your journal entry is safe; restore or remove the photo before sharing.")
