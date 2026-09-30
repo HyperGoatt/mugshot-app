@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-09-30
 ---
+
+## 2026-09-30 — Home Sip V4 connected-iPhone QA candidate
+
+- Built and verified a signed Debug 0.5.3 (8) V4 development app, installed it
+  as `co.mugshot.app.dev` on Joe's iPhone (3), an iPhone 16 Pro running iOS 27.0,
+  and confirmed its foreground launch and running process.
+- This is device installation/launch evidence, not hands-on Home journey or
+  physical acceptance. The separate production app, distributed TestFlight
+  build, and production backend configuration were not changed.
 
 ## 2026-09-29 — Home Sip V4 native source candidate
 

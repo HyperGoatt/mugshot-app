@@ -1,10 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-09-30
 ---
 
 # Product roadmap
+
+## Home Sip V4 owner QA — 2026-09-30
+
+A signed V4 development build is installed and running on Joe's iPhone (3)
+under the separate development app identity. Next, Joe can exercise the Home
+journey on iOS 27; record and repair findings before claiming physical
+acceptance. Broader Tier 4 Simulator, isolated backend, and accessibility
+checks also remain open. Production migration activation and a replacement
+TestFlight build are separate gates, not consequences of this device launch.
 
 ## Home Sip V4 implementation and acceptance gate — 2026-09-29
 
@@ -16,11 +25,12 @@ uses the Cafe Capture/Reflection/Review and canonical detail spine. A direct
 iOS 27 Simulator walkthrough passed for a private, unrated latte from setup to
 canonical detail; the full method, account, accessibility, and failure-state
 matrix has not passed. Next gates: finish deterministic and broader iOS 27
-Simulator acceptance; verify the additive
-public-preparation RPC on an isolated backend; then consider production
-migration activation and owner-promoted iPhone QA. Physical-device and
-TestFlight acceptance are not implied by source implementation. Do not expand
-Home with screenshot/video extraction, taste diagnosis, or inventory depletion.
+Simulator acceptance; verify the additive public-preparation RPC on an isolated
+backend; then consider production
+migration activation. Owner-promoted iPhone installation and launch occurred
+on 2026-09-30, but physical acceptance remains open. TestFlight acceptance is
+not implied by source implementation. Do not expand Home with screenshot/video
+extraction, taste diagnosis, or inventory depletion.
 
 ## Launch quality is the active product gate
 

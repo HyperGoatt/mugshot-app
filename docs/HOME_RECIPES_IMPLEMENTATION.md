@@ -1,10 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-09-30
 ---
 
 # Native Home and Recipes implementation
+
+## 2026-09-30 V4 connected-iPhone launch
+
+At Joe's request, the signed V4 Debug app 0.5.3 (8) was installed as the
+separate `co.mugshot.app.dev` development app on Joe's iPhone (3), an iPhone
+16 Pro running iOS 27.0. Foreground launch and the running app process were
+confirmed. This promotes the candidate to owner hands-on QA; it does not
+establish physical acceptance of the Home journey. The production app,
+TestFlight distribution, and production V4 preparation RPC remain unchanged.
 
 ## 2026-09-29 Home Sip V4 source candidate
 
@@ -58,9 +67,9 @@ also confirmed the matcha-latte setup labels 240 ml as the drink while showing
 80 ml water and 160 ml milk separately, and an early cold-brew finish leaves
 the 16-hour steep actual Unknown without a false Mugsy difference. Focused
 workspace, setup, guided latte, and two-surface quick-log tests pass on iOS 27.
-The full Tier 4 method, social, offline, and accessibility matrix, physical
-iPhone, and TestFlight remain open. The V3 evidence below describes its historical
-candidate, not V4 proof.
+The full Tier 4 method, social, offline, and accessibility matrix, owner
+hands-on iPhone acceptance, and TestFlight remain open. The V3 evidence below
+describes its historical candidate, not V4 proof.
 
 ## Release state
 
