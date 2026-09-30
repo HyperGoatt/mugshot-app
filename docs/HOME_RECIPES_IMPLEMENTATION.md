@@ -30,6 +30,13 @@ composer draft. An in-progress draft remains fenced to its original account.
 Cold-brew batch production keeps its durable session identity; later serving
 logs reference that batch, record serving amount/dilution independently, and
 do not present the original batch measurements as a second production.
+Method-only pour-over keeps its default bloom and pour steps in the Make view.
+Matcha, hojicha, and tea latte starters include editable water and milk amounts
+alongside their base targets, while long-brew setup shows steep duration rather
+than a blank short timer. These are starter defaults, not required ingredients
+or measurements on a saved attempt. Steep actuals are optionally recorded in
+hours, minutes, or seconds as appropriate; storage keeps seconds separately
+from a recipe's short brew-time target.
 
 V4 adds optional per-ingredient actuals and As-planned confirmations to the
 existing account-scoped workspace document. It adds a separate route flag
@@ -42,8 +49,10 @@ next-time notes, linked instructions, inventory, and media paths are excluded.
 This new migration is **not production-configured** merely because it exists in
 source. The iOS 27 Simulator walkthrough has exercised one unrated, photo-free
 latte from Setup through canonical detail, including an explicit As-planned
-value. Focused workspace, setup, guided latte, and two-surface quick-log tests
-pass on iOS 27; the full Tier 4 method, social, offline, and accessibility matrix, physical iPhone,
+value. It also confirmed a cold-brew timer and active batch resumed from its
+stored start time after exiting the composer. Focused workspace, setup, guided
+latte, and two-surface quick-log tests pass on iOS 27; the full Tier 4 method,
+social, offline, and accessibility matrix, physical iPhone,
 and TestFlight remain open. The V3 evidence below describes its historical
 candidate, not V4 proof.
 

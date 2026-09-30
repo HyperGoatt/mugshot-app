@@ -5,6 +5,40 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func v4MethodStartersRetainPourGuidanceAndLatteComponents() {
+        var preparation = HomeRecipeContent.starting(.preparation)
+        preparation.changeMethod(from: .espresso, to: .pourOver)
+        #expect(preparation.steps.count == 3)
+        #expect(preparation.steps.first?.waterGrams == 60)
+        #expect(preparation.steps.last?.waterGrams == 300)
+
+        preparation.changeMethod(from: .pourOver, to: .matchaLatte)
+        #expect(preparation.steps.count == 2)
+        #expect(preparation.ingredients.map(\.name) == ["Water", "Milk"])
+        #expect(preparation.ingredients.map(\.amount) == [80, 160])
+        #expect(preparation.targets.resolvedOutput == 240)
+
+        preparation.changeMethod(from: .matchaLatte, to: .coldBrew)
+        #expect(preparation.ingredients.isEmpty)
+        #expect(preparation.targets.steepSeconds == 57_600)
+    }
+
+    @Test func v4ColdBrewKeepsSteepSeparateFromShortBrewTime() throws {
+        var content = HomeRecipeContent(name: "Cold brew", template: .preparation,
+            method: .coldBrew, targets: HomeRecipeContent.defaultTargets(for: .coldBrew))
+        var attempt = HomeAttemptRecord(name: content.name, targets: content, preparation: content)
+        let unknown = try #require(HomePublicPreparationSummary.make(from: attempt))
+        #expect(unknown.rows.first { $0.title == "Steep" }?.planned == 16)
+        #expect(unknown.rows.first { $0.title == "Steep" }?.unit == "hr")
+        #expect(unknown.rows.first { $0.title == "Steep" }?.state == .unknown)
+        attempt.actuals.seconds = 61_200
+        let summary = try #require(HomePublicPreparationSummary.make(from: attempt))
+        #expect(summary.rows.first { $0.title == "Steep" }?.actual == 17)
+        content = attempt.recipeCandidate
+        #expect(content.targets.steepSeconds == 61_200)
+        #expect(content.targets.seconds == nil)
+    }
+
     @Test func v4IngredientActualsAndSelectedTweakKeepOnlyTheParentDrink() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeV4Tests-\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }

@@ -47,7 +47,8 @@ struct HomeSipV4ActualsView: View {
                         .foregroundStyle(Color.secondaryText)
                 }
 
-                if base.targets.dose != nil || base.targets.resolvedOutput != nil || base.targets.seconds != nil {
+                if base.targets.dose != nil || base.targets.resolvedOutput != nil
+                    || base.targets.seconds != nil || base.targets.steepSeconds != nil {
                     VStack(alignment: .leading, spacing: 10) {
                         sectionTitle(baseName, trailing: "Planned → Today")
                         VStack(spacing: 0) {
@@ -62,6 +63,8 @@ struct HomeSipV4ActualsView: View {
                             if let planned = base.targets.seconds {
                                 amountRow("\(base.method == .espresso ? "Shot" : "Brew") time", planned: planned,
                                           unit: "sec", key: "seconds", value: \.seconds)
+                            } else if let planned = base.targets.steepSeconds {
+                                steepRow(plannedSeconds: planned)
                             }
                         }
                         .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
@@ -206,6 +209,33 @@ struct HomeSipV4ActualsView: View {
                     } else {
                         actuals.confirmedAsPlannedKeys.remove(key)
                     }
+                    draft.homeAttemptActuals = actuals
+                }
+            )
+        )
+    }
+
+    private func steepRow(plannedSeconds: Double) -> some View {
+        let divisor: Double = plannedSeconds >= 3_600 ? 3_600 : plannedSeconds >= 60 ? 60 : 1
+        let unit = divisor == 3_600 ? "hr" : divisor == 60 ? "min" : "sec"
+        return HomeV4ActualAmountRow(
+            title: "Steep duration", planned: plannedSeconds / divisor, unit: unit,
+            amount: Binding(
+                get: { draft.homeAttemptActuals.seconds.map { $0 / divisor } },
+                set: { value in
+                    var actuals = draft.homeAttemptActuals
+                    actuals.seconds = value.map { $0 * divisor }
+                    actuals.confirmedAsPlannedKeys.remove("seconds")
+                    draft.homeAttemptActuals = actuals
+                }
+            ),
+            confirmed: Binding(
+                get: { draft.homeAttemptActuals.confirmedAsPlannedKeys.contains("seconds") },
+                set: { confirmed in
+                    var actuals = draft.homeAttemptActuals
+                    actuals.seconds = confirmed ? plannedSeconds : nil
+                    if confirmed { actuals.confirmedAsPlannedKeys.insert("seconds") }
+                    else { actuals.confirmedAsPlannedKeys.remove("seconds") }
                     draft.homeAttemptActuals = actuals
                 }
             )

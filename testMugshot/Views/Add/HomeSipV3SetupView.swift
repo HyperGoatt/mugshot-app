@@ -458,7 +458,7 @@ struct HomeSipV3SetupView: View {
 
             Divider()
 
-            if usesV4, let content = selectedContent, content.template == .drink, !content.ingredients.isEmpty {
+            if usesV4, let content = selectedContent, !content.ingredients.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("What makes this drink").font(.headline)
@@ -494,7 +494,10 @@ struct HomeSipV3SetupView: View {
                 HStack(spacing: 8) {
                     metric("Dose", draft.brewDetails.doseGrams.map { "\(HomeRecipeContent.number($0)) g" })
                     metric(method.outputLabel, outputText)
-                    metric("Time", draft.brewDetails.brewTimeSeconds.map { "\($0) s" })
+                    metric(draft.brewDetails.homeMethodDetails?.steepSeconds == nil ? "Time" : "Steep",
+                           draft.brewDetails.homeMethodDetails?.steepSeconds.map {
+                               HomeRecipeContent.durationSummary(Double($0))
+                           } ?? draft.brewDetails.brewTimeSeconds.map { "\($0) s" })
                 }
             }
 
@@ -560,7 +563,14 @@ struct HomeSipV3SetupView: View {
     }
 
     private func select(method: HomeBrewMethod) {
-        let targets = HomeRecipeContent.defaultTargets(for: method)
+        let content = HomeRecipeContent(
+            name: method == .other ? "" : method.title,
+            template: .preparation,
+            method: method,
+            targets: HomeRecipeContent.defaultTargets(for: method),
+            ingredients: HomeRecipeContent.defaultIngredients(for: method),
+            steps: HomeRecipeContent.defaultSteps(for: method)
+        )
         draft.homeSipPath = .guided
         draft.launchContext.sourceRecipeIdentityID = nil
         draft.launchContext.sourceRecipeVersion = nil
@@ -569,10 +579,10 @@ struct HomeSipV3SetupView: View {
         draft.drinkType = method.drinkType
         draft.customDrinkType = method.drinkType == .other ? method.title : ""
         draft.drinkName = method == .other ? "" : method.title
-        draft.brewDetails = HomeRecipeContent(method: method, targets: targets).asBrewDetails()
+        draft.brewDetails = content.asBrewDetails()
         draft.homeComparisonSource = draft.currentHomeBrewSnapshot
         draft.homeAttemptActuals = HomeAttemptActuals()
-        draft.homeSetupContent = nil
+        draft.homeSetupContent = content
         draft.homeKeptIngredientIDs = []
         MugshotAnalytics.shared.capture(.homeWorkbench(action: .methodSelected))
         MugshotHaptic.selection.play()
@@ -949,13 +959,19 @@ private struct HomeTodaySetupSheet: View {
                             Text(method.title).font(.headline)
                             HomeV4SetupDecimalRow(method.inputLabel, unit: "g", value: doseBinding)
                             HomeV4SetupDecimalRow(method.outputLabel, unit: method.outputUnit, value: method.usesYield ? yieldBinding : waterBinding)
-                            HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding)
+                            if method == .coldBrew || method == .coldBrewTea {
+                                HomeV4SetupDecimalRow("Steep duration", unit: "hr", value: steepHoursBinding)
+                            } else if content?.targets.steepSeconds != nil {
+                                HomeV4SetupDecimalRow("Steep duration", unit: "min", value: steepMinutesBinding)
+                            } else {
+                                HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding)
+                            }
                         }
                         .padding(16)
                         .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
                     }
 
-                    if let content, content.template == .drink {
+                    if let content, !content.ingredients.isEmpty || content.template == .drink {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("In this drink").font(.headline)
                             ForEach(content.ingredients) { ingredient in
@@ -1137,6 +1153,33 @@ private struct HomeTodaySetupSheet: View {
             set: { value in
                 draft.brewDetails.brewTimeSeconds = value.map { Int($0.rounded()) }
                 updateContent { $0.targets.seconds = value }
+            }
+        )
+    }
+
+    private var steepHoursBinding: Binding<Double?> {
+        Binding(
+            get: { content?.targets.steepSeconds.map { $0 / 3_600 } },
+            set: { hours in
+                let seconds = hours.map { $0 * 3_600 }
+                var details = draft.brewDetails.homeMethodDetails ?? .empty
+                details.steepSeconds = seconds.map { Int($0.rounded()) }
+                details.coldBrewSteepHours = method == .coldBrew ? hours : nil
+                draft.brewDetails.homeMethodDetails = details
+                updateContent { $0.targets.steepSeconds = seconds }
+            }
+        )
+    }
+
+    private var steepMinutesBinding: Binding<Double?> {
+        Binding(
+            get: { content?.targets.steepSeconds.map { $0 / 60 } },
+            set: { minutes in
+                let seconds = minutes.map { $0 * 60 }
+                var details = draft.brewDetails.homeMethodDetails ?? .empty
+                details.steepSeconds = seconds.map { Int($0.rounded()) }
+                draft.brewDetails.homeMethodDetails = details
+                updateContent { $0.targets.steepSeconds = seconds }
             }
         )
     }

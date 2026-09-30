@@ -23,6 +23,11 @@ last_verified: 2026-09-29
 - Kept linked coffee, matcha, and tea base targets intact when a drink overrides
   one value; preserved decimal time targets and limited Mugsy's Actuals comments
   to recorded differences, never inferred taste.
+- Kept default pour-over bloom/pour steps when starting from a method, added
+  editable water and milk components to matcha, hojicha, and tea latte starters,
+  and showed long-brew steep time and non-coffee units accurately. Steep actuals
+  remain optional, distinct from short brew-time targets, and round-trip into
+  the allowlisted preparation summary and Save as recipe.
 - Added a separate data-preserving V4 route switch and an allowlisted, caller-
   gated public Home preparation projection migration and hermetic contract.
   The migration is source-only, not production-configured. A direct iOS 27

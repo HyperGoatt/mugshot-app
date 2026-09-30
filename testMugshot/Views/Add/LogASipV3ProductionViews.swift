@@ -2547,7 +2547,7 @@ private struct LogASipV3HomeRecipeGlance: View {
                 row(method.inputLabel.capitalized, value: format(dose, "g"), icon: "circle.lefthalf.filled")
             }
             if let outputValue {
-                row(method.usesYield ? "Yield" : "Water", value: outputValue, icon: "drop")
+                row(method.outputLabel, value: outputValue, icon: "drop")
             }
             if let grind = draft.brewDetails.grindSetting?.remoteTrimmedNonEmpty {
                 row("Grind", value: grind, icon: "circle.grid.3x3")
@@ -2557,8 +2557,10 @@ private struct LogASipV3HomeRecipeGlance: View {
             }
             if let seconds = draft.brewDetails.brewTimeSeconds {
                 row("Time", value: "\(seconds) s", icon: "clock")
+            } else if let steep = draft.brewDetails.homeMethodDetails?.steepSeconds {
+                row("Steep", value: HomeRecipeContent.durationSummary(Double(steep)), icon: "clock")
             }
-            if let ratio = draft.brewDetails.brewRatio {
+            if method.family == .coffee, let ratio = draft.brewDetails.brewRatio {
                 row("Ratio", value: "1:\(ratio.formatted(.number.precision(.fractionLength(1))))", icon: "viewfinder")
             }
         }
@@ -2572,7 +2574,7 @@ private struct LogASipV3HomeRecipeGlance: View {
         let value = method.usesYield
             ? draft.brewDetails.yieldGrams
             : draft.brewDetails.homeMethodDetails?.waterGrams
-        return value.map { format($0, "g") }
+        return value.map { format($0, method.outputUnit) }
     }
 
     private func row(_ title: String, value: String, icon: String) -> some View {

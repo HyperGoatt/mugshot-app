@@ -304,12 +304,38 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
     }
 
     static func defaultSteps(for method: HomeBrewMethod) -> [HomePreparationStep] {
-        guard method == .pourOver else { return [] }
-        return [
-            HomePreparationStep(instruction: "Bloom", waitSeconds: 40, waterGrams: 60, waterMode: .cumulative),
-            HomePreparationStep(instruction: "Pour steadily", waterGrams: 180, waterMode: .cumulative),
-            HomePreparationStep(instruction: "Finish the pour", startSeconds: 80, waterGrams: 300, waterMode: .cumulative)
-        ]
+        switch method {
+        case .pourOver:
+            return [
+                HomePreparationStep(instruction: "Bloom", waitSeconds: 40, waterGrams: 60, waterMode: .cumulative),
+                HomePreparationStep(instruction: "Pour steadily", waterGrams: 180, waterMode: .cumulative),
+                HomePreparationStep(instruction: "Finish the pour", startSeconds: 80, waterGrams: 300, waterMode: .cumulative)
+            ]
+        case .matchaLatte:
+            return [HomePreparationStep(instruction: "Whisk matcha with the water"),
+                    HomePreparationStep(instruction: "Add milk and bring the latte together")]
+        case .hojichaLatte:
+            return [HomePreparationStep(instruction: "Whisk hojicha with the water"),
+                    HomePreparationStep(instruction: "Add milk and bring the latte together")]
+        case .teaLatte:
+            return [HomePreparationStep(instruction: "Steep the tea in the water"),
+                    HomePreparationStep(instruction: "Add milk and bring the latte together")]
+        default:
+            return []
+        }
+    }
+
+    static func defaultIngredients(for method: HomeBrewMethod) -> [HomeRecipeIngredient] {
+        switch method {
+        case .matchaLatte, .hojichaLatte:
+            return [HomeRecipeIngredient(name: "Water", amount: 80, unit: "ml"),
+                    HomeRecipeIngredient(name: "Milk", amount: 160, unit: "ml")]
+        case .teaLatte:
+            return [HomeRecipeIngredient(name: "Water", amount: 120, unit: "ml"),
+                    HomeRecipeIngredient(name: "Milk", amount: 120, unit: "ml")]
+        default:
+            return []
+        }
     }
 
     mutating func changeMethod(from oldMethod: HomeBrewMethod, to newMethod: HomeBrewMethod) {
@@ -319,7 +345,19 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
         if steps.isEmpty || Self.matchesDefaultSteps(steps, for: oldMethod) {
             steps = Self.defaultSteps(for: newMethod)
         }
+        if ingredients.isEmpty || Self.matchesDefaultIngredients(ingredients, for: oldMethod) {
+            ingredients = Self.defaultIngredients(for: newMethod)
+        }
         method = newMethod
+    }
+
+    private static func matchesDefaultIngredients(_ ingredients: [HomeRecipeIngredient], for method: HomeBrewMethod) -> Bool {
+        let defaults = defaultIngredients(for: method)
+        guard !defaults.isEmpty, ingredients.count == defaults.count else { return false }
+        return zip(ingredients, defaults).allSatisfy { value, expected in
+            value.name == expected.name && value.amount == expected.amount
+                && value.unit == expected.unit && value.recipe == nil
+        }
     }
 
     private static func matchesDefaultSteps(_ steps: [HomePreparationStep], for method: HomeBrewMethod) -> Bool {
@@ -582,10 +620,18 @@ extension HomeAttemptActuals {
             let direction = delta > 0 ? "above" : "below"
             return "\(title) was \(HomeRecipeContent.number(abs(delta))) \(unit) \(direction) the plan"
         }
+        let steepDivisor: Double = (targets.steepSeconds ?? 0) >= 3_600 ? 3_600
+            : (targets.steepSeconds ?? 0) >= 60 ? 60 : 1
+        let steepUnit = steepDivisor == 3_600 ? "hr" : steepDivisor == 60 ? "min" : "sec"
+        let durationDifference = targets.seconds != nil
+            ? difference("Time", actual: seconds, planned: targets.seconds, unit: "sec", minimum: 1)
+            : difference("Steep", actual: seconds.map { $0 / steepDivisor },
+                planned: targets.steepSeconds.map { $0 / steepDivisor },
+                unit: steepUnit, minimum: steepDivisor == 1 ? 1 : 0.1)
         var facts = [
             difference(inputLabel, actual: dose, planned: targets.dose, unit: "g"),
             difference(outputLabel, actual: output, planned: targets.resolvedOutput, unit: outputUnit),
-            difference("Time", actual: seconds, planned: targets.seconds, unit: "sec", minimum: 1)
+            durationDifference
         ].compactMap { $0 }
         facts += plannedIngredients.compactMap { ingredient in
             guard let actual = ingredients.first(where: { $0.ingredientID == ingredient.id }),
@@ -645,11 +691,18 @@ struct HomePublicPreparationSummary: Codable, Equatable, Sendable {
             return HomePublicPreparationRow(title: title, planned: planned,
                 actual: actual, unit: unit, state: state)
         }
+        let steepDivisor: Double = (targets.steepSeconds ?? 0) >= 3_600 ? 3_600
+            : (targets.steepSeconds ?? 0) >= 60 ? 60 : 1
+        let steepUnit = steepDivisor == 3_600 ? "hr" : steepDivisor == 60 ? "min" : "sec"
+        let durationRow = targets.seconds != nil
+            ? row("Time", planned: targets.seconds, actual: actuals.seconds, unit: "sec", key: "seconds")
+            : row("Steep", planned: targets.steepSeconds.map { $0 / steepDivisor },
+                actual: actuals.seconds.map { $0 / steepDivisor }, unit: steepUnit, key: "seconds")
         var rows = [
             row(baseMethod.inputLabel, planned: targets.dose, actual: actuals.dose, unit: "g", key: "dose"),
             row(baseMethod.outputLabel, planned: targets.resolvedOutput, actual: actuals.output,
                 unit: baseMethod.outputUnit, key: "output"),
-            row("Time", planned: targets.seconds, actual: actuals.seconds, unit: "sec", key: "seconds")
+            durationRow
         ].compactMap { $0 }
         rows += preparation.ingredients.compactMap { ingredient in
             let actual = actuals.ingredients.first { $0.ingredientID == ingredient.id }
@@ -736,7 +789,13 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
         content.name = name
         if let dose = actuals.dose { content.targets.dose = dose }
         if let output = actuals.output { content.targets.output = output; content.targets.calculation = .output }
-        if let seconds = actuals.seconds { content.targets.seconds = seconds }
+        if let seconds = actuals.seconds {
+            if content.targets.steepSeconds != nil && content.targets.seconds == nil {
+                content.targets.steepSeconds = seconds
+            } else {
+                content.targets.seconds = seconds
+            }
+        }
         if let temperature = actuals.temperature { content.targets.temperature = temperature }
         if !actuals.grind.isEmpty { content.targets.grind = actuals.grind }
         return content

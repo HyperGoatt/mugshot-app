@@ -646,13 +646,22 @@ enum SipDetailPresentationAdapter {
         var rows: [SipDetailHomePreparationRow] = []
         let actuals = attempt.actuals
         if baseTargets.dose != nil || baseTargets.resolvedOutput != nil {
-            let output = actuals.output.map { "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) out" }
+            let output = actuals.output.map {
+                "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) \(baseMethod.outputLabel.lowercased())"
+            }
                 ?? "Actual not recorded"
-            let time = actuals.seconds.map { "\(HomeRecipeContent.number($0)) sec" }
+            let time = actuals.seconds.map { seconds in
+                baseTargets.seconds != nil
+                    ? "\(HomeRecipeContent.number(seconds)) sec"
+                    : HomeRecipeContent.durationSummary(seconds)
+            }
             let planned = [
                 baseTargets.dose.map { "\(HomeRecipeContent.number($0)) g in" },
-                baseTargets.resolvedOutput.map { "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) out" },
+                baseTargets.resolvedOutput.map {
+                    "\(HomeRecipeContent.number($0)) \(baseMethod.outputUnit) \(baseMethod.outputLabel.lowercased())"
+                },
                 baseTargets.seconds.map { "\(HomeRecipeContent.number($0)) sec" }
+                    ?? baseTargets.steepSeconds.map(HomeRecipeContent.durationSummary)
             ].compactMap { $0 }.joined(separator: " · ")
             rows.append(SipDetailHomePreparationRow(
                 id: "base", title: baseMethod.title,
