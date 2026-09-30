@@ -53,10 +53,13 @@ This new migration is **not production-configured** merely because it exists in
 source. The iOS 27 Simulator walkthrough has exercised one unrated, photo-free
 latte from Setup through canonical detail, including an explicit As-planned
 value. It also confirmed a cold-brew timer and active batch resumed from its
-stored start time after exiting the composer. Focused workspace, setup, guided
-latte, and two-surface quick-log tests pass on iOS 27; the full Tier 4 method,
-social, offline, and accessibility matrix, physical iPhone,
-and TestFlight remain open. The V3 evidence below describes its historical
+stored start time after exiting the composer. A final-source iOS 27 visual pass
+also confirmed the matcha-latte setup labels 240 ml as the drink while showing
+80 ml water and 160 ml milk separately, and an early cold-brew finish leaves
+the 16-hour steep actual Unknown without a false Mugsy difference. Focused
+workspace, setup, guided latte, and two-surface quick-log tests pass on iOS 27.
+The full Tier 4 method, social, offline, and accessibility matrix, physical
+iPhone, and TestFlight remain open. The V3 evidence below describes its historical
 candidate, not V4 proof.
 
 ## Release state

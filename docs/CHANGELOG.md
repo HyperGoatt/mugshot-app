@@ -28,8 +28,10 @@ last_verified: 2026-09-29
   labeled their drink total correctly, and showed long-brew steep time and
   non-coffee units accurately. A long-brew timer no longer auto-confirms an
   elapsed steep measurement on an early finish. Steep actuals remain optional,
-  distinct from short brew-time targets, and round-trip into
-  the allowlisted preparation summary and Save as recipe.
+  distinct from short brew-time targets, and round-trip into the allowlisted
+  preparation summary and Save as recipe. The final-source
+  iOS 27 visual pass confirmed the corrected matcha-latte label and Unknown
+  early-finish cold-brew steep state.
 - Added a separate data-preserving V4 route switch and an allowlisted, caller-
   gated public Home preparation projection migration and hermetic contract.
   The migration is source-only, not production-configured. A direct iOS 27
