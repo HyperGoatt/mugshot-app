@@ -6,6 +6,10 @@ date: 2026-09-18
 
 # Home Sip V3 approved gallery and flow manifest
 
+> Historical V3 design evidence. The accepted
+> [Home Sip V4 gallery](../../product-research/home-sip-v4/README.md) supersedes
+> the central Home experience; these images remain for comparison.
+
 This manifest promotes the approved 50-screen Home Sip V3 mockup into the
 repository's versioned design evidence. Native implementation follows the visual
 direction rather than reproducing browser-only navigation. The authoritative

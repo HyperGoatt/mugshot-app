@@ -65,6 +65,9 @@ struct BrewDetails: Codable, Equatable, Sendable {
     var coffeeBag: CoffeeBagSnapshot?
     var equipmentSnapshots: [EquipmentSnapshot]?
     var homeMethodDetails: HomeMethodDetails?
+    /// An explicitly publishable summary, separate from owner-only attempts and
+    /// exact-version recipe attachments. The server projects only these fields.
+    var homePreparation: HomePublicPreparationSummary?
 
     static let empty = BrewDetails()
 
@@ -81,6 +84,7 @@ struct BrewDetails: Codable, Equatable, Sendable {
             additions?.remoteTrimmedNonEmpty != nil || servingVolumeMilliliters != nil ||
             espressoShotCount != nil || coffeeBag != nil ||
             !(equipmentSnapshots ?? []).isEmpty || homeMethodDetails?.hasData == true
+            || homePreparation != nil
     }
 
     var recipeDisplayName: String? {

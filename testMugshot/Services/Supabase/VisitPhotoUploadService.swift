@@ -70,7 +70,9 @@ final class VisitPhotoUploadService {
         images: [UIImage],
         posterPhotoIndex: Int,
         plannedObjectPaths: [String]? = nil,
-        replacingExisting: Bool = false
+        replacingExisting: Bool = false,
+        completedObjectPaths: [String] = [],
+        onPhotoUploaded: ((String) throws -> Void)? = nil
     ) async throws -> UploadedVisitPhotos {
         guard !images.isEmpty else {
             return UploadedVisitPhotos(
@@ -92,6 +94,11 @@ final class VisitPhotoUploadService {
         guard paths.count == uploadImages.count else {
             throw VisitPhotoUploadError.invalidUploadPlan
         }
+        let completed = Set(completedObjectPaths)
+        guard completed.isSubset(of: Set(paths)),
+              completed.isEmpty || (plannedObjectPaths != nil && onPhotoUploaded != nil) else {
+            throw VisitPhotoUploadError.invalidUploadPlan
+        }
         var diagnosticOutcome = BatteryDiagnostics.WorkOutcome.interrupted
         var diagnostics = BatteryDiagnostics.PhotoUploadSession(
             plannedPhotoCount: uploadImages.count
@@ -100,31 +107,37 @@ final class VisitPhotoUploadService {
 
         do {
             for (image, path) in zip(uploadImages, paths) {
-                let data = try jpegData(for: image)
-
-                try await storage.upload(
-                    path,
-                    data: data,
-                    options: FileOptions(
-                        cacheControl: "31536000",
-                        contentType: "image/jpeg",
-                        upsert: replacingExisting
-                    )
-                )
-                diagnostics.recordedUpload(byteCount: data.count)
-
-                objectPaths.append(path)
+                try Task.checkCancellation()
                 guard let reference = VisitPhotoStorageReference(
                     bucketName: bucketName,
                     objectPath: path
                 ) else {
                     throw VisitPhotoUploadError.invalidUploadPlan
                 }
+                if !completed.contains(path) {
+                    let data = try jpegData(for: image)
+                    try await storage.upload(
+                        path,
+                        data: data,
+                        options: FileOptions(
+                            cacheControl: "31536000",
+                            contentType: "image/jpeg",
+                            upsert: replacingExisting
+                        )
+                    )
+                    objectPaths.append(path)
+                    diagnostics.recordedUpload(byteCount: data.count)
+                    // Persist before observing a late cancellation. The server
+                    // has acknowledged these bytes even if the app is closing.
+                    try onPhotoUploaded?(path)
+                }
                 attachmentReferences.append(reference.storedValue)
             }
         } catch {
             diagnosticOutcome = Task.isCancelled ? .cancelled : .failed
-            if !objectPaths.isEmpty {
+            // Protected publication owns its frozen plan and keeps successful
+            // objects for retry. One-shot edit uploads retain rollback cleanup.
+            if onPhotoUploaded == nil, !objectPaths.isEmpty {
                 _ = try? await storage.remove(paths: objectPaths)
             }
             throw error
@@ -136,7 +149,7 @@ final class VisitPhotoUploadService {
         diagnosticOutcome = .completed
         return UploadedVisitPhotos(
             attachmentReferences: attachmentReferences,
-            objectPaths: objectPaths,
+            objectPaths: paths,
             posterPhotoIndex: safePosterIndex
         )
     }

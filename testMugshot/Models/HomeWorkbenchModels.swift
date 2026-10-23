@@ -370,6 +370,10 @@ enum HomeBrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var usesYield: Bool { self == .espresso }
 
+    // A batch timer can resume after backgrounding, but elapsed time is not a
+    // confirmed steep measurement until the person records it in Actuals.
+    var recordsTimerAsActual: Bool { self != .coldBrew && self != .coldBrewTea }
+
     var inputLabel: String {
         switch family {
         case .matcha: return "Matcha"

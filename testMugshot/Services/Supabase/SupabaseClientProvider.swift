@@ -21,10 +21,19 @@ final class SupabaseClientProvider {
             supabaseURL: configuration.url,
             supabaseKey: configuration.publishableKey,
             options: SupabaseClientOptions(
-                auth: .init(emitLocalSessionAsInitialSession: true)
+                auth: .init(emitLocalSessionAsInitialSession: true),
+                global: .init(session: URLSession(configuration: Self.requestConfiguration()))
             )
         )
         cachedClient = client
         return client
+    }
+
+    static func requestConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 90
+        configuration.waitsForConnectivity = false
+        return configuration
     }
 }

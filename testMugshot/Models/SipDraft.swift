@@ -26,6 +26,8 @@ struct SipComposerLaunchContext: Codable, Equatable {
     var sourceRecipeVersion: String?
     var homeRecipeVersionID: UUID? = nil
     var homePreparationSessionID: UUID? = nil
+    /// A serving references its original batch without recreating production.
+    var homeBatchSourceAttemptID: UUID? = nil
     var returnTab: MugshotTab?
     /// Identifies an already-saved private Home attempt. Older launches decode
     /// without it and retain their existing capture/validation behavior.
@@ -399,6 +401,8 @@ struct SipDraft: Identifiable, Codable, Equatable {
     private var v3HomeSipPath: HomeSipPath?
     private var v3HomeNextTimeNote: String?
     private var v3HomeAttemptActuals: HomeAttemptActuals?
+    private var v4KeptIngredientIDs: Set<UUID>?
+    private var v4HomeSetupContent: HomeRecipeContent?
 
     var contextNotes: String {
         get { v3ContextNotes ?? "" }
@@ -462,6 +466,16 @@ struct SipDraft: Identifiable, Codable, Equatable {
     var homeAttemptActuals: HomeAttemptActuals {
         get { v3HomeAttemptActuals ?? HomeAttemptActuals() }
         set { v3HomeAttemptActuals = newValue }
+    }
+
+    var homeKeptIngredientIDs: Set<UUID> {
+        get { v4KeptIngredientIDs ?? [] }
+        set { v4KeptIngredientIDs = newValue }
+    }
+
+    var homeSetupContent: HomeRecipeContent? {
+        get { v4HomeSetupContent }
+        set { v4HomeSetupContent = newValue }
     }
 
     /// The user's explicit star baseline before criteria-derived display math.
@@ -597,6 +611,8 @@ struct SipDraft: Identifiable, Codable, Equatable {
         self.v3HomeSipPath = nil
         self.v3HomeNextTimeNote = nil
         self.v3HomeAttemptActuals = nil
+        self.v4KeptIngredientIDs = nil
+        self.v4HomeSetupContent = nil
     }
 
     var ratingsDictionary: [String: Double] {

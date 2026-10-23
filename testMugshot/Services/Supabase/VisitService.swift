@@ -383,6 +383,14 @@ final class VisitService {
                 return []
             }
         }()
+        async let homePreparationRequest: HomePublicPreparationSummary? = {
+            guard row.journalContext == .home, currentUserId != nil else { return nil }
+            do {
+                return try await fetchVisibleHomePreparation(visitId: visitId)
+            } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+                return nil
+            }
+        }()
 
         let (
             summaries,
@@ -393,7 +401,8 @@ final class VisitService {
             v3Reflection,
             recipeProjection,
             recipeIdentityProjection,
-            taggedAccounts
+            taggedAccounts,
+            homePreparation
         ) = try await (
             summariesRequest,
             photosRequest,
@@ -403,7 +412,8 @@ final class VisitService {
             v3ReflectionRequest,
             recipeProjectionRequest,
             recipeIdentityProjectionRequest,
-            taggedAccountsRequest
+            taggedAccountsRequest,
+            homePreparationRequest
         )
         guard let summary = summaries.first else {
             throw VisitServiceError.visitNotFound
@@ -436,8 +446,16 @@ final class VisitService {
             v3Reflection: v3Reflection,
             recipeProjection: recipeProjection,
             recipeIdentityProjection: recipeIdentityProjection,
-            taggedAccounts: taggedAccounts
+            taggedAccounts: taggedAccounts,
+            homePreparation: homePreparation
         )
+    }
+
+    func fetchVisibleHomePreparation(visitId: UUID) async throws -> HomePublicPreparationSummary? {
+        try await client.rpc(
+            "get_visit_home_preparation_v4",
+            params: ["p_visit_id": visitId]
+        ).execute().value
     }
 
     func fetchRecipeProjection(
@@ -812,6 +830,7 @@ final class VisitService {
             visitBrewDetails.recipeName = brewDetails.recipeName?.remoteTrimmedNonEmpty
                 ?? drinkSubtype?.remoteTrimmedNonEmpty
             visitBrewDetails.recipeVersion = brewDetails.recipeVersion?.remoteTrimmedNonEmpty
+            visitBrewDetails.homePreparation = brewDetails.homePreparation
             visitBrewMethod = nil
             visitEquipment = nil
         }

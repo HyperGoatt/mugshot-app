@@ -90,6 +90,9 @@ struct PendingVisitSubmissionRecord: Codable, Equatable, Identifiable {
     var homeRecipeAttachments: [HomeRecipePostAttachment]? = nil
     var homeRecipeAttachmentsCompletedAt: Date? = nil
     var homeAttemptID: UUID? = nil
+    /// Acknowledged Storage objects for this exact frozen media plan. Older
+    /// outboxes decode nil and safely re-upload using their stable paths.
+    var completedPhotoObjectPaths: [String]? = nil
 
     var needsHomeRecipeAttachmentsCompletion: Bool {
         isRemoteFinalized && !(homeRecipeAttachments ?? []).isEmpty && homeRecipeAttachmentsCompletedAt == nil
@@ -469,6 +472,26 @@ final class PendingVisitSubmissionStore {
         try saveWithoutLock(record)
     }
 
+    func recordUploadedPhoto(
+        _ objectPath: String,
+        visitId: UUID,
+        userId: UUID,
+        expectedObjectPaths: [String]
+    ) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        var records = try readOutbox(for: userId)
+        guard let index = records.firstIndex(where: { $0.id == visitId }),
+              records[index].objectPaths == expectedObjectPaths,
+              expectedObjectPaths.contains(objectPath) else {
+            throw PendingVisitSubmissionStoreError.submissionIdentityMismatch
+        }
+        var completed = Set(records[index].completedPhotoObjectPaths ?? [])
+        completed.insert(objectPath)
+        records[index].completedPhotoObjectPaths = expectedObjectPaths.filter(completed.contains)
+        try writeOutbox(records, for: userId)
+    }
+
     /// Compatibility entry point for single-record recovery screens. Records
     /// are returned oldest first so repeated recovery drains the outbox FIFO.
     func load(userId: UUID) -> PendingVisitSubmissionRecord? {
@@ -630,6 +653,7 @@ final class PendingVisitSubmissionStore {
                 objectIds: replacementImages.map { _ in UUID() }
             )
             updated.uploadedPhotoURLs = nil
+            updated.completedPhotoObjectPaths = nil
             try saveWithoutLock(updated)
 
             removeLocalFiles(
@@ -805,6 +829,13 @@ final class PendingVisitSubmissionStore {
         from records: [PendingVisitSubmissionRecord]
     ) -> PendingVisitSubmissionRecord {
         var merged = base
+        if base.phase != .prepared {
+            let completed = Set(records.filter {
+                $0.objectPaths == base.objectPaths && $0.localPhotoNames == base.localPhotoNames
+            }.flatMap { $0.completedPhotoObjectPaths ?? [] })
+            merged.completedPhotoObjectPaths = completed.isEmpty
+                ? nil : base.objectPaths.filter(completed.contains)
+        }
         for record in records {
             merged.remoteFinalizedAt = merged.remoteFinalizedAt
                 ?? record.remoteFinalizedAt

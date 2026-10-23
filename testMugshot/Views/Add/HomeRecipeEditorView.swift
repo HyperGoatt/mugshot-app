@@ -56,6 +56,8 @@ struct HomeRecipeEditorView: View {
                     TextField("Instagram, TikTok, or website link", text: $draft.content.sourceURL)
                         .textInputAutocapitalization(.never).keyboardType(.URL)
                     TextField("Creator credit (optional)", text: $draft.content.creatorCredit)
+                    TextField("Paste the recipe caption or instructions", text: $draft.content.sourceText, axis: .vertical)
+                        .lineLimit(3...10)
                 }
             }
             if draft.content.template == .coffee || draft.content.template == .preparation {

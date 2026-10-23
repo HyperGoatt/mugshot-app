@@ -1,5 +1,9 @@
 # Mugshot Home Workbench — Recipe Memory Direction
 
+> Historical concept. The accepted
+> [Home Sip V4 gallery](../../product-research/home-sip-v4/README.md) is the
+> current central Home direction; retain this dated work as design evidence.
+
 This nine-screen production mockup is the visual source of truth for the revised Home Log a Sip journey.
 
 ## Happy path

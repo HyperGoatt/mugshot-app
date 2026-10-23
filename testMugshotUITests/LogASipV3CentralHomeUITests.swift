@@ -37,7 +37,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
     @MainActor
     func testCentralAddHomeOpensSetupFirstInsideComposer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-reduce-motion"]
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
         app.launch()
 
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
@@ -47,7 +47,8 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(homeContext.waitForExistence(timeout: 3))
         homeContext.tap()
 
-        XCTAssertTrue(app.staticTexts["Start your Home sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["What are you making?"].exists)
         XCTAssertTrue(element(Identifier.homeChooseRecipe, in: app).exists)
         XCTAssertTrue(element(Identifier.homeChooseMethod, in: app).exists)
         XCTAssertTrue(element(Identifier.homeQuickLog, in: app).exists)
@@ -62,6 +63,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         app.launchArguments = [
             "--ui-testing",
             "--ui-testing-reset",
+            "--ui-testing-signed-out",
             "--ui-testing-reduce-motion",
             "--ui-testing-seed-home-quick-name"
         ]
@@ -76,7 +78,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let quickLog = element(Identifier.homeQuickLog, in: app)
         XCTAssertTrue(quickLog.waitForExistence(timeout: 3))
         quickLog.tap()
-        XCTAssertTrue(app.staticTexts["Quick log"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Photos"].waitForExistence(timeout: 3))
         let quickProgress = element(Identifier.homeProgress, in: app)
         XCTAssertTrue(quickProgress.waitForExistence(timeout: 3))
         XCTAssertEqual(quickProgress.label, "Step 1 of 2")
@@ -88,10 +90,49 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
 
         // Rating, criteria, note, make-again intent, and photo are all optional.
         tapPrimaryAction(in: app)
-        XCTAssertTrue(app.staticTexts["Saved privately"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Unrated"].exists)
-        XCTAssertEqual(element(Identifier.homeProgress, in: app).label, "Step 4 of 4")
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Unrated"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Afternoon matcha"].exists)
         attachScreenshot(named: "02-home-quick-log-unrated-private-save", app: app)
+    }
+
+    @MainActor
+    func testV4LatteGuidanceActualsAndStandardPrivateDetail() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
+        app.buttons["Add"].tap()
+        let home = element(Identifier.homeContext, in: app)
+        XCTAssertTrue(home.waitForExistence(timeout: 3))
+        home.tap()
+        let latte = element("logASipV4.home.starter.complete_drink", in: app)
+        XCTAssertTrue(latte.waitForExistence(timeout: 4))
+        latte.tap()
+        XCTAssertTrue(app.staticTexts["What makes this drink"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Espresso"].exists)
+        XCTAssertTrue(app.staticTexts["Milk"].exists)
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["36 g"].exists)
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
+        let confirm = app.buttons["As planned"].firstMatch
+        XCTAssertTrue(confirm.exists)
+        confirm.tap()
+        XCTAssertTrue(app.staticTexts["✓ As planned"].exists)
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["How you made it"].waitForExistence(timeout: 4))
     }
 
     @MainActor

@@ -7,6 +7,7 @@ struct HomeSharedRecipeScreen: View {
     let ownerID: UUID?
     let onShare: (SipDraft) -> Void
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(RoadmapFeatureFlags.homeSipV4Route) private var homeSipV4RouteEnabled = RoadmapFeatureFlags.homeSipV4RouteEnabledByDefault
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var projection: RemoteVisitRecipeProjection?
     @State private var content: HomeRecipeContent?
@@ -139,6 +140,39 @@ struct HomeSharedRecipeScreen: View {
     }
     private func start(_ content: HomeRecipeContent, guided: Bool, owned: HomeRecipeRecord? = nil) {
         guard let ownerID, store.scope == .user(ownerID) else { return }
+        if homeSipV4RouteEnabled {
+            // Only a source that permits reuse can be copied into a durable
+            // composer draft. Otherwise the source remains readable here and
+            // the user logs a name-only result in the standard quick path.
+            let mayKeepContent = owned != nil || canKeepInstructions
+            var preparation = mayKeepContent
+                ? content
+                : HomeRecipeContent(name: content.name, template: .preparation, method: content.method)
+            preparation.sourceVersionID = projection?.recipeVersionID ?? content.sourceVersionID
+            preparation.creatorCredit = content.creatorCredit
+            let version = owned?.current
+            var draft = SipDraft(
+                ownerUserID: ownerID,
+                context: .home,
+                locationName: "Home",
+                drinkType: preparation.method.drinkType,
+                customDrinkType: preparation.method.drinkType == .other ? preparation.methodDisplayName : "",
+                drinkName: preparation.name,
+                brewMethod: preparation.methodDisplayName,
+                brewDetails: preparation.asBrewDetails(
+                    recipeID: owned?.id, versionNumber: version?.number,
+                    resolveLinked: { store.workspace.version($0)?.content }
+                ),
+                homeWorkbenchPhase: guided && mayKeepContent ? .workbench : .quickCapture
+            )
+            draft.homeSipPath = guided && mayKeepContent ? .guided : .quick
+            draft.homeSetupContent = preparation
+            draft.launchContext.sourceRecipeIdentityID = owned?.id
+            draft.launchContext.homeRecipeVersionID = version?.id
+            draft.launchContext.sourceRecipeVersion = version.map { "v\($0.number)" }
+            onShare(draft)
+            return
+        }
         var attempt = HomeAttemptRecord.fresh(from: owned)
         if owned == nil {
             attempt.name = content.name

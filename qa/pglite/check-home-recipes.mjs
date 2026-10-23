@@ -10,7 +10,7 @@ await db.exec(`
 create role anon; create role authenticated;
 create schema auth; create schema private;
 create table auth.users(id uuid primary key);
-create table public.visits(id uuid primary key,user_id uuid references auth.users,upload_state text default 'complete');
+create table public.visits(id uuid primary key,user_id uuid references auth.users,upload_state text default 'complete',brew_details jsonb default '{}'::jsonb);
 create function auth.uid() returns uuid language sql stable as $$
  select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
 $$;
@@ -29,6 +29,8 @@ create function private.recipe_shared_brew_details_v1(details jsonb) returns jso
  select jsonb_build_object('recipeName',details->'recipeName','steps','[]'::jsonb) $$;
 create function private.can_view_visit_as(v uuid,u uuid) returns boolean language sql stable as $$
  select exists(select 1 from public.visits where id=v and user_id=u) $$;
+create function private.is_live_account_as(u uuid) returns boolean language sql stable as $$
+ select exists(select 1 from auth.users where id=u) $$;
 create function public.configure_recipe_source_rights_v1(v uuid,kind text,reuse boolean,source uuid) returns text
  language plpgsql as $$ begin update public.recipe_versions set redistribution_allowed=reuse where id=v; return kind; end $$;
 create function public.set_recipe_visibility_v1(v uuid,audience text,ack boolean) returns text
@@ -129,6 +131,20 @@ await save(2, adaptedWorkspace);
 const stripped = structuredClone(adaptedWorkspace);
 stripped.recipes[3].versions.push({ id: randomUUID(), number: 2, content: { name: 'Unattributed copy', ingredients: [] } });
 await assert.rejects(save(3, stripped), /source attribution must be preserved/);
+await db.exec('reset role');
+await db.exec(await readFile(new URL('../../supabase/migrations/20260929234900_home_v4_public_preparation.sql', import.meta.url), 'utf8'));
+await db.query('update public.visits set brew_details=$1 where id=$2', [{
+  homePreparation: { method: 'Espresso', recipeName: 'Pumpkin latte', privateNote: 'secret', rows: [
+    { title: 'Pumpkin syrup', planned: 20, actual: 22, unit: 'g', state: 'measured', linkedInstructions: 'secret' }
+  ] }, privateNotes: 'secret', localMediaPath: '/private/photo.jpg'
+}, postID]);
+await asUser(owner);
+const ownerPreparation = (await db.query('select public.get_visit_home_preparation_v4($1) result', [postID])).rows[0].result;
+assert.equal(ownerPreparation.rows[0].actual, 22);
+assert.equal(ownerPreparation.recipeName, 'Pumpkin latte');
+assert.equal(JSON.stringify(ownerPreparation).includes('secret'), false);
+await asUser(other);
+assert.equal((await db.query('select public.get_visit_home_preparation_v4($1) result', [postID])).rows[0].result, null);
 await db.exec('reset role; set role anon');
 await assert.rejects(db.query('select public.get_home_workspace_v1($1)', [owner]), /permission denied/);
 await db.close();

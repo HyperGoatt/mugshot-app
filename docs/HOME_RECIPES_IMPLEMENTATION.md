@@ -1,10 +1,75 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-09-30
 ---
 
 # Native Home and Recipes implementation
+
+## 2026-09-30 V4 connected-iPhone launch
+
+At Joe's request, the signed V4 Debug app 0.5.3 (8) was installed as the
+separate `co.mugshot.app.dev` development app on Joe's iPhone (3), an iPhone
+16 Pro running iOS 27.0. Foreground launch and the running app process were
+confirmed. This promotes the candidate to owner hands-on QA; it does not
+establish physical acceptance of the Home journey. The production app,
+TestFlight distribution, and production V4 preparation RPC remain unchanged.
+
+## 2026-09-29 Home Sip V4 source candidate
+
+The [accepted V4 direction and 22-image gallery](product-research/home-sip-v4/README.md)
+supersede V3's central Home interaction, not its account workspace or historical
+records. V4 is implemented in the current source candidate: Home stays under the
+Log a Sip shell; a chosen complete drink shows its components; guided Make leads
+to one Actuals surface for base and ingredient amounts; Capture and the Cafe Sip
+reflection components lead to Review Mugshot. The inline **With a tweak** choice
+can retain selected ingredient amounts for the next drink recipe version only
+after the attempt is locally saved. Private Review needs a drink name; social
+publication retains score, caption, visual/Mugsy, audience, rights, and retry
+requirements. A concurrent recipe edit leaves the selected change pending on
+the safe attempt, with a retry action on its canonical detail. The private
+result uses the canonical Mugshot detail, and Journal
+Home filters the normal recent-sips area. Recipe Book sits under Keep exploring
+and accepts name, pasted inspiration, source link, and credit before structuring.
+Recipe Book and permitted shared-recipe Make/Log actions now hand the selected
+recipe to the same central composer; restricted shared instructions remain at
+their source and open a name-only quick log rather than being copied into a
+durable draft. A late-restored account can claim only an otherwise empty
+composer draft. An in-progress draft remains fenced to its original account.
+Cold-brew batch production keeps its durable session identity; later serving
+logs reference that batch, record serving amount/dilution independently, and
+do not present the original batch measurements as a second production.
+Method-only pour-over keeps its default bloom and pour steps in the Make view.
+Matcha, hojicha, and tea latte starters include editable water and milk amounts
+alongside their base targets. Their setup summaries label the total as a drink,
+not as water. Long-brew setup shows steep duration rather than a blank short
+timer. These are starter defaults, not required ingredients or measurements on
+a saved attempt. Steep actuals are optionally recorded in hours, minutes, or
+seconds as appropriate; storage keeps seconds separately from a recipe's short
+brew-time target. Starting or stopping a long-brew timer does not silently turn
+elapsed session time into a measured steep result; Actuals remains unknown until
+the user explicitly confirms or enters it.
+
+V4 adds optional per-ingredient actuals and As-planned confirmations to the
+existing account-scoped workspace document. It adds a separate route flag
+`MugshotRoadmap.homeSipV4Route.v1`; switching it off preserves stored content and
+uses the prior Home completion route. The exact-version attachment is still
+independent of the social visit. Public Home preparation facts use the additive,
+allowlisted `get_visit_home_preparation_v4` RPC from migration
+`20260929234900_home_v4_public_preparation.sql`; source text, private reflection,
+next-time notes, linked instructions, inventory, and media paths are excluded.
+This new migration is **not production-configured** merely because it exists in
+source. The iOS 27 Simulator walkthrough has exercised one unrated, photo-free
+latte from Setup through canonical detail, including an explicit As-planned
+value. It also confirmed a cold-brew timer and active batch resumed from its
+stored start time after exiting the composer. A final-source iOS 27 visual pass
+also confirmed the matcha-latte setup labels 240 ml as the drink while showing
+80 ml water and 160 ml milk separately, and an early cold-brew finish leaves
+the 16-hour steep actual Unknown without a false Mugsy difference. Focused
+workspace, setup, guided latte, and two-surface quick-log tests pass on iOS 27.
+The full Tier 4 method, social, offline, and accessibility matrix, owner
+hands-on iPhone acceptance, and TestFlight remain open. The V3 evidence below
+describes its historical candidate, not V4 proof.
 
 ## Release state
 
@@ -15,10 +80,10 @@ production-configured. Production is aligned to migration
 stored `false` as a data-preserving rollback switch. The browser gallery remains
 design evidence rather than production navigation.
 
-Current source implements [Home Sip V3](HOME_SIP_V3_AMENDMENT_2026-09-18.md).
-Central Add > Log a Sip > Home remains inside the production composer and opens
-setup-first; **Already made it? Quick log** is a visible secondary route. Journal
-> Home continues to provide the full My makes / Recipes workspace. Existing
+The earlier [Home Sip V3](HOME_SIP_V3_AMENDMENT_2026-09-18.md) candidate kept
+central Add > Log a Sip > Home inside the composer and introduced setup-first
+and a secondary quick log. V4 now replaces its central UI and Journal route:
+Home filters the normal recent-sips list, while Recipe Book is separate. Existing
 account-scoped data, immutable versions, historical attempts, attribution, and
 production schema remain intact. The already-distributed TestFlight 0.5.3 (8)
 still contains its historical under-construction placeholder and is not evidence

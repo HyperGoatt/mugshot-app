@@ -789,6 +789,7 @@ struct RemoteVisitDetail: Identifiable, Equatable {
     let recipeProjection: RemoteVisitRecipeProjection?
     let recipeIdentityProjection: RemoteVisitRecipeIdentityProjection?
     let taggedAccounts: [RemoteVisitTag]
+    let homePreparation: HomePublicPreparationSummary?
 
     init(
         summary: RemoteVisitSummary,
@@ -802,7 +803,8 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         v3Reflection: V3VisitReflection? = nil,
         recipeProjection: RemoteVisitRecipeProjection? = nil,
         recipeIdentityProjection: RemoteVisitRecipeIdentityProjection? = nil,
-        taggedAccounts: [RemoteVisitTag] = []
+        taggedAccounts: [RemoteVisitTag] = [],
+        homePreparation: HomePublicPreparationSummary? = nil
     ) {
         self.summary = summary
         self.photos = photos
@@ -816,6 +818,7 @@ struct RemoteVisitDetail: Identifiable, Equatable {
         self.recipeProjection = recipeProjection
         self.recipeIdentityProjection = recipeIdentityProjection
         self.taggedAccounts = taggedAccounts
+        self.homePreparation = homePreparation
     }
 
     var id: UUID { summary.id }

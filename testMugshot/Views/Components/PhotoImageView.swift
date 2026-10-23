@@ -35,6 +35,11 @@ struct PhotoImageView: View {
             }
         }
         .task(id: photoPath) {
+            if photoPath.hasPrefix("home-attempt:") {
+                image = HomeRecipeWorkspaceStore.shared.photo(String(photoPath.dropFirst("home-attempt:".count)))
+                if let image { reportImageSize?(image.size) }
+                return
+            }
 #if DEBUG
             if photoPath == SavedAuditFixtures.photoKey {
                 image = UIImage(named: "V3QuietCafeCorner")
@@ -85,6 +90,10 @@ struct PhotoThumbnailView: View {
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
         .task(id: photoPath) {
             guard let photoPath else { return }
+            if photoPath.hasPrefix("home-attempt:") {
+                image = HomeRecipeWorkspaceStore.shared.photo(String(photoPath.dropFirst("home-attempt:".count)))
+                return
+            }
 #if DEBUG
             if photoPath == SavedAuditFixtures.photoKey {
                 image = UIImage(named: "V3QuietCafeCorner")

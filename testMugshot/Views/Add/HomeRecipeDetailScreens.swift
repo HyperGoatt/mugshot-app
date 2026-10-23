@@ -187,6 +187,11 @@ struct HomeRecipeInformation: View {
             }
         }
         if !content.notes.isEmpty { Section("Preparation notes") { Text(content.notes) } }
+        if !content.sourceText.isEmpty {
+            Section("Saved inspiration") {
+                Text(content.sourceText).textSelection(.enabled)
+            }
+        }
         if !content.sourceURL.isEmpty || !content.creatorCredit.isEmpty {
             Section("Inspiration") {
                 Text(content.creatorCredit)
