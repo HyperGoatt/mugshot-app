@@ -1,9 +1,89 @@
 import Foundation
+import Supabase
 import Testing
 import UIKit
 @testable import testMugshot
 
 struct PendingVisitRecoveryTests {
+    @MainActor @Test func interruptedPhotoBatchResumesOnlyUnfinishedObjectsAfterReload() async throws {
+        let fixture = try makeStore()
+        defer { fixture.cleanup() }
+        var record = try fixture.store.prepare(
+            userId: UUID(), cafe: nil, entryContext: .home,
+            locationName: "Home", drinkType: .coffee, customDrinkType: nil,
+            drinkSubtype: "Latte", caption: "Protected upload", notes: nil,
+            visibility: .friends, ratings: ["Taste": 4], overallScore: 4,
+            ratingTemplate: RatingTemplate(),
+            images: [image(.brown), image(.red), image(.blue)], posterPhotoIndex: 1
+        )
+        record.phase = .visitCreated
+        try fixture.store.save(record)
+        let plan = record
+        let configuration = SupabaseClientProvider.requestConfiguration()
+        #expect(configuration.timeoutIntervalForRequest == 30)
+        #expect(configuration.timeoutIntervalForResource == 90)
+        #expect(!configuration.waitsForConnectivity)
+        configuration.protocolClasses = [InterruptedPhotoUploadProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let client = SupabaseClient(
+            supabaseURL: URL(string: "https://photo-recovery.invalid")!,
+            supabaseKey: "synthetic-publishable-key",
+            options: .init(
+                auth: .init(autoRefreshToken: false, emitLocalSessionAsInitialSession: true),
+                global: .init(session: session)
+            )
+        )
+        let service = VisitPhotoUploadService(client: client)
+        let images = try fixture.store.loadImages(for: plan)
+        let checkpoint: (String) throws -> Void = { path in
+            try fixture.store.recordUploadedPhoto(
+                path, visitId: plan.id, userId: plan.userId,
+                expectedObjectPaths: plan.objectPaths
+            )
+        }
+        InterruptedPhotoUploadProtocol.configure(failingFilename: (plan.objectPaths[2] as NSString).lastPathComponent)
+        do {
+            _ = try await service.uploadPhotos(
+                userId: plan.userId, visitId: plan.id, images: images,
+                posterPhotoIndex: 1, plannedObjectPaths: plan.objectPaths,
+                replacingExisting: true, onPhotoUploaded: checkpoint
+            )
+            Issue.record("The third photo must fail on the first pass")
+        } catch {
+            #expect((error as? URLError)?.code == .networkConnectionLost)
+        }
+        // An older worker must not erase the two acknowledged receipts.
+        try fixture.store.save(plan)
+        let reloaded = try #require(fixture.store.load(visitId: plan.id, userId: plan.userId))
+        #expect(reloaded.completedPhotoObjectPaths == Array(plan.objectPaths.prefix(2)))
+        #expect(reloaded.phase == .visitCreated)
+        #expect(!InterruptedPhotoUploadProtocol.requests.contains { $0.hasPrefix("DELETE ") })
+
+        InterruptedPhotoUploadProtocol.configure(failingFilename: nil)
+        let result = try await service.uploadPhotos(
+            userId: plan.userId, visitId: plan.id, images: images,
+            posterPhotoIndex: 1, plannedObjectPaths: plan.objectPaths,
+            replacingExisting: true,
+            completedObjectPaths: reloaded.completedPhotoObjectPaths ?? [],
+            onPhotoUploaded: checkpoint
+        )
+        #expect(InterruptedPhotoUploadProtocol.requests.count == 1)
+        #expect(InterruptedPhotoUploadProtocol.requests.first?.hasSuffix((plan.objectPaths[2] as NSString).lastPathComponent) == true)
+        #expect(result.objectPaths == plan.objectPaths)
+        #expect(result.attachmentReferences.count == 3)
+        #expect(result.posterPhotoURL == result.attachmentReferences[1])
+        #expect(fixture.store.load(visitId: plan.id, userId: plan.userId)?.completedPhotoObjectPaths == plan.objectPaths)
+        #expect(throws: PendingVisitSubmissionStoreError.self) {
+            try fixture.store.recordUploadedPhoto(
+                plan.objectPaths[0], visitId: plan.id, userId: UUID(),
+                expectedObjectPaths: plan.objectPaths
+            )
+        }
+        let replaced = try fixture.store.replaceImages(for: reloaded, images: [image(.green)], posterPhotoIndex: 0)
+        #expect(replaced.record.completedPhotoObjectPaths == nil)
+    }
+
     @Test func pendingSubmissionOnlyResumesItsOriginatingDraftAndSession() throws {
         let fixture = try makeStore()
         defer { fixture.cleanup() }
@@ -397,4 +477,46 @@ struct PendingVisitRecoveryTests {
             context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
         }
     }
+}
+
+private final class InterruptedPhotoUploadProtocol: URLProtocol, @unchecked Sendable {
+    private static let lock = NSLock()
+    private static var failingFilename: String?
+    private static var recordedRequests: [String] = []
+
+    static var requests: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedRequests
+    }
+
+    static func configure(failingFilename: String?) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.failingFilename = failingFilename
+        recordedRequests = []
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "photo-recovery.invalid"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lock.lock()
+        Self.recordedRequests.append("\(request.httpMethod ?? "") \(request.url!.path)")
+        let shouldFail = request.url?.lastPathComponent == Self.failingFilename
+        Self.lock.unlock()
+        if shouldFail {
+            client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+            return
+        }
+        let data = Data("{\"Id\":\"synthetic-object\",\"Key\":\"synthetic-path\"}".utf8)
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(
+            url: request.url!, statusCode: 200, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
