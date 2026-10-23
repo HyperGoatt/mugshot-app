@@ -34,7 +34,7 @@ changes. Preserve existing user data on the connected development iPhone.
 | Signed iPhone installation/launch | Blocked by unavailable device | Install attempted: CoreDevice 4016, trusted connectivity unavailable; no installation or launch occurred |
 | Physical motion/tactile and spoken VoiceOver acceptance | Open | Cannot be inferred from compilation, Simulator, installation or launch |
 | Before/after representative evidence | Captured; local HTML/video package assembled | Four before/after pairs plus concise quick-save receipt; baseline 521f532 and sprint candidate |
-| Review, CI, scoped merge to V4 | Scoped self-review complete; PR pending | Merge must wait for required gates; main remains outside scope |
+| Review, CI, scoped merge to V4 | Scoped self-review complete; draft PR #104 open | GitHub reports no conflicts, checks, reviews or comments; merge held for hardware and review |
 | Documentation gate | Passed; final rerun before publishing | check-documentation.sh and git diff --check |
 
 ## Consolidated runtime matrix
@@ -193,3 +193,23 @@ Representative review files are local-only in `.codex/polish-audit-2026-10-23/`
 excluded from the source commit. The package contains four before/after pairs
 plus quick-save acknowledgment. Cafe action footage shows Want to Try selection;
 Undo/rollback evidence comes from the passing native UI tests.
+
+## Published candidate
+
+[Draft PR #104](https://github.com/HyperGoatt/mugshot-app/pull/104) targets
+`codex/home-sip-v4` from `codex/signature-polish-sprint`. Implementation commit
+`d8e035b` is pushed. GitHub reported a clean, mergeable diff with no CI check
+entries, review submissions, review threads or comments at publication. No CI
+pass or independent review is inferred from an empty list. The PR is attached
+to this Codex task and remains draft/unmerged for signed hardware acceptance
+and review. The Home V4 base remains `521f532`; main is unchanged by this sprint.
+
+The local review package was opened and inspected in the in-app browser. Its
+videos have native playback controls and do not autoplay. Downloadable archive:
+`.codex/polish-audit-2026-10-23/Mugshot-Signature-Polish-Review.zip`.
+
+Remaining owner-dependent gate: connect and unlock Joe's iPhone so the signed
+candidate can be installed in place, then exercise motion, responsiveness,
+haptics and spoken VoiceOver together. This needs a brief physical judgment;
+automation cannot feel vibration. Record findings, repair any affected batch,
+finish review, and merge the scoped PR only after acceptance passes.

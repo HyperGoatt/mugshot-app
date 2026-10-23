@@ -21,6 +21,7 @@ last_verified: 2026-10-23
   Added explicit offscreen/scene/Reduce Motion cancellation and event consumption
   so returning to cached tabs cannot replay feedback. Hardware acceptance and
   scoped merge remain open while Joe's iPhone is unavailable.
+  [Draft PR #104](https://github.com/HyperGoatt/mugshot-app/pull/104) targets Home V4.
 - No backend contract, production configuration, dependency, marketing-version,
   or TestFlight changes.
 

@@ -26,7 +26,8 @@ The signed-device/tactile gate remains open because Joe's iPhone is unavailable.
 [sprint acceptance ledger](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md)
 records compile, focused tests, Simulator, signed-device, clips and PR evidence
 separately. No backend contract, production configuration, App Store version,
-or TestFlight state changed. The scoped destination is Home V4, not main.
+or TestFlight state changed. [Draft PR #104](https://github.com/HyperGoatt/mugshot-app/pull/104) targets Home V4;
+merge is held for signed hardware acceptance and review.
 
 ## Interrupted post repair candidate — 2026-10-23
 
