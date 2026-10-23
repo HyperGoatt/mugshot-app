@@ -18,6 +18,15 @@ last_verified: 2026-10-23
   expiration and account cancellation still protect the remaining outbox.
 - Verification and delivery status are tracked in the
   [incident audit](audits/UPLOAD_PUBLICATION_INCIDENT_2026-10-23.md).
+- Passed all 13 full-static checks and 18 focused iOS 27 recovery tests on the
+  Home V4 candidate, then compiled and passed the same tests on the isolated
+  default-branch hotfix. Merged [PR #103](https://github.com/HyperGoatt/mugshot-app/pull/103)
+  and synchronized both branches. The original post recovered through its
+  existing app with all three photos and an empty pending queue. A signed
+  patched development build passed signature verification and, after explicit
+  owner promotion, was installed in place and launched on Joe's iPhone 16 Pro.
+  A new interrupted-upload hardware journey remains unverified; no TestFlight
+  action occurred.
 
 ## 2026-09-30 — Home Sip V4 connected-iPhone QA candidate
 

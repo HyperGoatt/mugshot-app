@@ -23,6 +23,14 @@ are kept in the [incident audit](audits/UPLOAD_PUBLICATION_INCIDENT_2026-10-23.m
 The original app's recovery does not establish that the patch has been installed
 or physically accepted.
 
+The isolated fix is merged into `main` through
+[PR #103](https://github.com/HyperGoatt/mugshot-app/pull/103), and the active Home
+V4 branch carries the same source repair. After explicit owner promotion, the
+signed Debug 0.5.3 (8) development candidate was installed in place on Joe's
+iPhone 16 Pro and its new running process was confirmed. This is installation
+and launch evidence, not a new interrupted-upload hardware acceptance pass.
+No distribution build or TestFlight handoff is claimed.
+
 ## Home Sip V4 connected-iPhone QA candidate — 2026-09-30
 
 The signed V4 development build 0.5.3 (8) was installed and launched as

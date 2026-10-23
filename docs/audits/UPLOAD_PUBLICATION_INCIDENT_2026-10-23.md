@@ -83,3 +83,23 @@ completed the owner's already requested publication through normal authenticated
 contracts. No schema, RLS, bucket, marketing version, TestFlight build, or
 testing-group state changed. Recovery of this post used the original app and
 does not prove the patch has been installed or physically accepted.
+
+## Delivery checkpoint
+
+The isolated upload fix was pushed as `codex/fix-interrupted-photo-publication`
+and merged through [PR #103](https://github.com/HyperGoatt/mugshot-app/pull/103)
+into `main` at `626ef98`. The clean local default checkout was fast-forwarded.
+The same source repair is also pushed on the existing Home V4 branch at
+`935be7c`, retaining that development baseline.
+
+A signed Debug 0.5.3 (8) `co.mugshot.app.dev` candidate was built from the patched
+Home V4 branch, and `codesign --verify --deep --strict` passed. After explicit
+owner promotion, the app was installed in place on Joe's connected iPhone 16 Pro
+and launched successfully. The running `MugshotDiagnostics` process was confirmed
+from the new installation directory. A subsequent read-only backend check still
+showed the original post complete, with three photos and Everyone visibility.
+
+This confirms signed build, installation, and process launch. A new interrupted
+upload/background-expiration journey on the patched hardware was not performed;
+the focused failure/retry coverage is Simulator-hosted. No TestFlight acceptance
+or upload is claimed.
