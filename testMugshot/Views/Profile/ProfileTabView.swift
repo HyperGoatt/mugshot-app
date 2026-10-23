@@ -236,17 +236,32 @@ struct LocalOwnerProfileView: View {
     }
 
     private var statsStrip: some View {
-        HStack(spacing: 8) {
+        ViewThatFits(in: .horizontal) {
+            profileStatsRow
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                profileStatItems
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var profileStatsRow: some View {
+        HStack(spacing: 8) { profileStatItems }
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var profileStatItems: some View {
+        Group {
             MugshotStatPill(icon: "mug.fill", value: "\(displayedStats.totalVisits)", label: "Sips")
             MugshotStatPill(icon: "mappin.circle.fill", value: "\(displayedStats.totalCafes)", label: "Cafes")
             MugshotStatPill(
                 icon: "star.fill",
                 value: displayedStats.averageScore > 0 ? String(format: "%.1f", displayedStats.averageScore) : "Unrated",
-                label: "Sip avg"
+                label: "Sip average"
             )
             MugshotStatPill(icon: "house.fill", value: "\(homeExperimentCount)", label: "Home")
         }
-        .padding(.horizontal, 16)
     }
 
     @ViewBuilder

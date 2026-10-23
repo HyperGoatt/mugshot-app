@@ -56,89 +56,105 @@ struct MugshotSipProgressMug: View {
 }
 
 struct MugshotPullRefreshIndicator: View {
-    let progress: CGFloat
-    var isRefreshing = false
-
+    let state: FeedRefreshPresentationState
+    var pourOriginX: CGFloat? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
 
-    private var normalizedProgress: CGFloat { MugshotMotion.normalized(progress) }
-    private var isVisible: Bool {
-        MugsyRefreshPresentation.shouldRender(
-            progress: normalizedProgress,
-            isRefreshing: isRefreshing
-        )
+    init(state: FeedRefreshPresentationState, pourOriginX: CGFloat? = nil) {
+        self.state = state
+        self.pourOriginX = pourOriginX
     }
-    private var revealProgress: CGFloat {
-        isRefreshing ? 1 : MugshotMotion.normalized((normalizedProgress - 0.025) / 0.16)
+
+    // The existing developer studios still exercise the production renderer.
+    init(progress: CGFloat, isRefreshing: Bool = false) {
+        var state = FeedRefreshPresentationState()
+        _ = state.pull(to: progress)
+        if isRefreshing { _ = state.begin() }
+        self.state = state
+    }
+
+    private var effectiveReduceMotion: Bool { motionOverride ?? reduceMotion }
+    private var action: MugsyActionState {
+        switch state.phase {
+        case .idle: return .resting
+        case .pulling, .armed:
+            return .pulling(progress: effectiveReduceMotion
+                ? (state.progress >= 1 ? 1 : state.progress >= 0.2 ? 0.5 : 0)
+                : state.progress)
+        case .refreshing: return .refreshing
+        case .finishing(let outcome): return outcome == .success ? .success : .recovering
+        }
+    }
+    private var label: String {
+        switch state.phase {
+        case .idle: return ""
+        case .pulling: return "Pull to refresh"
+        case .armed: return "Release to refresh"
+        case .refreshing: return "Refreshing sips"
+        case .finishing(.success): return "Sips refreshed"
+        case .finishing: return "Couldn’t refresh. Your recent feed is still here."
+        }
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if isVisible {
-                MugshotCoffeePourStream(
-                    progress: normalizedProgress,
-                    isRefreshing: isRefreshing
-                )
-
-                MugsyAnimatedView(
-                    action: isRefreshing ? .refreshing : .pulling(progress: normalizedProgress),
-                    isPaused: !isRefreshing
-                )
-                .frame(width: 96, height: 108)
-                .offset(y: 34)
+        GeometryReader { proxy in
+            let geometry = MugsyRefreshGeometry(size: proxy.size)
+            ZStack(alignment: .topLeading) {
+                if state.displaysCoffee {
+                    if !effectiveReduceMotion, state.phase == .pulling || state.phase == .armed {
+                        MugshotCoffeePourStream(
+                            progress: state.progress,
+                            origin: CGPoint(x: pourOriginX ?? geometry.rim.x, y: 0),
+                            rim: geometry.rim,
+                            drop: geometry.anticipationDrop(from: CGPoint(x: pourOriginX ?? geometry.rim.x, y: 0), progress: state.progress)
+                        )
+                    }
+                    MugsyAnimatedView(
+                        configuration: MugsyModelConfiguration(
+                            liquid: .coffee(fillProgress: state.isFinishing ? 1 : 0)
+                        ),
+                        action: action,
+                        isPaused: state.phase == .pulling || state.phase == .armed
+                    )
+                    .frame(width: geometry.characterSide, height: geometry.characterSide)
+                    .position(x: geometry.characterOrigin.x + geometry.characterSide / 2,
+                              y: geometry.characterOrigin.y + geometry.characterSide / 2)
+                }
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 144, alignment: .top)
-        .scaleEffect((reduceMotionOverride ?? reduceMotion) ? 1 : 0.92 + revealProgress * 0.08, anchor: .top)
-        .opacity(isVisible ? revealProgress : 0)
-        .animation(.easeOut(duration: 0.14), value: isVisible)
+        .frame(height: 144)
+        .opacity(state.displaysCoffee ? 1 : 0)
+        .animation(.easeOut(duration: 0.16), value: state.displaysCoffee)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            MugsyRefreshPresentation.accessibilityLabel(
-                progress: normalizedProgress,
-                isRefreshing: isRefreshing
-            )
-        )
+        .accessibilityLabel(label)
+        .accessibilityHidden(!state.displaysCoffee)
+        .accessibilityIdentifier("feed.refresh.indicator")
+        .accessibilityValue(label)
     }
-
 }
 
 private struct MugshotCoffeePourStream: View {
     let progress: CGFloat
-    let isRefreshing: Bool
-
-    private var pourProgress: CGFloat {
-        MugshotMotion.normalized((progress - 0.08) / 0.92)
-    }
-
-    private var streamProgress: CGFloat {
-        MugshotMotion.normalized((pourProgress - 0.42) / 0.58)
-    }
-
+    let origin: CGPoint
+    let rim: CGPoint
+    let drop: CGPoint
     var body: some View {
-        ZStack(alignment: .top) {
-            Capsule()
-                .fill(MugshotDrinkAppearance.coffee.liquidColor)
-                .frame(width: 5, height: max(3, 45 * streamProgress))
-                .opacity(streamProgress)
-
-            Circle()
-                .fill(MugshotDrinkAppearance.coffee.liquidColor)
-                .frame(width: 9, height: 9)
-                .scaleEffect(0.72 + pourProgress * 0.28)
-                .offset(y: 3 + pourProgress * 39)
-
-            Circle()
-                .fill(MugshotDrinkAppearance.coffee.liquidColor.opacity(0.88))
-                .frame(width: 5, height: 5)
-                .offset(x: 5, y: max(0, pourProgress * 28 - 4))
-                .opacity(MugshotMotion.normalized((pourProgress - 0.18) / 0.28) * (1 - streamProgress))
+        ZStack(alignment: .topLeading) {
+            if progress >= MugsyRefreshGeometry.anticipationFraction {
+                Path { path in
+                    path.move(to: origin)
+                    path.addQuadCurve(to: rim, control: CGPoint(x: rim.x, y: origin.y + 12))
+                }
+                .stroke(MugshotDrinkAppearance.coffee.liquidColor,
+                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            } else {
+                Circle()
+                    .fill(MugshotDrinkAppearance.coffee.liquidColor)
+                    .frame(width: 5, height: 7)
+                    .position(drop)
+            }
         }
-        .frame(width: 22, height: 50, alignment: .top)
-        .opacity(isRefreshing ? 0 : pourProgress)
-        .animation(.easeOut(duration: 0.16), value: isRefreshing)
         .accessibilityHidden(true)
     }
 }

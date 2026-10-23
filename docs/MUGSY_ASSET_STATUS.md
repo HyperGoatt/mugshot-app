@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-10-23
 ---
 
 # Mugsy asset status
@@ -11,6 +11,14 @@ last_verified: 2026-08-24
 > publication, profile sharing and the reported native bugs. Those earlier
 > checkpoints remain evidence of the previous candidate, not this repair's acceptance.
 
+
+## Signature polish motion candidate — 2026-10-23
+
+The existing code-native model now supports interpolatable rim liquid and
+finite, event-scoped refresh/helper/save reactions. Artwork and asset authority
+are unchanged. [Motion rules](MUGSY_DESIGN_SYSTEM.md#2026-10-23-product-motion-candidate)
+and [acceptance evidence](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md)
+separate implementation from Simulator and physical acceptance.
 
 ## Current authority and vector handoff
 

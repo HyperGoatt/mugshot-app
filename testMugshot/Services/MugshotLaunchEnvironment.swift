@@ -33,6 +33,22 @@ enum MugshotLaunchEnvironment {
     static let shouldExportMugsyVectorReference = arguments.contains("--debug-export-mugsy-vector-reference")
     static let shouldUseReduceMotion = arguments.contains("--ui-testing-reduce-motion")
 #if DEBUG
+    static var polishFeedRefreshDelayMilliseconds: Int {
+        guard isUITesting, let raw = argumentValue(prefix: "--ui-testing-feed-refresh-delay-ms="),
+              let value = Int(raw) else { return 900 }
+        return min(max(value, 0), 10_000)
+    }
+
+    static var polishFeedRefreshOutcome: FeedRefreshOutcome? {
+        switch argumentValue(prefix: "--ui-testing-feed-refresh-result=") {
+        case "success": return .success
+        case "failure": return .failure
+        case "failure-once":
+            return consumeOnce(argument: "--ui-testing-feed-refresh-result=failure-once", key: "MugshotUITest.polishRefreshFailureConsumed") ? .failure : .success
+        case "cancelled": return .cancelled
+        default: return nil
+        }
+    }
     static let savedAuditScenario = SavedAuditScenario.resolve(arguments: arguments)
     static let shouldUseAccessibilityXXXL = arguments.contains("--ui-testing-accessibility-xxxl")
 #endif
@@ -53,6 +69,7 @@ enum MugshotLaunchEnvironment {
     }
 
     static func resetDeterministicFailures() {
+        UserDefaults.standard.removeObject(forKey: "MugshotUITest.polishRefreshFailureConsumed")
         guard isUITesting else { return }
         UserDefaults.standard.removeObject(forKey: forcedSaveFailureKey)
         UserDefaults.standard.removeObject(forKey: authInterruptionKey)

@@ -90,10 +90,10 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
 
         // Rating, criteria, note, make-again intent, and photo are all optional.
         tapPrimaryAction(in: app)
-        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Save to journal"].exists)
         tapPrimaryAction(in: app)
-        XCTAssertTrue(app.staticTexts["Unrated"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Not rated"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Afternoon matcha"].exists)
         attachScreenshot(named: "02-home-quick-log-unrated-private-save", app: app)
     }
@@ -129,7 +129,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
-        XCTAssertTrue(app.staticTexts["Review Mugshot"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Save to journal"].exists)
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How you made it"].waitForExistence(timeout: 4))
@@ -207,6 +207,11 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 5))
         app.buttons["Add"].tap()
+        let resume = element("logASipV3.resumeDraft", in: app)
+        XCTAssertTrue(resume.waitForExistence(timeout: 3))
+        resume.tap()
+        let seededDraft = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Resume Iced Orange Creamsicle")).firstMatch
+        if seededDraft.waitForExistence(timeout: 2) { seededDraft.tap() }
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
 
         let bodyPin = element("logASipV3.sip.criterion.body.pin", in: app)
@@ -214,11 +219,11 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let bodyRating = element("logASipV3.sip.criterion.body.rating", in: app)
         XCTAssertTrue(bodyRating.exists)
         XCTAssertTrue(element("logASipV3.sip.criterion.presentation.rating", in: app).exists)
-        XCTAssertTrue(element("logASipV3.sip.criterion.orange-balance.rating", in: app).exists)
+        XCTAssertTrue(element("logASipV3.sip.criterion.flavor-balance.rating", in: app).exists)
 
         let bodyImportance = element("logASipV3.sip.criterion.body.importance", in: app)
         XCTAssertEqual(bodyImportance.value as? String, "More")
-        bodyImportance.tap()
+        tapAboveComposerFooter(bodyImportance, in: app)
         let normalImportance = element("logASipV3.importance.normal", in: app)
         XCTAssertTrue(normalImportance.waitForExistence(timeout: 2))
         normalImportance.tap()
@@ -235,7 +240,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(confirmRemoval.waitForExistence(timeout: 2))
         confirmRemoval.tap()
         XCTAssertFalse(element("logASipV3.sip.criterion.presentation.rating", in: app).exists)
-        XCTAssertTrue(app.staticTexts["30 ideas"].exists)
+        XCTAssertTrue(element("logASipV3.sip.suggestion.presentation", in: app).exists)
         attachScreenshot(named: "criteria-parity-sip", app: app)
 
         tapPrimaryAction(in: app)
@@ -248,7 +253,6 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
             atmosphereImportance.value as? String,
             "Most"
         )
-        XCTAssertTrue(app.staticTexts["21 ideas"].exists)
         attachScreenshot(named: "criteria-parity-cafe", app: app)
     }
 

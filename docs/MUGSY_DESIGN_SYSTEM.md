@@ -236,3 +236,21 @@ The DEBUG-only Mugsy Studio includes:
 - Locked palette inspection
 
 Validation requires token and geometry tests, value-state invariants, deterministic refresh mapping, placement-registry coverage, Debug and Release builds, simulator inspection, VoiceOver review, Dynamic Type review, Reduce Motion review, and confirmation that the retired prototype rig has no remaining callsites.
+
+## 2026-10-23 product motion candidate
+
+Feed liquid progress is interpolatable inside the open rim; the white ceramic
+body is unchanged. Pull geometry shares the canonical rim anchor with the pour
+endpoint, and direct manipulation has no lagging spring. The request holds full
+coffee; only successful completion earns a short pleased settle. Errors recover
+calmly. Scope/account changes, backgrounding and disappearance reset the work.
+Explicit helper taps may trigger a finite expression; scrolling and typing do
+not. Guided save receipts use an 720 ms notebook cradle/nod,
+consumed once by transaction/account. Quick logs use a concise check. All
+navigation stays available. Reduce Motion suppresses travel, compression and
+bounce independently of haptic preferences. No new permanent artwork or prop
+identity was introduced. Runtime/physical acceptance remains tracked in the
+[sprint ledger](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md).
+
+Named accessibility refresh keeps the current scroll position and displays a quiet
+progress label. It does not pour coffee or insert the pull gesture gap.

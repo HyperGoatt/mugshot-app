@@ -4,6 +4,7 @@ import SwiftUI
 /// The workspace remains its source of truth until an optional publication exists.
 struct HomeAttemptCanonicalDetailView: View {
     let attemptID: UUID
+    var receipt: MugshotSaveReceipt? = nil
     let onShare: () -> Void
     let onMakeAgain: () -> Void
     let onDone: () -> Void
@@ -72,6 +73,20 @@ struct HomeAttemptCanonicalDetailView: View {
                     onCommentMention: { _ in },
                     onRemoveOwnTag: {}
                 )
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let receipt {
+                        MugshotSaveReceiptView(
+                            receipt: receipt,
+                            detail: !attempt.pendingKeptIngredientIDs.isEmpty
+                                ? "Sip saved · Recipe change needs attention"
+                                : store.workspace.pendingOperationID != nil
+                                    ? "Saved on this device · Sync pending"
+                                    : "Kept in your private journal"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
+                }
                 .confirmationDialog("Your Home sip", isPresented: $showsActions) {
                     Button("Make again", action: onMakeAgain)
                     if !attempt.pendingKeptIngredientIDs.isEmpty {

@@ -170,9 +170,14 @@ struct FeedTabView: View {
     @State private var isPeopleHubPresented = false
     @State private var peopleHubSource: PeopleDiscoverySource = .feed
     @State private var showsPeopleFirstWeekPrompt = false
-    @State private var refreshPullProgress: CGFloat = 0
-    @State private var isRefreshingFeed = false
-    @State private var didArmRefresh = false
+    @State private var refreshPresentation = FeedRefreshPresentationState()
+    @State private var isPullGestureActive = false
+    @State private var refreshPullDistance: CGFloat = 0
+    @State private var refreshIndicatorIsFading = false
+    private var holdsRefreshSpace: Bool { refreshPresentation.reservesPullSpace }
+    @State private var refreshFinishTask: Task<Void, Never>?
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scrollSnapshot = FeedScrollSnapshot.zero
     @State private var scopeBarHeight: CGFloat = 52
     @AppStorage("mugshot.your-mix-education.v1.dismissed") private var hasDismissedYourMixEducation = false
@@ -258,8 +263,9 @@ struct FeedTabView: View {
                                         barHeight: scopeBarHeight,
                                         stackSpacing: feedStackSpacing,
                                         contentTopInset: feedContentTopInset
-                                    )
+                                    ) + (holdsRefreshSpace ? 112 : 0)
                                 )
+                                .animation(reduceMotion ? nil : MugshotMotion.step, value: holdsRefreshSpace)
                                 .background(alignment: .top) {
                                     MugshotPullProgressReader(
                                         coordinateSpace: "feed.refresh",
@@ -288,6 +294,7 @@ struct FeedTabView: View {
                     } action: { _, snapshot in
                         scrollSnapshot = snapshot
                     }
+                    .accessibilityIdentifier("feed.scroll")
                     .coordinateSpace(name: "feed.refresh")
                     .background(Color.creamWhite)
                     .overlay(alignment: .top) {
@@ -311,32 +318,72 @@ struct FeedTabView: View {
                             .allowsHitTesting(scopeBarMotion.releaseProgress < 1)
                             .accessibilityHidden(scopeBarMotion.releaseProgress >= 1)
                     }
-                    .overlay(alignment: .top) {
-                        MugshotPullRefreshIndicator(
-                            progress: refreshPullProgress,
-                            isRefreshing: isRefreshingFeed
-                        )
-                        .offset(
-                            y: scopeBarHeight
-                                + FeedScopeBarMotion.restingTopInset
-                                + DesignSystem.Space.sm
-                        )
-                        .allowsHitTesting(false)
-                    }
-                    .clipped()
-                    .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
-                        refreshPullProgress = MugshotMotion.normalized(distance / 82)
-                        if refreshPullProgress >= 1, !didArmRefresh {
-                            didArmRefresh = true
-                            MugshotHaptic.refreshArmed.play()
-                        } else if refreshPullProgress < 0.35 {
-                            didArmRefresh = false
+                    .overlayPreferenceValue(MugshotSelectedSegmentAnchorKey.self) { anchor in
+                        GeometryReader { proxy in
+                            MugshotPullRefreshIndicator(
+                                state: refreshPresentation,
+                                pourOriginX: anchor.map { proxy[$0].midX }
+                            )
+                            .opacity(refreshIndicatorIsFading ? 0 : 1)
+                            .mask(alignment: .top) {
+                                Rectangle().frame(height: holdsRefreshSpace ? 144 : max(0, refreshPullDistance - DesignSystem.Space.sm))
+                            }
+                            .offset(y: scopeBarHeight + FeedScopeBarMotion.restingTopInset + DesignSystem.Space.sm)
+                            .allowsHitTesting(false)
                         }
                     }
-                    .refreshable {
-                        isRefreshingFeed = true
-                        await loadRemoteFeedIfNeeded(forceRefresh: true)
-                        isRefreshingFeed = false
+                    .clipped()
+                    .overlay(alignment: .bottom) {
+                        if let socialRecoveryMessage {
+                            HStack(alignment: .top, spacing: 10) {
+                                Label(socialRecoveryMessage, systemImage: "wifi.exclamationmark")
+                                    .font(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                                Button { self.socialRecoveryMessage = nil } label: {
+                                    Image(systemName: "xmark").frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(MugshotQuietButtonStyle())
+                                .accessibilityLabel("Dismiss feed message")
+                            }
+                            .foregroundStyle(Color.espressoBrown)
+                            .padding(12)
+                            .background(Color.sandBeige, in: RoundedRectangle(cornerRadius: 14))
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 102)
+                            .accessibilityIdentifier("feed.recoveryNotice")
+                        } else if refreshPresentation.isRefreshing, refreshPresentation.origin == .accessibility {
+                            HStack(spacing: 10) {
+                                ProgressView().tint(.espressoBrown)
+                                Text("Refreshing sips…").font(.caption.weight(.semibold))
+                            }
+                            .padding(12)
+                            .background(Color.sandBeige, in: Capsule())
+                            .padding(.bottom, 102)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("feed.refresh.status")
+                        }
+                    }
+                    .onPreferenceChange(MugshotPullDistancePreferenceKey.self) { distance in
+                        refreshPullDistance = distance
+                        guard tabIsActive, scenePhase == .active, isPullGestureActive else { return }
+                        if refreshPresentation.pull(to: distance / MugsyRefreshGeometry.armingDistance) {
+                            MugshotHaptic.refreshArmed.play()
+                        }
+                    }
+                    .onScrollPhaseChange { _, phase in
+                        if phase == .interacting {
+                            isPullGestureActive = true
+                        } else if isPullGestureActive {
+                            isPullGestureActive = false
+                            if refreshPresentation.release() {
+                                Task { await refreshFeed(origin: .pull) }
+                            }
+                        }
+                    }
+                    .scrollBounceBehavior(.always)
+                    .accessibilityAction(named: Text("Refresh sips")) {
+                        Task { await refreshFeed() }
                     }
                     .task(id: scrollToTopRequest) {
                         guard scrollToTopRequest > 0 else { return }
@@ -404,6 +451,11 @@ struct FeedTabView: View {
             pendingSocialVisitIDs.removeAll()
             socialRecoveryMessage = nil
         }
+        .onChange(of: selectedScope) { _, _ in socialRecoveryMessage = nil }
+        .onChange(of: feedTaskID) { _, _ in resetRefreshPresentation() }
+        .onChange(of: tabIsActive) { _, active in if !active { resetRefreshPresentation() } }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { resetRefreshPresentation() } }
+        .onDisappear { resetRefreshPresentation() }
         .environment(\.feedMediaSelections, mediaSelections)
         .task(id: "\(feedTaskID)|\(tabIsActive)") {
             guard tabIsActive else { return }
@@ -671,15 +723,6 @@ struct FeedTabView: View {
                 }
             }
 
-            if let socialRecoveryMessage {
-                Text(socialRecoveryMessage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.espressoBrown)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color.sandBeige.opacity(0.58))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
         }
     }
 
@@ -792,13 +835,68 @@ struct FeedTabView: View {
         }
     }
 
-    private func loadRemoteFeedIfNeeded(forceRefresh: Bool = false) async {
+    @MainActor
+    private func refreshFeed(origin: FeedRefreshOrigin = .accessibility) async {
+        refreshFinishTask?.cancel()
+        guard let id = refreshPresentation.begin(origin: origin) else { return }
+        if origin == .accessibility {
+            UIAccessibility.post(notification: .announcement, argument: "Refreshing sips")
+        }
+        refreshIndicatorIsFading = false
+        let scopeID = feedTaskID
+        let outcome = await loadRemoteFeedIfNeeded(forceRefresh: true)
+        guard tabIsActive, scenePhase == .active, feedTaskID == scopeID,
+              refreshPresentation.finish(outcome, requestID: id) else { return }
+        if outcome == .success {
+            socialRecoveryMessage = nil
+            UIAccessibility.post(notification: .announcement, argument: "Sips refreshed")
+        } else if outcome == .failure {
+            UIAccessibility.post(notification: .announcement, argument: "Couldn’t refresh. Your recent feed is still here.")
+        }
+        guard origin == .pull, refreshPresentation.isFinishing else {
+            refreshPresentation.reset()
+            return
+        }
+        refreshFinishTask = Task { @MainActor in
+            do { try await Task.sleep(for: .milliseconds(reduceMotion ? 160 : outcome == .success ? 400 : 240)) }
+            catch { return }
+            guard refreshPresentation.requestID == id else { return }
+            withAnimation(.easeOut(duration: MugshotMotion.Timing.fade)) { refreshIndicatorIsFading = true }
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            guard refreshPresentation.requestID == id else { return }
+            refreshPresentation.reset()
+            refreshIndicatorIsFading = false
+        }
+    }
+
+    private func resetRefreshPresentation() {
+        refreshFinishTask?.cancel()
+        refreshFinishTask = nil
+        refreshPresentation.reset()
+        isPullGestureActive = false
+        refreshPullDistance = 0
+        refreshIndicatorIsFading = false
+    }
+
+    @discardableResult
+    private func loadRemoteFeedIfNeeded(forceRefresh: Bool = false) async -> FeedRefreshOutcome {
+#if DEBUG
+        if forceRefresh, MugshotLaunchEnvironment.isUITesting,
+           let outcome = MugshotLaunchEnvironment.polishFeedRefreshOutcome {
+            let scopeID = feedTaskID
+            do { try await Task.sleep(for: .milliseconds(MugshotLaunchEnvironment.polishFeedRefreshDelayMilliseconds)) }
+            catch { return .cancelled }
+            guard tabIsActive, scenePhase == .active, feedTaskID == scopeID else { return .cancelled }
+            if outcome == .failure { socialRecoveryMessage = "Couldn’t refresh just now. Your recent feed is still here." }
+            return outcome
+        }
+#endif
         guard let userId = authModel.authenticatedUser?.id else {
             remoteVisits = []
             canonicalSipCount = dataManager.appData.visits.count
             remoteVisitError = nil
             isLoadingRemoteVisits = false
-            return
+            return .skipped
         }
 
         let scope = selectedScope
@@ -808,7 +906,7 @@ struct FeedTabView: View {
             hasMoreRemoteVisits = cached.hasMore
             isLoadingRemoteVisits = false
             if cached.isFresh {
-                return
+                return .skipped
             }
         }
 
@@ -828,15 +926,18 @@ struct FeedTabView: View {
                     location: locationManager.location
                 )
             }
-            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return }
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return .cancelled }
             remoteVisits = visits
             hasMoreRemoteVisits = visits.count == feedPageSize
             RemoteFeedMemoryCache.shared.store(visits, hasMore: hasMoreRemoteVisits, for: cacheKey)
             isLoadingRemoteVisits = false
             await refreshCanonicalSipCount(userID: userId, service: service)
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId,
+                  scope == selectedScope, activeFeedRequestID == requestID else { return .cancelled }
+            return .success
         } catch {
-            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userId, scope == selectedScope, activeFeedRequestID == requestID else { return .cancelled }
+            guard !Task.isCancelled else { return .cancelled }
             let message = MugshotUserFacingError.message(for: error, context: .loading)
             if remoteVisits.isEmpty {
                 remoteVisitError = message
@@ -844,6 +945,7 @@ struct FeedTabView: View {
                 socialRecoveryMessage = "Couldn’t refresh just now. Your recent feed is still here."
             }
             isLoadingRemoteVisits = false
+            return .failure
         }
     }
 
@@ -945,7 +1047,7 @@ struct FeedTabView: View {
 
         guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
         socialRecoveryMessage = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        MugshotHaptic.selection.play()
 
         let optimisticReactionState = visit.socialState.reactionState
             .replacingViewerReaction(with: reaction)
@@ -982,7 +1084,6 @@ struct FeedTabView: View {
                         surface: .feed
                     )
                 )
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 guard authModel.authenticatedUser?.id == userId else { return }
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
@@ -1023,7 +1124,7 @@ struct FeedTabView: View {
 
         guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
         socialRecoveryMessage = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        MugshotHaptic.selection.play()
 
         Task {
             do {
@@ -1044,7 +1145,6 @@ struct FeedTabView: View {
                         surface: .feed
                     )
                 )
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 dataManager.setCafeState(
                     cafeId: localCafe.id,
@@ -1479,6 +1579,7 @@ struct VisitCard: View {
                     let action: MugshotAnalyticsMutationAction = isLiked
                         ? .removed
                         : .added
+                    MugshotHaptic.selection.play()
                     dataManager.toggleVisitLike(visit.id, userId: userId)
                     MugshotAnalytics.shared.capture(
                         .sipLiked(action: action, surface: .feed)
@@ -2119,6 +2220,7 @@ struct VisitDetailView: View {
         let action: MugshotAnalyticsMutationAction = visit.likedByUserIds.contains(userId)
             ? .removed
             : .added
+        MugshotHaptic.selection.play()
         dataManager.toggleVisitLike(visit.id, userId: userId)
         MugshotAnalytics.shared.capture(
             .sipLiked(action: action, surface: .sipDetail)
@@ -2131,6 +2233,7 @@ struct VisitDetailView: View {
             return
         }
 
+        MugshotHaptic.selection.play()
         dataManager.setCafeState(
             cafeId: cafe.id,
             isFavorite: !cafe.isFavorite,
@@ -2150,6 +2253,7 @@ struct VisitDetailView: View {
             return
         }
 
+        MugshotHaptic.selection.play()
         dataManager.setCafeState(
             cafeId: cafe.id,
             isFavorite: cafe.isFavorite,

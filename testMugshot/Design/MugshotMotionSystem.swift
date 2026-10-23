@@ -32,6 +32,23 @@ enum MugshotMotion {
         }
     }
 
+    enum Timing {
+        static let pressIn = 0.08
+        static let pressOut = 0.16
+        static let fade = 0.16
+        static let starRise = 0.05
+        static let starSettle = 0.09
+        static let valueChange = 0.10
+        static let pulseRise = 0.07
+        static let pulseSettle = 0.11
+        static let receiptLift = 0.16
+        static let receiptReturn = 0.24
+        static let receiptHoldMilliseconds = 400
+        static let receiptRestMilliseconds = 320
+    }
+
+    static let selection = Animation.spring(duration: 0.20, bounce: 0.06)
+    static let step = Animation.easeInOut(duration: 0.22)
     static let response = Animation.spring(duration: 0.34, bounce: 0.08)
     static let character = Animation.spring(duration: 0.48, bounce: 0.22)
     static let settle = Animation.spring(duration: 0.72, bounce: 0.10)

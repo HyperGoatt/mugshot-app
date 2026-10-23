@@ -615,7 +615,7 @@ struct V3LabPublishScreen: View {
                         ))
                         .frame(width: 104, height: 104)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Oops, missed the photo")
+                            Text("No photo this time")
                                 .mugshotDisplay(size: 20)
                             Text("Mugsy saved your memory a spot.")
                                 .font(.system(size: 12))

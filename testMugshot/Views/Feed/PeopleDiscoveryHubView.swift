@@ -668,9 +668,9 @@ private struct PeopleDiscoveryRow: View {
                         Text("@\(username)").font(.system(size: 12)).foregroundStyle(Color.secondaryText)
                         if let subtitle, !subtitle.isEmpty {
                             Text(subtitle)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.tertiaryText)
-                                .lineLimit(1)
+                                .font(.caption)
+                                .foregroundStyle(Color.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -750,7 +750,7 @@ private struct PeopleSuggestionCard: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.white)
-            .background(Color.mugshotSage)
+            .background(Color.mugshotSageText)
             .clipShape(Capsule())
             .disabled(isWorking)
 
@@ -759,15 +759,16 @@ private struct PeopleSuggestionCard: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color.mugshotSageText)
                 Text(suggestion.reasonText)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2)
                     .foregroundStyle(Color.secondaryText)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: 25, alignment: .topLeading)
         }
         .padding(8)
-        .frame(width: 118, height: 208)
+        .frame(width: 136)
+        .frame(minHeight: 208)
         .background(Color.foamWhite)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {

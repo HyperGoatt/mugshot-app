@@ -200,6 +200,7 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
     let locationAccessibilityIdentifier: String?
     let onMediaTap: (() -> Void)?
     private let content: Content
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var aspectRatio: CGFloat
 
     init(
@@ -231,35 +232,51 @@ struct MugshotAdaptivePostMedia<Content: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            if let onMediaTap {
-                mediaArtwork
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: onMediaTap)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel("Open \(drinkName) at \(displayLocationName)")
-                    .accessibilityHint("Opens post details")
-            } else {
-                mediaArtwork
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                tappableArtwork
+                if !dynamicTypeSize.isAccessibilitySize {
+                    artworkCaption
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 17)
+                }
             }
-
-            MugshotPostArtworkOverlay(
-                drinkName: drinkName,
-                locationName: locationName,
-                locationDetail: locationDetail,
-                score: score,
-                onLocationTap: onLocationTap,
-                locationAccessibilityIdentifier: locationAccessibilityIdentifier
-            )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 17)
-        }
             .aspectRatio(aspectRatio, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
-            .accessibilityLabel(score > 0
-                ? "\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5"
-                : "\(drinkName) at \(displayLocationName), Unrated")
+            .clipped()
+
+            if dynamicTypeSize.isAccessibilitySize {
+                artworkCaption
+                    .padding(18)
+                    .background(Color.espressoBrown)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityElement(children: onLocationTap == nil ? .ignore : .contain)
+        .accessibilityLabel(score > 0
+            ? "\(drinkName) at \(displayLocationName), Mugshot score \(score.formatted(.number.precision(.fractionLength(1)))) out of 5"
+            : "\(drinkName) at \(displayLocationName), Not rated")
+    }
+
+    @ViewBuilder private var tappableArtwork: some View {
+        if let onMediaTap {
+            mediaArtwork
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onMediaTap)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Open \(drinkName) at \(displayLocationName)")
+                .accessibilityHint("Opens post details")
+        } else {
+            mediaArtwork
+        }
+    }
+
+    private var artworkCaption: some View {
+        MugshotPostArtworkOverlay(
+            drinkName: drinkName, locationName: locationName,
+            locationDetail: locationDetail, score: score,
+            onLocationTap: onLocationTap,
+            locationAccessibilityIdentifier: locationAccessibilityIdentifier
+        )
     }
 
     private var displayLocationName: String {
@@ -301,13 +318,18 @@ struct MugshotPostArtworkOverlay: View {
     let onLocationTap: (() -> Void)?
     let locationAccessibilityIdentifier: String?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .bottom, spacing: 14) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
+            : AnyLayout(HStackLayout(alignment: .bottom, spacing: 14))
+        layout {
             VStack(alignment: .leading, spacing: 5) {
                 Text(drinkName)
                     .font(.system(.title2, design: .serif, weight: .bold))
                     .tracking(-0.35)
-                    .lineLimit(3)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
                     .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -315,7 +337,7 @@ struct MugshotPostArtworkOverlay: View {
                     Button(action: onLocationTap) {
                         HStack(spacing: 5) {
                             locationLine
-                                .lineLimit(2)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                                 .fixedSize(horizontal: false, vertical: true)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 10, weight: .bold))
@@ -331,7 +353,7 @@ struct MugshotPostArtworkOverlay: View {
                 } else {
                     locationLine
                         .font(.system(.subheadline, design: .default, weight: .semibold))
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -346,7 +368,7 @@ struct MugshotPostArtworkOverlay: View {
                         .font(.system(size: 9, weight: .black))
                         .tracking(1.3)
                 } else {
-                    Text("Unrated").font(.subheadline)
+                    Text("Not rated").font(.subheadline)
                 }
             }
             .fixedSize()
