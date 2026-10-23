@@ -1,8 +1,31 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-28
+last_verified: 2026-10-23
 ---
+
+## Interrupted photo publication — 2026-10-23
+
+The protected outbox now stores an optional ordered set of acknowledged Storage
+object paths for each frozen media plan. Composer and automatic recovery persist
+each success before advancing, retain successfully uploaded objects after a
+later failure, and upload only unfinished paths. Stale worker saves merge
+receipts only for the exact media plan. Photo replacement or authoritative
+remote absence resets receipts; legacy outboxes decode without the new field
+and safely retry stable paths. One-shot edit uploads retain rollback cleanup.
+
+Supabase HTTP transport now uses a 30-second idle request timeout and a
+90-second resource limit, without waiting indefinitely for connectivity.
+Publication gets a finite iOS background execution lease. Inactivity alone no
+longer cancels an active visit recovery; expiration or an account/task change
+cancels it, with acknowledged progress retained. New recovery passes still
+require the active matching account, foreground eligibility, and a connection.
+The lease is not an entitlement to finish after termination or exhausted iOS
+background time.
+
+These are client source changes with no schema, policy, bucket, or production
+data mutation. See the [incident audit](audits/UPLOAD_PUBLICATION_INCIDENT_2026-10-23.md)
+for evidence and the local/runtime delivery boundary.
 
 ## Cafe-backed publication recovery repair — 2026-09-24
 
@@ -260,7 +283,7 @@ must not overrule an authoritative remote result.
 | Authentication | Supabase Auth | Callback queue and last-known presentation | Fail closed for account-bound operations |
 | Profile and social identity | `public.users`, sealed `profile_favorite_spots` / `profile_tagged_post_hides` / `profile_visibility_preferences`, and v4 profile projection/list RPCs | Account-scoped rendering cache plus DEBUG-only design fixture | Default to Friends plus Everyone only when the owner preference permits it; preference-off is Everyone-only and Private always fails closed |
 | Visits, drinks, ratings and captions | Supabase visit schema/RPCs | Guest records, drafts and pending publication | Preserve draft/outbox until remote completion is proven |
-| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; clean partial uploads through bounded recovery paths |
+| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; checkpoint protected photo uploads and retain one-shot edit rollback cleanup |
 | Home recipes and coffee library | Home Workbench tables/RPC projections | Draft/template cache | Remote owner projection wins after save |
 | Feed, Journal and profiles | Viewer-specific Supabase projections | Rendering cache | Keep the last valid view and show an actionable error |
 | Cafe identity and detail visit cards | `public.cafes` provider rows plus viewer-scoped Supabase visit queries and RLS | Conservative read-time stitch projection and local visit fallback only when no visible remote visit is returned | Query all equivalent cafe IDs, then render only self, friend, and Everyone visits the backend permits; never mutate cafe rows or synthesize remote visibility from local history |

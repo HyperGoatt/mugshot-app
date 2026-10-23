@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-10-23
 ---
+
+## Interrupted post repair candidate — 2026-10-23
+
+The owner's current cafe post was verified incomplete after an initial server
+timeout and interrupted three-photo recovery. The client patch checkpoints
+individual uploaded photos, resumes only unfinished work, bounds network waits,
+and lets an active publication continue through a brief inactive transition
+under iOS's finite background allowance. Account changes and lease expiration
+still cancel work safely. The private pending post retains its selected audience
+without exposing partial media or creating a second post.
+
+The existing development app's normal retry subsequently completed the same
+post with all three photos and its originally requested Everyone audience;
+production state confirmed completion and the local pending queue is empty.
+The source candidate passed all 13 full-static checks and 18 focused iOS 27
+Simulator-hosted recovery tests. Runtime verification and patch delivery evidence
+are kept in the [incident audit](audits/UPLOAD_PUBLICATION_INCIDENT_2026-10-23.md).
+The original app's recovery does not establish that the patch has been installed
+or physically accepted.
 
 ## National Coffee Day alpha notification — 2026-09-29
 
